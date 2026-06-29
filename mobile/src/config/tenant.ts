@@ -28,9 +28,6 @@ export function setTenant(tenant: string): string {
   return activeTenant
 }
 
-/** @deprecated Use getTenant() — build-time default only */
-export const TENANT = buildDefaultTenant()
-
 function decodeBase64Url(segment: string): string {
   const base64 = segment.replace(/-/g, '+').replace(/_/g, '/')
   const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)

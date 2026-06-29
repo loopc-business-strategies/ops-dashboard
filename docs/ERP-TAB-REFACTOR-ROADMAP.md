@@ -5,6 +5,8 @@
 ## Operations tab (refactor)
 
 - Seed data + design tokens + shared UI chrome extracted from `OperationsTab.jsx` into `frontend/src/components/tabs/operations/` (`operationsSeedData.js`, `operationsTabTokens.js`, `operationsTabUI.jsx`).
+- **Ops projects mapping** — `operations/opsProjectsMapping.js` (API ↔ UI task row transforms, payloads, stale detection).
+- **ERP tenant resolution** — `erp/resolveErpUserTenant.js` shared by `ERPTab.jsx`, `VoucherTab.jsx`, and voucher hooks.
 
 ## Wired in ERPTab (done)
 

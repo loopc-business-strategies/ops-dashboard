@@ -92,7 +92,7 @@ npm run test:e2e
 
 CI installs Chromium with `npx playwright install --with-deps chromium` then runs the same script. Tests live under `frontend/e2e/` and start a **preview** server (`build` + `vite preview`) via `playwright.config.js`.
 
-**Login auth smoke** (`frontend/e2e/login-auth.spec.js`):
+**Login auth smoke** (in `frontend/e2e/dashboard-navigation.spec.js`, describe block `login auth smoke`):
 
 - **Mocked login** (always runs in CI): stubs `/api/auth/login` and `/api/auth/me`, submits the login form, asserts navigation to `/dashboard`.
 - **Live login** (optional): set `E2E_AUTH_NAME`, `E2E_AUTH_PASSWORD`, and optionally `E2E_AUTH_COMPANY` for a real API probe (skipped when unset).

@@ -1,7 +1,7 @@
 import { Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { mgBranding } from '@/src/config/branding'
-import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 function normaliseMetalCode(position: { code?: string; metal?: string }) {
   const raw = String(position.code || position.metal || '').trim().toUpperCase()
@@ -21,6 +21,8 @@ function fmtFixing(n: number, unit: string) {
 }
 
 export function FixingWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+  const widgetStyles = useWidgetStyles()
+  const { branding } = useTenantBranding()
   const positions = Array.isArray(dashboard?.fixingPositions) ? dashboard.fixingPositions : []
   const byMetal = new Map(
     positions
@@ -50,7 +52,14 @@ export function FixingWidget({ dashboard }: { dashboard: DashboardPayload | null
           <Text
             style={[
               widgetStyles.rowValue,
-              { color: row.net > 0 ? mgBranding.colors.success : row.net < 0 ? mgBranding.colors.danger : mgBranding.colors.text },
+              {
+                color:
+                  row.net > 0
+                    ? branding.colors.success
+                    : row.net < 0
+                      ? branding.colors.danger
+                      : branding.colors.text,
+              },
             ]}
           >
             {row.formatted}

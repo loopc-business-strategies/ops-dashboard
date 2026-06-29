@@ -1,9 +1,10 @@
 import { Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
 import { fmtMoney } from '@/src/utils/format'
-import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
+import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 export function BankWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+  const widgetStyles = useWidgetStyles()
   const allRows = [...(dashboard?.bankBalances || []), ...(dashboard?.cashBalances || [])]
   const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
 

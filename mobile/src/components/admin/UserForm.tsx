@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { ALL_MODULES, DEPTS, ROLES, type UserFormState, type UserRole } from '@/src/constants/admin'
-import { mgBranding } from '@/src/config/branding'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import { createUserFormStyles } from '@/src/styles/adminFormScreenStyles'
 
 type Props = {
   form: UserFormState
@@ -8,16 +9,16 @@ type Props = {
   isEdit?: boolean
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
+export function UserForm({ form, setForm, isEdit = false }: Props) {
+  const styles = useBrandingStyles(createUserFormStyles)
+
+  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       {children}
     </View>
   )
-}
 
-export function UserForm({ form, setForm, isEdit = false }: Props) {
   const toggleModule = (mod: string) => {
     setForm((f) => ({
       ...f,
@@ -153,49 +154,3 @@ export function UserForm({ form, setForm, isEdit = false }: Props) {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  root: { gap: 12 },
-  field: { gap: 6 },
-  label: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.muted, textTransform: 'uppercase' },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: mgBranding.colors.text,
-    backgroundColor: '#fff',
-  },
-  textArea: { minHeight: 80, textAlignVertical: 'top' },
-  roleList: { gap: 8 },
-  roleCard: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: '#fff',
-  },
-  roleCardActive: {
-    borderColor: mgBranding.colors.primary,
-    backgroundColor: '#EFF6FF',
-  },
-  roleLabel: { fontSize: 14, fontWeight: '700', color: mgBranding.colors.text },
-  roleDesc: { fontSize: 12, color: mgBranding.colors.muted, marginTop: 2 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#fff',
-  },
-  chipActive: {
-    borderColor: mgBranding.colors.primary,
-    backgroundColor: '#EFF6FF',
-  },
-  chipText: { fontSize: 12, color: mgBranding.colors.text, textTransform: 'capitalize' },
-  chipTextActive: { color: mgBranding.colors.primary, fontWeight: '700' },
-})

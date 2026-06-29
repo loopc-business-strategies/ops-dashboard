@@ -3,8 +3,6 @@ export const MT4_LIVE_POLL_MS = 1_000
 export const LIVE_METAL_POLL_STREAM_MS = 60_000
 /** Pause polling after a 429 response. */
 export const LIVE_METAL_RATE_LIMIT_BACKOFF_MS = 90_000
-/** @deprecated Use MT4_LIVE_POLL_MS — live UI is MT4-only now. */
-export const LIVE_METAL_POLL_MS = MT4_LIVE_POLL_MS
 export const MT4_BRIDGE_SOURCE = 'mt4-bridge'
 export const TOPBAR_MARKET_PARAMS = { currency: 'USD', unit: 'toz' }
 

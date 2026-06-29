@@ -1,10 +1,11 @@
-import { getTenantBranding, isVoucherTypeEnabled } from '../../../config/tenantBranding'
+import { isVoucherTypeEnabled } from '../../../config/tenantBranding'
+import { resolveErpUserTenantBranding } from '../erp/resolveErpUserTenant'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from '../erp/accessPolicy'
 import { VOUCHER_TAB_TYPES } from './voucherTabConstants'
 
 export function useVoucherTabAccess(user) {
   const erpAccess = deriveErpAccessPolicy(user || {})
-  const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
+  const tenantBranding = resolveErpUserTenantBranding(user)
   const tenantKey = tenantBranding?.key || ''
   const enabledVoucherTypes = VOUCHER_TAB_TYPES.filter((type) => isVoucherTypeEnabled(tenantKey, type))
 

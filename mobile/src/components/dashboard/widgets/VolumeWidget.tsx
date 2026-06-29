@@ -1,12 +1,14 @@
 import { Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { fmtMoney } from '@/src/utils/format'
-import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
+import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 const VOL_COLORS = ['#F59E0B', '#9CA3AF', '#6366F1', '#EC4899', '#059669']
 
 export function VolumeWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+  const widgetStyles = useWidgetStyles()
+  const { branding } = useTenantBranding()
   const vols = dashboard?.volumeTraded || []
   const totalQty = vols.reduce((s, v) => s + Number(v.qty || 0), 0)
   const mx = Math.max(...vols.map((v) => Number(v.qty || 0)), 1)
@@ -23,7 +25,7 @@ export function VolumeWidget({ dashboard }: { dashboard: DashboardPayload | null
           const h = Math.max((qty / mx) * 44, 3)
           return (
             <View key={`${v.metal}-${i}`} style={widgetStyles.barCol}>
-              <Text style={{ fontSize: 9, fontWeight: '700', color: mgBranding.colors.success, marginBottom: 2 }}>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: branding.colors.success, marginBottom: 2 }}>
                 {qty.toFixed(0)}
               </Text>
               <View style={[widgetStyles.bar, { height: h, backgroundColor: VOL_COLORS[i % VOL_COLORS.length] }]} />

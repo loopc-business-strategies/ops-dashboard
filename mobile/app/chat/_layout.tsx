@@ -1,11 +1,13 @@
 import { Stack } from 'expo-router'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 
 export default function ChatStackLayout() {
+  const { branding } = useTenantBranding()
+
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: mgBranding.colors.primary },
+        headerStyle: { backgroundColor: branding.colors.primary },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700' },
       }}

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import React from 'react'
 import { currenciesApi } from '../api/erp-accounting/currencies'
-import { LIVE_METAL_POLL_MS, fmtMoveRow } from '../utils/liveMetalRates'
+import { MT4_LIVE_POLL_MS, fmtMoveRow } from '../utils/liveMetalRates'
 import { LiveMetalRatesProvider, useLiveMetalRates } from './LiveMetalRatesContext.jsx'
 
 const defaultMt4LiveResponse = {
@@ -109,7 +109,7 @@ describe('LiveMetalRatesProvider', () => {
     expect(topbar.textContent).toBe('3100')
     expect(screen.getByTestId('erp').textContent).toBe('3100')
 
-    const pollTimers = intervalSpy.mock.calls.filter(([, delay]) => delay === LIVE_METAL_POLL_MS)
+    const pollTimers = intervalSpy.mock.calls.filter(([, delay]) => delay === MT4_LIVE_POLL_MS)
     expect(pollTimers.length).toBeGreaterThan(0)
     expect(pollTimers.length).toBeLessThanOrEqual(2)
 

@@ -341,19 +341,12 @@ async function runAgentChat({
   }
 }
 
-/** @deprecated use detectBuiltinIntent from builtinAgentService */
-function detectIntent(message) {
-  const { detectBuiltinIntent } = require('./builtinAgentService')
-  return detectBuiltinIntent(message)
-}
-
 module.exports = {
   runAgentChat,
   getAiAgentConfig,
   resolveOpenAiModel,
   resolveProvider,
   formatOpenAiUserMessage,
-  detectIntent,
   PRODUCT_KNOWLEDGE,
   OPENAI_CHAT_MODELS,
   BUILTIN_PROVIDER,

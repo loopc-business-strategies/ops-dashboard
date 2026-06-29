@@ -8,12 +8,22 @@
 
 require('dotenv').config() // load .env variables FIRST
 
+const { isWeakJwtSecret, validateProductionSecrets } = require('./utils/envValidation')
+
 // ── Startup env validation ────────────────────────────────────────────────────
 // Railway healthchecks must get an HTTP response quickly. Prefer warning over
 // hard-exit so /api/health remains available even during partial misconfig.
+// Production rejects weak or placeholder JWT secrets before the server starts.
 ;(function validateEnv() {
+  const productionSecretErrors = validateProductionSecrets()
+  if (productionSecretErrors.length) {
+    console.error('[startup] FATAL — invalid production secrets:')
+    productionSecretErrors.forEach((message) => console.error(`  • ${message}`))
+    process.exit(1)
+  }
+
   const missing = []
-  if (!process.env.JWT_SECRET) missing.push('JWT_SECRET')
+  if (!process.env.JWT_SECRET || isWeakJwtSecret(process.env.JWT_SECRET)) missing.push('JWT_SECRET')
   if (process.env.NODE_ENV === 'production' && !process.env.SERVER_BASE_URL) {
     missing.push('SERVER_BASE_URL (recommended in production for attachment links)')
   }
@@ -57,8 +67,8 @@ require('dotenv').config() // load .env variables FIRST
 // a reliable public resolver before any Mongoose connection is attempted.
 // Override via DNS_SERVERS env var, e.g. "1.1.1.1,1.0.0.1" for Cloudflare.
 const dns = require('dns')
-const dnsServers = process.env.DNS_SERVERS
-  ? process.env.DNS_SERVERS.split(',').map(s => s.trim()).filter(Boolean)
+const dnsServers = (process.env.DNS_SERVERS || process.env.ATLAS_DNS_SERVERS)
+  ? (process.env.DNS_SERVERS || process.env.ATLAS_DNS_SERVERS).split(',').map(s => s.trim()).filter(Boolean)
   : ['8.8.8.8', '8.8.4.4']
 dns.setServers(dnsServers)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -199,4 +209,7 @@ async function startServer() {
   }
 }
 
-startServer()
+startServer().catch((err) => {
+  console.error('[startup] FATAL — server failed to start:', err)
+  process.exit(1)
+})

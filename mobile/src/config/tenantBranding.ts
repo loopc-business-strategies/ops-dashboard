@@ -119,7 +119,4 @@ export const LOGIN_NEUTRAL_COLORS = {
   danger: '#DC2626',
 } as const
 
-/** @deprecated Use getTenantBranding(getTenant()) — kept for gradual migration */
-export const mgBranding = getTenantBranding('mg')
-
 export { APP_NAME }

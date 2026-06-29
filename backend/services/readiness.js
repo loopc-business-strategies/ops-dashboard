@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { isWeakJwtSecret } = require('../utils/envValidation')
 const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
 const { connectTenant } = require('../db/tenantConnections')
 const { getBackendBuildMeta } = require('./buildMeta')
@@ -37,7 +38,7 @@ async function pingTenantDatabases() {
 }
 
 async function getReadinessStatus() {
-  const jwtSecret = Boolean(String(process.env.JWT_SECRET || '').trim())
+  const jwtSecret = !isWeakJwtSecret(process.env.JWT_SECRET)
   const mongoConnected = mongoose.connection.readyState === 1 && primaryMongoReady
   const tenants = await pingTenantDatabases()
   const configuredTenants = Object.values(tenants).filter((entry) => entry.configured)

@@ -13,11 +13,13 @@ import {
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import * as Notifications from 'expo-notifications'
-import { mgBranding } from '@/src/config/branding'
+import { isSuperAdmin } from '@/src/utils/roles'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import {
   fetchNotificationPreferences,
   previewReportDigest,
@@ -30,11 +32,91 @@ import {
   getNotificationPermissionStatus,
   registerExpoPushAndPost,
 } from '@/src/services/expoPushRegistration'
-import { isSuperAdmin } from '@/src/utils/roles'
+
+function createSettingsStyles(branding: MobileTenantBranding) {
+  const { colors } = branding
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 16, gap: 12, paddingBottom: 32 },
+    card: {
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      padding: 16,
+    },
+    adminCard: {
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    adminTitle: { fontSize: 16, fontWeight: '800', color: colors.text },
+    adminDesc: { fontSize: 13, color: colors.muted, marginTop: 4 },
+    chevron: { fontSize: 28, color: colors.primary, fontWeight: '300' },
+    label: { fontSize: 12, fontWeight: '700', color: colors.muted, textTransform: 'uppercase' },
+    sectionTitle: { fontSize: 14, fontWeight: '800', color: colors.text, marginBottom: 8 },
+    name: { marginTop: 6, fontSize: 20, fontWeight: '800', color: colors.text },
+    meta: { marginTop: 4, fontSize: 14, color: colors.muted },
+    topicGroup: { marginTop: 8 },
+    groupTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 4 },
+    topicRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+    topicLabel: { flex: 1, fontSize: 14, color: colors.text, paddingRight: 12 },
+    timeInput: {
+      marginTop: 6,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: colors.text,
+      maxWidth: 120,
+    },
+    rowBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+    actionBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      alignItems: 'center',
+    },
+    actionBtnDisabled: { opacity: 0.6 },
+    actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    secondaryBtn: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      alignItems: 'center',
+    },
+    secondaryBtnText: { color: colors.primary, fontWeight: '700', fontSize: 14 },
+    linkBtn: { marginTop: 10, paddingVertical: 8 },
+    linkBtnText: { color: colors.primary, fontWeight: '600', fontSize: 14 },
+    pushMsg: { marginTop: 8, fontSize: 13, color: colors.text },
+    previewText: { marginTop: 12, fontSize: 12, color: colors.text, lineHeight: 18 },
+    prefsStatus: { fontSize: 13, color: colors.text, textAlign: 'center' },
+    logoutBtn: {
+      marginTop: 8,
+      backgroundColor: colors.danger,
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    logoutText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  })
+}
 
 export default function SettingsScreen() {
   const { user, token, logout } = useAuth()
-  const { companyCode } = useTenantBranding()
+  const { companyCode, branding } = useTenantBranding()
+  const styles = useBrandingStyles(createSettingsStyles)
+  const switchTrack = { false: '#CBD5E1', true: branding.colors.primary } as const
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()
@@ -228,7 +310,7 @@ export default function SettingsScreen() {
                   <Switch
                     value={prefs.topics[topic.key] !== false}
                     onValueChange={() => toggleTopic(topic.key)}
-                    trackColor={{ false: '#CBD5E1', true: mgBranding.colors.primary }}
+                    trackColor={switchTrack}
                   />
                 </View>
               ))}
@@ -245,7 +327,7 @@ export default function SettingsScreen() {
             <Switch
               value={prefs.reportDigest.enabled !== false}
               onValueChange={() => toggleDigest('enabled')}
-              trackColor={{ false: '#CBD5E1', true: mgBranding.colors.primary }}
+              trackColor={switchTrack}
             />
           </View>
           <Text style={styles.meta}>Time (local)</Text>
@@ -266,7 +348,7 @@ export default function SettingsScreen() {
               <Switch
                 value={prefs.reportDigest[key] !== false}
                 onValueChange={() => toggleDigest(key)}
-                trackColor={{ false: '#CBD5E1', true: mgBranding.colors.primary }}
+                trackColor={switchTrack}
               />
             </View>
           ))}
@@ -289,7 +371,7 @@ export default function SettingsScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>App</Text>
-        <Text style={styles.meta}>{mgBranding.appName} v{Constants.expoConfig?.version || '1.0.0'}</Text>
+        <Text style={styles.meta}>{branding.appName} v{Constants.expoConfig?.version || '1.0.0'}</Text>
         <Text style={styles.meta}>View-only companion app</Text>
       </View>
 
@@ -299,79 +381,3 @@ export default function SettingsScreen() {
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
-  content: { padding: 16, gap: 12, paddingBottom: 32 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 16,
-  },
-  adminCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: mgBranding.colors.primary,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  adminTitle: { fontSize: 16, fontWeight: '800', color: mgBranding.colors.text },
-  adminDesc: { fontSize: 13, color: mgBranding.colors.muted, marginTop: 4 },
-  chevron: { fontSize: 28, color: mgBranding.colors.primary, fontWeight: '300' },
-  label: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.muted, textTransform: 'uppercase' },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: mgBranding.colors.text, marginBottom: 8 },
-  name: { marginTop: 6, fontSize: 20, fontWeight: '800', color: mgBranding.colors.text },
-  meta: { marginTop: 4, fontSize: 14, color: mgBranding.colors.muted },
-  topicGroup: { marginTop: 8 },
-  groupTitle: { fontSize: 13, fontWeight: '700', color: mgBranding.colors.text, marginBottom: 4 },
-  topicRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-  topicLabel: { flex: 1, fontSize: 14, color: mgBranding.colors.text, paddingRight: 12 },
-  timeInput: {
-    marginTop: 6,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: mgBranding.colors.text,
-    maxWidth: 120,
-  },
-  rowBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  actionBtn: {
-    backgroundColor: mgBranding.colors.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-  },
-  actionBtnDisabled: { opacity: 0.6 },
-  actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  secondaryBtn: {
-    borderWidth: 1,
-    borderColor: mgBranding.colors.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-  },
-  secondaryBtnText: { color: mgBranding.colors.primary, fontWeight: '700', fontSize: 14 },
-  linkBtn: { marginTop: 10, paddingVertical: 8 },
-  linkBtnText: { color: mgBranding.colors.primary, fontWeight: '600', fontSize: 14 },
-  pushMsg: { marginTop: 8, fontSize: 13, color: mgBranding.colors.text },
-  previewText: { marginTop: 12, fontSize: 12, color: mgBranding.colors.text, lineHeight: 18 },
-  prefsStatus: { fontSize: 13, color: mgBranding.colors.text, textAlign: 'center' },
-  logoutBtn: {
-    marginTop: 8,
-    backgroundColor: mgBranding.colors.danger,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  logoutText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-})

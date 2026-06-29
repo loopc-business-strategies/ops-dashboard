@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { useErpLiveMetalSpotPrices } from '@/src/hooks/useErpLiveMetalSpotPrices'
 import { fmtPosition, fmtSigned } from '@/src/utils/format'
 import { mapMarginRow } from '@/src/utils/marginWidgetHelpers'
-import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
+import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 const MAX_ROWS = 5
 
@@ -23,6 +23,8 @@ export function MarginsWidget({
   liveRecalcEnabled: liveRecalcProp,
 }: Props) {
   const [tab, setTab] = useState<'customers' | 'suppliers'>('customers')
+  const widgetStyles = useWidgetStyles()
+  const { branding } = useTenantBranding()
   const liveSpot = useErpLiveMetalSpotPrices()
   const goldPriceUSD = goldPriceProp ?? liveSpot.goldPriceUSD
   const silverPriceUSD = silverPriceProp ?? liveSpot.silverPriceUSD
@@ -71,7 +73,16 @@ export function MarginsWidget({
               <Text
                 style={[
                   widgetStyles.rowValue,
-                  { flex: 1, textAlign: 'right', color: row.equity > 0 ? mgBranding.colors.success : row.equity < 0 ? mgBranding.colors.danger : mgBranding.colors.text },
+                  {
+                    flex: 1,
+                    textAlign: 'right',
+                    color:
+                      row.equity > 0
+                        ? branding.colors.success
+                        : row.equity < 0
+                          ? branding.colors.danger
+                          : branding.colors.text,
+                  },
                 ]}
               >
                 {fmtSigned(row.equity)}

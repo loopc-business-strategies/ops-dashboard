@@ -1,31 +1,30 @@
-import { StyleSheet, Switch, Text, View } from 'react-native'
+import { Switch, Text, View } from 'react-native'
 import {
   ALL_PERM_ROWS,
   ERP_PERMISSION_ROWS,
   type ModulePermissions,
 } from '@/src/constants/admin'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import { createPermissionEditorStyles } from '@/src/styles/adminFormScreenStyles'
 
 type Props = {
   perms: ModulePermissions
   onChange: (next: ModulePermissions) => void
 }
 
-function PermRow({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
-  return (
+export function PermissionEditor({ perms, onChange }: Props) {
+  const styles = useBrandingStyles(createPermissionEditorStyles)
+  const { branding } = useTenantBranding()
+  const switchTrack = { false: '#CBD5E1', true: branding.colors.secondary } as const
+
+  const PermRow = ({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) => (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
-      <Switch
-        value={checked}
-        onValueChange={onToggle}
-        trackColor={{ false: '#CBD5E1', true: mgBranding.colors.secondary }}
-        thumbColor="#fff"
-      />
+      <Switch value={checked} onValueChange={onToggle} trackColor={switchTrack} thumbColor="#fff" />
     </View>
   )
-}
 
-export function PermissionEditor({ perms, onChange }: Props) {
   const erpSubs = perms.erp?.subs || {}
   const erpAllEnabled = !!perms.erp?.on && Object.keys(erpSubs).length === 0
 
@@ -107,31 +106,3 @@ export function PermissionEditor({ perms, onChange }: Props) {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  root: { gap: 12 },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: mgBranding.colors.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  rowLabel: { fontSize: 14, color: mgBranding.colors.text, flex: 1, paddingRight: 8 },
-})

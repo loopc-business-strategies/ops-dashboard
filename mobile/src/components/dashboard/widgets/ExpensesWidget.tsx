@@ -1,12 +1,14 @@
 import { Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { fmtCompactCurrency, fmtMoney } from '@/src/utils/format'
-import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
+import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 const COLORS = ['#059669', '#2563EB', '#D97706', '#7C3AED', '#DC2626', '#0891B2']
 
 export function ExpensesWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+  const widgetStyles = useWidgetStyles()
+  const { branding } = useTenantBranding()
   const exp = dashboard?.expenses || {}
   const total = Number(exp.total || 0)
   const ytdTotal = Number(exp.ytdTotal || 0)
@@ -46,7 +48,7 @@ export function ExpensesWidget({ dashboard }: { dashboard: DashboardPayload | nu
         </View>
         <View style={[widgetStyles.statBox, { borderWidth: 1, borderColor: '#E5E7EB', minWidth: '46%' }]}>
           <Text style={widgetStyles.statLabel}>THIS YEAR</Text>
-          <Text style={[widgetStyles.statValue, { fontSize: 16, color: mgBranding.colors.success }]}>
+          <Text style={[widgetStyles.statValue, { fontSize: 16, color: branding.colors.success }]}>
             {fmtMoney(ytdTotal)}
           </Text>
         </View>

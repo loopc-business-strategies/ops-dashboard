@@ -1,10 +1,11 @@
 import { Redirect, Stack } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { isSuperAdmin } from '@/src/utils/roles'
 
 export default function AdminSettingsLayout() {
   const { user } = useAuth()
+  const { branding } = useTenantBranding()
 
   if (!isSuperAdmin(user)) {
     return <Redirect href="/(tabs)/settings" />
@@ -13,10 +14,10 @@ export default function AdminSettingsLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: mgBranding.colors.primary },
+        headerStyle: { backgroundColor: branding.colors.primary },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700' },
-        contentStyle: { backgroundColor: mgBranding.colors.background },
+        contentStyle: { backgroundColor: branding.colors.background },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Admin settings' }} />

@@ -13,6 +13,8 @@ Quarterly checklist (Jan / Apr / Jul / Oct). Dependabot groups **minor + patch o
 | @sentry/node | `backend/package.json` | ^10.x | Match DSN project |
 | jest | `backend/package.json` | ^29.x | v30 available — test before bump |
 
+**Recently triaged (dev-only):** root `shell-quote` via `concurrently` and frontend `undici` via Vitest were fixed with `npm audit fix` (2026-06). Backend `js-yaml` via Jest remains dev-only moderate — address with Jest 30 upgrade, not `audit fix --force`.
+
 ## Steps
 
 1. Review open Dependabot PRs on GitHub.

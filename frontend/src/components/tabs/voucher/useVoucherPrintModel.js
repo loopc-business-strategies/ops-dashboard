@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { getTenantBranding } from '../../../config/tenantBranding'
+import { resolveErpUserTenantBranding } from '../erp/resolveErpUserTenant'
 import { resolveDocumentBranding } from '../erp/documentBranding'
 import {
   fmt,
@@ -31,7 +31,7 @@ export function useVoucherPrintModel({
   return useMemo(() => {
     const branding = user?.branding || {}
     const tenant = user?.tenant || {}
-    const activeTenantBranding = getTenantBranding(user?.company || tenant?.key || tenant?.name)
+    const activeTenantBranding = resolveErpUserTenantBranding(user)
     const documentBranding = resolveDocumentBranding({ reportBranding, user, tenantBranding: activeTenantBranding })
     const voucher = {
       currency: header?.currCode || 'USD',

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
-import { getTenantBranding, isVoucherTypeEnabled } from '../../config/tenantBranding'
+import { isVoucherTypeEnabled } from '../../config/tenantBranding'
+import { resolveErpUserTenantKey } from '../erp/resolveErpUserTenant'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
 import { BASE, cfg, fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
@@ -165,7 +166,7 @@ export default function VoucherTab({
 
   useEffect(() => {
     if (!canView || !token) return undefined
-    const tenant = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)?.key || ''
+    const tenant = resolveErpUserTenantKey(user)
     return startMetalRatesRealtime({
       token,
       tenant,

@@ -24,7 +24,7 @@ const APPLY = process.argv.includes('--apply')
     const token = loginRes.data.token
     if (!token) throw new Error('No token returned')
     const authHeaders = { 'Authorization': `Bearer ${token}` }
-    console.log(`✓ Authenticated, token: ${token.slice(0, 30)}...\n`)
+    console.log('✓ Authenticated\n')
 
     // Step 2: Fetch all transactions
     console.log('[2/5] Fetching all transactions...')

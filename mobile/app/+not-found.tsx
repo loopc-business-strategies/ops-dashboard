@@ -1,10 +1,37 @@
 import { Link, Stack } from 'expo-router'
 import { StyleSheet, Text, View } from 'react-native'
-import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
+
+function createNotFoundStyles(branding: MobileTenantBranding) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+      backgroundColor: '#000',
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#fff',
+    },
+    link: {
+      marginTop: 15,
+      paddingVertical: 15,
+    },
+    linkText: {
+      fontSize: 14,
+      color: branding.colors.secondary,
+    },
+  })
+}
 
 export default function NotFoundScreen() {
   const { isAuthenticated } = useAuth()
+  const styles = useBrandingStyles(createNotFoundStyles)
   const homeHref = isAuthenticated ? '/(tabs)/home' : '/login'
 
   return (
@@ -21,26 +48,3 @@ export default function NotFoundScreen() {
     </>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#000',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
-  },
-  linkText: {
-    fontSize: 14,
-    color: mgBranding.colors.secondary,
-  },
-})

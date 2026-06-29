@@ -128,9 +128,6 @@ export const startProjectsSse = ({ tenant, onReminderDue }) => {
   }
 }
 
-/** @deprecated Use {@link startProjectsSse}; kept for external/legacy imports. */
-export const startTaskBoardSse = startProjectsSse
-
 export const startUserNotifications = ({ token, tenant, onNotification }) => {
   if (typeof onNotification !== 'function') return () => {}
 

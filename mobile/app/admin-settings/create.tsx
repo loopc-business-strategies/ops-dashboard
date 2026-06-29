@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { UserForm } from '@/src/components/admin/UserForm'
-import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import { createAdminFormScreenStyles } from '@/src/styles/adminFormScreenStyles'
 import { createUser } from '@/src/api/users'
 import { EMPTY_USER_FORM, type UserFormState } from '@/src/constants/admin'
 import { formToPayload, validateUserForm } from '@/src/utils/userForm'
@@ -13,6 +14,7 @@ export default function CreateUserScreen() {
   const { token } = useAuth()
   const sessionReady = useTenantSessionReady()
   const router = useRouter()
+  const styles = useBrandingStyles(createAdminFormScreenStyles)
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -46,17 +48,3 @@ export default function CreateUserScreen() {
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
-  content: { padding: 16, gap: 16, paddingBottom: 40 },
-  error: { color: mgBranding.colors.danger, fontSize: 14 },
-  btn: {
-    backgroundColor: mgBranding.colors.primary,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-})

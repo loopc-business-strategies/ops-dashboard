@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding, isLocalTenantHost } from '../../config/tenantBranding'
+import { resolveErpUserTenantBranding, resolveErpUserTenantKey } from './erp/resolveErpUserTenant'
 import {
   buildDashboardSearchParams,
   buildEnquiryHref,
@@ -158,7 +159,7 @@ function ERPTab({
   onJumpToEnquiryConsumed,
 }) {
   const { user, token } = useAuth()
-  const inventoryTenantKey = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)?.key || ''
+  const inventoryTenantKey = resolveErpUserTenantKey(user)
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
@@ -2258,7 +2259,7 @@ function ERPTab({
     if (deptValue === 'hr') return { background: '#EDE9FE', color: '#6D28D9' }
     return { background: '#E5E7EB', color: '#374151' }
   }
-  const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
+  const tenantBranding = resolveErpUserTenantBranding(user)
   const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
   const brandingPreview = { ...DEFAULT_BRANDING, ...brandingForm }
   const buildBrandingLogoTag = async (brandingConfig, extraStyle = '') => {

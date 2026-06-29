@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { useLiveMetalRates } from '@/src/hooks/useLiveMetalRates'
-import { mgBranding } from '@/src/config/branding'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import {
   fmtMoveRow,
   fmtSpot,
@@ -17,7 +18,110 @@ const METALS = [
   { key: 'platinum' as const, label: 'Platinum', swatch: '#A855F7', sym: 'Pt', symColor: '#fafafa' },
 ]
 
+function createStyles(branding: MobileTenantBranding) {
+  return StyleSheet.create({
+    root: {
+      marginBottom: 10,
+      padding: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: '#BFD0E5',
+      backgroundColor: '#FFFFFF',
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      marginBottom: 6,
+    },
+    headerTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: branding.colors.primary,
+      letterSpacing: 0.3,
+      flexShrink: 0,
+    },
+    headerSubline: {
+      flex: 1,
+      flexShrink: 1,
+      fontSize: 10,
+      color: branding.colors.muted,
+      fontWeight: '600',
+      textAlign: 'right',
+    },
+    cardsRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      gap: 6,
+    },
+    card: {
+      flex: 1,
+      minWidth: 0,
+      paddingVertical: 6,
+      paddingHorizontal: 6,
+      borderRadius: 6,
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#D1D5DB',
+    },
+    labelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginBottom: 2,
+    },
+    swatch: {
+      width: 20,
+      height: 20,
+      borderRadius: 5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    swatchText: {
+      fontSize: 8,
+      fontWeight: '800',
+    },
+    metalLabel: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 10,
+      fontWeight: '600',
+      color: '#475569',
+    },
+    spotPrice: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: branding.colors.text,
+      fontVariant: ['tabular-nums'],
+      textAlign: 'right',
+    },
+    moveRow: {
+      marginTop: 2,
+      fontSize: 9,
+      fontWeight: '600',
+      textAlign: 'right',
+    },
+    moveUp: {
+      color: branding.colors.success,
+    },
+    moveDown: {
+      color: branding.colors.danger,
+    },
+    moveMuted: {
+      color: '#94A3B8',
+    },
+    footnote: {
+      marginTop: 6,
+      fontSize: 10,
+      color: branding.colors.muted,
+    },
+  })
+}
+
 export function LiveMetalPricesBar() {
+  const styles = useBrandingStyles(createStyles)
   const { snapshot, error } = useLiveMetalRates()
   const feedLabel = formatLiveMetalSourceLabel(snapshot.source)
   const isMt4 = isMt4BridgeRates(snapshot)
@@ -98,103 +202,3 @@ export function LiveMetalPricesBar() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  root: {
-    marginBottom: 10,
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BFD0E5',
-    backgroundColor: '#FFFFFF',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 6,
-  },
-  headerTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E3A8A',
-    letterSpacing: 0.3,
-    flexShrink: 0,
-  },
-  headerSubline: {
-    flex: 1,
-    flexShrink: 1,
-    fontSize: 10,
-    color: mgBranding.colors.muted,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  cardsRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 6,
-  },
-  card: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    borderRadius: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 2,
-  },
-  swatch: {
-    width: 20,
-    height: 20,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  swatchText: {
-    fontSize: 8,
-    fontWeight: '800',
-  },
-  metalLabel: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  spotPrice: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: mgBranding.colors.text,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'right',
-  },
-  moveRow: {
-    marginTop: 2,
-    fontSize: 9,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  moveUp: {
-    color: mgBranding.colors.success,
-  },
-  moveDown: {
-    color: mgBranding.colors.danger,
-  },
-  moveMuted: {
-    color: '#94A3B8',
-  },
-  footnote: {
-    marginTop: 6,
-    fontSize: 10,
-    color: mgBranding.colors.muted,
-  },
-})

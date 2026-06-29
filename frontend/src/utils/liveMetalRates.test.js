@@ -4,7 +4,7 @@ import {
   fmtMoveRow,
   fmtSpot,
   isMt4BridgeRates,
-  LIVE_METAL_POLL_MS,
+  MT4_LIVE_POLL_MS,
   LIVE_METAL_POLL_STREAM_MS,
   metalStatusSubline,
   MT4_BRIDGE_SOURCE,
@@ -71,11 +71,11 @@ describe('liveMetalRates helpers', () => {
   })
 
   test('resolveLiveMetalPollIntervalMs keeps MT4 on fast poll', () => {
-    expect(resolveLiveMetalPollIntervalMs(true, 'mt4-bridge')).toBe(LIVE_METAL_POLL_MS)
+    expect(resolveLiveMetalPollIntervalMs(true, 'mt4-bridge')).toBe(MT4_LIVE_POLL_MS)
     expect(resolveLiveMetalPollIntervalMs(true, 'metals.dev')).toBe(LIVE_METAL_POLL_STREAM_MS)
-    expect(resolveLiveMetalPollIntervalMs(true, '')).toBe(LIVE_METAL_POLL_MS)
-    expect(resolveLiveMetalPollIntervalMs(false, '')).toBe(LIVE_METAL_POLL_MS)
-    expect(LIVE_METAL_POLL_MS).toBe(1000)
+    expect(resolveLiveMetalPollIntervalMs(true, '')).toBe(MT4_LIVE_POLL_MS)
+    expect(resolveLiveMetalPollIntervalMs(false, '')).toBe(MT4_LIVE_POLL_MS)
+    expect(MT4_LIVE_POLL_MS).toBe(1000)
   })
 
   test('detects MT4 bridge source and status subline', () => {

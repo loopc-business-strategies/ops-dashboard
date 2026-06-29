@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { UserForm } from '@/src/components/admin/UserForm'
-import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import { createAdminFormScreenStyles } from '@/src/styles/adminFormScreenStyles'
 import { fetchUsers, getUserId, updateUser } from '@/src/api/users'
 import type { UserFormState } from '@/src/constants/admin'
 import { formToPayload, userToForm, validateUserForm } from '@/src/utils/userForm'
@@ -13,9 +15,11 @@ import { formToPayload, userToForm, validateUserForm } from '@/src/utils/userFor
 export default function EditUserScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
+  const { branding } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()
+  const styles = useBrandingStyles(createAdminFormScreenStyles)
   const [form, setForm] = useState<UserFormState | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -58,7 +62,7 @@ export default function EditUserScreen() {
   if (loading || !form) {
     return (
       <View style={styles.center}>
-        {error ? <Text style={styles.error}>{error}</Text> : <ActivityIndicator color={mgBranding.colors.primary} />}
+        {error ? <Text style={styles.error}>{error}</Text> : <ActivityIndicator color={branding.colors.primary} />}
       </View>
     )
   }
@@ -73,18 +77,3 @@ export default function EditUserScreen() {
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
-  content: { padding: 16, gap: 16, paddingBottom: 40 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
-  error: { color: mgBranding.colors.danger, fontSize: 14 },
-  btn: {
-    backgroundColor: mgBranding.colors.primary,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-})

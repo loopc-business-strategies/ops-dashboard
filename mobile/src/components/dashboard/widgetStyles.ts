@@ -1,74 +1,84 @@
+import { useMemo } from 'react'
 import { StyleSheet } from 'react-native'
-import { mgBranding } from '@/src/config/branding'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 
-export const widgetStyles = StyleSheet.create({
-  empty: { color: mgBranding.colors.muted, fontSize: 13, paddingVertical: 6 },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  rowLast: { borderBottomWidth: 0 },
-  rowLabel: { flex: 1, color: mgBranding.colors.text, fontSize: 13, paddingRight: 8 },
-  rowSub: { color: mgBranding.colors.muted, fontSize: 11, marginTop: 2 },
-  rowValue: { color: mgBranding.colors.text, fontWeight: '700', fontSize: 13 },
-  tabRow: {
-    flexDirection: 'row',
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: { borderBottomColor: mgBranding.colors.success },
-  tabText: { fontSize: 12, fontWeight: '600', color: mgBranding.colors.muted },
-  tabTextActive: { color: mgBranding.colors.success },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  statBox: {
-    flex: 1,
-    minWidth: '30%',
-    borderRadius: 8,
-    padding: 10,
-    alignItems: 'center',
-  },
-  statLabel: { fontSize: 10, fontWeight: '700', color: mgBranding.colors.muted, textAlign: 'center' },
-  statValue: { marginTop: 4, fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  statSub: { marginTop: 2, fontSize: 11, textAlign: 'center' },
-  footerTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 10,
-    marginTop: 4,
-    borderTopWidth: 2,
-    borderTopColor: '#E8F5EF',
-  },
-  footerTotalLabel: { fontWeight: '800', color: mgBranding.colors.text, fontSize: 13 },
-  footerTotalValue: { fontWeight: '800', color: mgBranding.colors.success, fontSize: 13 },
-  headerRow: {
-    flexDirection: 'row',
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    marginBottom: 4,
-  },
-  headerCell: {
-    flex: 1,
-    fontSize: 10,
-    fontWeight: '700',
-    color: mgBranding.colors.muted,
-    textTransform: 'uppercase',
-  },
-  headerCellRight: { textAlign: 'right' },
-  barRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 56, marginBottom: 8 },
-  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  bar: { width: '100%', borderRadius: 3, minHeight: 3 },
-  barLabel: { fontSize: 9, color: mgBranding.colors.muted, marginTop: 4 },
-  note: { fontSize: 11, color: mgBranding.colors.muted, marginTop: 8, textAlign: 'right' },
-})
+export function createWidgetStyles(branding: MobileTenantBranding) {
+  const { colors } = branding
+  return StyleSheet.create({
+    empty: { color: colors.muted, fontSize: 13, paddingVertical: 6 },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F3F4F6',
+    },
+    rowLast: { borderBottomWidth: 0 },
+    rowLabel: { flex: 1, color: colors.text, fontSize: 13, paddingRight: 8 },
+    rowSub: { color: colors.muted, fontSize: 11, marginTop: 2 },
+    rowValue: { color: colors.text, fontWeight: '700', fontSize: 13 },
+    tabRow: {
+      flexDirection: 'row',
+      marginBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F3F4F6',
+    },
+    tab: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabActive: { borderBottomColor: colors.success },
+    tabText: { fontSize: 12, fontWeight: '600', color: colors.muted },
+    tabTextActive: { color: colors.success },
+    statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+    statBox: {
+      flex: 1,
+      minWidth: '30%',
+      borderRadius: 8,
+      padding: 10,
+      alignItems: 'center',
+    },
+    statLabel: { fontSize: 10, fontWeight: '700', color: colors.muted, textAlign: 'center' },
+    statValue: { marginTop: 4, fontSize: 14, fontWeight: '800', textAlign: 'center' },
+    statSub: { marginTop: 2, fontSize: 11, textAlign: 'center' },
+    footerTotal: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingTop: 10,
+      marginTop: 4,
+      borderTopWidth: 2,
+      borderTopColor: '#E8F5EF',
+    },
+    footerTotalLabel: { fontWeight: '800', color: colors.text, fontSize: 13 },
+    footerTotalValue: { fontWeight: '800', color: colors.success, fontSize: 13 },
+    headerRow: {
+      flexDirection: 'row',
+      paddingBottom: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F3F4F6',
+      marginBottom: 4,
+    },
+    headerCell: {
+      flex: 1,
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.muted,
+      textTransform: 'uppercase',
+    },
+    headerCellRight: { textAlign: 'right' },
+    barRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 56, marginBottom: 8 },
+    barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+    bar: { width: '100%', borderRadius: 3, minHeight: 3 },
+    barLabel: { fontSize: 9, color: colors.muted, marginTop: 4 },
+    note: { fontSize: 11, color: colors.muted, marginTop: 8, textAlign: 'right' },
+  })
+}
+
+export function useWidgetStyles() {
+  const { branding } = useTenantBranding()
+  return useMemo(() => createWidgetStyles(branding), [branding])
+}

@@ -5,7 +5,6 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -13,8 +12,10 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router'
 import { RoleBadge } from '@/src/components/admin/RoleBadge'
 import { DEPTS, ROLES } from '@/src/constants/admin'
-import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import { createAdminListScreenStyles } from '@/src/styles/adminFormScreenStyles'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import {
@@ -27,6 +28,8 @@ import {
 
 export default function AdminUsersScreen() {
   const { token, user: me } = useAuth()
+  const { branding } = useTenantBranding()
+  const styles = useBrandingStyles(createAdminListScreenStyles)
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()
@@ -115,7 +118,7 @@ export default function AdminUsersScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await deleteUser(token!, id, `Removed via ${mgBranding.appName} mobile admin`)
+            await deleteUser(token!, id, `Removed via ${branding.appName} mobile admin`)
             load(true)
           } catch (err) {
             Alert.alert('Error', err instanceof Error ? err.message : 'Delete failed')
@@ -128,7 +131,7 @@ export default function AdminUsersScreen() {
   if (loading && !users.length) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={mgBranding.colors.primary} />
+        <ActivityIndicator color={branding.colors.primary} />
       </View>
     )
   }
@@ -203,65 +206,3 @@ export default function AdminUsersScreen() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  toolbar: { padding: 16, gap: 10, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: '#fff' },
-  search: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    backgroundColor: '#F8FAFC',
-  },
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterChip: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: '#fff',
-  },
-  filterChipActive: { borderColor: mgBranding.colors.primary, backgroundColor: '#EFF6FF' },
-  filterText: { fontSize: 12, color: mgBranding.colors.muted },
-  filterTextActive: { color: mgBranding.colors.primary, fontWeight: '700' },
-  createBtn: {
-    backgroundColor: mgBranding.colors.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  createBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  error: { color: mgBranding.colors.danger, paddingHorizontal: 16, paddingTop: 8 },
-  list: { padding: 16, gap: 12, paddingBottom: 32 },
-  empty: { textAlign: 'center', color: mgBranding.colors.muted, marginTop: 24 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 14,
-    marginBottom: 12,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  name: { fontSize: 16, fontWeight: '800', color: mgBranding.colors.text },
-  username: { fontSize: 13, color: mgBranding.colors.muted, marginTop: 2 },
-  meta: { fontSize: 12, color: mgBranding.colors.muted, marginTop: 8 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  actionBtn: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#F8FAFC',
-  },
-  actionBtnDanger: {},
-  dangerBtn: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
-  actionText: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.primary },
-  dangerText: { color: mgBranding.colors.danger },
-})

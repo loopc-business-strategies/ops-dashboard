@@ -7,7 +7,11 @@
 
 const http = require('http')
 
-const API_BASE = process.env.API_URL || 'http://api.loopcstrategies.com'
+const API_BASE = String(process.env.API_URL || '').trim()
+if (!API_BASE) {
+  console.error('API_URL is required (e.g. http://localhost:5000). This script never defaults to production.')
+  process.exit(1)
+}
 const TENANT = process.env.TENANT || 'mg'
 
 // Test data: Payment in AED (foreign currency) with exchange rate difference

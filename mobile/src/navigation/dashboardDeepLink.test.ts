@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMgopsDashboardHref, buildNexaDashboardHref, parseIncomingDeepLink } from './dashboardDeepLink'
+import { buildNexaDashboardHref, parseIncomingDeepLink } from './dashboardDeepLink'
 
 describe('dashboardDeepLink', () => {
   it('parses nexaops web-parity enquiry URL', () => {
@@ -41,11 +41,6 @@ describe('dashboardDeepLink', () => {
 
   it('builds nexaops enquiry href', () => {
     expect(buildNexaDashboardHref({ account: '1000', view: 'statement' }))
-      .toBe('nexaops://dashboard?tab=erp-enquiry&account=1000&view=statement')
-  })
-
-  it('keeps legacy helper export as alias to new nexaops href', () => {
-    expect(buildMgopsDashboardHref({ account: '1000', view: 'statement' }))
       .toBe('nexaops://dashboard?tab=erp-enquiry&account=1000&view=statement')
   })
 })

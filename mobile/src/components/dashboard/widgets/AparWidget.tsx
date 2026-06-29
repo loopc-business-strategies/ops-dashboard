@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { fmtMoney } from '@/src/utils/format'
-import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
+import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 export function AparWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
   const [tab, setTab] = useState<'ar' | 'ap'>('ar')
+  const widgetStyles = useWidgetStyles()
+  const { branding } = useTenantBranding()
   const ap = dashboard?.apAr || {}
   const arRows = ap.customerOutstanding || []
   const apRows = ap.supplierOutstanding || []
@@ -25,7 +27,7 @@ export function AparWidget({ dashboard }: { dashboard: DashboardPayload | null }
             val: ap.netPosition,
             sub: netFavorable ? 'Favorable' : 'Deficit',
             bg: netFavorable ? '#E8F5EF' : '#FEE2E2',
-            color: netFavorable ? mgBranding.colors.success : mgBranding.colors.danger,
+            color: netFavorable ? branding.colors.success : branding.colors.danger,
           },
         ].map((item) => (
           <View key={item.label} style={[widgetStyles.statBox, { backgroundColor: item.bg, minWidth: '30%' }]}>

@@ -94,6 +94,3 @@ export function buildNexaDashboardHref({
   if (view === 'statement') params.set('view', 'statement')
   return `nexaops://dashboard?${params.toString()}`
 }
-
-/** @deprecated Use buildNexaDashboardHref. Kept for callers during the scheme migration. */
-export const buildMgopsDashboardHref = buildNexaDashboardHref

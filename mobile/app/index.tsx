@@ -1,15 +1,16 @@
 import { Redirect } from 'expo-router'
 import { ActivityIndicator, View } from 'react-native'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
 
 export default function IndexScreen() {
   const { isAuthenticated, isLoading } = useAuth()
+  const { branding } = useTenantBranding()
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: mgBranding.colors.background }}>
-        <ActivityIndicator size="large" color={mgBranding.colors.primary} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: branding.colors.background }}>
+        <ActivityIndicator size="large" color={branding.colors.primary} />
       </View>
     )
   }

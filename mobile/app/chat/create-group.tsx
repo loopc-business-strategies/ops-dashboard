@@ -4,17 +4,18 @@ import {
   FlatList,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
 import { Stack, router } from 'expo-router'
-import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useChat } from '@/src/context/ChatContext'
+import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
+import { createCreateGroupStyles } from '@/src/styles/adminFormScreenStyles'
 
 export default function CreateGroupScreen() {
+  const styles = useBrandingStyles(createCreateGroupStyles)
   const { user } = useAuth()
   const { participants, createGroup } = useChat()
   const [name, setName] = useState('')
@@ -107,51 +108,3 @@ export default function CreateGroupScreen() {
     </>
   )
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 32 },
-  label: { fontSize: 12, fontWeight: '800', color: mgBranding.colors.muted, marginBottom: 6, marginTop: 12, textTransform: 'uppercase' },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: mgBranding.colors.text,
-    backgroundColor: '#fff',
-  },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  memberName: { fontWeight: '700', color: mgBranding.colors.text, fontSize: 15 },
-  memberDept: { color: mgBranding.colors.muted, fontSize: 12, marginTop: 2 },
-  check: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkActive: { backgroundColor: mgBranding.colors.success, borderColor: mgBranding.colors.success },
-  checkMark: { color: '#fff', fontWeight: '800', fontSize: 12 },
-  createBtn: {
-    marginTop: 20,
-    backgroundColor: mgBranding.colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  createBtnDisabled: { opacity: 0.5 },
-  createText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  error: { color: mgBranding.colors.danger, marginTop: 12, fontSize: 13 },
-})

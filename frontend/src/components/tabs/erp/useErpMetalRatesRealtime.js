@@ -31,8 +31,3 @@ export function useErpEnquiryMetalRatesSync({
     onEnquiryMetalRatesPatch,
   ])
 }
-
-/** @deprecated Use useErpEnquiryMetalRatesSync — socket + poll live in LiveMetalRatesProvider. */
-export function useErpMetalRatesRealtime() {
-  return undefined
-}
