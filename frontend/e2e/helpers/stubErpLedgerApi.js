@@ -131,19 +131,13 @@ export async function loginToErpLedger(page, company = 'loopc') {
   await page.getByPlaceholder('Enter your password').fill('ValidPass1!')
   await page.getByRole('button', { name: /sign in/i }).click()
   await page.waitForURL(/\/dashboard/, { timeout: 15_000 })
-  const erpTabChunk = page.waitForResponse(
-    (response) => /ERPTab-.*\.js$/i.test(response.url()) && response.ok(),
-    { timeout: 60_000 },
-  )
-  const ledgerTabChunk = page.waitForResponse(
-    (response) => /ERPLedgerTab-.*\.js$/i.test(response.url()) && response.ok(),
-    { timeout: 60_000 },
-  )
   const accountsReady = page.waitForResponse(
     (response) => /erp-accounting\/accounts/i.test(response.url()) && response.ok(),
     { timeout: 60_000 },
   )
   await page.goto('/dashboard?tab=erp-ledger', { waitUntil: 'domcontentloaded' })
-  await Promise.all([erpTabChunk, ledgerTabChunk, accountsReady])
+  await page.waitForURL(/tab=erp-ledger/, { timeout: 15_000 })
+  await accountsReady
+  await page.getByRole('heading', { name: 'Journal Voucher' }).waitFor({ state: 'visible', timeout: 60_000 })
   return { batchPosts }
 }

@@ -613,7 +613,7 @@ export function useErpTabCoreSlice(props) {
     erpGoldPriceUSD,
     erpLiveMetalSnapshot,
     erpSilverPriceUSD,
-    error: liveMetalContextError,
+    error,
     excessCurrency,
     exportOptionsOpen,
     fixingRegError,

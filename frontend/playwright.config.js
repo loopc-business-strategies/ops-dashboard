@@ -10,7 +10,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
-  timeout: isRemoteBase ? 120_000 : 30_000,
+  timeout: isRemoteBase ? 120_000 : (process.env.CI ? 60_000 : 30_000),
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     baseURL,

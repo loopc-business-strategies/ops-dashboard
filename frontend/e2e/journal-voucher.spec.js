@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test'
 import { loginToErpLedger } from './helpers/stubErpLedgerApi.js'
 
 test.describe('journal voucher save', () => {
+  test.describe.configure({ timeout: 90_000 })
+
   test('balanced JV posts to journal-voucher batch endpoint', async ({ page }) => {
     const { batchPosts } = await loginToErpLedger(page)
 

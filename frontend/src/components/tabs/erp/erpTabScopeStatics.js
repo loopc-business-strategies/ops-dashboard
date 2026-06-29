@@ -24,7 +24,7 @@ import {
   fixingRegFmtQty,
   fixingRegFmtRate,
 } from './fixingRegisterUtils'
-import { JV_MODE_META } from './journalVoucherHelpers'
+import { JV_MODE_META, resolveJvModeMeta } from './journalVoucherHelpers'
 
 /** Imported constants and pure helpers merged into useErpTabController scope (not slice returns). */
 export const ERP_TAB_SCOPE_STATICS = {
@@ -36,6 +36,7 @@ export const ERP_TAB_SCOPE_STATICS = {
   ERP_MODAL_CARD_STYLE,
   ERP_MODAL_INPUT_STYLE,
   JV_MODE_META,
+  resolveJvModeMeta,
   LEDGER_DEPARTMENTS,
   LEDGER_REFERENCE_TYPES,
   TRANSACTION_STATUS_STYLES,
