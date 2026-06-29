@@ -27,7 +27,15 @@
 
 - **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
 
-`ERPTab.jsx` is **~50 lines** after S8 (thin shell + guards + render). ERP logic, bindings, and hooks live in `erp/useErpTabController.js` (~2020 lines); panel/modal prop mapping in `buildErpTabPanelProps.js` / `buildErpTabModalProps.js`.
+`ERPTab.jsx` is **~50 lines** (thin shell + guards + render). ERP logic is composed in `erp/useErpTabController.js` (~160 lines) from domain slices under `erp/controllerSlices/`; panel/modal prop mapping in `buildErpTabPanelProps.js` / `buildErpTabModalProps.js`.
+
+## S9 wire-up (done)
+
+- **`useErpTabCoreSlice`** — auth, tab routing, access policy, shared state, loaders (~875 lines).
+- **`useErpTabCatalogSlice`** — inventory derived state, enquiry/margins, account options (~660 lines).
+- **`useErpTabDomainActionsSlice`** — branding, ledger, vendors, inventory, transactions, enquiry, tab router (~750 lines).
+- **`useErpTabPresentationSlice`** — formatters, JV, exports, deep-link effects (~500 lines).
+- **`useErpTabController`** — composes slices → `useErpTabBindings(scope)`; regenerator `scripts/gen-s9-controller-slices.mjs`.
 
 ## S8 wire-up (done)
 
@@ -36,10 +44,6 @@
 - **`useErpTabBindings`** — returns `{ panelProps, modalProps }` from scope.
 - **`useErpTabController`** — all ERP hooks/state/handlers + bindings; `ERPTab.jsx` is a thin shell.
 - Removed **`useErpTabPanelProps`** / **`useErpTabModalProps`** (replaced by builders + `useErpTabBindings`).
-
-## S9 (next)
-
-- **Split `useErpTabController`** — e.g. domain hooks (`useErpTabLedgerSlice`, `useErpTabInventorySlice`) to bring the controller under ~800 lines per module.
 
 ## S7 wire-up (done)
 
