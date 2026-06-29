@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { getTenantBranding, isLocalTenantHost } from '../../config/tenantBranding'
+import { isLocalTenantHost } from '../../config/tenantBranding'
 import { resolveErpUserTenantBranding, resolveErpUserTenantKey } from './erp/resolveErpUserTenant'
 import {
   buildDashboardSearchParams,
@@ -112,7 +112,6 @@ import {
   createLogoRenderAsset,
   isSupportedLogoUpload,
 } from './erp/ERPBrandingUtils'
-import { escapeHtml } from '../../utils/safeHtml'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'

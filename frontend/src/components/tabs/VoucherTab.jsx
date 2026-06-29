@@ -122,7 +122,7 @@ export default function VoucherTab({
         if (rates) setLatestMetalRates(buildMetalRatesFromApiPayload(rates))
       },
     })
-  }, [canView, token, user?.company, user?.tenant?.key, user?.tenant?.name])
+  }, [canView, token, user])
   const [vouchers, setVouchers] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -314,7 +314,7 @@ export default function VoucherTab({
     } finally {
       setLoadingRecentPartyVouchers(false)
     }
-  }, [voucherType])
+  }, [voucherType, token, voucherErpApi])
 
   // ─── line items ─────────────────────────────────────────────────────────────
   const [lineItems, setLineItems] = useState([])
@@ -547,7 +547,7 @@ export default function VoucherTab({
 
     loadInventoryProducts()
     return () => { mounted = false }
-  }, [canView, token])
+  }, [canView, token, voucherErpApi])
 
   useEffect(() => {
     if (!showLineForm || !isMetalStockVoucherType(voucherType)) return
@@ -686,7 +686,7 @@ export default function VoucherTab({
     } finally {
       setLoadingList(false)
     }
-  }, [voucherType, canView, sortVouchers, token])
+  }, [voucherType, canView, sortVouchers, token, voucherErpApi])
 
   useEffect(() => { loadVouchers() }, [loadVouchers])
 
