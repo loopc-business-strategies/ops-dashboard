@@ -195,6 +195,26 @@ function resetLocalCoordinationForTests() {
   localStore.clear()
 }
 
+async function pingRedis() {
+  if (!isRedisConfigured()) {
+    return { configured: false, ready: null }
+  }
+  try {
+    const client = await getRedisClient()
+    if (!client) {
+      return { configured: true, ready: false, error: 'redis unavailable' }
+    }
+    const pong = await client.ping()
+    return { configured: true, ready: pong === 'PONG' }
+  } catch (err) {
+    return {
+      configured: true,
+      ready: false,
+      error: String(err?.message || err),
+    }
+  }
+}
+
 module.exports = {
   getJson,
   setJson,
@@ -207,5 +227,6 @@ module.exports = {
   emitLocal,
   onLocal,
   isRedisConfigured,
+  pingRedis,
   resetLocalCoordinationForTests,
 }

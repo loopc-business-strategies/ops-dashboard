@@ -9,7 +9,13 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    setupFiles: ['./vitest.setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
     passWithNoTests: false,
+    server: {
+      deps: {
+        inline: [/react-native/, /@react-native/, /expo/],
+      },
+    },
   },
 })

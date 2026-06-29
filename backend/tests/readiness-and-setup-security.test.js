@@ -66,6 +66,7 @@ describe('readiness and setup security', () => {
     expect(res.body.checks.mongoConnected).toBe(true)
     expect(res.body.checks.tenants.loopc.ready).toBe(true)
     expect(res.body.checks.redisConfigured).toBe(false)
+    expect(res.body.checks.redisReady).toBe(null)
     expect(res.body.checks.redisRecommended).toBe(false)
     expect(res.body.checks.sentryConfigured).toBe(false)
     expect(res.body.warnings).toEqual([])

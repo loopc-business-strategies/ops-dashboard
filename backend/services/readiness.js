@@ -4,6 +4,7 @@ const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
 const { connectTenant } = require('../db/tenantConnections')
 const { getBackendBuildMeta } = require('./buildMeta')
 const { getUploadStorageStatus } = require('./uploadStorage')
+const { pingRedis } = require('../utils/sharedCoordination')
 
 let primaryMongoReady = false
 
@@ -44,14 +45,17 @@ async function getReadinessStatus() {
   const configuredTenants = Object.values(tenants).filter((entry) => entry.configured)
   const allTenantsReady = configuredTenants.length > 0
     && configuredTenants.every((entry) => entry.ready === true)
-  const ready = jwtSecret && mongoConnected && allTenantsReady
+  const redisBlocksReady = isProduction && redisConfigured && redisReady !== true
+  const ready = jwtSecret && mongoConnected && allTenantsReady && !redisBlocksReady
 
   const expoPushAccessTokenSet = Boolean(String(process.env.EXPO_ACCESS_TOKEN || '').trim())
   const webPushVapidKeysSet = Boolean(
     String(process.env.WEB_PUSH_PUBLIC_KEY || '').trim()
       && String(process.env.WEB_PUSH_PRIVATE_KEY || '').trim(),
   )
-  const redisConfigured = Boolean(String(process.env.REDIS_URL || '').trim())
+  const redisStatus = await pingRedis()
+  const redisConfigured = redisStatus.configured
+  const redisReady = redisStatus.ready
   const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production'
   const sentryConfigured = Boolean(String(process.env.SENTRY_DSN || '').trim())
   const uploadStorage = getUploadStorageStatus()
@@ -60,6 +64,9 @@ async function getReadinessStatus() {
   const warnings = []
   if (isProduction && !redisConfigured) {
     warnings.push('REDIS_URL is not set — multi-instance deploys need Redis for rate limits and realtime fan-out.')
+  }
+  if (isProduction && redisConfigured && redisReady === false) {
+    warnings.push('REDIS_URL is set but Redis ping failed — rate limits and realtime fan-out may be inconsistent.')
   }
   if (isProduction && !sentryConfigured) {
     warnings.push('SENTRY_DSN is not set — production errors will not be reported to Sentry.')
@@ -86,6 +93,7 @@ async function getReadinessStatus() {
       mongoConnected,
       tenants,
       redisConfigured,
+      redisReady,
       redisRecommended: isProduction,
       sentryConfigured,
       uploadStorageRootSet: uploadStorage.uploadStorageRootSet,

@@ -55,6 +55,9 @@ jobs:
       - name: Check locale parity
         run: npm run check:locale-parity
 
+      - name: Check Atlas strict backup readiness
+        run: npm run check:atlas-strict-readiness
+
       - name: Install backend dependencies for migration validate
         run: npm ci --prefix backend
 
