@@ -23,8 +23,8 @@ vi.mock('../../context/LiveMetalRatesContext', () => ({
   useLiveMetalRatesContext: () => ({ snapshot: {} }),
 }))
 
-vi.mock('../erp/tabs/ERPDashboardTab', () => ({ default: () => <div>erp-dashboard</div> }))
-vi.mock('../erp/ERPTabContainers', () => ({
+vi.mock('./erp/tabs/ERPDashboardTab', () => ({ default: () => <div>erp-dashboard</div> }))
+vi.mock('./erp/ERPTabContainers', () => ({
   ERPAccountsTabContainer: () => <div>accounts-shell</div>,
   ERPVouchersTabContainer: () => <div>vouchers-shell</div>,
 }))
@@ -41,11 +41,12 @@ describe('ERPTab smoke', () => {
   })
 
   it('renders ERP shell without throwing', () => {
-    expect(() => render(
+    render(
       <MemoryRouter>
         <ERPTab focusTab="dashboard" />
       </MemoryRouter>,
-    )).not.toThrow()
-    expect(screen.getByText('erp-dashboard')).toBeInTheDocument()
+    )
+    expect(screen.getByText('erp-dashboard')).toBeTruthy()
+    expect(screen.queryByText('moduleFailedLoad')).toBeNull()
   })
 })
