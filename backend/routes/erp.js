@@ -4,7 +4,6 @@ const StockMovement = require('../models/StockMovement')
 const Supplier = require('../models/Supplier')
 const PurchaseOrder = require('../models/PurchaseOrder')
 const WorkOrder = require('../models/WorkOrder')
-const FinanceRecord = require('../models/FinanceRecord')
 const ProcurementDoc = require('../models/ProcurementDoc')
 const ExpiryAlert = require('../models/ExpiryAlert')
 const { protect } = require('../middleware/auth')
@@ -22,7 +21,6 @@ const {
   canCreatePO,
   canApprovePOBudget,
   canManageProduction,
-  canManageLegacyErpFinance,
   canUploadProcDocs,
 } = require('../services/permissions/moduleAccessPolicy')
 
@@ -142,26 +140,6 @@ const workOrderPatchSchema = Joi.object({
   qcNotes:          Joi.string().trim().allow('').max(500).optional(),
 }).min(1)
 
-const financeRecordCreateSchema = Joi.object({
-  recordType:   Joi.string().valid('expense', 'revenue', 'budget').required(),
-  category:     Joi.string().valid('raw_materials', 'salaries', 'utilities', 'sales_revenue', 'supplier_payments', 'other').optional(),
-  department:   Joi.string().trim().allow('').max(120).optional(),
-  amount:       Joi.number().required(),
-  date:         Joi.alternatives().try(Joi.date(), Joi.string()).optional(),
-  description:  Joi.string().trim().allow('').max(1000).optional(),
-  relatedDocId: Joi.string().hex().length(24).allow('', null).optional(),
-})
-
-const financeRecordPatchSchema = Joi.object({
-  recordType:   Joi.string().valid('expense', 'revenue', 'budget').optional(),
-  category:     Joi.string().valid('raw_materials', 'salaries', 'utilities', 'sales_revenue', 'supplier_payments', 'other').optional(),
-  department:   Joi.string().trim().allow('').max(120).optional(),
-  amount:       Joi.number().optional(),
-  date:         Joi.alternatives().try(Joi.date(), Joi.string()).optional(),
-  description:  Joi.string().trim().allow('').max(1000).optional(),
-  relatedDocId: Joi.string().hex().length(24).allow('', null).optional(),
-}).min(1)
-
 const procurementDocCreateSchema = Joi.object({
   poId:       Joi.string().hex().length(24).required(),
   docType:    Joi.string().valid('receipt', 'invoice', 'inspection_report', 'customs_doc', 'other').optional(),
@@ -194,15 +172,6 @@ const workOrderListQuerySchema = Joi.object({
   status: Joi.string().valid('pending', 'scheduled', 'in-progress', 'in_progress', 'quality_check', 'completed', 'on_hold', 'cancelled').optional(),
 })
 
-const financeRecordListQuerySchema = Joi.object({
-  page: Joi.number().integer().min(1).optional(),
-  limit: Joi.number().integer().min(1).max(50).optional(),
-  search: Joi.string().trim().max(200).allow('').optional(),
-  recordType: Joi.string().valid('expense', 'revenue', 'budget').optional(),
-  category: Joi.string().valid('raw_materials', 'salaries', 'utilities', 'sales_revenue', 'supplier_payments', 'other').optional(),
-  department: Joi.string().trim().max(120).optional(),
-})
-
 const procurementDocsQuerySchema = Joi.object({
   poId: Joi.string().hex().length(24).optional(),
   page: Joi.number().integer().min(1).optional(),
@@ -211,8 +180,6 @@ const procurementDocsQuerySchema = Joi.object({
 // ────────────────────────────────────────────────────────────────────────────
 
 const ERP_PO_FINAL_APPROVAL_THRESHOLD = Number(process.env.ERP_PO_FINAL_APPROVAL_THRESHOLD || 50000)
-
-const canManageFinance = canManageLegacyErpFinance
 
 const parsePagination = (query, defaultLimit = 20, maxLimit = 100) => {
   const page = Math.max(1, Number(query.page) || 1)
