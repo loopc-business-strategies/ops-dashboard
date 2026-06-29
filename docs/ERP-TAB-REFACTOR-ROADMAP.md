@@ -27,7 +27,19 @@
 
 - **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
 
-`ERPTab.jsx` is ~2050 lines after S7 modal/panel prop hooks (down from ~6460 on main). Sub-tab routing lives in `erp/ERPTabPanels.jsx` (~960 lines); overlays in `erp/ERPTabModals.jsx`.
+`ERPTab.jsx` is **~50 lines** after S8 (thin shell + guards + render). ERP logic, bindings, and hooks live in `erp/useErpTabController.js` (~2020 lines); panel/modal prop mapping in `buildErpTabPanelProps.js` / `buildErpTabModalProps.js`.
+
+## S8 wire-up (done)
+
+- **`buildErpTabPanelProps`** — maps shared scope to `ERPTabPanels` props (362 keys).
+- **`buildErpTabModalProps`** — maps shared scope to `ERPTabModals` props (79 keys; `colors` ← `C`).
+- **`useErpTabBindings`** — returns `{ panelProps, modalProps }` from scope.
+- **`useErpTabController`** — all ERP hooks/state/handlers + bindings; `ERPTab.jsx` is a thin shell.
+- Removed **`useErpTabPanelProps`** / **`useErpTabModalProps`** (replaced by builders + `useErpTabBindings`).
+
+## S9 (next)
+
+- **Split `useErpTabController`** — e.g. domain hooks (`useErpTabLedgerSlice`, `useErpTabInventorySlice`) to bring the controller under ~800 lines per module.
 
 ## S7 wire-up (done)
 
