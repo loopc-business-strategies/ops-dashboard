@@ -47,7 +47,7 @@ export async function fetchAllVendorsAggregated(token, baseFilters = {}) {
 
 export function useErpVendors({
   token,
-  canAccessVendors,
+  canLoadParties,
   setLoading,
   setVendors,
   setVendorSummary,
@@ -59,7 +59,7 @@ export function useErpVendors({
   setError,
 }) {
   const loadVendors = useCallback(async (filters = {}) => {
-    if (!canAccessVendors) return
+    if (!canLoadParties) return
     setLoading(true)
     try {
       const data = await fetchAllVendorsAggregated(token, filters)
@@ -71,7 +71,7 @@ export function useErpVendors({
       setError(e.response?.data?.message || 'Failed to load vendors')
     }
     setLoading(false)
-  }, [token, canAccessVendors, setLoading, setVendors, setVendorSummary, setVendorPermissions, setError])
+  }, [token, canLoadParties, setLoading, setVendors, setVendorSummary, setVendorPermissions, setError])
 
   const loadVendorDetails = useCallback(async (id) => {
     if (!id) {

@@ -99,7 +99,6 @@ import {
   JV_MODE_META,
   buildJvDocNo as buildNextJvDocNo,
   convertJvAmountBetweenCurrencies,
-  extractLedgerJvDocNoFromDescription,
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
 } from './erp/journalVoucherHelpers'
@@ -118,6 +117,10 @@ import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/er
 import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from './erp/erpPrintHelpers'
 import { useErpAccountEnquiryController } from './erp/useErpAccountEnquiryController'
 import { useErpTabRouter } from './erp/useErpTabRouter'
+import { useErpLedger } from './erp/useErpLedger'
+import { useErpLedgerActions } from './erp/useErpLedgerActions'
+import { useErpVendors, fetchAllVendorsAggregated } from './erp/useErpVendors'
+import { useErpInventory } from './erp/useErpInventory'
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
 const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
@@ -1027,41 +1030,6 @@ function ERPTab({
       return { ...group, accounts: filteredAccounts }
     })
     .filter((group) => group.accounts.length > 0)
-  const loadLedger = async (options = {}) => {
-    if (!canViewLedger) return
-    setLedgerLoading(true)
-    try {
-      const hasCursorOverride = Object.prototype.hasOwnProperty.call(options, 'cursor')
-      const cursor = hasCursorOverride ? options.cursor : null
-      const cursorHistory = Array.isArray(options.cursorHistory) ? options.cursorHistory : (cursor ? ledgerMeta.cursorHistory || [] : [])
-      const ledgerQuery = {
-        limit: 100,
-        ...ledgerFilters,
-        referenceType: ledgerFilters.referenceType || ledgerVoucherTab,
-        ...(cursor ? { cursor } : {}),
-      }
-      const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
-        erpAccountingAPI.getLedger(token, ledgerQuery),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
-        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-      ])
-      setLedger(ledgerData.entries || [])
-      setLedgerMeta({
-        cursor: ledgerData.cursor || cursor || null,
-        nextCursor: ledgerData.nextCursor || null,
-        hasMore: Boolean(ledgerData.hasMore),
-        cursorHistory,
-      })
-      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
-      if (currencyData) setCurrencies(currencyData.currencies || [])
-      if (mappingData) setMappings(mappingData.mappings || [])
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load ledger')
-    }
-    setLedgerLoading(false)
-  }
   const loadReportBranding = async (brandingKey = selectedBrandingKey || DEFAULT_BRANDING.key) => {
     try {
       const data = await erpAccountingAPI.getReportBranding(token, { key: brandingKey })
@@ -1110,48 +1078,51 @@ function ERPTab({
     setError,
     api: erpAccountingAPI,
   })
-  const loadAllVendors = async (baseFilters = {}) => {
-    const pageSize = 100
-    let page = 1
-    let total = Number.POSITIVE_INFINITY
-    let merged = []
-    let permissions = { canManage: false, canUpdateOperational: false }
-    while (merged.length < total) {
-      const data = await erpAccountingAPI.getVendors(token, { ...baseFilters, page, limit: pageSize })
-      const rows = data.vendors || []
-      merged = merged.concat(rows)
-      total = Number(data.total || merged.length)
-      permissions = data.permissions || permissions
-      if (!rows.length) break
-      page += 1
-    }
-    const uniqueById = new Map()
-    merged.forEach((item) => {
-      if (item?._id) uniqueById.set(item._id, item)
-    })
-    const vendors = Array.from(uniqueById.values())
-    const summaryTotals = vendors.reduce((acc, row) => {
-      acc.count += 1
-      acc.outstanding += Number(row.outstanding || 0)
-      acc.overLimit += row.isOverLimit ? 1 : 0
-      acc.blacklisted += row.status === 'blacklisted' ? 1 : 0
-      acc.onHold += row.status === 'on_hold' ? 1 : 0
-      acc.nonCompliant += row.compliance?.compliant ? 0 : 1
-      return acc
-    }, { count: 0, outstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
-    return {
-      vendors,
-      permissions,
-      summary: {
-        totalVendors: summaryTotals.count,
-        totalOutstanding: Number(summaryTotals.outstanding.toFixed(2)),
-        overLimit: summaryTotals.overLimit,
-        blacklisted: summaryTotals.blacklisted,
-        onHold: summaryTotals.onHold,
-        nonCompliant: summaryTotals.nonCompliant,
-      },
-    }
-  }
+  const { loadLedger } = useErpLedger({
+    token,
+    canViewLedger,
+    canLoadReferenceData,
+    canViewMappings,
+    ledgerFilters,
+    ledgerVoucherTab,
+    ledgerMeta,
+    setLoading: setLedgerLoading,
+    setLedger,
+    setLedgerMeta,
+    setAccounts,
+    setCurrencies,
+    setMappings,
+    setError,
+  })
+  const {
+    loadVendors,
+    loadVendorDetails,
+    loadVendorPaymentCalendar,
+    loadVendorComplianceSummary,
+    loadVendorOverdueQueue,
+  } = useErpVendors({
+    token,
+    canLoadParties,
+    setLoading: setVendorsLoading,
+    setVendors,
+    setVendorSummary,
+    setVendorPermissions,
+    setSelectedVendorDetails,
+    setVendorPaymentCalendar,
+    setVendorComplianceSummary,
+    setVendorOverdueQueue,
+    setError,
+  })
+  const { loadInventory, loadStockLedger } = useErpInventory({
+    token,
+    canAccessInventory,
+    canAccessFixingRegister,
+    setLoading: setInventoryLoading,
+    setInventoryProducts,
+    setStockMovements,
+    setStockMovementsLoading,
+    setError,
+  })
   const transactionReferenceLoadedRef = useRef(false)
   const loadTransactionReferenceData = useCallback(async () => {
     if (transactionReferenceLoadedRef.current) return
@@ -1159,7 +1130,7 @@ function ERPTab({
     try {
       const [customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canLoadParties ? loadAllVendors({ includeInactive: false }) : Promise.resolve(null),
+        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: false }) : Promise.resolve(null),
         canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
         canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
         canLoadReferenceData ? erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }) : Promise.resolve(null),
@@ -1174,7 +1145,7 @@ function ERPTab({
     } catch {
       transactionReferenceLoadedRef.current = false
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAllVendors is stable enough for reference bootstrap
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAllVendorsAggregated is stable for reference bootstrap
   }, [token, canLoadParties, canLoadInventoryData, canViewMappings, canLoadReferenceData])
   const loadTransactions = async (overrides = {}) => {
     if (!(canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) return
@@ -1275,89 +1246,20 @@ function ERPTab({
     showNotification,
     api: erpAccountingAPI,
   })
-  const loadVendors = async (filters = vendorFilters) => {
-    if (!canLoadParties) return
-    setVendorsLoading(true)
-    try {
-      const data = await loadAllVendors(filters)
-      setVendors(data.vendors || [])
-      setVendorSummary(data.summary || { totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
-      setVendorPermissions(data.permissions || { canManage: false, canUpdateOperational: false })
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load vendors')
-    }
-    setVendorsLoading(false)
-  }
-  const loadVendorDetails = useCallback(async (id) => {
-    if (!id) {
-      setSelectedVendorDetails(null)
-      return
-    }
-    try {
-      const data = await erpAccountingAPI.getVendorDetails(token, id)
-      setSelectedVendorDetails(data)
-      if (data.permissions) setVendorPermissions(data.permissions)
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load vendor details')
-    }
-  }, [token])
-  const loadVendorPaymentCalendar = async () => {
-    try {
-      const data = await erpAccountingAPI.getVendorPaymentCalendar(token, { horizonDays: 45 })
-      setVendorPaymentCalendar({ rows: data.rows || [], alerts: data.alerts || { overdue: 0, due_soon: 0, upcoming: 0, later: 0, totalDue: 0 } })
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load vendor payment calendar')
-    }
-  }
-  const loadVendorComplianceSummary = async () => {
-    try {
-      const data = await erpAccountingAPI.getVendorComplianceSummary(token)
-      setVendorComplianceSummary({
-        summary: data.summary || { total: 0, nonCompliant: 0, avgComplianceScore: 0 },
-        expiryBuckets: data.expiryBuckets || { expired: 0, warning30: 0, warning60: 0, warning90: 0 },
-        atRisk: data.atRisk || [],
-      })
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load vendor compliance summary')
-    }
-  }
-  const loadVendorOverdueQueue = async () => {
-    try {
-      const data = await erpAccountingAPI.getVendorOverdueAlertQueue(token, { horizonDays: 120 })
-      setVendorOverdueQueue({
-        summary: data.summary || { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 },
-        queue: data.queue || [],
-      })
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load overdue alert queue')
-    }
-  }
-  const loadInventory = async () => {
-    if (!canLoadInventoryData) return
-    setInventoryLoading(true)
-    try {
-      const productsData = await erpAccountingAPI.getInventoryProducts(token)
-      setInventoryProducts(productsData.products || [])
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load inventory')
-    }
-    setInventoryLoading(false)
-  }
-  const loadStockLedger = async () => {
-    if (!canLoadInventoryData) return
-    setStockMovementsLoading(true)
-    try {
-      const data = await erpAccountingAPI.getStockLedger(token)
-      setStockMovements(data.movements || [])
-    } catch {
-      setStockMovements([])
-    } finally {
-      setStockMovementsLoading(false)
-    }
-  }
+  const {
+    handleEditLedger,
+    handleReverseLedger,
+    handleReconcileLedger,
+    handleSaveEditLedger,
+  } = useErpLedgerActions({
+    token,
+    editState,
+    setEditState,
+    setSaving,
+    setError,
+    loadLedger,
+    showNotification,
+  })
   const handleCreateVendor = async (e) => {
     e.preventDefault()
     if (!canManageVendors && !editingVendorId) {
@@ -2981,75 +2883,6 @@ function ERPTab({
       await loadCustomers()
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to delete customer')
-    }
-  }
-  const handleEditLedger = (entry) => {
-    setEditState({
-      type: 'ledger',
-      record: entry,
-      form: {
-        date: new Date(entry.date).toISOString().slice(0, 10),
-        debitAccountId: entry.debitAccountId?._id || '',
-        creditAccountId: entry.creditAccountId?._id || '',
-        amount: entry.amount,
-        description: entry.description,
-        referenceType: entry.referenceType,
-        currency: entry.currency,
-      },
-    })
-  }
-  const handleReverseLedger = async (entryOrVoucher) => {
-    const entry = entryOrVoucher?.representative || entryOrVoucher
-    const entryIds = Array.isArray(entryOrVoucher?.entryIds) && entryOrVoucher.entryIds.length
-      ? entryOrVoucher.entryIds
-      : [entry?._id].filter(Boolean)
-    const lineLabel = entryIds.length > 1 ? `${entryIds.length} ledger lines` : 'ledger entry'
-    const voucherLabel = extractLedgerJvDocNoFromDescription(entry?.description) || entry?.referenceType || 'entry'
-    if (!window.confirm(`Remove ${voucherLabel} (${lineLabel}) from the ledger? This hides the voucher; balances will exclude these lines.`)) return
-    try {
-      setSaving(true)
-      await Promise.all(entryIds.map((id) => erpAccountingAPI.deleteLedgerEntry(token, id)))
-      await loadLedger()
-      setError('')
-      showNotification(`✅ Voucher removed (${entryIds.length} line${entryIds.length === 1 ? '' : 's'})`)
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to remove voucher')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleReconcileLedger = async (entry) => {
-    try {
-      setSaving(true)
-      await erpAccountingAPI.reconcileLedgerEntry(token, entry._id)
-      await loadLedger()
-      showNotification(`✅ Entry marked as ${entry.bankReconciled ? 'Unreconciled' : 'Reconciled'}`)
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to update reconciliation status')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleSaveEditLedger = async () => {
-    if (!editState.form.debitAccountId || !editState.form.creditAccountId || !editState.form.amount) {
-      setError('All fields required')
-      return
-    }
-    if (editState.form.debitAccountId === editState.form.creditAccountId) {
-      setError('Debit and Credit accounts must be different')
-      return
-    }
-    try {
-      setSaving(true)
-      await erpAccountingAPI.updateLedgerEntry(token, editState.record._id, editState.form)
-      await loadLedger()
-      setEditState({ type: '', record: null, form: {} })
-      setError('')
-      showNotification('✅ Entry updated successfully')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to update entry')
-    } finally {
-      setSaving(false)
     }
   }
   if (!token) {

@@ -1,9 +1,12 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { filterActiveAccounts } from './accountDropdownHelpers'
 
 export function useErpLedger({
   token,
   canViewLedger,
+  canLoadReferenceData,
+  canViewMappings,
   ledgerFilters,
   ledgerVoucherTab,
   ledgerMeta,
@@ -30,9 +33,9 @@ export function useErpLedger({
       }
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
         erpAccountingAPI.getLedger(token, ledgerQuery),
-        erpAccountingAPI.getAccounts(token),
-        erpAccountingAPI.getCurrencies(token),
-        erpAccountingAPI.getMappings(token),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
       ])
       setLedger(ledgerData.entries || [])
       setLedgerMeta({
@@ -41,15 +44,30 @@ export function useErpLedger({
         hasMore: Boolean(ledgerData.hasMore),
         cursorHistory,
       })
-      setAccounts(accountData.accounts || [])
-      setCurrencies(currencyData.currencies || [])
-      setMappings(mappingData.mappings || [])
+      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
+      if (currencyData) setCurrencies(currencyData.currencies || [])
+      if (mappingData) setMappings(mappingData.mappings || [])
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load ledger')
     }
     setLoading(false)
-  }, [token, canViewLedger, ledgerFilters, ledgerVoucherTab, ledgerMeta, setLoading, setLedger, setLedgerMeta, setAccounts, setCurrencies, setMappings, setError])
+  }, [
+    token,
+    canViewLedger,
+    canLoadReferenceData,
+    canViewMappings,
+    ledgerFilters,
+    ledgerVoucherTab,
+    ledgerMeta,
+    setLoading,
+    setLedger,
+    setLedgerMeta,
+    setAccounts,
+    setCurrencies,
+    setMappings,
+    setError,
+  ])
 
   return { loadLedger }
 }

@@ -27,7 +27,18 @@
 
 - **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
 
-`ERPTab.jsx` is ~4550 lines after enquiry + dashboard wire-up (down from ~6460 on main).
+`ERPTab.jsx` is ~3850 lines after S5 loader + ledger-action wire-up (down from ~6460 on main).
+
+## S5 wire-up (done)
+
+- **`useErpLedger`** — wired in `ERPTab.jsx` (conditional reference-data loads; replaces inline `loadLedger`).
+- **`useErpVendors`** — wired (`fetchAllVendorsAggregated` shared with transaction reference bootstrap).
+- **`useErpInventory`** — wired (`loadInventory`, `loadStockLedger`).
+- **`useErpLedgerActions`** — ledger edit / reverse / reconcile / save handlers extracted from `ERPTab.jsx`.
+
+## Mobile store signing (ops — not code)
+
+12 GitHub secrets still missing per `mobile/RELEASE_CHECKLIST.md`. Run `npm run check:mobile-release-secrets` after provisioning certs/keystores. See `npm run setup:mobile-github-secrets -- --print-instructions`.
 
 ## Presentational splits (done)
 
