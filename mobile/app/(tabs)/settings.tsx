@@ -14,7 +14,7 @@ import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import * as Notifications from 'expo-notifications'
 import { isSuperAdmin } from '@/src/utils/roles'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
@@ -114,7 +114,7 @@ function createSettingsStyles(branding: MobileTenantBranding) {
 
 export default function SettingsScreen() {
   const { user, token, logout } = useAuth()
-  const { companyCode, branding } = useTenantBranding()
+  const { companyCode, branding } = useTenant()
   const styles = useBrandingStyles(createSettingsStyles)
   const switchTrack = { false: '#CBD5E1', true: branding.colors.primary } as const
   const sessionReady = useTenantSessionReady()

@@ -9,7 +9,7 @@ import {
 } from '@/src/api/messages'
 import { startChatMessageEvents } from '@/src/realtime/chatSse'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import type { ChatAttachment, ChatConversation, ChatParticipant } from '@/src/types/chat'
@@ -65,7 +65,7 @@ function buildMessagePayload(
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth()
-  const { companyCode } = useTenantBranding()
+  const { companyCode } = useTenant()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const myAuthId = String(user?.id || '')

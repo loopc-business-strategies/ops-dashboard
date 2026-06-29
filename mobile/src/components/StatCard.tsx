@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, type ViewStyle } from 'react-native'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 
@@ -45,7 +45,7 @@ function createStatCardStyles(branding: MobileTenantBranding) {
 
 export function StatCard({ label, value, sub, tone = 'default', style }: Props) {
   const styles = useBrandingStyles(createStatCardStyles)
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
 
   const valueColor =
     tone === 'success' ? branding.colors.success :

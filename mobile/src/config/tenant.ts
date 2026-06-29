@@ -3,7 +3,8 @@ import * as SecureStore from 'expo-secure-store'
 import { normalizeTenantKey, TENANT_KEYS } from '@/src/config/tenantBranding'
 
 export const COMPANY_CODE_STORAGE_KEY = 'nexa_company_code'
-export const SESSION_TOKEN_KEY = 'mg_ops_session_token'
+export const SESSION_TOKEN_KEY = 'nexa_session_token'
+export const LEGACY_SESSION_TOKEN_KEY = 'mg_ops_session_token'
 
 export const API_URL =
   (Constants.expoConfig?.extra?.apiUrl as string) ||
@@ -60,12 +61,32 @@ export async function loadStoredCompanyCode(): Promise<string | null> {
   return null
 }
 
+export async function readSessionTokenFromSecureStore(): Promise<string | null> {
+  const current = await SecureStore.getItemAsync(SESSION_TOKEN_KEY)
+  if (current) return current
+  const legacy = await SecureStore.getItemAsync(LEGACY_SESSION_TOKEN_KEY)
+  if (!legacy) return null
+  await SecureStore.setItemAsync(SESSION_TOKEN_KEY, legacy)
+  await SecureStore.deleteItemAsync(LEGACY_SESSION_TOKEN_KEY)
+  return legacy
+}
+
+export async function writeSessionTokenToSecureStore(token: string | null): Promise<void> {
+  if (token) {
+    await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token)
+    await SecureStore.deleteItemAsync(LEGACY_SESSION_TOKEN_KEY)
+    return
+  }
+  await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY)
+  await SecureStore.deleteItemAsync(LEGACY_SESSION_TOKEN_KEY)
+}
+
 /** Prefer JWT company, then stored company code, then build default. */
 export async function bootstrapTenantFromStorage(sessionToken?: string | null): Promise<string> {
   const token =
     sessionToken !== undefined
       ? sessionToken
-      : await SecureStore.getItemAsync(SESSION_TOKEN_KEY)
+      : await readSessionTokenFromSecureStore()
 
   const fromJwt = decodeTenantFromJwt(token)
   if (fromJwt) {

@@ -3,7 +3,7 @@ import { ActivityIndicator, View } from 'react-native'
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
-import { TenantProvider, useTenantBranding } from '@/src/context/TenantContext'
+import { TenantProvider, useTenant } from '@/src/context/TenantContext'
 import { ChatProvider } from '@/src/context/ChatContext'
 import { NotificationsProvider } from '@/src/context/NotificationsContext'
 import { LiveMetalRatesProvider } from '@/src/context/LiveMetalRatesContext'
@@ -22,7 +22,7 @@ export { ErrorBoundary } from 'expo-router'
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
-  const { branding, isReady } = useTenantBranding()
+  const { branding, isReady } = useTenant()
   const segments = useSegments()
   const router = useRouter()
   const bootstrapping = isLoading || !isReady
@@ -83,14 +83,6 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="chat" options={{ headerShown: false }} />
                 <Stack.Screen name="admin-settings" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="plus-modal"
-                  options={{
-                    presentation: 'modal',
-                    headerShown: true,
-                    title: 'Quick actions',
-                  }}
-                />
               </Stack>
           </SessionScopedProviders>
         </AuthGate>

@@ -59,4 +59,9 @@ loopc.cookies
 ops_dashboard.html
 ops_dashboard.local.html
 
-.vercel
+# Mongo backup workflow artifacts
+backup-artifacts/
+
+# Playwright output (root-level hardening)
+test-results/
+playwright-report/

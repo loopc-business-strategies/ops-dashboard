@@ -73,8 +73,8 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
 }
 
-export function useTenantBranding() {
+export function useTenant() {
   const ctx = useContext(TenantContext)
-  if (!ctx) throw new Error('useTenantBranding must be used within TenantProvider')
+  if (!ctx) throw new Error('useTenant must be used within TenantProvider')
   return ctx
 }

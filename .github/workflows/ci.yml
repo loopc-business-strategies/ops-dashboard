@@ -52,6 +52,9 @@ jobs:
       - name: Check tenant branding parity
         run: npm run check:tenant-branding-parity
 
+      - name: Check locale parity
+        run: npm run check:locale-parity
+
       - name: Install backend dependencies for migration validate
         run: npm ci --prefix backend
 
@@ -104,6 +107,10 @@ jobs:
       - name: Run backend fast tests
         working-directory: backend
         run: npm run test:fast
+
+      - name: Run backend route coverage gates
+        working-directory: backend
+        run: npm run test:coverage
 
       - name: Run backend ERP accounting unit tests
         working-directory: backend

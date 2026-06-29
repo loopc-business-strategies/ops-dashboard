@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native'
 import { router } from 'expo-router'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useChat } from '@/src/context/ChatContext'
@@ -19,7 +19,7 @@ import { canCreateChatGroup } from '@/src/utils/roles'
 
 export default function ChatListScreen() {
   const { user } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const styles = useMemo(() => createChatListStyles(branding), [branding])
   const { conversations, loading, error, refresh } = useChat()
   const [search, setSearch] = useState('')

@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { fmtMoney } from '@/src/utils/format'
 import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
@@ -8,7 +8,7 @@ const VOL_COLORS = ['#F59E0B', '#9CA3AF', '#6366F1', '#EC4899', '#059669']
 
 export function VolumeWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
   const widgetStyles = useWidgetStyles()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const vols = dashboard?.volumeTraded || []
   const totalQty = vols.reduce((s, v) => s + Number(v.qty || 0), 0)
   const mx = Math.max(...vols.map((v) => Number(v.qty || 0)), 1)

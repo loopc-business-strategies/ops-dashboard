@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { StyleSheet } from 'react-native'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 
 export function createWidgetStyles(branding: MobileTenantBranding) {
   const { colors } = branding
@@ -79,6 +79,6 @@ export function createWidgetStyles(branding: MobileTenantBranding) {
 }
 
 export function useWidgetStyles() {
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   return useMemo(() => createWidgetStyles(branding), [branding])
 }

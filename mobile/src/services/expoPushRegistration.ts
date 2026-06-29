@@ -5,7 +5,30 @@ import * as SecureStore from 'expo-secure-store'
 import * as authApi from '@/src/api/auth'
 import { EAS_PROJECT_ID } from '@/src/config/easProject'
 
-const STORED_PUSH_TOKEN_KEY = 'mg_ops_expo_push_token'
+const STORED_PUSH_TOKEN_KEY = 'nexa_expo_push_token'
+const LEGACY_PUSH_TOKEN_KEY = 'mg_ops_expo_push_token'
+
+async function readStoredPushTokenKey(): Promise<string | null> {
+  const current = await SecureStore.getItemAsync(STORED_PUSH_TOKEN_KEY)
+  if (current) return String(current).trim() || null
+  const legacy = await SecureStore.getItemAsync(LEGACY_PUSH_TOKEN_KEY)
+  if (!legacy) return null
+  const trimmed = String(legacy).trim()
+  if (!trimmed) return null
+  await SecureStore.setItemAsync(STORED_PUSH_TOKEN_KEY, trimmed)
+  await SecureStore.deleteItemAsync(LEGACY_PUSH_TOKEN_KEY)
+  return trimmed
+}
+
+async function writeStoredPushTokenKey(token: string | null): Promise<void> {
+  if (token) {
+    await SecureStore.setItemAsync(STORED_PUSH_TOKEN_KEY, token)
+    await SecureStore.deleteItemAsync(LEGACY_PUSH_TOKEN_KEY)
+    return
+  }
+  await SecureStore.deleteItemAsync(STORED_PUSH_TOKEN_KEY)
+  await SecureStore.deleteItemAsync(LEGACY_PUSH_TOKEN_KEY)
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -32,7 +55,7 @@ export async function getNotificationPermissionStatus(): Promise<Notifications.P
 async function resolveStoredPushToken() {
   if (lastExpoPushToken) return lastExpoPushToken
   try {
-    const stored = await SecureStore.getItemAsync(STORED_PUSH_TOKEN_KEY)
+    const stored = await readStoredPushTokenKey()
     return stored ? String(stored).trim() : null
   } catch {
     return null
@@ -75,7 +98,7 @@ export async function registerExpoPushAndPost(sessionToken: string): Promise<boo
 
   await authApi.registerPushToken(sessionToken, expoToken)
   lastExpoPushToken = expoToken
-  await SecureStore.setItemAsync(STORED_PUSH_TOKEN_KEY, expoToken)
+  await writeStoredPushTokenKey(expoToken)
   return true
 }
 
@@ -89,7 +112,7 @@ export async function unregisterExpoPushFromBackend(sessionToken: string | null)
   } finally {
     lastExpoPushToken = null
     try {
-      await SecureStore.deleteItemAsync(STORED_PUSH_TOKEN_KEY)
+    await writeStoredPushTokenKey(null)
     } catch {
       // ignore
     }

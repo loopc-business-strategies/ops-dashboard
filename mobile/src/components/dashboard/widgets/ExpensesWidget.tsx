@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { fmtCompactCurrency, fmtMoney } from '@/src/utils/format'
 import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
@@ -8,7 +8,7 @@ const COLORS = ['#059669', '#2563EB', '#D97706', '#7C3AED', '#DC2626', '#0891B2'
 
 export function ExpensesWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
   const widgetStyles = useWidgetStyles()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const exp = dashboard?.expenses || {}
   const total = Number(exp.total || 0)
   const ytdTotal = Number(exp.ytdTotal || 0)

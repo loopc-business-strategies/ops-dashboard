@@ -20,7 +20,7 @@ import { SymbolView } from 'expo-symbols'
 import { attachmentRequestUrl, getAuthToken } from '@/src/api/client'
 import { useChat } from '@/src/context/ChatContext'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import type { ChatAttachment } from '@/src/types/chat'
 import { formatAttachmentSize } from '@/src/utils/chat'
@@ -36,7 +36,7 @@ function AttachmentBubble({
   styles: ReturnType<typeof createChatDetailStyles>
 }) {
   const token = getAuthToken()
-  const { companyCode } = useTenantBranding()
+  const { companyCode } = useTenant()
   const url = attachment.fileName ? attachmentRequestUrl(attachment.fileName) : ''
   const label = attachment.originalName || attachment.fileName || 'Attachment'
   const authHeaders = {
@@ -77,7 +77,7 @@ function AttachmentBubble({
 
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const styles = useMemo(() => createChatDetailStyles(branding), [branding])
   const { chatId: rawChatId } = useLocalSearchParams<{ chatId: string }>()
   const chatId = decodeURIComponent(String(rawChatId || ''))

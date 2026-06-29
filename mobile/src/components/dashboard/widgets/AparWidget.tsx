@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { fmtMoney } from '@/src/utils/format'
 import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 export function AparWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
   const [tab, setTab] = useState<'ar' | 'ap'>('ar')
   const widgetStyles = useWidgetStyles()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const ap = dashboard?.apAr || {}
   const arRows = ap.customerOutstanding || []
   const apRows = ap.supplierOutstanding || []

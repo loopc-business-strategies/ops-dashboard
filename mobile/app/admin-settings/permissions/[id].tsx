@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'rea
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { PermissionEditor } from '@/src/components/admin/PermissionEditor'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
@@ -14,7 +14,7 @@ import type { ModulePermissions } from '@/src/constants/admin'
 export default function PermissionsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()

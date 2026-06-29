@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
@@ -82,7 +82,7 @@ export default function ErpReportsScreen({
   initialView?: string
 } = {}) {
   const { token, user } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const allowed = canAccessErpReports(user)

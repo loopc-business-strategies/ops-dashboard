@@ -11,13 +11,13 @@ import {
 import { SymbolView } from 'expo-symbols'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useChat } from '@/src/context/ChatContext'
 import { useNotifications, type AppNotificationItem } from '@/src/context/NotificationsContext'
 import { navigateDeepLink } from '@/src/navigation/deepLinkRouter'
 import { resolveMobileNotificationRoute } from '@/src/notifications/resolveNotificationRoute'
 
-type TabHeaderProps = {
+export type AppTabsHeaderProps = {
   options: { title?: string }
   route: { name: string }
 }
@@ -31,7 +31,6 @@ function resolveTitle(routeName: string, rawTitle: string | undefined): string {
     chat: 'Chat',
     transactions: 'Transactions',
     settings: 'Settings',
-    plus: '',
     index: '',
   }
   return map[routeName] ?? routeName
@@ -49,10 +48,10 @@ function formatRelativeTime(d: Date): string {
 }
 
 /** Custom tab header: title bar + chat icon + real-time notifications bell (Socket.IO `/notifications`). */
-export function MgTabsHeader({ options, route }: TabHeaderProps) {
+export function AppTabsHeader({ options, route }: AppTabsHeaderProps) {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const styles = useMemo(
     () =>
       StyleSheet.create({

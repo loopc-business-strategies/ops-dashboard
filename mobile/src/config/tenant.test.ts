@@ -4,6 +4,7 @@ const mockState = { extra: {} as Record<string, string | undefined> }
 const secureStore = {
   companyCode: null as string | null,
   sessionToken: null as string | null,
+  legacySessionToken: null as string | null,
 }
 
 vi.mock('expo-constants', () => ({
@@ -19,16 +20,19 @@ vi.mock('expo-constants', () => ({
 vi.mock('expo-secure-store', () => ({
   getItemAsync: vi.fn(async (key: string) => {
     if (key === 'nexa_company_code') return secureStore.companyCode
-    if (key === 'mg_ops_session_token') return secureStore.sessionToken
+    if (key === 'nexa_session_token') return secureStore.sessionToken
+    if (key === 'mg_ops_session_token') return secureStore.legacySessionToken
     return null
   }),
   setItemAsync: vi.fn(async (key: string, value: string) => {
     if (key === 'nexa_company_code') secureStore.companyCode = value
-    if (key === 'mg_ops_session_token') secureStore.sessionToken = value
+    if (key === 'nexa_session_token') secureStore.sessionToken = value
+    if (key === 'mg_ops_session_token') secureStore.legacySessionToken = value
   }),
   deleteItemAsync: vi.fn(async (key: string) => {
     if (key === 'nexa_company_code') secureStore.companyCode = null
-    if (key === 'mg_ops_session_token') secureStore.sessionToken = null
+    if (key === 'nexa_session_token') secureStore.sessionToken = null
+    if (key === 'mg_ops_session_token') secureStore.legacySessionToken = null
   }),
 }))
 
@@ -43,6 +47,7 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
     mockState.extra = {}
     secureStore.companyCode = null
     secureStore.sessionToken = null
+    secureStore.legacySessionToken = null
     delete process.env.EXPO_PUBLIC_API_URL
   })
 
@@ -95,6 +100,14 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
     const { bootstrapTenantFromStorage, getTenant } = await import('./tenant')
     await expect(bootstrapTenantFromStorage()).resolves.toBe('loopc')
     expect(getTenant()).toBe('loopc')
+  })
+
+  it('readSessionTokenFromSecureStore migrates legacy session key', async () => {
+    secureStore.legacySessionToken = 'legacy-jwt'
+    const { readSessionTokenFromSecureStore } = await import('./tenant')
+    await expect(readSessionTokenFromSecureStore()).resolves.toBe('legacy-jwt')
+    expect(secureStore.sessionToken).toBe('legacy-jwt')
+    expect(secureStore.legacySessionToken).toBeNull()
   })
 
   it('syncTenantFromJwt updates active tenant from JWT company', async () => {

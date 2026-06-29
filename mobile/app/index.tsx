@@ -1,11 +1,11 @@
 import { Redirect } from 'expo-router'
 import { ActivityIndicator, View } from 'react-native'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
 
 export default function IndexScreen() {
   const { isAuthenticated, isLoading } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
 
   if (isLoading) {
     return (

@@ -1,28 +1,26 @@
-﻿import { useMemo } from 'react'
+import { useMemo } from 'react'
 import { SymbolView } from 'expo-symbols'
-import { Tabs, useRouter } from 'expo-router'
+import { Tabs } from 'expo-router'
 import { Platform } from 'react-native'
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { PlusTabButton } from '@/src/components/PlusTabButton'
-import { MgTabsHeader } from '@/src/components/MgTabsHeader'
+import { AppTabsHeader } from '@/src/components/AppTabsHeader'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 
 const TAB_PADDING_TOP = 8
 /** Minimum row for icons + labels (avoids clipping). */
 const TAB_INNER_HEIGHT = Platform.OS === 'ios' ? 56 : 48
 /**
  * With `edgeToEdgeEnabled=true`, some OEMs (e.g. MIUI) report `insets.bottom === 0` while the 3-button
- * nav bar still occludes ~48–56dp. A small floor (8) is not enough — use a classic nav-bar reserve.
+ * nav bar still occludes ~48?56dp. A small floor (8) is not enough ? use a classic nav-bar reserve.
  */
 const ANDROID_TAB_BAR_BOTTOM_MIN = 52
 
 export default function TabLayout() {
-  const router = useRouter()
   const insets = useSafeAreaInsets()
   const bootBottom = initialWindowMetrics?.insets.bottom ?? 0
   const { tenantSessionKey } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
 
   /** Edge-to-edge: lift tab content above system gesture / 3-button bar even when JS insets are wrong. */
   const tabBarStyle = useMemo(() => {
@@ -46,7 +44,7 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: true,
         header: (props) => (
-          <MgTabsHeader options={props.options} route={props.route} />
+          <AppTabsHeader options={props.options} route={props.route} />
         ),
         headerShadowVisible: false,
         headerStyle: { backgroundColor: branding.colors.primary },
@@ -76,20 +74,6 @@ export default function TabLayout() {
           title: 'ERP',
           tabBarIcon: ({ color }) => (
             <SymbolView name={{ ios: 'chart.bar.doc.horizontal', android: 'assessment', web: 'assessment' }} tintColor={color} size={24} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="plus"
-        options={{
-          title: '',
-          tabBarLabel: () => null,
-          tabBarIcon: () => null,
-          tabBarButton: (props) => (
-            <PlusTabButton
-              {...props}
-              onPressOverride={() => router.push('/plus-modal')}
-            />
           ),
         }}
       />

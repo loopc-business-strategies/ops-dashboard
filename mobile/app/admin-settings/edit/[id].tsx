@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'rea
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { UserForm } from '@/src/components/admin/UserForm'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
@@ -15,7 +15,7 @@ import { formToPayload, userToForm, validateUserForm } from '@/src/utils/userFor
 export default function EditUserScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import { formatDateToInput, normalizeDateInput, parseDateInput } from '@/src/utils/dateInput'
 
@@ -44,7 +44,7 @@ function createDateFieldStyles(branding: MobileTenantBranding) {
 
 export default function DateField({ label, value, onChange, placeholder = 'YYYY-MM-DD' }: DateFieldProps) {
   const styles = useBrandingStyles(createDateFieldStyles)
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const [showPicker, setShowPicker] = useState(false)
 
   const pickerDate = parseDateInput(value) || new Date()

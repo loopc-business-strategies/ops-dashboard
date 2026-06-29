@@ -13,7 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { RoleBadge } from '@/src/components/admin/RoleBadge'
 import { DEPTS, ROLES } from '@/src/constants/admin'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
 import { createAdminListScreenStyles } from '@/src/styles/adminFormScreenStyles'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
@@ -28,7 +28,7 @@ import {
 
 export default function AdminUsersScreen() {
   const { token, user: me } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const styles = useBrandingStyles(createAdminListScreenStyles)
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()

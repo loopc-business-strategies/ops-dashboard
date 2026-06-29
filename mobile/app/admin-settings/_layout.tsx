@@ -1,11 +1,11 @@
 import { Redirect, Stack } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { isSuperAdmin } from '@/src/utils/roles'
 
 export default function AdminSettingsLayout() {
   const { user } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
 
   if (!isSuperAdmin(user)) {
     return <Redirect href="/(tabs)/settings" />

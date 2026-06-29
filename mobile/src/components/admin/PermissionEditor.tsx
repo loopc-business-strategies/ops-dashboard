@@ -4,7 +4,7 @@ import {
   ERP_PERMISSION_ROWS,
   type ModulePermissions,
 } from '@/src/constants/admin'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useBrandingStyles } from '@/src/hooks/useBrandingStyles'
 import { createPermissionEditorStyles } from '@/src/styles/adminFormScreenStyles'
 
@@ -15,7 +15,7 @@ type Props = {
 
 export function PermissionEditor({ perms, onChange }: Props) {
   const styles = useBrandingStyles(createPermissionEditorStyles)
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const switchTrack = { false: '#CBD5E1', true: branding.colors.secondary } as const
 
   const PermRow = ({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) => (

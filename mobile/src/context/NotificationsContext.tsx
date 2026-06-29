@@ -10,7 +10,7 @@ import React, {
 import { Platform } from 'react-native'
 import * as Notifications from 'expo-notifications'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
   startUserNotificationsSocket,
@@ -53,7 +53,7 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth()
-  const { companyCode } = useTenantBranding()
+  const { companyCode } = useTenant()
   const sessionReady = useTenantSessionReady()
   const [items, setItems] = useState<AppNotificationItem[]>([])
   const seenPushIdsRef = useRef<Set<string>>(new Set())

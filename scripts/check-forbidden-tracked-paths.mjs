@@ -34,6 +34,9 @@ const forbiddenPatterns = [
   { label: 'mobile android build output', pattern: /^mobile\/android\/(app\/)?build\// },
   { label: 'mobile android gradle cache', pattern: /^mobile\/android\/\.gradle\// },
   { label: 'coverage output', pattern: /(^|\/)coverage\// },
+  { label: 'backup artifacts', pattern: /^backup-artifacts\// },
+  { label: 'playwright test results', pattern: /(^|\/)test-results\// },
+  { label: 'playwright report', pattern: /(^|\/)playwright-report\// },
 ]
 
 const violations = trackedFiles

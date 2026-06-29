@@ -9,7 +9,7 @@ import React, {
 import { AppState, type AppStateStatus } from 'react-native'
 import { fetchLiveMetalRates, fetchSavedMetalRates } from '@/src/api/metalRates'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { startMetalRatesEvents } from '@/src/realtime/metalRatesSse'
@@ -276,7 +276,7 @@ function useLiveMetalRatesState(
 
 export function LiveMetalRatesProvider({ children }: { children: React.ReactNode }) {
   const { token, isAuthenticated } = useAuth()
-  const { companyCode } = useTenantBranding()
+  const { companyCode } = useTenant()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const enabled = Boolean(token && isAuthenticated)

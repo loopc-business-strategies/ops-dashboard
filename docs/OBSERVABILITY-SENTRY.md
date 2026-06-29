@@ -39,6 +39,16 @@ The app includes **`@sentry/react-native`**. [mobile/src/lib/sentryInit.ts](../m
 
 If you remove the DSN, Sentry stays inert (no network calls).
 
+## SDK version policy
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| `@sentry/node` (backend) | 10.58.x | Aligned with web |
+| `@sentry/react` (frontend) | 10.58.x | Aligned with API |
+| `@sentry/react-native` (mobile) | 7.11.x | Pinned by Expo SDK 56; upgrade only after [Sentry Expo compatibility](https://docs.sentry.io/platforms/react-native/manual-setup/expo/) confirms v10+ for the current Expo SDK |
+
+Do not force a mobile Sentry major bump until Expo documents a compatible v10+ release for the SDK in use.
+
 ## Alternatives
 
 - **Datadog / Logtail / Axiom** — ship structured logs from `backend/middleware/logger.js` to a log drain.

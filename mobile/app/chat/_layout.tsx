@@ -1,8 +1,8 @@
 import { Stack } from 'expo-router'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 
 export default function ChatStackLayout() {
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
 
   return (
     <Stack

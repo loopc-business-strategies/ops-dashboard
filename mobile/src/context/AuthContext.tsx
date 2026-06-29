@@ -1,11 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import * as SecureStore from 'expo-secure-store'
 import { setAuthToken } from '@/src/api/client'
 import { registerUnauthorizedHandler } from '@/src/api/sessionEvents'
 import * as authApi from '@/src/api/auth'
 import type { AuthUser } from '@/src/api/auth'
-import { SESSION_TOKEN_KEY } from '@/src/config/tenant'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { readSessionTokenFromSecureStore, writeSessionTokenToSecureStore } from '@/src/config/tenant'
+import { useTenant } from '@/src/context/TenantContext'
 import { registerExpoPushAndPost, unregisterExpoPushFromBackend, attachExpoPushReregistration } from '@/src/services/expoPushRegistration'
 import { buildTenantSessionKey } from '@/src/utils/tenantSessionKey'
 
@@ -24,7 +23,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { isReady, companyCode, syncTenantFromSession, resetForLogout } = useTenantBranding()
+  const { isReady, companyCode, syncTenantFromSession, resetForLogout } = useTenant()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -34,15 +33,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(nextToken)
     setUser(nextUser)
     setAuthToken(nextToken)
-    if (nextToken) {
-      await SecureStore.setItemAsync(SESSION_TOKEN_KEY, nextToken)
-    } else {
-      await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY)
-    }
+    await writeSessionTokenToSecureStore(nextToken)
   }, [])
 
   const refreshUser = useCallback(async () => {
-    const stored = await SecureStore.getItemAsync(SESSION_TOKEN_KEY)
+    const stored = await readSessionTokenFromSecureStore()
     if (!stored) {
       await applySession(null, null)
       return

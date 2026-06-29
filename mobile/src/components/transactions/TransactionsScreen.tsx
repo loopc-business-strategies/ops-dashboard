@@ -22,7 +22,7 @@ import OutcomeIncomeCards from '@/src/components/transactions/OutcomeIncomeCards
 import { createOperationsStyles } from '@/src/components/transactions/operationsStyles'
 import { operationKeyToApiType } from '@/src/constants/transactionTypes'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
@@ -83,7 +83,7 @@ function apiFilterKeyFrom(filters: ApiFilterState): string {
 
 export default function TransactionsScreen() {
   const { token, user } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const styles = useMemo(() => createOperationsStyles(branding), [branding])

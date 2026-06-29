@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useErpLiveMetalSpotPrices } from '@/src/hooks/useErpLiveMetalSpotPrices'
 import { fmtPosition, fmtSigned } from '@/src/utils/format'
 import { mapMarginRow } from '@/src/utils/marginWidgetHelpers'
@@ -24,7 +24,7 @@ export function MarginsWidget({
 }: Props) {
   const [tab, setTab] = useState<'customers' | 'suppliers'>('customers')
   const widgetStyles = useWidgetStyles()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const liveSpot = useErpLiveMetalSpotPrices()
   const goldPriceUSD = goldPriceProp ?? liveSpot.goldPriceUSD
   const silverPriceUSD = silverPriceProp ?? liveSpot.silverPriceUSD

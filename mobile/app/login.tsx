@@ -17,7 +17,7 @@ import {
   LOGIN_NEUTRAL_COLORS,
   normalizeTenantKey,
 } from '@/src/config/tenantBranding'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
 import {
   clearSavedLoginCredentials,
@@ -27,7 +27,7 @@ import {
 
 export default function LoginScreen() {
   const { login } = useAuth()
-  const { applyCompanyCode } = useTenantBranding()
+  const { applyCompanyCode } = useTenant()
   const [companyCode, setCompanyCode] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')

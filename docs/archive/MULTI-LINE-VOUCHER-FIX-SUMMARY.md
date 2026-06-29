@@ -185,9 +185,9 @@ Total multi-line vouchers checked: [X]
 
 ## Quick Reference
 
-**Run the test:**
+**Automated test:**
 ```bash
-node backend/test-multi-line-fx-fix.js
+cd backend && npm run test:erp-accounting -- tests/erpAccounting/fxRevaluationService.test.js
 ```
 
 **Clean up existing vouchers:**

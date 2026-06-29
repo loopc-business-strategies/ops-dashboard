@@ -13,7 +13,7 @@ import { LiveMetalPricesBar } from '@/src/components/dashboard/LiveMetalPricesBa
 import { renderDashboardWidget } from '@/src/components/dashboard/renderDashboardWidget'
 import { ERP_DASH_WIDGETS } from '@/src/constants/erpDashboardWidgets'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenant } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { useLiveMetalRates } from '@/src/hooks/useLiveMetalRates'
@@ -22,7 +22,7 @@ import { fetchDashboard, type DashboardPayload } from '@/src/api/dashboard'
 
 export default function HomeScreen() {
   const { token } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding } = useTenant()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
   const tenantSessionKeyRef = useRef(tenantSessionKey)
