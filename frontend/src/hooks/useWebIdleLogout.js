@@ -23,6 +23,23 @@ function writeStoredActivityAt(timestamp) {
   }
 }
 
+export function clearStoredActivity() {
+  try {
+    localStorage.removeItem(WEB_IDLE_ACTIVITY_STORAGE_KEY)
+  } catch {
+    // Ignore quota / private mode errors.
+  }
+}
+
+export { writeStoredActivityAt }
+
+function resolveActivityAt(stored, idleTimeoutMs) {
+  const now = Date.now()
+  if (!stored || !idleTimeoutMs || idleTimeoutMs <= 0) return now
+  if (now - stored >= idleTimeoutMs) return now
+  return stored
+}
+
 /**
  * Web-only idle logout timer with cross-tab activity sync.
  */
@@ -137,7 +154,8 @@ export function useWebIdleLogout({
       return undefined
     }
 
-    const initialActivity = readStoredActivityAt() || Date.now()
+    const stored = readStoredActivityAt()
+    const initialActivity = resolveActivityAt(stored, idleTimeoutMs)
     recordActivity(initialActivity)
 
     ACTIVITY_EVENTS.forEach((eventName) => {

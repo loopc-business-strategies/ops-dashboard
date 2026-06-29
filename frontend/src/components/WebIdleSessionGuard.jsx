@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { useWebIdleLogout } from '../hooks/useWebIdleLogout'
+import { clearStoredActivity, useWebIdleLogout } from '../hooks/useWebIdleLogout'
 
 export default function WebIdleSessionGuard() {
   const { logout, sessionPolicy } = useAuth()
@@ -23,6 +23,7 @@ export default function WebIdleSessionGuard() {
 
   const handleIdleLogout = useCallback(async () => {
     setShowWarning(false)
+    clearStoredActivity()
     try {
       await logout()
     } catch {

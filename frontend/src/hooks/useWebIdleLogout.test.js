@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useWebIdleLogout, WEB_IDLE_ACTIVITY_STORAGE_KEY } from './useWebIdleLogout'
+import {
+  clearStoredActivity,
+  useWebIdleLogout,
+  WEB_IDLE_ACTIVITY_STORAGE_KEY,
+} from './useWebIdleLogout'
 
 describe('useWebIdleLogout', () => {
   beforeEach(() => {
@@ -77,6 +81,34 @@ describe('useWebIdleLogout', () => {
     })
 
     expect(onIdle).not.toHaveBeenCalled()
+    expect(localStorage.getItem(WEB_IDLE_ACTIVITY_STORAGE_KEY)).toBeNull()
+  })
+
+  test('does not fire idle immediately when stored activity is stale', () => {
+    const onIdle = vi.fn()
+    const idleTimeoutMs = 10_000
+    const staleActivity = Date.now() - idleTimeoutMs - 5_000
+    localStorage.setItem(WEB_IDLE_ACTIVITY_STORAGE_KEY, String(staleActivity))
+
+    renderHook(() => useWebIdleLogout({
+      enabled: true,
+      idleTimeoutMs,
+      warningMs: 3_000,
+      onIdle,
+    }))
+
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
+
+    expect(onIdle).not.toHaveBeenCalled()
+    const storedActivity = Number(localStorage.getItem(WEB_IDLE_ACTIVITY_STORAGE_KEY))
+    expect(storedActivity).toBeGreaterThan(staleActivity)
+  })
+
+  test('clearStoredActivity removes persisted idle timestamp', () => {
+    localStorage.setItem(WEB_IDLE_ACTIVITY_STORAGE_KEY, String(Date.now()))
+    clearStoredActivity()
     expect(localStorage.getItem(WEB_IDLE_ACTIVITY_STORAGE_KEY)).toBeNull()
   })
 })

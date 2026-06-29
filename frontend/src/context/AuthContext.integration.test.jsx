@@ -1,8 +1,10 @@
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
 import { AuthProvider, useAuth } from './AuthContext'
+import { WEB_IDLE_ACTIVITY_STORAGE_KEY } from '../hooks/useWebIdleLogout'
 
 vi.mock('../components/WebIdleSessionGuard', () => ({
   default: () => null,
@@ -59,9 +61,11 @@ describe('AuthProvider session integration', () => {
     })
 
     render(
-      <AuthProvider>
-        <AuthProbe />
-      </AuthProvider>
+      <MemoryRouter initialEntries={['/dashboard?tenant=cg']}>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </MemoryRouter>
     )
 
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'))
@@ -76,6 +80,8 @@ describe('AuthProvider session integration', () => {
 
   test('login stores authenticated user and selected tenant headers', async () => {
     window.history.pushState({}, '', '/login')
+    const staleActivity = Date.now() - 60 * 60 * 1000
+    localStorage.setItem(WEB_IDLE_ACTIVITY_STORAGE_KEY, String(staleActivity))
     axios.post.mockResolvedValueOnce({
       data: {
         user: { id: 'u2', name: 'Admin', role: 'super_admin', company: 'mg' },
@@ -84,9 +90,11 @@ describe('AuthProvider session integration', () => {
     })
 
     render(
-      <AuthProvider>
-        <AuthProbe />
-      </AuthProvider>
+      <MemoryRouter initialEntries={['/login']}>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Login' }))
@@ -98,5 +106,7 @@ describe('AuthProvider session integration', () => {
     expect(axios.post).toHaveBeenCalledWith('/api/auth/login', { name: 'Admin', password: 'secret123', company: 'mg' }, { withCredentials: true })
     expect(axios.defaults.headers.common['x-tenant']).toBe('mg')
     expect(screen.getByTestId('idle-timeout').textContent).toBe('30')
+    const storedActivity = Number(localStorage.getItem(WEB_IDLE_ACTIVITY_STORAGE_KEY))
+    expect(storedActivity).toBeGreaterThan(staleActivity)
   })
 })

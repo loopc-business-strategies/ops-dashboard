@@ -6,9 +6,11 @@
 //   This avoids passing user data as props through every component.
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import axios from '../api/client'
 import authAPI from '../api/auth'
 import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
+import { clearStoredActivity, writeStoredActivityAt } from '../hooks/useWebIdleLogout'
 import { ensureWebPushSubscription, teardownWebPush } from '../utils/webPushRegister'
 import WebIdleSessionGuard from '../components/WebIdleSessionGuard'
 
@@ -20,8 +22,10 @@ const DEFAULT_SESSION_POLICY = {
 }
 
 export function AuthProvider({ children }) {
+  const { pathname } = useLocation()
   const hostTenant = resolveTenantFromHostname(window.location.hostname, localStorage.getItem('tenantCompany') || 'loopc')
   const resolvedTenant = resolveTenantFromSearch(window.location.search, hostTenant)
+  const isAuthExemptRoute = pathname === '/login' || pathname === '/setup'
 
   const [user,      setUser]      = useState(null)
   const [token,     setToken]     = useState(null)
@@ -143,6 +147,7 @@ export function AuthProvider({ children }) {
       axios.defaults.headers.common['x-csrf-token'] = data.csrfToken
     }
     setToken('cookie-session')
+    writeStoredActivityAt(Date.now())
     return data
   }
 
@@ -153,6 +158,7 @@ export function AuthProvider({ children }) {
     } catch {
       // Clear client state even if server session is already invalid.
     }
+    clearStoredActivity()
     setToken(null)
     setUser(null)
     setSessionPolicy(DEFAULT_SESSION_POLICY)
@@ -168,7 +174,7 @@ export function AuthProvider({ children }) {
       login, logout,
     }}>
       {children}
-      {user && !isLoading ? <WebIdleSessionGuard /> : null}
+      {user && !isLoading && !isAuthExemptRoute ? <WebIdleSessionGuard /> : null}
     </AuthContext.Provider>
   )
 }
