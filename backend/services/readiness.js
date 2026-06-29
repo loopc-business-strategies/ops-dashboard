@@ -45,18 +45,18 @@ async function getReadinessStatus() {
   const configuredTenants = Object.values(tenants).filter((entry) => entry.configured)
   const allTenantsReady = configuredTenants.length > 0
     && configuredTenants.every((entry) => entry.ready === true)
-  const redisBlocksReady = isProduction && redisConfigured && redisReady !== true
-  const ready = jwtSecret && mongoConnected && allTenantsReady && !redisBlocksReady
+
+  const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production'
+  const redisStatus = await pingRedis()
+  const redisConfigured = redisStatus.configured
+  const redisReady = redisStatus.ready
+  const ready = jwtSecret && mongoConnected && allTenantsReady
 
   const expoPushAccessTokenSet = Boolean(String(process.env.EXPO_ACCESS_TOKEN || '').trim())
   const webPushVapidKeysSet = Boolean(
     String(process.env.WEB_PUSH_PUBLIC_KEY || '').trim()
       && String(process.env.WEB_PUSH_PRIVATE_KEY || '').trim(),
   )
-  const redisStatus = await pingRedis()
-  const redisConfigured = redisStatus.configured
-  const redisReady = redisStatus.ready
-  const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production'
   const sentryConfigured = Boolean(String(process.env.SENTRY_DSN || '').trim())
   const uploadStorage = getUploadStorageStatus()
   const build = getBackendBuildMeta()
