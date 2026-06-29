@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react'
 
 const useAuthMock = vi.fn()
 const useLanguageMock = vi.fn()
+const mappingsTabProps = vi.fn()
 
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => useAuthMock(),
@@ -24,6 +25,12 @@ vi.mock('../../context/LiveMetalRatesContext', () => ({
 }))
 
 vi.mock('./erp/tabs/ERPDashboardTab', () => ({ default: () => <div>erp-dashboard</div> }))
+vi.mock('./erp/tabs/ERPMappingsTab', () => ({
+  default: (props) => {
+    mappingsTabProps(props)
+    return <div>erp-mappings</div>
+  },
+}))
 vi.mock('./erp/ERPTabContainers', () => ({
   ERPAccountsTabContainer: () => <div>accounts-shell</div>,
   ERPVouchersTabContainer: () => <div>vouchers-shell</div>,
@@ -33,6 +40,7 @@ import ERPTab from './ERPTab'
 
 describe('ERPTab smoke', () => {
   beforeEach(() => {
+    mappingsTabProps.mockClear()
     useAuthMock.mockReturnValue({
       user: { _id: 'u1', role: 'super_admin', company: 'loopc', modulePermissions: { erp: { on: true } } },
       token: 'cookie-session',
@@ -48,5 +56,21 @@ describe('ERPTab smoke', () => {
     )
     expect(screen.getByText('erp-dashboard')).toBeTruthy()
     expect(screen.queryByText('moduleFailedLoad')).toBeNull()
+  })
+
+  it('passes theme and departments to mappings tab', async () => {
+    render(
+      <MemoryRouter>
+        <ERPTab focusTab="mappings" />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('erp-mappings')).toBeTruthy()
+    expect(mappingsTabProps).toHaveBeenCalled()
+    const props = mappingsTabProps.mock.calls.at(-1)?.[0]
+    expect(props?.C?.ink).toBe('#111827')
+    expect(Array.isArray(props?.LEDGER_DEPARTMENTS)).toBe(true)
+    expect(props?.LEDGER_DEPARTMENTS.length).toBeGreaterThan(0)
+    expect(props?.sorting?.mappings?.by).toBe('type')
+    expect(props?.pagination?.mappings).toBe(1)
   })
 })

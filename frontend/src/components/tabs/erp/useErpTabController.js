@@ -115,6 +115,7 @@ import { useErpTabCoreSlice } from './controllerSlices/useErpTabCoreSlice'
 import { useErpTabCatalogSlice } from './controllerSlices/useErpTabCatalogSlice'
 import { useErpTabDomainActionsSlice } from './controllerSlices/useErpTabDomainActionsSlice'
 import { useErpTabPresentationSlice } from './controllerSlices/useErpTabPresentationSlice'
+import { ERP_TAB_SCOPE_STATICS } from './erpTabScopeStatics'
 import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM } from './vendorFormDefaults'
 
 
@@ -144,7 +145,13 @@ export function useErpTabController({
   const catalog = useErpTabCatalogSlice(core)
   const domain = useErpTabDomainActionsSlice({ ...core, ...catalog })
   const presentation = useErpTabPresentationSlice({ ...core, ...catalog, ...domain })
-  const scope = { ...core, ...catalog, ...domain, ...presentation }
+  const scope = {
+    ...ERP_TAB_SCOPE_STATICS,
+    ...core,
+    ...catalog,
+    ...domain,
+    ...presentation,
+  }
   const { panelProps, modalProps } = useErpTabBindings(scope)
 
   return {
