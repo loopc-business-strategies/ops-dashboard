@@ -27,7 +27,7 @@
 
 - **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
 
-`ERPTab.jsx` is ~3180 lines after branding + transactions wire-up (down from ~6460 on main).
+`ERPTab.jsx` is ~2320 lines after S5 export/reference/navigation wire-up (down from ~6460 on main).
 
 ## S5 wire-up (done)
 
@@ -40,6 +40,10 @@
 - **`useErpInventoryActions`** — stock mapping + catalog CRUD, modal drag, auto stock-code sync; helpers in `inventoryFormDefaults.js`.
 - **`useErpBranding`** — report branding load/save, logo upload, profile selection, preview logo effect.
 - **`useErpTransactions`** — wired with lazy `loadTransactionReferenceData` bootstrap (preserves composer behaviour).
+- **`useErpExportActions`** — statement preview/print/PDF, enquiry PDF, transaction CSV/XLSX/PDF, report CSV/XLSX/print/PDF; helpers in `reportExportHelpers.js`, `reportPrintExport.js`, `exportHelpers.js`.
+- **`useErpReferenceCrud`** — customer/currency/mapping create + edit modal save; defaults in `referenceEditFormDefaults.js`.
+- **`ErpEditRecordModal`** — presentational edit modal for account/ledger/customer/currency/mapping records.
+- **`useErpTransactionNavigation`** — `handleJumpToTransaction` deep-link helper.
 
 ## Mobile store signing (ops — not code)
 

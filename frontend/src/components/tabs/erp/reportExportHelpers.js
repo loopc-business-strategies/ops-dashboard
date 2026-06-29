@@ -2,6 +2,8 @@
  * Pure builders for ERP financial report exports (CSV/XLSX row grids).
  */
 
+import { trialBalanceRowsForView } from './trialBalanceReportRows'
+
 export function buildReportExportPayload({
   reportView = 'summary',
   reports = {},
@@ -20,11 +22,18 @@ export function buildReportExportPayload({
     [],
   ]
   if (reportView === 'trial' || reportView === 'summary') {
+    const trialRows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
     const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', 'Debit', 'Credit', 'Net']]
-    ;(reports.trialBalance?.trialBalance || []).forEach((row) => {
+    trialRows.forEach((row) => {
       rows.push([row.accountCode, row.accountName, row.accountType, row.debit, row.credit, row.net])
     })
-    return { rows, fileBase: `trial-balance-${stamp}`, sheetName: 'Trial Balance', successLabel: 'Trial balance' }
+    const isSummary = reportView === 'summary'
+    return {
+      rows,
+      fileBase: isSummary ? `summary-${stamp}` : `trial-balance-${stamp}`,
+      sheetName: isSummary ? 'Summary' : 'Trial Balance',
+      successLabel: isSummary ? 'Summary' : 'Trial balance',
+    }
   }
   if (reportView === 'pnl') {
     const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Amount']]

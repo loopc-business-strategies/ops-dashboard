@@ -75,12 +75,10 @@ import { useErpReportsController } from './erp/useErpReportsController'
 import { useErpTransactionWorkflow } from './erp/useErpTransactionWorkflow'
 import { useErpVoucherSource } from './erp/useErpVoucherSource'
 
-import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
 import {
   liveRatesToMetalRatesState,
   resolveInventoryValuationUnitCost,
 } from '../../utils/liveMetalRates'
-import { downloadBlob, downloadCsv, printStatementHtml } from './erp/exportHelpers'
 import {
   formatAccountEnquiryExcessDisplay,
   getAccountEnquirySignedMetricColor,
@@ -102,10 +100,8 @@ import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
   clampBrandingDimension,
-  createLogoRenderAsset,
 } from './erp/ERPBrandingUtils'
 import { resolveDocumentBranding } from './erp/documentBranding'
-import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
 import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from './erp/erpPrintHelpers'
 import { useErpAccountEnquiryController } from './erp/useErpAccountEnquiryController'
@@ -119,6 +115,10 @@ import { useErpVendorActions } from './erp/useErpVendorActions'
 import { useErpInventoryActions } from './erp/useErpInventoryActions'
 import { useErpBranding } from './erp/useErpBranding'
 import { useErpTransactions } from './erp/useErpTransactions'
+import { useErpExportActions } from './erp/useErpExportActions'
+import { useErpReferenceCrud } from './erp/useErpReferenceCrud'
+import { useErpTransactionNavigation } from './erp/useErpTransactionNavigation'
+import ErpEditRecordModal from './erp/ErpEditRecordModal'
 import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM } from './erp/vendorFormDefaults'
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
@@ -1090,6 +1090,13 @@ function ERPTab({
     setCurrencies,
     setError,
   })
+  const { handleJumpToTransaction } = useErpTransactionNavigation({
+    setSelectedTransactionId,
+    setVoucherSource,
+    setActiveTabGuarded,
+    loadTransactions,
+    showNotification,
+  })
   const {
     transactionForm,
     setTransactionForm,
@@ -1161,6 +1168,44 @@ function ERPTab({
     setError,
     loadLedger,
     showNotification,
+  })
+  const {
+    openEditModal: _openEditModal,
+    closeEditModal,
+    handleCreateCustomer,
+    handleSaveEdit,
+    handleCreateCurrency,
+    handleSyncCurrencyMaster,
+    handleCreateMapping,
+    handleEditMapping,
+    handleEditCurrency,
+    handleEditCustomer,
+    handleDeleteMapping,
+    handleDeleteCurrency,
+    handleDeleteCustomer,
+  } = useErpReferenceCrud({
+    token,
+    erpBaseCurrencyCode,
+    customerForm,
+    currencyForm,
+    mappingForm,
+    editState,
+    currencies,
+    setCustomerForm,
+    setCurrencyForm,
+    setMappingForm,
+    setShowCustomerForm,
+    setShowCurrencyForm,
+    setShowMappingForm,
+    setEditState,
+    setSaving,
+    setError,
+    showNotification,
+    loadCustomers,
+    loadAccounts,
+    loadCurrencies,
+    loadMappings,
+    handleSaveEditLedger,
   })
   const {
     handleCreateVendor,
@@ -1465,484 +1510,46 @@ function ERPTab({
     defaultBranding: DEFAULT_BRANDING,
     statementFilters,
   })
-  const handleViewStatement = async () => {
-    const code = accountEnquiryData?.account?.accountCode || accountEnquiryCode
-    if (code) syncEnquiryUrl({ account: code, view: 'statement' })
-    setStatementPreviewHtml('')
-    setStatementPreviewTitle('Statement of Account')
-    setStatementPreviewLoading(true)
-    setShowStatementPreview(true)
-    try {
-      const htmlData = await generateStatementHtml()
-      if (!htmlData) {
-        setShowStatementPreview(false)
-        return
-      }
-      setStatementPreviewHtml(htmlData.html)
-      setStatementPreviewTitle(`Statement of Account — ${htmlData.accountCode || 'Account'}`)
-      showNotification('Statement preview opened')
-    } catch (err) {
-      console.error('Statement preview error:', err)
-      setShowStatementPreview(false)
-      setError('Failed to open statement preview.')
-    } finally {
-      setStatementPreviewLoading(false)
-    }
-  }
-  const handlePrintStatement = async () => {
-    try {
-      const htmlData = await generateStatementHtml()
-      if (!htmlData) return
-      await printStatementHtml(htmlData.html)
-      setExportOptionsOpen(false)
-      showNotification('✅ Statement opened for printing')
-    } catch (err) {
-      console.error('Statement print error:', err)
-      if (String(err?.message || '').includes('Popup blocked')) {
-        setError('Popup blocked. Please allow popups for statement printing.')
-      } else {
-        setError('Failed to prepare statement for printing.')
-      }
-    }
-  }
-  const handleDownloadStatementPdf = async () => {
-    try {
-      const htmlData = await generateStatementHtml()
-      if (!htmlData) return
-      await printStatementHtml(htmlData.html)
-      setExportOptionsOpen(false)
-      showNotification('Choose Save as PDF in the print dialog to download')
-    } catch (err) {
-      console.error('PDF generation error:', err)
-      if (String(err?.message || '').includes('Popup blocked')) {
-        setError('Popup blocked. Please allow popups for statement export.')
-      } else {
-        setError('Failed to open statement for PDF export.')
-      }
-    }
-  }
-  const handleExportEnquiryPdf = () => {
-    if (!accountEnquiryData) {
-      setError('Load an account summary first to export')
-      return
-    }
-    setExportOptionsOpen(true)
-  }
-  const downloadXlsx = async (rows, fileName, sheetName = 'Report') => {
-    const ExcelJS = await loadExcel()
-    const workbook = new ExcelJS.Workbook()
-    const worksheet = workbook.addWorksheet(sheetName)
-    ;(rows || []).forEach((row) => {
-      worksheet.addRow(Array.isArray(row) ? row : [row])
-    })
-    const buffer = await workbook.xlsx.writeBuffer()
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    downloadBlob(blob, fileName)
-  }
-  const buildTransactionExportPayload = () => {
-    const scope = selectedTransactionIds.length
-      ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
-      : transactions
-    if (!scope.length) return null
-    const stamp = new Date().toISOString().slice(0, 10)
-    const rows = [
-      ['Ops Dashboard ERP Transactions'],
-      [`Generated`, new Date().toLocaleString()],
-      [`Scope`, selectedTransactionIds.length ? 'Selected transactions' : 'Current visible transactions'],
-      [],
-      ['Date', 'Type', 'Party', 'Amount', 'Currency', 'Status', 'Description', 'Debit Account', 'Credit Account', 'Created By', 'Approved By', 'Posted By', 'Comments', 'Audit Events'],
-    ]
-    scope.forEach((tx) => {
-      rows.push([
-        tx.date ? new Date(tx.date).toLocaleString() : '',
-        TRANSACTION_TYPE_LABELS[tx.type] || tx.type,
-        tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
-        Number(tx.amount || 0),
-        tx.currency || 'USD',
-        tx.status || '',
-        tx.description || '',
-        tx.debitAccountId ? `${tx.debitAccountId.accountCode} - ${tx.debitAccountId.accountName}` : '',
-        tx.creditAccountId ? `${tx.creditAccountId.accountCode} - ${tx.creditAccountId.accountName}` : '',
-        tx.createdBy?.name || '',
-        tx.approvedBy?.name || '',
-        tx.postedBy?.name || '',
-        Number(tx.comments?.length || 0),
-        Number(tx.auditTrail?.length || 0),
-      ])
-    })
-    return { rows, fileBase: `transactions-${stamp}`, sheetName: 'Transactions' }
-  }
-  const handleExportTransactionsCsv = () => {
-    const payload = buildTransactionExportPayload()
-    if (!payload) {
-      setError('No transactions available to export')
-      return
-    }
-    downloadCsv(payload.rows, `${payload.fileBase}.csv`)
-    showNotification('✅ Transactions CSV exported')
-  }
-  const handleExportTransactionsXlsx = async () => {
-    const payload = buildTransactionExportPayload()
-    if (!payload) {
-      setError('No transactions available to export')
-      return
-    }
-    await downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
-    showNotification('✅ Transactions XLSX exported')
-  }
-  const handleExportTransactionsPdf = async () => {
-    const scope = selectedTransactionIds.length
-      ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
-      : transactions
-    if (!scope.length) {
-      setError('No transactions available to export')
-      return
-    }
-    const { jsPDF, autoTable } = await loadPdfTools()
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    doc.text('ERP Transactions Register', 36, 36)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 36, 54)
-    doc.text(`Scope: ${selectedTransactionIds.length ? 'Selected transactions' : 'Current visible transactions'}`, 36, 68)
-    autoTable(doc, {
-      head: [['Date', 'Type', 'Party', 'Amount', 'Status', 'Description', 'Comments', 'Audit']],
-      body: scope.map((tx) => [
-        tx.date ? new Date(tx.date).toLocaleDateString() : '',
-        TRANSACTION_TYPE_LABELS[tx.type] || tx.type,
-        tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
-        `${tx.currency || 'USD'} ${Number(tx.amount || 0).toLocaleString()}`,
-        tx.status || '',
-        tx.description || '',
-        String(tx.comments?.length || 0),
-        String(tx.auditTrail?.length || 0),
-      ]),
-      startY: 84,
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [17, 24, 39] },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      margin: { left: 24, right: 24 },
-    })
-    doc.save(`transactions-${new Date().toISOString().slice(0, 10)}.pdf`)
-    showNotification('✅ Transactions PDF exported')
-  }
-  const buildReportExportPayload = () => {
-    if (!reports.trialBalance) return null
-    const stamp = new Date().toISOString().slice(0, 10)
-    const brandingRows = [
-      [branding.entityName || DEFAULT_BRANDING.entityName, branding.branchName || ''],
-      [branding.companyName || DEFAULT_BRANDING.companyName],
-      [branding.legalName || ''],
-      [branding.reportSubtitle || DEFAULT_BRANDING.reportSubtitle],
-      [branding.reportFooter || DEFAULT_BRANDING.reportFooter],
-      [],
-    ]
-    if (reportView === 'trial' || reportView === 'summary') {
-      const trialRows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
-      const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', 'Debit', 'Credit', 'Net']]
-      trialRows.forEach((row) => {
-        rows.push([row.accountCode, row.accountName, row.accountType, row.debit, row.credit, row.net])
-      })
-      const isSummary = reportView === 'summary'
-      return {
-        rows,
-        fileBase: isSummary ? `summary-${stamp}` : `trial-balance-${stamp}`,
-        sheetName: isSummary ? 'Summary' : 'Trial Balance',
-        successLabel: isSummary ? 'Summary' : 'Trial balance',
-      }
-    }
-    if (reportView === 'pnl') {
-      const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Amount']]
-      ;(reports.profitLoss?.incomeBreakdown || []).forEach((row) => rows.push(['Income', row.accountCode, row.accountName, row.amount]))
-      ;(reports.profitLoss?.expenseBreakdown || []).forEach((row) => rows.push(['Expense', row.accountCode, row.accountName, row.amount]))
-      ;(reports.profitLoss?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Net Profit', row.netProfit]))
-      return { rows, fileBase: `profit-loss-${stamp}`, sheetName: 'Profit Loss', successLabel: 'Profit & loss' }
-    }
-    if (reportView === 'balanceSheet') {
-      const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Balance', 'Direction', 'Reclassified']]
-      ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, row.balance, row.direction || 'Dr', row.isReclassified ? 'Yes' : 'No']))
-      ;(reports.balanceSheet?.liabilities || []).forEach((row) => rows.push(['Liability', row.accountCode, row.accountName, row.balance, row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
-      ;(reports.balanceSheet?.equity || []).forEach((row) => rows.push(['Equity', row.accountCode, row.accountName, row.balance, row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
-      ;(reports.balanceSheet?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Working Capital', row.workingCapital]))
-      return { rows, fileBase: `balance-sheet-${stamp}`, sheetName: 'Balance Sheet', successLabel: 'Balance sheet' }
-    }
-    if (reportView === 'dayBook') {
-      const rows = [...brandingRows, ['Date', 'Type', 'Description', 'Debit Account', 'Credit Account', 'Amount', 'Currency']]
-      ;(reports.dayBook?.entries || []).forEach((row) => {
-        rows.push([
-          new Date(row.date).toLocaleString(),
-          row.referenceType,
-          row.description || '',
-          row.debitAccountId?.accountCode || '',
-          row.creditAccountId?.accountCode || '',
-          row.amount,
-          row.currency || 'USD',
-        ])
-      })
-      return { rows, fileBase: `day-book-${stamp}`, sheetName: 'Day Book', successLabel: 'Day book' }
-    }
-    if (reportView === 'outstanding') {
-      const rows = [...brandingRows, ['Category', 'Name', 'Ledger Code', 'Outstanding', '0-30', '31-60', '61-90', '90+', 'Limit Exceeded']]
-      ;(reports.customerOutstanding?.rows || []).forEach((row) => {
-        rows.push(['Customer', row.customerName, row.ledgerAccount?.accountCode || '', row.outstanding, row.aging?.bucket0to30 || 0, row.aging?.bucket31to60 || 0, row.aging?.bucket61to90 || 0, row.aging?.bucket90Plus || 0, row.limitExceeded ? 'Yes' : 'No'])
-      })
-      ;(reports.vendorOutstanding?.rows || []).forEach((row) => {
-        rows.push(['Vendor', row.vendorName, row.ledgerAccount?.accountCode || '', row.outstanding, '', '', '', '', row.outstandingType || ''])
-      })
-      return { rows, fileBase: `outstanding-${stamp}`, sheetName: 'Outstanding', successLabel: 'Outstanding' }
-    }
-    if (reportView === 'ledger') {
-      const rows = [...brandingRows, ['Voucher', 'Date', 'Type', 'Description', 'Debit', 'Credit', 'Running Balance']]
-      ledgerReportRows.forEach((row) => {
-        rows.push([String(row.entryId || '').slice(-6).toUpperCase(), new Date(row.date).toLocaleString(), row.referenceType, row.description || '', row.debit || 0, row.credit || 0, row.runningBalance || 0])
-      })
-      return { rows, fileBase: `account-ledger-${stamp}`, sheetName: 'Ledger', successLabel: 'Ledger drilldown' }
-    }
-    if (reportView === 'forex') {
-      const rows = [...brandingRows, ['Currency', 'Entries', 'Impact']]
-      Object.entries(reports.forex?.byCurrency || {}).forEach(([currency, row]) => rows.push([currency, row.count || 0, row.impact || 0]))
-      return { rows, fileBase: `forex-impact-${stamp}`, sheetName: 'Forex', successLabel: 'Forex report' }
-    }
-    return null
-  }
-  const handleExportReportCsv = () => {
-    const payload = buildReportExportPayload()
-    if (!payload) {
-      setError('Load reports first before exporting')
-      return
-    }
-    downloadCsv(payload.rows, `${payload.fileBase}.csv`)
-    showNotification(`✅ ${payload.successLabel} CSV exported`)
-  }
-  const handleExportReportXlsx = async () => {
-    const payload = buildReportExportPayload()
-    if (!payload) {
-      setError('Load reports first before exporting')
-      return
-    }
-    await downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
-    showNotification(`✅ ${payload.successLabel} XLSX exported`)
-  }
-  const handlePrintCurrentReport = async () => {
-    if (!reports.trialBalance) {
-      setError('Load reports first before printing')
-      return
-    }
-    const periodText = reports.trialBalance?.period?.startDate
-      ? `${reports.trialBalance.period.startDate} to ${reports.trialBalance.period.endDate || reports.trialBalance.period.startDate}`
-      : `As on ${new Date().toLocaleDateString()}`
-    const logoMarkup = await buildBrandingLogoTag(branding, 'margin-bottom:10px;')
-    const head = `
-      <div class="brandbar"></div>
-      <div class="head">
-        ${logoMarkup}
-        <p class="subtitle">${branding.companyName || DEFAULT_BRANDING.companyName}</p>
-        <p class="title">ERP Financial Statement</p>
-        <p class="meta">${branding.entityName || DEFAULT_BRANDING.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}</p>
-        ${branding.legalName ? `<p class="meta">${branding.legalName}</p>` : ''}
-        <p class="meta">${branding.reportSubtitle || DEFAULT_BRANDING.reportSubtitle} | Prepared for statutory / CA-style review</p>
-        <p class="meta">Period: ${periodText}</p>
-        <p class="meta">Generated: ${new Date().toLocaleString()}</p>
-      </div>
-    `
-    const signatureBlock = `
-      <div class="signatures">
-        <div class="sign-box">${branding.preparedByTitle || DEFAULT_BRANDING.preparedByTitle}<br />${branding.preparedByName || user?.name || DEFAULT_BRANDING.preparedByName}</div>
-        <div class="sign-box">${branding.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle}<br />${branding.reviewedByName || DEFAULT_BRANDING.reviewedByName}</div>
-        <div class="sign-box">${branding.approvedByTitle || DEFAULT_BRANDING.approvedByTitle}<br />${branding.approvedByName || DEFAULT_BRANDING.approvedByName}</div>
-      </div>
-      <div class="footer">
-        <span>${branding.companyName || DEFAULT_BRANDING.companyName} Reporting Suite</span>
-        <span>${branding.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
-      </div>
-    `
-    let body = ''
-    if (reportView === 'pnl') {
-      body = `
-        ${head}
-        <div class="summary">
-          <div class="card"><div class="card-label">Income</div><div class="card-value">${formatMoney(reports.profitLoss?.totalIncome)}</div></div>
-          <div class="card"><div class="card-label">Expense</div><div class="card-value">${formatMoney(reports.profitLoss?.totalExpense)}</div></div>
-          <div class="card"><div class="card-label">Net Profit</div><div class="card-value">${formatMoney(reports.profitLoss?.netProfit)}</div></div>
-        </div>
-        <div class="section"><p class="section-title">Income Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.incomeBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
-        <div class="section"><p class="section-title">Expense Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.expenseBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
-        ${signatureBlock}
-      `
-    } else if (reportView === 'balanceSheet') {
-      const section = (title, rows, fallbackDirection) => `<div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}</td><td class="num">${formatReportDirectionalBalance(row, fallbackDirection)}</td></tr>`).join('')}</tbody></table></div>`
-      body = `
-        ${head}
-        <div class="summary">
-          <div class="card"><div class="card-label">Assets</div><div class="card-value">${formatMoneyAbs(reports.balanceSheet?.totalAssets)}</div></div>
-          <div class="card"><div class="card-label">Liabilities + Equity</div><div class="card-value">${formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity)}</div></div>
-          <div class="card"><div class="card-label">Working Capital</div><div class="card-value">${formatMoney(reports.balanceSheet?.workingCapital)}</div></div>
-        </div>
-        ${section('Assets', reports.balanceSheet?.assets || [], 'Dr')}
-        ${section('Liabilities', reports.balanceSheet?.liabilities || [], 'Cr')}
-        ${section('Equity', reports.balanceSheet?.equity || [], 'Cr')}
-        ${signatureBlock}
-      `
-    } else {
-      body = `
-        ${head}
-        <div class="summary">
-          <div class="card"><div class="card-label">Trial Debit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalDebit)}</div></div>
-          <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
-          <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
-        </div>
-        <div class="section"><p class="section-title">${reportView === 'summary' ? 'Summary' : 'Trial Balance'}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net</th></tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td><td class="num">${formatMoney(row.debit)}</td><td class="num">${formatMoney(row.credit)}</td><td class="num">${formatMoney(row.net)}</td></tr>`).join('')}</tbody></table></div>
-        ${signatureBlock}
-      `
-    }
-    openPrintWindow('ERP Financial Statement', body)
-    showNotification('✅ Statement print layout opened')
-  }
-  const handleExportReportPdf = async () => {
-    if (!reports.trialBalance) {
-      setError('Load reports first before exporting PDF')
-      return
-    }
-    const { jsPDF, autoTable } = await loadPdfTools()
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-    const titleMap = {
-      summary: 'Summary',
-      trial: 'Trial Balance',
-      pnl: 'Profit & Loss Statement',
-      balanceSheet: 'Balance Sheet',
-      dayBook: 'Day Book',
-      outstanding: 'Outstanding Statement',
-      forex: 'Forex Gain/Loss',
-      ledger: `Ledger Drilldown ${selectedReportAccountCode ? `- ${selectedReportAccountCode}` : ''}`,
-    }
-    const title = titleMap[reportView] || 'ERP Report'
-    const generatedAt = new Date().toLocaleString()
-    const logoWidth = clampBrandingDimension(branding.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
-    const logoHeight = clampBrandingDimension(branding.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
-    const processedLogo = await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
-    doc.setFillColor(0, 104, 74)
-    doc.rect(28, 24, 539, 10, 'F')
-    if (processedLogo && String(processedLogo).startsWith('data:image/')) {
-      try {
-        doc.addImage(processedLogo, 'PNG', 540 - logoWidth, 36, logoWidth, logoHeight, undefined, 'FAST')
-      } catch {
-        // Ignore invalid embedded image data and continue with text branding.
-      }
-    }
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(6, 95, 70)
-    doc.text(String(branding.companyName || DEFAULT_BRANDING.companyName).toUpperCase(), 40, 52)
-    doc.setFontSize(16)
-    doc.setTextColor(17, 24, 39)
-    doc.text(title, 40, 42)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    if (branding.legalName) doc.text(String(branding.legalName), 40, 64)
-    doc.text(`${branding.entityName || DEFAULT_BRANDING.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}`, 40, branding.legalName ? 78 : 64)
-    doc.text(String(branding.reportSubtitle || DEFAULT_BRANDING.reportSubtitle), 40, branding.legalName ? 92 : 78)
-    doc.text(`Generated: ${generatedAt}`, 40, branding.legalName ? 106 : 92)
-    let head = []
-    let body = []
-    if (reportView === 'trial' || reportView === 'summary') {
-      head = [['Code', 'Account', 'Type', 'Debit', 'Credit', 'Net']]
-      body = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => [
-        row.accountCode,
-        row.accountName,
-        row.accountType,
-        formatMoney(row.debit),
-        formatMoney(row.credit),
-        formatMoney(row.net),
-      ])
-    } else if (reportView === 'pnl') {
-      head = [['Section', 'Code', 'Account', 'Amount']]
-      body = [
-        ...(reports.profitLoss?.incomeBreakdown || []).map((row) => ['Income', row.accountCode, row.accountName, formatMoney(row.amount)]),
-        ...(reports.profitLoss?.expenseBreakdown || []).map((row) => ['Expense', row.accountCode, row.accountName, formatMoney(row.amount)]),
-        ['Total', 'NET', 'Net Profit', formatMoney(reports.profitLoss?.netProfit)],
-      ]
-    } else if (reportView === 'balanceSheet') {
-      head = [['Section', 'Code', 'Account', 'Balance']]
-      body = [
-        ...(reports.balanceSheet?.assets || []).map((row) => ['Asset', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Dr')]),
-        ...(reports.balanceSheet?.liabilities || []).map((row) => ['Liability', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Cr')]),
-        ...(reports.balanceSheet?.equity || []).map((row) => ['Equity', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Cr')]),
-      ]
-    } else if (reportView === 'dayBook') {
-      head = [['Date', 'Type', 'Description', 'Debit A/C', 'Credit A/C', 'Amount']]
-      body = (reports.dayBook?.entries || []).map((row) => [
-        new Date(row.date).toLocaleString(),
-        row.referenceType,
-        row.description || '',
-        row.debitAccountId?.accountCode || '',
-        row.creditAccountId?.accountCode || '',
-        formatMoney(row.amount),
-      ])
-    } else if (reportView === 'outstanding') {
-      head = [['Party', 'Name', 'Ledger', 'Outstanding', 'Age/Type']]
-      body = [
-        ...(reports.customerOutstanding?.rows || []).map((row) => ['Customer', row.customerName, row.ledgerAccount?.accountCode || '', formatMoney(row.outstanding), `90+: ${formatMoney(row.aging?.bucket90Plus || 0)}`]),
-        ...(reports.vendorOutstanding?.rows || []).map((row) => ['Vendor', row.vendorName, row.ledgerAccount?.accountCode || '', formatMoney(row.outstanding), row.outstandingType || '']),
-      ]
-    } else if (reportView === 'forex') {
-      head = [['Currency', 'Entries', 'Impact']]
-      body = Object.entries(reports.forex?.byCurrency || {}).map(([currency, row]) => [currency, String(row.count || 0), formatMoney(row.impact)])
-    } else if (reportView === 'ledger') {
-      head = [['Voucher', 'Date', 'Type', 'Description', 'Debit', 'Credit', 'Running']]
-      body = (ledgerReportRows || []).map((row) => [
-        String(row.entryId || '').slice(-6).toUpperCase(),
-        new Date(row.date).toLocaleString(),
-        row.referenceType,
-        row.description || '',
-        formatMoney(row.debit),
-        formatMoney(row.credit),
-        formatMoney(row.runningBalance),
-      ])
-    }
-    autoTable(doc, {
-      head,
-      body,
-      startY: branding.legalName ? 122 : 108,
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [17, 24, 39] },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      margin: { left: 28, right: 28 },
-    })
-    const finalY = doc.lastAutoTable?.finalY || 110
-    const signatureY = Math.min(Math.max(finalY + 36, 680), 740)
-    doc.setDrawColor(156, 163, 175)
-    doc.line(40, signatureY, 180, signatureY)
-    doc.line(220, signatureY, 360, signatureY)
-    doc.line(400, signatureY, 540, signatureY)
-    doc.setFontSize(9)
-    doc.text(String(branding.preparedByTitle || DEFAULT_BRANDING.preparedByTitle), 40, signatureY + 14)
-    doc.text(String(branding.preparedByName || user?.name || DEFAULT_BRANDING.preparedByName), 40, signatureY + 28)
-    doc.text(String(branding.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle), 220, signatureY + 14)
-    doc.text(String(branding.reviewedByName || DEFAULT_BRANDING.reviewedByName), 220, signatureY + 28)
-    doc.text(String(branding.approvedByTitle || DEFAULT_BRANDING.approvedByTitle), 400, signatureY + 14)
-    doc.text(String(branding.approvedByName || DEFAULT_BRANDING.approvedByName), 400, signatureY + 28)
-    doc.setFontSize(8)
-    doc.setTextColor(107, 114, 128)
-    doc.text(`${branding.companyName || DEFAULT_BRANDING.companyName} Reporting Suite`, 40, signatureY + 52)
-    doc.text(String(branding.reportFooter || DEFAULT_BRANDING.reportFooter), 420, signatureY + 52)
-    const stamp = new Date().toISOString().slice(0, 10)
-    doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${stamp}.pdf`)
-    showNotification('✅ PDF exported')
-  }
-  const handleJumpToTransaction = async (transactionId) => {
-    if (!transactionId) return
-    setSelectedTransactionId(transactionId)
-    setVoucherSource(null)
-    setActiveTabGuarded('transactions')
-    try {
-      await loadTransactions()
-    } catch {
-      // Errors are handled by loadTransactions state updates.
-    }
-    showNotification('✅ Jumped to linked transaction')
-  }
+  const {
+    handleViewStatement,
+    handlePrintStatement,
+    handleDownloadStatementPdf,
+    handleExportEnquiryPdf,
+    handleExportTransactionsCsv,
+    handleExportTransactionsXlsx,
+    handleExportTransactionsPdf,
+    handleExportReportCsv,
+    handleExportReportXlsx,
+    handlePrintCurrentReport,
+    handleExportReportPdf,
+  } = useErpExportActions({
+    accountEnquiryData,
+    accountEnquiryCode,
+    syncEnquiryUrl,
+    generateStatementHtml,
+    setStatementPreviewHtml,
+    setStatementPreviewTitle,
+    setStatementPreviewLoading,
+    setShowStatementPreview,
+    setExportOptionsOpen,
+    setError,
+    showNotification,
+    transactions,
+    selectedTransactionIds,
+    transactionTypeLabels: TRANSACTION_TYPE_LABELS,
+    reports,
+    reportView,
+    branding,
+    defaultBranding: DEFAULT_BRANDING,
+    user,
+    ledgerReportRows,
+    selectedReportAccountCode,
+    formatMoney,
+    formatMoneyAbs,
+    formatReportDirectionalBalance,
+    buildBrandingLogoTag,
+    openPrintWindow,
+  })
 
   useEffect(() => {
     if (!jumpToTransactionId || typeof onJumpToTransactionConsumed !== 'function') return undefined
@@ -2019,231 +1626,7 @@ function ERPTab({
       </div>
     )
   }
-  // ─────────────────────────────────────────────────────────────────────────────
-  const handleCreateCustomer = async (e) => {
-    e.preventDefault()
-    if (!customerForm.name) {
-      setError('Customer name is required')
-      return
-    }
-    setSaving(true)
-    try {
-      await erpAccountingAPI.createCustomer(token, {
-        ...customerForm,
-        openingBalance: Number(customerForm.openingBalance || 0),
-        creditLimit: Number(customerForm.creditLimit || 0),
-        paymentTermsDays: Number(customerForm.paymentTermsDays || 0),
-      })
-      setCustomerForm({
-        name: '',
-        phone: '',
-        email: '',
-        address: '',
-        gstVat: '',
-        openingBalance: '',
-        creditLimit: '',
-        paymentTermsDays: '',
-        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'USD',
-        notes: '',
-      })
-      setShowCustomerForm(false)
-      await Promise.all([loadCustomers(), loadAccounts()])
-      showNotification('✅ Customer created successfully')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to create customer')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const openEditModal = (type, record) => {
-    let formState = {}
-    if (type === 'account') {
-      formState = {
-        accountName: record.accountName || '',
-        description: record.description || '',
-        currency: record.currency || 'USD',
-        department: record.department || '',
-      }
-    }
-    if (type === 'mapping') {
-      formState = {
-        mappingType: record.mappingType || '',
-        debitAccountId: record.debitAccountId?._id || '',
-        creditAccountId: record.creditAccountId?._id || '',
-        department: record.department || '',
-        description: record.description || '',
-      }
-    }
-    if (type === 'currency') {
-      const r = Number(record.exchangeRate || 0)
-      const unitsPerUsd =
-        !record.baseCurrency && Number.isFinite(r) && r > 0 ? 1 / r : ''
-      formState = {
-        code: record.code || '',
-        name: record.name || '',
-        symbol: record.symbol || '',
-        exchangeRate: record.exchangeRate || 1,
-        baseCurrency: Boolean(record.baseCurrency),
-        oneUsdEquals: unitsPerUsd === '' ? '' : String(unitsPerUsd),
-      }
-    }
-    if (type === 'customer') {
-      formState = {
-        name: record.name || '',
-        phone: record.phone || '',
-        email: record.email || '',
-        address: record.address || '',
-        gstVat: record.gstVat || '',
-        creditLimit: record.creditLimit || 0,
-        paymentTermsDays: record.paymentTermsDays || 0,
-        currency: record.currency || 'USD',
-        notes: record.notes || '',
-      }
-    }
-    setEditState({ type, record, form: formState })
-  }
-  const closeEditModal = () => {
-    setEditState({ type: '', record: null, form: {} })
-  }
-  const handleSaveEdit = async (e) => {
-    e.preventDefault()
-    if (editState.type === 'ledger') {
-      handleSaveEditLedger()
-      return
-    }
-    if (!editState.record || !editState.type) return
-    setSaving(true)
-    try {
-      if (editState.type === 'account') {
-        await erpAccountingAPI.updateAccount(token, editState.record._id, editState.form)
-        await loadAccounts()
-      }
-      if (editState.type === 'mapping') {
-        await erpAccountingAPI.updateMapping(token, editState.record._id, editState.form)
-        await loadMappings()
-      }
-      if (editState.type === 'currency') {
-        let nextRate = Number(editState.form.exchangeRate || 1)
-        const fromQuote = exchangeRateFromUnitsPerBase(editState.form.oneUsdEquals)
-        if (!editState.form.baseCurrency && fromQuote !== null) nextRate = fromQuote
-        if (editState.form.baseCurrency) nextRate = 1
-        if (!editState.form.baseCurrency && (!Number.isFinite(nextRate) || nextRate <= 0)) {
-          setError(`Enter a positive exchange rate or a valid 1 ${erpBaseCurrencyCode} = (units) quote.`)
-          setSaving(false)
-          return
-        }
-        const { oneUsdEquals: _omitQuote, ...currencyPayload } = editState.form
-        await erpAccountingAPI.updateCurrency(token, editState.record._id, {
-          ...currencyPayload,
-          exchangeRate: nextRate,
-        })
-        await loadCurrencies()
-      }
-      if (editState.type === 'customer') {
-        await erpAccountingAPI.updateCustomer(token, editState.record._id, {
-          ...editState.form,
-          creditLimit: Number(editState.form.creditLimit || 0),
-          paymentTermsDays: Number(editState.form.paymentTermsDays || 0),
-        })
-        await loadCustomers()
-      }
-      closeEditModal()
-      showNotification('✅ Changes saved successfully')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save changes')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleCreateCurrency = async (e) => {
-    e.preventDefault()
-    if (!currencyForm.code || !currencyForm.name || !currencyForm.symbol) {
-      setError('Currency code, name, and symbol are required')
-      return
-    }
-    let exchangeRate = Number(currencyForm.exchangeRate || 1)
-    const fromQuote = exchangeRateFromUnitsPerBase(currencyForm.oneUsdEquals)
-    if (!currencyForm.baseCurrency && fromQuote !== null) exchangeRate = fromQuote
-    if (currencyForm.baseCurrency) exchangeRate = 1
-    if (!currencyForm.baseCurrency && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-      setError(`For a non-base currency, enter a positive exchange rate (${erpBaseCurrencyCode} per 1 unit) or use 1 ${erpBaseCurrencyCode} = (units).`)
-      return
-    }
-    setSaving(true)
-    try {
-      const { oneUsdEquals: _omitQuote, ...currencyBody } = currencyForm
-      await erpAccountingAPI.createCurrency(token, { ...currencyBody, exchangeRate })
-      setCurrencyForm({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false, oneUsdEquals: '' })
-      setShowCurrencyForm(false)
-      await loadCurrencies()
-      showNotification('✅ Currency created successfully')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to create currency')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleSyncCurrencyMaster = async () => {
-    setSaving(true)
-    try {
-      const response = await erpAccountingAPI.seedDefaultCurrencies(token)
-      await loadCurrencies()
-      showNotification(`✅ Currency master synced (${response.createdCount || 0} created, ${response.normalizedCount || 0} updated)`)
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to sync currency master')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleCreateMapping = async (e) => {
-    e.preventDefault()
-    if (!mappingForm.mappingType || !mappingForm.debitAccountId || !mappingForm.creditAccountId) {
-      setError('Mapping type, debit account, and credit account are required')
-      return
-    }
-    setSaving(true)
-    try {
-      await erpAccountingAPI.createMapping(token, mappingForm)
-      setMappingForm({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
-      setShowMappingForm(false)
-      await loadMappings()
-      showNotification('✅ Mapping created successfully')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to create mapping')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleEditMapping = (mapping) => openEditModal('mapping', mapping)
-  const handleDeleteMapping = async (mapping) => {
-    if (!window.confirm(`Deactivate mapping ${mapping.mappingType}?`)) return
-    try {
-      await erpAccountingAPI.deleteMapping(token, mapping._id)
-      await loadMappings()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete mapping')
-    }
-  }
-  const handleEditCurrency = (currency) => openEditModal('currency', currency)
-  const handleDeleteCurrency = async (currency) => {
-    if (!window.confirm(`Delete currency ${currency.code}?`)) return
-    try {
-      await erpAccountingAPI.deleteCurrency(token, currency._id)
-      await loadCurrencies()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete currency')
-    }
-  }
-  const handleEditCustomer = (customer) => openEditModal('customer', customer)
-  const handleDeleteCustomer = async (customer) => {
-    if (!window.confirm(`Deactivate customer ${customer.name}?`)) return
-    try {
-      await erpAccountingAPI.deleteCustomer(token, customer._id)
-      await loadCustomers()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete customer')
-    }
-  }
+
   if (!token) {
     return (
       <div style={{ padding: '2rem', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '0.5rem', color: '#DC2626', textAlign: 'center' }}>
@@ -2778,290 +2161,17 @@ function ERPTab({
           />
         </Suspense>
       )}
-      {editState.record && (
-        <div style={ERP_MODAL_BACKDROP_STYLE} onClick={closeEditModal}>
-          <div style={ERP_MODAL_CARD_STYLE} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, marginBottom: '1rem', color: C.ink, fontSize: '1.1rem', fontWeight: '700' }}>
-              Edit {editState.type.charAt(0).toUpperCase() + editState.type.slice(1)}
-            </h3>
-            <form onSubmit={handleSaveEdit}>
-              {editState.type === 'account' && (
-                <>
-                  <input
-                    value={editState.form.accountName || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, accountName: e.target.value } }))}
-                    placeholder="Account Name"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.description || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
-                    placeholder="Description"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.department || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))}
-                    placeholder="Department"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.currency || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value } }))}
-                    placeholder="Currency"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                </>
-              )}
-              {editState.type === 'mapping' && (
-                <>
-                  <input
-                    value={editState.form.mappingType || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, mappingType: e.target.value } }))}
-                    placeholder="Mapping Type"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <select
-                    value={editState.form.debitAccountId || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))}
-                    style={ERP_MODAL_INPUT_STYLE}
-                  >
-                    <option value="">Select Debit Account</option>
-                    {accounts.map((account) => (
-                      <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={editState.form.creditAccountId || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))}
-                    style={ERP_MODAL_INPUT_STYLE}
-                  >
-                    <option value="">Select Credit Account</option>
-                    {accounts.map((account) => (
-                      <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={editState.form.department || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))}
-                    style={ERP_MODAL_INPUT_STYLE}
-                  >
-                    <option value="">Shared / All Departments</option>
-                    {LEDGER_DEPARTMENTS.map((department) => (
-                      <option key={department} value={department}>{department}</option>
-                    ))}
-                  </select>
-                  <input
-                    value={editState.form.description || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
-                    placeholder="Description"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                </>
-              )}
-              {editState.type === 'currency' && (
-                <>
-                  <input
-                    value={editState.form.code || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, code: e.target.value.toUpperCase() } }))}
-                    placeholder="Code"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.name || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
-                    placeholder="Name"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.symbol || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, symbol: e.target.value } }))}
-                    placeholder="Symbol"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={editState.form.exchangeRate || 1}
-                    onChange={(e) => setEditState((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, exchangeRate: e.target.value, oneUsdEquals: '' },
-                    }))}
-                    placeholder="Exchange Rate"
-                    style={ERP_MODAL_INPUT_STYLE}
-                    disabled={Boolean(editState.form.baseCurrency)}
-                  />
-                  {!editState.form.baseCurrency && (
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={editState.form.oneUsdEquals ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        const r = exchangeRateFromUnitsPerBase(v)
-                        setEditState((prev) => ({
-                          ...prev,
-                          form: {
-                            ...prev.form,
-                            oneUsdEquals: v,
-                            exchangeRate: r !== null ? String(r) : prev.form.exchangeRate,
-                          },
-                        }))
-                      }}
-                      placeholder={`1 ${erpBaseCurrencyCode} = (units of this currency)`}
-                      style={ERP_MODAL_INPUT_STYLE}
-                    />
-                  )}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: C.ink, marginBottom: '0.75rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(editState.form.baseCurrency)}
-                      onChange={(e) => {
-                        const base = e.target.checked
-                        setEditState((prev) => ({
-                          ...prev,
-                          form: {
-                            ...prev.form,
-                            baseCurrency: base,
-                            exchangeRate: base ? 1 : prev.form.exchangeRate,
-                            oneUsdEquals: base ? '' : prev.form.oneUsdEquals,
-                          },
-                        }))
-                      }}
-                    />
-                    Set as base currency
-                  </label>
-                </>
-              )}
-              {editState.type === 'customer' && (
-                <>
-                  <input
-                    value={editState.form.name || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
-                    placeholder="Customer Name"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.phone || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, phone: e.target.value } }))}
-                    placeholder="Phone"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.email || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, email: e.target.value } }))}
-                    placeholder="Email"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.address || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, address: e.target.value } }))}
-                    placeholder="Address"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.gstVat || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, gstVat: e.target.value } }))}
-                    placeholder="GST/VAT"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editState.form.creditLimit || 0}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditLimit: e.target.value } }))}
-                    placeholder="Credit Limit"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    type="number"
-                    value={editState.form.paymentTermsDays || 0}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, paymentTermsDays: e.target.value } }))}
-                    placeholder="Payment Terms (Days)"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.currency || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value.toUpperCase() } }))}
-                    placeholder="Currency"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.notes || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, notes: e.target.value } }))}
-                    placeholder="Notes"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                </>
-              )}
-              {editState.type === 'ledger' && (
-                <>
-                  <input
-                    type="date"
-                    value={editState.form.date || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, date: e.target.value } }))}
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <select
-                    value={editState.form.debitAccountId || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))}
-                    style={ERP_MODAL_INPUT_STYLE}
-                  >
-                    <option value="">Select Debit Account</option>
-                    {accounts.map((acc) => (
-                      <option key={acc._id} value={acc._id}>{acc.accountCode} - {acc.accountName}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={editState.form.creditAccountId || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))}
-                    style={ERP_MODAL_INPUT_STYLE}
-                  >
-                    <option value="">Select Credit Account</option>
-                    {accounts.map((acc) => (
-                      <option key={acc._id} value={acc._id}>{acc.accountCode} - {acc.accountName}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editState.form.amount || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, amount: parseFloat(e.target.value) || 0 } }))}
-                    placeholder="Amount"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <input
-                    value={editState.form.description || ''}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
-                    placeholder="Description"
-                    style={ERP_MODAL_INPUT_STYLE}
-                  />
-                  <select
-                    value={editState.form.referenceType || 'journal'}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, referenceType: e.target.value } }))}
-                    style={ERP_MODAL_INPUT_STYLE}
-                  >
-                    <option value="journal">Journal</option>
-                    <option value="invoice">Invoice</option>
-                    <option value="payment">Payment</option>
-                    <option value="purchase">Purchase</option>
-                    <option value="expense">Expense</option>
-                    <option value="payroll">Payroll</option>
-                  </select>
-                </>
-              )}
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <button type="button" onClick={closeEditModal} style={{ padding: '0.6rem 1rem', background: '#FFFFFF', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer' }}>
-                  Cancel
-                </button>
-                <button type="submit" disabled={saving} style={{ padding: '0.6rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.5rem', cursor: 'pointer' }}>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ErpEditRecordModal
+        editState={editState}
+        setEditState={setEditState}
+        accounts={accounts}
+        ledgerDepartments={LEDGER_DEPARTMENTS}
+        erpBaseCurrencyCode={erpBaseCurrencyCode}
+        saving={saving}
+        onClose={closeEditModal}
+        onSubmit={handleSaveEdit}
+        colors={C}
+      />
       {/* VOUCHERS TAB */}
       {(activeTab === 'vouchers' || jumpToVoucher) && (
       <ERPVouchersTabContainer activeTab={activeTab}>

@@ -90,6 +90,19 @@ export async function printStatementHtml(html) {
   return win
 }
 
+export async function downloadXlsxRows(rows, fileName, sheetName = 'Report') {
+  const { loadExcel } = await import('./lazyExportLibs')
+  const ExcelJS = await loadExcel()
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet(sheetName)
+  ;(rows || []).forEach((row) => {
+    worksheet.addRow(Array.isArray(row) ? row : [row])
+  })
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  downloadBlob(blob, fileName)
+}
+
 /**
  * Mount full HTML in an off-screen iframe for html2pdf capture (matches View Statement layout).
  */
