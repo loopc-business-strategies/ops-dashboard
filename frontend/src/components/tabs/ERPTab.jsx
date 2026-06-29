@@ -101,11 +101,8 @@ import {
 import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
-  LOGO_UPLOAD_MAX_BYTES,
-  normalizeBrandingKey,
   clampBrandingDimension,
   createLogoRenderAsset,
-  isSupportedLogoUpload,
 } from './erp/ERPBrandingUtils'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
@@ -115,11 +112,13 @@ import { useErpAccountEnquiryController } from './erp/useErpAccountEnquiryContro
 import { useErpTabRouter } from './erp/useErpTabRouter'
 import { useErpLedger } from './erp/useErpLedger'
 import { useErpLedgerActions } from './erp/useErpLedgerActions'
-import { useErpVendors, fetchAllVendorsAggregated } from './erp/useErpVendors'
+import { useErpVendors } from './erp/useErpVendors'
 import { useErpInventory } from './erp/useErpInventory'
 import { useErpAccounts } from './erp/useErpAccounts'
 import { useErpVendorActions } from './erp/useErpVendorActions'
 import { useErpInventoryActions } from './erp/useErpInventoryActions'
+import { useErpBranding } from './erp/useErpBranding'
+import { useErpTransactions } from './erp/useErpTransactions'
 import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM } from './erp/vendorFormDefaults'
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
@@ -968,19 +967,26 @@ function ERPTab({
       return { ...group, accounts: filteredAccounts }
     })
     .filter((group) => group.accounts.length > 0)
-  const loadReportBranding = async (brandingKey = selectedBrandingKey || DEFAULT_BRANDING.key) => {
-    try {
-      const data = await erpAccountingAPI.getReportBranding(token, { key: brandingKey })
-      const branding = { ...DEFAULT_BRANDING, ...(data.branding || {}) }
-      setBrandingProfiles(data.profiles?.length ? data.profiles : DEFAULT_BRANDING_PROFILES)
-      setSelectedBrandingKey(data.selectedKey || branding.key || DEFAULT_BRANDING.key)
-      setReportBranding(branding)
-      setBrandingForm(branding)
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load report branding')
-    }
-  }
+  const {
+    loadReportBranding,
+    handleBrandingLogoFile,
+    handleSaveBranding,
+    handleSelectBrandingProfile,
+    handleCreateBrandingDraft,
+    brandingPreview,
+  } = useErpBranding({
+    token,
+    selectedBrandingKey,
+    brandingForm,
+    setBrandingProfiles,
+    setSelectedBrandingKey,
+    setReportBranding,
+    setBrandingForm,
+    setBrandingPreviewLogo,
+    setSaving,
+    setError,
+    showNotification,
+  })
   const {
     reports,
     reportsLoading,
@@ -1061,71 +1067,29 @@ function ERPTab({
     setStockMovementsLoading,
     setError,
   })
-  const transactionReferenceLoadedRef = useRef(false)
-  const loadTransactionReferenceData = useCallback(async () => {
-    if (transactionReferenceLoadedRef.current) return
-    transactionReferenceLoadedRef.current = true
-    try {
-      const [customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
-        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: false }) : Promise.resolve(null),
-        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
-        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
-      ])
-      if (customerData) setCustomers(customerData.customers || [])
-      if (vendorData) setVendors(vendorData.vendors || [])
-      if (inventoryData) setInventoryProducts(inventoryData.products || [])
-      if (mappingData) setMappings(mappingData.mappings || [])
-      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
-      if (currencyData) setCurrencies(currencyData.currencies || [])
-    } catch {
-      transactionReferenceLoadedRef.current = false
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAllVendorsAggregated is stable for reference bootstrap
-  }, [token, canLoadParties, canLoadInventoryData, canViewMappings, canLoadReferenceData])
-  const loadTransactions = async (overrides = {}) => {
-    if (!(canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) return
-    setTransactionsLoading(true)
-    try {
-      const hasCursorOverride = Object.prototype.hasOwnProperty.call(overrides, 'cursor')
-      const cursor = hasCursorOverride ? overrides.cursor : null
-      const cursorHistory = Array.isArray(overrides.cursorHistory)
-        ? overrides.cursorHistory
-        : (cursor ? transactionMeta.cursorHistory || [] : [])
-      const params = {
-        limit: overrides.limit || transactionMeta.limit,
-        ...(cursor ? { cursor } : {}),
-        ...((overrides.search ?? transactionFilters.search) ? { search: overrides.search ?? transactionFilters.search } : {}),
-        ...((overrides.status ?? transactionFilters.status) ? { status: overrides.status ?? transactionFilters.status } : {}),
-        ...((overrides.type ?? transactionFilters.type) ? { type: overrides.type ?? transactionFilters.type } : {}),
-        ...((overrides.startDate ?? transactionFilters.startDate) ? { startDate: overrides.startDate ?? transactionFilters.startDate } : {}),
-        ...((overrides.endDate ?? transactionFilters.endDate) ? { endDate: overrides.endDate ?? transactionFilters.endDate } : {}),
-      }
-      if (!hasCursorOverride && overrides.page) {
-        params.page = overrides.page
-      }
-      const data = await erpAccountingAPI.getTransactions(token, params)
-      setTransactions(data.transactions || [])
-      setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
-      setTransactionMeta((prev) => ({
-        ...prev,
-        page: data.page || params.page || prev.page,
-        limit: data.limit || params.limit || prev.limit,
-        total: Number(data.total || 0),
-        cursor: data.cursor || cursor || null,
-        nextCursor: data.nextCursor || null,
-        hasMore: Boolean(data.hasMore),
-        cursorHistory,
-      }))
-      setError('')
-      void loadTransactionReferenceData()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load transactions')
-    }
-    setTransactionsLoading(false)
-  }
+  const { loadTransactions, loadTransactionReferenceData } = useErpTransactions({
+    token,
+    canAccessTransactions,
+    canAccessVouchers,
+    canAccessFixingRegister,
+    canLoadParties,
+    canLoadInventoryData,
+    canLoadReferenceData,
+    canViewMappings,
+    transactionFilters,
+    transactionMeta,
+    setLoading: setTransactionsLoading,
+    setTransactions,
+    setTransactionSummary,
+    setTransactionMeta,
+    setCustomers,
+    setVendors,
+    setInventoryProducts,
+    setMappings,
+    setAccounts,
+    setCurrencies,
+    setError,
+  })
   const {
     transactionForm,
     setTransactionForm,
@@ -1348,28 +1312,6 @@ function ERPTab({
     loadEnquiryHistory()
   }, [loadEnquiryHistory])
   useEffect(() => {
-    let cancelled = false
-    const updatePreviewLogo = async () => {
-      if (!brandingForm.logoUrl) {
-        setBrandingPreviewLogo('')
-        return
-      }
-      const nextLogo = await createLogoRenderAsset(
-        brandingForm.logoUrl,
-        brandingForm.logoWidth,
-        brandingForm.logoHeight,
-        brandingForm.logoFit,
-      )
-      if (!cancelled) {
-        setBrandingPreviewLogo(nextLogo)
-      }
-    }
-    updatePreviewLogo()
-    return () => {
-      cancelled = true
-    }
-  }, [brandingForm.logoFit, brandingForm.logoHeight, brandingForm.logoUrl, brandingForm.logoWidth])
-  useEffect(() => {
     accountEnquiryDataRef.current = accountEnquiryData
   }, [accountEnquiryData])
   useEffect(() => {
@@ -1437,7 +1379,6 @@ function ERPTab({
   }
   const tenantBranding = resolveErpUserTenantBranding(user)
   const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
-  const brandingPreview = { ...DEFAULT_BRANDING, ...brandingForm }
   const buildBrandingLogoTag = buildBrandingLogoTagHelper
   const openPrintWindow = (title, bodyHtml) => openPrintWindowHelper(title, bodyHtml, setError)
   const {
@@ -1508,68 +1449,6 @@ function ERPTab({
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-  const handleBrandingLogoFile = async (file) => {
-    if (!file) return
-    if (!isSupportedLogoUpload(file)) {
-      setError('Logo upload supports PNG and SVG files only.')
-      return
-    }
-    if (Number(file.size || 0) > LOGO_UPLOAD_MAX_BYTES) {
-      setError('Logo file is too large. Please upload a PNG or SVG up to 3 MB.')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      setBrandingForm((prev) => ({ ...prev, logoUrl: String(reader.result || '') }))
-      setError('')
-    }
-    reader.readAsDataURL(file)
-  }
-  const handleSaveBranding = async (e) => {
-    e.preventDefault()
-    try {
-      setSaving(true)
-      const payload = {
-        ...brandingForm,
-        key: normalizeBrandingKey(brandingForm.key || selectedBrandingKey || DEFAULT_BRANDING.key),
-        logoWidth: clampBrandingDimension(brandingForm.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260),
-        logoHeight: clampBrandingDimension(brandingForm.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120),
-      }
-      const data = await erpAccountingAPI.updateReportBranding(token, payload)
-      const nextBranding = { ...DEFAULT_BRANDING, ...(data.branding || {}) }
-      setBrandingProfiles(data.profiles?.length ? data.profiles : DEFAULT_BRANDING_PROFILES)
-      setSelectedBrandingKey(data.selectedKey || nextBranding.key || DEFAULT_BRANDING.key)
-      setReportBranding(nextBranding)
-      setBrandingForm(nextBranding)
-      setError('')
-      showNotification('✅ Report branding saved')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save report branding')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleSelectBrandingProfile = async (key) => {
-    const nextKey = normalizeBrandingKey(key)
-    setSelectedBrandingKey(nextKey)
-    await loadReportBranding(nextKey)
-  }
-  const handleCreateBrandingDraft = () => {
-    const timestamp = Date.now().toString().slice(-6)
-    const nextDraft = {
-      ...DEFAULT_BRANDING,
-      key: `entity-${timestamp}`,
-      entityName: 'New Entity',
-      branchName: '',
-      isDefault: false,
-    }
-    setBrandingProfiles((prev) => [
-      ...prev.filter((profile) => profile.key !== nextDraft.key),
-      { key: nextDraft.key, entityName: nextDraft.entityName, branchName: nextDraft.branchName, companyName: nextDraft.companyName, isDefault: false },
-    ])
-    setSelectedBrandingKey(nextDraft.key)
-    setBrandingForm(nextDraft)
-  }
   const generateStatementHtml = () => buildStatementHtml({
     accountEnquiryData,
     filteredStatementEntries,

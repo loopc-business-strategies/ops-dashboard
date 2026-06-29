@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchAllVendorsAggregated } from './useErpVendors'
 import { filterActiveAccounts } from './accountDropdownHelpers'
@@ -8,16 +8,9 @@ export function useErpTransactions({
   canAccessTransactions,
   canAccessVouchers,
   canAccessFixingRegister,
-  canViewCustomers,
-  canAccessVendors,
-  canAccessDirectDeals,
-  canAccessInventory,
-  canViewAccounts,
-  canViewBalanceEnquiry,
-  canViewLedger,
-  canAccessReports,
-  canAccessCurrencies,
-  canAccessErpSettings,
+  canLoadParties,
+  canLoadInventoryData,
+  canLoadReferenceData,
   canViewMappings,
   transactionFilters,
   transactionMeta,
@@ -33,22 +26,42 @@ export function useErpTransactions({
   setCurrencies,
   setError,
 }) {
-  const canLoadReferenceData = canViewAccounts
-    || canAccessTransactions
-    || canAccessVouchers
-    || canAccessFixingRegister
-    || canViewBalanceEnquiry
-    || canViewLedger
-    || canAccessReports
-    || canAccessCurrencies
-    || canAccessErpSettings
-  const canLoadParties = canViewCustomers
-    || canAccessVendors
-    || canAccessTransactions
-    || canAccessVouchers
-    || canAccessFixingRegister
-    || canAccessDirectDeals
-  const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
+  const transactionReferenceLoadedRef = useRef(false)
+
+  const loadTransactionReferenceData = useCallback(async () => {
+    if (transactionReferenceLoadedRef.current) return
+    transactionReferenceLoadedRef.current = true
+    try {
+      const [customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
+        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
+        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: false }) : Promise.resolve(null),
+        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
+        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+      ])
+      if (customerData) setCustomers(customerData.customers || [])
+      if (vendorData) setVendors(vendorData.vendors || [])
+      if (inventoryData) setInventoryProducts(inventoryData.products || [])
+      if (mappingData) setMappings(mappingData.mappings || [])
+      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
+      if (currencyData) setCurrencies(currencyData.currencies || [])
+    } catch {
+      transactionReferenceLoadedRef.current = false
+    }
+  }, [
+    token,
+    canLoadParties,
+    canLoadInventoryData,
+    canViewMappings,
+    canLoadReferenceData,
+    setCustomers,
+    setVendors,
+    setInventoryProducts,
+    setMappings,
+    setAccounts,
+    setCurrencies,
+  ])
 
   const loadTransactions = useCallback(async (overrides = {}) => {
     if (!(canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) return
@@ -71,15 +84,7 @@ export function useErpTransactions({
       if (!hasCursorOverride && overrides.page) {
         params.page = overrides.page
       }
-      const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
-        erpAccountingAPI.getTransactions(token, params),
-        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: false }) : Promise.resolve(null),
-        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
-        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
-      ])
+      const data = await erpAccountingAPI.getTransactions(token, params)
       setTransactions(data.transactions || [])
       setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
       setTransactionMeta((prev) => ({
@@ -92,13 +97,8 @@ export function useErpTransactions({
         hasMore: Boolean(data.hasMore),
         cursorHistory,
       }))
-      if (customerData) setCustomers(customerData.customers || [])
-      if (vendorData) setVendors(vendorData.vendors || [])
-      if (inventoryData) setInventoryProducts(inventoryData.products || [])
-      if (mappingData) setMappings(mappingData.mappings || [])
-      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
-      if (currencyData) setCurrencies(currencyData.currencies || [])
       setError('')
+      void loadTransactionReferenceData()
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load transactions')
     }
@@ -108,24 +108,15 @@ export function useErpTransactions({
     canAccessTransactions,
     canAccessVouchers,
     canAccessFixingRegister,
-    canLoadParties,
-    canLoadInventoryData,
-    canLoadReferenceData,
-    canViewMappings,
     transactionFilters,
     transactionMeta,
     setLoading,
     setTransactions,
     setTransactionSummary,
     setTransactionMeta,
-    setCustomers,
-    setVendors,
-    setInventoryProducts,
-    setMappings,
-    setAccounts,
-    setCurrencies,
     setError,
+    loadTransactionReferenceData,
   ])
 
-  return { loadTransactions }
+  return { loadTransactions, loadTransactionReferenceData }
 }
