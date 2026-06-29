@@ -76,6 +76,7 @@ import {
   buildOpsUpdatePayload,
   defaultOpsProjectForm,
   normalizeOpsProjectForm,
+  syncAssignFieldsFromAssignees,
 } from './operations/opsProjectsMapping'
 
 const pct = opsPct
