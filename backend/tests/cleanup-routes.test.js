@@ -4,85 +4,30 @@ const request = require('supertest')
 let mockDb
 let connectTenant
 
-class MockObjectId {
-  constructor(value = Math.random().toString(16).slice(2)) {
-    this.value = value
-  }
-
-  toString() {
-    return this.value
-  }
-}
-
 jest.mock('../db/tenantConnections', () => ({
   connectTenant: jest.fn(async () => ({ db: mockDb })),
 }))
 
 jest.mock('../middleware/auth', () => ({
   protect: (req, _res, next) => {
-    req.user = { _id: new MockObjectId('user-1'), role: 'super_admin' }
+    req.user = { _id: 'user-1', role: 'super_admin' }
     req.tenant = 'loopc'
     next()
   },
   restrictTo: () => (_req, _res, next) => next(),
 }))
 
-function makeCursor(rows) {
-  return {
-    toArray: async () => rows,
-    limit: () => makeCursor(rows),
-  }
-}
+jest.mock('../services/vendorRegistryMaintenance', () => ({
+  planVendorRegistryMaintenance: jest.fn(async () => ({
+    blockedRemovals: [],
+    removablePlaceholders: [],
+    purgeCandidates: [],
+  })),
+  applyVendorRegistryMaintenance: jest.fn(async () => ({ removed: 0 })),
+}))
 
-function createMockDb({ cashAccount = null, ledgerEntries = [] } = {}) {
-  return {
-    collection(name) {
-      if (name === 'chartofaccounts') {
-        return {
-          findOne: async (query) => (
-            cashAccount && query.accountCode === cashAccount.accountCode ? cashAccount : null
-          ),
-        }
-      }
-
-      if (name === 'ledgers') {
-        return {
-          find(query) {
-            if (query.description instanceof RegExp) {
-              return makeCursor(ledgerEntries.filter((entry) => (
-                entry.isDeleted !== true &&
-                query.description.test(entry.description || '') &&
-                (String(entry.debitAccountId) === String(cashAccount?._id) || String(entry.creditAccountId) === String(cashAccount?._id))
-              )))
-            }
-
-            const rows = ledgerEntries.filter((entry) => (
-              entry.referenceType === 'journal' &&
-              entry.isDeleted !== true &&
-              (String(entry.debitAccountId) === String(cashAccount?._id) || String(entry.creditAccountId) === String(cashAccount?._id)) &&
-              (
-                [5954.65, 85.95, 8.26].includes(Number(entry.amount)) ||
-                /Exchange/i.test(entry.description || '')
-              )
-            ))
-            return makeCursor(rows)
-          },
-          updateMany: async (query, update) => {
-            const ids = new Set((query._id?.$in || []).map((id) => String(id)))
-            let modifiedCount = 0
-            for (const entry of ledgerEntries) {
-              if (!ids.has(String(entry._id))) continue
-              Object.assign(entry, update.$set || {})
-              modifiedCount += 1
-            }
-            return { modifiedCount }
-          },
-        }
-      }
-
-      throw new Error(`Unexpected collection ${name}`)
-    },
-  }
+function createMockDb() {
+  return { collection: () => ({ find: () => ({ toArray: async () => [] }) }) }
 }
 
 function createApp() {
@@ -117,7 +62,7 @@ describe('admin cleanup routes', () => {
     process.env.ENABLE_ADMIN_CLEANUP_API = 'false'
 
     const res = await request(app)
-      .post('/api/admin/cleanup/exchange-entries')
+      .post('/api/admin/maintenance/vendor-registry')
       .send({})
 
     expect(res.status).toBe(403)
@@ -129,7 +74,7 @@ describe('admin cleanup routes', () => {
     process.env.CLEANUP_CONFIRM_TOKEN = 'confirm-cleanup'
 
     const res = await request(app)
-      .post('/api/admin/cleanup/exchange-entries')
+      .post('/api/admin/maintenance/vendor-registry')
       .send({})
 
     expect(res.status).toBe(403)
@@ -137,65 +82,17 @@ describe('admin cleanup routes', () => {
     expect(res.body.error).toMatch(/confirmation token/i)
   })
 
-  test('requires confirmation token in production when cleanup API is enabled', async () => {
-    process.env.NODE_ENV = 'production'
-    process.env.ENABLE_ADMIN_CLEANUP_API = 'true'
-
-    const res = await request(app)
-      .post('/api/admin/cleanup/exchange-entries')
-      .send({})
-
-    expect(res.status).toBe(403)
-    expect(res.body.ok).toBe(false)
-    expect(res.body.error).toMatch(/confirmation token is required/i)
-  })
-
-  test('soft deletes matching exchange ledger entries only after safeguards pass', async () => {
+  test('vendor registry dry-run returns plan when safeguards pass', async () => {
     process.env.CLEANUP_CONFIRM_TOKEN = 'confirm-cleanup'
 
-    const cashAccount = {
-      _id: new MockObjectId('cash-1000'),
-      accountCode: '1000',
-      accountName: 'Cash',
-    }
-    const exchangeEntry = {
-      _id: new MockObjectId('exchange-1'),
-      referenceType: 'journal',
-      description: 'Exchange loss adjustment',
-      amount: 85.95,
-      date: new Date('2026-05-06'),
-      debitAccountId: cashAccount._id,
-      creditAccountId: new MockObjectId('other-1'),
-      isDeleted: false,
-    }
-    const ordinaryEntry = {
-      _id: new MockObjectId('ordinary-1'),
-      referenceType: 'journal',
-      description: 'Normal cash entry',
-      amount: 10,
-      date: new Date('2026-05-06'),
-      debitAccountId: cashAccount._id,
-      creditAccountId: new MockObjectId('other-2'),
-      isDeleted: false,
-    }
-
-    mockDb = createMockDb({
-      cashAccount,
-      ledgerEntries: [exchangeEntry, ordinaryEntry],
-    })
-
     const res = await request(app)
-      .post('/api/admin/cleanup/exchange-entries')
+      .post('/api/admin/maintenance/vendor-registry')
       .set('x-cleanup-token', 'confirm-cleanup')
-      .send({})
+      .send({ dryRun: true })
 
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
-    expect(res.body.deletedCount).toBe(1)
-    expect(res.body.entries).toHaveLength(1)
-    expect(res.body.entries[0].id).toBe('exchange-1')
+    expect(res.body.mode).toBe('dry_run')
     expect(connectTenant).toHaveBeenCalledWith('loopc')
-    expect(exchangeEntry.isDeleted).toBe(true)
-    expect(ordinaryEntry.isDeleted).toBe(false)
   })
 })

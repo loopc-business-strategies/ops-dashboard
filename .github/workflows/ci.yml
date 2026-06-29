@@ -52,6 +52,9 @@ jobs:
       - name: Check tenant branding parity
         run: npm run check:tenant-branding-parity
 
+      - name: Migration dry-run
+        run: npm --prefix backend run migrate
+
       - name: ESLint (ERP tab production JS, zero warnings)
         run: npm run lint:eslint:ci
 
@@ -105,6 +108,7 @@ jobs:
 
   backend-full-jest:
     name: Backend full Jest (all suites)
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -140,6 +144,7 @@ jobs:
 
   backend-integration-tests:
     name: Backend Integration (${{ matrix.module }})
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -276,6 +281,7 @@ jobs:
 
   frontend-e2e:
     name: Frontend E2E (Playwright)
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.56.1-jammy

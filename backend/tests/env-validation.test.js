@@ -9,6 +9,7 @@ const {
 describe('envValidation', () => {
   const originalNodeEnv = process.env.NODE_ENV
   const originalServerBase = process.env.SERVER_BASE_URL
+  const originalUploadRoot = process.env.UPLOAD_STORAGE_ROOT
   const originalMongoMg = process.env.MONGO_URI_MG
   const originalMongoCg = process.env.MONGO_URI_CG
   const originalMongoLoopc = process.env.MONGO_URI_LOOPC
@@ -20,6 +21,8 @@ describe('envValidation', () => {
     delete process.env.METAL_RATES_BRIDGE_TOKEN
     if (originalServerBase === undefined) delete process.env.SERVER_BASE_URL
     else process.env.SERVER_BASE_URL = originalServerBase
+    if (originalUploadRoot === undefined) delete process.env.UPLOAD_STORAGE_ROOT
+    else process.env.UPLOAD_STORAGE_ROOT = originalUploadRoot
     if (originalMongoMg === undefined) delete process.env.MONGO_URI_MG
     else process.env.MONGO_URI_MG = originalMongoMg
     if (originalMongoCg === undefined) delete process.env.MONGO_URI_CG
@@ -63,6 +66,7 @@ describe('envValidation', () => {
     expect(errors.some((e) => e.includes('JWT_SECRET'))).toBe(true)
     expect(errors.some((e) => e.includes('METAL_RATES_BRIDGE_TOKEN'))).toBe(true)
     expect(errors.some((e) => e.includes('SERVER_BASE_URL'))).toBe(true)
+    expect(errors.some((e) => e.includes('UPLOAD_STORAGE_ROOT'))).toBe(true)
     expect(errors.some((e) => e.includes('MONGO_URI_MG'))).toBe(true)
   })
 

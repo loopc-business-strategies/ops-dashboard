@@ -2,13 +2,13 @@
  * Unified ERP entry point — routes callers to the correct API surface.
  *
  * - **Accounting ERP** (`erp-accounting`): ledger, vouchers, GL inventory, reports
- * - **Operations ERP** (`legacyOpsErp`): suppliers, POs, work orders, ops alerts
+ * - **Operations ERP** (`operations`): suppliers, POs, work orders, ops alerts
  *
  * See docs/ERP-API-GUIDE.md
  */
 
 import erpAccountingAPI from './erp-accounting'
-import erpOpsAPI from './legacyOpsErp'
+import erpOpsAPI from './operations'
 
 export const ERP_SURFACE = {
   ACCOUNTING: 'accounting',

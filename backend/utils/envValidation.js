@@ -67,6 +67,16 @@ function validateHardenedDeploySecrets() {
     errors.push('SERVER_BASE_URL is required in production and staging for attachment links.')
   }
 
+  if (!String(process.env.UPLOAD_STORAGE_ROOT || '').trim()) {
+    errors.push('UPLOAD_STORAGE_ROOT is required in production and staging for persistent attachments.')
+  }
+
+  const { getUploadStorageStatus } = require('../services/uploadStorage')
+  const uploadStatus = getUploadStorageStatus()
+  if (uploadStatus.root && !uploadStatus.uploadStorageWritable) {
+    errors.push('UPLOAD_STORAGE_ROOT is not writable — file uploads will fail.')
+  }
+
   for (const tenant of TENANT_KEYS) {
     const envVar = TENANT_URI_ENV[tenant]
     if (!String(process.env[envVar] || '').trim()) {

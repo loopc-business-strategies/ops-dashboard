@@ -1,3 +1,5 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
+
 const { escapeRegex } = require('../../utils/escapeRegex')
 
 function registerTransactionRoutes(deps) {
@@ -346,8 +348,8 @@ router.get('/transactions', protect, validateQuery(transactionListQuerySchema), 
       nextCursor,
       cursor: req.query.cursor || null,
     })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/transactionRoutes' })
   }
 })
 
@@ -1133,8 +1135,8 @@ router.get('/transactions/source-by-ledger/:ledgerId', protect, async (req, res)
       sourceTransaction: sourceTransaction || null,
       sourceType: sourceTransaction ? 'transaction' : 'manual_journal',
     })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/transactionRoutes' })
   }
 })
 

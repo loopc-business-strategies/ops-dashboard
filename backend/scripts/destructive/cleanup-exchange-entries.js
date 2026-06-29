@@ -1,88 +1,106 @@
 #!/usr/bin/env node
-require('./_destructive-guard')({ scriptName: __filename })
 /**
- * Direct MongoDB cleanup for bad exchange entries
- * Connects and removes entries that posted to cash account 1000
+ * Parameterized soft-delete for mis-posted exchange journal entries on a cash account.
+ * Default: dry-run. Pass --apply with destructive guard token to write.
+ *
+ * Usage:
+ *   node scripts/destructive/cleanup-exchange-entries.js --tenant=mg --dry-run
+ *   node scripts/destructive/cleanup-exchange-entries.js --tenant=mg --apply --confirm=$DESTRUCTIVE_ADMIN_CONFIRM_TOKEN
  */
+const args = process.argv.slice(2)
+const isDryRun = args.includes('--dry-run') || !args.includes('--apply')
+require('../destructive/_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: isDryRun })
 
 require('dotenv').config()
 const mongoose = require('mongoose')
+const { connectTenant } = require('../../db/tenantConnections')
 
-async function cleanup() {
-  try {
-    const mongoUri = process.env.MONGO_URI_MG
-    if (!mongoUri) throw new Error('MONGO_URI_MG not configured')
-
-    console.log('Connecting to MongoDB...')
-    await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
-    })
-    console.log('✓ Connected to MongoDB')
-
-    const db = mongoose.connection.db
-    
-    // Find cash account 1000
-    const cashAccount = await db.collection('chartofaccounts').findOne({ accountCode: '1000' })
-    if (!cashAccount) {
-      console.log('✗ Cash account 1000 not found')
-      await mongoose.disconnect()
-      process.exit(1)
-    }
-    
-    console.log(`✓ Found Cash account: ${cashAccount.accountName}`)
-    
-    // Find bad exchange entries (posted to cash)
-    const badEntries = await db.collection('ledgers').find({
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-      description: /Exchange (gain|loss) adjustment/i,
-      $or: [
-        { debitAccountId: cashAccount._id },
-        { creditAccountId: cashAccount._id }
-      ]
-    }).toArray()
-
-    console.log(`\nFound ${badEntries.length} exchange entries posted to cash account:`)
-    
-    badEntries.forEach((entry, i) => {
-      const desc = entry.description || '(no description)'
-      console.log(`  [${i + 1}] ${desc}`)
-      console.log(`      Amount: ${entry.amount} USD | Date: ${entry.date?.toISOString().split('T')[0]}`)
-    })
-
-    if (badEntries.length === 0) {
-      console.log('✓ No bad entries to clean up')
-      await mongoose.disconnect()
-      process.exit(0)
-    }
-
-    // Soft delete
-    const result = await db.collection('ledgers').updateMany(
-      {
-        _id: { $in: badEntries.map(e => e._id) }
-      },
-      {
-        $set: {
-          isDeleted: true,
-          deletedAt: new Date(),
-          notes: 'Cleaned up by fix-exchange-entries-option-b.js - replaced with AR/AP posting'
-        }
-      }
-    )
-
-    console.log(`\n✓ Soft-deleted ${result.modifiedCount} bad exchange entries`)
-    console.log(`\nCash account (1000) is now clean!`)
-    console.log(`Next: Create new payment/receipt transactions with foreign currency`)
-    console.log(`       New entries will post to AR/AP and P&L accounts per Option B`)
-
-    await mongoose.disconnect()
-    process.exit(0)
-
-  } catch (error) {
-    console.error('✗ Error:', error.message)
-    process.exit(1)
-  }
+function readArg(name) {
+  const inline = args.find((a) => a.startsWith(`${name}=`))
+  if (inline) return inline.slice(name.length + 1)
+  const idx = args.indexOf(name)
+  if (idx >= 0) return args[idx + 1] || ''
+  return ''
 }
 
-cleanup()
+const tenant = readArg('--tenant') || readArg('-t')
+const accountCode = readArg('--account') || '1000'
+const fromDate = readArg('--from') || '2026-05-05'
+const toDate = readArg('--to') || '2026-05-10'
+const amounts = (readArg('--amounts') || '5954.65,85.95,8.26')
+  .split(',')
+  .map((v) => Number(v.trim()))
+  .filter((n) => Number.isFinite(n))
+
+async function main() {
+  if (!tenant) throw new Error('--tenant=mg|cg|loopc is required')
+
+  const conn = await connectTenant(tenant)
+  const db = conn.db
+  const accountCollection = db.collection('chartofaccounts')
+  const ledgerCollection = db.collection('ledgers')
+
+  const cash = await accountCollection.findOne({ accountCode })
+  if (!cash) throw new Error(`Cash account ${accountCode} not found`)
+
+  const amountOr = [{ amount: { $in: amounts } }, { description: /Exchange/i }]
+  let badEntries = await ledgerCollection.find({
+    referenceType: 'journal',
+    isDeleted: { $ne: true },
+    date: { $gte: new Date(fromDate), $lte: new Date(`${toDate}T23:59:59.999Z`) },
+    $and: [
+      { $or: [{ debitAccountId: cash._id }, { creditAccountId: cash._id }] },
+      { $or: amountOr },
+    ],
+  }).toArray()
+
+  if (!badEntries.length) {
+    badEntries = await ledgerCollection.find({
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+      description: /Exchange/i,
+      $or: [{ debitAccountId: cash._id }, { creditAccountId: cash._id }],
+    }).toArray()
+  }
+
+  const preview = badEntries.map((e) => ({
+    id: String(e._id),
+    description: e.description,
+    amount: e.amount,
+    date: e.date ? e.date.toISOString().split('T')[0] : 'unknown',
+  }))
+
+  console.log(`[${tenant}] exchange cleanup — mode: ${isDryRun ? 'dry-run' : 'apply'}`)
+  console.log(`Matches: ${preview.length}`)
+  preview.forEach((row) => console.log(`  • ${row.date} ${row.amount} ${row.description}`))
+
+  if (!preview.length) {
+    console.log('Nothing to delete.')
+    return
+  }
+
+  if (isDryRun) {
+    console.log('Dry-run only — pass --apply to soft-delete.')
+    return
+  }
+
+  const result = await ledgerCollection.updateMany(
+    { _id: { $in: badEntries.map((e) => e._id) } },
+    {
+      $set: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        notes: 'Cleaned up by cleanup-exchange-entries script',
+        updatedAt: new Date(),
+      },
+    },
+  )
+  console.log(`Soft-deleted: ${result.modifiedCount}`)
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err.message || err)
+    process.exit(1)
+  })

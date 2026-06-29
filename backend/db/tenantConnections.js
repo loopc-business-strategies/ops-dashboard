@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 const { getTenantUri, normalizeTenant } = require('../config/tenants')
+const { isHardenedDeployEnv } = require('../utils/envValidation')
 
 const tenantConnectionPromises = new Map()
 
@@ -22,7 +23,7 @@ async function connectTenant(tenant) {
 
     const connectionPromise = (async () => {
       const mongoOptions = {
-        autoIndex: true,
+        autoIndex: !isHardenedDeployEnv(),
         serverSelectionTimeoutMS: 10000,   // fail fast if Atlas SRV unreachable
         socketTimeoutMS:          45000,   // drop idle sockets after 45s
         connectTimeoutMS:         10000,   // initial TCP timeout

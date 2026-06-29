@@ -1,3 +1,4 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
 
@@ -65,8 +66,8 @@ function registerInventoryRoutes(deps) {
         InventoryItem.countDocuments(query),
       ])
       res.json({ success: true, products, total, page, limit })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/inventoryRoutes' })
     }
   })
 
@@ -287,8 +288,8 @@ function registerInventoryRoutes(deps) {
         StockMovement.countDocuments({ isDeleted: { $ne: true } }),
       ])
       res.json({ success: true, movements, total, page, limit })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/inventoryRoutes' })
     }
   })
 
@@ -314,8 +315,8 @@ function registerInventoryRoutes(deps) {
         deletedCount: result.modifiedCount || 0,
         destructiveReason: req.destructiveAction.reason,
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/inventoryRoutes' })
     }
   })
 }

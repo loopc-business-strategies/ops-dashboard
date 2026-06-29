@@ -1,3 +1,4 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const { Joi } = require('../../middleware/validate')
 const { escapeRegex } = require('../../utils/escapeRegex')
 const { restrictTo } = require('../../middleware/auth')
@@ -249,8 +250,8 @@ function registerVendorRoutes(deps) {
           canUpdateOperational: canUpdateVendorOperational(req.user),
         },
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -311,8 +312,8 @@ function registerVendorRoutes(deps) {
           .sort((a, b) => Number(a.complianceScore || 0) - Number(b.complianceScore || 0))
           .slice(0, 100),
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -394,8 +395,8 @@ function registerVendorRoutes(deps) {
       }, { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 })
 
       res.json({ success: true, summary, queue, page, limit, totalVendors })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -573,8 +574,8 @@ function registerVendorRoutes(deps) {
       }
 
       res.json({ success: true, vendor: updatedVendor })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -626,8 +627,8 @@ function registerVendorRoutes(deps) {
           canUpdateOperational: canUpdateVendorOperational(req.user),
         },
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -662,8 +663,8 @@ function registerVendorRoutes(deps) {
       await vendor.save()
 
       res.json({ success: true, vendor })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -673,8 +674,8 @@ function registerVendorRoutes(deps) {
       const vendor = await Vendor.findById(req.params.id).select('name vendorCode documents')
       if (!vendor || vendor.deletedAt) return res.status(404).json({ success: false, message: 'Vendor not found' })
       res.json({ success: true, vendorId: vendor._id, vendorName: vendor.name, vendorCode: vendor.vendorCode || '', documents: vendor.documents || [] })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -704,8 +705,8 @@ function registerVendorRoutes(deps) {
       await vendor.save()
 
       res.status(201).json({ success: true, documents: vendor.documents || [] })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -783,8 +784,8 @@ function registerVendorRoutes(deps) {
       const TenantVendor = await Vendor.getTenantModel(req.tenant)
       const filePath = path.resolve(vendorDocumentUploadDir, doc.fileName)
       return sendStoredAttachment({ res, attachment: doc, transactionModel: TenantVendor, localFilePath: filePath, bucketName: 'vendorDocuments' })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -810,8 +811,8 @@ function registerVendorRoutes(deps) {
       await vendor.save()
 
       res.json({ success: true, documents: vendor.documents || [] })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -834,8 +835,8 @@ function registerVendorRoutes(deps) {
       await vendor.save()
 
       res.json({ success: true, documents: vendor.documents || [] })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -882,8 +883,8 @@ function registerVendorRoutes(deps) {
       }, { overdue: 0, due_soon: 0, upcoming: 0, later: 0, totalDue: 0 })
 
       res.json({ success: true, rows, alerts, page, limit, totalVendors })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 
@@ -958,8 +959,8 @@ function registerVendorRoutes(deps) {
       }
 
       res.json({ success: true, message: 'Vendor removed', vendor })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/vendorRoutes' })
     }
   })
 }

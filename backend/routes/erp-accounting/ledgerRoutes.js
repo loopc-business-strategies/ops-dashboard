@@ -1,3 +1,5 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
+
 const { resolveRequestTenantKey } = require('../../config/tenants')
 const mongoose = require('mongoose')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
@@ -302,8 +304,8 @@ router.get('/ledger', protect, async (req, res) => {
       nextCursor,
       cursor: req.query.cursor || null,
     })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/ledgerRoutes' })
   }
 })
 
@@ -657,8 +659,8 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
       }
     })
     res.json({ success: true, entry: updated })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/ledgerRoutes' })
   }
 })
 
@@ -722,8 +724,8 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
       }
     })
     res.json({ success: true, message: 'Entry reversed', reversalEntry })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/ledgerRoutes' })
   }
 })
 
@@ -764,8 +766,8 @@ router.delete('/ledger/:id/permanent', protect, validateParams(idParamSchema), r
     })
 
     res.json({ success: true, message: 'Entry deleted permanently' })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/ledgerRoutes' })
   }
 })
 

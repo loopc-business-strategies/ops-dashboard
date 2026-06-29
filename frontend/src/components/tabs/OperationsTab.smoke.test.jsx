@@ -10,13 +10,9 @@ vi.mock('../../hooks/usePermissions', () => ({
   usePermissions: () => ({ canViewTab: () => true, canEditTab: () => true }),
 }))
 
-vi.mock('../../api/legacyOpsErp', () => ({
-  default: {
+vi.mock('../../api/operations/inventory', () => ({
+  inventoryApi: {
     getInventory: vi.fn(async () => ({ inventory: [] })),
-    getSuppliers: vi.fn(async () => ({ suppliers: [] })),
-    getPurchaseOrders: vi.fn(async () => ({ purchaseOrders: [] })),
-    getProcurementDocuments: vi.fn(async () => ({ documents: [] })),
-    getExpiryAlerts: vi.fn(async () => ({ alerts: [] })),
   },
 }))
 

@@ -12,7 +12,7 @@ Ordered production-safety and maintainability work.
 |---|------|--------|
 | 1 | **Live metal fan-out all tenants** | **Done** — code, HTTP test, prod `verify:live-metal-movement:all` 3/3 |
 | 2 | **Redis multi-instance** | **Done** — prod `redisConfigured: true`, readiness warnings shipped |
-| 3 | **Mongo backup verification** | **Phase 1 connected** — workflow runs in `deferred` mode; enable Atlas M10+ Cloud Backup later → `ATLAS_BACKUP_PHASE=strict` |
+| 3 | **Mongo backup verification** | **Phase 1 connected** — quarterly workflow in `deferred` mode. **To enable strict:** Atlas M10+ Cloud Backup → set repo var `ATLAS_BACKUP_PHASE=strict` + Atlas API secrets → run `node scripts/check-atlas-strict-readiness.mjs` → re-run quarterly drill with strict phase |
 
 ---
 

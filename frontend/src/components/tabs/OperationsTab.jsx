@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
-import legacyOpsErpAPI from '../../api/legacyOpsErp'
+import { inventoryApi } from '../../api/operations/inventory'
 import projectsAPI from '../../api/projects'
 import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
@@ -2795,7 +2795,7 @@ export default function OperationsTab() {
 
     const loadInventory = useCallback(async () => {
       try {
-        const res = await legacyOpsErpAPI.getInventory(token)
+        const res = await inventoryApi.getInventory()
         const items = res.items || res.data || []
         if (items.length > 0) setInventory(items.map(invToRow))
       } catch { /* keep current state */ }
@@ -3045,21 +3045,21 @@ export default function OperationsTab() {
   function addInventoryItem(f) {
     const stock = Number(f.stock)||0, min = Number(f.min)||0
     const payload = { name: f.item, quantity: stock, minThreshold: min, supplierName: f.sup || '', unit: 'units' }
-    legacyOpsErpAPI.createInventoryItem(token, payload)
+    inventoryApi.createInventoryItem(payload)
       .then(res => { setInventory(p => [...p, invToRow(res.item || res.data || { ...payload, _id: Date.now() })]); closeModal(); showToast('Item Added', f.item + ' added to inventory') })
       .catch(() => showToast('Error', 'Failed to add inventory item'))
   }
   function editInventoryItem(f) {
     const stock = Number(f.stock)||0, min = Number(f.min)||0
     const payload = { name: f.item, quantity: stock, minThreshold: min, supplierName: f.sup || '' }
-    legacyOpsErpAPI.updateInventoryItem(token, f.id, payload)
+    inventoryApi.updateInventoryItem(f.id, payload)
       .then(() => { setInventory(p => p.map(x => x.id===f.id ? invToRow({ ...x, ...payload, _id: f.id, updatedAt: new Date().toISOString() }) : x)); closeModal(); showToast('Item Updated', f.item + ' updated') })
       .catch(() => showToast('Error', 'Failed to update inventory item'))
   }
   async function deleteInventoryItem(row) {
     if (!window.confirm(`Delete ${row.item}?`)) return
     try {
-      await legacyOpsErpAPI.deleteInventoryItem(token, row.id)
+      await inventoryApi.deleteInventoryItem(row.id)
       setInventory(p => p.filter(x => x.id !== row.id))
       showToast('Deleted', `${row.item} removed`)
     } catch {

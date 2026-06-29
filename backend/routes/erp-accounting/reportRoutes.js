@@ -1,3 +1,5 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
+
 /** Short-lived cache so many dashboard clients do not hammer the upstream spot provider. */
 const metalSpotCache = {
   key: '',
@@ -287,8 +289,8 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
     }
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 
@@ -364,8 +366,8 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
     const payload = { success: true, report }
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 
@@ -430,8 +432,8 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
     }
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 
@@ -477,8 +479,8 @@ router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, r
     }
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 
@@ -552,8 +554,8 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
     }
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 
@@ -615,8 +617,8 @@ router.get('/reports/customer-outstanding', protect, reportExportLimiter, async 
     }
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 
@@ -663,8 +665,8 @@ router.get('/reports/vendor-outstanding', protect, reportExportLimiter, async (r
     }
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 
@@ -775,8 +777,8 @@ router.get('/reports/forex-gain-loss', protect, reportExportLimiter, async (req,
       byCurrency: byCurrencyRounded,
       generatedAt: new Date(),
     })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }
 })
 

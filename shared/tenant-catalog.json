@@ -6,21 +6,29 @@
       "companyName": "MODERN GOLD JEWELRY MANUFACTURING",
       "tagline": "Metal Group Operations",
       "portalHost": "mg.loopcstrategies.com",
-      "envVar": "MONGO_URI_MG"
+      "envVar": "MONGO_URI_MG",
+      "brandPrimary": "#005B96",
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "cg": {
       "key": "cg",
       "displayName": "CG",
+      "companyName": "CG Enterprise",
       "tagline": "CG Enterprise Suite",
       "portalHost": "cg.loopcstrategies.com",
-      "envVar": "MONGO_URI_CG"
+      "envVar": "MONGO_URI_CG",
+      "brandPrimary": "#9A3412",
+      "enabledTabs": ["overview", "chat", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "loopc": {
       "key": "loopc",
       "displayName": "LoopC",
+      "companyName": "Loop C Strategies",
       "tagline": "Loop C Business Platform",
       "portalHost": "loopc.loopcstrategies.com",
-      "envVar": "MONGO_URI_LOOPC"
+      "envVar": "MONGO_URI_LOOPC",
+      "brandPrimary": "#00684A",
+      "enabledTabs": ["overview", "chat", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     }
   },
   "customDomains": {

@@ -1,3 +1,5 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
+
 const mongoose = require('mongoose')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const {
@@ -94,8 +96,8 @@ router.get('/accounts', protect, async (req, res) => {
       summaryAccountsCache.set(summaryCacheKey, payload)
     }
     res.json(payload)
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/accountsRoutes' })
   }
 })
 
@@ -918,8 +920,8 @@ router.get('/accounts/:id', protect, async (req, res) => {
     const account = await ChartOfAccount.findById(req.params.id).populate('parentAccountId')
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })
     res.json({ success: true, account })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/accountsRoutes' })
   }
 })
 
@@ -1013,8 +1015,8 @@ router.delete('/accounts/:id', protect, validateParams(idParam), async (req, res
     const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, { isActive: false }, { returnDocument: 'after' })
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })
     res.json({ success: true, message: 'Account deactivated', account })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/accountsRoutes' })
   }
 })
 

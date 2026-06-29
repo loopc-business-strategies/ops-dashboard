@@ -18,6 +18,15 @@ npm --prefix backend run migrate:apply
 
 ```js
 module.exports = {
+  id: 'NNN-short-description',
+  async up({ db, tenant, mongoose }) { /* idempotent changes */ },
+}
+```
+
+2. Registered migrations: `001-baseline`, `002-backfill-mapping-departments`, `003-backfill-jv-ledger-base-to-fc` (apply 003 only after review — updates JV FX rows).
+
+```js
+module.exports = {
   id: '003-short-description',
   async up({ db, tenant }) {
     // mutate db for one tenant

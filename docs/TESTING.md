@@ -129,12 +129,13 @@ The workflow also accepts **`workflow_dispatch`** for manual runs.
 
 | Area | What runs |
 |------|-------------|
-| Hygiene | Tracked paths, destructive guards, risk guardrails, Vercel rewrites, ERP access parity, ERP tab ESLint |
-| Backend fast | `test:fast` + `test:erp-accounting` |
-| **Backend full Jest** | **`npm test`** in `backend/` (all suites, same as local full run) — **only** on `workflow_dispatch`, **push** to **`main`**, or **pull requests targeting `main`** (saves runner minutes on feature branches) |
-| Backend integration | Tenant routing, tenant isolation, ERP transactions (matrix) |
+| Hygiene | Tracked paths, destructive guards, risk guardrails, Vercel rewrites, ERP access parity, tenant branding, **migration dry-run**, ESLint slices |
+| Backend fast | `test:fast` (13 suites) + `test:erp-accounting` |
+| **Backend full Jest** | **`npm test`** — **only** on `workflow_dispatch`, **push** to **`main`**, or **PRs targeting `main`** |
+| Backend integration | Tenant routing, tenant isolation, ERP transactions — **same branch gate as full Jest** |
 | Frontend | `npm test` + `npm run test:unit` |
+| Mobile | `typecheck` + `npm test` + `check:release` |
 | Frontend build | `npm run build` + bundle budget |
-| Frontend E2E | Playwright smoke (`npm run test:e2e` in `frontend/`) |
+| Frontend E2E | Playwright — **same branch gate as full Jest** |
 
 The **full Jest** job closes the gap where a suite might pass in split jobs but fail when the whole tree runs together (ordering, shared state, timing). To run it locally on any branch, use `cd backend && npm test`.

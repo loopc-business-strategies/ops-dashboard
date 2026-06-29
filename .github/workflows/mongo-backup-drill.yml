@@ -50,6 +50,9 @@ jobs:
       - name: Verify upload storage (prod + staging)
         run: npm run verify:upload-storage
 
+      - name: Atlas strict readiness
+        run: node scripts/check-atlas-strict-readiness.mjs
+
       - name: Atlas backup drill
         env:
           ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}

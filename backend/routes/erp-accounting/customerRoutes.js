@@ -1,3 +1,4 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const {
   isUnfixedFixingType,
   _accumulateUnfixedMetalFromTransactions,
@@ -184,8 +185,8 @@ function registerCustomerRoutes(deps) {
       })
 
       res.json({ success: true, customers: data, total, page, limit })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/customerRoutes' })
     }
   })
 
@@ -205,8 +206,8 @@ function registerCustomerRoutes(deps) {
         aging,
         outstandingBalance: aging.total,
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/customerRoutes' })
     }
   })
 
@@ -324,8 +325,8 @@ function registerCustomerRoutes(deps) {
       }
 
       res.json({ success: true, customer })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/customerRoutes' })
     }
   })
 
@@ -344,8 +345,8 @@ function registerCustomerRoutes(deps) {
       }
 
       res.json({ success: true, message: 'Customer deactivated', customer })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/customerRoutes' })
     }
   })
 }

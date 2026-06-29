@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 /**
- * Blocks new frontend imports of legacy api/erp (financial work belongs on erp-accounting).
+ * Blocks new frontend imports of legacy api/erp paths.
+ * Operations/production clients live under api/operations, api/production, api/procurement.
  */
 import fs from 'node:fs'
 import path from 'node:path'
 
 const root = 'frontend/src'
 const allowlist = new Set([
-  'frontend/src/api/legacyOpsErp.js',
   'frontend/src/api/erpUnified.js',
-  'frontend/src/components/tabs/OperationsTab.jsx',
-  'frontend/src/components/tabs/ProductionTab.jsx',
   'frontend/src/__tests__/erp-unified.test.js',
 ])
 
@@ -35,6 +33,9 @@ for (const file of walk(root)) {
   const normalized = file.replace(/\\/g, '/')
   if (allowlist.has(normalized)) continue
   if (normalized.includes('api/erp-accounting')) continue
+  if (normalized.includes('api/operations')) continue
+  if (normalized.includes('api/production')) continue
+  if (normalized.includes('api/procurement')) continue
 
   const text = fs.readFileSync(file, 'utf8')
   let match
@@ -46,9 +47,9 @@ for (const file of walk(root)) {
 }
 
 if (violations.length) {
-  console.error('Legacy api/erp imports are restricted to OperationsTab and ProductionTab:')
+  console.error('Legacy api/erp imports are restricted — use api/operations, api/production, or api/procurement:')
   for (const row of violations) console.error(`- ${row}`)
-  console.error('See docs/ERP-DUAL-API-AUDIT.md')
+  console.error('See docs/ERP-DUAL-API-DEPRECATION.md')
   process.exit(1)
 }
 

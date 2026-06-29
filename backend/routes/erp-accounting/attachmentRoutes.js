@@ -1,3 +1,4 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const fs = require('fs')
 const path = require('path')
 const { resolveUploadDir } = require('../../services/erpAccounting/uploadMiddleware')
@@ -96,8 +97,8 @@ function registerAttachmentRoutes(deps) {
       }
 
       res.sendFile(filePath)
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/attachmentRoutes' })
     }
   })
 }

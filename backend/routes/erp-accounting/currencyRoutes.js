@@ -1,3 +1,4 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const { normalizeTenant } = require('../../config/tenants')
 const rateLimit = require('express-rate-limit')
 const { publishRealtimeEvent } = require('../../utils/realtimeBus')
@@ -231,8 +232,8 @@ function registerCurrencyRoutes(deps) {
       await ensureDefaultCurrencyMaster()
       const currencies = await Currency.find({}).sort({ baseCurrency: -1, code: 1 })
       res.json({ success: true, currencies, total: currencies.length, page: 1, limit: currencies.length })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -250,8 +251,8 @@ function registerCurrencyRoutes(deps) {
         normalizedCount: result.normalizedCount,
         currencies,
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -263,8 +264,8 @@ function registerCurrencyRoutes(deps) {
       const selectedDoc = profiles.find((doc) => doc.key === requestedKey) || profiles.find((doc) => doc.isDefault) || null
       const branding = buildBrandingPayload(selectedDoc)
       res.json({ success: true, branding, profiles: buildBrandingProfiles(profiles), selectedKey: branding.key })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -318,8 +319,8 @@ function registerCurrencyRoutes(deps) {
 
       const profiles = await ReportBranding.find({}).sort({ isDefault: -1, entityName: 1, branchName: 1, key: 1 })
       res.json({ success: true, branding: buildBrandingPayload(branding), profiles: buildBrandingProfiles(profiles), selectedKey: branding.key })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -344,8 +345,8 @@ function registerCurrencyRoutes(deps) {
         rates,
         canUpdate: canUpdateMetalRates(req.user),
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -415,8 +416,8 @@ function registerCurrencyRoutes(deps) {
         staleMs,
         feedAgeMs: ageMs,
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -447,8 +448,8 @@ function registerCurrencyRoutes(deps) {
         success: true,
         rates: buildMetalRatesResponse(rate),
       })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -581,8 +582,8 @@ function registerCurrencyRoutes(deps) {
       }
 
       res.status(201).json({ success: true, currency })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -638,8 +639,8 @@ function registerCurrencyRoutes(deps) {
       }
 
       res.json({ success: true, currency })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 
@@ -659,8 +660,8 @@ function registerCurrencyRoutes(deps) {
       await Currency.deleteOne({ _id: currency._id })
       await ensureBaseCurrencyConfig()
       res.json({ success: true, message: 'Currency deleted.' })
-    } catch {
-      res.status(500).json({ success: false, message: 'Server error' })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/currencyRoutes' })
     }
   })
 }

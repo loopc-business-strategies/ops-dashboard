@@ -1,3 +1,5 @@
+const { respondRouteError } = require('../../utils/routeErrorHelpers')
+
 function registerMappingsRoutes(deps) {
   const {
     router,
@@ -77,8 +79,8 @@ router.get('/mappings', protect, async (req, res) => {
     })
 
     res.json({ success: true, mappings: mappingsWithUsage, total, page, limit, summary })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/mappingsRoutes' })
   }
 })
 
@@ -89,8 +91,8 @@ router.post('/mappings', protect, validateBody(mappingCreateSchema), async (req,
     if (!mappingType || !debitAccountId || !creditAccountId) return res.status(400).json({ success: false, message: 'Required fields missing' })
     const mapping = await AccountMapping.create({ mappingType, debitAccountId, creditAccountId, description, department: String(department || '').trim().toLowerCase() })
     res.status(201).json({ success: true, mapping })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/mappingsRoutes' })
   }
 })
 
@@ -106,8 +108,8 @@ router.put('/mappings/:id', protect, validateParams(idParam), validateBody(mappi
     const mapping = await AccountMapping.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
     if (!mapping) return res.status(404).json({ success: false, message: 'Mapping not found' })
     res.json({ success: true, mapping })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/mappingsRoutes' })
   }
 })
 
@@ -117,8 +119,8 @@ router.delete('/mappings/:id', protect, async (req, res) => {
     const mapping = await AccountMapping.findByIdAndUpdate(req.params.id, { isActive: false }, { returnDocument: 'after' })
     if (!mapping) return res.status(404).json({ success: false, message: 'Mapping not found' })
     res.json({ success: true, message: 'Mapping deactivated', mapping })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/mappingsRoutes' })
   }
 })
 

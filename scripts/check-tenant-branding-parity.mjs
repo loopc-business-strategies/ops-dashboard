@@ -35,6 +35,29 @@ function readWebBrandPrimaries() {
   return primaries
 }
 
+function readWebMeta() {
+  const src = fs.readFileSync(path.join(root, 'frontend/src/config/tenantBranding.js'), 'utf8')
+  const defaultTabs = src.match(/defaultBranding[\s\S]*?enabledTabs:\s*\[([^\]]+)\]/)?.[1]
+  const defaultEnabledTabs = defaultTabs
+    ? defaultTabs.split(',').map((s) => s.replace(/['"\s]/g, '')).filter(Boolean).sort()
+    : []
+  const meta = {}
+  for (const key of catalogKeys) {
+    const block = src.match(new RegExp(`${key}:\\s*\\{([\\s\\S]*?)\\n  \\},`, 'm'))?.[1] || ''
+    const displayName = block.match(/displayName:\s*'([^']+)'/)?.[1]
+    const tagline = block.match(/tagline:\s*'([^']+)'/)?.[1]
+    const enabledTabs = block.match(/enabledTabs:\s*\[([^\]]+)\]/)?.[1]
+    meta[key] = {
+      displayName,
+      tagline,
+      enabledTabs: enabledTabs
+        ? enabledTabs.split(',').map((s) => s.replace(/['"\s]/g, '')).filter(Boolean).sort()
+        : defaultEnabledTabs,
+    }
+  }
+  return meta
+}
+
 function readMobileMeta() {
   const src = fs.readFileSync(path.join(root, 'mobile/src/config/tenantBranding.ts'), 'utf8')
   const meta = {}
@@ -65,20 +88,34 @@ if (JSON.stringify(mobileExtractedKeys) !== JSON.stringify(catalogKeys)) {
 const mobilePrimary = readMobilePrimaryColors()
 const webPrimary = readWebBrandPrimaries()
 const mobileMeta = readMobileMeta()
+const webMeta = readWebMeta()
 
 for (const key of catalogKeys) {
   const cat = catalog.tenants[key]
+  const catalogTabs = [...(cat.enabledTabs || [])].sort()
   if (mobilePrimary[key] !== webPrimary[key]) {
     errors.push(`${key}: mobile primary ${mobilePrimary[key]} != web brandPrimary ${webPrimary[key]}`)
+  }
+  if (cat.brandPrimary && webPrimary[key] !== cat.brandPrimary) {
+    errors.push(`${key}: web brandPrimary ${webPrimary[key]} != catalog ${cat.brandPrimary}`)
   }
   if (mobileMeta[key].displayName !== cat.displayName) {
     errors.push(`${key}: mobile displayName "${mobileMeta[key].displayName}" != catalog "${cat.displayName}"`)
   }
+  if (webMeta[key].displayName !== cat.displayName) {
+    errors.push(`${key}: web displayName "${webMeta[key].displayName}" != catalog "${cat.displayName}"`)
+  }
   if (mobileMeta[key].tagline !== cat.tagline) {
     errors.push(`${key}: mobile tagline "${mobileMeta[key].tagline}" != catalog "${cat.tagline}"`)
   }
+  if (webMeta[key].tagline !== cat.tagline) {
+    errors.push(`${key}: web tagline "${webMeta[key].tagline}" != catalog "${cat.tagline}"`)
+  }
   if (mobileMeta[key].portalHost !== cat.portalHost) {
     errors.push(`${key}: mobile portalHost "${mobileMeta[key].portalHost}" != catalog "${cat.portalHost}"`)
+  }
+  if (JSON.stringify(webMeta[key].enabledTabs) !== JSON.stringify(catalogTabs)) {
+    errors.push(`${key}: web enabledTabs [${webMeta[key].enabledTabs.join(', ')}] != catalog [${catalogTabs.join(', ')}]`)
   }
 }
 
