@@ -122,7 +122,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Cache MongoDB binaries for mongodb-memory-server
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/mongodb-binaries
           key: mongodb-binaries-${{ runner.os }}-v1
@@ -167,7 +167,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Cache MongoDB binaries for mongodb-memory-server
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/mongodb-binaries
           key: mongodb-binaries-${{ runner.os }}-v1
