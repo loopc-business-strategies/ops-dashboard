@@ -61,7 +61,7 @@ npm run verify:mg-jv-live   # full MG JV audit (needs MG_ADMIN_PASSWORD)
 - [ ] Confirm `EXPO_PUBLIC_API_URL` / production API is `https://api.loopcstrategies.com` for release builds.
 - [ ] Review [store/STORE_METADATA.md](./store/STORE_METADATA.md) — listing text, privacy URL, screenshots.
 
-## GitHub store secrets audit (2026-06-25)
+## GitHub store secrets audit (2026-06-29)
 
 Run from repo root: `npm run check:mobile-release-secrets` (requires `gh auth login`).
 
@@ -78,9 +78,22 @@ Run from repo root: `npm run check:mobile-release-secrets` (requires `gh auth lo
 | `ANDROID_KEYSTORE_BASE64` | missing |
 | `ANDROID_KEYSTORE_PASSWORD` | missing |
 | `ANDROID_KEY_ALIAS` | missing |
-| `GOOGLE_SERVICES_JSON_BASE64` | missing |
+| `GOOGLE_SERVICES_JSON_BASE64` | **set** |
 
-iOS signing is **not** ready for **Mobile iOS (GitHub macOS)** until the five iOS signing secrets are added per [docs/MOBILE-IOS-GITHUB-BUILD.md](../../docs/MOBILE-IOS-GITHUB-BUILD.md). Android CI still uses debug signing until the three Android keystore secrets are set. FCM background push requires `GOOGLE_SERVICES_JSON_BASE64` or a local `google-services.json`.
+**11 / 12** secrets still missing. iOS signing and TestFlight upload are blocked until the eight Apple secrets are provisioned. Android Play upload signing needs the three keystore secrets (CI uses debug signing until then). FCM background push on release APK is ready via `GOOGLE_SERVICES_JSON_BASE64`.
+
+Provision locally, then push:
+
+```bash
+npm run setup:mobile-github-secrets -- --print-instructions
+node scripts/setup-mobile-github-secrets.mjs \
+  --p12-path ./nexa-distribution.p12 \
+  --profile-path ./Nexa_App_Store.mobileprovision \
+  --p8-path ./AuthKey_XXXXX.p8 \
+  --keystore-path ./upload-keystore.jks
+# google-services already in GitHub — omit --google-services-path unless rotating
+npm run check:mobile-release-secrets
+```
 
 ## iOS — GitHub macOS (no EAS)
 

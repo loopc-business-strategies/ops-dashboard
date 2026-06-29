@@ -73,7 +73,7 @@
 
 ## Mobile store signing (ops — not code)
 
-12 GitHub secrets still missing per `mobile/RELEASE_CHECKLIST.md`. Run `npm run check:mobile-release-secrets` after provisioning certs/keystores. See `npm run setup:mobile-github-secrets -- --print-instructions`.
+12 GitHub secrets for store signing — **11 still missing** (only `GOOGLE_SERVICES_JSON_BASE64` set as of 2026-06-29). Run `npm run check:mobile-release-secrets` after provisioning certs/keystores. See `npm run setup:mobile-github-secrets -- --print-instructions`.
 
 ## Presentational splits (done)
 
