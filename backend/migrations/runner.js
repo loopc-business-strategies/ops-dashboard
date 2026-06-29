@@ -14,6 +14,8 @@ const fs = require('fs')
 const path = require('path')
 const mongoose = require('mongoose')
 const { TENANT_KEYS } = require('../config/tenants')
+const { connectTenant, closeAllTenantConnections } = require('../db/tenantConnections')
+const { runWithTenantConnection } = require('../db/tenantModelProxy')
 const {
   assertMigrationApplyAllowed,
   redactMongoUri,
@@ -112,17 +114,17 @@ async function main() {
   console.log(`Tenants: ${tenants.join(', ')}`)
   console.log(`Registered migrations: ${migrations.length}`)
 
+  try {
   for (const tenant of tenants) {
     const uri = resolveTenantUri(tenant)
     console.log(`\n[${tenant}] connecting to ${redactMongoUri(uri)}…`)
-    await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 })
-    const db = mongoose.connection.db
+    const connection = await connectTenant(tenant)
+    const db = connection.db
     const applied = await getAppliedIds(db)
     const pending = migrations.filter((migration) => !applied.has(migration.id))
 
     if (!pending.length) {
       console.log(`[${tenant}] up to date (${applied.size} applied)`)
-      await mongoose.disconnect()
       continue
     }
 
@@ -131,12 +133,13 @@ async function main() {
     for (const migration of pending) {
       console.log(`[${tenant}] ${apply ? 'APPLY' : 'DRY-RUN'} ${migration.id} (${migration.file})`)
       if (apply) {
-        await migration.up({ db, tenant, mongoose })
+        await runWithTenantConnection(connection, tenant, () => migration.up({ db, tenant, mongoose, connection }))
         await markApplied(db, migration)
       }
     }
-
-    await mongoose.disconnect()
+  }
+  } finally {
+    await closeAllTenantConnections()
   }
 
   if (!apply) {
