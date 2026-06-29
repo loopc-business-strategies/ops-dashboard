@@ -27,7 +27,7 @@
 
 - **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
 
-`ERPTab.jsx` is ~3680 lines after vendor-action + accounts wire-up (down from ~6460 on main).
+`ERPTab.jsx` is ~3380 lines after inventory-action wire-up (down from ~6460 on main).
 
 ## S5 wire-up (done)
 
@@ -37,6 +37,7 @@
 - **`useErpLedgerActions`** — ledger edit / reverse / reconcile / save handlers extracted from `ERPTab.jsx`.
 - **`useErpVendorActions`** — vendor CRUD, workflow, and document handlers extracted; defaults in `vendorFormDefaults.js`.
 - **`useErpAccounts`** — wired with tenant-scoped summary cache (`readSummaryAccountsCache` / `writeSummaryAccountsCache`).
+- **`useErpInventoryActions`** — stock mapping + catalog CRUD, modal drag, auto stock-code sync; helpers in `inventoryFormDefaults.js`.
 
 ## Mobile store signing (ops — not code)
 

@@ -52,13 +52,10 @@ import {
 } from './erp/ERPTabContainers'
 import {
   DEFAULT_INVENTORY_STOCK_CODE_SETTINGS,
-  buildAutoStockCode,
-  buildUniqueStockCode,
   createInventoryMappingForm,
   createInventoryProductForm,
   decodeInventoryCategoryMeta,
   decodeInventoryCategoryPairs,
-  encodeInventoryCategoryMeta,
   formatVatPercent,
   getTransactionActionLabels,
   getTransactionTypeLabels,
@@ -122,6 +119,7 @@ import { useErpVendors, fetchAllVendorsAggregated } from './erp/useErpVendors'
 import { useErpInventory } from './erp/useErpInventory'
 import { useErpAccounts } from './erp/useErpAccounts'
 import { useErpVendorActions } from './erp/useErpVendorActions'
+import { useErpInventoryActions } from './erp/useErpInventoryActions'
 import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM } from './erp/vendorFormDefaults'
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
@@ -422,10 +420,8 @@ function ERPTab({
   const [inventoryStockCodeManualOverride, setInventoryStockCodeManualOverride] = useState(false)
   const [inventoryModalOffset, setInventoryModalOffset] = useState({ x: 0, y: 0 })
   const [inventoryModalDragging, setInventoryModalDragging] = useState(false)
-  const inventoryModalDragRef = useRef({ moveHandler: null, upHandler: null })
   const [inventoryProductModalOffset, setInventoryProductModalOffset] = useState({ x: 0, y: 0 })
   const [inventoryProductModalDragging, setInventoryProductModalDragging] = useState(false)
-  const inventoryProductModalDragRef = useRef({ moveHandler: null, upHandler: null })
   const [inventoryStockCodeSettings, setInventoryStockCodeSettings] = useState(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
   const inventoryStockCodeSettingsKey = `${INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
   const ITEMS_PER_PAGE = 25
@@ -1238,307 +1234,48 @@ function ERPTab({
     loadVendorComplianceSummary,
     loadVendorOverdueQueue,
   })
-  const resetInventoryMappingForm = () => {
-    setEditingProductId('')
-    setInventoryMappingForm(createInventoryMappingForm())
-    setInventoryStockCodeManualOverride(false)
-    setInventoryModalOffset({ x: 0, y: 0 })
-    setInventoryModalDragging(false)
-    setShowInventoryMappingModal(false)
-  }
-  const resetInventoryProductForm = () => {
-    setEditingInventoryProductId('')
-    setInventoryProductForm(createInventoryProductForm())
-    setInventoryProductModalOffset({ x: 0, y: 0 })
-    setInventoryProductModalDragging(false)
-    setShowInventoryProductModal(false)
-  }
-  const stopInventoryModalDrag = () => {
-    const { moveHandler, upHandler } = inventoryModalDragRef.current
-    if (moveHandler) {
-      window.removeEventListener('mousemove', moveHandler)
-    }
-    if (upHandler) {
-      window.removeEventListener('mouseup', upHandler)
-    }
-    inventoryModalDragRef.current = { moveHandler: null, upHandler: null }
-    setInventoryModalDragging(false)
-  }
-  const handleInventoryModalDragStart = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    const startX = event.clientX
-    const startY = event.clientY
-    const originX = inventoryModalOffset.x
-    const originY = inventoryModalOffset.y
-    const moveHandler = (moveEvent) => {
-      const deltaX = moveEvent.clientX - startX
-      const deltaY = moveEvent.clientY - startY
-      setInventoryModalOffset({ x: originX + deltaX, y: originY + deltaY })
-    }
-    const upHandler = () => {
-      stopInventoryModalDrag()
-    }
-    stopInventoryModalDrag()
-    setInventoryModalDragging(true)
-    inventoryModalDragRef.current = { moveHandler, upHandler }
-    window.addEventListener('mousemove', moveHandler)
-    window.addEventListener('mouseup', upHandler)
-  }
-  const stopInventoryProductModalDrag = () => {
-    const { moveHandler, upHandler } = inventoryProductModalDragRef.current
-    if (moveHandler) {
-      window.removeEventListener('mousemove', moveHandler)
-    }
-    if (upHandler) {
-      window.removeEventListener('mouseup', upHandler)
-    }
-    inventoryProductModalDragRef.current = { moveHandler: null, upHandler: null }
-    setInventoryProductModalDragging(false)
-  }
-  const handleInventoryProductModalDragStart = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    const startX = event.clientX
-    const startY = event.clientY
-    const originX = inventoryProductModalOffset.x
-    const originY = inventoryProductModalOffset.y
-    const moveHandler = (moveEvent) => {
-      const deltaX = moveEvent.clientX - startX
-      const deltaY = moveEvent.clientY - startY
-      setInventoryProductModalOffset({ x: originX + deltaX, y: originY + deltaY })
-    }
-    const upHandler = () => {
-      stopInventoryProductModalDrag()
-    }
-    stopInventoryProductModalDrag()
-    setInventoryProductModalDragging(true)
-    inventoryProductModalDragRef.current = { moveHandler, upHandler }
-    window.addEventListener('mousemove', moveHandler)
-    window.addEventListener('mouseup', upHandler)
-  }
-  useEffect(() => () => {
-    stopInventoryModalDrag()
-    stopInventoryProductModalDrag()
-  }, [])
-  useEffect(() => {
-    if (!showInventoryMappingModal) return
-    if (isSuperAdmin && inventoryStockCodeManualOverride) return
-    const baseCode = buildAutoStockCode(inventoryMappingForm, inventoryStockCodeSettings)
-    const nextCode = buildUniqueStockCode(baseCode, inventoryMappingProducts, editingProductId)
-    setInventoryMappingForm((prev) => (prev.stockCode === nextCode ? prev : { ...prev, stockCode: nextCode }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to stock-driving fields, not whole form object
-  }, [showInventoryMappingModal, inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
-  const buildInventoryPayloadFromForm = (form, includeOpeningQty = true) => {
-    const mainStockValue = resolveMainStockValueFromForm(form)
-    const normalizedMetalType = String(form.metalType || '').trim().toLowerCase()
-    const categoryMeta = encodeInventoryCategoryMeta({
-      mainStock: mainStockValue,
-      metalType: normalizedMetalType,
-      priceUnit: form.priceUnit || 'OZ',
-      priceCurrency: form.priceCurrency || 'USD',
-    })
-    const label = titleCaseWords(mainStockValue || normalizedMetalType || 'Main Stock')
-    const autoSku = buildUniqueStockCode(buildAutoStockCode(form, inventoryStockCodeSettings), inventoryMappingProducts, editingProductId)
-    const resolvedSku = isSuperAdmin
-      ? (String(form.stockCode || '').trim().toUpperCase() || autoSku)
-      : autoSku
-    const priceValue = parseFloat(form.currentPrice) || 0
-    const payload = {
-      sku: resolvedSku,
-      name: `${label} Main Stock`,
-      category: categoryMeta,
-      unit: 'grams',
-      unitCost: priceValue,
-      sellingPrice: priceValue,
-      currency: form.priceCurrency || 'USD',
-      description: priceValue > 0 ? `${priceValue} ${form.priceCurrency || 'USD'}/${form.priceUnit || 'OZ'}` : undefined,
-    }
-    if (includeOpeningQty) {
-      payload.quantity = Number(form.openingQty || 0)
-    }
-    return payload
-  }
-  const handleCreateProduct = async (e) => {
-    e.preventDefault()
-    const mainStockValue = resolveMainStockValueFromForm(inventoryMappingForm)
-    if (!mainStockValue) {
-      setError('Main stock is required')
-      return
-    }
-    if (!inventoryMappingForm.stockCode.trim()) {
-      setError('Stock code is required')
-      return
-    }
-    const duplicateStockCode = inventoryMappingProducts.find((item) => (
-      String(item.sku || '').trim().toLowerCase() === String(inventoryMappingForm.stockCode || '').trim().toLowerCase()
-      && item._id !== editingProductId
-    ))
-    if (duplicateStockCode) {
-      setError('Stock code already exists. Use a unique stock code.')
-      return
-    }
-    try {
-      setSaving(true)
-      const payload = buildInventoryPayloadFromForm(inventoryMappingForm, !editingProductId)
-      if (editingProductId) {
-        await erpAccountingAPI.updateInventoryProduct(token, editingProductId, payload)
-        showNotification('✅ Stock mapping updated')
-      } else {
-        await erpAccountingAPI.createInventoryProduct(token, payload)
-        showNotification('✅ Stock mapping created')
-      }
-      resetInventoryMappingForm()
-      await loadInventory()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save stock mapping')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleEditProduct = (p) => {
-    const meta = decodeInventoryCategoryMeta(p.category)
-    const resolvedMainStock = meta.mainStock || meta.metalType || ''
-    const priceValue = Number(p.unitCost || p.sellingPrice || 0)
-    setEditingProductId(p._id)
-    setInventoryMappingForm({
-      mainStock: resolvedMainStock || 'gold',
-      customMainStock: '',
-      metalType: meta.metalType || resolvedMainStock || 'gold',
-      stockCode: p.sku || '',
-      unit: 'grams',
-      currency: p.currency || 'USD',
-      currentPrice: priceValue > 0 ? String(priceValue) : '',
-      priceUnit: meta.priceUnit || 'OZ',
-      priceCurrency: meta.priceCurrency || p.currency || 'USD',
-    })
-    setInventoryStockCodeManualOverride(false)
-    setInventoryModalOffset({ x: 0, y: 0 })
-    setShowInventoryMappingModal(true)
-  }
-  const handleDeleteProduct = async (p) => {
-    if (!window.confirm(`Delete product "${p.name}"? This cannot be undone.`)) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.deleteInventoryProduct(token, p._id)
-      await loadInventory()
-      showNotification('✅ Stock mapping deleted')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete stock mapping')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleCreateInventoryCatalogProduct = async (e) => {
-    e.preventDefault()
-    if (!inventoryProductForm.name.trim()) {
-      setError('Product name is required')
-      return
-    }
-    // For new products, stock type is required. For editing, allow if category is already set
-    if (!inventoryProductForm.stockTypeId && !editingInventoryProductId) {
-      setError('Product category is required')
-      return
-    }
-    const selectedStockType = inventoryMappingProducts.find((item) => item._id === inventoryProductForm.stockTypeId)
-    // For new products, selectedStockType is required. For editing, use existing or matched
-    if (!selectedStockType && !editingInventoryProductId) {
-      setError('Product category is required')
-      return
-    }
-    // For editing, extract baseCategory from existing product if selectedStockType not found
-    let baseCategory = ''
-    if (selectedStockType) {
-      baseCategory = String(selectedStockType.category || '').replace(/;?recordType=product/gi, '')
-    } else if (editingInventoryProductId) {
-      // Extract from existing product's category string
-      const existingProduct = inventoryCatalogProducts.find((p) => p._id === editingInventoryProductId)
-      if (existingProduct) {
-        baseCategory = String(existingProduct.category || '').replace(/;recordType=product.*$/gi, '')
-      }
-    }
-    const sanitizeMetaText = (value) => String(value || '').replace(/[;\n\r]/g, ' ').trim()
-    const categoryName = sanitizeMetaText(inventoryProductForm.categoryName || selectedInventoryStockType?.mainStock || '')
-    const productDescription = sanitizeMetaText(inventoryProductForm.description)
-    const productWeight = Number(inventoryProductForm.weight || 0)
-    const productGrossWeight = Number(inventoryProductForm.grossWeight || inventoryProductForm.weight || 0)
-    const productPurity = String(inventoryProductForm.purity || '').trim()
-    const productTaxType = sanitizeMetaText(inventoryProductForm.taxType || 'VAT')
-    const vatPercentRaw = Number(inventoryProductForm.vatPercent || 0)
-    const productVatPercent = Number.isFinite(vatPercentRaw) && vatPercentRaw >= 0
-      ? Number(vatPercentRaw.toFixed(2))
-      : 0
-    const productPurityWeight = Number(inventoryProductPurityWeight || 0)
-    try {
-      setSaving(true)
-      const payload = {
-        name: inventoryProductForm.name.trim(),
-        category: `${baseCategory};recordType=product;productCategory=${categoryName};productDescription=${productDescription};weight=${productWeight};grossWeight=${productGrossWeight};productPurity=${productPurity};taxType=${productTaxType};vatPercent=${productVatPercent};purityWeight=${productPurityWeight}`,
-        unit: 'grams',
-        quantity: productWeight,
-        unitCost: 0,
-        sellingPrice: 0,
-        currency: 'USD',
-      }
-      if (editingInventoryProductId) {
-        await erpAccountingAPI.updateInventoryProduct(token, editingInventoryProductId, payload)
-        showNotification('✅ Product updated')
-      } else {
-        await erpAccountingAPI.createInventoryProduct(token, payload)
-        showNotification('✅ Product created')
-      }
-      resetInventoryProductForm()
-      await loadInventory()
-    } catch (e) {
-      setError(e.response?.data?.message || `Failed to ${editingInventoryProductId ? 'update' : 'create'} product`)
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleEditInventoryCatalogProduct = (productItem, productMeta) => {
-    // Try to match stock type - first by category string, then by product metadata
-    let matchedStockType = inventoryMappingProducts.find((stockTypeItem) => String(productItem.category || '').startsWith(`${String(stockTypeItem.category || '')};recordType=product`))
-    // Fallback: try matching by main stock name from product metadata
-    if (!matchedStockType && productMeta?.mainStock) {
-      const mainStockLower = String(productMeta.mainStock).toLowerCase().trim()
-      matchedStockType = inventoryMappingProducts.find((stockTypeItem) => {
-        const stockName = String(stockTypeItem.name || '').toLowerCase().trim()
-        const stockMeta = decodeInventoryCategoryMeta(stockTypeItem.category)
-        const stockMainLower = String(stockMeta.mainStock || stockMeta.metalType || '').toLowerCase().trim()
-        return stockName === mainStockLower || stockMainLower === mainStockLower
-      })
-    }
-    setEditingInventoryProductId(productItem._id)
-    setInventoryProductForm({
-      stockTypeId: matchedStockType?._id || '',
-      categoryName: productMeta?.productCategory || titleCaseWords(productMeta?.mainStock || productMeta?.metalType || matchedStockType?.name || ''),
-      name: productItem.name || '',
-      description: productMeta?.productDescription || '',
-      weight: String(productMeta?.weight ?? productItem.quantity ?? ''),
-      grossWeight: String(productMeta?.grossWeight ?? productMeta?.weight ?? productItem.quantity ?? ''),
-      purity: productMeta?.productPurity || productMeta?.purity || '',
-      taxType: productMeta?.taxType || 'VAT',
-      vatPercent: String(productMeta?.vatPercent ?? ''),
-    })
-    setInventoryProductModalOffset({ x: 0, y: 0 })
-    setShowInventoryProductModal(true)
-  }
-  const handleDeleteInventoryCatalogProduct = async (productItem) => {
-    if (!window.confirm(`Delete product "${productItem?.name || 'Unnamed'}"? This cannot be undone.`)) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.deleteInventoryProduct(token, productItem._id)
-      if (editingInventoryProductId && String(editingInventoryProductId) === String(productItem._id)) {
-        resetInventoryProductForm()
-      }
-      await loadInventory()
-      showNotification('✅ Product deleted')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete product')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const {
+    resetInventoryMappingForm,
+    resetInventoryProductForm,
+    handleInventoryModalDragStart,
+    handleInventoryProductModalDragStart,
+    handleCreateProduct,
+    handleEditProduct,
+    handleDeleteProduct,
+    handleCreateInventoryCatalogProduct,
+    handleEditInventoryCatalogProduct,
+    handleDeleteInventoryCatalogProduct,
+  } = useErpInventoryActions({
+    token,
+    isSuperAdmin,
+    inventoryMappingForm,
+    inventoryProductForm,
+    inventoryMappingProducts,
+    inventoryCatalogProducts,
+    inventoryStockCodeSettings,
+    inventoryStockCodeManualOverride,
+    editingProductId,
+    editingInventoryProductId,
+    selectedInventoryStockType,
+    showInventoryMappingModal,
+    inventoryModalOffset,
+    inventoryProductModalOffset,
+    setInventoryMappingForm,
+    setInventoryProductForm,
+    setInventoryStockCodeManualOverride,
+    setInventoryModalOffset,
+    setInventoryModalDragging,
+    setInventoryProductModalOffset,
+    setInventoryProductModalDragging,
+    setEditingProductId,
+    setEditingInventoryProductId,
+    setShowInventoryMappingModal,
+    setShowInventoryProductModal,
+    setSaving,
+    setError,
+    showNotification,
+    loadInventory,
+  })
   const {
     loadEnquiryHistory,
     fetchAccountEnquiryByCode,
