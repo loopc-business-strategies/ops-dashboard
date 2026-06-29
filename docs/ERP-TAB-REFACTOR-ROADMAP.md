@@ -40,10 +40,9 @@
 - **`ERPTabPanels`** — lazy sub-tab routing (dashboard, accounts, customers, margins, fixing register, ledger/JV, mappings, enquiry, transactions, reports, vendors, inventory, settings, currencies, vouchers, direct deals) plus `ErpEditRecordModal`; lazy imports and `ErpSubTabFallback` moved out of `ERPTab.jsx`.
 - **`ErpMappingTestModal`** — presentational mapping test overlay extracted from `ERPTab.jsx`.
 
-## S7 (next)
+## S8 (next)
 
-- **`ERPTabModals`** — bundle `AccountEnquiryModal`, `StatementPreviewModal`, and `StatementExportOptionsModal` prop wiring (~120 lines still in `ERPTab.jsx`).
-- **Panel prop grouping** — optional `useErpTabPanelProps` hook to shrink the ~360-line `<ERPTabPanels … />` call site in `ERPTab.jsx`.
+- **Prop builder modules** — move `useErpTabPanelProps({ … })` / `useErpTabModalProps({ … })` object literals out of `ERPTab.jsx` into `buildErpTabPanelProps.js` / `buildErpTabModalProps.js` (~430 lines still in the main file).
 
 ## S5 wire-up (done)
 
