@@ -21,8 +21,8 @@ export default function TopbarMetalTickers() {
   const pillBase = {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.45rem 0.9rem',
+    gap: '0.45rem',
+    padding: '0.4rem 0.75rem',
     borderRadius: '999px',
     background: 'rgba(15, 23, 42, 0.42)',
     border: '1px solid rgba(255,255,255,0.14)',
@@ -31,14 +31,8 @@ export default function TopbarMetalTickers() {
     boxSizing: 'border-box',
   }
 
-  const pillMinWidth = {
-    gold: '8.75rem',
-    silver: '8.75rem',
-    platinum: '9.25rem',
-  }
-
   return (
-    <div className="flex items-center justify-start gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
+    <div className="flex items-center justify-end gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
       {METALS.map(({ key, label, swatch, sym, labelColor }) => {
         const price = snapshot[key]
         const move = snapshot.deltas && snapshot.prevSnapshot
@@ -48,7 +42,7 @@ export default function TopbarMetalTickers() {
         return (
           <div
             key={key}
-            style={{ ...pillBase, minWidth: pillMinWidth[key] || pillBase.minWidth }}
+            style={pillBase}
             title={snapshot.updatedAt ? `Updated ${new Date(snapshot.updatedAt).toLocaleString('en-GB')}` : undefined}
           >
             <span
@@ -71,7 +65,7 @@ export default function TopbarMetalTickers() {
             >
               {sym}
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1, overflow: 'hidden', paddingRight: '0.2rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1, overflow: 'hidden', paddingRight: '0.1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(3.75rem, 1fr)', alignItems: 'baseline', gap: '0.35rem', width: '100%', lineHeight: 1.15 }}>
                 <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'rgba(255,255,255,0.55)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{label}</span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmtSpot(price)}</span>

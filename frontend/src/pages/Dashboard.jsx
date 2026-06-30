@@ -825,7 +825,6 @@ function Dashboard() {
   const accountRoleLabel = user?.role === 'super_admin'
     ? t('superAdmin')
     : (user?.role || 'user').replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
-  const accountRoleShortLabel = user?.role === 'super_admin' ? 'Admin' : accountRoleLabel
 
   // Find current tab label
   const currentTab = navItems.find(n => n.id === activeTab)
@@ -1013,9 +1012,9 @@ function Dashboard() {
             </div>
 
             {/* Right side of header: tenant metal tickers sit here before notif / language / user */}
-            <div className="flex items-center justify-end gap-2.5 flex-nowrap flex-shrink-0 min-w-0 overflow-visible">
+            <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0 overflow-visible">
               {['mg', 'cg', 'loopc'].includes(branding.key) && (
-                <div className="topbar-metals-scroll hidden md:flex items-center min-w-0 max-w-[min(100%,26rem)] shrink">
+                <div className="hidden md:flex items-center shrink min-w-0 overflow-x-auto">
                   <TopbarMetalTickers />
                 </div>
               )}
@@ -1036,7 +1035,7 @@ function Dashboard() {
                   aria-label="Notifications"
                   aria-expanded={notifOpen}
                   onClick={() => setNotifOpen(v => !v)}
-                  className="relative h-[30px] w-[30px] rounded-lg transition-all inline-flex items-center justify-center shrink-0"
+                  className="relative h-7 w-7 rounded-lg transition-all inline-flex items-center justify-center"
                   style={{
                     background: notifOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.2)',
@@ -1134,16 +1133,15 @@ function Dashboard() {
                 <button
                   onClick={() => setLangMenuOpen(v => !v)}
                   title={t('language')}
-                  className="topbar-pill topbar-pill-lang text-xs transition-all"
+                  className="topbar-pill text-xs transition-all"
                   style={{
                     background: langMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                   }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0" style={{ opacity: 0.85 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ opacity: 0.85 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9zM3 12a9 9 0 019-9 9 9 0 019 9 9 9 0 01-9 9 9 9 0 01-9-9z" />
                   </svg>
-                  <span className="hidden md:inline xl:hidden font-semibold" style={{ fontSize: 11 }}>{languageCode}</span>
-                  <span className="hidden xl:inline font-semibold" style={{ fontSize: 11 }}>{languageCode} {langMeta.nativeLabel}</span>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="topbar-pill-chevron">
+                  <span className="hidden sm:inline font-semibold" style={{ fontSize: 11 }}>{languageCode} {langMeta.nativeLabel}</span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5, marginTop: 1 }}>
                     <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
@@ -1201,7 +1199,7 @@ function Dashboard() {
               <div className="relative shrink-0 overflow-visible" ref={accountMenuRef}>
                 <button
                   onClick={() => setAccountMenuOpen(v => !v)}
-                  className="topbar-pill topbar-pill-account">
+                  className="topbar-pill gap-2 px-2.5 overflow-hidden">
                   <span
                     className="hidden lg:inline-flex shrink-0 items-center justify-center rounded px-2"
                     style={{
@@ -1221,20 +1219,7 @@ function Dashboard() {
                   </div>
                   <span className="hidden sm:inline shrink min-w-0 max-w-[5rem] truncate text-xs" style={{ color: '#fff', fontWeight: 600 }}>{user?.name}</span>
                   <span
-                    className="hidden xl:inline 2xl:hidden shrink-0 items-center rounded px-2"
-                    style={{
-                      height: 16,
-                      display: 'inline-flex',
-                      background: 'rgba(59,130,246,0.22)',
-                      border: '1px solid rgba(96,165,250,0.4)',
-                      color: '#93c5fd',
-                      fontSize: 9,
-                      fontWeight: 700,
-                    }}>
-                    {accountRoleShortLabel}
-                  </span>
-                  <span
-                    className="hidden 2xl:inline-flex shrink-0 items-center rounded px-2"
+                    className="hidden xl:inline-flex shrink-0 items-center rounded px-2"
                     style={{
                       height: 16,
                       background: 'rgba(59,130,246,0.22)',
@@ -1245,7 +1230,7 @@ function Dashboard() {
                     }}>
                     {accountRoleLabel}
                   </span>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="topbar-pill-chevron">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="shrink-0" style={{ opacity: 0.7 }}>
                     <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
