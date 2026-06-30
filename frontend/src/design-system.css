@@ -227,12 +227,21 @@ html, body, #root {
   overflow: hidden;
   box-sizing: border-box;
 }
+.topbar-metals-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 2px 6px;
+  scroll-padding-inline: 6px;
+  scrollbar-width: none;
+}
+.topbar-metals-scroll::-webkit-scrollbar { display: none; }
 .topbar-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  height: 28px;
-  padding: 0 10px;
+  gap: 0.375rem;
+  min-height: 30px;
+  height: auto;
+  padding: 0 12px;
   border-radius: 8px;
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.2);
@@ -240,6 +249,18 @@ html, body, #root {
   white-space: nowrap;
   flex-shrink: 0;
   box-sizing: border-box;
+}
+.topbar-pill-account {
+  padding-right: 14px;
+  max-width: min(100%, 17rem);
+}
+.topbar-pill-lang {
+  padding-right: 14px;
+}
+.topbar-pill-chevron {
+  flex-shrink: 0;
+  margin-left: 2px;
+  opacity: 0.7;
 }
 .topbar-dropdown-item {
   width: 100%;
