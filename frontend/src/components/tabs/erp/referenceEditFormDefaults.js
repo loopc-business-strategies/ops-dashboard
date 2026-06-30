@@ -76,7 +76,7 @@ export function buildReferenceEditFormState(type, record) {
   return {}
 }
 
-export function resolveCurrencyExchangeRate(form, erpBaseCurrencyCode) {
+export function resolveCurrencyExchangeRate(form, _erpBaseCurrencyCode) {
   let exchangeRate = Number(form.exchangeRate || 1)
   const fromQuote = exchangeRateFromUnitsPerBase(form.oneUsdEquals)
   if (!form.baseCurrency && fromQuote !== null) exchangeRate = fromQuote
@@ -84,7 +84,7 @@ export function resolveCurrencyExchangeRate(form, erpBaseCurrencyCode) {
   return { exchangeRate, fromQuote }
 }
 
-export function validateCurrencyExchangeRate(form, exchangeRate, erpBaseCurrencyCode) {
+export function validateCurrencyExchangeRate(form, exchangeRate, _erpBaseCurrencyCode) {
   if (form.baseCurrency) return true
   if (Number.isFinite(exchangeRate) && exchangeRate > 0) return true
   return false
