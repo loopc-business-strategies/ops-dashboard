@@ -25,6 +25,12 @@ import {
   fixingRegFmtRate,
 } from './fixingRegisterUtils'
 import { JV_MODE_META, resolveJvModeMeta } from './journalVoucherHelpers'
+import {
+  formatAccountEnquiryExcessDisplay,
+  getAccountEnquirySignedMetricColor,
+  isMetalStatementEntry,
+  resolveExposureDirection,
+} from './statementHelpers'
 
 /** Imported constants and pure helpers merged into useErpTabController scope (not slice returns). */
 export const ERP_TAB_SCOPE_STATICS = {
@@ -47,7 +53,11 @@ export const ERP_TAB_SCOPE_STATICS = {
   fixingRegFmtRate,
   formatTransactionAuditEntry,
   formatTransactionCommentKind,
+  formatAccountEnquiryExcessDisplay,
   formatVatPercent,
+  getAccountEnquirySignedMetricColor,
   getTransactionBulkSelectionLabel,
+  isMetalStatementEntry,
+  resolveExposureDirection,
   titleCaseWords,
 }
