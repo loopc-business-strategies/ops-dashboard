@@ -22,13 +22,13 @@ export default function TopbarMetalTickers() {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.45rem',
-    padding: '0.35rem 0.65rem 0.35rem 0.5rem',
+    padding: '0.4rem 0.75rem',
     borderRadius: '999px',
     background: 'rgba(15, 23, 42, 0.42)',
     border: '1px solid rgba(255,255,255,0.14)',
     minWidth: '8.75rem',
-    maxWidth: '12.5rem',
     flexShrink: 0,
+    boxSizing: 'border-box',
   }
 
   return (
@@ -65,10 +65,10 @@ export default function TopbarMetalTickers() {
             >
               {sym}
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1, overflow: 'hidden', paddingRight: '0.1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(3.75rem, 1fr)', alignItems: 'baseline', gap: '0.35rem', width: '100%', lineHeight: 1.15 }}>
                 <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'rgba(255,255,255,0.55)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{label}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtSpot(price)}</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmtSpot(price)}</span>
               </div>
               <div
                 style={{
@@ -77,6 +77,9 @@ export default function TopbarMetalTickers() {
                   fontWeight: 600,
                   color: move ? (move.up ? '#4ade80' : '#f87171') : error ? '#fbbf24' : 'rgba(255,255,255,0.45)',
                   whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  width: '100%',
                 }}
               >
                 {move ? (

@@ -12,10 +12,10 @@ const translations = { en, ar, uz, ru }
 
 // ── Language metadata ─────────────────────────────────────────────────────────
 export const LANGUAGES = [
-  { code: 'en', label: 'English',  nativeLabel: 'English',  flag: '🇬🇧', dir: 'ltr' },
-  { code: 'ar', label: 'Arabic',   nativeLabel: 'عربي',      flag: '🇸🇦', dir: 'rtl' },
-  { code: 'uz', label: 'Uzbek',    nativeLabel: "O'zbek",   flag: '🇺🇿', dir: 'ltr' },
-  { code: 'ru', label: 'Russian',  nativeLabel: 'Русский',  flag: '🇷🇺', dir: 'ltr' },
+  { code: 'en', label: 'English',  nativeLabel: 'English',  flag: '🇬🇧', regionCode: 'GB', dir: 'ltr' },
+  { code: 'ar', label: 'Arabic',   nativeLabel: 'عربي',      flag: '🇸🇦', regionCode: 'SA', dir: 'rtl' },
+  { code: 'uz', label: 'Uzbek',    nativeLabel: "O'zbek",   flag: '🇺🇿', regionCode: 'UZ', dir: 'ltr' },
+  { code: 'ru', label: 'Russian',  nativeLabel: 'Русский',  flag: '🇷🇺', regionCode: 'RU', dir: 'ltr' },
 ]
 
 // ── Context ───────────────────────────────────────────────────────────────────

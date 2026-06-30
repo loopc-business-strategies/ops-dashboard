@@ -987,7 +987,7 @@ function Dashboard() {
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
-          <div className="flex w-full items-center justify-between gap-3 min-w-0">
+          <div className="flex w-full items-center justify-between gap-3 min-w-0 overflow-visible">
             <div className="flex items-center gap-2.5 flex-shrink-0 min-w-0">
               {/* Hamburger */}
               <button onClick={toggleSidebar}
@@ -1012,9 +1012,9 @@ function Dashboard() {
             </div>
 
             {/* Right side of header: tenant metal tickers sit here before notif / language / user */}
-            <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0">
+            <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0 overflow-visible">
               {['mg', 'cg', 'loopc'].includes(branding.key) && (
-                <div className="hidden md:flex items-center shrink-0 min-w-0 overflow-hidden">
+                <div className="hidden md:flex items-center shrink min-w-0 overflow-x-auto">
                   <TopbarMetalTickers />
                 </div>
               )}
@@ -1129,15 +1129,13 @@ function Dashboard() {
               </div>
 
               {/* Language switcher */}
-              <div className="relative" ref={langMenuRef}>
+              <div className="relative shrink-0 overflow-visible" ref={langMenuRef}>
                 <button
                   onClick={() => setLangMenuOpen(v => !v)}
                   title={t('language')}
-                  className="flex items-center gap-1 px-2 h-7 rounded-lg text-xs transition-all"
+                  className="topbar-pill text-xs transition-all"
                   style={{
                     background: langMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#ffffff',
                   }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ opacity: 0.85 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9zM3 12a9 9 0 019-9 9 9 0 019 9 9 9 0 01-9 9 9 9 0 01-9-9z" />
@@ -1150,7 +1148,7 @@ function Dashboard() {
 
                 {langMenuOpen && (
                   <div
-                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
+                    className="topbar-dropdown absolute mt-1 py-1 px-1 rounded-xl shadow-2xl"
                     style={{
                       [isRTL ? 'left' : 'right']: 0,
                       top: '100%',
@@ -1164,7 +1162,7 @@ function Dashboard() {
                       <button
                         key={lang.code}
                         onClick={() => { switchLanguage(lang.code); setLangMenuOpen(false) }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-all"
+                        className="topbar-dropdown-item min-w-0 transition-all"
                         style={{
                           color: lang.code === langMeta.code ? '#a78bfa' : 'rgba(255,255,255,0.8)',
                           background: lang.code === langMeta.code ? 'rgba(139,92,246,0.15)' : 'transparent',
@@ -1173,10 +1171,21 @@ function Dashboard() {
                         }}
                         onMouseEnter={e => { if (lang.code !== langMeta.code) e.currentTarget.style.background = 'rgba(255,255,255,0.07)' }}
                         onMouseLeave={e => { if (lang.code !== langMeta.code) e.currentTarget.style.background = 'transparent' }}>
-                        <span style={{ fontSize: 18, lineHeight: 1 }}>{lang.flag}</span>
-                        <span style={{ flex: 1 }}>{lang.nativeLabel}</span>
+                        <span
+                          style={{
+                            width: 28,
+                            flexShrink: 0,
+                            textAlign: 'center',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: 'rgba(255,255,255,0.55)',
+                            letterSpacing: '0.02em',
+                          }}>
+                          {lang.regionCode}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>{lang.nativeLabel}</span>
                         {lang.code === langMeta.code && (
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
                             <path d="M2 7l3.5 3.5L12 3" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                         )}
@@ -1187,13 +1196,12 @@ function Dashboard() {
               </div>
 
               {/* Account dropdown */}
-              <div className="relative" ref={accountMenuRef}>
+              <div className="relative shrink-0 overflow-visible" ref={accountMenuRef}>
                 <button
                   onClick={() => setAccountMenuOpen(v => !v)}
-                  className="flex items-center gap-1.5 px-2 h-7 rounded-lg"
-                  style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
+                  className="topbar-pill gap-2 px-2.5 overflow-hidden">
                   <span
-                    className="hidden lg:inline-flex items-center justify-center rounded px-1.5"
+                    className="hidden lg:inline-flex shrink-0 items-center justify-center rounded px-2"
                     style={{
                       height: 16,
                       background: 'rgba(255,255,255,0.08)',
@@ -1205,13 +1213,13 @@ function Dashboard() {
                     }}>
                     {tenantShortCode}
                   </span>
-                  <div className="w-5.5 h-5.5 rounded-md flex items-center justify-center font-bold text-white text-[11px]"
+                  <div className="w-[22px] h-[22px] shrink-0 rounded-md flex items-center justify-center font-bold text-white text-[11px]"
                     style={{ background: 'var(--grad-brand)' }}>
                     {user?.name?.[0]?.toUpperCase() || 'U'}
                   </div>
-                  <span className="hidden sm:inline text-xs" style={{ color: '#fff', fontWeight: 600 }}>{user?.name}</span>
+                  <span className="hidden sm:inline shrink min-w-0 max-w-[5rem] truncate text-xs" style={{ color: '#fff', fontWeight: 600 }}>{user?.name}</span>
                   <span
-                    className="hidden xl:inline-flex items-center rounded px-1.5"
+                    className="hidden xl:inline-flex shrink-0 items-center rounded px-2"
                     style={{
                       height: 16,
                       background: 'rgba(59,130,246,0.22)',
@@ -1222,14 +1230,14 @@ function Dashboard() {
                     }}>
                     {accountRoleLabel}
                   </span>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.7 }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="shrink-0" style={{ opacity: 0.7 }}>
                     <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
 
                 {accountMenuOpen && (
                   <div
-                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
+                    className="topbar-dropdown absolute mt-1 rounded-xl shadow-2xl"
                     style={{
                       right: 0,
                       top: '100%',
@@ -1238,15 +1246,16 @@ function Dashboard() {
                       background: '#ffffff',
                       border: '1px solid #E5E7EB',
                       boxShadow: '0 12px 28px rgba(15,23,42,0.2)',
+                      whiteSpace: 'nowrap',
                     }}>
-                    <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB' }}>
+                    <div className="px-3 py-2.5" style={{ borderBottom: '1px solid #E5E7EB' }}>
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111827' }}>{user?.name}</p>
                       <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{branding.displayName} · {accountRoleLabel}</p>
                     </div>
                     <button
                       onClick={() => { setAccountMenuOpen(false); handleLogout() }}
-                      className="w-full px-3 py-2.5 text-sm"
-                      style={{ textAlign: 'left', color: '#b91c1c', fontWeight: 600 }}>
+                      className="topbar-dropdown-item w-full box-border text-sm text-left"
+                      style={{ color: '#b91c1c', fontWeight: 600 }}>
                       {t('signOut')}
                     </button>
                   </div>
