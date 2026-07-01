@@ -163,14 +163,13 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByText('overview-tab')).toBeTruthy()
   })
 
-  it('navigates to ERP ledger and passes focusTab=ledger to ERPTab', async () => {
+  it('sidebar ERP ledger link opens in a new tab', async () => {
     renderDashboard()
 
     const ledgerLink = await screen.findByRole('link', { name: 'Ledger' })
     expect(ledgerLink.getAttribute('href')).toContain('tab=erp-ledger')
-    fireEvent.click(ledgerLink)
-
-    expect(await screen.findByText('erp-tab-focus:ledger')).toBeTruthy()
+    expect(ledgerLink.getAttribute('target')).toBe('_blank')
+    expect(ledgerLink.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
   it('loads ERP supplier margin from URL deep link', async () => {
@@ -195,7 +194,7 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByText('sales-manager-ai-tab')).toBeTruthy()
   })
 
-  it('shows Sales Manager AI in sidebar for LoopC', async () => {
+  it('shows Sales Manager AI in sidebar for LoopC with new-tab target', async () => {
     useAuthMock.mockReturnValue({
       user: { name: 'Loop User', role: 'super_admin', company: 'loopc', _id: '507f1f77bcf86cd799439011' },
       company: 'loopc',
@@ -206,8 +205,8 @@ describe('Dashboard navigation behavior', () => {
     renderDashboard()
     const links = await screen.findAllByRole('link', { name: 'Sales Manager AI' })
     expect(links[0].getAttribute('href')).toContain('tab=sales-manager-ai')
-    fireEvent.click(links[0])
-    expect(await screen.findByText('sales-manager-ai-tab')).toBeTruthy()
+    expect(links[0].getAttribute('target')).toBe('_blank')
+    expect(links[0].getAttribute('rel')).toBe('noopener noreferrer')
   })
 
   it('loads Account Summary from URL deep link with account param', async () => {

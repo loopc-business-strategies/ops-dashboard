@@ -11,7 +11,6 @@ import {
   buildDashboardHref,
   buildDashboardTabParam,
   dashboardSearchFromState,
-  isPrimaryNavClick,
   parseDashboardUrl,
   parseEnquiryDeepLink,
 } from '../utils/dashboardNavigation'
@@ -198,15 +197,13 @@ function resolveRealtimeBellErpFields(payload) {
 }
 
 // ── Sidebar nav item ────────────────────────────
-function NavItem({ label, active, href, onClick, badge }) {
+function NavItem({ label, active, href, onAfterClick, badge }) {
   return (
     <a
       href={href}
-      onClick={(event) => {
-        if (!isPrimaryNavClick(event)) return
-        event.preventDefault()
-        onClick?.()
-      }}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => onAfterClick?.()}
       className={`sidebar-item w-full justify-center text-center${active ? ' active' : ''}`}
       style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}
     >
@@ -597,6 +594,10 @@ function Dashboard() {
     setSidebarOpen(false)
   }
 
+  const sidebarLinkAfterClick = () => {
+    if (!isDesktop) closeSidebar()
+  }
+
   const openSidebar = () => {
     clearHideTimer()
     setSidebarOpen(true)
@@ -758,16 +759,6 @@ function Dashboard() {
     }
   }
 
-  const handleTabSelect = (tabId) => {
-    navigateToTab(tabId, { sub: null })
-    if (!isDesktop) closeSidebar()
-  }
-
-  const handleErpTabSelect = (subTab) => {
-    navigateToTab('erp', { erpSub: subTab, sub: null })
-    if (!isDesktop) closeSidebar()
-  }
-
   const handleMarkAllNotificationsRead = useCallback(() => {
     setNotifications((prev) => prev.map((x) => ({ ...x, read: true })))
   }, [])
@@ -889,7 +880,7 @@ function Dashboard() {
             <NavItem key={item.id} {...item}
               href={buildNavHref(item)}
               active={activeTab === item.id}
-              onClick={() => handleTabSelect(item.id)} />
+              onAfterClick={sidebarLinkAfterClick} />
           ))}
 
           {/* Divider before Admin */}
@@ -907,7 +898,7 @@ function Dashboard() {
                 <NavItem key={item.id} {...item}
                   href={buildNavHref(item)}
                   active={activeTab === item.id}
-                  onClick={() => handleTabSelect(item.id)} />
+                  onAfterClick={sidebarLinkAfterClick} />
               ))}
             </>
           )}
@@ -927,7 +918,7 @@ function Dashboard() {
                 <NavItem key={item.id} {...item}
                   href={buildNavHref(item)}
                   active={activeTab === item.id}
-                  onClick={() => handleTabSelect(item.id)} />
+                  onAfterClick={sidebarLinkAfterClick} />
               ))}
             </>
           )}
@@ -947,7 +938,7 @@ function Dashboard() {
                 <NavItem key={item.id} {...item}
                   href={buildNavHref(item)}
                   active={activeTab === 'erp' && erpSubTab === item.erpSub}
-                  onClick={() => handleErpTabSelect(item.erpSub)} />
+                  onAfterClick={sidebarLinkAfterClick} />
               ))}
             </>
           )}
