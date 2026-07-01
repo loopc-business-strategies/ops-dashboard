@@ -29,6 +29,12 @@ const chatSchema = Joi.object({
     tab: Joi.string().max(80).allow('').optional(),
     path: Joi.string().max(200).allow('').optional(),
     tenant: Joi.string().max(40).allow('').optional(),
+    region: Joi.string().max(40).allow('').optional(),
+  }).optional(),
+  chatInputs: Joi.object({
+    region: Joi.string().max(40).allow('').optional(),
+    constraints: Joi.string().max(500).allow('').optional(),
+    depth: Joi.string().valid('deep', '').optional(),
   }).optional(),
 })
 
@@ -54,6 +60,7 @@ router.post('/chat', chatLimiter, validateBody(chatSchema), async (req, res) => 
         ...req.body.pageContext,
         tenant: tenant || resolveRequestTenantKey(req),
       },
+      chatInputs: req.body.chatInputs,
     })
     res.json({ success: true, ...result })
   } catch (err) {

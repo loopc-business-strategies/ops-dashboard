@@ -1,5 +1,11 @@
 const MAX_RESULTS = 5
 
+function shouldUseAdvancedSearchDepth(userMessage, chatInputs = {}) {
+  if (String(chatInputs.depth || '').toLowerCase() === 'deep') return true
+  const msg = String(userMessage || '')
+  return /regulat|competitor|compliance|sanction|import duty|market entry|deep dive|hallmark|lbma/i.test(msg)
+}
+
 async function tavilySearch(query, options = {}) {
   const apiKey = String(process.env.TAVILY_API_KEY || '').trim()
   if (!apiKey) {
@@ -8,6 +14,8 @@ async function tavilySearch(query, options = {}) {
 
   const maxResults = Math.min(Number(options.maxResults) || MAX_RESULTS, 10)
   const searchDepth = options.searchDepth === 'advanced' ? 'advanced' : 'basic'
+  const includeAnswer = options.includeAnswer !== false
+    && String(process.env.SALES_AI_TAVILY_INCLUDE_ANSWER || 'true').trim().toLowerCase() !== 'false'
 
   try {
     const res = await fetch('https://api.tavily.com/search', {
@@ -17,7 +25,7 @@ async function tavilySearch(query, options = {}) {
         api_key: apiKey,
         query: String(query || '').trim().slice(0, 400),
         search_depth: searchDepth,
-        include_answer: false,
+        include_answer: includeAnswer,
         max_results: maxResults,
       }),
     })
@@ -40,14 +48,16 @@ async function tavilySearch(query, options = {}) {
   }
 }
 
-async function runTavilySearches(queries = []) {
-  const cap = Math.max(1, Math.min(Number(process.env.SALES_AI_MAX_TAVILY_SEARCHES) || 3, 5))
+async function runTavilySearches(queries = [], options = {}) {
+  const cap = Math.max(1, Math.min(Number(process.env.SALES_AI_MAX_TAVILY_SEARCHES) || 4, 5))
   const unique = [...new Set(queries.map((q) => String(q || '').trim()).filter(Boolean))].slice(0, cap)
-  const batches = await Promise.all(unique.map((query) => tavilySearch(query)))
+  const searchDepth = options.searchDepth === 'advanced' ? 'advanced' : 'basic'
+  const batches = await Promise.all(unique.map((query) => tavilySearch(query, { searchDepth })))
   return batches
 }
 
 module.exports = {
   tavilySearch,
   runTavilySearches,
+  shouldUseAdvancedSearchDepth,
 }

@@ -1,5 +1,5 @@
 const { buildSearchQueries } = require('./salesAiPrompts')
-const { runTavilySearches } = require('./tavilySearch')
+const { runTavilySearches, shouldUseAdvancedSearchDepth } = require('./tavilySearch')
 const { buildCrmSnapshot } = require('./crmSnapshot')
 const { buildMetalRatesSnapshot } = require('./metalRatesSnapshot')
 const { runMarketResearchAgent } = require('./agents/marketResearchAgent')
@@ -7,6 +7,16 @@ const { runCrmInsightAgent } = require('./agents/crmInsightAgent')
 const { runStrategyAgent, getModel } = require('./agents/strategyAgent')
 const { runTemplateStrategyAgent, isOpenAiQuotaError } = require('./agents/templateStrategyAgent')
 const { isOpenAiConfigured } = require('./openAiClient')
+
+const REGION_OPTIONS = [
+  { id: '', label: 'Global' },
+  { id: 'uzbekistan', label: 'Uzbekistan / Central Asia' },
+  { id: 'uae', label: 'UAE' },
+  { id: 'gcc', label: 'GCC' },
+  { id: 'turkey', label: 'Turkey' },
+  { id: 'india', label: 'India' },
+  { id: 'china', label: 'China' },
+]
 
 function getSynthesisMode() {
   const raw = String(process.env.SALES_AI_SYNTHESIS_MODE || 'auto').trim().toLowerCase()
@@ -21,21 +31,25 @@ function shouldPreferTemplate() {
   return !isOpenAiConfigured()
 }
 
-async function runSynthesis({
-  userMessage,
-  marketSection,
-  crmSection,
-  crmSnapshot,
-  metalRates,
-  pageContext,
-  history,
-}) {
+async function runSynthesis(ctx) {
+  const {
+    userMessage,
+    marketSection,
+    crmSection,
+    crmSnapshot,
+    metalRates,
+    pageContext,
+    history,
+    chatInputs,
+  } = ctx
+
   if (shouldPreferTemplate()) {
     return runTemplateStrategyAgent({
       userMessage,
       marketSection,
       crmSnapshot,
       metalRates,
+      chatInputs,
       fallbackReason: isOpenAiConfigured() ? 'quota_or_policy' : 'disabled',
     })
   }
@@ -46,7 +60,7 @@ async function runSynthesis({
       marketSection,
       crmSection,
       metalRates,
-      pageContext,
+      pageContext: { ...pageContext, chatInputs },
       history,
     })
   } catch (err) {
@@ -56,6 +70,7 @@ async function runSynthesis({
         marketSection,
         crmSnapshot,
         metalRates,
+        chatInputs,
         fallbackReason: 'quota',
       })
     }
@@ -68,15 +83,24 @@ async function runSalesAiChat({
   message,
   history = [],
   pageContext = {},
+  chatInputs = {},
 }) {
   const userMessage = String(message || '').trim()
   if (!userMessage) {
     throw new Error('Message is required.')
   }
 
-  const queries = buildSearchQueries(userMessage)
+  const normalizedInputs = {
+    region: String(chatInputs.region || pageContext.region || '').trim(),
+    constraints: String(chatInputs.constraints || '').trim(),
+    depth: String(chatInputs.depth || '').trim(),
+  }
+
+  const queries = buildSearchQueries(userMessage, normalizedInputs)
+  const searchDepth = shouldUseAdvancedSearchDepth(userMessage, normalizedInputs) ? 'advanced' : 'basic'
+
   const [searchBatches, crmSnapshot, metalRates] = await Promise.all([
-    runTavilySearches(queries),
+    runTavilySearches(queries, { searchDepth }),
     buildCrmSnapshot(user),
     buildMetalRatesSnapshot(),
   ])
@@ -92,6 +116,7 @@ async function runSalesAiChat({
     metalRates,
     pageContext,
     history,
+    chatInputs: normalizedInputs,
   })
 
   const sections = [
@@ -123,6 +148,7 @@ async function runSalesAiChat({
       synthesisMode,
       searchQueryCount: queries.length,
       crmAccessLevel: crmSnapshot?.accessLevel || 'none',
+      chatInputs: normalizedInputs,
     },
   }
 }
@@ -143,6 +169,7 @@ function getSalesAiConfig() {
     },
     synthesisMode: effectiveMode,
     model: effectiveMode === 'template' ? 'template' : getModel(),
+    regions: REGION_OPTIONS,
     quickActions: [
       { id: 'market-trends', label: 'Market trends', prompt: 'What are the latest gold and silver jewelry market trends relevant to our business?' },
       { id: 'customer-demand', label: 'Customer demand', prompt: 'Analyze current customer demand patterns for precious metals and jewelry wholesale.' },
@@ -159,4 +186,5 @@ module.exports = {
   getSalesAiConfig,
   getSynthesisMode,
   shouldPreferTemplate,
+  REGION_OPTIONS,
 }

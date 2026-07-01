@@ -1,8 +1,8 @@
 const { formatTavilyForPrompt } = require('../salesAiPrompts')
 
 function runMarketResearchAgent(searchBatches) {
-  const { text, sources } = formatTavilyForPrompt(searchBatches)
-  const hasResults = sources.length > 0
+  const { text, sources, answers } = formatTavilyForPrompt(searchBatches)
+  const hasResults = sources.length > 0 || answers.length > 0
   return {
     agent: 'marketResearch',
     title: 'Market signals',
@@ -10,6 +10,7 @@ function runMarketResearchAgent(searchBatches) {
       ? text
       : 'No external web results were retrieved. Check TAVILY_API_KEY or try rephrasing your question.',
     sources: sources.slice(0, 12),
+    answers: answers.slice(0, 5),
   }
 }
 

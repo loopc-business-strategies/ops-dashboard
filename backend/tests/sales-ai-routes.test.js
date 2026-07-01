@@ -114,13 +114,18 @@ describe('Sales AI routes', () => {
     const res = await request(app)
       .post('/api/sales-ai/chat')
       .set('Authorization', `Bearer ${tokenFor(user, 'loopc')}`)
-      .send({ message: 'Analyze our pipeline' })
+      .send({
+        message: 'Analyze our pipeline',
+        chatInputs: { region: 'uae', constraints: 'wholesale focus' },
+      })
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
     expect(res.body.reply).toMatch(/Mock sales AI reply/)
     expect(Array.isArray(res.body.sections)).toBe(true)
-    expect(runSalesAiChat).toHaveBeenCalled()
+    expect(runSalesAiChat).toHaveBeenCalledWith(expect.objectContaining({
+      chatInputs: { region: 'uae', constraints: 'wholesale focus' },
+    }))
   })
 
   test('POST /api/sales-ai/chat returns 403 for mg tenant', async () => {

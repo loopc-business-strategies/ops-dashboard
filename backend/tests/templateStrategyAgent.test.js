@@ -1,4 +1,9 @@
-const { runTemplateStrategyAgent, buildRecommendations, isOpenAiQuotaError } = require('../services/salesAi/agents/templateStrategyAgent')
+const {
+  runTemplateStrategyAgent,
+  buildRecommendations,
+  buildDirectAnswer,
+  isOpenAiQuotaError,
+} = require('../services/salesAi/agents/templateStrategyAgent')
 
 describe('templateStrategyAgent', () => {
   const crmSnapshot = {
@@ -20,6 +25,7 @@ describe('templateStrategyAgent', () => {
 
   const marketSection = {
     content: 'Market text',
+    answers: ['UAE wholesale gold demand is growing.'],
     sources: [{ title: 'Gold outlook', url: 'https://example.com/gold' }],
   }
 
@@ -29,7 +35,19 @@ describe('templateStrategyAgent', () => {
     expect(recs.some((r) => /hot lead/i.test(r))).toBe(true)
   })
 
-  test('runTemplateStrategyAgent returns markdown briefing', () => {
+  test('buildDirectAnswer addresses pipeline questions', () => {
+    const answer = buildDirectAnswer('Analyze our pipeline', marketSection, crmSnapshot, null, {})
+    expect(answer).toMatch(/pipeline/i)
+    expect(answer).toMatch(/Acme Gold/)
+  })
+
+  test('buildDirectAnswer uses web summaries for market questions', () => {
+    const answer = buildDirectAnswer('UAE gold market outlook', marketSection, crmSnapshot, null, { region: 'uae' })
+    expect(answer).toMatch(/UAE/)
+    expect(answer).toMatch(/wholesale gold demand/i)
+  })
+
+  test('runTemplateStrategyAgent returns question-aware markdown', () => {
     const result = runTemplateStrategyAgent({
       userMessage: 'Analyze pipeline',
       marketSection,
@@ -37,8 +55,9 @@ describe('templateStrategyAgent', () => {
       metalRates: { goldPrice: 2350, silverPrice: 28, priceCurrency: 'USD', priceUnit: 'G', source: 'test' },
       fallbackReason: 'quota',
     })
-    expect(result.reply).toMatch(/Executive summary/)
-    expect(result.reply).toMatch(/Recommendations/)
+    expect(result.reply).toMatch(/## Answer/)
+    expect(result.reply).toMatch(/Market research/)
+    expect(result.reply).toMatch(/Suggested next steps/)
     expect(result.meta.synthesisMode).toBe('template')
   })
 

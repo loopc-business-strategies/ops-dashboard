@@ -11,6 +11,12 @@ const DEFAULT_QUICK_ACTIONS = [
   { id: 'pipeline', label: 'Analyze our pipeline', prompt: 'Analyze our CRM pipeline and recommend priorities for closing deals.' },
 ]
 
+const LOADING_STEPS = [
+  'Searching web sources…',
+  'Reading your pipeline…',
+  'Building your answer…',
+]
+
 export function shouldShowSalesManagerAi({ branding, token }) {
   return Boolean(
     token
@@ -72,6 +78,9 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
   const [quickActions, setQuickActions] = useState(DEFAULT_QUICK_ACTIONS)
   const [providers, setProviders] = useState({ openai: { configured: false }, tavily: { configured: false } })
   const [synthesisMode, setSynthesisMode] = useState('auto')
+  const [regions, setRegions] = useState([{ id: '', label: 'Global' }])
+  const [chatInputs, setChatInputs] = useState({ region: '', constraints: '' })
+  const [loadingStep, setLoadingStep] = useState(0)
   const scrollRef = useRef(null)
   const firstName = String(user?.name || 'User').split(' ')[0]
 
@@ -86,12 +95,24 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
         }
         if (data?.providers) setProviders(data.providers)
         if (data?.synthesisMode) setSynthesisMode(data.synthesisMode)
+        if (Array.isArray(data?.regions) && data.regions.length) setRegions(data.regions)
       })
       .catch(() => {
         if (!cancelled) setError('Could not load Sales Manager AI configuration.')
       })
     return () => { cancelled = true }
   }, [open])
+
+  useEffect(() => {
+    if (!sending) {
+      setLoadingStep(0)
+      return undefined
+    }
+    const id = setInterval(() => {
+      setLoadingStep((s) => (s + 1) % LOADING_STEPS.length)
+    }, 2200)
+    return () => clearInterval(id)
+  }, [sending])
 
   useEffect(() => {
     if (!scrollRef.current) return
@@ -113,7 +134,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
       const data = await salesAiApi.chat({
         message: text,
         history: nextHistory.slice(0, -1),
-        pageContext: { tab: activeTab || '' },
+        pageContext: { tab: activeTab || '', region: chatInputs.region || '' },
+        chatInputs,
       })
       const reply = String(data?.reply || data?.message || 'No response received.').trim()
       const sources = collectSources(data?.sections)
@@ -135,7 +157,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
     } finally {
       setSending(false)
     }
-  }, [activeTab, messages, sending])
+  }, [activeTab, chatInputs, messages, sending])
 
   const panelStyle = {
     position: 'fixed',
@@ -264,7 +286,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
             ))}
             {sending && (
               <div style={{ fontSize: 12, color: '#6b7280', padding: '4px 2px' }}>
-                Researching market data and your pipeline…
+                {LOADING_STEPS[loadingStep]}
               </div>
             )}
           </div>
@@ -297,6 +319,29 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
               {error}
             </div>
           )}
+
+          <div style={{ padding: '8px 12px 6px', background: '#fff', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select
+                value={chatInputs.region}
+                onChange={(e) => setChatInputs((p) => ({ ...p, region: e.target.value }))}
+                disabled={sending}
+                aria-label="Research region"
+                style={inputRowStyle}
+              >
+                {regions.map((r) => (
+                  <option key={r.id || 'global'} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            <input
+              value={chatInputs.constraints}
+              onChange={(e) => setChatInputs((p) => ({ ...p, constraints: e.target.value }))}
+              placeholder="Focus / constraints (e.g. UAE wholesale only)"
+              disabled={sending}
+              style={{ ...inputRowStyle, width: '100%' }}
+            />
+          </div>
 
           <form
             style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px 8px', background: '#fff', borderTop: '1px solid #f1f5f9' }}
@@ -349,6 +394,16 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
       )}
     </div>
   )
+}
+
+const inputRowStyle = {
+  fontSize: 11,
+  padding: '6px 10px',
+  borderRadius: 8,
+  border: '1px solid #e5e7eb',
+  background: '#fafafa',
+  flex: 1,
+  minWidth: 0,
 }
 
 const iconBtnStyle = {

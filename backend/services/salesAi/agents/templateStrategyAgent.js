@@ -1,4 +1,83 @@
-const { formatMetalsForPrompt } = require('../salesAiPrompts')
+const {
+  formatMetalsForPrompt,
+  classifyQuestion,
+  REGION_KEYWORDS,
+} = require('../salesAiPrompts')
+
+function extractResearchSnippets(marketSection) {
+  const answers = marketSection?.answers || []
+  if (answers.length) return answers.map((a) => String(a).trim()).filter(Boolean)
+
+  const content = String(marketSection?.content || '')
+  const snippets = []
+  content.split('\n').forEach((line) => {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('Summary:')) {
+      snippets.push(trimmed.replace(/^Summary:\s*/, ''))
+    } else if (trimmed.startsWith('- **') && trimmed.includes('http')) {
+      const text = trimmed.split('\n  ')[1] || trimmed
+      if (text.length > 40) snippets.push(text.slice(0, 400))
+    }
+  })
+  return snippets.slice(0, 4)
+}
+
+function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs = {}) {
+  const question = String(userMessage || '').trim()
+  const kind = classifyQuestion(question)
+  const s = crmSnapshot?.summary || {}
+  const snippets = extractResearchSnippets(marketSection)
+  const sourceCount = (marketSection?.sources || []).length
+  const paragraphs = []
+
+  const regionLabel = chatInputs.region
+    ? (REGION_KEYWORDS[chatInputs.region] || chatInputs.region)
+    : ''
+  if (regionLabel) {
+    paragraphs.push(`Research focus: **${regionLabel}**.`)
+  }
+  if (chatInputs.constraints) {
+    paragraphs.push(`Constraints noted: ${chatInputs.constraints}`)
+  }
+
+  if (kind === 'pipeline' || kind === 'mixed') {
+    const pipeline = Number(s.pipelineValueUSD) || 0
+    const parts = []
+    if (pipeline) parts.push(`pipeline value is **$${pipeline.toLocaleString()}**`)
+    if (s.hotLeads) parts.push(`**${s.hotLeads} hot lead(s)**`)
+    if (s.overdueFollowups) parts.push(`**${s.overdueFollowups} overdue follow-up(s)**`)
+    if (parts.length) {
+      paragraphs.push(`On your CRM: ${parts.join(', ')}.`)
+    }
+    if (crmSnapshot?.accessLevel === 'full' && crmSnapshot?.detail?.topOpenDeals?.length) {
+      const top = crmSnapshot.detail.topOpenDeals[0]
+      paragraphs.push(`Largest open deal: **${top.title}** (${top.stage}, $${top.valueUSD || 0}).`)
+    }
+  }
+
+  if (kind === 'market' || kind === 'mixed') {
+    if (snippets.length) {
+      paragraphs.push(snippets[0])
+      if (snippets[1]) paragraphs.push(snippets[1])
+    } else if (sourceCount) {
+      paragraphs.push(`Found **${sourceCount} external source(s)** relevant to your question. See market research below for details and links.`)
+    } else {
+      paragraphs.push('Limited external web results were found — try a more specific region or rephrase your question.')
+    }
+  }
+
+  if (kind === 'metals' || /gold|silver|metal|rate|price/i.test(question)) {
+    if (metalRates?.goldPrice) {
+      paragraphs.push(`Live rates: gold **${metalRates.goldPrice}** / silver **${metalRates.silverPrice}** ${metalRates.priceCurrency || 'USD'}/${metalRates.priceUnit || 'G'} (${metalRates.source || 'feed'}).`)
+    }
+  }
+
+  if (!paragraphs.length) {
+    paragraphs.push(`Regarding "${question.slice(0, 120)}": combine the market research and LoopC data sections below for a full picture.`)
+  }
+
+  return paragraphs.join('\n\n')
+}
 
 function buildRecommendations(crmSnapshot, marketSection) {
   const s = crmSnapshot?.summary || {}
@@ -36,30 +115,26 @@ function buildRecommendations(crmSnapshot, marketSection) {
   return bullets.slice(0, 5)
 }
 
-function buildRisks(crmSnapshot, marketSection) {
-  const s = crmSnapshot?.summary || {}
-  const risks = []
-  if ((Number(s.overdueFollowups) || 0) > 0) {
-    risks.push('Overdue CRM follow-ups may stall pipeline momentum.')
-  }
-  if (!(marketSection?.sources || []).length) {
-    risks.push('No external web sources were retrieved — market section may be incomplete.')
-  }
-  if (crmSnapshot?.accessLevel !== 'full') {
-    risks.push('Deal-level detail is limited for your role — sales heads see fuller pipeline names.')
-  }
-  return risks
-}
-
 function formatMarketForReply(marketSection) {
   const sources = marketSection?.sources || []
-  if (!sources.length) {
+  const answers = marketSection?.answers || []
+  const lines = []
+  if (answers.length) {
+    lines.push('**Web summaries:**')
+    answers.forEach((a) => lines.push(`- ${a}`))
+    lines.push('')
+  }
+  if (!sources.length && !answers.length) {
     return String(marketSection?.content || 'No web research results available.')
   }
-  const lines = sources.slice(0, 8).map((src) => `- [${src.title}](${src.url})`)
   const content = String(marketSection?.content || '')
-  const excerpt = content.split('\n').filter((l) => l.trim() && !l.startsWith('###')).slice(0, 6).join('\n')
-  return [excerpt, '', '**Sources:**', ...lines].filter(Boolean).join('\n')
+  const excerpt = content.split('\n').filter((l) => l.trim() && !l.startsWith('###')).slice(0, 8).join('\n')
+  if (excerpt) lines.push(excerpt)
+  if (sources.length) {
+    lines.push('', '**Sources:**')
+    sources.slice(0, 8).forEach((src) => lines.push(`- [${src.title}](${src.url})`))
+  }
+  return lines.join('\n')
 }
 
 function formatCrmForReply(crmSnapshot) {
@@ -85,26 +160,23 @@ function formatCrmForReply(crmSnapshot) {
   return lines.join('\n')
 }
 
+function shouldShowCrmSection(userMessage) {
+  const kind = classifyQuestion(userMessage)
+  return kind === 'pipeline' || kind === 'mixed' || kind === 'metals'
+}
+
 function runTemplateStrategyAgent({
   userMessage,
   marketSection,
   crmSnapshot,
   metalRates,
+  chatInputs = {},
   fallbackReason = 'unavailable',
 }) {
+  const directAnswer = buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs)
   const recommendations = buildRecommendations(crmSnapshot, marketSection)
-  const risks = buildRisks(crmSnapshot, marketSection)
   const metalsText = formatMetalsForPrompt(metalRates)
-  const s = crmSnapshot?.summary || {}
-  const sourceCount = (marketSection?.sources || []).length
-
-  const summaryParts = []
-  if (sourceCount) summaryParts.push(`${sourceCount} external source(s) found`)
-  if (s.pipelineValueUSD) summaryParts.push(`pipeline at $${Number(s.pipelineValueUSD).toLocaleString()}`)
-  if (s.hotLeads) summaryParts.push(`${s.hotLeads} hot lead(s)`)
-  const execSummary = summaryParts.length
-    ? `Briefing for: "${String(userMessage || '').slice(0, 120)}". ${summaryParts.join('; ')}.`
-    : `Briefing for: "${String(userMessage || '').slice(0, 120)}".`
+  const showCrm = shouldShowCrmSection(userMessage)
 
   const modeNote = fallbackReason === 'disabled'
     ? '_Template mode — OpenAI synthesis is off._'
@@ -113,23 +185,20 @@ function runTemplateStrategyAgent({
   const reply = [
     modeNote,
     '',
-    '## Executive summary',
-    execSummary,
+    '## Answer',
+    directAnswer,
     '',
-    '## Market & industry',
+    '## Market research',
     formatMarketForReply(marketSection),
     '',
-    '## LoopC context',
-    formatCrmForReply(crmSnapshot),
-    '',
-    '## Live metal rates',
-    metalsText,
-    '',
-    '## Recommendations',
+    showCrm ? '## Your LoopC data' : '',
+    showCrm ? formatCrmForReply(crmSnapshot) : '',
+    showCrm ? '' : '',
+    showCrm && metalRates ? '## Live metal rates' : '',
+    showCrm && metalRates ? metalsText : '',
+    showCrm && metalRates ? '' : '',
+    '## Suggested next steps',
     ...recommendations.map((b) => `- ${b}`),
-    '',
-    risks.length ? '## Risks / watchouts' : '',
-    ...risks.map((r) => `- ${r}`),
   ].filter((block) => block !== '').join('\n')
 
   return {
@@ -149,5 +218,6 @@ function isOpenAiQuotaError(err) {
 module.exports = {
   runTemplateStrategyAgent,
   buildRecommendations,
+  buildDirectAnswer,
   isOpenAiQuotaError,
 }

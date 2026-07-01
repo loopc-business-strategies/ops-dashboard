@@ -1,10 +1,12 @@
 jest.mock('../services/salesAi/tavilySearch', () => ({
   runTavilySearches: jest.fn(async () => ([
     {
-      query: 'gold market trends',
+      query: 'gold market trends UAE',
+      answer: 'UAE gold demand remains strong in wholesale.',
       results: [{ title: 'Gold outlook', url: 'https://example.com/gold', content: 'Demand is rising.' }],
     },
   ])),
+  shouldUseAdvancedSearchDepth: jest.fn(() => false),
 }))
 
 jest.mock('../services/salesAi/crmSnapshot', () => ({
@@ -39,7 +41,7 @@ jest.mock('../services/salesAi/agents/strategyAgent', () => ({
   runStrategyAgent: jest.fn(async () => ({
     agent: 'strategy',
     title: 'Recommendations',
-    reply: '## Executive summary\nPipeline looks healthy.',
+    reply: '## Answer\nPipeline looks healthy.',
     sections: [],
     meta: { model: 'gpt-4o-mini' },
   })),
@@ -49,7 +51,8 @@ jest.mock('../services/salesAi/agents/strategyAgent', () => ({
 const { runTavilySearches } = require('../services/salesAi/tavilySearch')
 const { buildCrmSnapshot } = require('../services/salesAi/crmSnapshot')
 const { runStrategyAgent } = require('../services/salesAi/agents/strategyAgent')
-const { runSalesAiChat } = require('../services/salesAi/salesAiOrchestrator')
+const { runSalesAiChat, getSalesAiConfig } = require('../services/salesAi/salesAiOrchestrator')
+const { buildSearchQueries } = require('../services/salesAi/salesAiPrompts')
 
 describe('salesAiOrchestrator', () => {
   beforeEach(() => {
@@ -63,25 +66,27 @@ describe('salesAiOrchestrator', () => {
       message: 'What are gold jewelry market trends?',
       history: [],
       pageContext: { tab: 'overview' },
+      chatInputs: { region: 'uae', constraints: 'wholesale only' },
     })
 
     expect(runTavilySearches).toHaveBeenCalled()
     expect(buildCrmSnapshot).toHaveBeenCalled()
     expect(runStrategyAgent).toHaveBeenCalled()
-    expect(result.reply).toMatch(/Executive summary/)
+    expect(result.reply).toMatch(/Answer/)
     expect(result.sections.some((s) => s.agent === 'marketResearch')).toBe(true)
     expect(result.sections.some((s) => s.agent === 'crmInsight')).toBe(true)
     expect(result.meta.crmAccessLevel).toBe('aggregate')
+    expect(result.meta.chatInputs.region).toBe('uae')
   })
 
-  test('runSalesAiChat returns template briefing when OpenAI is missing', async () => {
+  test('runSalesAiChat returns template answer when OpenAI is missing', async () => {
     delete process.env.OPENAI_API_KEY
     process.env.SALES_AI_SYNTHESIS_MODE = 'auto'
     const result = await runSalesAiChat({
       user: { company: 'loopc' },
-      message: 'Hello',
+      message: 'What is the UAE gold market outlook?',
     })
-    expect(result.reply).toMatch(/Executive summary/)
+    expect(result.reply).toMatch(/## Answer/)
     expect(result.meta.synthesisMode).toBe('template')
     expect(runStrategyAgent).not.toHaveBeenCalled()
   })
@@ -103,5 +108,16 @@ describe('salesAiOrchestrator', () => {
       user: { company: 'loopc' },
       message: '   ',
     })).rejects.toThrow(/Message is required/)
+  })
+
+  test('getSalesAiConfig exposes regions', () => {
+    const config = getSalesAiConfig()
+    expect(Array.isArray(config.regions)).toBe(true)
+    expect(config.regions.some((r) => r.id === 'uae')).toBe(true)
+  })
+
+  test('buildSearchQueries includes region suffix', () => {
+    const queries = buildSearchQueries('market trends', { region: 'uae' })
+    expect(queries.some((q) => /UAE|Dubai/i.test(q))).toBe(true)
   })
 })

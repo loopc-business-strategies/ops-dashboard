@@ -1,4 +1,8 @@
-const { LOOPC_CONTEXT, formatMetalsForPrompt } = require('../salesAiPrompts')
+const {
+  LOOPC_CONTEXT,
+  formatMetalsForPrompt,
+  formatChatInputsForPrompt,
+} = require('../salesAiPrompts')
 const { chatCompletion, getModel } = require('../openAiClient')
 
 async function runStrategyAgent({
@@ -11,6 +15,7 @@ async function runStrategyAgent({
 }) {
   const metalsText = formatMetalsForPrompt(metalRates)
   const tab = pageContext?.tab ? `Current dashboard tab: ${pageContext.tab}` : ''
+  const inputsText = formatChatInputsForPrompt(pageContext?.chatInputs || {})
 
   const system = `${LOOPC_CONTEXT}
 
@@ -23,11 +28,10 @@ Respond in JSON only with this shape:
 }
 
 Structure the reply with:
-1. **Executive summary** (2-3 sentences)
-2. **Market & industry** (from web research — cite sources inline as [title](url) when available)
-3. **LoopC context** (pipeline, metals, CRM stats)
-4. **Recommendations** (3-5 bullet actions)
-5. **Risks / watchouts** (if any)
+1. **Answer** — directly address the user's question first (2-4 paragraphs)
+2. **Market research** (from web research — cite sources inline as [title](url) when available)
+3. **Your LoopC data** (pipeline, metals, CRM stats — when relevant)
+4. **Suggested next steps** (3-5 bullet actions)
 
 Do not invent CRM numbers. Do not invent web facts not present in the research section.`
 
@@ -40,6 +44,7 @@ Do not invent CRM numbers. Do not invent web facts not present in the research s
   const userContent = [
     `User question: ${userMessage}`,
     tab,
+    inputsText,
     '',
     '--- External research (Tavily) ---',
     researchBlock,
@@ -50,7 +55,7 @@ Do not invent CRM numbers. Do not invent web facts not present in the research s
     '',
     '--- Live metal rates ---',
     metalsText,
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 
   const messages = [
     { role: 'system', content: system },
