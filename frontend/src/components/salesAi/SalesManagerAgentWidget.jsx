@@ -137,7 +137,6 @@ function TodaysPulsePanel({
   }
 
   const s = briefing.crm?.summary || {}
-  const metals = briefing.metals || {}
   const market = briefing.market
   const highlight = briefing.crm?.highlight
 
@@ -168,16 +167,6 @@ function TodaysPulsePanel({
         >
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
-      </div>
-
-      <div style={pulseCardStyle}>
-        <div style={pulseSectionTitle}>Live metals</div>
-        <div style={pulseBody}>
-          Gold {metals.goldPrice} / Silver {metals.silverPrice} {metals.priceCurrency}/{metals.priceUnit}
-          {metals.updatedAt ? (
-            <span style={{ color: '#9ca3af' }}> · updated {formatRelativeTime(metals.updatedAt)}</span>
-          ) : null}
-        </div>
       </div>
 
       <div style={pulseCardStyle}>
