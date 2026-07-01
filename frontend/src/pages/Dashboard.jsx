@@ -1264,7 +1264,7 @@ function Dashboard() {
         {/* Page content — 1.5rem inset matches ERP module padding; chat stays full-bleed inside scroll area */}
         <main
           className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' || activeTab === 'sales-manager-ai' ? 'overflow-hidden' : 'overflow-y-auto'}`}
-          style={{ background: activeTab === 'sales-manager-ai' ? '#000000' : 'var(--bg-base)', color: 'var(--text-primary)' }}
+          style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
         >
           {activeTab === 'chat' || activeTab === 'sales-manager-ai' ? (
             <div className="flex-1 min-h-0 flex flex-col">

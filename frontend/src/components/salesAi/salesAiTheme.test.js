@@ -18,17 +18,19 @@ describe('salesAiTheme', () => {
     'headerBg',
   ]
 
-  test('exports black-surface palette with white text', () => {
+  test('exports light dashboard palette with dark readable text', () => {
     for (const key of requiredKeys) {
       expect(SALES_AI_THEME[key]).toBeTruthy()
     }
-    expect(SALES_AI_THEME.panelBg).toBe('#000000')
-    expect(SALES_AI_THEME.textPrimary).toBe('#ffffff')
+    expect(SALES_AI_THEME.panelBg).toBe('#f8f9fa')
+    expect(SALES_AI_THEME.textPrimary).toBe('#1C2A33')
+    expect(SALES_AI_THEME.cardBg).toBe('#ffffff')
     expect(SALES_AI_THEME.panelBg.toLowerCase()).not.toBe(SALES_AI_THEME.textPrimary.toLowerCase())
   })
 
-  test('does not use green brand colors', () => {
-    const serialized = JSON.stringify(SALES_AI_THEME).toLowerCase()
-    expect(serialized).not.toMatch(/00684a|13aa52|22c55e|6ee7b7/)
+  test('uses brand accent for interactive elements', () => {
+    expect(SALES_AI_THEME.accent).toBe('#00684A')
+    expect(SALES_AI_THEME.userText).toBe('#ffffff')
+    expect(SALES_AI_THEME.userBubble).toBe('#00684A')
   })
 })
