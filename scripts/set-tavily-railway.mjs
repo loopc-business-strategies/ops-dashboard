@@ -5,9 +5,13 @@
  *   set TAVILY_API_KEY=tvly-...   (PowerShell: $env:TAVILY_API_KEY="tvly-...")
  *   node scripts/set-tavily-railway.mjs
  */
-const { execSync } = require('child_process')
-const path = require('path')
-require('dotenv').config({ path: path.join(__dirname, '../backend/.env') })
+import { execSync } from 'child_process'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.join(__dirname, '../backend/.env') })
 
 const key = String(process.env.TAVILY_API_KEY || '').trim()
 if (!key) {
