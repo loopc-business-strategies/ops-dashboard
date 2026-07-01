@@ -51,6 +51,21 @@ Generate encryption key:
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
+Or push all vars to Railway (generates keys if missing):
+
+```bash
+# After adding backend/.google-oauth-client.json or GOOGLE_* in backend/.env
+npm run setup:gmail-railway
+```
+
+Connect company inbox (after Railway deploy):
+
+```bash
+npm run connect:company-gmail
+```
+
+Opens LoopC dashboard — sign in as **super_admin**, click **Connect company Gmail**, use **business@loopcstrategies.com**.
+
 ## API endpoints
 
 | Method | Path | Access |

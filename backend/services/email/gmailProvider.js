@@ -111,8 +111,25 @@ async function fetchGmailProfile(accessToken) {
   return { email: data.emailAddress || '' }
 }
 
+function getDefaultEmailFetchMax() {
+  const raw = Number(process.env.EMAIL_FETCH_MAX_RESULTS)
+  if (Number.isFinite(raw) && raw > 0) return Math.min(Math.floor(raw), 50)
+  return 15
+}
+
+function wantsBroadInboxFetch(userMessage = '') {
+  const msg = String(userMessage || '').toLowerCase()
+  return /all\s+(my\s+)?emails?/.test(msg)
+    || /everything\s+in\s+(my\s+)?(inbox|mailbox|email)/.test(msg)
+    || /\b(analyze|summar|scan|review|read)\s+(my\s+)?(all\s+)?(the\s+)?(emails?|inbox|mail)/.test(msg)
+}
+
+function resolveEmailFetchMaxResults(userMessage = '') {
+  return wantsBroadInboxFetch(userMessage) ? 50 : getDefaultEmailFetchMax()
+}
+
 async function listGmailMessages(accessToken, { maxResults = 15, query = '' } = {}) {
-  const cap = Math.min(Math.max(1, Number(maxResults) || 15), 15)
+  const cap = Math.min(Math.max(1, Number(maxResults) || 15), 50)
   const params = new URLSearchParams({ maxResults: String(cap) })
   if (query) params.set('q', String(query).slice(0, 200))
   const list = await gmailApiGet(`/messages?${params.toString()}`, accessToken)
@@ -136,12 +153,21 @@ function buildGmailQueryFromMessage(userMessage = '') {
   const msg = String(userMessage || '')
   const parts = []
   if (/unread/i.test(msg)) parts.push('is:unread')
-  if (/24\s*h|last day|today/i.test(msg)) parts.push('newer_than:1d')
-  else if (/week|7\s*day/i.test(msg)) parts.push('newer_than:7d')
-  else parts.push('newer_than:7d')
 
-  const fromMatch = msg.match(/\bfrom\s+([A-Za-z0-9@._-]+)/i)
-  if (fromMatch) parts.push(`from:${fromMatch[1]}`)
+  const broad = wantsBroadInboxFetch(msg)
+  if (!broad) {
+    if (/24\s*h|last day|today/i.test(msg)) parts.push('newer_than:1d')
+    else if (/week|7\s*day/i.test(msg)) parts.push('newer_than:7d')
+    else parts.push('newer_than:7d')
+  } else {
+    parts.push('newer_than:30d')
+  }
+
+  const fromMatch = msg.match(/\bfrom\s+([A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/i)
+    || msg.match(/\bfrom\s+([A-Za-z0-9._-]{3,})\b/i)
+  if (fromMatch && !/^(last|the|my|this|that)$/i.test(fromMatch[1])) {
+    parts.push(`from:${fromMatch[1]}`)
+  }
 
   return parts.join(' ')
 }
@@ -157,4 +183,7 @@ module.exports = {
   fetchGmailProfile,
   listGmailMessages,
   buildGmailQueryFromMessage,
+  resolveEmailFetchMaxResults,
+  wantsBroadInboxFetch,
+  getDefaultEmailFetchMax,
 }

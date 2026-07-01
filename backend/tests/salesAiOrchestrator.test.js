@@ -137,6 +137,35 @@ describe('salesAiOrchestrator', () => {
     expect(result.reply).toMatch(/company inbox/i)
   })
 
+  test('runSalesAiChat skips Tavily and CRM for analyze all emails', async () => {
+    runEmailInboxAgent.mockResolvedValueOnce({
+      agent: 'emailInbox',
+      title: 'Inbox',
+      connectRequired: false,
+      tenantConnect: true,
+      summary: 'Found **3** messages.',
+      content: 'Company inbox list',
+      messages: [{ subject: 'Invoice', from: 'c@d.com' }],
+    })
+    delete process.env.OPENAI_API_KEY
+    process.env.SALES_AI_SYNTHESIS_MODE = 'auto'
+    const result = await runSalesAiChat({
+      user: { company: 'loopc', _id: 'abc', role: 'super_admin' },
+      message: 'analyze my all emails',
+    })
+    expect(runTavilySearches).not.toHaveBeenCalled()
+    expect(buildCrmSnapshot).not.toHaveBeenCalled()
+    expect(result.sections.some((s) => s.agent === 'emailInbox')).toBe(true)
+    expect(result.sections.some((s) => s.agent === 'marketResearch')).toBe(false)
+    expect(result.reply).not.toMatch(/## Market research/)
+    expect(result.meta.emailChecked).toBe(true)
+  })
+
+  test('getSalesAiConfig includes analyze all emails quick action', () => {
+    const config = getSalesAiConfig()
+    expect(config.quickActions.some((a) => a.id === 'analyze-all-emails')).toBe(true)
+  })
+
   test('getSalesAiConfig includes check email quick action', () => {
     const config = getSalesAiConfig()
     expect(config.quickActions.some((a) => a.id === 'check-email')).toBe(true)

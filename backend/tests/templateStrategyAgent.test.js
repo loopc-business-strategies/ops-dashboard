@@ -47,6 +47,26 @@ describe('templateStrategyAgent', () => {
     expect(answer).toMatch(/wholesale gold demand/i)
   })
 
+  test('runTemplateStrategyAgent omits market research for email-only questions', () => {
+    const result = runTemplateStrategyAgent({
+      userMessage: 'analyze my all emails',
+      marketSection: { content: 'No results', sources: [], answers: [] },
+      crmSnapshot,
+      metalRates: null,
+      emailSection: {
+        connectRequired: false,
+        summary: 'Found **2** message(s).',
+        content: 'Inbox list',
+        messages: [{ subject: 'Quote', from: 'a@b.com' }],
+      },
+      fallbackReason: 'quota',
+    })
+    expect(result.reply).toMatch(/## Answer/)
+    expect(result.reply).toMatch(/## Inbox/)
+    expect(result.reply).not.toMatch(/## Market research/)
+    expect(result.reply).not.toMatch(/Template mode/)
+  })
+
   test('runTemplateStrategyAgent returns question-aware markdown', () => {
     const result = runTemplateStrategyAgent({
       userMessage: 'Analyze pipeline',

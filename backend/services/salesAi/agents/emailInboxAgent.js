@@ -5,6 +5,8 @@ const {
   getGmailTenantConnectStartUrl,
   getGmailConnectStartUrl,
 } = require('../../email/emailInboxService')
+const { resolveEmailFetchMaxResults } = require('../../email/gmailProvider')
+const { buildEmailAnalysis, formatEmailAnalysisSummary } = require('./emailAnalysis')
 
 function formatInboxContent(inbox) {
   const label = inbox.scope === 'tenant' ? 'Company inbox' : 'Inbox'
@@ -14,7 +16,7 @@ function formatInboxContent(inbox) {
     return lines.join('\n')
   }
   inbox.messages.forEach((m, i) => {
-    lines.push(`${i + 1}. **${m.subject}** — ${m.from}`)
+    lines.push(`${i + 1}. **${m.subject || '(no subject)'}** — ${m.from}`)
     lines.push(`   ${m.date ? new Date(m.date).toLocaleString() : 'Unknown date'}`)
     if (m.snippet) lines.push(`   ${m.snippet}`)
     lines.push('')
@@ -47,18 +49,24 @@ async function runEmailInboxAgent(user, userMessage, tenantKey) {
   }
 
   try {
+    const query = buildGmailQueryFromMessage(userMessage)
+    const maxResults = resolveEmailFetchMaxResults(userMessage)
     const inbox = await fetchRecentInbox(user, {
       userMessage,
       tenantKey,
-      query: buildGmailQueryFromMessage(userMessage),
-      maxResults: 15,
+      query,
+      maxResults,
     })
+    const analysis = buildEmailAnalysis(inbox.messages, { query })
+    const summary = formatEmailAnalysisSummary(analysis, inbox.email)
     return {
       agent: 'emailInbox',
       title: 'Inbox',
       connectRequired: false,
       tenantConnect: inbox.scope === 'tenant',
       content: formatInboxContent(inbox),
+      summary,
+      analysis,
       messages: inbox.messages,
       query: inbox.query,
       email: inbox.email,

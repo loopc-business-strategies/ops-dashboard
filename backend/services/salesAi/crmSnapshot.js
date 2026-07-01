@@ -79,7 +79,7 @@ async function buildCrmSnapshot(user) {
     })
       .sort({ valueUSD: -1 })
       .limit(5)
-      .select('title stage valueUSD probability expectedCloseDate')
+      .select('name stage valueUSD probability expectedCloseDate')
       .lean(),
     CrmLead.find({
       isDeleted: false,
@@ -88,7 +88,7 @@ async function buildCrmSnapshot(user) {
     })
       .sort({ updatedAt: -1 })
       .limit(5)
-      .select('title stage temperature valueUSD companyName')
+      .select('name stage temperature estValueUSD companyName')
       .lean(),
   ])
 
@@ -97,17 +97,17 @@ async function buildCrmSnapshot(user) {
     summary,
     detail: {
       topOpenDeals: topDeals.map((d) => ({
-        title: d.title,
+        title: d.name || 'Untitled deal',
         stage: d.stage,
         valueUSD: d.valueUSD,
         probability: d.probability,
         expectedCloseDate: d.expectedCloseDate,
       })),
       recentLeads: topLeads.map((l) => ({
-        title: l.title,
+        title: l.name || 'Untitled lead',
         stage: l.stage,
         temperature: l.temperature,
-        valueUSD: l.valueUSD,
+        valueUSD: l.estValueUSD,
         companyName: l.companyName,
       })),
     },

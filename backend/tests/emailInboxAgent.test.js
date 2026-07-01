@@ -6,6 +6,11 @@ jest.mock('../services/email/emailInboxService', () => ({
   getGmailConnectStartUrl: jest.fn(() => 'https://api.example.com/api/email/oauth/gmail/start'),
 }))
 
+jest.mock('../services/email/gmailProvider', () => ({
+  buildGmailQueryFromMessage: jest.fn(() => 'newer_than:1d'),
+  resolveEmailFetchMaxResults: jest.fn(() => 15),
+}))
+
 const {
   getConnectionStatus,
   fetchRecentInbox,
@@ -63,5 +68,6 @@ describe('emailInboxAgent', () => {
     expect(result.tenantConnect).toBe(true)
     expect(result.messages).toHaveLength(1)
     expect(result.content).toMatch(/Company inbox/)
+    expect(result.summary).toMatch(/sales-related|message/i)
   })
 })

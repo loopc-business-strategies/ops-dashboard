@@ -2,6 +2,7 @@ const {
   formatMetalsForPrompt,
   classifyQuestion,
   classifyEmailIntent,
+  isEmailOnlyQuestion,
   REGION_KEYWORDS,
 } = require('../salesAiPrompts')
 
@@ -44,10 +45,12 @@ function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, 
   if (kind === 'email' || (classifyEmailIntent(question) && emailSection)) {
     if (emailSection?.connectRequired) {
       paragraphs.push('Connect Gmail to check your inbox from Sales Manager AI.')
+    } else if (emailSection?.summary) {
+      paragraphs.push(emailSection.summary)
     } else if (emailSection?.messages?.length) {
       paragraphs.push(`Found **${emailSection.messages.length}** recent message(s) in your inbox.`)
       emailSection.messages.slice(0, 3).forEach((m) => {
-        paragraphs.push(`- **${m.subject}** — ${m.from}`)
+        paragraphs.push(`- **${m.subject || '(no subject)'}** — ${m.from}`)
       })
     } else if (emailSection?.content) {
       paragraphs.push('No matching messages found in your inbox for this query.')
@@ -65,7 +68,8 @@ function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, 
     }
     if (crmSnapshot?.accessLevel === 'full' && crmSnapshot?.detail?.topOpenDeals?.length) {
       const top = crmSnapshot.detail.topOpenDeals[0]
-      paragraphs.push(`Largest open deal: **${top.title}** (${top.stage}, $${top.valueUSD || 0}).`)
+      const dealName = top.title || 'Untitled deal'
+      paragraphs.push(`Largest open deal: **${dealName}** (${top.stage}, $${top.valueUSD || 0}).`)
     }
   }
 
@@ -110,7 +114,8 @@ function buildRecommendations(crmSnapshot, marketSection) {
   }
   if (pipeline > 0 && crmSnapshot?.accessLevel === 'full' && crmSnapshot?.detail?.topOpenDeals?.length) {
     const top = crmSnapshot.detail.topOpenDeals[0]
-    bullets.push(`Focus on largest open deal: **${top.title}** (${top.stage}, $${top.valueUSD || 0}).`)
+    const dealName = top.title || 'Untitled deal'
+    bullets.push(`Focus on largest open deal: **${dealName}** (${top.stage}, $${top.valueUSD || 0}).`)
   } else if (pipeline > 0) {
     bullets.push(`Pipeline value is **$${pipeline.toLocaleString()}** — review highest-value open stages in Sales CRM.`)
   }
@@ -164,11 +169,11 @@ function formatCrmForReply(crmSnapshot) {
     const leads = crmSnapshot.detail.recentLeads || []
     if (deals.length) {
       lines.push('', '**Top open deals:**')
-      deals.forEach((d) => lines.push(`- ${d.title} — ${d.stage}, $${d.valueUSD || 0}`))
+      deals.forEach((d) => lines.push(`- ${d.title || 'Untitled deal'} — ${d.stage}, $${d.valueUSD || 0}`))
     }
     if (leads.length) {
       lines.push('', '**Recent leads:**')
-      leads.forEach((l) => lines.push(`- ${l.title} — ${l.temperature || 'n/a'}, ${l.companyName || ''}`))
+      leads.forEach((l) => lines.push(`- ${l.title || 'Untitled lead'} — ${l.temperature || 'n/a'}, ${l.companyName || ''}`))
     }
   }
   return lines.join('\n')
@@ -199,37 +204,43 @@ function runTemplateStrategyAgent({
   chatInputs = {},
   fallbackReason = 'unavailable',
 }) {
+  const emailOnly = isEmailOnlyQuestion(userMessage)
   const directAnswer = buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs, emailSection)
-  const recommendations = buildRecommendations(crmSnapshot, marketSection)
+  const recommendations = emailOnly ? [] : buildRecommendations(crmSnapshot, marketSection)
   const metalsText = formatMetalsForPrompt(metalRates)
-  const showCrm = shouldShowCrmSection(userMessage)
+  const showCrm = !emailOnly && shouldShowCrmSection(userMessage)
   const showEmail = shouldShowEmailSection(userMessage, emailSection)
+  const showMarket = !emailOnly
 
-  const modeNote = fallbackReason === 'disabled'
-    ? '_Template mode — OpenAI synthesis is off._'
-    : '_Template mode — full AI synthesis unavailable (add OpenAI credits for richer briefings)._'
+  const modeNote = emailOnly
+    ? ''
+    : (fallbackReason === 'disabled'
+      ? '_Template mode — OpenAI synthesis is off._'
+      : '_Template mode — full AI synthesis unavailable (add OpenAI credits for richer briefings)._')
 
-  const reply = [
+  const replyParts = [
     modeNote,
-    '',
+    modeNote ? '' : null,
     '## Answer',
     directAnswer,
     '',
-    showEmail ? '## Inbox' : '',
-    showEmail ? formatEmailForReply(emailSection) : '',
-    showEmail ? '' : '',
-    '## Market research',
-    formatMarketForReply(marketSection),
-    '',
-    showCrm ? '## Your LoopC data' : '',
-    showCrm ? formatCrmForReply(crmSnapshot) : '',
-    showCrm ? '' : '',
-    showCrm && metalRates ? '## Live metal rates' : '',
-    showCrm && metalRates ? metalsText : '',
-    showCrm && metalRates ? '' : '',
-    '## Suggested next steps',
-    ...recommendations.map((b) => `- ${b}`),
-  ].filter((block) => block !== '').join('\n')
+    showEmail ? '## Inbox' : null,
+    showEmail ? formatEmailForReply(emailSection) : null,
+    showEmail ? '' : null,
+    showMarket ? '## Market research' : null,
+    showMarket ? formatMarketForReply(marketSection) : null,
+    showMarket ? '' : null,
+    showCrm ? '## Your LoopC data' : null,
+    showCrm ? formatCrmForReply(crmSnapshot) : null,
+    showCrm ? '' : null,
+    showCrm && metalRates ? '## Live metal rates' : null,
+    showCrm && metalRates ? metalsText : null,
+    showCrm && metalRates ? '' : null,
+    recommendations.length ? '## Suggested next steps' : null,
+    ...(recommendations.length ? recommendations.map((b) => `- ${b}`) : []),
+  ].filter((block) => block !== null && block !== '')
+
+  const reply = replyParts.join('\n')
 
   return {
     agent: 'strategy',
@@ -250,4 +261,5 @@ module.exports = {
   buildRecommendations,
   buildDirectAnswer,
   isOpenAiQuotaError,
+  isEmailOnlyQuestion,
 }

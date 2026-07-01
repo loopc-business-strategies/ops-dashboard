@@ -124,10 +124,18 @@ function formatChatInputsForPrompt(inputs = {}) {
 
 function classifyEmailIntent(userMessage) {
   const msg = String(userMessage || '').toLowerCase()
-  return /\b(email|inbox|gmail|outlook|unread|mailbox)\b/.test(msg)
-    || /check\s+(my\s+)?email/.test(msg)
+  return /\b(emails?|e-mail|inbox|gmail|unread|mailbox)\b/.test(msg)
+    || /\b(outlook\s+(mail|inbox|email)|microsoft\s+outlook)\b/.test(msg)
+    || /check\s+(my\s+)?emails?/.test(msg)
     || /any\s+(new\s+)?messages?/.test(msg)
     || /customer\s+repl/.test(msg)
+    || /\b(analyze|summar|scan|review|read)\s+(my\s+)?(all\s+)?(the\s+)?(emails?|inbox|mail)/.test(msg)
+    || /all\s+(my\s+)?emails?/.test(msg)
+    || /everything\s+in\s+(my\s+)?(inbox|mailbox|email)/.test(msg)
+}
+
+function isEmailOnlyQuestion(userMessage) {
+  return classifyQuestion(userMessage) === 'email'
 }
 
 function classifyQuestion(userMessage) {
@@ -162,5 +170,6 @@ module.exports = {
   formatChatInputsForPrompt,
   classifyQuestion,
   classifyEmailIntent,
+  isEmailOnlyQuestion,
   formatEmailForPrompt,
 }

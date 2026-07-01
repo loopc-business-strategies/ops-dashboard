@@ -2,6 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import * as salesAiApi from '../../api/salesAi'
 import * as emailConnectApi from '../../api/emailConnect'
 import SalesMessageContent from './SalesMessageContent'
+import {
+  SALES_AI_THEME,
+  chipStyle,
+  iconBtnStyle,
+  pulseBodyStyle,
+  pulseCardStyle,
+  pulseSectionTitleStyle,
+} from './salesAiTheme'
+
+const INPUT_CLASS = 'sales-ai-chat-input'
 
 const DEFAULT_QUICK_ACTIONS = [
   { id: 'market-trends', label: 'Market trends', prompt: 'What are the latest gold and silver jewelry market trends relevant to our business?' },
@@ -20,14 +30,18 @@ const LOADING_STEPS = [
 
 const LOADING_STEPS_EMAIL = [
   'Checking your inbox…',
-  'Reading your pipeline…',
+  'Analyzing messages…',
   'Building your answer…',
 ]
 
 function isEmailIntent(text) {
   const msg = String(text || '').toLowerCase()
-  return /\b(email|inbox|gmail|outlook|unread|mailbox)\b/.test(msg)
-    || /check\s+(my\s+)?email/.test(msg)
+  return /\b(emails?|e-mail|inbox|gmail|unread|mailbox)\b/.test(msg)
+    || /\b(outlook\s+(mail|inbox|email)|microsoft\s+outlook)\b/.test(msg)
+    || /check\s+(my\s+)?emails?/.test(msg)
+    || /\b(analyze|summar|scan|review|read)\s+(my\s+)?(all\s+)?(the\s+)?(emails?|inbox|mail)/.test(msg)
+    || /all\s+(my\s+)?emails?/.test(msg)
+    || /everything\s+in\s+(my\s+)?(inbox|mailbox|email)/.test(msg)
 }
 
 export function shouldShowSalesManagerAi({ branding, token }) {
@@ -102,7 +116,7 @@ function stripMarkdown(text) {
   return String(text || '').replace(/\*\*/g, '')
 }
 
-function BriefingSkeleton() {
+function BriefingSkeleton({ theme = SALES_AI_THEME }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {[72, 88, 64].map((w) => (
@@ -112,7 +126,7 @@ function BriefingSkeleton() {
             height: 12,
             width: `${w}%`,
             borderRadius: 6,
-            background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)',
+            background: theme.skeleton,
             backgroundSize: '200% 100%',
             animation: 'salesAiPulse 1.2s ease-in-out infinite',
           }}
@@ -134,19 +148,24 @@ function TodaysPulsePanel({
   onConnectCompanyGmail,
   onDisconnectCompanyGmail,
   onSuggestionClick,
+  theme = SALES_AI_THEME,
 }) {
+  const card = pulseCardStyle(theme)
+  const sectionTitle = pulseSectionTitleStyle(theme)
+  const body = pulseBodyStyle(theme)
+
   if (loading && !briefing) {
     return (
-      <div style={pulseCardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 12, color: '#065f46', marginBottom: 8 }}>Today&apos;s pulse</div>
-        <BriefingSkeleton />
+      <div style={card}>
+        <div style={{ fontWeight: 700, fontSize: 12, color: theme.accent, marginBottom: 8 }}>Today&apos;s pulse</div>
+        <BriefingSkeleton theme={theme} />
       </div>
     )
   }
 
   if (!briefing) {
     return (
-      <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, padding: '4px 2px 10px' }}>
+      <div style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 1.5, padding: '4px 2px 10px' }}>
         I combine Tavily web research with your LoopC CRM and live metal rates.
       </div>
     )
@@ -159,9 +178,9 @@ function TodaysPulsePanel({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 2px 10px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ fontWeight: 700, fontSize: 12, color: '#065f46' }}>
+        <div style={{ fontWeight: 700, fontSize: 12, color: theme.accent }}>
           Today&apos;s pulse
-          <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>
+          <span style={{ fontWeight: 400, color: theme.textMuted, marginLeft: 6 }}>
             {formatRelativeTime(briefing.generatedAt)}
           </span>
         </div>
@@ -174,9 +193,9 @@ function TodaysPulsePanel({
             fontSize: 10,
             padding: '4px 8px',
             borderRadius: 6,
-            border: '1px solid #d1fae5',
-            background: '#fff',
-            color: '#065f46',
+            border: `1px solid ${theme.accentBorder}`,
+            background: theme.accentSoft,
+            color: theme.accent,
             cursor: refreshing ? 'not-allowed' : 'pointer',
             opacity: refreshing ? 0.6 : 1,
           }}
@@ -185,38 +204,38 @@ function TodaysPulsePanel({
         </button>
       </div>
 
-      <div style={pulseCardStyle}>
-        <div style={pulseSectionTitle}>Your pipeline</div>
-        <div style={pulseBody}>
+      <div style={card}>
+        <div style={sectionTitle}>Your pipeline</div>
+        <div style={body}>
           {s.pipelineValueUSD ? `$${Number(s.pipelineValueUSD).toLocaleString()} pipeline` : 'No pipeline value yet'}
           {s.hotLeads ? ` · ${s.hotLeads} hot lead(s)` : ''}
           {s.overdueFollowups ? ` · ${s.overdueFollowups} overdue follow-up(s)` : ''}
         </div>
         {highlight?.topDeal ? (
-          <div style={{ ...pulseBody, marginTop: 4, color: '#374151' }}>
+          <div style={{ ...body, marginTop: 4, color: theme.textPrimary }}>
             Top deal: {highlight.topDeal.title} ({highlight.topDeal.stage})
           </div>
         ) : null}
       </div>
 
       {market?.bullets?.length ? (
-        <div style={pulseCardStyle}>
-          <div style={pulseSectionTitle}>Market trend</div>
+        <div style={card}>
+          <div style={sectionTitle}>Market trend</div>
           {market.bullets.map((bullet) => (
-            <div key={bullet.slice(0, 40)} style={{ ...pulseBody, marginBottom: 4 }}>{bullet}</div>
+            <div key={bullet.slice(0, 40)} style={{ ...body, marginBottom: 4 }}>{bullet}</div>
           ))}
           {market.source?.url ? (
             <a
               href={market.source.url}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ fontSize: 11, color: '#00684A' }}
+              style={{ fontSize: 11, color: theme.link }}
             >
               {market.source.title}
             </a>
           ) : null}
           {market.cachedUntil ? (
-            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>
+            <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 4 }}>
               Research cached · refreshes in {formatUntil(market.cachedUntil)}
             </div>
           ) : null}
@@ -224,8 +243,8 @@ function TodaysPulsePanel({
       ) : null}
 
       {briefing.suggestions?.length ? (
-        <div style={pulseCardStyle}>
-          <div style={pulseSectionTitle}>Suggested</div>
+        <div style={card}>
+          <div style={sectionTitle}>Suggested</div>
           {briefing.suggestions.map((tip) => (
             <button
               key={tip}
@@ -241,7 +260,7 @@ function TodaysPulsePanel({
                 background: 'none',
                 fontSize: 12,
                 lineHeight: 1.45,
-                color: '#374151',
+                color: theme.textPrimary,
                 cursor: 'pointer',
               }}
             >
@@ -252,15 +271,15 @@ function TodaysPulsePanel({
       ) : null}
 
       {email?.gmailConfigured && email?.sharedInboxEnabled ? (
-        <div style={pulseCardStyle}>
-          <div style={pulseSectionTitle}>Company inbox</div>
+        <div style={card}>
+          <div style={sectionTitle}>Company inbox</div>
           {email.expectedEmail ? (
-            <div style={{ ...pulseBody, marginBottom: 6 }}>
+            <div style={{ ...body, marginBottom: 6 }}>
               {email.expectedEmail}
             </div>
           ) : null}
           {email.connected ? (
-            <div style={pulseBody}>
+            <div style={body}>
               Connected · {email.address || email.expectedEmail}
               {email.canManage ? (
                 <button
@@ -272,9 +291,9 @@ function TodaysPulsePanel({
                     fontSize: 11,
                     padding: '6px 12px',
                     borderRadius: 8,
-                    border: '1px solid #fecaca',
-                    background: '#fff',
-                    color: '#b45309',
+                    border: `1px solid ${theme.dangerBorder}`,
+                    background: theme.dangerSoft,
+                    color: theme.dangerText,
                     cursor: 'pointer',
                   }}
                 >
@@ -283,7 +302,7 @@ function TodaysPulsePanel({
               ) : null}
             </div>
           ) : (
-            <div style={pulseBody}>
+            <div style={body}>
               {email.canManage
                 ? 'Connect the company Gmail account so everyone on this portal can use Check email.'
                 : 'Company inbox not connected yet. Ask a super admin to connect Gmail.'}
@@ -298,9 +317,9 @@ function TodaysPulsePanel({
                     fontWeight: 600,
                     padding: '6px 12px',
                     borderRadius: 8,
-                    border: '1px solid #d1fae5',
-                    background: '#f0fdf4',
-                    color: '#065f46',
+                    border: `1px solid ${theme.accentBorder}`,
+                    background: theme.accentSoft,
+                    color: theme.accent,
                     cursor: 'pointer',
                   }}
                 >
@@ -313,14 +332,14 @@ function TodaysPulsePanel({
       ) : null}
 
       {email?.gmailConfigured && !email?.sharedInboxEnabled ? (
-        <div style={pulseCardStyle}>
-          <div style={pulseSectionTitle}>Email</div>
+        <div style={card}>
+          <div style={sectionTitle}>Email</div>
           {email.connected ? (
-            <div style={pulseBody}>
+            <div style={body}>
               Gmail connected · {email.address || 'inbox linked'}
             </div>
           ) : (
-            <div style={pulseBody}>
+            <div style={body}>
               Connect Gmail to let Sales Manager AI check your inbox (read-only).
               <button
                 type="button"
@@ -332,9 +351,9 @@ function TodaysPulsePanel({
                   fontWeight: 600,
                   padding: '6px 12px',
                   borderRadius: 8,
-                  border: '1px solid #d1fae5',
-                  background: '#f0fdf4',
-                  color: '#065f46',
+                  border: `1px solid ${theme.accentBorder}`,
+                  background: theme.accentSoft,
+                  color: theme.accent,
                   cursor: 'pointer',
                 }}
               >
@@ -346,10 +365,10 @@ function TodaysPulsePanel({
       ) : null}
 
       {synthesisMode === 'template' && (
-        <div style={{ fontSize: 11, color: '#065f46' }}>Report mode — no OpenAI credits required.</div>
+        <div style={{ fontSize: 11, color: theme.accent }}>Report mode — no OpenAI credits required.</div>
       )}
       {!providers.tavily?.configured && (
-        <div style={{ fontSize: 11, color: '#b45309' }}>Web research is limited until TAVILY_API_KEY is configured.</div>
+        <div style={{ fontSize: 11, color: theme.warningText }}>Web research is limited until `TAVILY_API_KEY` is configured.</div>
       )}
     </div>
   )
@@ -494,6 +513,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
     }
   }, [])
 
+  const theme = SALES_AI_THEME
+
   const panelStyle = {
     position: 'fixed',
     right: 20,
@@ -502,12 +523,12 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
     zIndex: 10050,
     borderRadius: 16,
     overflow: 'hidden',
-    boxShadow: '0 18px 48px rgba(0,0,0,0.22)',
+    boxShadow: '0 18px 48px rgba(0,0,0,0.45)',
     display: 'flex',
     flexDirection: 'column',
     maxHeight: 'min(640px, calc(100vh - 40px))',
-    background: '#fff',
-    border: '1px solid #e5e7eb',
+    background: theme.panelBg,
+    border: `1px solid ${theme.cardBorder}`,
   }
 
   if (!open) {
@@ -527,7 +548,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
           border: 'none',
           cursor: 'pointer',
           color: '#fff',
-          background: 'linear-gradient(135deg, #00684A 0%, #13AA52 55%, #00b4d8 100%)',
+          background: theme.fabGradient,
           boxShadow: '0 10px 28px rgba(0, 104, 74, 0.35)',
           display: 'flex',
           alignItems: 'center',
@@ -547,7 +568,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
         justifyContent: 'space-between',
         gap: 8,
         padding: '12px 14px',
-        background: 'linear-gradient(135deg, #00684A 0%, #13AA52 100%)',
+        background: theme.headerGradient,
         color: '#fff',
       }}
       >
@@ -561,14 +582,14 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
           )}
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button type="button" aria-label="Minimize" onClick={() => setMinimized((v) => !v)} style={iconBtnStyle}>−</button>
-          <button type="button" aria-label="Close" onClick={() => setOpen(false)} style={iconBtnStyle}>×</button>
+          <button type="button" aria-label="Minimize" onClick={() => setMinimized((v) => !v)} style={iconBtnStyle()}>−</button>
+          <button type="button" aria-label="Close" onClick={() => setOpen(false)} style={iconBtnStyle()}>×</button>
         </div>
       </div>
 
       {!minimized && (
         <>
-          <div ref={scrollRef} style={{ flex: 1, maxHeight: 420, overflowY: 'auto', padding: '14px 14px 8px', background: '#fafafa' }}>
+          <div ref={scrollRef} style={{ flex: 1, maxHeight: 420, overflowY: 'auto', padding: '14px 14px 8px', background: theme.chatBg }}>
             {messages.length === 0 && !sending && (
               <TodaysPulsePanel
                 briefing={briefing}
@@ -581,6 +602,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                 onConnectCompanyGmail={handleConnectEmail}
                 onDisconnectCompanyGmail={() => void handleDisconnectCompanyEmail()}
                 onSuggestionClick={(text) => void sendMessage(text)}
+                theme={theme}
               />
             )}
             {messages.map((m) => (
@@ -596,20 +618,20 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                   maxWidth: '92%',
                   padding: '10px 12px',
                   borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: m.role === 'user' ? '#00684A' : '#fff',
-                  color: m.role === 'user' ? '#fff' : '#1f2937',
-                  border: m.role === 'user' ? 'none' : '1px solid #e5e7eb',
+                  background: m.role === 'user' ? theme.userBubble : theme.assistantBubble,
+                  color: m.role === 'user' ? theme.userText : theme.textPrimary,
+                  border: m.role === 'user' ? 'none' : `1px solid ${theme.cardBorder}`,
                   fontSize: 13,
                   lineHeight: 1.45,
                 }}
                 >
-                  <SalesMessageContent content={m.content} variant={m.role === 'user' ? 'user' : 'assistant'} />
+                  <SalesMessageContent content={m.content} variant={m.role === 'user' ? 'user' : 'assistant'} theme={theme} />
                   {m.sources?.length ? (
-                    <div style={{ marginTop: 8, fontSize: 11, color: '#6b7280' }}>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Sources</div>
+                    <div style={{ marginTop: 8, fontSize: 11, color: theme.textSecondary }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4, color: theme.textPrimary }}>Sources</div>
                       {m.sources.map((s) => (
                         <div key={s.url} style={{ marginBottom: 2 }}>
-                          <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: '#00684A' }}>
+                          <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: theme.link }}>
                             {s.title}
                           </a>
                         </div>
@@ -629,9 +651,9 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                         fontWeight: 600,
                         padding: '6px 12px',
                         borderRadius: 8,
-                        border: '1px solid #d1fae5',
-                        background: '#f0fdf4',
-                        color: '#065f46',
+                        border: `1px solid ${theme.accentBorder}`,
+                        background: theme.accentSoft,
+                        color: theme.accent,
                         cursor: 'pointer',
                       }}
                     >
@@ -639,35 +661,26 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                     </button>
                   ) : null}
                   {m.meta ? (
-                    <div style={{ marginTop: 6, fontSize: 10, opacity: 0.72 }}>{m.meta}</div>
+                    <div style={{ marginTop: 6, fontSize: 10, color: theme.textMuted }}>{m.meta}</div>
                   ) : null}
                 </div>
               </div>
             ))}
             {sending && (
-              <div style={{ fontSize: 12, color: '#6b7280', padding: '4px 2px' }}>
+              <div style={{ fontSize: 12, color: theme.textSecondary, padding: '4px 2px' }}>
                 {loadingSteps[loadingStep]}
               </div>
             )}
           </div>
 
-          <div style={{ padding: '8px 12px 4px', display: 'flex', flexWrap: 'wrap', gap: 6, background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ padding: '8px 12px 4px', display: 'flex', flexWrap: 'wrap', gap: 6, background: theme.footerBg, borderTop: `1px solid ${theme.cardBorder}` }}>
             {quickActions.map((action) => (
               <button
                 key={action.id}
                 type="button"
                 disabled={sending}
                 onClick={() => void sendMessage(action.prompt)}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  border: '1px solid #d1fae5',
-                  background: '#f0fdf4',
-                  color: '#065f46',
-                  cursor: sending ? 'not-allowed' : 'pointer',
-                }}
+                style={chipStyle(theme, { disabled: sending })}
               >
                 {action.label}
               </button>
@@ -675,30 +688,33 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
           </div>
 
           {error && (
-            <div style={{ padding: '0 12px 6px', fontSize: 11, color: '#b45309', background: '#fffbeb' }}>
+            <div style={{ padding: '0 12px 6px', fontSize: 11, color: theme.errorText, background: theme.errorBg }}>
               {error}
             </div>
           )}
 
           <form
-            style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px 8px', background: '#fff', borderTop: '1px solid #f1f5f9' }}
+            style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px 8px', background: theme.footerBg, borderTop: `1px solid ${theme.cardBorder}` }}
             onSubmit={(e) => {
               e.preventDefault()
               void sendMessage(input)
             }}
           >
             <input
+              className={INPUT_CLASS}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about market trends, demand, or your pipeline…"
               disabled={sending}
               style={{
                 flex: 1,
-                border: '1px solid #e5e7eb',
+                border: `1px solid ${theme.inputBorder}`,
                 borderRadius: 999,
                 padding: '10px 14px',
                 fontSize: 13,
                 outline: 'none',
+                background: theme.inputBg,
+                color: theme.inputText,
               }}
             />
             <button
@@ -710,8 +726,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                 height: 40,
                 borderRadius: '50%',
                 border: 'none',
-                background: 'linear-gradient(135deg, #00684A 0%, #13AA52 100%)',
-                color: '#fff',
+                background: theme.headerGradient,
+                color: theme.userText,
                 cursor: sending || !input.trim() ? 'not-allowed' : 'pointer',
                 opacity: sending || !input.trim() ? 0.6 : 1,
                 display: 'flex',
@@ -724,45 +740,12 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
             </button>
           </form>
 
-          <p style={{ margin: 0, padding: '0 12px 10px', fontSize: 10, color: '#9ca3af', textAlign: 'center', background: '#fff' }}>
+          <p style={{ margin: 0, padding: '0 12px 10px', fontSize: 10, color: theme.textMuted, textAlign: 'center', background: theme.footerBg }}>
             External research via Tavily · grounded in LoopC CRM & metal rates
           </p>
+          <style>{`.${INPUT_CLASS}::placeholder { color: ${theme.placeholder}; opacity: 1; }`}</style>
         </>
       )}
     </div>
   )
-}
-
-const iconBtnStyle = {
-  width: 28,
-  height: 28,
-  border: 'none',
-  borderRadius: 8,
-  background: 'rgba(255,255,255,0.18)',
-  color: '#fff',
-  cursor: 'pointer',
-  fontSize: 18,
-  lineHeight: 1,
-}
-
-const pulseCardStyle = {
-  padding: '10px 12px',
-  borderRadius: 10,
-  background: '#fff',
-  border: '1px solid #e5e7eb',
-}
-
-const pulseSectionTitle = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: '#00684A',
-  marginBottom: 4,
-  textTransform: 'uppercase',
-  letterSpacing: '0.03em',
-}
-
-const pulseBody = {
-  fontSize: 12,
-  color: '#4b5563',
-  lineHeight: 1.45,
 }

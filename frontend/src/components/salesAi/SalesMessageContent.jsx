@@ -1,6 +1,7 @@
 import React from 'react'
+import { SALES_AI_THEME } from './salesAiTheme'
 
-function parseInline(text, keyPrefix = 'i') {
+function parseInline(text, keyPrefix = 'i', parseOpts = {}) {
   const parts = []
   const re = /(\*\*[^*]+\*\*|_[^_]+_|`[^`]+`|\[[^\]]+\]\([^)]+\))/g
   let last = 0
@@ -19,13 +20,13 @@ function parseInline(text, keyPrefix = 'i') {
       parts.push(<em key={k} style={{ opacity: 0.88 }}>{token.slice(1, -1)}</em>)
     } else if (token.startsWith('`')) {
       parts.push(
-        <code key={k} style={inlineCodeStyle}>{token.slice(1, -1)}</code>,
+        <code key={k} style={parseOpts.inlineCodeStyle}>{token.slice(1, -1)}</code>,
       )
     } else if (token.startsWith('[')) {
       const m = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
       if (m) {
         parts.push(
-          <a key={k} href={m[2]} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+          <a key={k} href={m[2]} target="_blank" rel="noopener noreferrer" style={parseOpts.linkStyle}>
             {m[1]}
           </a>,
         )
@@ -60,16 +61,16 @@ function parseTableRow(line) {
     .map((c) => c.trim())
 }
 
-function renderTable(rows, key) {
+function renderTable(rows, key, tableStyles) {
   if (!rows.length) return null
   const [header, ...body] = rows
   return (
     <div key={key} style={{ overflowX: 'auto', margin: '8px 0' }}>
-      <table style={tableStyle}>
+      <table style={tableStyles.tableStyle}>
         <thead>
           <tr>
             {header.map((cell, ci) => (
-              <th key={ci} style={thStyle}>{parseInline(cell, `${key}-h-${ci}`)}</th>
+              <th key={ci} style={tableStyles.thStyle}>{parseInline(cell, `${key}-h-${ci}`, tableStyles)}</th>
             ))}
           </tr>
         </thead>
@@ -77,7 +78,7 @@ function renderTable(rows, key) {
           {body.map((row, ri) => (
             <tr key={ri}>
               {row.map((cell, ci) => (
-                <td key={ci} style={tdStyle}>{parseInline(cell, `${key}-${ri}-${ci}`)}</td>
+                <td key={ci} style={tableStyles.tdStyle}>{parseInline(cell, `${key}-${ri}-${ci}`, tableStyles)}</td>
               ))}
             </tr>
           ))}
@@ -87,18 +88,74 @@ function renderTable(rows, key) {
   )
 }
 
-export default function SalesMessageContent({ content, variant = 'assistant' }) {
+function buildVariantStyles(theme, variant) {
+  const isUser = variant === 'user'
+  return {
+    headingColor: isUser ? theme.userText : theme.textPrimary,
+    mutedColor: isUser ? 'rgba(255,255,255,0.82)' : theme.textSecondary,
+    hrColor: isUser ? 'rgba(255,255,255,0.22)' : theme.cardBorder,
+    linkStyle: {
+      color: isUser ? theme.userText : theme.link,
+      textDecoration: 'underline',
+      textUnderlineOffset: 2,
+    },
+    inlineCodeStyle: {
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      fontSize: '0.92em',
+      padding: '1px 5px',
+      borderRadius: 4,
+      background: isUser ? 'rgba(255,255,255,0.16)' : theme.codeBg,
+      color: isUser ? theme.userText : theme.codeText,
+    },
+    tableStyle: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: 11,
+      color: isUser ? theme.userText : theme.textPrimary,
+    },
+    thStyle: {
+      textAlign: 'left',
+      padding: '5px 6px',
+      borderBottom: `1px solid ${isUser ? 'rgba(255,255,255,0.22)' : theme.cardBorder}`,
+      fontWeight: 700,
+      whiteSpace: 'nowrap',
+      color: isUser ? theme.userText : theme.textPrimary,
+    },
+    tdStyle: {
+      padding: '5px 6px',
+      borderBottom: `1px solid ${isUser ? 'rgba(255,255,255,0.12)' : theme.cardBorder}`,
+      verticalAlign: 'top',
+      color: isUser ? theme.userText : theme.textSecondary,
+    },
+    listStyle: {
+      margin: '4px 0 8px',
+      paddingLeft: 18,
+      color: isUser ? theme.userText : theme.textPrimary,
+    },
+    codeBlockStyle: {
+      margin: '8px 0',
+      padding: '8px 10px',
+      borderRadius: 8,
+      fontSize: 11,
+      lineHeight: 1.4,
+      overflowX: 'auto',
+      whiteSpace: 'pre-wrap',
+      background: isUser ? 'rgba(255,255,255,0.16)' : theme.codeBg,
+      color: isUser ? theme.userText : theme.codeText,
+    },
+  }
+}
+
+export default function SalesMessageContent({ content, variant = 'assistant', theme = SALES_AI_THEME }) {
   const text = String(content || '')
   const lines = text.split('\n')
   const blocks = []
   let i = 0
   let blockKey = 0
 
-  const isUser = variant === 'user'
-  const headingColor = isUser ? '#fff' : '#111827'
-  const mutedColor = isUser ? 'rgba(255,255,255,0.82)' : '#6b7280'
-  const codeBg = isUser ? 'rgba(255,255,255,0.16)' : '#f3f4f6'
-  const codeColor = isUser ? '#fff' : '#374151'
+  const v = buildVariantStyles(theme, variant)
+  const { headingColor, mutedColor, hrColor, listStyle, codeBlockStyle } = v
+  const parseOpts = { linkStyle: v.linkStyle, inlineCodeStyle: v.inlineCodeStyle }
 
   while (i < lines.length) {
     const line = lines[i]
@@ -118,7 +175,7 @@ export default function SalesMessageContent({ content, variant = 'assistant' }) 
       }
       i += 1
       blocks.push(
-        <pre key={`b-${blockKey++}`} style={{ ...codeBlockStyle, background: codeBg, color: codeColor }}>
+        <pre key={`b-${blockKey++}`} style={codeBlockStyle}>
           <code>{codeLines.join('\n')}</code>
         </pre>,
       )
@@ -132,7 +189,7 @@ export default function SalesMessageContent({ content, variant = 'assistant' }) 
         tableRows.push(parseTableRow(lines[i]))
         i += 1
       }
-      blocks.push(renderTable(tableRows, `b-${blockKey++}`))
+      blocks.push(renderTable(tableRows, `b-${blockKey++}`, v))
       continue
     }
 
@@ -151,7 +208,7 @@ export default function SalesMessageContent({ content, variant = 'assistant' }) 
             lineHeight: 1.3,
           }}
         >
-          {parseInline(title, `h-${blockKey}`)}
+          {parseInline(title, `h-${blockKey}`, parseOpts)}
         </div>,
       )
       i += 1
@@ -159,7 +216,7 @@ export default function SalesMessageContent({ content, variant = 'assistant' }) 
     }
 
     if (/^---+$/.test(trimmed)) {
-      blocks.push(<hr key={`b-${blockKey++}`} style={{ border: 'none', borderTop: `1px solid ${isUser ? 'rgba(255,255,255,0.22)' : '#e5e7eb'}`, margin: '10px 0' }} />)
+      blocks.push(<hr key={`b-${blockKey++}`} style={{ border: 'none', borderTop: `1px solid ${hrColor}`, margin: '10px 0' }} />)
       i += 1
       continue
     }
@@ -173,7 +230,7 @@ export default function SalesMessageContent({ content, variant = 'assistant' }) 
       blocks.push(
         <ul key={`b-${blockKey++}`} style={listStyle}>
           {items.map((item, li) => (
-            <li key={li} style={{ marginBottom: 4 }}>{parseInline(item, `ul-${blockKey}-${li}`)}</li>
+            <li key={li} style={{ marginBottom: 4 }}>{parseInline(item, `ul-${blockKey}-${li}`, parseOpts)}</li>
           ))}
         </ul>,
       )
@@ -189,7 +246,7 @@ export default function SalesMessageContent({ content, variant = 'assistant' }) 
       blocks.push(
         <ol key={`b-${blockKey++}`} style={listStyle}>
           {items.map((item, li) => (
-            <li key={li} style={{ marginBottom: 4 }}>{parseInline(item, `ol-${blockKey}-${li}`)}</li>
+            <li key={li} style={{ marginBottom: 4 }}>{parseInline(item, `ol-${blockKey}-${li}`, parseOpts)}</li>
           ))}
         </ol>,
       )
@@ -216,59 +273,14 @@ export default function SalesMessageContent({ content, variant = 'assistant' }) 
           fontSize: isMuted ? 11 : 'inherit',
         }}
       >
-        {isMuted ? parseInline(para.slice(1, -1), `p-${blockKey}`) : parseInline(para, `p-${blockKey}`)}
+        {isMuted ? parseInline(para.slice(1, -1), `p-${blockKey}`, parseOpts) : parseInline(para, `p-${blockKey}`, parseOpts)}
       </p>,
     )
   }
 
-  return <div style={{ wordBreak: 'break-word' }}>{blocks}</div>
-}
-
-const inlineCodeStyle = {
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-  fontSize: '0.92em',
-  padding: '1px 5px',
-  borderRadius: 4,
-  background: 'rgba(127,127,127,0.12)',
-}
-
-const linkStyle = {
-  color: 'inherit',
-  textDecoration: 'underline',
-  textUnderlineOffset: 2,
-}
-
-const listStyle = {
-  margin: '4px 0 8px',
-  paddingLeft: 18,
-}
-
-const codeBlockStyle = {
-  margin: '8px 0',
-  padding: '8px 10px',
-  borderRadius: 8,
-  fontSize: 11,
-  lineHeight: 1.4,
-  overflowX: 'auto',
-  whiteSpace: 'pre-wrap',
-}
-
-const tableStyle = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  fontSize: 11,
-}
-
-const thStyle = {
-  textAlign: 'left',
-  padding: '5px 6px',
-  borderBottom: '1px solid #e5e7eb',
-  fontWeight: 700,
-  whiteSpace: 'nowrap',
-}
-
-const tdStyle = {
-  padding: '5px 6px',
-  borderBottom: '1px solid #f3f4f6',
-  verticalAlign: 'top',
+  return (
+    <div style={{ wordBreak: 'break-word', color: variant === 'user' ? theme.userText : theme.textPrimary }}>
+      {blocks}
+    </div>
+  )
 }

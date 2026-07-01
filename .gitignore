@@ -12,6 +12,7 @@ frontend/.env.development
 .env*.local
 backend/.env.staging.local
 backend/.env.staging.generated.local
+backend/.google-oauth-client.json
 .web-push-vapid.json
 
 # Deployment tool state

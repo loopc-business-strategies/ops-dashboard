@@ -1,4 +1,4 @@
-const { buildSearchQueries, classifyEmailIntent } = require('./salesAiPrompts')
+const { buildSearchQueries, classifyEmailIntent, isEmailOnlyQuestion } = require('./salesAiPrompts')
 const { runTavilySearches, shouldUseAdvancedSearchDepth } = require('./tavilySearch')
 const { buildCrmSnapshot } = require('./crmSnapshot')
 const { buildMetalRatesSnapshot } = require('./metalRatesSnapshot')
@@ -110,6 +110,7 @@ async function runSalesAiChat({
   }
 
   const wantsEmail = classifyEmailIntent(userMessage)
+  const emailOnly = isEmailOnlyQuestion(userMessage)
   const skipTavily = shouldSkipTavilyForMessage(userMessage)
   const queries = skipTavily ? [] : buildSearchQueries(userMessage, normalizedInputs)
   const searchDepth = shouldUseAdvancedSearchDepth(userMessage, normalizedInputs) ? 'advanced' : 'basic'
@@ -117,11 +118,12 @@ async function runSalesAiChat({
 
   const emailPromise = wantsEmail ? runEmailInboxAgent(user, userMessage, tenantKey) : Promise.resolve(null)
   const searchPromise = skipTavily ? Promise.resolve([]) : runTavilySearches(queries, { searchDepth })
+  const metalsPromise = emailOnly ? Promise.resolve(null) : buildMetalRatesSnapshot()
 
   const [searchBatches, crmSnapshot, metalRates, emailSection] = await Promise.all([
     searchPromise,
-    buildCrmSnapshot(user),
-    buildMetalRatesSnapshot(),
+    emailOnly ? Promise.resolve(null) : buildCrmSnapshot(user),
+    metalsPromise,
     emailPromise,
   ])
 
@@ -157,13 +159,13 @@ async function runSalesAiChat({
   }
 
   const marketSection = runMarketResearchAgent(searchBatches)
-  const crmSection = runCrmInsightAgent(crmSnapshot)
+  const crmSection = crmSnapshot ? runCrmInsightAgent(crmSnapshot) : null
 
   const strategy = await runSynthesis({
     userMessage,
     marketSection,
     crmSection,
-    crmSnapshot,
+    crmSnapshot: crmSnapshot || { accessLevel: 'none', summary: {} },
     metalRates,
     emailSection,
     pageContext,
@@ -173,15 +175,15 @@ async function runSalesAiChat({
 
   const sections = [
     ...(emailSection ? [{ title: emailSection.title, agent: emailSection.agent }] : []),
-    {
+    ...(!emailOnly ? [{
       title: marketSection.title,
       agent: marketSection.agent,
       sources: marketSection.sources,
-    },
-    {
+    }] : []),
+    ...(crmSection ? [{
       title: crmSection.title,
       agent: crmSection.agent,
-    },
+    }] : []),
     {
       title: strategy.title,
       agent: strategy.agent,
@@ -233,6 +235,7 @@ function getSalesAiConfig() {
       { id: 'sales-strategy', label: 'Sales strategy', prompt: 'Suggest a sales strategy for the next quarter based on market conditions and our pipeline.' },
       { id: 'pipeline', label: 'Analyze our pipeline', prompt: 'Analyze our CRM pipeline and recommend priorities for closing deals.' },
       { id: 'check-email', label: 'Check email', prompt: 'Check my email for important sales-related messages from the last 24 hours.' },
+      { id: 'analyze-all-emails', label: 'Analyze all emails', prompt: 'Analyze all emails in the company inbox — summarize senders, sales-related messages, and anything needing follow-up.' },
     ],
   }
 }

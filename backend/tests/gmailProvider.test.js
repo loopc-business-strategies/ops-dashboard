@@ -1,6 +1,7 @@
 const {
   buildGmailQueryFromMessage,
   isGmailConfigured,
+  resolveEmailFetchMaxResults,
 } = require('../services/email/gmailProvider')
 
 describe('gmailProvider', () => {
@@ -8,6 +9,17 @@ describe('gmailProvider', () => {
     const q = buildGmailQueryFromMessage('Check my unread email from last 24 hours')
     expect(q).toMatch(/is:unread/)
     expect(q).toMatch(/newer_than:1d/)
+  })
+
+  test('buildGmailQueryFromMessage uses 30d window for analyze all emails', () => {
+    const q = buildGmailQueryFromMessage('analyze my all emails')
+    expect(q).toMatch(/newer_than:30d/)
+    expect(q).not.toMatch(/newer_than:7d/)
+  })
+
+  test('resolveEmailFetchMaxResults returns 50 for broad inbox requests', () => {
+    expect(resolveEmailFetchMaxResults('analyze my all emails')).toBe(50)
+    expect(resolveEmailFetchMaxResults('check my email')).toBe(15)
   })
 
   test('buildGmailQueryFromMessage extracts from filter', () => {

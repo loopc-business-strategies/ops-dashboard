@@ -9,7 +9,7 @@ function shouldUseAdvancedSearchDepth(userMessage, chatInputs = {}) {
 async function tavilySearch(query, options = {}) {
   const apiKey = String(process.env.TAVILY_API_KEY || '').trim()
   if (!apiKey) {
-    return { query, results: [], error: 'TAVILY_API_KEY is not configured on the server.' }
+    return { query, results: [], error: '`TAVILY_API_KEY` is not configured on the server.' }
   }
 
   const maxResults = Math.min(Number(options.maxResults) || MAX_RESULTS, 10)
