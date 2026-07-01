@@ -93,6 +93,7 @@
     "setup:mobile-github-secrets": "node scripts/setup-mobile-github-secrets.mjs",
     "smoke:prod": "node scripts/production-smoke.js",
     "smoke:sales-ai": "node scripts/smoke-sales-ai.js",
+    "setup:openai-railway": "node scripts/set-openai-railway.mjs",
     "smoke:staging": "node scripts/staging-smoke.js",
     "smoke:erp-fix:prod": "node scripts/verify-erp-fix-production.mjs",
     "smoke:setup-secrets": "node scripts/setup-smoke-github-secrets.js",
