@@ -1,28 +1,16 @@
-const { formatMetalsForPrompt, formatErpCustomersForPrompt } = require('../salesAiPrompts')
+const { formatMetalsForPrompt } = require('../salesAiPrompts')
 
-function buildRecommendations(crmSnapshot, erpSnapshot, marketSection) {
+function buildRecommendations(crmSnapshot, marketSection) {
   const s = crmSnapshot?.summary || {}
   const bullets = []
   const hot = Number(s.hotLeads) || 0
   const overdue = Number(s.overdueFollowups) || 0
-  const dueWeek = Number(s.followupsDueThisWeek) || 0
-  const stalled = Number(s.stalledDeals) || 0
   const pipeline = Number(s.pipelineValueUSD) || 0
   const winRate = Number(s.winRate) || 0
   const activeLeads = Number(s.activeLeads) || 0
-  const atRisk = Number(erpSnapshot?.summary?.atRiskCount) || 0
 
   if (overdue > 0) {
     bullets.push(`Clear **${overdue} overdue follow-up(s)** before chasing new opportunities.`)
-  }
-  if (dueWeek > 0) {
-    bullets.push(`**${dueWeek} follow-up(s) due this week** — block calendar time to complete them.`)
-  }
-  if (stalled > 0) {
-    bullets.push(`**${stalled} deal(s) stalled 30+ days** — review stage blockers and next actions.`)
-  }
-  if (atRisk > 0 && erpSnapshot?.accessLevel === 'full') {
-    bullets.push(`**${atRisk} ERP customer(s) at margin risk** — prioritize relationship and exposure review.`)
   }
   if (hot > 0) {
     bullets.push(`Prioritize **${hot} hot lead(s)** — schedule calls or demos this week.`)
@@ -48,17 +36,11 @@ function buildRecommendations(crmSnapshot, erpSnapshot, marketSection) {
   return bullets.slice(0, 5)
 }
 
-function buildRisks(crmSnapshot, erpSnapshot, marketSection) {
+function buildRisks(crmSnapshot, marketSection) {
   const s = crmSnapshot?.summary || {}
   const risks = []
   if ((Number(s.overdueFollowups) || 0) > 0) {
     risks.push('Overdue CRM follow-ups may stall pipeline momentum.')
-  }
-  if ((Number(s.stalledDeals) || 0) > 0) {
-    risks.push('Stalled deals may indicate pricing, qualification, or delivery blockers.')
-  }
-  if ((erpSnapshot?.summary?.atRiskCount || 0) > 0) {
-    risks.push('Customer margin exposure may limit new order capacity.')
   }
   if (!(marketSection?.sources || []).length) {
     risks.push('No external web sources were retrieved — market section may be incomplete.')
@@ -86,51 +68,32 @@ function formatCrmForReply(crmSnapshot) {
     `- Pipeline value: **$${(s.pipelineValueUSD ?? 0).toLocaleString()}**`,
     `- Active leads: **${s.activeLeads ?? 0}** | Hot leads: **${s.hotLeads ?? 0}**`,
     `- Win rate: **${s.winRate ?? 0}%** | Revenue this month: **$${(s.revenueThisMonthUSD ?? 0).toLocaleString()}**`,
-    `- Overdue follow-ups: **${s.overdueFollowups ?? 0}** | Due this week: **${s.followupsDueThisWeek ?? 0}**`,
-    `- Stalled deals (30+ days): **${s.stalledDeals ?? 0}** | Contacts: **${s.totalContacts ?? 0}**`,
+    `- Overdue follow-ups: **${s.overdueFollowups ?? 0}** | Contacts: **${s.totalContacts ?? 0}**`,
   ]
-  if (crmSnapshot?.funnel?.length) {
-    lines.push('', '**Lead funnel:**')
-    crmSnapshot.funnel.slice(0, 6).forEach((f) => lines.push(`- ${f.stage}: ${f.count}`))
-  }
   if (crmSnapshot?.accessLevel === 'full' && crmSnapshot?.detail) {
     const deals = crmSnapshot.detail.topOpenDeals || []
     const leads = crmSnapshot.detail.recentLeads || []
-    const followups = crmSnapshot.detail.upcomingFollowups || []
     if (deals.length) {
       lines.push('', '**Top open deals:**')
-      deals.forEach((d) => lines.push(`- ${d.title} — ${d.stage}, $${d.valueUSD || 0}${d.daysInStage != null ? ` (${d.daysInStage}d)` : ''}`))
+      deals.forEach((d) => lines.push(`- ${d.title} — ${d.stage}, $${d.valueUSD || 0}`))
     }
     if (leads.length) {
       lines.push('', '**Recent leads:**')
       leads.forEach((l) => lines.push(`- ${l.title} — ${l.temperature || 'n/a'}, ${l.companyName || ''}`))
     }
-    if (followups.length) {
-      lines.push('', '**Upcoming follow-ups:**')
-      followups.forEach((f) => lines.push(`- ${f.subject} — due ${f.dueDate || 'n/a'}`))
-    }
   }
   return lines.join('\n')
-}
-
-function formatErpForReply(erpSnapshot) {
-  if (!erpSnapshot || erpSnapshot.accessLevel === 'none') {
-    return '_ERP customer exposure not available for your role._'
-  }
-  return formatErpCustomersForPrompt(erpSnapshot)
 }
 
 function runTemplateStrategyAgent({
   userMessage,
   marketSection,
   crmSnapshot,
-  erpSnapshot,
-  businessProfileText,
   metalRates,
   fallbackReason = 'unavailable',
 }) {
-  const recommendations = buildRecommendations(crmSnapshot, erpSnapshot, marketSection)
-  const risks = buildRisks(crmSnapshot, erpSnapshot, marketSection)
+  const recommendations = buildRecommendations(crmSnapshot, marketSection)
+  const risks = buildRisks(crmSnapshot, marketSection)
   const metalsText = formatMetalsForPrompt(metalRates)
   const s = crmSnapshot?.summary || {}
   const sourceCount = (marketSection?.sources || []).length
@@ -139,7 +102,6 @@ function runTemplateStrategyAgent({
   if (sourceCount) summaryParts.push(`${sourceCount} external source(s) found`)
   if (s.pipelineValueUSD) summaryParts.push(`pipeline at $${Number(s.pipelineValueUSD).toLocaleString()}`)
   if (s.hotLeads) summaryParts.push(`${s.hotLeads} hot lead(s)`)
-  if (erpSnapshot?.summary?.atRiskCount) summaryParts.push(`${erpSnapshot.summary.atRiskCount} customer(s) at risk`)
   const execSummary = summaryParts.length
     ? `Briefing for: "${String(userMessage || '').slice(0, 120)}". ${summaryParts.join('; ')}.`
     : `Briefing for: "${String(userMessage || '').slice(0, 120)}".`
@@ -147,10 +109,6 @@ function runTemplateStrategyAgent({
   const modeNote = fallbackReason === 'disabled'
     ? '_Template mode — OpenAI synthesis is off._'
     : '_Template mode — full AI synthesis unavailable (add OpenAI credits for richer briefings)._'
-
-  const profileBlock = businessProfileText
-    ? ['## Business profile', businessProfileText, '']
-    : []
 
   const reply = [
     modeNote,
@@ -161,12 +119,8 @@ function runTemplateStrategyAgent({
     '## Market & industry',
     formatMarketForReply(marketSection),
     '',
-    ...profileBlock,
-    '## LoopC CRM',
+    '## LoopC context',
     formatCrmForReply(crmSnapshot),
-    '',
-    '## Customer exposure (ERP)',
-    formatErpForReply(erpSnapshot),
     '',
     '## Live metal rates',
     metalsText,

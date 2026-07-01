@@ -250,7 +250,7 @@ METALS_SPOT_SSE_POLL_MS=500
 
 ### Optional: Sales Manager AI (LoopC only)
 
-Floating **Sales Manager AI** combines **Tavily** web research with CRM, ERP customer exposure, and live metal rates. LoopC is enabled by default; MG/CG can be enabled via `SALES_AI_ALLOWED_TENANTS=loopc,mg,cg` and `featureFlags.salesManagerAi: true` in tenant branding.
+Floating **Sales Manager AI** on the LoopC dashboard combines **Tavily** web research with LoopC CRM + live metal rates via **OpenAI**. MG/CG are blocked by `SALES_AI_ALLOWED_TENANTS` even if the UI flag were toggled.
 
 ```
 SALES_AI_ALLOWED_TENANTS=loopc
@@ -260,16 +260,11 @@ TAVILY_API_KEY=<tavily-api-key>
 # SALES_AI_CHAT_RATE_LIMIT_MAX=20
 # SALES_AI_MAX_TAVILY_SEARCHES=3
 # SALES_AI_SYNTHESIS_MODE=auto
-# SALES_AI_TAVILY_INCLUDE_ANSWER=true
-# SALES_AI_DIGEST_ENABLED=false
-# SALES_AI_DIGEST_INTERVAL_MS=86400000
 ```
 
 `SALES_AI_SYNTHESIS_MODE`: `auto` (default) tries OpenAI and falls back to a free template report on quota errors; `template` skips OpenAI entirely; `openai` requires OpenAI.
 
-Features: business profile (admin API), ERP margin snapshot, deeper CRM (follow-ups, stalled deals), regional research packs, widget inputs, saved sessions + markdown export, playbooks, draft emails, assignable agent tasks, optional scheduled digest (`SALES_AI_DIGEST_ENABLED=true`).
-
-Frontend: `featureFlags.salesManagerAi` in `frontend/src/config/tenantBranding.js` (enabled for `loopc`).
+Frontend: enable only on LoopC via `featureFlags.salesManagerAi: true` in `frontend/src/config/tenantBranding.js` (already set for `loopc`).
 
 ### Maintenance: repair misposted purchase (AP + inventory)
 

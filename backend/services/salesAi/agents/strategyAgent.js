@@ -1,48 +1,38 @@
-const {
-  LOOPC_CONTEXT,
-  formatMetalsForPrompt,
-  formatChatInputsForPrompt,
-} = require('../salesAiPrompts')
+const { LOOPC_CONTEXT, formatMetalsForPrompt } = require('../salesAiPrompts')
 const { chatCompletion, getModel } = require('../openAiClient')
 
 async function runStrategyAgent({
   userMessage,
   marketSection,
   crmSection,
-  erpSection,
-  businessProfileText,
   metalRates,
   pageContext,
   history,
 }) {
   const metalsText = formatMetalsForPrompt(metalRates)
   const tab = pageContext?.tab ? `Current dashboard tab: ${pageContext.tab}` : ''
-  const inputsText = formatChatInputsForPrompt(pageContext?.chatInputs || {})
 
   const system = `${LOOPC_CONTEXT}
-
-${businessProfileText ? `Business profile:\n${businessProfileText}\n` : ''}
 
 Respond in JSON only with this shape:
 {
   "reply": "markdown string — full answer for the user with headings",
   "sections": [
-    { "title": "string", "agent": "marketResearch|crmInsight|customerRisk|strategy", "body": "markdown snippet" }
+    { "title": "string", "agent": "marketResearch|crmInsight|strategy", "body": "markdown snippet" }
   ]
 }
 
 Structure the reply with:
 1. **Executive summary** (2-3 sentences)
 2. **Market & industry** (from web research — cite sources inline as [title](url) when available)
-3. **LoopC context** (pipeline, ERP exposure, metals, CRM stats)
+3. **LoopC context** (pipeline, metals, CRM stats)
 4. **Recommendations** (3-5 bullet actions)
 5. **Risks / watchouts** (if any)
 
-Do not invent CRM or ERP numbers. Do not invent web facts not present in the research section.`
+Do not invent CRM numbers. Do not invent web facts not present in the research section.`
 
   const researchBlock = marketSection?.content || 'No web research.'
   const crmBlock = crmSection?.content || 'No CRM data.'
-  const erpBlock = erpSection?.content || 'No ERP customer data.'
   const sourceLines = (marketSection?.sources || [])
     .map((s) => `- ${s.title}: ${s.url}`)
     .join('\n')
@@ -50,7 +40,6 @@ Do not invent CRM or ERP numbers. Do not invent web facts not present in the res
   const userContent = [
     `User question: ${userMessage}`,
     tab,
-    inputsText,
     '',
     '--- External research (Tavily) ---',
     researchBlock,
@@ -59,12 +48,9 @@ Do not invent CRM or ERP numbers. Do not invent web facts not present in the res
     '--- LoopC CRM snapshot ---',
     crmBlock,
     '',
-    '--- ERP customer exposure ---',
-    erpBlock,
-    '',
     '--- Live metal rates ---',
     metalsText,
-  ].filter(Boolean).join('\n')
+  ].join('\n')
 
   const messages = [
     { role: 'system', content: system },
