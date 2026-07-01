@@ -13,9 +13,9 @@ describe('Sales Manager AI tenant gate (legacy widget)', () => {
     expect(shouldShowSalesManagerAi({ token: '', branding: loopc })).toBe(false)
   })
 
-  test('does not show in-dashboard widget after split (external app only)', () => {
+  test('does not show in-dashboard widget after split (standalone app only)', () => {
     const loopc = getTenantBranding('loopc')
     expect(shouldShowSalesManagerAi({ token: 'session-token', branding: loopc })).toBe(false)
-    expect(loopc.externalNavItems?.some((i) => i.id === 'sales-manager-ai')).toBe(true)
+    expect(loopc.externalNavItems).toBeUndefined()
   })
 })

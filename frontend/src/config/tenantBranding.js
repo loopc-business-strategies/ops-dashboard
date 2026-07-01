@@ -96,22 +96,7 @@ const tenantBranding = {
     featureFlags: {
       procurementPlus: true,
     },
-    externalNavItems: [
-      {
-        id: 'sales-manager-ai',
-        label: 'Sales Manager AI',
-        href: import.meta.env.VITE_SALES_MANAGER_AI_URL || 'https://sales.loopcstrategies.com',
-        embedHref: import.meta.env.VITE_SALES_MANAGER_AI_EMBED_URL || 'https://sales.loopcstrategies.com/embed',
-        group: 'main',
-        show: true,
-      },
-    ],
   },
-}
-
-export function getExternalNavItems(branding) {
-  const items = Array.isArray(branding?.externalNavItems) ? branding.externalNavItems : []
-  return items.filter((item) => item?.show !== false && String(item?.href || '').trim())
 }
 
 export function getTenantBranding(tenant) {

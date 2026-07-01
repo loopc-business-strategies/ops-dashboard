@@ -179,21 +179,6 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByText('hr-tab')).toBeTruthy()
   })
 
-  it('shows Sales Manager AI as external sidebar link for LoopC', async () => {
-    useAuthMock.mockReturnValue({
-      user: { name: 'Loop User', role: 'super_admin', company: 'loopc', _id: '507f1f77bcf86cd799439011' },
-      company: 'loopc',
-      token: 'test-token',
-      logout: vi.fn(),
-    })
-
-    renderDashboard()
-    const link = await screen.findByRole('link', { name: 'Sales Manager AI' })
-    expect(link.getAttribute('href')).toBe('https://sales.loopcstrategies.com')
-    expect(link.getAttribute('target')).toBe('_blank')
-    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
-  })
-
   it('loads Account Summary from URL deep link with account param', async () => {
     renderDashboard('/dashboard?tab=erp-enquiry&account=1000&view=statement')
     expect(await screen.findByText('erp-tab-focus:enquiry')).toBeTruthy()

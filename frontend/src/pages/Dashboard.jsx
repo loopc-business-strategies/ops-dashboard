@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
-import { getTenantBranding, getExternalNavItems, isLocalTenantHost } from '../config/tenantBranding'
+import { getTenantBranding, isLocalTenantHost } from '../config/tenantBranding'
 import {
   buildDashboardHref,
   buildDashboardTabParam,
@@ -804,10 +804,7 @@ function Dashboard() {
   }
 
   // Group nav items
-  const mainItems  = [
-    ...navItems.filter(n => n.group === 'main'),
-    ...getExternalNavItems(branding).map((item) => ({ ...item, external: true })),
-  ]
+  const mainItems  = navItems.filter(n => n.group === 'main')
   const adminItems = navItems.filter(n => n.group === 'admin')
   const deptItems  = navItems.filter(n => n.group === 'departments')
   const erpItems   = navItems.filter(n => n.group === 'erp')
