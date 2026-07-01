@@ -50,8 +50,6 @@ Verify on deploy: `GET /api/ready` → `integrations.expoPushAccessTokenSet` and
 
 See [docs/RAILWAY_EXPO_PUSH.md](docs/RAILWAY_EXPO_PUSH.md) and [docs/PUSH-NOTIFICATIONS.md](docs/PUSH-NOTIFICATIONS.md).
 
-**OpenAI:** paste `OPENAI_API_KEY` without trailing newlines (or run `node scripts/trim-railway-openai-key.mjs`).
-
 ### Persistent uploads (Railway volume)
 
 Attach a **persistent volume** to the backend service (for example mount path `/app/uploads`), then set:

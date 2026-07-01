@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { installCsrfInterceptor } from '../utils/csrfInterceptor'
-import { setLastApiError } from '../utils/lastApiError'
 
 const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 20000)
@@ -59,9 +58,6 @@ axios.interceptors.response.use(
       && (RETRYABLE_STATUS.has(status) || !error.response)
 
     if (!shouldRetry) {
-      if (error?.response && Number(error.response.status) >= 400) {
-        setLastApiError(error)
-      }
       return Promise.reject(error)
     }
 

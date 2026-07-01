@@ -17,7 +17,6 @@ import {
 } from '../utils/dashboardNavigation'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
-import AIAgentWidget from '../components/AIAgentWidget'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
 import { resolveChatTargetIdFromSocketPayload } from '../utils/notificationChatTarget'
@@ -1281,12 +1280,6 @@ function Dashboard() {
             </div>
           )}
         </main>
-
-        <AIAgentWidget
-          user={user}
-          activeTab={activeTab}
-          tenantLabel={branding.displayName || company}
-        />
 
       </div>
     </div>

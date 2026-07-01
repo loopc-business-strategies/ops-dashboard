@@ -28,10 +28,6 @@ vi.mock('../components/TopbarMetalTickers', () => ({
   default: () => null,
 }))
 
-vi.mock('../components/AIAgentWidget', () => ({
-  default: () => null,
-}))
-
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => useAuthMock(),
 }))
