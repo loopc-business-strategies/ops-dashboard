@@ -2,6 +2,7 @@ const {
   LOOPC_CONTEXT,
   formatMetalsForPrompt,
   formatChatInputsForPrompt,
+  formatEmailForPrompt,
 } = require('../salesAiPrompts')
 const { chatCompletion, getModel } = require('../openAiClient')
 
@@ -10,10 +11,12 @@ async function runStrategyAgent({
   marketSection,
   crmSection,
   metalRates,
+  emailSection,
   pageContext,
   history,
 }) {
   const metalsText = formatMetalsForPrompt(metalRates)
+  const emailText = formatEmailForPrompt(emailSection)
   const tab = pageContext?.tab ? `Current dashboard tab: ${pageContext.tab}` : ''
   const inputsText = formatChatInputsForPrompt(pageContext?.chatInputs || {})
 
@@ -29,9 +32,10 @@ Respond in JSON only with this shape:
 
 Structure the reply with:
 1. **Answer** — directly address the user's question first (2-4 paragraphs)
-2. **Market research** (from web research — cite sources inline as [title](url) when available)
-3. **Your LoopC data** (pipeline, metals, CRM stats — when relevant)
-4. **Suggested next steps** (3-5 bullet actions)
+2. **Inbox** (when email data is provided — summarize important messages)
+3. **Market research** (from web research — cite sources inline as [title](url) when available)
+4. **Your LoopC data** (pipeline, metals, CRM stats — when relevant)
+5. **Suggested next steps** (3-5 bullet actions)
 
 Do not invent CRM numbers. Do not invent web facts not present in the research section.`
 
@@ -52,6 +56,9 @@ Do not invent CRM numbers. Do not invent web facts not present in the research s
     '',
     '--- LoopC CRM snapshot ---',
     crmBlock,
+    '',
+    '--- Email inbox ---',
+    emailText,
     '',
     '--- Live metal rates ---',
     metalsText,

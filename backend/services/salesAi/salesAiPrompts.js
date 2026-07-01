@@ -122,8 +122,19 @@ function formatChatInputsForPrompt(inputs = {}) {
   return lines.join('\n')
 }
 
+function classifyEmailIntent(userMessage) {
+  const msg = String(userMessage || '').toLowerCase()
+  return /\b(email|inbox|gmail|outlook|unread|mailbox)\b/.test(msg)
+    || /check\s+(my\s+)?email/.test(msg)
+    || /any\s+(new\s+)?messages?/.test(msg)
+    || /customer\s+repl/.test(msg)
+}
+
 function classifyQuestion(userMessage) {
   const msg = String(userMessage || '').toLowerCase()
+  if (classifyEmailIntent(userMessage) && !/(market|trend|pipeline|crm|deal|lead|gold price|silver price|opportunit)/i.test(msg)) {
+    return 'email'
+  }
   const pipeline = /pipeline|crm|deal|lead|follow.?up|win rate|customer/i.test(msg)
   const market = /market|trend|demand|uzbekistan|uae|gcc|turkey|india|china|competitor|regulat|opportunit|growth|wholesale|bullion|jewelry|gold|silver/i.test(msg)
   const metals = /gold price|silver price|metal rate|spot|fixing/i.test(msg)
@@ -131,6 +142,14 @@ function classifyQuestion(userMessage) {
   if (market && !pipeline) return 'market'
   if (metals && !pipeline && !market) return 'metals'
   return 'mixed'
+}
+
+function formatEmailForPrompt(emailSection) {
+  if (!emailSection) return 'Email inbox data unavailable.'
+  if (emailSection.connectRequired) {
+    return 'Gmail is not connected for this user.'
+  }
+  return String(emailSection.content || 'No inbox messages.')
 }
 
 module.exports = {
@@ -142,4 +161,6 @@ module.exports = {
   formatMetalsForPrompt,
   formatChatInputsForPrompt,
   classifyQuestion,
+  classifyEmailIntent,
+  formatEmailForPrompt,
 }

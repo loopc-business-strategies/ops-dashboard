@@ -1,6 +1,7 @@
 const {
   formatMetalsForPrompt,
   classifyQuestion,
+  classifyEmailIntent,
   REGION_KEYWORDS,
 } = require('../salesAiPrompts')
 
@@ -22,7 +23,7 @@ function extractResearchSnippets(marketSection) {
   return snippets.slice(0, 4)
 }
 
-function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs = {}) {
+function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs = {}, emailSection = null) {
   const question = String(userMessage || '').trim()
   const kind = classifyQuestion(question)
   const s = crmSnapshot?.summary || {}
@@ -38,6 +39,19 @@ function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, 
   }
   if (chatInputs.constraints) {
     paragraphs.push(`Constraints noted: ${chatInputs.constraints}`)
+  }
+
+  if (kind === 'email' || (classifyEmailIntent(question) && emailSection)) {
+    if (emailSection?.connectRequired) {
+      paragraphs.push('Connect Gmail to check your inbox from Sales Manager AI.')
+    } else if (emailSection?.messages?.length) {
+      paragraphs.push(`Found **${emailSection.messages.length}** recent message(s) in your inbox.`)
+      emailSection.messages.slice(0, 3).forEach((m) => {
+        paragraphs.push(`- **${m.subject}** — ${m.from}`)
+      })
+    } else if (emailSection?.content) {
+      paragraphs.push('No matching messages found in your inbox for this query.')
+    }
   }
 
   if (kind === 'pipeline' || kind === 'mixed') {
@@ -160,9 +174,20 @@ function formatCrmForReply(crmSnapshot) {
   return lines.join('\n')
 }
 
+function formatEmailForReply(emailSection) {
+  if (!emailSection || emailSection.connectRequired) {
+    return 'Gmail is not connected. Use **Connect Gmail** in the widget to enable inbox checks.'
+  }
+  return String(emailSection.content || 'No inbox messages.')
+}
+
 function shouldShowCrmSection(userMessage) {
   const kind = classifyQuestion(userMessage)
   return kind === 'pipeline' || kind === 'mixed' || kind === 'metals'
+}
+
+function shouldShowEmailSection(userMessage, emailSection) {
+  return Boolean(emailSection && (classifyEmailIntent(userMessage) || classifyQuestion(userMessage) === 'email'))
 }
 
 function runTemplateStrategyAgent({
@@ -170,13 +195,15 @@ function runTemplateStrategyAgent({
   marketSection,
   crmSnapshot,
   metalRates,
+  emailSection = null,
   chatInputs = {},
   fallbackReason = 'unavailable',
 }) {
-  const directAnswer = buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs)
+  const directAnswer = buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs, emailSection)
   const recommendations = buildRecommendations(crmSnapshot, marketSection)
   const metalsText = formatMetalsForPrompt(metalRates)
   const showCrm = shouldShowCrmSection(userMessage)
+  const showEmail = shouldShowEmailSection(userMessage, emailSection)
 
   const modeNote = fallbackReason === 'disabled'
     ? '_Template mode — OpenAI synthesis is off._'
@@ -188,6 +215,9 @@ function runTemplateStrategyAgent({
     '## Answer',
     directAnswer,
     '',
+    showEmail ? '## Inbox' : '',
+    showEmail ? formatEmailForReply(emailSection) : '',
+    showEmail ? '' : '',
     '## Market research',
     formatMarketForReply(marketSection),
     '',

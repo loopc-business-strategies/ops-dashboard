@@ -72,6 +72,12 @@ function headers(session, company) {
   return h
 }
 
+async function getConnection(session, company) {
+  const res = await fetch(`${API_BASE}/api/email/connection`, { headers: headers(session, company) })
+  const data = await safeJson(res)
+  return { status: res.status, data }
+}
+
 async function getBriefing(session, company) {
   const res = await fetch(`${API_BASE}/api/sales-ai/briefing`, { headers: headers(session, company) })
   const data = await safeJson(res)
@@ -130,6 +136,17 @@ async function main() {
       enabled: configRes.data?.enabled,
       providers: configRes.data?.providers,
       quickActions: configRes.data?.quickActions?.length,
+    },
+  })
+
+  const emailConn = await getConnection(loopcSession, 'loopc')
+  results.push({
+    check: 'GET /api/email/connection (loopc)',
+    ok: emailConn.status === 200 && emailConn.data?.success,
+    detail: {
+      status: emailConn.status,
+      gmailConfigured: emailConn.data?.gmailConfigured,
+      connected: emailConn.data?.connected,
     },
   })
 

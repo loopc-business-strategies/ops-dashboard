@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import * as salesAiApi from '../../api/salesAi'
+import * as emailConnectApi from '../../api/emailConnect'
 import SalesMessageContent from './SalesMessageContent'
 
 const DEFAULT_QUICK_ACTIONS = [
@@ -16,6 +17,18 @@ const LOADING_STEPS = [
   'Reading your pipeline…',
   'Building your answer…',
 ]
+
+const LOADING_STEPS_EMAIL = [
+  'Checking your inbox…',
+  'Reading your pipeline…',
+  'Building your answer…',
+]
+
+function isEmailIntent(text) {
+  const msg = String(text || '').toLowerCase()
+  return /\b(email|inbox|gmail|outlook|unread|mailbox)\b/.test(msg)
+    || /check\s+(my\s+)?email/.test(msg)
+}
 
 export function shouldShowSalesManagerAi({ branding, token }) {
   return Boolean(
@@ -117,6 +130,8 @@ function TodaysPulsePanel({
   refreshing,
   synthesisMode,
   providers,
+  email,
+  onConnectGmail,
   onSuggestionClick,
 }) {
   if (loading && !briefing) {
@@ -235,6 +250,39 @@ function TodaysPulsePanel({
         </div>
       ) : null}
 
+      {email?.gmailConfigured ? (
+        <div style={pulseCardStyle}>
+          <div style={pulseSectionTitle}>Email</div>
+          {email.connected ? (
+            <div style={pulseBody}>
+              Gmail connected · {email.address || 'inbox linked'}
+            </div>
+          ) : (
+            <div style={pulseBody}>
+              Connect Gmail to let Sales Manager AI check your inbox (read-only).
+              <button
+                type="button"
+                onClick={onConnectGmail}
+                style={{
+                  display: 'block',
+                  marginTop: 8,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d1fae5',
+                  background: '#f0fdf4',
+                  color: '#065f46',
+                  cursor: 'pointer',
+                }}
+              >
+                Connect Gmail
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {synthesisMode === 'template' && (
         <div style={{ fontSize: 11, color: '#065f46' }}>Report mode — no OpenAI credits required.</div>
       )}
@@ -259,6 +307,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
   const [briefing, setBriefing] = useState(null)
   const [briefingLoading, setBriefingLoading] = useState(false)
   const [briefingRefreshing, setBriefingRefreshing] = useState(false)
+  const [email, setEmail] = useState({ gmailConfigured: false, connected: false, address: null })
+  const [loadingSteps, setLoadingSteps] = useState(LOADING_STEPS)
   const scrollRef = useRef(null)
   const firstName = String(user?.name || 'User').split(' ')[0]
 
@@ -287,6 +337,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
         }
         if (data?.providers) setProviders(data.providers)
         if (data?.synthesisMode) setSynthesisMode(data.synthesisMode)
+        if (data?.email) setEmail(data.email)
       })
       .catch(() => {
         if (!cancelled) setError('Could not load Sales Manager AI configuration.')
@@ -301,10 +352,10 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
       return undefined
     }
     const id = setInterval(() => {
-      setLoadingStep((s) => (s + 1) % LOADING_STEPS.length)
+      setLoadingStep((s) => (s + 1) % loadingSteps.length)
     }, 2200)
     return () => clearInterval(id)
-  }, [sending])
+  }, [sending, loadingSteps])
 
   useEffect(() => {
     if (!scrollRef.current) return
@@ -317,6 +368,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
 
     setError('')
     setSending(true)
+    setLoadingSteps(isEmailIntent(text) ? LOADING_STEPS_EMAIL : LOADING_STEPS)
     const userMsg = { id: `u-${Date.now()}`, role: 'user', content: text }
     const nextHistory = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }))
     setMessages((prev) => [...prev, userMsg])
@@ -335,6 +387,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
         role: 'assistant',
         content: reply,
         sources,
+        emailConnectRequired: Boolean(data?.meta?.emailConnectRequired),
+        emailConnectUrl: data?.meta?.emailConnectUrl || email.connectUrl,
         meta: data?.meta?.model ? `Model: ${data.meta.model}` : (data?.meta?.synthesisMode === 'template' ? 'Template report' : ''),
       }])
     } catch (err) {
@@ -348,7 +402,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
     } finally {
       setSending(false)
     }
-  }, [activeTab, messages, sending])
+  }, [activeTab, email.connectUrl, messages, sending])
 
   const panelStyle = {
     position: 'fixed',
@@ -433,6 +487,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                 onRefresh={() => void loadBriefing({ refresh: true })}
                 synthesisMode={synthesisMode}
                 providers={providers}
+                email={email}
+                onConnectGmail={() => emailConnectApi.startGmailConnect()}
                 onSuggestionClick={(text) => void sendMessage(text)}
               />
             )}
@@ -469,6 +525,25 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                       ))}
                     </div>
                   ) : null}
+                  {m.emailConnectRequired ? (
+                    <button
+                      type="button"
+                      onClick={() => emailConnectApi.startGmailConnect()}
+                      style={{
+                        marginTop: 8,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #d1fae5',
+                        background: '#f0fdf4',
+                        color: '#065f46',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Connect Gmail
+                    </button>
+                  ) : null}
                   {m.meta ? (
                     <div style={{ marginTop: 6, fontSize: 10, opacity: 0.72 }}>{m.meta}</div>
                   ) : null}
@@ -477,7 +552,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
             ))}
             {sending && (
               <div style={{ fontSize: 12, color: '#6b7280', padding: '4px 2px' }}>
-                {LOADING_STEPS[loadingStep]}
+                {loadingSteps[loadingStep]}
               </div>
             )}
           </div>

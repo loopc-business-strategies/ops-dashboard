@@ -1,3 +1,7 @@
+jest.mock('../services/salesAi/agents/emailInboxAgent', () => ({
+  runEmailInboxAgent: jest.fn(async () => null),
+}))
+
 jest.mock('../services/salesAi/tavilySearch', () => ({
   runTavilySearches: jest.fn(async () => ([
     {
@@ -51,6 +55,7 @@ jest.mock('../services/salesAi/agents/strategyAgent', () => ({
 const { runTavilySearches } = require('../services/salesAi/tavilySearch')
 const { buildCrmSnapshot } = require('../services/salesAi/crmSnapshot')
 const { runStrategyAgent } = require('../services/salesAi/agents/strategyAgent')
+const { runEmailInboxAgent } = require('../services/salesAi/agents/emailInboxAgent')
 const { runSalesAiChat, getSalesAiConfig } = require('../services/salesAi/salesAiOrchestrator')
 const { buildSearchQueries } = require('../services/salesAi/salesAiPrompts')
 
@@ -108,6 +113,29 @@ describe('salesAiOrchestrator', () => {
       user: { company: 'loopc' },
       message: '   ',
     })).rejects.toThrow(/Message is required/)
+  })
+
+  test('runSalesAiChat prompts Gmail connect for email intent without inbox', async () => {
+    runEmailInboxAgent.mockResolvedValueOnce({
+      agent: 'emailInbox',
+      title: 'Inbox',
+      connectRequired: true,
+      connectUrl: 'https://api.example.com/api/email/oauth/gmail/start',
+      content: 'Not connected',
+      messages: [],
+    })
+    const result = await runSalesAiChat({
+      user: { company: 'loopc', _id: 'abc' },
+      message: 'Check my email',
+    })
+    expect(result.meta.emailConnectRequired).toBe(true)
+    expect(runTavilySearches).not.toHaveBeenCalled()
+    expect(result.reply).toMatch(/Connect Gmail/i)
+  })
+
+  test('getSalesAiConfig includes check email quick action', () => {
+    const config = getSalesAiConfig()
+    expect(config.quickActions.some((a) => a.id === 'check-email')).toBe(true)
   })
 
   test('getSalesAiConfig exposes regions', () => {
