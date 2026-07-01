@@ -24,7 +24,7 @@ async function getRates() {
   return { goldPrice: DEFAULT_METAL_RATES.goldPrice, silverPrice: DEFAULT_METAL_RATES.silverPrice }
 }
 
-function buildMetalMap(metalTxs, directDeals) {
+function buildMetalMap(metalTxs, directDeals, customerIds) {
   const metalPositionMap = new Map()
   ;(metalTxs || []).forEach((tx) => {
     const customerId = String(tx.customerId || '')
@@ -96,7 +96,7 @@ async function buildErpCustomerSnapshot(user) {
 
   const debitMap = new Map(debitAggs.map((r) => [String(r._id), r.total]))
   const creditMap = new Map(creditAggs.map((r) => [String(r._id), r.total]))
-  const metalPositionMap = buildMetalMap(metalTxs, directDeals)
+  const metalPositionMap = buildMetalMap(metalTxs, directDeals, customerIds)
 
   const rows = customers.map((customer) => {
     const accountId = String(customer.ledgerAccountId?._id || '')
@@ -132,7 +132,7 @@ async function buildErpCustomerSnapshot(user) {
   const topCustomers = rows
     .sort((a, b) => b.exposureScore - a.exposureScore)
     .slice(0, 8)
-    .map(({ exposureScore: _exposureScore, ...rest }) => rest)
+    .map(({ exposureScore, ...rest }) => rest)
 
   const atRisk = rows.filter((r) => r.marginStatus === 'negative' || r.marginStatus === 'warning').length
 
