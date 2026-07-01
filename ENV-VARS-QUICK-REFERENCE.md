@@ -259,7 +259,10 @@ TAVILY_API_KEY=<tavily-api-key>
 # OPENAI_SALES_AI_MODEL=gpt-4o-mini
 # SALES_AI_CHAT_RATE_LIMIT_MAX=20
 # SALES_AI_MAX_TAVILY_SEARCHES=3
+# SALES_AI_SYNTHESIS_MODE=auto
 ```
+
+`SALES_AI_SYNTHESIS_MODE`: `auto` (default) tries OpenAI and falls back to a free template report on quota errors; `template` skips OpenAI entirely; `openai` requires OpenAI.
 
 Frontend: enable only on LoopC via `featureFlags.salesManagerAi: true` in `frontend/src/config/tenantBranding.js` (already set for `loopc`).
 

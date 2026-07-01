@@ -71,6 +71,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
   const [messages, setMessages] = useState([])
   const [quickActions, setQuickActions] = useState(DEFAULT_QUICK_ACTIONS)
   const [providers, setProviders] = useState({ openai: { configured: false }, tavily: { configured: false } })
+  const [synthesisMode, setSynthesisMode] = useState('auto')
   const scrollRef = useRef(null)
   const firstName = String(user?.name || 'User').split(' ')[0]
 
@@ -84,6 +85,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
           setQuickActions(data.quickActions)
         }
         if (data?.providers) setProviders(data.providers)
+        if (data?.synthesisMode) setSynthesisMode(data.synthesisMode)
       })
       .catch(() => {
         if (!cancelled) setError('Could not load Sales Manager AI configuration.')
@@ -120,7 +122,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
         role: 'assistant',
         content: reply,
         sources,
-        meta: data?.meta?.model ? `Model: ${data.meta.model}` : '',
+        meta: data?.meta?.model ? `Model: ${data.meta.model}` : (data?.meta?.synthesisMode === 'template' ? 'Template report' : ''),
       }])
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Sales Manager AI request failed.'
@@ -213,6 +215,9 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
             {messages.length === 0 && !sending && (
               <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, padding: '4px 2px 10px' }}>
                 I combine Tavily web research with your LoopC CRM and live metal rates.
+                {synthesisMode === 'template' && (
+                  <div style={{ marginTop: 8, color: '#065f46' }}>Report mode — no OpenAI credits required.</div>
+                )}
                 {!providers.tavily?.configured && (
                   <div style={{ marginTop: 8, color: '#b45309' }}>Web research is limited until TAVILY_API_KEY is configured.</div>
                 )}

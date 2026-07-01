@@ -104,6 +104,7 @@ function summarizeReply(data) {
     replyPreview: reply.slice(0, 120).replace(/\s+/g, ' '),
     sectionAgents: sections.map((s) => s.agent),
     sourceCount: sources.length,
+    synthesisMode: data?.meta?.synthesisMode || '',
     tavilyConfigured: Boolean(data?.providers?.tavily?.configured),
     openaiConfigured: Boolean(data?.providers?.openai?.configured),
   }
@@ -128,9 +129,13 @@ async function main() {
 
   const chatRes = await postChat(loopcSession, 'loopc', 'Analyze our CRM pipeline briefly.')
   const summary = summarizeReply(chatRes.data)
+  const chatOk = chatRes.status === 200
+    && chatRes.data?.success
+    && summary.replyLen > 50
+    && (summary.synthesisMode === 'template' || summary.synthesisMode === 'openai' || !summary.synthesisMode)
   results.push({
     check: 'POST /api/sales-ai/chat (loopc)',
-    ok: chatRes.status === 200 && chatRes.data?.success && summary.replyLen > 50,
+    ok: chatOk,
     detail: { status: chatRes.status, message: chatRes.data?.message, ...summary },
   })
 

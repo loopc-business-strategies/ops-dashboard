@@ -5,7 +5,63 @@ const { buildMetalRatesSnapshot } = require('./metalRatesSnapshot')
 const { runMarketResearchAgent } = require('./agents/marketResearchAgent')
 const { runCrmInsightAgent } = require('./agents/crmInsightAgent')
 const { runStrategyAgent, getModel } = require('./agents/strategyAgent')
+const { runTemplateStrategyAgent, isOpenAiQuotaError } = require('./agents/templateStrategyAgent')
 const { isOpenAiConfigured } = require('./openAiClient')
+
+function getSynthesisMode() {
+  const raw = String(process.env.SALES_AI_SYNTHESIS_MODE || 'auto').trim().toLowerCase()
+  if (['template', 'openai', 'auto'].includes(raw)) return raw
+  return 'auto'
+}
+
+function shouldPreferTemplate() {
+  const mode = getSynthesisMode()
+  if (mode === 'template') return true
+  if (mode === 'openai') return false
+  return !isOpenAiConfigured()
+}
+
+async function runSynthesis({
+  userMessage,
+  marketSection,
+  crmSection,
+  crmSnapshot,
+  metalRates,
+  pageContext,
+  history,
+}) {
+  if (shouldPreferTemplate()) {
+    return runTemplateStrategyAgent({
+      userMessage,
+      marketSection,
+      crmSnapshot,
+      metalRates,
+      fallbackReason: isOpenAiConfigured() ? 'quota_or_policy' : 'disabled',
+    })
+  }
+
+  try {
+    return await runStrategyAgent({
+      userMessage,
+      marketSection,
+      crmSection,
+      metalRates,
+      pageContext,
+      history,
+    })
+  } catch (err) {
+    if (getSynthesisMode() === 'auto' && isOpenAiQuotaError(err)) {
+      return runTemplateStrategyAgent({
+        userMessage,
+        marketSection,
+        crmSnapshot,
+        metalRates,
+        fallbackReason: 'quota',
+      })
+    }
+    throw err
+  }
+}
 
 async function runSalesAiChat({
   user,
@@ -18,14 +74,6 @@ async function runSalesAiChat({
     throw new Error('Message is required.')
   }
 
-  if (!isOpenAiConfigured()) {
-    return {
-      reply: 'Sales Manager AI is not fully configured. Ask your admin to set **OPENAI_API_KEY** on Railway.',
-      sections: [],
-      meta: { configured: false },
-    }
-  }
-
   const queries = buildSearchQueries(userMessage)
   const [searchBatches, crmSnapshot, metalRates] = await Promise.all([
     runTavilySearches(queries),
@@ -36,10 +84,11 @@ async function runSalesAiChat({
   const marketSection = runMarketResearchAgent(searchBatches)
   const crmSection = runCrmInsightAgent(crmSnapshot)
 
-  const strategy = await runStrategyAgent({
+  const strategy = await runSynthesis({
     userMessage,
     marketSection,
     crmSection,
+    crmSnapshot,
     metalRates,
     pageContext,
     history,
@@ -62,12 +111,16 @@ async function runSalesAiChat({
     ...strategy.sections,
   ]
 
+  const synthesisMode = strategy.meta?.synthesisMode
+    || (strategy.meta?.model === 'template' ? 'template' : 'openai')
+
   return {
     reply: strategy.reply,
     sections,
     meta: {
       tenant: user?.company || 'loopc',
       model: strategy.meta?.model || getModel(),
+      synthesisMode,
       searchQueryCount: queries.length,
       crmAccessLevel: crmSnapshot?.accessLevel || 'none',
     },
@@ -77,6 +130,10 @@ async function runSalesAiChat({
 function getSalesAiConfig() {
   const tavilyReady = Boolean(String(process.env.TAVILY_API_KEY || '').trim())
   const openaiReady = isOpenAiConfigured()
+  const synthesisMode = getSynthesisMode()
+  const effectiveMode = synthesisMode === 'auto'
+    ? (openaiReady ? 'auto' : 'template')
+    : synthesisMode
   return {
     enabled: true,
     tenantScope: 'loopc',
@@ -84,7 +141,8 @@ function getSalesAiConfig() {
       openai: { configured: openaiReady },
       tavily: { configured: tavilyReady },
     },
-    model: getModel(),
+    synthesisMode: effectiveMode,
+    model: effectiveMode === 'template' ? 'template' : getModel(),
     quickActions: [
       { id: 'market-trends', label: 'Market trends', prompt: 'What are the latest gold and silver jewelry market trends relevant to our business?' },
       { id: 'customer-demand', label: 'Customer demand', prompt: 'Analyze current customer demand patterns for precious metals and jewelry wholesale.' },
@@ -99,4 +157,6 @@ function getSalesAiConfig() {
 module.exports = {
   runSalesAiChat,
   getSalesAiConfig,
+  getSynthesisMode,
+  shouldPreferTemplate,
 }

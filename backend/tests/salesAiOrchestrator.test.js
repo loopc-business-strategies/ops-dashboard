@@ -74,14 +74,28 @@ describe('salesAiOrchestrator', () => {
     expect(result.meta.crmAccessLevel).toBe('aggregate')
   })
 
-  test('runSalesAiChat returns configuration message when OpenAI is missing', async () => {
+  test('runSalesAiChat returns template briefing when OpenAI is missing', async () => {
     delete process.env.OPENAI_API_KEY
+    process.env.SALES_AI_SYNTHESIS_MODE = 'auto'
     const result = await runSalesAiChat({
       user: { company: 'loopc' },
       message: 'Hello',
     })
-    expect(result.reply).toMatch(/OPENAI_API_KEY/)
+    expect(result.reply).toMatch(/Executive summary/)
+    expect(result.meta.synthesisMode).toBe('template')
     expect(runStrategyAgent).not.toHaveBeenCalled()
+  })
+
+  test('runSalesAiChat falls back to template on OpenAI quota error', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key'
+    process.env.SALES_AI_SYNTHESIS_MODE = 'auto'
+    runStrategyAgent.mockRejectedValueOnce(new Error('OpenAI HTTP 429: insufficient_quota'))
+    const result = await runSalesAiChat({
+      user: { company: 'loopc' },
+      message: 'Market trends',
+    })
+    expect(result.meta.synthesisMode).toBe('template')
+    expect(result.reply).toMatch(/Template mode/)
   })
 
   test('runSalesAiChat rejects empty message', async () => {
