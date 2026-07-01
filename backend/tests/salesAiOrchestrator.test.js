@@ -17,10 +17,29 @@ jest.mock('../services/salesAi/crmSnapshot', () => ({
       winRate: 40,
       revenueThisMonthUSD: 12000,
       overdueFollowups: 0,
+      followupsDueThisWeek: 2,
+      stalledDeals: 1,
       totalContacts: 10,
     },
     detail: null,
   })),
+}))
+
+jest.mock('../services/salesAi/erpCustomerSnapshot', () => ({
+  buildErpCustomerSnapshot: jest.fn(async () => ({
+    accessLevel: 'full',
+    summary: { activeCustomers: 5, atRiskCount: 1, metalRates: { goldPrice: 2350, silverPrice: 28 } },
+    topCustomers: [{ name: 'Acme', outstandingUSD: 1000, marginStatus: 'warning', marginPercent: 5, goldPosition: 10, silverPosition: 0 }],
+  })),
+}))
+
+jest.mock('../services/salesAi/businessProfileService', () => ({
+  getBusinessProfile: jest.fn(async () => ({
+    targetRegions: ['Uzbekistan'],
+    competitors: ['Example Refiner'],
+    productFocus: 'Jewelry wholesale',
+  })),
+  formatBusinessProfileForPrompt: jest.fn(() => 'Target regions: Uzbekistan'),
 }))
 
 jest.mock('../services/salesAi/metalRatesSnapshot', () => ({
@@ -48,6 +67,7 @@ jest.mock('../services/salesAi/agents/strategyAgent', () => ({
 
 const { runTavilySearches } = require('../services/salesAi/tavilySearch')
 const { buildCrmSnapshot } = require('../services/salesAi/crmSnapshot')
+const { buildErpCustomerSnapshot } = require('../services/salesAi/erpCustomerSnapshot')
 const { runStrategyAgent } = require('../services/salesAi/agents/strategyAgent')
 const { runSalesAiChat } = require('../services/salesAi/salesAiOrchestrator')
 
@@ -57,21 +77,25 @@ describe('salesAiOrchestrator', () => {
     jest.clearAllMocks()
   })
 
-  test('runSalesAiChat orchestrates research, CRM, and strategy synthesis', async () => {
+  test('runSalesAiChat orchestrates research, CRM, ERP, and strategy synthesis', async () => {
     const result = await runSalesAiChat({
       user: { company: 'loopc', name: 'Test User', role: 'department_user' },
       message: 'What are gold jewelry market trends?',
       history: [],
       pageContext: { tab: 'overview' },
+      chatInputs: { region: 'uae', horizon: 'quarter' },
     })
 
     expect(runTavilySearches).toHaveBeenCalled()
     expect(buildCrmSnapshot).toHaveBeenCalled()
+    expect(buildErpCustomerSnapshot).toHaveBeenCalled()
     expect(runStrategyAgent).toHaveBeenCalled()
     expect(result.reply).toMatch(/Executive summary/)
     expect(result.sections.some((s) => s.agent === 'marketResearch')).toBe(true)
     expect(result.sections.some((s) => s.agent === 'crmInsight')).toBe(true)
+    expect(result.sections.some((s) => s.agent === 'customerRisk')).toBe(true)
     expect(result.meta.crmAccessLevel).toBe('aggregate')
+    expect(result.meta.erpAccessLevel).toBe('full')
   })
 
   test('runSalesAiChat returns template briefing when OpenAI is missing', async () => {
@@ -103,5 +127,15 @@ describe('salesAiOrchestrator', () => {
       user: { company: 'loopc' },
       message: '   ',
     })).rejects.toThrow(/Message is required/)
+  })
+
+  test('runSalesAiChat includes draft email meta when requested', async () => {
+    delete process.env.OPENAI_API_KEY
+    const result = await runSalesAiChat({
+      user: { company: 'loopc' },
+      message: 'Draft an email to our top lead',
+    })
+    expect(result.meta.draftEmail).toBeTruthy()
+    expect(result.meta.draftEmail.subject).toBeTruthy()
   })
 })

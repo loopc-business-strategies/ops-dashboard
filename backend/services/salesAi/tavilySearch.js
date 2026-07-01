@@ -9,6 +9,9 @@ async function tavilySearch(query, options = {}) {
   const maxResults = Math.min(Number(options.maxResults) || MAX_RESULTS, 10)
   const searchDepth = options.searchDepth === 'advanced' ? 'advanced' : 'basic'
 
+  const includeAnswer = options.includeAnswer !== false
+    && String(process.env.SALES_AI_TAVILY_INCLUDE_ANSWER || 'true').trim().toLowerCase() !== 'false'
+
   try {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
@@ -17,7 +20,7 @@ async function tavilySearch(query, options = {}) {
         api_key: apiKey,
         query: String(query || '').trim().slice(0, 400),
         search_depth: searchDepth,
-        include_answer: false,
+        include_answer: includeAnswer,
         max_results: maxResults,
       }),
     })

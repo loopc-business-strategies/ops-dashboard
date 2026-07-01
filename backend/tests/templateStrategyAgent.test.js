@@ -23,22 +23,32 @@ describe('templateStrategyAgent', () => {
     sources: [{ title: 'Gold outlook', url: 'https://example.com/gold' }],
   }
 
-  test('buildRecommendations surfaces CRM priorities', () => {
-    const recs = buildRecommendations(crmSnapshot, marketSection)
+  const erpSnapshot = {
+    accessLevel: 'full',
+    summary: { atRiskCount: 2 },
+    topCustomers: [],
+  }
+
+  test('buildRecommendations surfaces CRM and ERP priorities', () => {
+    const recs = buildRecommendations(crmSnapshot, erpSnapshot, marketSection)
     expect(recs.some((r) => /overdue follow-up/i.test(r))).toBe(true)
     expect(recs.some((r) => /hot lead/i.test(r))).toBe(true)
+    expect(recs.some((r) => /margin risk/i.test(r))).toBe(true)
   })
 
-  test('runTemplateStrategyAgent returns markdown briefing', () => {
+  test('runTemplateStrategyAgent returns markdown briefing with ERP section', () => {
     const result = runTemplateStrategyAgent({
       userMessage: 'Analyze pipeline',
       marketSection,
       crmSnapshot,
+      erpSnapshot,
+      businessProfileText: 'Target regions: UAE',
       metalRates: { goldPrice: 2350, silverPrice: 28, priceCurrency: 'USD', priceUnit: 'G', source: 'test' },
       fallbackReason: 'quota',
     })
     expect(result.reply).toMatch(/Executive summary/)
-    expect(result.reply).toMatch(/Recommendations/)
+    expect(result.reply).toMatch(/Customer exposure/)
+    expect(result.reply).toMatch(/Business profile/)
     expect(result.meta.synthesisMode).toBe('template')
   })
 

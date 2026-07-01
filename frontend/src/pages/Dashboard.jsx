@@ -404,6 +404,17 @@ function Dashboard() {
   )
   const tenantForHref = user?.company || company
 
+  const salesAiPageContext = useMemo(() => {
+    const enquiry = activeTab === 'erp' ? parseEnquiryDeepLink(searchParams.toString()) : {}
+    return {
+      tab: activeTab,
+      erpSubTab: activeTab === 'erp' ? (erpSubTab || '') : '',
+      path: searchParams.toString(),
+      customerId: enquiry.account || searchParams.get('customerId') || searchParams.get('customer') || '',
+      dealId: searchParams.get('dealId') || searchParams.get('deal') || '',
+    }
+  }, [activeTab, erpSubTab, searchParams])
+
   const writeDashboardUrl = useCallback(({
     tabId,
     erpSub,
@@ -1286,7 +1297,7 @@ function Dashboard() {
     </div>
 
       {shouldShowSalesManagerAi({ branding, token }) && (
-        <SalesManagerAgentWidget user={user} activeTab={activeTab} />
+        <SalesManagerAgentWidget user={user} pageContext={salesAiPageContext} />
       )}
     </LiveMetalRatesProvider>
   )

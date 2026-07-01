@@ -4,14 +4,32 @@ const CrmDeal = require('../../models/CrmDeal')
 const CrmActivity = require('../../models/CrmActivity')
 const { canViewCrm, isSalesRep, isSalesHead } = require('../permissions/moduleAccessPolicy')
 
-async function buildCrmSnapshot(user) {
+const STALLED_DAYS = 30
+
+function dealTitle(d) {
+  return d.title || d.name || 'Deal'
+}
+
+function leadTitle(l) {
+  return l.title || l.name || 'Lead'
+}
+
+async function buildCrmSnapshot(user, options = {}) {
   const now = new Date()
   const bom = new Date(now.getFullYear(), now.getMonth(), 1)
   const eom = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+  const weekEnd = new Date(now)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+  const stalledBefore = new Date(now)
+  stalledBefore.setDate(stalledBefore.getDate() - STALLED_DAYS)
+
   const hasCrmAccess = canViewCrm(user)
   const repFilter = hasCrmAccess && isSalesRep(user) && !isSalesHead(user)
     ? { assignedRep: user.name }
     : {}
+
+  const dealFilter = { isDeleted: false, ...repFilter }
+  if (options.dealId) dealFilter._id = options.dealId
 
   const [
     totalContacts,
@@ -19,6 +37,9 @@ async function buildCrmSnapshot(user) {
     hotLeads,
     deals,
     overdueFollowups,
+    followupsDueThisWeek,
+    stalledDeals,
+    leadStageGroups,
   ] = await Promise.all([
     CrmContact.countDocuments({ isDeleted: false, ...repFilter }),
     CrmLead.countDocuments({
@@ -32,13 +53,30 @@ async function buildCrmSnapshot(user) {
       stage: { $nin: ['Closed Won', 'Closed Lost'] },
       ...repFilter,
     }),
-    CrmDeal.find({ isDeleted: false, ...repFilter }).select('stage valueUSD closedWon finalValue').lean(),
+    CrmDeal.find(dealFilter).select('stage valueUSD closedWon finalValue updatedAt name').lean(),
     CrmActivity.countDocuments({
       isDeleted: false,
       'nextAction.isDone': false,
       'nextAction.dueDate': { $lt: now },
       ...repFilter,
     }),
+    CrmActivity.countDocuments({
+      isDeleted: false,
+      'nextAction.isDone': false,
+      'nextAction.dueDate': { $gte: now, $lte: weekEnd },
+      ...repFilter,
+    }),
+    CrmDeal.countDocuments({
+      isDeleted: false,
+      stage: { $nin: ['Closed Won', 'Closed Lost'] },
+      updatedAt: { $lt: stalledBefore },
+      ...repFilter,
+    }),
+    CrmLead.aggregate([
+      { $match: { isDeleted: false, stage: { $nin: ['Closed Won', 'Closed Lost'] }, ...repFilter } },
+      { $group: { _id: '$stage', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]),
   ])
 
   const dealsClosedWon = deals.filter((d) => d.stage === 'Closed Won').length
@@ -60,18 +98,23 @@ async function buildCrmSnapshot(user) {
     pipelineValueUSD: Math.round(pipelineValue),
     winRate,
     overdueFollowups,
+    followupsDueThisWeek,
+    stalledDeals,
     revenueThisMonthUSD: Math.round(revenueThisMonth),
   }
+
+  const funnel = (leadStageGroups || []).map((g) => ({ stage: g._id, count: g.count }))
 
   if (!hasCrmAccess) {
     return {
       accessLevel: 'aggregate',
       summary,
+      funnel,
       detail: null,
     }
   }
 
-  const [topDeals, topLeads] = await Promise.all([
+  const [topDeals, topLeads, upcomingFollowups] = await Promise.all([
     CrmDeal.find({
       isDeleted: false,
       stage: { $nin: ['Closed Won', 'Closed Lost'] },
@@ -79,7 +122,7 @@ async function buildCrmSnapshot(user) {
     })
       .sort({ valueUSD: -1 })
       .limit(5)
-      .select('title stage valueUSD probability expectedCloseDate')
+      .select('name stage valueUSD probability expectedCloseDate updatedAt')
       .lean(),
     CrmLead.find({
       isDeleted: false,
@@ -88,27 +131,46 @@ async function buildCrmSnapshot(user) {
     })
       .sort({ updatedAt: -1 })
       .limit(5)
-      .select('title stage temperature valueUSD companyName')
+      .select('name stage temperature estValueUSD companyName')
+      .lean(),
+    CrmActivity.find({
+      isDeleted: false,
+      'nextAction.isDone': false,
+      'nextAction.dueDate': { $gte: now },
+      ...repFilter,
+    })
+      .sort({ 'nextAction.dueDate': 1 })
+      .limit(5)
+      .select('subject nextAction assignedTo dealName contactName')
       .lean(),
   ])
 
   return {
     accessLevel: 'full',
     summary,
+    funnel,
     detail: {
       topOpenDeals: topDeals.map((d) => ({
-        title: d.title,
+        title: dealTitle(d),
         stage: d.stage,
         valueUSD: d.valueUSD,
         probability: d.probability,
         expectedCloseDate: d.expectedCloseDate,
+        daysInStage: d.updatedAt ? Math.floor((now - new Date(d.updatedAt)) / 86400000) : null,
       })),
       recentLeads: topLeads.map((l) => ({
-        title: l.title,
+        title: leadTitle(l),
         stage: l.stage,
         temperature: l.temperature,
-        valueUSD: l.valueUSD,
+        valueUSD: l.estValueUSD,
         companyName: l.companyName,
+      })),
+      upcomingFollowups: upcomingFollowups.map((a) => ({
+        subject: a.subject,
+        dueDate: a.nextAction?.dueDate,
+        assignedTo: a.nextAction?.assignedTo,
+        dealName: a.dealName,
+        contactName: a.contactName,
       })),
     },
   }
