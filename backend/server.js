@@ -197,8 +197,10 @@ async function startServer() {
       console.warn('[startup] notification digest job not started:', e.message)
     }
     try {
-      const { startSalesAiProactiveJob } = require('./services/salesAi/salesAiProactiveJob')
-      startSalesAiProactiveJob()
+      if (String(process.env.SALES_AI_PROACTIVE_JOB || '').trim().toLowerCase() === 'true') {
+        const { startSalesAiProactiveJob } = require('./services/salesAi/salesAiProactiveJob')
+        startSalesAiProactiveJob()
+      }
     } catch (e) {
       console.warn('[startup] sales AI proactive job not started:', e.message)
     }

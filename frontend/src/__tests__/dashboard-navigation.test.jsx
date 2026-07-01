@@ -81,9 +81,6 @@ vi.mock('../components/tabs/ProductionTab', () => ({
 vi.mock('../components/tabs/ChatTab', () => ({
   default: () => <div>chat-tab</div>,
 }))
-vi.mock('../components/tabs/SalesManagerAiTab', () => ({
-  default: () => <div>sales-manager-ai-tab</div>,
-}))
 vi.mock('../components/tabs/TrainingTab', () => ({
   default: () => <div>training-tab</div>,
 }))
@@ -182,19 +179,7 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByText('hr-tab')).toBeTruthy()
   })
 
-  it('loads Sales Manager AI tab from URL for LoopC', async () => {
-    useAuthMock.mockReturnValue({
-      user: { name: 'Loop User', role: 'super_admin', company: 'loopc', _id: '507f1f77bcf86cd799439011' },
-      company: 'loopc',
-      token: 'test-token',
-      logout: vi.fn(),
-    })
-
-    renderDashboard('/dashboard?tab=sales-manager-ai')
-    expect(await screen.findByText('sales-manager-ai-tab')).toBeTruthy()
-  })
-
-  it('shows Sales Manager AI in sidebar for LoopC with new-tab target', async () => {
+  it('shows Sales Manager AI as external sidebar link for LoopC', async () => {
     useAuthMock.mockReturnValue({
       user: { name: 'Loop User', role: 'super_admin', company: 'loopc', _id: '507f1f77bcf86cd799439011' },
       company: 'loopc',
@@ -203,10 +188,10 @@ describe('Dashboard navigation behavior', () => {
     })
 
     renderDashboard()
-    const links = await screen.findAllByRole('link', { name: 'Sales Manager AI' })
-    expect(links[0].getAttribute('href')).toContain('tab=sales-manager-ai')
-    expect(links[0].getAttribute('target')).toBe('_blank')
-    expect(links[0].getAttribute('rel')).toBe('noopener noreferrer')
+    const link = await screen.findByRole('link', { name: 'Sales Manager AI' })
+    expect(link.getAttribute('href')).toBe('https://sales.loopcstrategies.com')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
   it('loads Account Summary from URL deep link with account param', async () => {

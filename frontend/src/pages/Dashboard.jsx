@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
-import { getTenantBranding, isLocalTenantHost } from '../config/tenantBranding'
+import { getTenantBranding, getExternalNavItems, isLocalTenantHost } from '../config/tenantBranding'
 import {
   buildDashboardHref,
   buildDashboardTabParam,
@@ -34,7 +34,6 @@ const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
 const ERPTab = lazy(() => import('../components/tabs/ERPTab'))
 const ComplianceTab = lazy(() => import('../components/tabs/ComplianceTab'))
 const ProcurementPlusTab = lazy(() => import('../components/tabs/ProcurementPlusTab'))
-const SalesManagerAiTab = lazy(() => import('../components/tabs/SalesManagerAiTab'))
 
 class TabErrorBoundary extends Component {
   constructor(props) {
@@ -226,7 +225,6 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
     // ── Main ──
     { id: 'overview',    label: t('overview'),    group: 'main',       show: perms.canViewModule('overview') },
     { id: 'chat',        label: t('chat'),        group: 'main',       show: perms.canViewModule('chat'), badge: chatUnread || null },
-    { id: 'sales-manager-ai', label: 'Sales Manager AI', group: 'main', show: Boolean(branding?.featureFlags?.salesManagerAi) },
     { id: 'master-settings', label: 'Master Settings', group: 'main', show: true },
 
     // ── Admin (super_admin only) ──
@@ -287,9 +285,6 @@ function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab,
           focusComposerNonce={chatTabProps.focusComposerNonce || 0}
         />
       )
-
-    case 'sales-manager-ai':
-      return <SalesManagerAiTab />
 
     case 'master-settings':
       return <MasterSettingsTab />
@@ -457,6 +452,9 @@ function Dashboard() {
   }, [writeDashboardUrl])
 
   const buildNavHref = useCallback((item) => {
+    if (item.external && item.href) {
+      return String(item.href).trim()
+    }
     if (item.group === 'erp') {
       const enquiry = item.erpSub === 'enquiry'
         ? parseEnquiryDeepLink(searchParams.toString())
@@ -806,7 +804,10 @@ function Dashboard() {
   }
 
   // Group nav items
-  const mainItems  = navItems.filter(n => n.group === 'main')
+  const mainItems  = [
+    ...navItems.filter(n => n.group === 'main'),
+    ...getExternalNavItems(branding).map((item) => ({ ...item, external: true })),
+  ]
   const adminItems = navItems.filter(n => n.group === 'admin')
   const deptItems  = navItems.filter(n => n.group === 'departments')
   const erpItems   = navItems.filter(n => n.group === 'erp')
@@ -1263,10 +1264,10 @@ function Dashboard() {
 
         {/* Page content — 1.5rem inset matches ERP module padding; chat stays full-bleed inside scroll area */}
         <main
-          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' || activeTab === 'sales-manager-ai' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
         >
-          {activeTab === 'chat' || activeTab === 'sales-manager-ai' ? (
+          {activeTab === 'chat' ? (
             <div className="flex-1 min-h-0 flex flex-col">
               {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>

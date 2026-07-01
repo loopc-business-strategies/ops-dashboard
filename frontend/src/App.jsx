@@ -13,6 +13,7 @@ import ProtectedRoute  from './components/ProtectedRoute'
 import Login           from './pages/Login'
 import Setup           from './pages/Setup'
 import Dashboard       from './pages/Dashboard'
+import SalesAiEmbed    from './pages/SalesAiEmbed'
 
 function App() {
   return (
@@ -28,6 +29,12 @@ function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/sales-ai/embed" element={
+            <ProtectedRoute>
+              <SalesAiEmbed />
             </ProtectedRoute>
           } />
 

@@ -29,7 +29,7 @@ const defaultBranding = {
     brandSecondary: '#13AA52',
     gradBar: 'linear-gradient(90deg, #00684A, #00b4d8)',
   },
-  enabledTabs: ['overview', 'chat', 'sales-manager-ai', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+  enabledTabs: ['overview', 'chat', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
   enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
   featureFlags: {
     procurementPlus: true,
@@ -95,9 +95,23 @@ const tenantBranding = {
     trn: '',
     featureFlags: {
       procurementPlus: true,
-      salesManagerAi: true,
     },
+    externalNavItems: [
+      {
+        id: 'sales-manager-ai',
+        label: 'Sales Manager AI',
+        href: import.meta.env.VITE_SALES_MANAGER_AI_URL || 'https://sales.loopcstrategies.com',
+        embedHref: import.meta.env.VITE_SALES_MANAGER_AI_EMBED_URL || 'https://sales.loopcstrategies.com/embed',
+        group: 'main',
+        show: true,
+      },
+    ],
   },
+}
+
+export function getExternalNavItems(branding) {
+  const items = Array.isArray(branding?.externalNavItems) ? branding.externalNavItems : []
+  return items.filter((item) => item?.show !== false && String(item?.href || '').trim())
 }
 
 export function getTenantBranding(tenant) {
