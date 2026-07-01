@@ -93,6 +93,10 @@ const tenantBranding = {
     address: '',
     phone: '',
     trn: '',
+    featureFlags: {
+      procurementPlus: true,
+      salesManagerAi: true,
+    },
   },
 }
 

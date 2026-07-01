@@ -248,6 +248,21 @@ METALS_SPOT_SSE_POLL_MS=500
 # METALS_SPOT_MOCK_REALTIME_ALLOW_PRODUCTION=true
 ```
 
+### Optional: Sales Manager AI (LoopC only)
+
+Floating **Sales Manager AI** on the LoopC dashboard combines **Tavily** web research with LoopC CRM + live metal rates via **OpenAI**. MG/CG are blocked by `SALES_AI_ALLOWED_TENANTS` even if the UI flag were toggled.
+
+```
+SALES_AI_ALLOWED_TENANTS=loopc
+OPENAI_API_KEY=<openai-api-key>
+TAVILY_API_KEY=<tavily-api-key>
+# OPENAI_SALES_AI_MODEL=gpt-4o-mini
+# SALES_AI_CHAT_RATE_LIMIT_MAX=20
+# SALES_AI_MAX_TAVILY_SEARCHES=3
+```
+
+Frontend: enable only on LoopC via `featureFlags.salesManagerAi: true` in `frontend/src/config/tenantBranding.js` (already set for `loopc`).
+
 ### Maintenance: repair misposted purchase (AP + inventory)
 
 If an older posted purchase credited the wrong payable (e.g. generic AP) while the voucher **party** was a vendor sub-account (e.g. **2305**), or stock was booked on a **stock-type** row instead of a **product**, run from `backend/`:

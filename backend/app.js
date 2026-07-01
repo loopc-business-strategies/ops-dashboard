@@ -69,6 +69,7 @@ const complianceRoutes = require('./routes/compliance')
 const trainingRoutes   = require('./routes/training')
 const operationsLegalDocumentsRoutes = require('./routes/operationsLegalDocuments')
 const cleanupRoutes    = require('./routes/cleanupRoutes')
+const salesAiRoutes    = require('./routes/salesAi')
 const backendPackage = require('./package.json')
 const { isLocalDevEnv, isProductionEnv } = require('./utils/securityEnv')
 
@@ -319,6 +320,7 @@ function createApp() {
   app.use('/api/training',   trainingRoutes)
   app.use('/api/operations/legal-documents', operationsLegalDocumentsRoutes)
   app.use('/api/admin', cleanupRoutes)
+  app.use('/api/sales-ai', salesAiRoutes)
 
   if (process.env.NODE_ENV === 'production') {
     const frontendDistPath = path.join(__dirname, '../frontend/dist')

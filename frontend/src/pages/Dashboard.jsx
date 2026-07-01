@@ -16,6 +16,7 @@ import {
   parseEnquiryDeepLink,
 } from '../utils/dashboardNavigation'
 import BuildInfoBadge from '../components/BuildInfoBadge'
+import SalesManagerAgentWidget, { shouldShowSalesManagerAi } from '../components/salesAi/SalesManagerAgentWidget'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
@@ -1283,6 +1284,10 @@ function Dashboard() {
 
       </div>
     </div>
+
+      {shouldShowSalesManagerAi({ branding, token }) && (
+        <SalesManagerAgentWidget user={user} activeTab={activeTab} />
+      )}
     </LiveMetalRatesProvider>
   )
 }
