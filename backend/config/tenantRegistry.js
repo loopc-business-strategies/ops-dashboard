@@ -14,6 +14,7 @@ const BUILTIN_CATALOG = {
       tagline: 'Metal Group Operations',
       portalHost: 'mg.loopcstrategies.com',
       envVar: 'MONGO_URI_MG',
+      sharedInboxEmail: '',
     },
     cg: {
       key: 'cg',
@@ -21,6 +22,7 @@ const BUILTIN_CATALOG = {
       tagline: 'CG Enterprise Suite',
       portalHost: 'cg.loopcstrategies.com',
       envVar: 'MONGO_URI_CG',
+      sharedInboxEmail: '',
     },
     loopc: {
       key: 'loopc',
@@ -28,6 +30,7 @@ const BUILTIN_CATALOG = {
       tagline: 'Loop C Business Platform',
       portalHost: 'loopc.loopcstrategies.com',
       envVar: 'MONGO_URI_LOOPC',
+      sharedInboxEmail: 'business@loopcstrategies.com',
     },
   },
   customDomains: {
