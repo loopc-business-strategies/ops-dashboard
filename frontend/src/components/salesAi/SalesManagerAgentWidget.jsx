@@ -68,6 +68,194 @@ function collectSources(sections = []) {
   return out
 }
 
+function formatRelativeTime(iso) {
+  if (!iso) return ''
+  const ms = Date.now() - new Date(iso).getTime()
+  if (ms < 60000) return 'just now'
+  if (ms < 3600000) return `${Math.floor(ms / 60000)}m ago`
+  if (ms < 86400000) return `${Math.floor(ms / 3600000)}h ago`
+  return `${Math.floor(ms / 86400000)}d ago`
+}
+
+function formatUntil(iso) {
+  if (!iso) return ''
+  const ms = new Date(iso).getTime() - Date.now()
+  if (ms <= 0) return 'soon'
+  if (ms < 3600000) return `${Math.ceil(ms / 60000)}m`
+  return `${Math.ceil(ms / 3600000)}h`
+}
+
+function stripMarkdown(text) {
+  return String(text || '').replace(/\*\*/g, '')
+}
+
+function BriefingSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {[72, 88, 64].map((w) => (
+        <div
+          key={w}
+          style={{
+            height: 12,
+            width: `${w}%`,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)',
+            backgroundSize: '200% 100%',
+            animation: 'salesAiPulse 1.2s ease-in-out infinite',
+          }}
+        />
+      ))}
+      <style>{'@keyframes salesAiPulse { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }'}</style>
+    </div>
+  )
+}
+
+function TodaysPulsePanel({
+  briefing,
+  loading,
+  onRefresh,
+  refreshing,
+  synthesisMode,
+  providers,
+  onSuggestionClick,
+}) {
+  if (loading && !briefing) {
+    return (
+      <div style={pulseCardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 12, color: '#065f46', marginBottom: 8 }}>Today&apos;s pulse</div>
+        <BriefingSkeleton />
+      </div>
+    )
+  }
+
+  if (!briefing) {
+    return (
+      <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, padding: '4px 2px 10px' }}>
+        I combine Tavily web research with your LoopC CRM and live metal rates.
+      </div>
+    )
+  }
+
+  const s = briefing.crm?.summary || {}
+  const metals = briefing.metals || {}
+  const market = briefing.market
+  const highlight = briefing.crm?.highlight
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 2px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 12, color: '#065f46' }}>
+          Today&apos;s pulse
+          <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>
+            {formatRelativeTime(briefing.generatedAt)}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          aria-label="Refresh briefing"
+          style={{
+            fontSize: 10,
+            padding: '4px 8px',
+            borderRadius: 6,
+            border: '1px solid #d1fae5',
+            background: '#fff',
+            color: '#065f46',
+            cursor: refreshing ? 'not-allowed' : 'pointer',
+            opacity: refreshing ? 0.6 : 1,
+          }}
+        >
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+
+      <div style={pulseCardStyle}>
+        <div style={pulseSectionTitle}>Live metals</div>
+        <div style={pulseBody}>
+          Gold {metals.goldPrice} / Silver {metals.silverPrice} {metals.priceCurrency}/{metals.priceUnit}
+          {metals.updatedAt ? (
+            <span style={{ color: '#9ca3af' }}> · updated {formatRelativeTime(metals.updatedAt)}</span>
+          ) : null}
+        </div>
+      </div>
+
+      <div style={pulseCardStyle}>
+        <div style={pulseSectionTitle}>Your pipeline</div>
+        <div style={pulseBody}>
+          {s.pipelineValueUSD ? `$${Number(s.pipelineValueUSD).toLocaleString()} pipeline` : 'No pipeline value yet'}
+          {s.hotLeads ? ` · ${s.hotLeads} hot lead(s)` : ''}
+          {s.overdueFollowups ? ` · ${s.overdueFollowups} overdue follow-up(s)` : ''}
+        </div>
+        {highlight?.topDeal ? (
+          <div style={{ ...pulseBody, marginTop: 4, color: '#374151' }}>
+            Top deal: {highlight.topDeal.title} ({highlight.topDeal.stage})
+          </div>
+        ) : null}
+      </div>
+
+      {market?.bullets?.length ? (
+        <div style={pulseCardStyle}>
+          <div style={pulseSectionTitle}>Market trend</div>
+          {market.bullets.map((bullet) => (
+            <div key={bullet.slice(0, 40)} style={{ ...pulseBody, marginBottom: 4 }}>{bullet}</div>
+          ))}
+          {market.source?.url ? (
+            <a
+              href={market.source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 11, color: '#00684A' }}
+            >
+              {market.source.title}
+            </a>
+          ) : null}
+          {market.cachedUntil ? (
+            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>
+              Research cached · refreshes in {formatUntil(market.cachedUntil)}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {briefing.suggestions?.length ? (
+        <div style={pulseCardStyle}>
+          <div style={pulseSectionTitle}>Suggested</div>
+          {briefing.suggestions.map((tip) => (
+            <button
+              key={tip}
+              type="button"
+              onClick={() => onSuggestionClick(stripMarkdown(tip))}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                marginBottom: 4,
+                padding: 0,
+                border: 'none',
+                background: 'none',
+                fontSize: 12,
+                lineHeight: 1.45,
+                color: '#374151',
+                cursor: 'pointer',
+              }}
+            >
+              · {stripMarkdown(tip)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {synthesisMode === 'template' && (
+        <div style={{ fontSize: 11, color: '#065f46' }}>Report mode — no OpenAI credits required.</div>
+      )}
+      {!providers.tavily?.configured && (
+        <div style={{ fontSize: 11, color: '#b45309' }}>Web research is limited until TAVILY_API_KEY is configured.</div>
+      )}
+    </div>
+  )
+}
+
 export default function SalesManagerAgentWidget({ user, activeTab }) {
   const [open, setOpen] = useState(false)
   const [minimized, setMinimized] = useState(false)
@@ -79,8 +267,25 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
   const [providers, setProviders] = useState({ openai: { configured: false }, tavily: { configured: false } })
   const [synthesisMode, setSynthesisMode] = useState('auto')
   const [loadingStep, setLoadingStep] = useState(0)
+  const [briefing, setBriefing] = useState(null)
+  const [briefingLoading, setBriefingLoading] = useState(false)
+  const [briefingRefreshing, setBriefingRefreshing] = useState(false)
   const scrollRef = useRef(null)
   const firstName = String(user?.name || 'User').split(' ')[0]
+
+  const loadBriefing = useCallback(async ({ refresh = false } = {}) => {
+    if (refresh) setBriefingRefreshing(true)
+    else setBriefingLoading(true)
+    try {
+      const data = await salesAiApi.getBriefing()
+      setBriefing(data)
+    } catch {
+      if (!refresh) setBriefing(null)
+    } finally {
+      if (refresh) setBriefingRefreshing(false)
+      else setBriefingLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return undefined
@@ -97,8 +302,9 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
       .catch(() => {
         if (!cancelled) setError('Could not load Sales Manager AI configuration.')
       })
+    void loadBriefing()
     return () => { cancelled = true }
-  }, [open])
+  }, [open, loadBriefing])
 
   useEffect(() => {
     if (!sending) {
@@ -231,15 +437,15 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
         <>
           <div ref={scrollRef} style={{ flex: 1, maxHeight: 420, overflowY: 'auto', padding: '14px 14px 8px', background: '#fafafa' }}>
             {messages.length === 0 && !sending && (
-              <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, padding: '4px 2px 10px' }}>
-                I combine Tavily web research with your LoopC CRM and live metal rates.
-                {synthesisMode === 'template' && (
-                  <div style={{ marginTop: 8, color: '#065f46' }}>Report mode — no OpenAI credits required.</div>
-                )}
-                {!providers.tavily?.configured && (
-                  <div style={{ marginTop: 8, color: '#b45309' }}>Web research is limited until TAVILY_API_KEY is configured.</div>
-                )}
-              </div>
+              <TodaysPulsePanel
+                briefing={briefing}
+                loading={briefingLoading}
+                refreshing={briefingRefreshing}
+                onRefresh={() => void loadBriefing({ refresh: true })}
+                synthesisMode={synthesisMode}
+                providers={providers}
+                onSuggestionClick={(text) => void sendMessage(text)}
+              />
             )}
             {messages.map((m) => (
               <div
@@ -379,4 +585,26 @@ const iconBtnStyle = {
   cursor: 'pointer',
   fontSize: 18,
   lineHeight: 1,
+}
+
+const pulseCardStyle = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#fff',
+  border: '1px solid #e5e7eb',
+}
+
+const pulseSectionTitle = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: '#00684A',
+  marginBottom: 4,
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+}
+
+const pulseBody = {
+  fontSize: 12,
+  color: '#4b5563',
+  lineHeight: 1.45,
 }

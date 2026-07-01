@@ -72,6 +72,12 @@ function headers(session, company) {
   return h
 }
 
+async function getBriefing(session, company) {
+  const res = await fetch(`${API_BASE}/api/sales-ai/briefing`, { headers: headers(session, company) })
+  const data = await safeJson(res)
+  return { status: res.status, data }
+}
+
 async function getConfig(session, company) {
   const res = await fetch(`${API_BASE}/api/sales-ai/config`, { headers: headers(session, company) })
   const data = await safeJson(res)
@@ -127,6 +133,22 @@ async function main() {
     },
   })
 
+  const briefingRes = await getBriefing(loopcSession, 'loopc')
+  results.push({
+    check: 'GET /api/sales-ai/briefing (loopc)',
+    ok: briefingRes.status === 200
+      && briefingRes.data?.success
+      && briefingRes.data?.metals
+      && briefingRes.data?.crm?.summary,
+    detail: {
+      status: briefingRes.status,
+      hasMetals: Boolean(briefingRes.data?.metals?.goldPrice),
+      pipelineValue: briefingRes.data?.crm?.summary?.pipelineValueUSD,
+      marketBullets: briefingRes.data?.market?.bullets?.length || 0,
+      suggestions: briefingRes.data?.suggestions?.length || 0,
+    },
+  })
+
   const chatRes = await postChat(loopcSession, 'loopc', 'Analyze our CRM pipeline briefly.')
   const summary = summarizeReply(chatRes.data)
   const chatOk = chatRes.status === 200
@@ -145,6 +167,13 @@ async function main() {
     check: 'GET /api/sales-ai/config (mg → 403)',
     ok: mgConfig.status === 403,
     detail: { status: mgConfig.status, message: mgConfig.data?.message },
+  })
+
+  const mgBriefing = await getBriefing(mgSession, 'mg')
+  results.push({
+    check: 'GET /api/sales-ai/briefing (mg → 403)',
+    ok: mgBriefing.status === 403,
+    detail: { status: mgBriefing.status, message: mgBriefing.data?.message },
   })
 
   const mgChat = await postChat(mgSession, 'mg', 'Market trends')

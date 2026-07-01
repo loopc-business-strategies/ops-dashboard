@@ -5,6 +5,7 @@ const { Joi, validateBody } = require('../middleware/validate')
 const { isLocalDevEnv } = require('../utils/securityEnv')
 const { assertSalesAiAccess, isSalesAiEnabledForTenant } = require('../services/salesAi/salesAiAccess')
 const { runSalesAiChat, getSalesAiConfig } = require('../services/salesAi/salesAiOrchestrator')
+const { buildSalesAiBriefing } = require('../services/salesAi/salesAiBriefing')
 const { resolveRequestTenantKey } = require('../config/tenants')
 
 const router = express.Router()
@@ -17,6 +18,15 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
   skip: () => isLocalDevEnv(),
   message: { success: false, message: 'Too many Sales AI requests. Please wait a moment.' },
+})
+
+const briefingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.SALES_AI_BRIEFING_RATE_LIMIT_MAX || 30),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isLocalDevEnv(),
+  message: { success: false, message: 'Too many briefing requests. Please wait a moment.' },
 })
 
 const chatSchema = Joi.object({
@@ -46,6 +56,21 @@ router.get('/config', (req, res) => {
   } catch (err) {
     const status = err.statusCode || 500
     res.status(status).json({ success: false, message: err.message || 'Sales AI unavailable' })
+  }
+})
+
+router.get('/briefing', briefingLimiter, async (req, res) => {
+  try {
+    assertSalesAiAccess(req)
+    const briefing = await buildSalesAiBriefing(req.user)
+    res.json({ success: true, ...briefing })
+  } catch (err) {
+    console.error('[sales-ai] briefing error:', err)
+    const status = err.statusCode || 500
+    res.status(status).json({
+      success: false,
+      message: err?.message || 'Sales Manager AI briefing could not be loaded.',
+    })
   }
 })
 

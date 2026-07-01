@@ -5,6 +5,8 @@ const cfg = () => ({ withCredentials: true })
 
 export const getConfig = () => axios.get(`${BASE}/config`, cfg()).then((r) => r.data)
 
+export const getBriefing = () => axios.get(`${BASE}/briefing`, cfg()).then((r) => r.data)
+
 export const chat = (payload) => axios.post(`${BASE}/chat`, payload, {
   withCredentials: true,
   timeout: 90000,
