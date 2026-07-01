@@ -1,16 +1,37 @@
 # Sales Manager AI — Gmail inbox integration
 
-Sales Manager AI can check a user's Gmail inbox (read-only) when they ask in chat, e.g. *"Check my email for customer replies"*.
+Sales Manager AI can check email when users ask in chat, e.g. *"Check my email for customer replies"*.
+
+## Connection models
+
+| Model | Who connects | Who can read | LoopC today |
+|-------|----------------|--------------|-------------|
+| **Company inbox (tenant)** | `super_admin` once, as the company mailbox | All Sales AI users on that tenant | **Yes** — `business@loopcstrategies.com` |
+| **Personal inbox (user)** | Each user connects their own Gmail | Only that user | Used when tenant has no `sharedInboxEmail` |
+
+### LoopC company inbox
+
+1. Super admin opens Sales Manager AI on LoopC
+2. Clicks **Connect company Gmail**
+3. Signs in to Google as **`business@loopcstrategies.com`**
+4. Any LoopC user can use **Check email** — agent reads the shared company inbox
+
+### MG / CG later
+
+1. Set `sharedInboxEmail` in [`shared/tenant-catalog.json`](../shared/tenant-catalog.json) for each tenant
+2. Enable Sales Manager AI: `featureFlags.salesManagerAi` + `SALES_AI_ALLOWED_TENANTS=loopc,mg,cg`
+3. Each tenant’s super admin connects that tenant’s company Gmail once
 
 ## Google Cloud setup
 
-1. Create or use a Google Cloud project.
-2. Enable **Gmail API**.
-3. Configure **OAuth consent screen** (Internal for Workspace, or External with test users).
-4. Create **OAuth 2.0 Client ID** (Web application).
-5. Add authorized redirect URI:
-   - Production: `https://api.loopcstrategies.com/api/email/oauth/gmail/callback`
-   - Local: `http://localhost:5000/api/email/oauth/gmail/callback`
+1. Confirm `business@loopcstrategies.com` is **Google Workspace** or **Gmail**
+2. Enable **Gmail API**
+3. OAuth consent screen (Internal for Workspace, or External with test users)
+4. OAuth client — authorized redirect URIs:
+   - User (legacy): `https://api.loopcstrategies.com/api/email/oauth/gmail/callback`
+   - **Company inbox:** `https://api.loopcstrategies.com/api/email/oauth/gmail/tenant/callback`
+   - Local tenant: `http://localhost:5000/api/email/oauth/gmail/tenant/callback`
+5. Railway env vars (see below)
 
 ## Railway environment variables
 
@@ -18,11 +39,11 @@ Sales Manager AI can check a user's Gmail inbox (read-only) when they ask in cha
 |----------|-------------|
 | `GOOGLE_CLIENT_ID` | OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | OAuth client secret |
-| `GOOGLE_OAUTH_REDIRECT_URI` | Must match Google console (optional if `API_PUBLIC_URL` is set) |
-| `EMAIL_TOKEN_ENCRYPTION_KEY` | 64-char hex or passphrase for AES-256-GCM token storage |
-| `EMAIL_OAUTH_STATE_SECRET` | Optional HMAC secret for OAuth state (defaults to encryption key) |
-| `EMAIL_FETCH_RATE_LIMIT` | Max inbox fetches per user per hour (default: 10) |
-| `API_PUBLIC_URL` | Public API base, e.g. `https://api.loopcstrategies.com` |
+| `GOOGLE_OAUTH_TENANT_REDIRECT_URI` | Company inbox callback (optional if `API_PUBLIC_URL` set) |
+| `EMAIL_TOKEN_ENCRYPTION_KEY` | 64-char hex for AES-256-GCM token storage |
+| `EMAIL_OAUTH_STATE_SECRET` | Optional HMAC secret for OAuth state |
+| `EMAIL_FETCH_RATE_LIMIT` | Max inbox fetches per user/tenant per hour (default: 10) |
+| `API_PUBLIC_URL` | e.g. `https://api.loopcstrategies.com` |
 
 Generate encryption key:
 
@@ -30,19 +51,23 @@ Generate encryption key:
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-## Scope
+## API endpoints
 
-- Read-only: `https://www.googleapis.com/auth/gmail.readonly`
-- LoopC tenant only (same gate as Sales Manager AI)
-- Per-user connection (not shared team inbox)
+| Method | Path | Access |
+|--------|------|--------|
+| GET | `/api/email/tenant-connection` | Sales AI users — status + expected company email |
+| GET | `/api/email/oauth/gmail/tenant/start` | `super_admin` — start company OAuth |
+| DELETE | `/api/email/tenant-connection` | `super_admin` — disconnect company inbox |
 
-## User flow
+## Scope and limits
 
-1. Open Sales Manager AI widget on LoopC.
-2. Click **Connect Gmail** (or ask to check email when not connected).
-3. Complete Google sign-in; redirect returns to dashboard.
-4. Use **Check email** quick action or type a natural-language request.
+- Read-only Gmail scope: `gmail.readonly`
+- LoopC-only Sales AI today (`SALES_AI_ALLOWED_TENANTS`)
+- Max 15 messages per check; snippets only
+- Outlook: Phase 2 via `outlookProvider.js`
 
-## Phase 2
+## Other options (not implemented)
 
-Outlook / Microsoft 365 via Microsoft Graph uses the same `emailInboxService` interface (`outlookProvider.js` stub today).
+- **Domain-wide delegation** — service account reads `business@` without interactive login
+- **Microsoft 365** — Graph API for Outlook tenants
+- **Dashboard tasks from email** — create follow-up tasks from inbox findings

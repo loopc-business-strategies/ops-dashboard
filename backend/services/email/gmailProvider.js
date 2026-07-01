@@ -17,12 +17,19 @@ function getRedirectUri() {
   ).trim()
 }
 
-function buildGmailAuthUrl(state) {
+function getTenantRedirectUri() {
+  return String(
+    process.env.GOOGLE_OAUTH_TENANT_REDIRECT_URI
+    || `${String(process.env.API_PUBLIC_URL || 'http://localhost:5000').replace(/\/$/, '')}/api/email/oauth/gmail/tenant/callback`,
+  ).trim()
+}
+
+function buildGmailAuthUrl(state, redirectUri) {
   const clientId = String(process.env.GOOGLE_CLIENT_ID || '').trim()
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID is not configured.')
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: getRedirectUri(),
+    redirect_uri: redirectUri || getRedirectUri(),
     response_type: 'code',
     scope: GMAIL_READONLY_SCOPE,
     access_type: 'offline',
@@ -32,7 +39,7 @@ function buildGmailAuthUrl(state) {
   return `${GOOGLE_AUTH_URL}?${params.toString()}`
 }
 
-async function exchangeGmailCode(code) {
+async function exchangeGmailCode(code, redirectUri) {
   const clientId = String(process.env.GOOGLE_CLIENT_ID || '').trim()
   const clientSecret = String(process.env.GOOGLE_CLIENT_SECRET || '').trim()
   if (!clientId || !clientSecret) throw new Error('Google OAuth is not configured.')
@@ -44,7 +51,7 @@ async function exchangeGmailCode(code) {
       code: String(code || ''),
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uri: getRedirectUri(),
+      redirect_uri: redirectUri || getRedirectUri(),
       grant_type: 'authorization_code',
     }),
   })
@@ -143,6 +150,7 @@ module.exports = {
   GMAIL_READONLY_SCOPE,
   isGmailConfigured,
   getRedirectUri,
+  getTenantRedirectUri,
   buildGmailAuthUrl,
   exchangeGmailCode,
   refreshGmailAccessToken,

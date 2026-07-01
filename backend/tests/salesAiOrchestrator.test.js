@@ -120,17 +120,21 @@ describe('salesAiOrchestrator', () => {
       agent: 'emailInbox',
       title: 'Inbox',
       connectRequired: true,
-      connectUrl: 'https://api.example.com/api/email/oauth/gmail/start',
+      connectUrl: 'https://api.example.com/api/email/oauth/gmail/tenant/start',
+      tenantConnect: true,
+      canManage: true,
+      expectedEmail: 'business@loopcstrategies.com',
       content: 'Not connected',
       messages: [],
     })
     const result = await runSalesAiChat({
-      user: { company: 'loopc', _id: 'abc' },
+      user: { company: 'loopc', _id: 'abc', role: 'super_admin' },
       message: 'Check my email',
     })
     expect(result.meta.emailConnectRequired).toBe(true)
+    expect(result.meta.tenantEmailConnect).toBe(true)
     expect(runTavilySearches).not.toHaveBeenCalled()
-    expect(result.reply).toMatch(/Connect Gmail/i)
+    expect(result.reply).toMatch(/company inbox/i)
   })
 
   test('getSalesAiConfig includes check email quick action', () => {

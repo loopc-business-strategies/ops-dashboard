@@ -53,7 +53,7 @@ router.get('/config', async (req, res) => {
   try {
     const tenant = assertSalesAiAccess(req)
     const config = getSalesAiConfig()
-    const email = await getConnectionStatus(req.user)
+    const email = await getConnectionStatus(req.user, tenant)
     res.json({ success: true, tenant, ...config, email })
   } catch (err) {
     const status = err.statusCode || 500

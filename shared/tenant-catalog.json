@@ -8,6 +8,7 @@
       "portalHost": "mg.loopcstrategies.com",
       "envVar": "MONGO_URI_MG",
       "brandPrimary": "#005B96",
+      "sharedInboxEmail": "",
       "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "cg": {
@@ -18,6 +19,7 @@
       "portalHost": "cg.loopcstrategies.com",
       "envVar": "MONGO_URI_CG",
       "brandPrimary": "#9A3412",
+      "sharedInboxEmail": "",
       "enabledTabs": ["overview", "chat", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "loopc": {
@@ -28,6 +30,7 @@
       "portalHost": "loopc.loopcstrategies.com",
       "envVar": "MONGO_URI_LOOPC",
       "brandPrimary": "#00684A",
+      "sharedInboxEmail": "business@loopcstrategies.com",
       "enabledTabs": ["overview", "chat", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     }
   },

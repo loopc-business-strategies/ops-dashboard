@@ -8,7 +8,7 @@ const { runEmailInboxAgent } = require('./agents/emailInboxAgent')
 const { runStrategyAgent, getModel } = require('./agents/strategyAgent')
 const { runTemplateStrategyAgent, isOpenAiQuotaError } = require('./agents/templateStrategyAgent')
 const { isOpenAiConfigured } = require('./openAiClient')
-const { getGmailConnectStartUrl } = require('../email/emailInboxService')
+const { getGmailTenantConnectStartUrl, getGmailConnectStartUrl } = require('../email/emailInboxService')
 
 const REGION_OPTIONS = [
   { id: '', label: 'Global' },
@@ -113,8 +113,9 @@ async function runSalesAiChat({
   const skipTavily = shouldSkipTavilyForMessage(userMessage)
   const queries = skipTavily ? [] : buildSearchQueries(userMessage, normalizedInputs)
   const searchDepth = shouldUseAdvancedSearchDepth(userMessage, normalizedInputs) ? 'advanced' : 'basic'
+  const tenantKey = user?.company || pageContext?.tenant || 'loopc'
 
-  const emailPromise = wantsEmail ? runEmailInboxAgent(user, userMessage) : Promise.resolve(null)
+  const emailPromise = wantsEmail ? runEmailInboxAgent(user, userMessage, tenantKey) : Promise.resolve(null)
   const searchPromise = skipTavily ? Promise.resolve([]) : runTavilySearches(queries, { searchDepth })
 
   const [searchBatches, crmSnapshot, metalRates, emailSection] = await Promise.all([
@@ -125,16 +126,22 @@ async function runSalesAiChat({
   ])
 
   if (emailSection?.connectRequired) {
-    const connectUrl = emailSection.connectUrl || getGmailConnectStartUrl()
+    const connectUrl = emailSection.connectUrl
+      || (emailSection.tenantConnect ? getGmailTenantConnectStartUrl() : getGmailConnectStartUrl())
+    const connectLabel = emailSection.tenantConnect ? 'Connect company Gmail' : 'Connect Gmail'
+    const inboxHint = emailSection.expectedEmail ? ` (${emailSection.expectedEmail})` : ''
     return {
       reply: [
-        '_Gmail is not connected._',
+        emailSection.tenantConnect ? '_Company inbox is not connected._' : '_Gmail is not connected._',
         '',
         '## Answer',
-        'I can check your inbox once you connect Gmail (read-only access). Click **Connect Gmail** in the widget, complete Google sign-in, then ask again.',
+        emailSection.tenantConnect
+          ? `The shared company inbox${inboxHint} is not connected yet. A super admin can click **${connectLabel}** in the widget and sign in with the company Google account.`
+          : 'I can check your inbox once you connect Gmail (read-only access). Click **Connect Gmail** in the widget, complete Google sign-in, then ask again.',
         '',
-        `Connect: ${connectUrl}`,
-      ].join('\n'),
+        emailSection.canManage === false ? '_Ask your super admin to connect the company inbox._' : '',
+        connectUrl ? `Connect: ${connectUrl}` : '',
+      ].filter(Boolean).join('\n'),
       sections: [{ title: 'Inbox', agent: 'emailInbox' }],
       meta: {
         tenant: user?.company || 'loopc',
@@ -142,6 +149,8 @@ async function runSalesAiChat({
         synthesisMode: 'template',
         emailConnectRequired: true,
         emailConnectUrl: connectUrl,
+        tenantEmailConnect: Boolean(emailSection.tenantConnect),
+        emailCanManage: emailSection.canManage !== false,
         crmAccessLevel: crmSnapshot?.accessLevel || 'none',
       },
     }

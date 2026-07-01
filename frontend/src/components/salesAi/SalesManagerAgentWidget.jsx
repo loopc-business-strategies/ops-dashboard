@@ -131,7 +131,8 @@ function TodaysPulsePanel({
   synthesisMode,
   providers,
   email,
-  onConnectGmail,
+  onConnectCompanyGmail,
+  onDisconnectCompanyGmail,
   onSuggestionClick,
 }) {
   if (loading && !briefing) {
@@ -250,7 +251,68 @@ function TodaysPulsePanel({
         </div>
       ) : null}
 
-      {email?.gmailConfigured ? (
+      {email?.gmailConfigured && email?.sharedInboxEnabled ? (
+        <div style={pulseCardStyle}>
+          <div style={pulseSectionTitle}>Company inbox</div>
+          {email.expectedEmail ? (
+            <div style={{ ...pulseBody, marginBottom: 6 }}>
+              {email.expectedEmail}
+            </div>
+          ) : null}
+          {email.connected ? (
+            <div style={pulseBody}>
+              Connected · {email.address || email.expectedEmail}
+              {email.canManage ? (
+                <button
+                  type="button"
+                  onClick={onDisconnectCompanyGmail}
+                  style={{
+                    display: 'block',
+                    marginTop: 8,
+                    fontSize: 11,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #fecaca',
+                    background: '#fff',
+                    color: '#b45309',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Disconnect company Gmail
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <div style={pulseBody}>
+              {email.canManage
+                ? 'Connect the company Gmail account so everyone on this portal can use Check email.'
+                : 'Company inbox not connected yet. Ask a super admin to connect Gmail.'}
+              {email.canManage ? (
+                <button
+                  type="button"
+                  onClick={onConnectCompanyGmail}
+                  style={{
+                    display: 'block',
+                    marginTop: 8,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #d1fae5',
+                    background: '#f0fdf4',
+                    color: '#065f46',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Connect company Gmail
+                </button>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {email?.gmailConfigured && !email?.sharedInboxEnabled ? (
         <div style={pulseCardStyle}>
           <div style={pulseSectionTitle}>Email</div>
           {email.connected ? (
@@ -262,7 +324,7 @@ function TodaysPulsePanel({
               Connect Gmail to let Sales Manager AI check your inbox (read-only).
               <button
                 type="button"
-                onClick={onConnectGmail}
+                onClick={onConnectCompanyGmail}
                 style={{
                   display: 'block',
                   marginTop: 8,
@@ -307,7 +369,15 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
   const [briefing, setBriefing] = useState(null)
   const [briefingLoading, setBriefingLoading] = useState(false)
   const [briefingRefreshing, setBriefingRefreshing] = useState(false)
-  const [email, setEmail] = useState({ gmailConfigured: false, connected: false, address: null })
+  const [email, setEmail] = useState({
+    gmailConfigured: false,
+    connected: false,
+    address: null,
+    mode: 'tenant',
+    sharedInboxEnabled: false,
+    expectedEmail: '',
+    canManage: false,
+  })
   const [loadingSteps, setLoadingSteps] = useState(LOADING_STEPS)
   const scrollRef = useRef(null)
   const firstName = String(user?.name || 'User').split(' ')[0]
@@ -389,6 +459,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
         sources,
         emailConnectRequired: Boolean(data?.meta?.emailConnectRequired),
         emailConnectUrl: data?.meta?.emailConnectUrl || email.connectUrl,
+        tenantEmailConnect: Boolean(data?.meta?.tenantEmailConnect),
+        emailCanManage: Boolean(data?.meta?.emailCanManage ?? email.canManage),
         meta: data?.meta?.model ? `Model: ${data.meta.model}` : (data?.meta?.synthesisMode === 'template' ? 'Template report' : ''),
       }])
     } catch (err) {
@@ -402,7 +474,25 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
     } finally {
       setSending(false)
     }
-  }, [activeTab, email.connectUrl, messages, sending])
+  }, [activeTab, email.canManage, email.connectUrl, messages, sending])
+
+  const handleConnectEmail = useCallback(() => {
+    if (email.sharedInboxEnabled) {
+      emailConnectApi.startTenantGmailConnect()
+    } else {
+      emailConnectApi.startGmailConnect()
+    }
+  }, [email.sharedInboxEnabled])
+
+  const handleDisconnectCompanyEmail = useCallback(async () => {
+    try {
+      await emailConnectApi.disconnectTenant()
+      const data = await salesAiApi.getConfig()
+      if (data?.email) setEmail(data.email)
+    } catch {
+      setError('Could not disconnect company inbox.')
+    }
+  }, [])
 
   const panelStyle = {
     position: 'fixed',
@@ -488,7 +578,8 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                 synthesisMode={synthesisMode}
                 providers={providers}
                 email={email}
-                onConnectGmail={() => emailConnectApi.startGmailConnect()}
+                onConnectCompanyGmail={handleConnectEmail}
+                onDisconnectCompanyGmail={() => void handleDisconnectCompanyEmail()}
                 onSuggestionClick={(text) => void sendMessage(text)}
               />
             )}
@@ -525,10 +616,13 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                       ))}
                     </div>
                   ) : null}
-                  {m.emailConnectRequired ? (
+                  {m.emailConnectRequired && m.emailCanManage ? (
                     <button
                       type="button"
-                      onClick={() => emailConnectApi.startGmailConnect()}
+                      onClick={() => {
+                        if (m.tenantEmailConnect) emailConnectApi.startTenantGmailConnect()
+                        else emailConnectApi.startGmailConnect()
+                      }}
                       style={{
                         marginTop: 8,
                         fontSize: 11,
@@ -541,7 +635,7 @@ export default function SalesManagerAgentWidget({ user, activeTab }) {
                         cursor: 'pointer',
                       }}
                     >
-                      Connect Gmail
+                      {m.tenantEmailConnect ? 'Connect company Gmail' : 'Connect Gmail'}
                     </button>
                   ) : null}
                   {m.meta ? (

@@ -72,6 +72,12 @@ function headers(session, company) {
   return h
 }
 
+async function getTenantConnection(session, company) {
+  const res = await fetch(`${API_BASE}/api/email/tenant-connection`, { headers: headers(session, company) })
+  const data = await safeJson(res)
+  return { status: res.status, data }
+}
+
 async function getConnection(session, company) {
   const res = await fetch(`${API_BASE}/api/email/connection`, { headers: headers(session, company) })
   const data = await safeJson(res)
@@ -147,6 +153,21 @@ async function main() {
       status: emailConn.status,
       gmailConfigured: emailConn.data?.gmailConfigured,
       connected: emailConn.data?.connected,
+      sharedInboxEnabled: emailConn.data?.sharedInboxEnabled,
+      expectedEmail: emailConn.data?.expectedEmail,
+    },
+  })
+
+  const tenantEmailConn = await getTenantConnection(loopcSession, 'loopc')
+  results.push({
+    check: 'GET /api/email/tenant-connection (loopc)',
+    ok: tenantEmailConn.status === 200
+      && tenantEmailConn.data?.success
+      && tenantEmailConn.data?.expectedEmail === 'business@loopcstrategies.com',
+    detail: {
+      status: tenantEmailConn.status,
+      expectedEmail: tenantEmailConn.data?.expectedEmail,
+      sharedInboxEnabled: tenantEmailConn.data?.sharedInboxEnabled,
     },
   })
 
