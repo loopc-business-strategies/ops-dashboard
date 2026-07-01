@@ -1,5 +1,5 @@
 const SalesAiAgentTask = require('../../models/SalesAiAgentTask')
-const { AGENT_TYPES } = require('../../models/SalesAiAgentTask')
+const { AGENT_TYPES } = require('./salesAiAgentTypes')
 const { runSalesAiChat } = require('./salesAiOrchestrator')
 
 async function listTasks(user, { status, limit = 30 } = {}) {

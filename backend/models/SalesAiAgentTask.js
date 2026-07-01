@@ -1,7 +1,6 @@
 const mongoose = require('mongoose')
 const { createTenantModel } = require('../db/tenantModelProxy')
-
-const AGENT_TYPES = ['marketResearch', 'crmInsight', 'competitiveIntel', 'customerRisk', 'strategy']
+const { AGENT_TYPES } = require('../services/salesAi/salesAiAgentTypes')
 
 const salesAiAgentTaskSchema = new mongoose.Schema({
   agent: { type: String, enum: AGENT_TYPES, required: true },
@@ -21,4 +20,3 @@ salesAiAgentTaskSchema.index({ status: 1, createdAt: -1 })
 salesAiAgentTaskSchema.index({ assignedToId: 1, status: 1 })
 
 module.exports = createTenantModel('SalesAiAgentTask', salesAiAgentTaskSchema)
-module.exports.AGENT_TYPES = AGENT_TYPES
