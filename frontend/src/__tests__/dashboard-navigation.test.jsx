@@ -81,6 +81,9 @@ vi.mock('../components/tabs/ProductionTab', () => ({
 vi.mock('../components/tabs/ChatTab', () => ({
   default: () => <div>chat-tab</div>,
 }))
+vi.mock('../components/tabs/SalesManagerAiTab', () => ({
+  default: () => <div>sales-manager-ai-tab</div>,
+}))
 vi.mock('../components/tabs/TrainingTab', () => ({
   default: () => <div>training-tab</div>,
 }))
@@ -178,6 +181,33 @@ describe('Dashboard navigation behavior', () => {
   it('loads HR tab from URL deep link', async () => {
     renderDashboard('/dashboard?tab=hr&sub=labour_law')
     expect(await screen.findByText('hr-tab')).toBeTruthy()
+  })
+
+  it('loads Sales Manager AI tab from URL for LoopC', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Loop User', role: 'super_admin', company: 'loopc', _id: '507f1f77bcf86cd799439011' },
+      company: 'loopc',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+
+    renderDashboard('/dashboard?tab=sales-manager-ai')
+    expect(await screen.findByText('sales-manager-ai-tab')).toBeTruthy()
+  })
+
+  it('shows Sales Manager AI in sidebar for LoopC', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Loop User', role: 'super_admin', company: 'loopc', _id: '507f1f77bcf86cd799439011' },
+      company: 'loopc',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+
+    renderDashboard()
+    const links = await screen.findAllByRole('link', { name: 'Sales Manager AI' })
+    expect(links[0].getAttribute('href')).toContain('tab=sales-manager-ai')
+    fireEvent.click(links[0])
+    expect(await screen.findByText('sales-manager-ai-tab')).toBeTruthy()
   })
 
   it('loads Account Summary from URL deep link with account param', async () => {

@@ -7,6 +7,14 @@ export const getConfig = () => axios.get(`${BASE}/config`, cfg()).then((r) => r.
 
 export const getBriefing = () => axios.get(`${BASE}/briefing`, cfg()).then((r) => r.data)
 
+export const getAutomation = () => axios.get(`${BASE}/automation`, cfg()).then((r) => r.data)
+
+export const approveProposal = (id) => axios.post(`${BASE}/proposals/${id}/approve`, {}, cfg()).then((r) => r.data)
+
+export const dismissProposal = (id) => axios.post(`${BASE}/proposals/${id}/dismiss`, {}, cfg()).then((r) => r.data)
+
+export const updateAutomationSettings = (autoEnabled) => axios.patch(`${BASE}/settings`, { autoEnabled }, cfg()).then((r) => r.data)
+
 export const chat = (payload) => axios.post(`${BASE}/chat`, payload, {
   withCredentials: true,
   timeout: 90000,

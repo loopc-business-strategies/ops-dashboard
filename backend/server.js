@@ -196,6 +196,12 @@ async function startServer() {
     } catch (e) {
       console.warn('[startup] notification digest job not started:', e.message)
     }
+    try {
+      const { startSalesAiProactiveJob } = require('./services/salesAi/salesAiProactiveJob')
+      startSalesAiProactiveJob()
+    } catch (e) {
+      console.warn('[startup] sales AI proactive job not started:', e.message)
+    }
   } catch (err) {
     setPrimaryMongoReady(false)
     console.error(`❌ MongoDB connect failed (${mongoUri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)

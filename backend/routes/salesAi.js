@@ -8,6 +8,8 @@ const { runSalesAiChat, getSalesAiConfig } = require('../services/salesAi/salesA
 const { buildSalesAiBriefing } = require('../services/salesAi/salesAiBriefing')
 const { getConnectionStatus } = require('../services/email/emailInboxService')
 const { resolveRequestTenantKey } = require('../config/tenants')
+const { getAutomationConfig, loadTenantAutoSettings } = require('../services/salesAi/salesAiConfig')
+const salesAiActionsRoutes = require('./salesAiActions')
 
 const router = express.Router()
 router.use(protect)
@@ -49,12 +51,16 @@ const chatSchema = Joi.object({
   }).optional(),
 })
 
+router.use('/', salesAiActionsRoutes)
+
 router.get('/config', async (req, res) => {
   try {
     const tenant = assertSalesAiAccess(req)
+    await loadTenantAutoSettings(tenant)
     const config = getSalesAiConfig()
+    const automation = getAutomationConfig(tenant)
     const email = await getConnectionStatus(req.user, tenant)
-    res.json({ success: true, tenant, ...config, email })
+    res.json({ success: true, tenant, ...config, automation, email })
   } catch (err) {
     const status = err.statusCode || 500
     res.status(status).json({ success: false, message: err.message || 'Sales AI unavailable' })

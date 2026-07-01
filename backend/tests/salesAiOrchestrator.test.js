@@ -1,3 +1,17 @@
+jest.mock('../services/salesAi/agent/autoExecutor', () => ({
+  executeAutoActions: jest.fn(async () => []),
+}))
+
+jest.mock('../services/salesAi/agent/actionProposals', () => ({
+  upsertProposals: jest.fn(async () => []),
+}))
+
+jest.mock('../services/salesAi/salesAiConfig', () => ({
+  isAutoEnabledForTenant: jest.fn(() => false),
+  loadTenantAutoSettings: jest.fn(async () => true),
+  getMaxTavilySearches: jest.fn(() => 4),
+}))
+
 jest.mock('../services/salesAi/agents/emailInboxAgent', () => ({
   runEmailInboxAgent: jest.fn(async () => null),
 }))

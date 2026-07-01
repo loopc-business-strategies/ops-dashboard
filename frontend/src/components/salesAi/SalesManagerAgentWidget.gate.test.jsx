@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { getTenantBranding } from '../../config/tenantBranding'
-import { shouldShowSalesManagerAi } from '../salesAi/SalesManagerAgentWidget'
+import { shouldShowSalesManagerAi } from './salesAiGate'
 
 describe('Sales Manager AI tenant gate', () => {
   test('does not show for MG branding even with flag', () => {

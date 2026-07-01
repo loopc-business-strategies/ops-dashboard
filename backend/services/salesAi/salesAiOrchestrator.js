@@ -1,14 +1,18 @@
 const { buildSearchQueries, classifyEmailIntent, isEmailOnlyQuestion } = require('./salesAiPrompts')
 const { runTavilySearches, shouldUseAdvancedSearchDepth } = require('./tavilySearch')
 const { buildCrmSnapshot } = require('./crmSnapshot')
-const { buildMetalRatesSnapshot } = require('./metalRatesSnapshot')
 const { runMarketResearchAgent } = require('./agents/marketResearchAgent')
 const { runCrmInsightAgent } = require('./agents/crmInsightAgent')
-const { runEmailInboxAgent } = require('./agents/emailInboxAgent')
 const { runStrategyAgent, getModel } = require('./agents/strategyAgent')
 const { runTemplateStrategyAgent, isOpenAiQuotaError } = require('./agents/templateStrategyAgent')
 const { isOpenAiConfigured } = require('./openAiClient')
 const { getGmailTenantConnectStartUrl, getGmailConnectStartUrl } = require('../email/emailInboxService')
+const { routeIntent } = require('./agent/intentRouter')
+const { executeReadTools } = require('./agent/toolExecutor')
+const { isAutoEnabledForTenant, loadTenantAutoSettings } = require('./salesAiConfig')
+const { gatherAutomationFacts, buildRulesFromFacts } = require('./agent/rulesEngine')
+const { executeAutoActions } = require('./agent/autoExecutor')
+const { upsertProposals } = require('./agent/actionProposals')
 
 const REGION_OPTIONS = [
   { id: '', label: 'Global' },
@@ -109,23 +113,23 @@ async function runSalesAiChat({
     depth: String(chatInputs.depth || '').trim(),
   }
 
-  const wantsEmail = classifyEmailIntent(userMessage)
-  const emailOnly = isEmailOnlyQuestion(userMessage)
-  const skipTavily = shouldSkipTavilyForMessage(userMessage)
-  const queries = skipTavily ? [] : buildSearchQueries(userMessage, normalizedInputs)
+  const intent = routeIntent(userMessage, pageContext)
+  const wantsEmail = intent.wantsEmail
+  const emailOnly = intent.emailOnly
   const searchDepth = shouldUseAdvancedSearchDepth(userMessage, normalizedInputs) ? 'advanced' : 'basic'
   const tenantKey = user?.company || pageContext?.tenant || 'loopc'
 
-  const emailPromise = wantsEmail ? runEmailInboxAgent(user, userMessage, tenantKey) : Promise.resolve(null)
-  const searchPromise = skipTavily ? Promise.resolve([]) : runTavilySearches(queries, { searchDepth })
-  const metalsPromise = emailOnly ? Promise.resolve(null) : buildMetalRatesSnapshot()
+  const toolData = await executeReadTools({
+    user,
+    userMessage,
+    tenantKey,
+    intent,
+    chatInputs: normalizedInputs,
+    searchDepth,
+  })
 
-  const [searchBatches, crmSnapshot, metalRates, emailSection] = await Promise.all([
-    searchPromise,
-    emailOnly ? Promise.resolve(null) : buildCrmSnapshot(user),
-    metalsPromise,
-    emailPromise,
-  ])
+  const { emailSection, crmSnapshot, metalRates, searchBatches } = toolData
+  const queries = intent.skipTavily ? [] : buildSearchQueries(userMessage, normalizedInputs)
 
   if (emailSection?.connectRequired) {
     const connectUrl = emailSection.connectUrl
@@ -194,8 +198,35 @@ async function runSalesAiChat({
   const synthesisMode = strategy.meta?.synthesisMode
     || (strategy.meta?.model === 'template' ? 'template' : 'openai')
 
+  let automationNote = ''
+  let automationMeta = null
+  await loadTenantAutoSettings(tenantKey)
+  if (isAutoEnabledForTenant(tenantKey) && (wantsEmail || intent.wantsCrm)) {
+    try {
+      const facts = await gatherAutomationFacts({
+        emailMessages: emailSection?.messages || [],
+        metalRates,
+      })
+      const { tier1, tier2 } = buildRulesFromFacts(facts)
+      const autoResults = await executeAutoActions(tenantKey, tier1.slice(0, 5), {
+        source: 'chat',
+        systemUserId: user?._id,
+      })
+      const executed = autoResults.filter((r) => r.executed).length
+      if (executed > 0) {
+        automationNote = `\n\n_Automated ${executed} follow-up${executed === 1 ? '' : 's'} / alert${executed === 1 ? '' : 's'}._`
+      }
+      if (tier2.length) {
+        await upsertProposals(tenantKey, tier2.slice(0, 3), { source: 'chat' })
+      }
+      automationMeta = { executed, proposed: tier2.length }
+    } catch (err) {
+      console.warn('[sales-ai] chat automation:', err.message)
+    }
+  }
+
   return {
-    reply: strategy.reply,
+    reply: `${strategy.reply}${automationNote}`,
     sections,
     meta: {
       tenant: user?.company || 'loopc',
@@ -206,6 +237,8 @@ async function runSalesAiChat({
       chatInputs: normalizedInputs,
       emailChecked: Boolean(emailSection && !emailSection.connectRequired),
       emailMessageCount: emailSection?.messages?.length || 0,
+      intent: intent.tools,
+      automation: automationMeta,
     },
   }
 }
@@ -226,6 +259,7 @@ function getSalesAiConfig() {
     },
     synthesisMode: effectiveMode,
     model: effectiveMode === 'template' ? 'template' : getModel(),
+    automationMode: true,
     regions: REGION_OPTIONS,
     quickActions: [
       { id: 'market-trends', label: 'Market trends', prompt: 'What are the latest gold and silver jewelry market trends relevant to our business?' },
