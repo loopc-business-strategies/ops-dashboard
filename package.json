@@ -92,7 +92,6 @@
     "check:mobile-release-secrets": "node scripts/check-mobile-release-secrets.mjs",
     "setup:mobile-github-secrets": "node scripts/setup-mobile-github-secrets.mjs",
     "smoke:prod": "node scripts/production-smoke.js",
-    "smoke:sales-ai": "node scripts/smoke-sales-ai.js",
     "setup:openai-railway": "node scripts/set-openai-railway.mjs",
     "setup:gmail-railway": "node scripts/set-gmail-railway.mjs",
     "connect:company-gmail": "node scripts/connect-company-gmail.mjs",
