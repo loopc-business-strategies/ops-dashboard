@@ -160,13 +160,33 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByText('overview-tab')).toBeTruthy()
   })
 
-  it('sidebar ERP ledger link opens in a new tab', async () => {
+  it('sidebar ERP ledger link navigates in the same tab', async () => {
     renderDashboard()
 
     const ledgerLink = await screen.findByRole('link', { name: 'Ledger' })
     expect(ledgerLink.getAttribute('href')).toContain('tab=erp-ledger')
-    expect(ledgerLink.getAttribute('target')).toBe('_blank')
-    expect(ledgerLink.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(ledgerLink.getAttribute('target')).toBeNull()
+
+    fireEvent.click(ledgerLink)
+    expect(await screen.findByText('erp-tab-focus:ledger')).toBeTruthy()
+  })
+
+  it('sidebar department link opens in a new tab', async () => {
+    renderDashboard()
+
+    const hrLink = await screen.findByRole('link', { name: 'HR' })
+    expect(hrLink.getAttribute('href')).toContain('tab=hr')
+    expect(hrLink.getAttribute('target')).toBe('_blank')
+    expect(hrLink.getAttribute('rel')).toBe('noopener noreferrer')
+  })
+
+  it('sidebar chat link opens in a new tab', async () => {
+    renderDashboard()
+
+    const chatLink = await screen.findByRole('link', { name: 'Chat' })
+    expect(chatLink.getAttribute('href')).toContain('tab=chat')
+    expect(chatLink.getAttribute('target')).toBe('_blank')
+    expect(chatLink.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
   it('loads ERP supplier margin from URL deep link', async () => {

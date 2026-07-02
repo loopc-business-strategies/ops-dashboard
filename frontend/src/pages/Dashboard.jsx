@@ -11,6 +11,7 @@ import {
   buildDashboardHref,
   buildDashboardTabParam,
   dashboardSearchFromState,
+  isPrimaryNavClick,
   parseDashboardUrl,
   parseEnquiryDeepLink,
 } from '../utils/dashboardNavigation'
@@ -196,15 +197,49 @@ function resolveRealtimeBellErpFields(payload) {
 }
 
 // ── Sidebar nav item ────────────────────────────
-function NavItem({ label, active, href, onAfterClick, badge }) {
+function NavItem({
+  label,
+  active,
+  href,
+  onAfterClick,
+  badge,
+  openInNewTab = true,
+  onSameTabNavigate,
+}) {
+  const className = `sidebar-item w-full justify-center text-center${active ? ' active' : ''}`
+  const style = { textDecoration: 'none', display: 'flex', alignItems: 'center' }
+
+  if (openInNewTab) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => onAfterClick?.()}
+        className={className}
+        style={style}
+      >
+        <span className="truncate">{label}</span>
+        {badge && (
+          <span style={{ fontSize: 11, background: 'var(--purple)', color: '#fff', borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>
+            {badge}
+          </span>
+        )}
+      </a>
+    )
+  }
+
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={() => onAfterClick?.()}
-      className={`sidebar-item w-full justify-center text-center${active ? ' active' : ''}`}
-      style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+      onClick={(event) => {
+        if (!isPrimaryNavClick(event)) return
+        event.preventDefault()
+        onSameTabNavigate?.()
+        onAfterClick?.()
+      }}
+      className={className}
+      style={style}
     >
       <span className="truncate">{label}</span>
       {badge && (
@@ -936,6 +971,8 @@ function Dashboard() {
                 <NavItem key={item.id} {...item}
                   href={buildNavHref(item)}
                   active={activeTab === 'erp' && erpSubTab === item.erpSub}
+                  openInNewTab={false}
+                  onSameTabNavigate={() => navigateToTab('erp', { erpSub: item.erpSub, sub: null })}
                   onAfterClick={sidebarLinkAfterClick} />
               ))}
             </>
