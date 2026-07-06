@@ -90,7 +90,7 @@ describe('ERPDashboardWidgets contract', () => {
             currentMonthTotal: 500,
             lastMonthTotal: 0,
             transactionCount: 1,
-            monthlyTrend: [{ label: 'Jul 2026', month: 'Jul', year: '2026', amount: 500, year: '2026' }],
+            monthlyTrend: [{ label: 'Jul 2026', month: 'Jul', year: '2026', amount: 500 }],
           },
         }}
         token="test-token"
