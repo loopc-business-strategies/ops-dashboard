@@ -1,4 +1,5 @@
 import React from 'react'
+import { EXPENSE_MONTH_OPTIONS, currentExpenseYear } from './expenseMonthFilterUtils'
 
 export const EXPENSE_PAYMENT_FILTERS = [
   { key: 'all', label: 'All' },
@@ -28,6 +29,22 @@ const dateControl = {
   minWidth: 118,
   padding: '0 0.35rem',
   flexShrink: 0,
+}
+
+const exportButtonStyle = {
+  border: '1px solid #047857',
+  background: '#ECFDF5',
+  color: '#064E3B',
+  borderRadius: '0.35rem',
+  padding: '0 0.45rem',
+  fontSize: '0.68rem',
+  fontWeight: '700',
+  height: 30,
+  boxSizing: 'border-box',
+  cursor: 'pointer',
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
+  lineHeight: 1,
 }
 
 function expensePaymentBadgeStyle(source) {
@@ -66,6 +83,16 @@ export default function ExpenseRegisterSection({
   onStartDateChange,
   endDate = '',
   onEndDateChange,
+  yearFilter = currentExpenseYear(),
+  monthFilter = '',
+  yearOptions = [currentExpenseYear()],
+  onYearFilterChange,
+  onMonthFilterChange,
+  showMonthFilter = false,
+  showExport = false,
+  onDownloadMonth,
+  onDownloadMom,
+  exportBusy = false,
   onOpenLedgerEntry,
   onAfterLedgerOpen,
   scrollMinHeight,
@@ -133,7 +160,53 @@ export default function ExpenseRegisterSection({
             )
           })}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'nowrap', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', minWidth: 0 }}>
+          {showMonthFilter && (
+            <>
+              <select
+                value={yearFilter}
+                onChange={(e) => onYearFilterChange?.(e.target.value)}
+                style={{ ...smallControl, width: 72, minWidth: 72, flexShrink: 0 }}
+                aria-label="Expense year"
+              >
+                {yearOptions.map((yr) => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
+              </select>
+              <select
+                value={monthFilter}
+                onChange={(e) => onMonthFilterChange?.(e.target.value)}
+                style={{ ...smallControl, width: 108, minWidth: 108, flexShrink: 0 }}
+                aria-label="Expense month"
+              >
+                {EXPENSE_MONTH_OPTIONS.map((opt) => (
+                  <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {showExport && (
+            <>
+              <button
+                type="button"
+                onClick={onDownloadMonth}
+                disabled={exportBusy}
+                style={{ ...exportButtonStyle, opacity: exportBusy ? 0.6 : 1 }}
+                aria-label="Download month report"
+              >
+                {exportBusy ? '…' : 'Month'}
+              </button>
+              <button
+                type="button"
+                onClick={onDownloadMom}
+                disabled={exportBusy}
+                style={{ ...exportButtonStyle, opacity: exportBusy ? 0.6 : 1 }}
+                aria-label="Download month on month report"
+              >
+                MoM
+              </button>
+            </>
+          )}
           <select
             value={categoryFilter}
             onChange={(e) => onCategoryFilterChange?.(e.target.value)}

@@ -1,7 +1,14 @@
-import React, { useState } from 'react'
-import { formatDateInputLocal } from './erpTabPresentation'
+import React, { useMemo, useState } from 'react'
 import ExpenseRegisterSection from './ExpenseRegisterSection'
-import { expenseRegisterYearStart, useExpenseRegister } from './useExpenseRegister'
+import { useExpenseRegister } from './useExpenseRegister'
+import {
+  EXPENSE_MONTH_OPTIONS,
+  aggregateRegisterItemsByCategory,
+  buildYearOptions,
+  expenseMonthLabel,
+} from './expenseMonthFilterUtils'
+import { useExpensePeriodFilter } from './useExpensePeriodFilter'
+import { useExpenseRegisterExports } from './useExpenseRegisterExports'
 
 const EXPENSE_CHART_COLORS = ['#176B4B', '#49B68D', '#A8D8C0', '#15A8E2', '#6366F1', '#D97706']
 
@@ -87,34 +94,48 @@ const modalCloseButtonStyle = {
   padding: 0,
 }
 
+const exportButtonStyle = {
+  border: '1px solid #047857',
+  background: '#ECFDF5',
+  color: '#064E3B',
+  borderRadius: '0.35rem',
+  padding: '0 0.55rem',
+  fontSize: '0.72rem',
+  fontWeight: '700',
+  height: 34,
+  boxSizing: 'border-box',
+  cursor: 'pointer',
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
+  lineHeight: 1,
+}
+
 export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpenLedgerEntry }) {
   const [trendRange, setTrendRange] = useState('6m')
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()))
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [registerStartDate, setRegisterStartDate] = useState(expenseRegisterYearStart)
-  const [registerEndDate, setRegisterEndDate] = useState(() => formatDateInputLocal(new Date()))
+
+  const {
+    year: yearFilter,
+    month: monthFilter,
+    startDate: registerStartDate,
+    endDate: registerEndDate,
+    setYear: setYearFilter,
+    setMonth: setMonthFilter,
+    setStartDate: setRegisterStartDate,
+    setEndDate: setRegisterEndDate,
+  } = useExpensePeriodFilter({ defaultMonth: 'current' })
 
   const exp = dashboard?.expenses || {}
   const breakdown = exp?.breakdown || []
   const total = Number(exp?.total || 0)
   const monthlyTrend = exp?.monthlyTrend || []
-  const years = [...new Set(monthlyTrend.map((row) => String(row.year)).filter(Boolean))]
-  if (!years.includes(yearFilter)) years.push(yearFilter)
+  const yearOptions = buildYearOptions(monthlyTrend, yearFilter)
 
   const currentTotal = Number(exp.currentMonthTotal ?? total)
   const lastMonthTotal = Number(exp.lastMonthTotal || 0)
   const ytdTotal = Number(exp.ytdTotal || total)
   const txCount = Number(exp.transactionCount || 0)
-  const displayTotal = total > 0 ? total : ytdTotal
-  const segments = (total > 0 ? breakdown : monthlyTrend.filter((row) => Number(row.amount || 0) > 0))
-    .slice(0, 6)
-    .map((item, i) => ({
-      label: item.name || item.label || item.month || 'Other',
-      value: Number(item.amount || 0),
-      color: EXPENSE_CHART_COLORS[i % EXPENSE_CHART_COLORS.length],
-      pct: displayTotal > 0 ? (Number(item.amount || 0) / displayTotal) * 100 : 0,
-    }))
   const avgExpense = txCount > 0 ? currentTotal / txCount : 0
   const deltaPct = lastMonthTotal > 0 ? ((currentTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0
   const deltaColor = deltaPct <= 0 ? '#059669' : '#DC2626'
@@ -122,6 +143,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     .filter((row) => String(row.year) === yearFilter)
     .slice(trendRange === '12m' ? -12 : -6)
   const maxTrend = Math.max(...filteredTrend.map((row) => Number(row.amount || 0)), 1)
+  const selectedMonthIndex = monthFilter === '' ? -1 : Number(monthFilter)
 
   const {
     items: registerItems,
@@ -138,6 +160,41 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     paymentSource: paymentFilter,
     limit: 200,
   })
+
+  const {
+    exportBusy,
+    handleDownloadMonth,
+    handleDownloadMom,
+  } = useExpenseRegisterExports({
+    token,
+    year: yearFilter,
+    month: monthFilter,
+    startDate: registerStartDate,
+    endDate: registerEndDate,
+    categoryFilter,
+    paymentFilter,
+    monthlyTrend,
+  })
+
+  const categoryBreakdown = monthFilter !== '' && registerItems.length > 0
+    ? aggregateRegisterItemsByCategory(registerItems)
+    : null
+
+  const breakdownSource = categoryBreakdown
+    || (total > 0 ? breakdown : monthlyTrend.filter((row) => Number(row.amount || 0) > 0))
+
+  const displayTotal = categoryBreakdown
+    ? categoryBreakdown.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    : (total > 0 ? total : ytdTotal)
+
+  const segments = useMemo(() => breakdownSource
+    .slice(0, 6)
+    .map((item, i) => ({
+      label: item.name || item.label || item.month || 'Other',
+      value: Number(item.amount || 0),
+      color: EXPENSE_CHART_COLORS[i % EXPENSE_CHART_COLORS.length],
+      pct: displayTotal > 0 ? (Number(item.amount || 0) / displayTotal) * 100 : 0,
+    })), [breakdownSource, displayTotal])
 
   const categoryOptions = registerCategories.length > 0
     ? registerCategories
@@ -167,14 +224,37 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
           <button type="button" onClick={onClose} style={modalCloseButtonStyle} aria-label="Close">×</button>
         </div>
 
-        <div style={{ padding: '0.65rem 1.1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'nowrap', background: '#F8FAFC', flexShrink: 0 }}>
+        <div style={{ padding: '0.65rem 1.1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', background: '#F8FAFC', flexShrink: 0 }}>
           <select value={trendRange} onChange={(e) => setTrendRange(e.target.value)} style={{ ...smallControl, minWidth: 158 }} aria-label="Expense trend range">
             <option value="6m">Monthly Expenses</option>
             <option value="12m">Last 12 Months</option>
           </select>
           <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} style={{ ...smallControl, width: 88 }} aria-label="Expense year">
-            {years.sort().map((year) => <option key={year} value={year}>{year}</option>)}
+            {yearOptions.sort().map((year) => <option key={year} value={year}>{year}</option>)}
           </select>
+          <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} style={{ ...smallControl, minWidth: 128 }} aria-label="Expense month">
+            {EXPENSE_MONTH_OPTIONS.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleDownloadMonth}
+            disabled={exportBusy || !token}
+            style={{ ...exportButtonStyle, opacity: exportBusy || !token ? 0.6 : 1 }}
+            aria-label="Download month report"
+          >
+            Download Month
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadMom}
+            disabled={exportBusy || !token}
+            style={{ ...exportButtonStyle, opacity: exportBusy || !token ? 0.6 : 1 }}
+            aria-label="Download month on month report"
+          >
+            Download MoM
+          </button>
         </div>
 
         <div style={{ padding: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
@@ -182,7 +262,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
             <section style={{ border: '1px solid #E5E7EB', borderRadius: '0.65rem', padding: '0.95rem', background: '#FFFFFF' }}>
               <h4 style={{ margin: '0 0 0.85rem', color: '#111827', fontSize: '0.88rem', fontWeight: '900' }}>Expense Breakdown</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '170px minmax(0, 1fr)', gap: '1rem', alignItems: 'center' }}>
-                <ExpenseDonut segments={segments} total={displayTotal} size={158} stroke={34} label={fmtDollar(displayTotal)} subLabel="Total" />
+                <ExpenseDonut segments={segments} total={displayTotal} size={158} stroke={34} label={fmtDollar(displayTotal)} subLabel={monthFilter !== '' ? expenseMonthLabel(monthFilter) : 'Total'} />
                 <div style={{ display: 'grid', gap: '0.62rem' }}>
                   {segments.length === 0
                     ? <p style={{ margin: 0, fontSize: '0.78rem', color: '#9CA3AF' }}>No breakdown data for this period.</p>
@@ -210,7 +290,10 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
                   : filteredTrend.map((row, index) => {
                     const amount = Number(row.amount || 0)
                     const height = Math.max((amount / maxTrend) * 135, amount > 0 ? 8 : 3)
-                    const active = index === filteredTrend.length - 1
+                    const rowMonthIndex = row.monthIndex ?? -1
+                    const active = selectedMonthIndex >= 0
+                      ? rowMonthIndex === selectedMonthIndex
+                      : index === filteredTrend.length - 1
                     return (
                       <div key={row.key || `${row.label}-${index}`} style={{ flex: 1, minWidth: 42, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
                         <span style={{ color: active ? '#111827' : '#334155', fontSize: '0.7rem', fontWeight: '900' }}>{fmtCompactCurrency(amount)}</span>
@@ -240,6 +323,16 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
               onStartDateChange={setRegisterStartDate}
               endDate={registerEndDate}
               onEndDateChange={setRegisterEndDate}
+              yearFilter={yearFilter}
+              monthFilter={monthFilter}
+              yearOptions={yearOptions}
+              onYearFilterChange={setYearFilter}
+              onMonthFilterChange={setMonthFilter}
+              showMonthFilter
+              showExport
+              onDownloadMonth={handleDownloadMonth}
+              onDownloadMom={handleDownloadMom}
+              exportBusy={exportBusy}
               onOpenLedgerEntry={onOpenLedgerEntry}
               scrollMaxHeight="50vh"
               onAfterLedgerOpen={onClose}

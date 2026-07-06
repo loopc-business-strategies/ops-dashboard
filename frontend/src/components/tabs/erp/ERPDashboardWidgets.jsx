@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useErpLiveMetalSpotPrices } from './useErpLiveMetalSpotPrices'
 import { mapErpLiveMarginRow } from './mapErpLiveMarginRow'
-import { formatDateInputLocal } from './erpTabPresentation'
-import { expenseRegisterYearStart, useExpenseRegister } from './useExpenseRegister'
+import { useExpenseRegister } from './useExpenseRegister'
 import ExpenseRegisterSection from './ExpenseRegisterSection'
+import { buildYearOptions } from './expenseMonthFilterUtils'
+import { useExpensePeriodFilter } from './useExpensePeriodFilter'
+import { useExpenseRegisterExports } from './useExpenseRegisterExports'
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -316,9 +318,21 @@ function APARWidget({ dashboard, onNavigate }) {
 function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [registerStartDate, setRegisterStartDate] = useState(expenseRegisterYearStart)
-  const [registerEndDate, setRegisterEndDate] = useState(() => formatDateInputLocal(new Date()))
   const exp = dashboard?.expenses || {}
+  const monthlyTrend = exp?.monthlyTrend || []
+
+  const {
+    year: yearFilter,
+    month: monthFilter,
+    startDate: registerStartDate,
+    endDate: registerEndDate,
+    setYear: setYearFilter,
+    setMonth: setMonthFilter,
+    setStartDate: setRegisterStartDate,
+    setEndDate: setRegisterEndDate,
+  } = useExpensePeriodFilter({ defaultMonth: 'current' })
+
+  const yearOptions = buildYearOptions(monthlyTrend, yearFilter)
 
   const {
     items: registerItems,
@@ -334,6 +348,21 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
     category: categoryFilter,
     paymentSource: paymentFilter,
     limit: 200,
+  })
+
+  const {
+    exportBusy,
+    handleDownloadMonth,
+    handleDownloadMom,
+  } = useExpenseRegisterExports({
+    token,
+    year: yearFilter,
+    month: monthFilter,
+    startDate: registerStartDate,
+    endDate: registerEndDate,
+    categoryFilter,
+    paymentFilter,
+    monthlyTrend,
   })
 
   const categoryOptions = registerCategories.length > 0
@@ -364,6 +393,16 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
       onStartDateChange={setRegisterStartDate}
       endDate={registerEndDate}
       onEndDateChange={setRegisterEndDate}
+      yearFilter={yearFilter}
+      monthFilter={monthFilter}
+      yearOptions={yearOptions}
+      onYearFilterChange={setYearFilter}
+      onMonthFilterChange={setMonthFilter}
+      showMonthFilter
+      showExport
+      onDownloadMonth={handleDownloadMonth}
+      onDownloadMom={handleDownloadMom}
+      exportBusy={exportBusy}
       onOpenLedgerEntry={onOpenLedgerEntry}
       fillHeight
       style={{ border: 'none', borderRadius: '0.5rem', height: '100%' }}
