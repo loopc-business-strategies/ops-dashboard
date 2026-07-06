@@ -430,7 +430,26 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
     color: '#374151',
     fontSize: '0.72rem',
     fontWeight: '600',
-    padding: '0.32rem 0.55rem',
+    padding: '0 0.55rem',
+    height: 34,
+    boxSizing: 'border-box',
+    lineHeight: 1,
+  }
+  const modalCloseButtonStyle = {
+    width: 34,
+    height: 34,
+    borderRadius: '0.45rem',
+    border: '1px solid #E5E7EB',
+    background: '#FFFFFF',
+    color: '#64748B',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '700',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    padding: 0,
   }
 
   const {
@@ -495,31 +514,48 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
       {detailsOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3200, background: 'rgba(15,23,42,0.24)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }} onClick={() => setDetailsOpen(false)}>
           <div style={{ width: 'min(1120px, 96vw)', maxHeight: '88vh', overflow: 'hidden', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '0.8rem', boxShadow: '0 24px 70px rgba(15,23,42,0.28)', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ padding: '1rem 1.1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ width: 42, height: 42, borderRadius: '0.65rem', display: 'grid', placeItems: 'center', background: '#FEF9C3', fontSize: '1.2rem' }}>📋</span>
-                <div>
+            <div style={{ padding: '1rem 1.1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'nowrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                <span style={{ width: 42, height: 42, borderRadius: '0.65rem', display: 'grid', placeItems: 'center', background: '#FEF9C3', fontSize: '1.2rem', flexShrink: 0 }}>📋</span>
+                <div style={{ minWidth: 0 }}>
                   <h3 style={{ margin: 0, color: '#111827', fontSize: '1rem', fontWeight: '900' }}>Expenses</h3>
                   <p style={{ margin: '0.15rem 0 0', color: '#64748B', fontSize: '0.78rem' }}>Detailed overview of your expenses</p>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <select value={trendRange} onChange={(e) => setTrendRange(e.target.value)} style={smallControl} aria-label="Expense trend range">
-                  <option value="6m">Monthly Expenses</option>
-                  <option value="12m">Last 12 Months</option>
-                </select>
-                <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} style={smallControl} aria-label="Expense year">
-                  {years.sort().map((year) => <option key={year} value={year}>{year}</option>)}
-                </select>
-                <button type="button" onClick={() => setDetailsOpen(false)} style={{ width: 34, height: 34, borderRadius: '0.45rem', border: '1px solid #E5E7EB', background: '#FFFFFF', color: '#64748B', cursor: 'pointer', fontSize: '1rem' }}>x</button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setDetailsOpen(false)}
+                style={modalCloseButtonStyle}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '0.65rem 1.1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'nowrap', background: '#F8FAFC', flexShrink: 0 }}>
+              <select
+                value={trendRange}
+                onChange={(e) => setTrendRange(e.target.value)}
+                style={{ ...smallControl, minWidth: 158 }}
+                aria-label="Expense trend range"
+              >
+                <option value="6m">Monthly Expenses</option>
+                <option value="12m">Last 12 Months</option>
+              </select>
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                style={{ ...smallControl, width: 88 }}
+                aria-label="Expense year"
+              >
+                {years.sort().map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
             </div>
             <div style={{ padding: '1rem', overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(320px, 0.9fr)', gap: '1rem', marginBottom: '1rem' }}>
                 <section style={{ border: '1px solid #E5E7EB', borderRadius: '0.65rem', padding: '0.95rem', background: '#FFFFFF' }}>
                   <h4 style={{ margin: '0 0 0.85rem', color: '#111827', fontSize: '0.88rem', fontWeight: '900' }}>Expense Breakdown</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '170px minmax(0, 1fr)', gap: '1rem', alignItems: 'center' }}>
-                    <ExpenseDonut segments={segments} total={total} size={158} stroke={34} label={fmtDollar(total)} subLabel="Total" />
+                    <ExpenseDonut segments={segments} total={displayTotal} size={158} stroke={34} label={fmtDollar(displayTotal)} subLabel="Total" />
                     <div style={{ display: 'grid', gap: '0.62rem' }}>
                       {segments.map((seg) => (
                         <div key={seg.label} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 48px 92px', alignItems: 'center', gap: '0.75rem', fontSize: '0.78rem', color: '#374151' }}>
@@ -592,7 +628,7 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
                     <select
                       value={categoryFilter}
                       onChange={(e) => setCategoryFilter(e.target.value)}
-                      style={smallControl}
+                      style={{ ...smallControl, minWidth: 180, maxWidth: 280 }}
                       aria-label="Expense category"
                     >
                       <option value="">All categories</option>
@@ -604,15 +640,15 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
                       type="date"
                       value={registerStartDate}
                       onChange={(e) => setRegisterStartDate(e.target.value)}
-                      style={smallControl}
+                      style={{ ...smallControl, flexShrink: 0 }}
                       aria-label="Expense start date"
                     />
-                    <span style={{ color: '#9CA3AF', fontSize: '0.72rem' }}>to</span>
+                    <span style={{ color: '#9CA3AF', fontSize: '0.72rem', flexShrink: 0 }}>to</span>
                     <input
                       type="date"
                       value={registerEndDate}
                       onChange={(e) => setRegisterEndDate(e.target.value)}
-                      style={smallControl}
+                      style={{ ...smallControl, flexShrink: 0 }}
                       aria-label="Expense end date"
                     />
                   </div>

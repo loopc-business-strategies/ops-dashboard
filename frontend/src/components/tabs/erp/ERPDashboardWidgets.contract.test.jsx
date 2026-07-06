@@ -91,6 +91,7 @@ describe('ERPDashboardWidgets contract', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'View More Details' }))
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
     expect(screen.getByText('Expense Register')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Bank' })).toBeTruthy()
     expect(screen.getByText('HSBC Current (1010) → Operating Expenses (6100)')).toBeTruthy()
