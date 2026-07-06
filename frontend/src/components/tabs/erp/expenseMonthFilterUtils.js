@@ -129,3 +129,38 @@ export function aggregateRegisterItemsByCategory(items = []) {
     .map(([name, amount]) => ({ name, amount }))
     .sort((a, b) => b.amount - a.amount)
 }
+
+export function buildExpenseBreakdownFromRegister(items = []) {
+  const categories = aggregateRegisterItemsByCategory(items)
+  const total = categories.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+  return { categories, total }
+}
+
+/**
+ * Monthly trend rows from filtered register items for chart display.
+ * @param {'6m'|'12m'} range
+ */
+export function buildExpenseTrendBuckets(items = [], year, range = '6m') {
+  const y = Number(year) || new Date().getFullYear()
+  const buckets = aggregateExpensesByMonth(items, y)
+  const today = new Date()
+  const endIdx = y === today.getFullYear() ? today.getMonth() : 11
+  const monthCount = range === '12m' ? endIdx + 1 : Math.min(6, endIdx + 1)
+  const startIdx = range === '12m' ? 0 : Math.max(0, endIdx - monthCount + 1)
+
+  return buckets.slice(startIdx, endIdx + 1).map((row) => ({
+    ...row,
+    key: `${y}-${String(row.monthIndex + 1).padStart(2, '0')}`,
+    label: `${row.month} ${y}`,
+    year: y,
+  }))
+}
+
+export function peakExpenseTrendMonthIndex(trendRows = []) {
+  if (!trendRows.length) return -1
+  let peak = trendRows[0]
+  trendRows.forEach((row) => {
+    if (Number(row.amount || 0) > Number(peak.amount || 0)) peak = row
+  })
+  return Number(peak.amount || 0) > 0 ? peak.monthIndex : -1
+}

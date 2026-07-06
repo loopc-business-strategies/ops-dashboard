@@ -3,9 +3,11 @@ import ExpenseRegisterSection from './ExpenseRegisterSection'
 import { useExpenseRegister } from './useExpenseRegister'
 import {
   EXPENSE_MONTH_OPTIONS,
-  aggregateRegisterItemsByCategory,
+  buildExpenseBreakdownFromRegister,
+  buildExpenseTrendBuckets,
   buildYearOptions,
   expenseMonthLabel,
+  peakExpenseTrendMonthIndex,
 } from './expenseMonthFilterUtils'
 import { useExpensePeriodFilter } from './useExpensePeriodFilter'
 import { useExpenseRegisterExports } from './useExpenseRegisterExports'
@@ -108,7 +110,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     setMonth: setMonthFilter,
     setStartDate: setRegisterStartDate,
     setEndDate: setRegisterEndDate,
-  } = useExpensePeriodFilter({ defaultMonth: 'current' })
+  } = useExpensePeriodFilter({ defaultMonth: '' })
 
   const exp = dashboard?.expenses || {}
   const breakdown = exp?.breakdown || []
@@ -123,10 +125,6 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
   const avgExpense = txCount > 0 ? currentTotal / txCount : 0
   const deltaPct = lastMonthTotal > 0 ? ((currentTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0
   const deltaColor = deltaPct <= 0 ? '#059669' : '#DC2626'
-  const filteredTrend = monthlyTrend
-    .filter((row) => String(row.year) === yearFilter)
-    .slice(trendRange === '12m' ? -12 : -6)
-  const maxTrend = Math.max(...filteredTrend.map((row) => Number(row.amount || 0)), 1)
   const selectedMonthIndex = monthFilter === '' ? -1 : Number(monthFilter)
 
   const {
@@ -145,6 +143,33 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     limit: 200,
   })
 
+  const registerReady = Boolean(token) && !registerLoading
+  const periodTotal = registerItems.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+
+  const { categories: registerBreakdown, total: registerBreakdownTotal } = useMemo(
+    () => buildExpenseBreakdownFromRegister(registerItems),
+    [registerItems],
+  )
+
+  const filteredTrend = useMemo(() => {
+    if (registerReady) return buildExpenseTrendBuckets(registerItems, yearFilter, trendRange)
+    const trend = exp?.monthlyTrend || []
+    return trend
+      .filter((row) => String(row.year) === yearFilter)
+      .slice(trendRange === '12m' ? -12 : -6)
+  }, [registerReady, registerItems, yearFilter, trendRange, exp?.monthlyTrend])
+
+  const maxTrend = Math.max(...filteredTrend.map((row) => Number(row.amount || 0)), 1)
+  const peakMonthIndex = peakExpenseTrendMonthIndex(filteredTrend)
+
+  const breakdownSource = registerReady
+    ? registerBreakdown
+    : (total > 0 ? breakdown : monthlyTrend.filter((row) => Number(row.amount || 0) > 0))
+
+  const displayTotal = registerReady
+    ? registerBreakdownTotal
+    : (total > 0 ? total : ytdTotal)
+
   const {
     exportBusy,
     handleDownloadMonthlyReports,
@@ -157,17 +182,6 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     categoryFilter,
     paymentFilter,
   })
-
-  const categoryBreakdown = monthFilter !== '' && registerItems.length > 0
-    ? aggregateRegisterItemsByCategory(registerItems)
-    : null
-
-  const breakdownSource = categoryBreakdown
-    || (total > 0 ? breakdown : monthlyTrend.filter((row) => Number(row.amount || 0) > 0))
-
-  const displayTotal = categoryBreakdown
-    ? categoryBreakdown.reduce((sum, row) => sum + Number(row.amount || 0), 0)
-    : (total > 0 ? total : ytdTotal)
 
   const segments = useMemo(() => breakdownSource
     .slice(0, 6)
@@ -183,8 +197,12 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     : [...new Set((exp.recent || []).map((row) => row.category).filter(Boolean))]
 
   const registerAvg = registerItems.length > 0
-    ? registerItems.reduce((s, r) => s + Number(r.amount || 0), 0) / registerItems.length
+    ? periodTotal / registerItems.length
     : avgExpense
+
+  const footerPeriodTotal = registerReady ? periodTotal : currentTotal
+  const footerYtd = registerReady ? periodTotal : ytdTotal
+  const footerTxCount = registerReady ? registerTotal : txCount
 
   return (
     <div
@@ -257,7 +275,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
                     const rowMonthIndex = row.monthIndex ?? -1
                     const active = selectedMonthIndex >= 0
                       ? rowMonthIndex === selectedMonthIndex
-                      : index === filteredTrend.length - 1
+                      : rowMonthIndex === peakMonthIndex
                     return (
                       <div key={row.key || `${row.label}-${index}`} style={{ flex: 1, minWidth: 42, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
                         <span style={{ color: active ? '#111827' : '#334155', fontSize: '0.7rem', fontWeight: '900' }}>{fmtCompactCurrency(amount)}</span>
@@ -305,10 +323,10 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))', border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
             {[
-              ['Total Expenses', fmtDollar(currentTotal), `${deltaPct <= 0 ? 'down' : 'up'} ${Math.abs(deltaPct).toFixed(1)}% vs last month`, deltaColor],
+              ['Total Expenses', fmtDollar(footerPeriodTotal), `${deltaPct <= 0 ? 'down' : 'up'} ${Math.abs(deltaPct).toFixed(1)}% vs last month`, deltaColor],
               ['Last Month', fmtDollar(lastMonthTotal), 'Previous period', '#111827'],
-              ['This Year (YTD)', fmtDollar(ytdTotal), 'Year filter total', '#059669'],
-              ['Total Transactions', registerTotal > 0 ? registerTotal.toLocaleString() : txCount.toLocaleString(), `Avg ${fmtDollar(registerAvg)}`, '#111827'],
+              ['This Year (YTD)', fmtDollar(footerYtd), 'Year filter total', '#059669'],
+              ['Total Transactions', footerTxCount > 0 ? footerTxCount.toLocaleString() : '0', `Avg ${fmtDollar(registerAvg)}`, '#111827'],
             ].map(([label, value, sub, color], index) => (
               <div key={label} style={{ padding: '0.95rem 1rem', borderLeft: index === 0 ? 'none' : '1px solid #E5E7EB' }}>
                 <p style={{ margin: 0, color: '#64748B', fontSize: '0.73rem', fontWeight: '700' }}>{label}</p>

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   aggregateExpensesByMonth,
+  buildExpenseBreakdownFromRegister,
+  buildExpenseTrendBuckets,
   buildMomSummaryRows,
   expenseMonthDateRange,
   expenseMonthLabel,
+  peakExpenseTrendMonthIndex,
 } from './expenseMonthFilterUtils'
 import { buildExpenseMomExportPayload, buildExpenseMonthExportPayload } from './expenseExportHelpers'
 
@@ -71,5 +74,51 @@ describe('expenseMonthLabel', () => {
   it('returns All months for empty index', () => {
     expect(expenseMonthLabel('')).toBe('All months')
     expect(expenseMonthLabel('6')).toBe('July')
+  })
+})
+
+describe('buildExpenseTrendBuckets', () => {
+  const juneItems = [
+    { date: '2025-06-10T00:00:00.000Z', amount: 1000 },
+    { date: '2025-06-20T00:00:00.000Z', amount: 500 },
+  ]
+
+  it('puts June spend in the June bucket only', () => {
+    const rows = buildExpenseTrendBuckets(juneItems, 2025, '12m')
+    const june = rows.find((row) => row.monthIndex === 5)
+    const july = rows.find((row) => row.monthIndex === 6)
+    expect(june?.amount).toBe(1500)
+    expect(july?.amount ?? 0).toBe(0)
+  })
+
+  it('returns fewer months for 6m than 12m in a past year', () => {
+    const six = buildExpenseTrendBuckets(juneItems, 2025, '6m')
+    const twelve = buildExpenseTrendBuckets(juneItems, 2025, '12m')
+    expect(six.length).toBe(6)
+    expect(twelve.length).toBe(12)
+  })
+})
+
+describe('buildExpenseBreakdownFromRegister', () => {
+  it('aggregates categories and total from register rows', () => {
+    const { categories, total } = buildExpenseBreakdownFromRegister([
+      { category: 'Gpay/Paytm', amount: 1000 },
+      { category: 'Rent Expense', amount: 200 },
+      { category: 'Gpay/Paytm', amount: 50 },
+    ])
+    expect(total).toBe(1250)
+    expect(categories[0]).toEqual({ name: 'Gpay/Paytm', amount: 1050 })
+    expect(categories[1]).toEqual({ name: 'Rent Expense', amount: 200 })
+  })
+})
+
+describe('peakExpenseTrendMonthIndex', () => {
+  it('returns month index with highest amount', () => {
+    const peak = peakExpenseTrendMonthIndex([
+      { monthIndex: 4, amount: 0 },
+      { monthIndex: 5, amount: 304000 },
+      { monthIndex: 6, amount: 0 },
+    ])
+    expect(peak).toBe(5)
   })
 })
