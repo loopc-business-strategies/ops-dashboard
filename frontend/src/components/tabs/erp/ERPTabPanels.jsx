@@ -420,6 +420,9 @@ export default function ERPTabPanels({
         setActiveTab={setActiveTabGuarded}
         onNavigateMain={onNavigateMain}
         dashboardLiveRecalcEnabled={activeTab === 'dashboard'}
+        token={token}
+        accounts={accounts}
+        setLedgerFilters={setLedgerFilters}
       />
       )}
       {/* CHART OF ACCOUNTS TAB */}

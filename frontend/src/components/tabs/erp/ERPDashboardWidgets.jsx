@@ -1,6 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useErpLiveMetalSpotPrices } from './useErpLiveMetalSpotPrices'
 import { mapErpLiveMarginRow } from './mapErpLiveMarginRow'
+import { formatDateInputLocal } from './erpTabPresentation'
+import { expenseRegisterYearStart, useExpenseRegister } from './useExpenseRegister'
+
+const EXPENSE_PAYMENT_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'bank', label: 'Bank' },
+  { key: 'cash', label: 'Cash' },
+  { key: 'transfer', label: 'Transfer' },
+  { key: 'other', label: 'Other' },
+]
+
+function expensePaymentBadgeStyle(source) {
+  const styles = {
+    bank: { background: '#DBEAFE', color: '#1D4ED8' },
+    cash: { background: '#DCFCE7', color: '#166534' },
+    transfer: { background: '#EDE9FE', color: '#5B21B6' },
+    other: { background: '#F3F4F6', color: '#4B5563' },
+  }
+  return styles[source] || styles.other
+}
+
+function formatExpenseDate(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+}
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -358,10 +385,14 @@ function ExpenseDonut({ segments = [], total = 0, size = 152, stroke = 34, label
   )
 }
 
-function ExpensesWidget({ dashboard }) {
+function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [trendRange, setTrendRange] = useState('6m')
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()))
+  const [paymentFilter, setPaymentFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [registerStartDate, setRegisterStartDate] = useState(expenseRegisterYearStart)
+  const [registerEndDate, setRegisterEndDate] = useState(() => formatDateInputLocal(new Date()))
   const exp = dashboard?.expenses || {}
   const breakdown = exp?.breakdown || []
   const total = Number(exp?.total || 0)
@@ -401,6 +432,26 @@ function ExpensesWidget({ dashboard }) {
     fontWeight: '600',
     padding: '0.32rem 0.55rem',
   }
+
+  const {
+    items: registerItems,
+    categories: registerCategories,
+    total: registerTotal,
+    loading: registerLoading,
+    error: registerError,
+  } = useExpenseRegister({
+    token,
+    enabled: detailsOpen && Boolean(token),
+    startDate: registerStartDate,
+    endDate: registerEndDate,
+    category: categoryFilter,
+    paymentSource: paymentFilter,
+    limit: 200,
+  })
+
+  const categoryOptions = registerCategories.length > 0
+    ? registerCategories
+    : [...new Set((exp.recent || []).map((row) => row.category).filter(Boolean))]
 
   if (!hasExpenseData) {
     return <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>No expenses in period.</p>
@@ -452,7 +503,7 @@ function ExpensesWidget({ dashboard }) {
                   <p style={{ margin: '0.15rem 0 0', color: '#64748B', fontSize: '0.78rem' }}>Detailed overview of your expenses</p>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <select value={trendRange} onChange={(e) => setTrendRange(e.target.value)} style={smallControl} aria-label="Expense trend range">
                   <option value="6m">Monthly Expenses</option>
                   <option value="12m">Last 12 Months</option>
@@ -505,43 +556,131 @@ function ExpensesWidget({ dashboard }) {
                 </section>
               </div>
 
-              <section style={{ border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
-                <div style={{ padding: '0.8rem 0.95rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E5E7EB' }}>
-                  <h4 style={{ margin: 0, color: '#111827', fontSize: '0.88rem', fontWeight: '900' }}>Recent Expenses</h4>
-                  <span style={{ color: '#5B21B6', fontSize: '0.76rem', fontWeight: '800' }}>View All</span>
+              <section style={{ border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF', marginBottom: '1rem' }}>
+                <div style={{ padding: '0.8rem 0.95rem', borderBottom: '1px solid #E5E7EB', display: 'grid', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <h4 style={{ margin: 0, color: '#111827', fontSize: '0.88rem', fontWeight: '900' }}>Expense Register</h4>
+                    <span style={{ color: '#64748B', fontSize: '0.74rem', fontWeight: '700' }}>
+                      {registerLoading ? 'Loading…' : `${registerTotal.toLocaleString()} entries`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {EXPENSE_PAYMENT_FILTERS.map((chip) => {
+                      const active = paymentFilter === chip.key
+                      return (
+                        <button
+                          key={chip.key}
+                          type="button"
+                          onClick={() => setPaymentFilter(chip.key)}
+                          style={{
+                            border: `1px solid ${active ? '#059669' : '#E5E7EB'}`,
+                            background: active ? '#ECFDF5' : '#FAFAFA',
+                            color: active ? '#047857' : '#4B5563',
+                            borderRadius: 999,
+                            padding: '0.32rem 0.7rem',
+                            fontSize: '0.72rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {chip.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      style={smallControl}
+                      aria-label="Expense category"
+                    >
+                      <option value="">All categories</option>
+                      {categoryOptions.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      value={registerStartDate}
+                      onChange={(e) => setRegisterStartDate(e.target.value)}
+                      style={smallControl}
+                      aria-label="Expense start date"
+                    />
+                    <span style={{ color: '#9CA3AF', fontSize: '0.72rem' }}>to</span>
+                    <input
+                      type="date"
+                      value={registerEndDate}
+                      onChange={(e) => setRegisterEndDate(e.target.value)}
+                      style={smallControl}
+                      aria-label="Expense end date"
+                    />
+                  </div>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                     <thead>
                       <tr style={{ background: '#F8FAFC', color: '#64748B' }}>
-                        {['Date', 'Category', 'Description', 'Amount', 'Payment Method'].map((head) => (
-                          <th key={head} style={{ padding: '0.65rem 0.85rem', textAlign: head === 'Amount' ? 'right' : 'left', fontWeight: '800' }}>{head}</th>
+                        {['Date', 'Category', 'Description', 'Amount', 'Type', 'Account route', 'Ledger', ''].map((head) => (
+                          <th key={head || 'action'} style={{ padding: '0.65rem 0.85rem', textAlign: head === 'Amount' ? 'right' : 'left', fontWeight: '800', whiteSpace: 'nowrap' }}>{head}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {(exp.recent || []).length === 0 ? (
-                        <tr><td colSpan={5} style={{ padding: '1rem', textAlign: 'center', color: '#9CA3AF' }}>No recent expenses found.</td></tr>
-                      ) : (exp.recent || []).map((row, index) => (
-                        <tr key={`${row.date}-${index}`} style={{ borderTop: '1px solid #EEF2F7' }}>
-                          <td style={{ padding: '0.65rem 0.85rem', color: '#111827', whiteSpace: 'nowrap' }}>{new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</td>
-                          <td style={{ padding: '0.65rem 0.85rem', color: '#111827', fontWeight: '700' }}>{row.category}</td>
-                          <td style={{ padding: '0.65rem 0.85rem', color: '#374151' }}>{row.description}</td>
-                          <td style={{ padding: '0.65rem 0.85rem', color: '#111827', fontWeight: '900', textAlign: 'right' }}>{fmtDollar(row.amount)}</td>
-                          <td style={{ padding: '0.65rem 0.85rem', color: '#374151' }}>{row.paymentMethod}</td>
-                        </tr>
-                      ))}
+                      {registerLoading ? (
+                        <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: '#64748B' }}>Loading expense register…</td></tr>
+                      ) : registerError ? (
+                        <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: '#DC2626' }}>{registerError}</td></tr>
+                      ) : registerItems.length === 0 ? (
+                        <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: '#9CA3AF' }}>No expenses found for the selected filters.</td></tr>
+                      ) : registerItems.map((row) => {
+                        const badge = expensePaymentBadgeStyle(row.paymentSource)
+                        return (
+                          <tr key={row.id} style={{ borderTop: '1px solid #EEF2F7' }}>
+                            <td style={{ padding: '0.65rem 0.85rem', color: '#111827', whiteSpace: 'nowrap' }}>{formatExpenseDate(row.date)}</td>
+                            <td style={{ padding: '0.65rem 0.85rem', color: '#111827', fontWeight: '700' }}>{row.category}</td>
+                            <td style={{ padding: '0.65rem 0.85rem', color: '#374151', maxWidth: 220 }}>{row.description}</td>
+                            <td style={{ padding: '0.65rem 0.85rem', color: '#111827', fontWeight: '900', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtDollar(row.amount)}</td>
+                            <td style={{ padding: '0.65rem 0.85rem' }}>
+                              <span style={{ ...badge, display: 'inline-block', borderRadius: 4, padding: '2px 8px', fontSize: '0.68rem', fontWeight: '800' }}>
+                                {row.paymentMethod || 'Other'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.65rem 0.85rem', color: '#2563EB', minWidth: 200, maxWidth: 280 }}>
+                              <div style={{ fontSize: '0.74rem', lineHeight: 1.35 }}>{row.paymentRoute || `${row.fundingAccount || '—'} → ${row.expenseAccount || '—'}`}</div>
+                            </td>
+                            <td style={{ padding: '0.65rem 0.85rem', color: '#374151', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: '0.7rem', fontWeight: '700', textTransform: 'capitalize' }}>{row.referenceType || 'journal'}</div>
+                              {row.ledgerRef ? <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: 2 }}>{row.ledgerRef}</div> : null}
+                            </td>
+                            <td style={{ padding: '0.65rem 0.85rem', whiteSpace: 'nowrap' }}>
+                              {onOpenLedgerEntry ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onOpenLedgerEntry(row)
+                                    setDetailsOpen(false)
+                                  }}
+                                  style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', borderRadius: '0.4rem', padding: '0.28rem 0.55rem', fontSize: '0.68rem', fontWeight: '800', cursor: 'pointer' }}
+                                >
+                                  Open in Ledger
+                                </button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
               </section>
 
-              <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))', border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))', border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
                 {[
                   ['Total Expenses', fmtDollar(currentTotal), `${deltaPct <= 0 ? 'down' : 'up'} ${Math.abs(deltaPct).toFixed(1)}% vs last month`, deltaColor],
                   ['Last Month', fmtDollar(lastMonthTotal), 'Previous period', '#111827'],
                   ['This Year (YTD)', fmtDollar(ytdTotal), 'Year filter total', '#059669'],
-                  ['Total Transactions', txCount.toLocaleString(), `Avg ${fmtDollar(avgExpense)}`, '#111827'],
+                  ['Total Transactions', registerTotal > 0 ? registerTotal.toLocaleString() : txCount.toLocaleString(), `Avg ${fmtDollar(registerTotal > 0 && registerItems.length > 0 ? registerItems.reduce((s, r) => s + Number(r.amount || 0), 0) / registerItems.length : avgExpense)}`, '#111827'],
                 ].map(([label, value, sub, color], index) => (
                   <div key={label} style={{ padding: '0.95rem 1rem', borderLeft: index === 0 ? 'none' : '1px solid #E5E7EB' }}>
                     <p style={{ margin: 0, color: '#64748B', fontSize: '0.73rem', fontWeight: '700' }}>{label}</p>
@@ -802,7 +941,11 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     case 'expenses': {
       return (
         <div style={widgetContainerStyle}>
-          <ExpensesWidgetMemo dashboard={dashboard} />
+          <ExpensesWidgetMemo
+            dashboard={dashboard}
+            token={options.token}
+            onOpenLedgerEntry={options.onOpenLedgerEntry}
+          />
         </div>
       )
     }

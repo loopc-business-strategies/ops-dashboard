@@ -53,6 +53,13 @@ function paymentSourceToMethodLabel(paymentSource) {
   return PAYMENT_SOURCE_LABELS[paymentSource] || PAYMENT_SOURCE_LABELS.other
 }
 
+function resolveLedgerRef(entry) {
+  const autoTxNo = String(entry?.autoTxNo || '').trim()
+  const txRefNo = String(entry?.txRefNo || '').trim()
+  const chequeNo = String(entry?.chequeNo || '').trim()
+  return autoTxNo || txRefNo || chequeNo || ''
+}
+
 function mapExpenseLedgerEntry(entry, accountMetaMap, getAccountType, toMoney) {
   const debitMeta = accountMetaMap.get(String(entry.debitAccountId)) || {}
   const creditMeta = accountMetaMap.get(String(entry.creditAccountId)) || {}
@@ -80,6 +87,9 @@ function mapExpenseLedgerEntry(entry, accountMetaMap, getAccountType, toMoney) {
       code: creditMeta.accountCode || '',
       name: creditMeta.accountName || '',
     },
+    fundingAccount: formatAccountLabel(creditMeta),
+    expenseAccount: formatAccountLabel(debitMeta),
+    ledgerRef: resolveLedgerRef(entry),
     referenceType: entry.referenceType || 'journal',
   }
 }
@@ -141,6 +151,7 @@ module.exports = {
   classifyPaymentSource,
   buildExpensePaymentRoute,
   paymentSourceToMethodLabel,
+  resolveLedgerRef,
   mapExpenseLedgerEntry,
   buildExpenseRegisterFromLedger,
   formatAccountLabel,

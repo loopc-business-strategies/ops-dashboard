@@ -1,7 +1,32 @@
 import React from 'react'
-import { describe, expect, test } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, test, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { renderERP_DashWidget } from './ERPDashboardWidgets'
+
+vi.mock('./useExpenseRegister', () => ({
+  expenseRegisterYearStart: () => '2026-01-01',
+  useExpenseRegister: () => ({
+    items: [{
+      id: 'e1',
+      date: '2026-05-01T00:00:00.000Z',
+      category: 'Operating Expenses',
+      description: 'Office rent',
+      amount: 500,
+      paymentSource: 'bank',
+      paymentMethod: 'Bank',
+      paymentRoute: 'HSBC Current (1010) → Operating Expenses (6100)',
+      referenceType: 'expense',
+      ledgerRef: 'JV-1024',
+      creditAccount: { code: '1010', name: 'HSBC Current' },
+      debitAccount: { code: '6100', name: 'Operating Expenses' },
+    }],
+    categories: ['Operating Expenses'],
+    total: 1,
+    loading: false,
+    error: '',
+    reload: () => {},
+  }),
+}))
 
 describe('ERPDashboardWidgets contract', () => {
   test('renders fallback content for unknown widget id', () => {
@@ -39,6 +64,38 @@ describe('ERPDashboardWidgets contract', () => {
 
     expect(screen.getByText(/year-to-date activity/i)).toBeTruthy()
     expect(screen.getByText('THIS YEAR')).toBeTruthy()
+  })
+
+  test('expenses modal shows register filters, payment route, and ledger ref', () => {
+    render(
+      <div>
+        {renderERP_DashWidget(
+          'expenses',
+          {
+            expenses: {
+              total: 500,
+              breakdown: [{ name: 'Operating Expenses', amount: 500 }],
+              ytdTotal: 500,
+              currentMonthTotal: 500,
+              lastMonthTotal: 0,
+              transactionCount: 1,
+              monthlyTrend: [{ label: 'Jul 2026', month: 'Jul', year: '2026', amount: 500 }],
+            },
+          },
+          [],
+          null,
+          null,
+          { token: 'test-token', onOpenLedgerEntry: () => {} },
+        )}
+      </div>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'View More Details' }))
+    expect(screen.getByText('Expense Register')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Bank' })).toBeTruthy()
+    expect(screen.getByText('HSBC Current (1010) → Operating Expenses (6100)')).toBeTruthy()
+    expect(screen.getByText('JV-1024')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
   })
 
   test('renders notifications contract with action link', () => {

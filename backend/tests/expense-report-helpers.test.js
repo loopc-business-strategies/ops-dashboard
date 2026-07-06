@@ -2,6 +2,8 @@ const {
   classifyPaymentSource,
   buildExpensePaymentRoute,
   paymentSourceToMethodLabel,
+  mapExpenseLedgerEntry,
+  resolveLedgerRef,
   buildExpenseRegisterFromLedger,
 } = require('../utils/expenseReportHelpers')
 
@@ -45,6 +47,38 @@ describe('expenseReportHelpers', () => {
   it('maps payment source to method label', () => {
     expect(paymentSourceToMethodLabel('bank')).toBe('Bank')
     expect(paymentSourceToMethodLabel('cash')).toBe('Cash')
+  })
+
+  it('resolves ledger reference from voucher fields', () => {
+    expect(resolveLedgerRef({ autoTxNo: 'JV-1024', txRefNo: 'REF-1', chequeNo: 'CHQ-9' })).toBe('JV-1024')
+    expect(resolveLedgerRef({ txRefNo: 'REF-1', chequeNo: 'CHQ-9' })).toBe('REF-1')
+    expect(resolveLedgerRef({ chequeNo: 'CHQ-9' })).toBe('CHQ-9')
+    expect(resolveLedgerRef({})).toBe('')
+  })
+
+  it('maps expense ledger entry with account labels and ledger ref', () => {
+    const toMoney = (n) => Math.round(Number(n) * 100) / 100
+    const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
+    const mapped = mapExpenseLedgerEntry(
+      {
+        _id: 'e1',
+        date: new Date('2026-03-01'),
+        amount: 100,
+        exchangeRate: 1,
+        debitAccountId: 'debit1',
+        creditAccountId: 'credit-bank',
+        description: 'Office rent',
+        referenceType: 'expense',
+        autoTxNo: 'JV-1024',
+      },
+      accountMetaMap,
+      getType,
+      toMoney,
+    )
+    expect(mapped.paymentRoute).toBe('HSBC Current (1010) → Operating Expenses (6100)')
+    expect(mapped.fundingAccount).toBe('HSBC Current (1010)')
+    expect(mapped.expenseAccount).toBe('Operating Expenses (6100)')
+    expect(mapped.ledgerRef).toBe('JV-1024')
   })
 
   it('builds expense register sorted newest first with filters', () => {

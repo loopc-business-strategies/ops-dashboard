@@ -1,5 +1,6 @@
 import { ERPDashboardTabContainer } from '../ERPTabContainers'
 import { renderERP_DashWidget } from '../ERPDashboardWidgets'
+import { formatDateInputLocal } from '../erpTabPresentation'
 import { ERP_DASH_DEFAULT, ERP_DASH_GRID_COLUMNS, ERP_DASH_WIDGET_COUNT, ensureMarginsThenFixingOrder } from '../../erpTabConstants'
 
 export default function ERPDashboardTab({
@@ -24,6 +25,9 @@ export default function ERPDashboardTab({
   setActiveTab,
   onNavigateMain,
   dashboardLiveRecalcEnabled = false,
+  token,
+  accounts = [],
+  setLedgerFilters,
 }) {
   return (
     <>
@@ -101,6 +105,22 @@ export default function ERPDashboardTab({
                 const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
                 const widgetOptions = {
                   liveRecalcEnabled: dashboardLiveRecalcEnabled,
+                  token,
+                  onOpenLedgerEntry: setLedgerFilters ? (entry) => {
+                    const entryDate = entry?.date ? formatDateInputLocal(new Date(entry.date)) : ''
+                    const fundingCode = String(entry?.creditAccount?.code || '').trim()
+                    const matchedAccount = (accounts || []).find(
+                      (account) => String(account.accountCode || '').trim() === fundingCode,
+                    )
+                    setActiveTab('ledger')
+                    setLedgerFilters({
+                      startDate: entryDate,
+                      endDate: entryDate,
+                      accountId: matchedAccount?._id || '',
+                      referenceType: '',
+                      department: '',
+                    })
+                  } : null,
                 }
                 return (
                   <div

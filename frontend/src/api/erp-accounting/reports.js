@@ -21,6 +21,20 @@ const getCustomerOutstandingReport = async (token, params) => (await axios.get(`
 const getVendorOutstandingReport = async (token, params) => (await axios.get(`${BASE}/reports/vendor-outstanding`, getAuthConfig(token, params))).data
 const getForexGainLossReport = async (token, params) => (await axios.get(`${BASE}/reports/forex-gain-loss`, getAuthConfig(token, params))).data
 
+const cleanExpenseRegisterParams = (params = {}) => {
+  const out = {}
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+    if (key === 'paymentSource' && value === 'all') return
+    out[key] = value
+  })
+  return out
+}
+
+const getExpenseRegister = async (token, params = {}) => (
+  await axios.get(`${BASE}/reports/expense-register`, getAuthConfig(token, cleanExpenseRegisterParams(params)))
+).data
+
 export const reportsApi = {
   getTrialBalance,
   getLedgerReport,
@@ -33,4 +47,6 @@ export const reportsApi = {
   getCustomerOutstandingReport,
   getVendorOutstandingReport,
   getForexGainLossReport,
+  getExpenseRegister,
+  cleanExpenseRegisterParams,
 }

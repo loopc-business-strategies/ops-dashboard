@@ -1045,7 +1045,7 @@ router.get('/reports/expense-register', protect, reportExportLimiter, async (req
         date: { $gte: periodStart, $lte: periodEnd },
         isDeleted: { $ne: true },
       })
-        .select('date amount exchangeRate debitAccountId creditAccountId description referenceType currency paymentType notes')
+        .select('date amount exchangeRate debitAccountId creditAccountId description referenceType currency paymentType notes autoTxNo chequeNo txRefNo')
         .lean(),
     ])
 
