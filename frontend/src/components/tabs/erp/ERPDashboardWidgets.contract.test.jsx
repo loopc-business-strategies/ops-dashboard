@@ -65,7 +65,10 @@ describe('ERPDashboardWidgets contract', () => {
       </div>,
     )
 
-    expect(screen.getByText('Expense Register')).toBeTruthy()
+    expect(screen.getByText('1 entries')).toBeTruthy()
+    expect(screen.getByLabelText('Expense category')).toBeTruthy()
+    expect(screen.getByLabelText('Expense start date')).toBeTruthy()
+    expect(screen.getByLabelText('Expense end date')).toBeTruthy()
     expect(screen.queryByText('THIS YEAR')).toBeNull()
     expect(screen.queryByText(/year-to-date activity/i)).toBeNull()
     expect(screen.queryByRole('button', { name: 'View More Details' })).toBeNull()
@@ -95,7 +98,8 @@ describe('ERPDashboardWidgets contract', () => {
       </div>,
     )
 
-    expect(screen.getByText('Expense Register')).toBeTruthy()
+    expect(screen.getByText('1 entries')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Bank' })).toBeTruthy()
     expect(screen.getByText('HSBC Current (1010) → Operating Expenses (6100)')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View More Details' })).toBeNull()

@@ -16,7 +16,7 @@ const smallControl = {
   fontSize: '0.72rem',
   fontWeight: '600',
   padding: '0 0.55rem',
-  height: 34,
+  height: 30,
   boxSizing: 'border-box',
   lineHeight: 1,
 }
@@ -59,11 +59,17 @@ export default function ExpenseRegisterSection({
   onEndDateChange,
   onOpenLedgerEntry,
   onAfterLedgerOpen,
+  scrollMinHeight,
   scrollMaxHeight = '320px',
   style,
 }) {
   const scrollStyle = scrollMaxHeight && scrollMaxHeight !== 'none'
-    ? { maxHeight: scrollMaxHeight, overflowY: 'auto', overflowX: 'auto' }
+    ? {
+      minHeight: scrollMinHeight || undefined,
+      maxHeight: scrollMaxHeight,
+      overflowY: 'auto',
+      overflowX: 'auto',
+    }
     : { overflowX: 'auto' }
 
   const handleLedgerOpen = (row) => {
@@ -73,65 +79,68 @@ export default function ExpenseRegisterSection({
 
   return (
     <section style={{ border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF', ...style }}>
-      <div style={{ padding: '0.8rem 0.95rem', borderBottom: '1px solid #E5E7EB', display: 'grid', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <h4 style={{ margin: 0, color: '#111827', fontSize: '0.88rem', fontWeight: '900' }}>Expense Register</h4>
-          <span style={{ color: '#64748B', fontSize: '0.74rem', fontWeight: '700' }}>
-            {loading ? 'Loading…' : `${Number(total || 0).toLocaleString()} entries`}
-          </span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-          {EXPENSE_PAYMENT_FILTERS.map((chip) => {
-            const active = paymentFilter === chip.key
-            return (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={() => onPaymentFilterChange?.(chip.key)}
-                style={{
-                  border: `1px solid ${active ? '#059669' : '#E5E7EB'}`,
-                  background: active ? '#ECFDF5' : '#FAFAFA',
-                  color: active ? '#047857' : '#4B5563',
-                  borderRadius: 999,
-                  padding: '0.32rem 0.7rem',
-                  fontSize: '0.72rem',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-              >
-                {chip.label}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-          <select
-            value={categoryFilter}
-            onChange={(e) => onCategoryFilterChange?.(e.target.value)}
-            style={{ ...smallControl, minWidth: 180, maxWidth: 280 }}
-            aria-label="Expense category"
-          >
-            <option value="">All categories</option>
-            {categoryOptions.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => onStartDateChange?.(e.target.value)}
-            style={{ ...smallControl, flexShrink: 0 }}
-            aria-label="Expense start date"
-          />
-          <span style={{ color: '#9CA3AF', fontSize: '0.72rem', flexShrink: 0 }}>to</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => onEndDateChange?.(e.target.value)}
-            style={{ ...smallControl, flexShrink: 0 }}
-            aria-label="Expense end date"
-          />
-        </div>
+      <div style={{
+        padding: '0.5rem 0.65rem',
+        borderBottom: '1px solid #E5E7EB',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '0.35rem',
+      }}>
+        {EXPENSE_PAYMENT_FILTERS.map((chip) => {
+          const active = paymentFilter === chip.key
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => onPaymentFilterChange?.(chip.key)}
+              style={{
+                border: `1px solid ${active ? '#059669' : '#E5E7EB'}`,
+                background: active ? '#ECFDF5' : '#FAFAFA',
+                color: active ? '#047857' : '#4B5563',
+                borderRadius: 999,
+                padding: '0.26rem 0.55rem',
+                fontSize: '0.72rem',
+                fontWeight: '700',
+                height: 30,
+                boxSizing: 'border-box',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {chip.label}
+            </button>
+          )
+        })}
+        <select
+          value={categoryFilter}
+          onChange={(e) => onCategoryFilterChange?.(e.target.value)}
+          style={{ ...smallControl, minWidth: 140, flex: '1 1 120px', maxWidth: 220 }}
+          aria-label="Expense category"
+        >
+          <option value="">All categories</option>
+          {categoryOptions.map((cat) => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => onStartDateChange?.(e.target.value)}
+          style={{ ...smallControl, flexShrink: 0 }}
+          aria-label="Expense start date"
+        />
+        <span style={{ color: '#9CA3AF', fontSize: '0.72rem', flexShrink: 0 }}>to</span>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => onEndDateChange?.(e.target.value)}
+          style={{ ...smallControl, flexShrink: 0 }}
+          aria-label="Expense end date"
+        />
+        <span style={{ color: '#64748B', fontSize: '0.74rem', fontWeight: '700', marginLeft: 'auto', flexShrink: 0 }}>
+          {loading ? 'Loading…' : `${Number(total || 0).toLocaleString()} entries`}
+        </span>
       </div>
       <div style={scrollStyle}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>

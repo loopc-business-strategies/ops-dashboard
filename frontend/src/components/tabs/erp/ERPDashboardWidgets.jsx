@@ -361,6 +361,7 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
       endDate={registerEndDate}
       onEndDateChange={setRegisterEndDate}
       onOpenLedgerEntry={onOpenLedgerEntry}
+      scrollMinHeight="320px"
       scrollMaxHeight="400px"
       style={{ border: 'none', borderRadius: '0.5rem' }}
     />
