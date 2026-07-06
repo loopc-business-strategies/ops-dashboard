@@ -11,11 +11,6 @@ function fmtMoney(val, currency = '') {
   return currency ? `${currency} ${formatted}` : formatted
 }
 
-function fmtDollar(val) {
-  const n = Number(val || 0)
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
 function fmtPosition(val) {
   return Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })
 }
