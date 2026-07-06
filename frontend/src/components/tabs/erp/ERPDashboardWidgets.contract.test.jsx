@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { renderERP_DashWidget } from './ERPDashboardWidgets'
 
 vi.mock('./useExpenseRegister', () => ({
@@ -36,10 +36,10 @@ describe('ERPDashboardWidgets contract', () => {
 
   test('renders expenses empty-state contract', () => {
     render(<div>{renderERP_DashWidget('expenses', { expenses: { total: 0, breakdown: [], ytdTotal: 0, monthlyTrend: [] } }, [])}</div>)
-    expect(screen.getByText('No expenses in period.')).toBeTruthy()
+    expect(screen.getByText('Sign in to load expenses.')).toBeTruthy()
   })
 
-  test('renders expenses YTD fallback when current period is empty', () => {
+  test('renders expenses register when token present and dashboard total is zero', () => {
     render(
       <div>
         {renderERP_DashWidget(
@@ -57,13 +57,18 @@ describe('ERPDashboardWidgets contract', () => {
               ],
             },
           },
-          []
+          [],
+          null,
+          null,
+          { token: 'test-token', onOpenLedgerEntry: () => {} },
         )}
-      </div>
+      </div>,
     )
 
-    expect(screen.getByText(/year-to-date activity/i)).toBeTruthy()
-    expect(screen.getByText('THIS YEAR')).toBeTruthy()
+    expect(screen.getByText('Expense Register')).toBeTruthy()
+    expect(screen.queryByText('THIS YEAR')).toBeNull()
+    expect(screen.queryByText(/year-to-date activity/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'View More Details' })).toBeNull()
   })
 
   test('expenses card shows register without opening modal', () => {
@@ -93,40 +98,8 @@ describe('ERPDashboardWidgets contract', () => {
     expect(screen.getByText('Expense Register')).toBeTruthy()
     expect(screen.getByText('HSBC Current (1010) → Operating Expenses (6100)')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'View More Details' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
-  })
-
-  test('expenses modal shows register filters, payment route, and ledger ref', () => {
-    render(
-      <div>
-        {renderERP_DashWidget(
-          'expenses',
-          {
-            expenses: {
-              total: 500,
-              breakdown: [{ name: 'Operating Expenses', amount: 500 }],
-              ytdTotal: 500,
-              currentMonthTotal: 500,
-              lastMonthTotal: 0,
-              transactionCount: 1,
-              monthlyTrend: [{ label: 'Jul 2026', month: 'Jul', year: '2026', amount: 500 }],
-            },
-          },
-          [],
-          null,
-          null,
-          { token: 'test-token', onOpenLedgerEntry: () => {} },
-        )}
-      </div>,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'View More Details' }))
-    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
-    expect(screen.getAllByText('Expense Register').length).toBe(2)
-    expect(screen.getAllByRole('button', { name: 'Bank' }).length).toBe(2)
-    expect(screen.getAllByText('HSBC Current (1010) → Operating Expenses (6100)').length).toBe(2)
-    expect(screen.getAllByText('JV-1024').length).toBe(2)
-    expect(screen.getAllByRole('button', { name: 'Open in Ledger' }).length).toBe(2)
   })
 
   test('renders notifications contract with action link', () => {
