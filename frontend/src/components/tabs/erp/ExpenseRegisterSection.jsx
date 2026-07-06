@@ -21,6 +21,15 @@ const smallControl = {
   lineHeight: 1,
 }
 
+const dateControl = {
+  ...smallControl,
+  width: 118,
+  maxWidth: 118,
+  minWidth: 118,
+  padding: '0 0.35rem',
+  flexShrink: 0,
+}
+
 function expensePaymentBadgeStyle(source) {
   const styles = {
     bank: { background: '#DBEAFE', color: '#1D4ED8' },
@@ -90,68 +99,71 @@ export default function ExpenseRegisterSection({
       ...style,
     }}>
       <div style={{
-        padding: '0.5rem 0.65rem',
+        padding: '0.4rem 0.55rem',
         borderBottom: '1px solid #E5E7EB',
         display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: '0.35rem',
+        flexDirection: 'column',
+        gap: '0.3rem',
         flexShrink: 0,
       }}>
-        {EXPENSE_PAYMENT_FILTERS.map((chip) => {
-          const active = paymentFilter === chip.key
-          return (
-            <button
-              key={chip.key}
-              type="button"
-              onClick={() => onPaymentFilterChange?.(chip.key)}
-              style={{
-                border: `1px solid ${active ? '#059669' : '#E5E7EB'}`,
-                background: active ? '#ECFDF5' : '#FAFAFA',
-                color: active ? '#047857' : '#4B5563',
-                borderRadius: 999,
-                padding: '0.26rem 0.55rem',
-                fontSize: '0.72rem',
-                fontWeight: '700',
-                height: 30,
-                boxSizing: 'border-box',
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-            >
-              {chip.label}
-            </button>
-          )
-        })}
-        <select
-          value={categoryFilter}
-          onChange={(e) => onCategoryFilterChange?.(e.target.value)}
-          style={{ ...smallControl, minWidth: 140, flex: '1 1 120px', maxWidth: 220 }}
-          aria-label="Expense category"
-        >
-          <option value="">All categories</option>
-          {categoryOptions.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => onStartDateChange?.(e.target.value)}
-          style={{ ...smallControl, flexShrink: 0 }}
-          aria-label="Expense start date"
-        />
-        <span style={{ color: '#9CA3AF', fontSize: '0.72rem', flexShrink: 0 }}>to</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => onEndDateChange?.(e.target.value)}
-          style={{ ...smallControl, flexShrink: 0 }}
-          aria-label="Expense end date"
-        />
-        <span style={{ color: '#64748B', fontSize: '0.74rem', fontWeight: '700', marginLeft: 'auto', flexShrink: 0 }}>
-          {loading ? 'Loading…' : `${Number(total || 0).toLocaleString()} entries`}
-        </span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.35rem' }}>
+          {EXPENSE_PAYMENT_FILTERS.map((chip) => {
+            const active = paymentFilter === chip.key
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => onPaymentFilterChange?.(chip.key)}
+                style={{
+                  border: `1px solid ${active ? '#059669' : '#E5E7EB'}`,
+                  background: active ? '#ECFDF5' : '#FAFAFA',
+                  color: active ? '#047857' : '#4B5563',
+                  borderRadius: 999,
+                  padding: '0.26rem 0.55rem',
+                  fontSize: '0.72rem',
+                  fontWeight: '700',
+                  height: 30,
+                  boxSizing: 'border-box',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {chip.label}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'nowrap', minWidth: 0 }}>
+          <select
+            value={categoryFilter}
+            onChange={(e) => onCategoryFilterChange?.(e.target.value)}
+            style={{ ...smallControl, width: 136, minWidth: 136, maxWidth: 136, flexShrink: 0 }}
+            aria-label="Expense category"
+          >
+            <option value="">All categories</option>
+            {categoryOptions.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => onStartDateChange?.(e.target.value)}
+            style={dateControl}
+            aria-label="Expense start date"
+          />
+          <span style={{ color: '#9CA3AF', fontSize: '0.72rem', flexShrink: 0 }}>to</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => onEndDateChange?.(e.target.value)}
+            style={dateControl}
+            aria-label="Expense end date"
+          />
+          <span style={{ color: '#64748B', fontSize: '0.74rem', fontWeight: '700', marginLeft: 'auto', flexShrink: 0 }}>
+            {loading ? 'Loading…' : `${Number(total || 0).toLocaleString()} entries`}
+          </span>
+        </div>
       </div>
       <div style={scrollStyle}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
