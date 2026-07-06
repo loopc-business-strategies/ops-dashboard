@@ -66,6 +66,36 @@ describe('ERPDashboardWidgets contract', () => {
     expect(screen.getByText('THIS YEAR')).toBeTruthy()
   })
 
+  test('expenses card shows register without opening modal', () => {
+    render(
+      <div>
+        {renderERP_DashWidget(
+          'expenses',
+          {
+            expenses: {
+              total: 500,
+              breakdown: [{ name: 'Operating Expenses', amount: 500 }],
+              ytdTotal: 500,
+              currentMonthTotal: 500,
+              lastMonthTotal: 0,
+              transactionCount: 1,
+              monthlyTrend: [{ label: 'Jul 2026', month: 'Jul', year: '2026', amount: 500 }],
+            },
+          },
+          [],
+          null,
+          null,
+          { token: 'test-token', onOpenLedgerEntry: () => {} },
+        )}
+      </div>,
+    )
+
+    expect(screen.getByText('Expense Register')).toBeTruthy()
+    expect(screen.getByText('HSBC Current (1010) → Operating Expenses (6100)')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+  })
+
   test('expenses modal shows register filters, payment route, and ledger ref', () => {
     render(
       <div>
@@ -92,11 +122,11 @@ describe('ERPDashboardWidgets contract', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View More Details' }))
     expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
-    expect(screen.getByText('Expense Register')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Bank' })).toBeTruthy()
-    expect(screen.getByText('HSBC Current (1010) → Operating Expenses (6100)')).toBeTruthy()
-    expect(screen.getByText('JV-1024')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
+    expect(screen.getAllByText('Expense Register').length).toBe(2)
+    expect(screen.getAllByRole('button', { name: 'Bank' }).length).toBe(2)
+    expect(screen.getAllByText('HSBC Current (1010) → Operating Expenses (6100)').length).toBe(2)
+    expect(screen.getAllByText('JV-1024').length).toBe(2)
+    expect(screen.getAllByRole('button', { name: 'Open in Ledger' }).length).toBe(2)
   })
 
   test('renders notifications contract with action link', () => {
