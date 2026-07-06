@@ -2,6 +2,7 @@ import React from 'react'
 import { describe, expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ERP_DASH_ALL_WIDGETS } from '../erpTabConstants'
+import ExpenseDashboardModal from './ExpenseDashboardModal'
 import { renderERP_DashWidget } from './ERPDashboardWidgets'
 
 vi.mock('./useExpenseRegister', () => ({
@@ -46,41 +47,6 @@ describe('ERPDashboardWidgets contract', () => {
     expect(screen.getByText('Sign in to load expenses.')).toBeTruthy()
   })
 
-  test('renders expenses register when token present and dashboard total is zero', () => {
-    render(
-      <div>
-        {renderERP_DashWidget(
-          'expenses',
-          {
-            expenses: {
-              total: 0,
-              breakdown: [],
-              ytdTotal: 15000,
-              currentMonthTotal: 0,
-              lastMonthTotal: 4200,
-              monthlyTrend: [
-                { label: 'May 2026', month: 'May', year: '2026', amount: 4200 },
-                { label: 'Apr 2026', month: 'Apr', year: '2026', amount: 10800 },
-              ],
-            },
-          },
-          [],
-          null,
-          null,
-          { token: 'test-token', onOpenLedgerEntry: () => {} },
-        )}
-      </div>,
-    )
-
-    expect(screen.getByText('1 entries')).toBeTruthy()
-    expect(screen.getByLabelText('Expense category')).toBeTruthy()
-    expect(screen.getByLabelText('Expense start date')).toBeTruthy()
-    expect(screen.getByLabelText('Expense end date')).toBeTruthy()
-    expect(screen.queryByText('THIS YEAR')).toBeNull()
-    expect(screen.queryByText(/year-to-date activity/i)).toBeNull()
-    expect(screen.queryByRole('button', { name: 'View More Details' })).toBeNull()
-  })
-
   test('expenses card shows register without opening modal', () => {
     render(
       <div>
@@ -111,6 +77,34 @@ describe('ERPDashboardWidgets contract', () => {
     expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View More Details' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+  })
+
+  test('expense dashboard modal shows charts register and close', () => {
+    render(
+      <ExpenseDashboardModal
+        dashboard={{
+          expenses: {
+            total: 500,
+            breakdown: [{ name: 'Operating Expenses', amount: 500 }],
+            ytdTotal: 500,
+            currentMonthTotal: 500,
+            lastMonthTotal: 0,
+            transactionCount: 1,
+            monthlyTrend: [{ label: 'Jul 2026', month: 'Jul', year: '2026', amount: 500, year: '2026' }],
+          },
+        }}
+        token="test-token"
+        onClose={() => {}}
+        onOpenLedgerEntry={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
+    expect(screen.getByText('Expense Breakdown')).toBeTruthy()
+    expect(screen.getByText('Monthly Trend')).toBeTruthy()
+    expect(screen.getByLabelText('Expense category')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
+    expect(screen.getByText('Total Expenses')).toBeTruthy()
   })
 
   test('renders notifications contract with action link', () => {

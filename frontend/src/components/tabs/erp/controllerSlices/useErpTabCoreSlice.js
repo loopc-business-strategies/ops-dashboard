@@ -74,6 +74,8 @@ export function useErpTabCoreSlice(props) {
     setDashCustomizeOpen,
     dashPickSelected,
     setDashPickSelected,
+    dashExpandedWidget,
+    setDashExpandedWidget,
     dashDragSrc,
   } = useErpDashUiState({ user })
   const activeTabRef = useRef(activeTab)
@@ -511,6 +513,7 @@ export function useErpTabCoreSlice(props) {
     dashCustomizeOpen,
     dashDragSrc,
     dashEditMode,
+    dashExpandedWidget,
     dashHoveredWid,
     dashPickSelected,
     dashWidgetCols,
@@ -628,6 +631,7 @@ export function useErpTabCoreSlice(props) {
     setCustomersLoading,
     setDashCustomizeOpen,
     setDashEditMode,
+    setDashExpandedWidget,
     setDashHoveredWid,
     setDashPickSelected,
     setDashWidgetCols,

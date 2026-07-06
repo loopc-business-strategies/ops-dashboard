@@ -12,6 +12,7 @@ export function useErpDashUiState({ user }) {
   const [dashWidgetCols, setDashWidgetCols] = useState({})
   const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
   const [dashPickSelected, setDashPickSelected] = useState([])
+  const [dashExpandedWidget, setDashExpandedWidget] = useState(null)
   const dashDragSrc = useRef(null)
 
   return {
@@ -28,6 +29,8 @@ export function useErpDashUiState({ user }) {
     setDashCustomizeOpen,
     dashPickSelected,
     setDashPickSelected,
+    dashExpandedWidget,
+    setDashExpandedWidget,
     dashDragSrc,
   }
 }

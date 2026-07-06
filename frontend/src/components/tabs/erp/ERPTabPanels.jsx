@@ -84,6 +84,7 @@ export default function ERPTabPanels({
   dashCustomizeOpen,
   dashDragSrc,
   dashEditMode,
+  dashExpandedWidget,
   dashHoveredWid,
   dashPickSelected,
   dashWidgetCols,
@@ -284,6 +285,7 @@ export default function ERPTabPanels({
   setCustomerMarginSort,
   setDashCustomizeOpen,
   setDashEditMode,
+  setDashExpandedWidget,
   setDashHoveredWid,
   setDashPickSelected,
   setDashWidgetCols,
@@ -413,6 +415,8 @@ export default function ERPTabPanels({
         setDashCustomizeOpen={setDashCustomizeOpen}
         dashPickSelected={dashPickSelected}
         setDashPickSelected={setDashPickSelected}
+        dashExpandedWidget={dashExpandedWidget}
+        setDashExpandedWidget={setDashExpandedWidget}
         dashDragSrc={dashDragSrc}
         ERP_DASH_ALL_WIDGETS={ERP_DASH_ALL_WIDGETS}
         dashboard={dashboard}

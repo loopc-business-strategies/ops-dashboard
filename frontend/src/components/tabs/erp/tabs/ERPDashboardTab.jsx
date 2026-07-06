@@ -1,5 +1,6 @@
 import { ERPDashboardTabContainer } from '../ERPTabContainers'
 import { renderERP_DashWidget } from '../ERPDashboardWidgets'
+import ExpenseDashboardModal from '../ExpenseDashboardModal'
 import { formatDateInputLocal } from '../erpTabPresentation'
 import {
   ERP_DASH_CARD_MIN_HEIGHT,
@@ -25,6 +26,8 @@ export default function ERPDashboardTab({
   setDashCustomizeOpen,
   dashPickSelected,
   setDashPickSelected,
+  dashExpandedWidget,
+  setDashExpandedWidget,
   dashDragSrc,
   ERP_DASH_ALL_WIDGETS,
   dashboard,
@@ -36,6 +39,22 @@ export default function ERPDashboardTab({
   accounts = [],
   setLedgerFilters,
 }) {
+  const openLedgerFromExpense = setLedgerFilters ? (entry) => {
+    const entryDate = entry?.date ? formatDateInputLocal(new Date(entry.date)) : ''
+    const fundingCode = String(entry?.creditAccount?.code || '').trim()
+    const matchedAccount = (accounts || []).find(
+      (account) => String(account.accountCode || '').trim() === fundingCode,
+    )
+    setActiveTab('ledger')
+    setLedgerFilters({
+      startDate: entryDate,
+      endDate: entryDate,
+      accountId: matchedAccount?._id || '',
+      referenceType: '',
+      department: '',
+    })
+  } : null
+
   return (
     <>
       {/* DASHBOARD TAB */}
@@ -114,21 +133,7 @@ export default function ERPDashboardTab({
                 const widgetOptions = {
                   liveRecalcEnabled: dashboardLiveRecalcEnabled,
                   token,
-                  onOpenLedgerEntry: setLedgerFilters ? (entry) => {
-                    const entryDate = entry?.date ? formatDateInputLocal(new Date(entry.date)) : ''
-                    const fundingCode = String(entry?.creditAccount?.code || '').trim()
-                    const matchedAccount = (accounts || []).find(
-                      (account) => String(account.accountCode || '').trim() === fundingCode,
-                    )
-                    setActiveTab('ledger')
-                    setLedgerFilters({
-                      startDate: entryDate,
-                      endDate: entryDate,
-                      accountId: matchedAccount?._id || '',
-                      referenceType: '',
-                      department: '',
-                    })
-                  } : null,
+                  onOpenLedgerEntry: openLedgerFromExpense,
                 }
                 return (
                   <div
@@ -199,7 +204,19 @@ export default function ERPDashboardTab({
                         </div>
                         <span style={{ fontSize: '0.8rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: (isHovered || dashEditMode) ? 1 : 0, transition: 'opacity 0.15s' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {meta.expandable && (
+                          <button
+                            type="button"
+                            draggable={false}
+                            onDragStart={(ev) => ev.stopPropagation()}
+                            onClick={() => setDashExpandedWidget(wid)}
+                            aria-label="Expand"
+                            title="Expand"
+                            style={{ padding: '2px 6px', border: '1px solid #E5E7EB', borderRadius: '5px', background: '#F9FAFB', cursor: 'pointer', fontSize: '0.75rem', color: C.inkSoft, lineHeight: 1 }}
+                          >⛶</button>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: (isHovered || dashEditMode) ? 1 : 0, transition: 'opacity 0.15s' }}>
                         {meta.viewTab && (
                           <button
                             type="button"
@@ -228,6 +245,7 @@ export default function ERPDashboardTab({
                           onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
                           style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 2px', lineHeight: 1 }}
                         >✕</button>
+                        </div>
                       </div>
                     </div>
                     {/* Widget body */}
@@ -247,6 +265,15 @@ export default function ERPDashboardTab({
                 )
               })}
             </div>
+          )}
+
+          {dashExpandedWidget === 'expenses' && (
+            <ExpenseDashboardModal
+              dashboard={dashboard}
+              token={token}
+              onClose={() => setDashExpandedWidget(null)}
+              onOpenLedgerEntry={openLedgerFromExpense}
+            />
           )}
 
           {/* Customize modal */}
