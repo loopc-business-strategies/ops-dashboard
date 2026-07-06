@@ -66,7 +66,7 @@ export default function ExpenseChartsPanel({
 }) {
   const donutSize = compact ? 108 : 158
   const donutStroke = compact ? 24 : 34
-  const trendHeight = compact ? 130 : 190
+  const trendHeight = compact ? 110 : 190
   const barMaxHeight = compact ? 90 : 135
   const sectionPadding = compact ? '0.55rem' : '0.95rem'
   const titleSize = compact ? '0.75rem' : '0.88rem'

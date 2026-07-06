@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import ExpenseRegisterSection from './ExpenseRegisterSection'
-import ExpenseChartsPanel, { fmtDollar } from './ExpenseChartsPanel'
+import ExpenseChartsPanel from './ExpenseChartsPanel'
+import ExpenseStatsFooter from './ExpenseStatsFooter'
 import { useExpenseRegister } from './useExpenseRegister'
 import {
   EXPENSE_MONTH_OPTIONS,
@@ -9,6 +10,7 @@ import {
 import { useExpensePeriodFilter } from './useExpensePeriodFilter'
 import { useExpenseRegisterExports } from './useExpenseRegisterExports'
 import { useExpenseChartData } from './useExpenseChartData'
+import { useExpenseFooterStats } from './useExpenseFooterStats'
 
 const smallControl = {
   border: '1px solid #E5E7EB',
@@ -60,14 +62,6 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
   const monthlyTrend = exp?.monthlyTrend || []
   const yearOptions = buildYearOptions(monthlyTrend, yearFilter)
 
-  const currentTotal = Number(exp.currentMonthTotal ?? exp.total ?? 0)
-  const lastMonthTotal = Number(exp.lastMonthTotal || 0)
-  const ytdTotal = Number(exp.ytdTotal || exp.total || 0)
-  const txCount = Number(exp.transactionCount || 0)
-  const avgExpense = txCount > 0 ? currentTotal / txCount : 0
-  const deltaPct = lastMonthTotal > 0 ? ((currentTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0
-  const deltaColor = deltaPct <= 0 ? '#059669' : '#DC2626'
-
   const {
     items: registerItems,
     categories: registerCategories,
@@ -104,6 +98,15 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     trendRange,
   })
 
+  const footerStats = useExpenseFooterStats({
+    dashboard,
+    registerItems,
+    registerTotal,
+    registerReady,
+    filteredTrend,
+    monthFilter,
+  })
+
   const {
     exportBusy,
     handleDownloadMonthlyReports,
@@ -117,18 +120,9 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     paymentFilter,
   })
 
-  const periodTotal = registerItems.reduce((sum, row) => sum + Number(row.amount || 0), 0)
   const categoryOptions = registerCategories.length > 0
     ? registerCategories
     : [...new Set((exp.recent || []).map((row) => row.category).filter(Boolean))]
-
-  const registerAvg = registerItems.length > 0
-    ? periodTotal / registerItems.length
-    : avgExpense
-
-  const footerPeriodTotal = registerReady ? periodTotal : currentTotal
-  const footerYtd = registerReady ? periodTotal : ytdTotal
-  const footerTxCount = registerReady ? registerTotal : txCount
 
   return (
     <div
@@ -211,20 +205,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
             />
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))', border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
-            {[
-              ['Total Expenses', fmtDollar(footerPeriodTotal), `${deltaPct <= 0 ? 'down' : 'up'} ${Math.abs(deltaPct).toFixed(1)}% vs last month`, deltaColor],
-              ['Last Month', fmtDollar(lastMonthTotal), 'Previous period', '#111827'],
-              ['This Year (YTD)', fmtDollar(footerYtd), 'Year filter total', '#059669'],
-              ['Total Transactions', footerTxCount > 0 ? footerTxCount.toLocaleString() : '0', `Avg ${fmtDollar(registerAvg)}`, '#111827'],
-            ].map(([label, value, sub, color], index) => (
-              <div key={label} style={{ padding: '0.95rem 1rem', borderLeft: index === 0 ? 'none' : '1px solid #E5E7EB' }}>
-                <p style={{ margin: 0, color: '#64748B', fontSize: '0.73rem', fontWeight: '700' }}>{label}</p>
-                <p style={{ margin: '0.35rem 0 0', color, fontSize: '1rem', fontWeight: '900' }}>{value}</p>
-                <p style={{ margin: '0.28rem 0 0', color: '#64748B', fontSize: '0.7rem' }}>{sub}</p>
-              </div>
-            ))}
-          </div>
+          <ExpenseStatsFooter {...footerStats} />
         </div>
       </div>
     </div>

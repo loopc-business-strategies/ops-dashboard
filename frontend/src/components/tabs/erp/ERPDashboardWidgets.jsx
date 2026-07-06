@@ -3,8 +3,10 @@ import { useErpLiveMetalSpotPrices } from './useErpLiveMetalSpotPrices'
 import { mapErpLiveMarginRow } from './mapErpLiveMarginRow'
 import { useExpenseRegister } from './useExpenseRegister'
 import ExpenseChartsPanel from './ExpenseChartsPanel'
+import ExpenseStatsFooter from './ExpenseStatsFooter'
 import { useExpensePeriodFilter } from './useExpensePeriodFilter'
 import { useExpenseChartData } from './useExpenseChartData'
+import { useExpenseFooterStats } from './useExpenseFooterStats'
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -323,6 +325,7 @@ function ExpensesWidget({ dashboard, token }) {
 
   const {
     items: registerItems,
+    total: registerTotal,
     loading: registerLoading,
   } = useExpenseRegister({
     token,
@@ -342,6 +345,7 @@ function ExpensesWidget({ dashboard, token }) {
     peakMonthIndex,
     selectedMonthIndex,
     subLabel,
+    registerReady,
   } = useExpenseChartData({
     dashboard,
     registerItems,
@@ -350,6 +354,15 @@ function ExpensesWidget({ dashboard, token }) {
     yearFilter,
     monthFilter: '',
     trendRange: '6m',
+  })
+
+  const footerStats = useExpenseFooterStats({
+    dashboard,
+    registerItems,
+    registerTotal,
+    registerReady,
+    filteredTrend,
+    monthFilter: '',
   })
 
   if (!token) {
@@ -361,7 +374,7 @@ function ExpensesWidget({ dashboard, token }) {
   }
 
   return (
-    <div style={{ height: '100%', minHeight: 0, padding: '0.35rem 0.45rem', boxSizing: 'border-box' }}>
+    <div style={{ height: '100%', minHeight: 0, padding: '0.35rem 0.45rem', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
       <ExpenseChartsPanel
         compact
         segments={segments}
@@ -372,7 +385,9 @@ function ExpensesWidget({ dashboard, token }) {
         peakMonthIndex={peakMonthIndex}
         selectedMonthIndex={selectedMonthIndex}
         trendRangeLabel="Monthly Expenses"
+        style={{ flex: 1, minHeight: 0 }}
       />
+      <ExpenseStatsFooter compact {...footerStats} />
     </div>
   )
 }
