@@ -89,12 +89,13 @@ function MarginsWidget({
   const statusColor = (s) => s === 'POSITIVE' ? '#16A34A' : s === 'NEGATIVE' ? '#DC2626' : '#6B7280'
 
   return (
-    <div>
-      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', flexShrink: 0 }}>
         <div style={tabSt(tab === 'customers')} onClick={() => setTab('customers')}>Customer Margins</div>
         <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>Supplier Margins</div>
       </div>
-      <div style={{ padding: '0.75rem 0.8125rem' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '0.75rem 0.8125rem' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {activeRows.length === 0
             ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No {activeLabel} data available.</p>
             : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
@@ -120,7 +121,8 @@ function MarginsWidget({
                 </tbody>
               </table>
         }
-        <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+        </div>
+        <div style={{ marginTop: '0.6rem', textAlign: 'right', flexShrink: 0 }}>
           <button
             onClick={() => {
               if (onNavigate) {
@@ -248,8 +250,8 @@ function APARWidget({ dashboard, onNavigate }) {
     background: active ? '#fff' : 'transparent', userSelect: 'none',
   })
   return (
-    <div>
-      <div style={{ padding: '0.75rem 0.8125rem 0' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ padding: '0.75rem 0.8125rem 0', flexShrink: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
           {[
             { label: 'RECEIVABLE (AR)', val: ap?.totalAR, sub: `${ap?.arCount || 0} open`, vc: '#16A34A', bg: '#DCFCE7' },
@@ -270,11 +272,12 @@ function APARWidget({ dashboard, onNavigate }) {
           ))}
         </div>
       </div>
-      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4' }}>
+      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', flexShrink: 0 }}>
         <div style={tabSt(tab === 'ar')} onClick={() => setTab('ar')}>Receivable (AR)</div>
         <div style={tabSt(tab === 'ap')} onClick={() => setTab('ap')}>Payable (AP)</div>
       </div>
-      <div style={{ padding: '0 0.8125rem 0.75rem' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '0 0.8125rem 0.75rem' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
           <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
             {(tab === 'ar' ? ['Customer', 'Outstanding', 'Count'] : ['Supplier', 'Outstanding', 'Count']).map(h => (
@@ -301,8 +304,9 @@ function APARWidget({ dashboard, onNavigate }) {
             </tr></tfoot>
           )}
         </table>
+        </div>
         {onNavigate && (
-          <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+          <div style={{ marginTop: '0.6rem', textAlign: 'right', flexShrink: 0 }}>
             <button
               onClick={() => onNavigate('apar')}
               style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
@@ -342,10 +346,15 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
     : [...new Set((exp.recent || []).map((row) => row.category).filter(Boolean))]
 
   if (!token) {
-    return <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>Sign in to load expenses.</p>
+    return (
+      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>Sign in to load expenses.</p>
+      </div>
+    )
   }
 
   return (
+    <div style={{ height: '100%', minHeight: 0 }}>
     <ExpenseRegisterSection
       items={registerItems}
       total={registerTotal}
@@ -361,10 +370,10 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
       endDate={registerEndDate}
       onEndDateChange={setRegisterEndDate}
       onOpenLedgerEntry={onOpenLedgerEntry}
-      scrollMinHeight="320px"
-      scrollMaxHeight="400px"
-      style={{ border: 'none', borderRadius: '0.5rem' }}
+      fillHeight
+      style={{ border: 'none', borderRadius: '0.5rem', height: '100%' }}
     />
+    </div>
   )
 }
 
@@ -403,8 +412,8 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
     return `${sign}${abs} ${u}`
   }
   return (
-    <div style={{ padding: '0.65rem 0.75rem 0.75rem' }}>
-      <div style={{ display: 'grid', gap: '0.5rem' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, padding: '0.65rem 0.75rem 0.75rem' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gap: '0.5rem', alignContent: 'start' }}>
         {rows.map((r) => (
           <div
             key={r.code}
@@ -438,7 +447,7 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
         ))}
       </div>
       {onNavigate && (
-        <div style={{ marginTop: '0.55rem', textAlign: 'right' }}>
+        <div style={{ marginTop: '0.55rem', textAlign: 'right', flexShrink: 0 }}>
           <button type="button" onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}>
             View full statement
           </button>
@@ -462,30 +471,26 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
 
   const VOL_COLORS = ['#F59E0B', '#9CA3AF', '#6366F1', '#EC4899', '#059669']
 
-  // Responsive widget container style
   const widgetContainerStyle = {
-    background: '#fff',
-    borderRadius: '0.75rem',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
-    padding: '1.1rem 1.2rem',
-    marginBottom: '1.2rem',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
     minWidth: 0,
     width: '100%',
     boxSizing: 'border-box',
-    maxWidth: '100%',
+    marginBottom: 0,
+    padding: 0,
+    background: 'transparent',
+    borderRadius: 0,
+    boxShadow: 'none',
   }
 
-  // For mobile, reduce padding and margin
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640
-  if (isMobile) {
-    widgetContainerStyle.padding = '0.7rem 0.5rem'
-    widgetContainerStyle.marginBottom = '0.7rem'
-    widgetContainerStyle.borderRadius = '0.5rem'
-  }
+  const widgetScrollStyle = { flex: 1, minHeight: 0, overflowY: 'auto' }
 
   switch (id) {
     case 'margins':
-      return <div style={widgetContainerStyle}><MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} /></div>
+      return <MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} />
 
     case 'bank': {
       const bankRows = dashboard?.bankBalances || []
@@ -494,10 +499,11 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
       return (
         <div style={widgetContainerStyle}>
+          <div style={widgetScrollStyle}>
           {allRows.length === 0
-            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No accounts found.</p>
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', padding: '0.75rem' }}>No accounts found.</p>
             : allRows.map((a, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #F9FAFB' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderBottom: '1px solid #F9FAFB' }}>
                 <div>
                   <div style={{ fontSize: '0.8rem', fontWeight: '500', color: ink }}>{a.accountName}</div>
                   <div style={{ fontSize: '0.7rem', color: muted }}>{a.accountCode}</div>
@@ -505,12 +511,13 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
                 <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem' }}>{fmtMoney(a.balance)}</span>
               </div>
             ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.4rem', marginTop: '0.1rem', borderTop: '2px solid #E8F5EF', fontSize: '0.82rem' }}>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderTop: '2px solid #E8F5EF', fontSize: '0.82rem', flexShrink: 0 }}>
             <span style={{ fontWeight: '700', color: ink }}>Total</span>
             <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total)}</span>
           </div>
           {onNavigate && (
-            <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+            <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
               <button
                 onClick={() => onNavigate('bank')}
                 style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
@@ -548,6 +555,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       ]
       return (
         <div style={widgetContainerStyle}>
+          <div style={{ ...widgetScrollStyle, padding: '0.75rem' }}>
           {monthly.length > 0 && (
             <>
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.4rem' }}>
@@ -605,19 +613,18 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           <p style={{ margin: '0.45rem 0 0', fontSize: '0.7rem', color: muted, textAlign: 'right' }}>
             Runway: {quality?.runwayMonths == null ? '—' : `${Number(quality.runwayMonths).toFixed(1)} mo`} | Coverage: {quality?.operatingCoverage == null ? '—' : `${Number(quality.operatingCoverage).toFixed(2)}x`}
           </p>
+          </div>
         </div>
       )
     }
 
     case 'expenses': {
       return (
-        <div style={{ ...widgetContainerStyle, padding: '0.65rem' }}>
-          <ExpensesWidgetMemo
-            dashboard={dashboard}
-            token={options.token}
-            onOpenLedgerEntry={options.onOpenLedgerEntry}
-          />
-        </div>
+        <ExpensesWidgetMemo
+          dashboard={dashboard}
+          token={options.token}
+          onOpenLedgerEntry={options.onOpenLedgerEntry}
+        />
       )
     }
 
@@ -628,7 +635,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       return (
         <div style={widgetContainerStyle}>
           {vols.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '68px', marginBottom: '0.625rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '68px', marginBottom: '0.625rem', padding: '0.75rem 0.75rem 0', flexShrink: 0 }}>
               {vols.map((v, i) => (
                 <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                   <span style={{ fontSize: '0.6rem', fontWeight: '600', color: '#059669' }}>{Number(v.qty || 0).toFixed(0)}</span>
@@ -638,6 +645,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               ))}
             </div>
           )}
+          <div style={{ ...widgetScrollStyle, padding: '0 0.75rem' }}>
           {vols.length === 0
             ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No volume data in period.</p>
             : vols.map((v, i) => (
@@ -651,8 +659,9 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               </div>
             ))
           }
+          </div>
           {vols.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.4rem', fontSize: '0.82rem', fontWeight: '600', borderTop: '1px solid #E8F5EF', marginTop: '0.2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', fontSize: '0.82rem', fontWeight: '600', borderTop: '1px solid #E8F5EF', flexShrink: 0 }}>
               <span>Total</span><span style={{ color: '#059669' }}>{totalQty.toLocaleString()} oz</span>
             </div>
           )}
@@ -661,14 +670,10 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     }
 
     case 'apar':
-      return <div style={widgetContainerStyle}><APARWidgetMemo dashboard={dashboard} onNavigate={onNavigate} /></div>
+      return <APARWidgetMemo dashboard={dashboard} onNavigate={onNavigate} />
 
     case 'fixing':
-      return (
-        <div style={widgetContainerStyle}>
-          <FixingPositionSummaryWidgetMemo dashboard={dashboard} onNavigate={onNavigate} />
-        </div>
-      )
+      return <FixingPositionSummaryWidgetMemo dashboard={dashboard} onNavigate={onNavigate} />
 
     case 'chat': {
       const FALLBACK_MSGS = [
@@ -679,7 +684,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const hasMsgs = chatMessages.length > 0
       return (
         <div style={widgetContainerStyle}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: hasMsgs ? '0.4rem' : '0.5rem', marginBottom: '0.6rem', maxHeight: '130px', overflowY: 'auto' }}>
+          <div style={{ ...widgetScrollStyle, padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: hasMsgs ? '0.4rem' : '0.5rem' }}>
             {hasMsgs
               ? chatMessages.slice(-4).map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
@@ -704,7 +709,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             }
           </div>
           {onNavigateMain && (
-            <div style={{ textAlign: 'center', padding: '0.35rem', background: '#F0FDF4', borderRadius: '6px', fontSize: '0.72rem', color: '#059669', fontWeight: '500', cursor: 'pointer' }} onClick={() => onNavigateMain('chat')}>
+            <div style={{ textAlign: 'center', padding: '0.35rem 0.75rem 0.6rem', background: '#F0FDF4', borderRadius: '6px', fontSize: '0.72rem', color: '#059669', fontWeight: '500', cursor: 'pointer', flexShrink: 0, margin: '0 0.75rem 0.6rem' }} onClick={() => onNavigateMain('chat')}>
               💬 Open full chat →
             </div>
           )}
@@ -715,6 +720,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     case 'notif': {
       return (
         <div style={widgetContainerStyle}>
+          <div style={{ ...widgetScrollStyle, padding: '0.75rem' }}>
           {[
             { icon: '⚠️', iconBg: '#FEE2E2', text: `${Number(dashboard?.vendorComplianceRisk?.nonCompliant || 0)} vendor(s) at risk · Avg score ${Number(dashboard?.vendorComplianceRisk?.averageScore || 0)}%`, time: 'Today' },
             { icon: '📄', iconBg: '#FEF9C3', text: `Doc expiry: ${Number(dashboard?.vendorDocumentExpiry?.warning30 || 0)} in 30d · ${Number(dashboard?.vendorDocumentExpiry?.warning60 || 0)} in 60d`, time: 'Today' },
@@ -729,8 +735,9 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               </div>
             </div>
           ))}
+          </div>
           {onNavigate && (
-            <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+            <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
               <button
                 onClick={() => onNavigate('notif')}
                 style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}

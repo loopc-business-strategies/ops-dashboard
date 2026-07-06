@@ -61,16 +61,19 @@ export default function ExpenseRegisterSection({
   onAfterLedgerOpen,
   scrollMinHeight,
   scrollMaxHeight = '320px',
+  fillHeight = false,
   style,
 }) {
-  const scrollStyle = scrollMaxHeight && scrollMaxHeight !== 'none'
-    ? {
-      minHeight: scrollMinHeight || undefined,
-      maxHeight: scrollMaxHeight,
-      overflowY: 'auto',
-      overflowX: 'auto',
-    }
-    : { overflowX: 'auto' }
+  const scrollStyle = fillHeight
+    ? { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }
+    : scrollMaxHeight && scrollMaxHeight !== 'none'
+      ? {
+        minHeight: scrollMinHeight || undefined,
+        maxHeight: scrollMaxHeight,
+        overflowY: 'auto',
+        overflowX: 'auto',
+      }
+      : { overflowX: 'auto' }
 
   const handleLedgerOpen = (row) => {
     onOpenLedgerEntry?.(row)
@@ -78,7 +81,14 @@ export default function ExpenseRegisterSection({
   }
 
   return (
-    <section style={{ border: '1px solid #E5E7EB', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF', ...style }}>
+    <section style={{
+      border: '1px solid #E5E7EB',
+      borderRadius: '0.65rem',
+      overflow: 'hidden',
+      background: '#FFFFFF',
+      ...(fillHeight ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 } : {}),
+      ...style,
+    }}>
       <div style={{
         padding: '0.5rem 0.65rem',
         borderBottom: '1px solid #E5E7EB',
@@ -86,6 +96,7 @@ export default function ExpenseRegisterSection({
         flexWrap: 'wrap',
         alignItems: 'center',
         gap: '0.35rem',
+        flexShrink: 0,
       }}>
         {EXPENSE_PAYMENT_FILTERS.map((chip) => {
           const active = paymentFilter === chip.key

@@ -1,7 +1,14 @@
 import { ERPDashboardTabContainer } from '../ERPTabContainers'
 import { renderERP_DashWidget } from '../ERPDashboardWidgets'
 import { formatDateInputLocal } from '../erpTabPresentation'
-import { ERP_DASH_DEFAULT, ERP_DASH_GRID_COLUMNS, ERP_DASH_WIDGET_COUNT, ensureMarginsThenFixingOrder } from '../../erpTabConstants'
+import {
+  ERP_DASH_CARD_MIN_HEIGHT,
+  ERP_DASH_DEFAULT,
+  ERP_DASH_GRID_COLUMNS,
+  ERP_DASH_WIDGET_BODY_HEIGHT,
+  ERP_DASH_WIDGET_COUNT,
+  ensureMarginsThenFixingOrder,
+} from '../../erpTabConstants'
 
 export default function ERPDashboardTab({
   activeTab,
@@ -93,6 +100,8 @@ export default function ERPDashboardTab({
               style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${ERP_DASH_GRID_COLUMNS}, minmax(0, 1fr))`,
+                gridAutoRows: ERP_DASH_CARD_MIN_HEIGHT,
+                alignItems: 'stretch',
                 gap: '0.875rem',
               }}
             >
@@ -102,7 +111,6 @@ export default function ERPDashboardTab({
                 const rawCols = dashWidgetCols[wid] ?? meta.cols
                 const span = Math.min(Math.max(Number(rawCols) || 1, 1), ERP_DASH_GRID_COLUMNS)
                 const isHovered = dashHoveredWid === wid
-                const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
                 const widgetOptions = {
                   liveRecalcEnabled: dashboardLiveRecalcEnabled,
                   token,
@@ -166,6 +174,10 @@ export default function ERPDashboardTab({
                     onMouseLeave={() => setDashHoveredWid(null)}
                     style={{
                       gridColumn: `span ${span}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      minHeight: 0,
+                      height: '100%',
                       background: C.p1,
                       borderRadius: '12px',
                       overflow: 'hidden',
@@ -219,14 +231,18 @@ export default function ERPDashboardTab({
                       </div>
                     </div>
                     {/* Widget body */}
-                    {edgeToEdge
-                      ? <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>
-                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
-                        </div>
-                      : <div style={{ padding: '12px 13px', fontSize: '0.82rem', color: C.inkSoft }}>
-                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
-                        </div>
-                    }
+                    <div style={{
+                      flex: 1,
+                      minHeight: ERP_DASH_WIDGET_BODY_HEIGHT,
+                      maxHeight: ERP_DASH_WIDGET_BODY_HEIGHT,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      fontSize: '0.82rem',
+                      color: C.inkSoft,
+                    }}>
+                      {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
+                    </div>
                   </div>
                 )
               })}

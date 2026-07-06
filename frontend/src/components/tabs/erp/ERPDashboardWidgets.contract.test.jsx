@@ -1,6 +1,7 @@
 import React from 'react'
 import { describe, expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { ERP_DASH_ALL_WIDGETS } from '../erpTabConstants'
 import { renderERP_DashWidget } from './ERPDashboardWidgets'
 
 vi.mock('./useExpenseRegister', () => ({
@@ -29,6 +30,12 @@ vi.mock('./useExpenseRegister', () => ({
 }))
 
 describe('ERPDashboardWidgets contract', () => {
+  test('all dashboard widgets use uniform 2-column span', () => {
+    ERP_DASH_ALL_WIDGETS.forEach((widget) => {
+      expect(widget.cols).toBe(2)
+    })
+  })
+
   test('renders fallback content for unknown widget id', () => {
     render(<div>{renderERP_DashWidget('unknown-widget', {}, [])}</div>)
     expect(screen.getByText('Widget content')).toBeTruthy()
