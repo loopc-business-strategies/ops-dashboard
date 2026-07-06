@@ -3,7 +3,36 @@ import {
   buildExpensePdfFileName,
   buildExpensePdfMeta,
   buildExpensesPdfTableBody,
+  formatPdfAccountRoute,
+  formatPdfLedgerCell,
 } from './expenseExportHelpers'
+
+describe('formatPdfAccountRoute', () => {
+  it('uses full paymentRoute when present', () => {
+    const route = 'Bank Account Director (111100) → Gpay/Paytm (55500)'
+    expect(formatPdfAccountRoute({ paymentRoute: route })).toBe(route)
+  })
+
+  it('builds fallback route from funding and expense accounts', () => {
+    expect(formatPdfAccountRoute({
+      fundingAccount: 'HSBC Current (1010)',
+      expenseAccount: 'Operating Expenses (6100)',
+    })).toBe('HSBC Current (1010) → Operating Expenses (6100)')
+  })
+})
+
+describe('formatPdfLedgerCell', () => {
+  it('includes reference type and ledger ref on separate lines', () => {
+    expect(formatPdfLedgerCell({
+      referenceType: 'bank_jv',
+      ledgerRef: 'JV-2026/0006',
+    })).toBe('Bank_jv\nJV-2026/0006')
+  })
+
+  it('returns capitalized reference type when ledger ref is missing', () => {
+    expect(formatPdfLedgerCell({ referenceType: 'journal' })).toBe('Journal')
+  })
+})
 
 describe('buildExpensesPdfTableBody', () => {
   it('maps register rows to PDF table columns', () => {
@@ -14,12 +43,14 @@ describe('buildExpensesPdfTableBody', () => {
       amount: 120.5,
       paymentMethod: 'Bank',
       paymentRoute: 'HSBC (1010) → Travel (6200)',
+      referenceType: 'journal',
       ledgerRef: 'JV-100',
     }])
     expect(body).toHaveLength(1)
     expect(body[0][1]).toBe('Travel')
     expect(body[0][3]).toBe('$120.50')
-    expect(body[0][6]).toBe('JV-100')
+    expect(body[0][5]).toBe('HSBC (1010) → Travel (6200)')
+    expect(body[0][6]).toBe('Journal\nJV-100')
   })
 })
 
@@ -38,7 +69,7 @@ describe('buildExpensePdfMeta', () => {
       exportedCount: 5,
       totalAmount: 500,
     })
-    expect(meta.title).toBe('Expense Register Report')
+    expect(meta.title).toBe('Expense Report')
     expect(meta.lines.some((line) => line.includes('July'))).toBe(true)
     expect(meta.lines.some((line) => line.includes('Bank'))).toBe(true)
     expect(meta.lines.some((line) => line.includes('Travel'))).toBe(true)

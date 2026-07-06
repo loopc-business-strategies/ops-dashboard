@@ -16,7 +16,7 @@ export async function exportExpenseRegisterPdf({ items = [], meta = {}, year, mo
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(17, 24, 39)
-  doc.text(meta.title || 'Expense Register Report', 36, 48)
+  doc.text(meta.title || 'Expense Report', 36, 48)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
@@ -31,13 +31,18 @@ export async function exportExpenseRegisterPdf({ items = [], meta = {}, year, mo
     head: [['Date', 'Category', 'Description', 'Amount', 'Type', 'Account Route', 'Ledger']],
     body: buildExpensesPdfTableBody(items),
     startY: metaY + 8,
+    tableWidth: 'auto',
     styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
     headStyles: { fillColor: [17, 24, 39] },
     alternateRowStyles: { fillColor: [249, 250, 251] },
     columnStyles: {
-      2: { cellWidth: 140 },
-      3: { halign: 'right' },
-      5: { cellWidth: 160 },
+      0: { cellWidth: 72 },
+      1: { cellWidth: 78 },
+      2: { cellWidth: 118, overflow: 'linebreak' },
+      3: { halign: 'right', cellWidth: 62 },
+      4: { cellWidth: 44 },
+      5: { cellWidth: 210, overflow: 'linebreak' },
+      6: { cellWidth: 88, overflow: 'linebreak' },
     },
     margin: { left: 24, right: 24 },
   })

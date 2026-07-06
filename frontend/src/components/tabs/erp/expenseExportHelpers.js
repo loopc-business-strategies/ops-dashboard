@@ -107,6 +107,26 @@ function formatPdfAmount(value) {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function capitalizeReferenceType(value) {
+  const text = String(value || 'journal').trim()
+  if (!text) return 'journal'
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+export function formatPdfAccountRoute(row = {}) {
+  if (row.paymentRoute) return String(row.paymentRoute)
+  const from = row.fundingAccount || '—'
+  const to = row.expenseAccount || '—'
+  return `${from} → ${to}`
+}
+
+export function formatPdfLedgerCell(row = {}) {
+  const refType = capitalizeReferenceType(row.referenceType)
+  const ledgerRef = String(row.ledgerRef || '').trim()
+  if (ledgerRef) return `${refType}\n${ledgerRef}`
+  return refType
+}
+
 /** Rows for jsPDF autoTable body (expense register PDF). */
 export function buildExpensesPdfTableBody(items = []) {
   return items.map((row) => [
@@ -115,8 +135,8 @@ export function buildExpensesPdfTableBody(items = []) {
     truncateText(row.description),
     formatPdfAmount(row.amount),
     row.paymentMethod || row.paymentSource || '',
-    truncateText(row.paymentRoute || `${row.fundingAccount || ''} → ${row.expenseAccount || ''}`, 100),
-    row.ledgerRef || row.referenceType || '',
+    formatPdfAccountRoute(row),
+    formatPdfLedgerCell(row),
   ])
 }
 
@@ -141,7 +161,7 @@ export function buildExpensePdfMeta({
   lines.push(`Entries: ${exportedCount}${total > exportedCount ? ` of ${total}` : ''}`)
   lines.push(`Total amount: ${formatPdfAmount(totalAmount)}`)
   return {
-    title: 'Expense Register Report',
+    title: 'Expense Report',
     lines,
     truncated: total > exportedCount,
     exportedCount,
