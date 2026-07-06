@@ -113,11 +113,21 @@ function capitalizeReferenceType(value) {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+function splitPdfAccountRoute(routeText) {
+  const route = String(routeText || '').trim()
+  if (!route) return '—'
+  const parts = route.split(/\s*→\s*/)
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    return `${parts[0]}\n→ ${parts[1]}`
+  }
+  return route
+}
+
 export function formatPdfAccountRoute(row = {}) {
-  if (row.paymentRoute) return String(row.paymentRoute)
+  if (row.paymentRoute) return splitPdfAccountRoute(row.paymentRoute)
   const from = row.fundingAccount || '—'
   const to = row.expenseAccount || '—'
-  return `${from} → ${to}`
+  return splitPdfAccountRoute(`${from} → ${to}`)
 }
 
 export function formatPdfLedgerCell(row = {}) {

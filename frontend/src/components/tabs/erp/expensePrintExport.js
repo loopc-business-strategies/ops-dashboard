@@ -27,24 +27,28 @@ export async function exportExpenseRegisterPdf({ items = [], meta = {}, year, mo
     metaY += 12
   })
 
+  const margin = 24
+  const tableWidth = doc.internal.pageSize.getWidth() - margin * 2
+
   autoTable(doc, {
     head: [['Date', 'Category', 'Description', 'Amount', 'Type', 'Account Route', 'Ledger']],
     body: buildExpensesPdfTableBody(items),
     startY: metaY + 8,
-    tableWidth: 'auto',
+    tableWidth,
     styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+    bodyStyles: { valign: 'top' },
     headStyles: { fillColor: [17, 24, 39] },
     alternateRowStyles: { fillColor: [249, 250, 251] },
     columnStyles: {
       0: { cellWidth: 72 },
-      1: { cellWidth: 78 },
-      2: { cellWidth: 118, overflow: 'linebreak' },
-      3: { halign: 'right', cellWidth: 62 },
-      4: { cellWidth: 44 },
-      5: { cellWidth: 210, overflow: 'linebreak' },
-      6: { cellWidth: 88, overflow: 'linebreak' },
+      1: { cellWidth: 74 },
+      2: { cellWidth: 100, overflow: 'linebreak' },
+      3: { halign: 'right', cellWidth: 60 },
+      4: { cellWidth: 42 },
+      5: { cellWidth: 320, overflow: 'linebreak' },
+      6: { cellWidth: 126, overflow: 'linebreak' },
     },
-    margin: { left: 24, right: 24 },
+    margin: { left: margin, right: margin },
   })
 
   const finalY = doc.lastAutoTable?.finalY || metaY + 40

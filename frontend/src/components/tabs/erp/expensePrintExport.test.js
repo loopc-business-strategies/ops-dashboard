@@ -8,16 +8,18 @@ import {
 } from './expenseExportHelpers'
 
 describe('formatPdfAccountRoute', () => {
-  it('uses full paymentRoute when present', () => {
+  it('splits paymentRoute at arrow into two lines', () => {
     const route = 'Bank Account Director (111100) → Gpay/Paytm (55500)'
-    expect(formatPdfAccountRoute({ paymentRoute: route })).toBe(route)
+    expect(formatPdfAccountRoute({ paymentRoute: route })).toBe(
+      'Bank Account Director (111100)\n→ Gpay/Paytm (55500)',
+    )
   })
 
   it('builds fallback route from funding and expense accounts', () => {
     expect(formatPdfAccountRoute({
       fundingAccount: 'HSBC Current (1010)',
       expenseAccount: 'Operating Expenses (6100)',
-    })).toBe('HSBC Current (1010) → Operating Expenses (6100)')
+    })).toBe('HSBC Current (1010)\n→ Operating Expenses (6100)')
   })
 })
 
@@ -49,7 +51,7 @@ describe('buildExpensesPdfTableBody', () => {
     expect(body).toHaveLength(1)
     expect(body[0][1]).toBe('Travel')
     expect(body[0][3]).toBe('$120.50')
-    expect(body[0][5]).toBe('HSBC (1010) → Travel (6200)')
+    expect(body[0][5]).toBe('HSBC (1010)\n→ Travel (6200)')
     expect(body[0][6]).toBe('Journal\nJV-100')
   })
 })
