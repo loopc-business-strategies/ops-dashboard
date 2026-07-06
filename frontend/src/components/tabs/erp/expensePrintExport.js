@@ -42,11 +42,11 @@ export async function exportExpenseRegisterPdf({ items = [], meta = {}, year, mo
     columnStyles: {
       0: { cellWidth: 72 },
       1: { cellWidth: 74 },
-      2: { cellWidth: 100, overflow: 'linebreak' },
+      2: { cellWidth: 260, overflow: 'linebreak' },
       3: { halign: 'right', cellWidth: 60 },
       4: { cellWidth: 42 },
-      5: { cellWidth: 320, overflow: 'linebreak' },
-      6: { cellWidth: 126, overflow: 'linebreak' },
+      5: { cellWidth: 190, overflow: 'linebreak' },
+      6: { cellWidth: 96, overflow: 'linebreak' },
     },
     margin: { left: margin, right: margin },
   })

@@ -118,7 +118,7 @@ function splitPdfAccountRoute(routeText) {
   if (!route) return '—'
   const parts = route.split(/\s*→\s*/)
   if (parts.length === 2 && parts[0] && parts[1]) {
-    return `${parts[0]}\n→ ${parts[1]}`
+    return `${parts[0]}\n-> ${parts[1]}`
   }
   return route
 }
