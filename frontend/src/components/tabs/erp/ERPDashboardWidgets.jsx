@@ -2,10 +2,9 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useErpLiveMetalSpotPrices } from './useErpLiveMetalSpotPrices'
 import { mapErpLiveMarginRow } from './mapErpLiveMarginRow'
 import { useExpenseRegister } from './useExpenseRegister'
-import ExpenseRegisterSection from './ExpenseRegisterSection'
-import { buildYearOptions } from './expenseMonthFilterUtils'
+import ExpenseChartsPanel from './ExpenseChartsPanel'
 import { useExpensePeriodFilter } from './useExpensePeriodFilter'
-import { useExpenseRegisterExports } from './useExpenseRegisterExports'
+import { useExpenseChartData } from './useExpenseChartData'
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -315,57 +314,43 @@ function APARWidget({ dashboard, onNavigate }) {
   )
 }
 
-function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
-  const [paymentFilter, setPaymentFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const exp = dashboard?.expenses || {}
-  const monthlyTrend = exp?.monthlyTrend || []
-
+function ExpensesWidget({ dashboard, token }) {
   const {
     year: yearFilter,
-    month: monthFilter,
     startDate: registerStartDate,
     endDate: registerEndDate,
-    setYear: setYearFilter,
-    setMonth: setMonthFilter,
-    setStartDate: setRegisterStartDate,
-    setEndDate: setRegisterEndDate,
-  } = useExpensePeriodFilter({ defaultMonth: 'current' })
-
-  const yearOptions = buildYearOptions(monthlyTrend, yearFilter)
+  } = useExpensePeriodFilter({ defaultMonth: '' })
 
   const {
     items: registerItems,
-    categories: registerCategories,
-    total: registerTotal,
     loading: registerLoading,
-    error: registerError,
   } = useExpenseRegister({
     token,
     enabled: Boolean(token),
     startDate: registerStartDate,
     endDate: registerEndDate,
-    category: categoryFilter,
-    paymentSource: paymentFilter,
+    category: '',
+    paymentSource: 'all',
     limit: 200,
   })
 
   const {
-    exportBusy,
-    handleDownloadMonthlyReports,
-  } = useExpenseRegisterExports({
+    segments,
+    displayTotal,
+    filteredTrend,
+    maxTrend,
+    peakMonthIndex,
+    selectedMonthIndex,
+    subLabel,
+  } = useExpenseChartData({
+    dashboard,
+    registerItems,
+    registerLoading,
     token,
-    year: yearFilter,
-    month: monthFilter,
-    startDate: registerStartDate,
-    endDate: registerEndDate,
-    categoryFilter,
-    paymentFilter,
+    yearFilter,
+    monthFilter: '',
+    trendRange: '6m',
   })
-
-  const categoryOptions = registerCategories.length > 0
-    ? registerCategories
-    : [...new Set((exp.recent || []).map((row) => row.category).filter(Boolean))]
 
   if (!token) {
     return (
@@ -376,34 +361,18 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
   }
 
   return (
-    <div style={{ height: '100%', minHeight: 0 }}>
-    <ExpenseRegisterSection
-      items={registerItems}
-      total={registerTotal}
-      loading={registerLoading}
-      error={registerError}
-      paymentFilter={paymentFilter}
-      onPaymentFilterChange={setPaymentFilter}
-      categoryFilter={categoryFilter}
-      onCategoryFilterChange={setCategoryFilter}
-      categoryOptions={categoryOptions}
-      startDate={registerStartDate}
-      onStartDateChange={setRegisterStartDate}
-      endDate={registerEndDate}
-      onEndDateChange={setRegisterEndDate}
-      yearFilter={yearFilter}
-      monthFilter={monthFilter}
-      yearOptions={yearOptions}
-      onYearFilterChange={setYearFilter}
-      onMonthFilterChange={setMonthFilter}
-      showMonthFilter
-      showExport
-      onDownloadMonthlyReports={handleDownloadMonthlyReports}
-      exportBusy={exportBusy}
-      onOpenLedgerEntry={onOpenLedgerEntry}
-      fillHeight
-      style={{ border: 'none', borderRadius: '0.5rem', height: '100%' }}
-    />
+    <div style={{ height: '100%', minHeight: 0, padding: '0.35rem 0.45rem', boxSizing: 'border-box' }}>
+      <ExpenseChartsPanel
+        compact
+        segments={segments}
+        displayTotal={displayTotal}
+        subLabel={subLabel}
+        filteredTrend={filteredTrend}
+        maxTrend={maxTrend}
+        peakMonthIndex={peakMonthIndex}
+        selectedMonthIndex={selectedMonthIndex}
+        trendRangeLabel="Monthly Expenses"
+      />
     </div>
   )
 }

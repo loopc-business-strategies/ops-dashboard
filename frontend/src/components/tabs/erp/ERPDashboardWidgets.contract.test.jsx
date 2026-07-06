@@ -47,7 +47,7 @@ describe('ERPDashboardWidgets contract', () => {
     expect(screen.getByText('Sign in to load expenses.')).toBeTruthy()
   })
 
-  test('expenses card shows register without opening modal', () => {
+  test('expenses card shows charts only without register or filters', () => {
     render(
       <div>
         {renderERP_DashWidget(
@@ -71,14 +71,15 @@ describe('ERPDashboardWidgets contract', () => {
       </div>,
     )
 
-    expect(screen.getByText('1 entries')).toBeTruthy()
-    expect(screen.getByLabelText('Expense year')).toBeTruthy()
-    expect(screen.getByLabelText('Expense month')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Download expense report PDF' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Bank' })).toBeTruthy()
-    expect(screen.getByText('HSBC Current (1010) → Operating Expenses (6100)')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Open in Ledger' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'View More Details' })).toBeNull()
+    expect(screen.getByText('Expense Breakdown')).toBeTruthy()
+    expect(screen.getByText('Monthly Trend')).toBeTruthy()
+    expect(screen.getByText('Operating Expenses')).toBeTruthy()
+    expect(screen.queryByText('1 entries')).toBeNull()
+    expect(screen.queryByLabelText('Expense year')).toBeNull()
+    expect(screen.queryByLabelText('Expense month')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Download expense report PDF' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Bank' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open in Ledger' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
   })
 
