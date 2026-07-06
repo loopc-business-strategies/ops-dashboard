@@ -94,22 +94,6 @@ const modalCloseButtonStyle = {
   padding: 0,
 }
 
-const exportButtonStyle = {
-  border: '1px solid #047857',
-  background: '#ECFDF5',
-  color: '#064E3B',
-  borderRadius: '0.35rem',
-  padding: '0 0.55rem',
-  fontSize: '0.72rem',
-  fontWeight: '700',
-  height: 34,
-  boxSizing: 'border-box',
-  cursor: 'pointer',
-  flexShrink: 0,
-  whiteSpace: 'nowrap',
-  lineHeight: 1,
-}
-
 export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpenLedgerEntry }) {
   const [trendRange, setTrendRange] = useState('6m')
   const [paymentFilter, setPaymentFilter] = useState('all')
@@ -163,8 +147,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
 
   const {
     exportBusy,
-    handleDownloadMonth,
-    handleDownloadMom,
+    handleDownloadMonthlyReports,
   } = useExpenseRegisterExports({
     token,
     year: yearFilter,
@@ -237,24 +220,6 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
               <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={handleDownloadMonth}
-            disabled={exportBusy || !token}
-            style={{ ...exportButtonStyle, opacity: exportBusy || !token ? 0.6 : 1 }}
-            aria-label="Download month report"
-          >
-            Download Month
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadMom}
-            disabled={exportBusy || !token}
-            style={{ ...exportButtonStyle, opacity: exportBusy || !token ? 0.6 : 1 }}
-            aria-label="Download month on month report"
-          >
-            Download MoM
-          </button>
         </div>
 
         <div style={{ padding: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
@@ -329,9 +294,8 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
               onYearFilterChange={setYearFilter}
               onMonthFilterChange={setMonthFilter}
               showMonthFilter
-              showExport
-              onDownloadMonth={handleDownloadMonth}
-              onDownloadMom={handleDownloadMom}
+              showExport={Boolean(token)}
+              onDownloadMonthlyReports={handleDownloadMonthlyReports}
               exportBusy={exportBusy}
               onOpenLedgerEntry={onOpenLedgerEntry}
               scrollMaxHeight="50vh"

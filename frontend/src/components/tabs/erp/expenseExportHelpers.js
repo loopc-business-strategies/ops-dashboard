@@ -16,6 +16,11 @@ function formatPct(value) {
   return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`
 }
 
+function paymentFilterLabel(value) {
+  if (!value || value === 'all') return 'All'
+  return String(value).charAt(0).toUpperCase() + String(value).slice(1)
+}
+
 export function buildExpenseMonthExportPayload({
   items = [],
   year,
@@ -29,7 +34,8 @@ export function buildExpenseMonthExportPayload({
     ['Generated', new Date().toLocaleString()],
     ['Year', String(year || '')],
     ['Month', expenseMonthLabel(monthIndex)],
-    ['Payment filter', filters.paymentSource || 'All'],
+    ['Date range', filters.startDate && filters.endDate ? `${filters.startDate} to ${filters.endDate}` : ''],
+    ['Payment filter', paymentFilterLabel(filters.paymentSource)],
     ['Category filter', filters.category || 'All categories'],
     [],
     ['Date', 'Category', 'Description', 'Amount', 'Type', 'Account route', 'Ledger ref'],
@@ -54,12 +60,14 @@ export function buildExpenseMonthExportPayload({
   }
 }
 
-export function buildExpenseMomExportPayload({ year, monthRows = [] } = {}) {
+export function buildExpenseMomExportPayload({ year, monthRows = [], filters = {} } = {}) {
   const stamp = new Date().toISOString().slice(0, 10)
   const rows = [
     ['Ops Dashboard — Expense Month-on-Month Summary'],
     ['Generated', new Date().toLocaleString()],
     ['Year', String(year || '')],
+    ['Payment filter', paymentFilterLabel(filters.paymentSource)],
+    ['Category filter', filters.category || 'All categories'],
     [],
     ['Month', 'Total Expenses', 'Transaction Count', 'Prior Month', 'Change', 'Change %'],
   ]
@@ -80,4 +88,10 @@ export function buildExpenseMomExportPayload({ year, monthRows = [] } = {}) {
     fileBase: `expenses-mom-${year || 'year'}-${stamp}`,
     sheetName: 'MoM Summary',
   }
+}
+
+export function buildExpenseMonthlyReportsFileBase({ year, monthIndex = '' } = {}) {
+  const stamp = new Date().toISOString().slice(0, 10)
+  const monthLabel = expenseMonthLabel(monthIndex).replace(/\s+/g, '-').toLowerCase()
+  return `expenses-monthly-${year || 'year'}-${monthLabel}-${stamp}`
 }

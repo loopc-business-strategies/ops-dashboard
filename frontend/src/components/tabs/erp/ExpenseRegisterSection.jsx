@@ -90,8 +90,7 @@ export default function ExpenseRegisterSection({
   onMonthFilterChange,
   showMonthFilter = false,
   showExport = false,
-  onDownloadMonth,
-  onDownloadMom,
+  onDownloadMonthlyReports,
   exportBusy = false,
   onOpenLedgerEntry,
   onAfterLedgerOpen,
@@ -186,26 +185,15 @@ export default function ExpenseRegisterSection({
             </>
           )}
           {showExport && (
-            <>
-              <button
-                type="button"
-                onClick={onDownloadMonth}
-                disabled={exportBusy}
-                style={{ ...exportButtonStyle, opacity: exportBusy ? 0.6 : 1 }}
-                aria-label="Download month report"
-              >
-                {exportBusy ? '…' : 'Month'}
-              </button>
-              <button
-                type="button"
-                onClick={onDownloadMom}
-                disabled={exportBusy}
-                style={{ ...exportButtonStyle, opacity: exportBusy ? 0.6 : 1 }}
-                aria-label="Download month on month report"
-              >
-                MoM
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={onDownloadMonthlyReports}
+              disabled={exportBusy}
+              style={{ ...exportButtonStyle, opacity: exportBusy ? 0.6 : 1 }}
+              aria-label="Download monthly reports"
+            >
+              {exportBusy ? '…' : 'Download'}
+            </button>
           )}
           <select
             value={categoryFilter}

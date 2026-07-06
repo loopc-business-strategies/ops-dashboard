@@ -352,8 +352,7 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
 
   const {
     exportBusy,
-    handleDownloadMonth,
-    handleDownloadMom,
+    handleDownloadMonthlyReports,
   } = useExpenseRegisterExports({
     token,
     year: yearFilter,
@@ -400,8 +399,7 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
       onMonthFilterChange={setMonthFilter}
       showMonthFilter
       showExport
-      onDownloadMonth={handleDownloadMonth}
-      onDownloadMom={handleDownloadMom}
+      onDownloadMonthlyReports={handleDownloadMonthlyReports}
       exportBusy={exportBusy}
       onOpenLedgerEntry={onOpenLedgerEntry}
       fillHeight

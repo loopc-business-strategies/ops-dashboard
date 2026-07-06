@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
-import { downloadXlsxRows } from './exportHelpers'
+import { downloadXlsxSheets } from './exportHelpers'
 import {
   aggregateExpensesByMonth,
   buildMomRowsFromTrend,
@@ -8,7 +8,11 @@ import {
   expenseMonthDateRange,
   expenseMonthLabel,
 } from './expenseMonthFilterUtils'
-import { buildExpenseMomExportPayload, buildExpenseMonthExportPayload } from './expenseExportHelpers'
+import {
+  buildExpenseMomExportPayload,
+  buildExpenseMonthExportPayload,
+  buildExpenseMonthlyReportsFileBase,
+} from './expenseExportHelpers'
 import { cleanExpenseRegisterParams } from './useExpenseRegister'
 
 export function useExpenseRegisterExports({
@@ -34,38 +38,72 @@ export function useExpenseRegisterExports({
     return res
   }, [token, categoryFilter, paymentFilter])
 
-  const handleDownloadMonth = useCallback(async () => {
+  const handleDownloadMonthlyReports = useCallback(async () => {
     if (!token || exportBusy) return
     setExportBusy(true)
     try {
-      const range = month === ''
-        ? { startDate, endDate }
-        : expenseMonthDateRange(year, month)
+      const detailRange = { startDate, endDate }
+      const yearEnd = expenseMonthDateRange(year, '').endDate
 
-      const res = await fetchRegister(range.startDate, range.endDate)
-      const items = res.items || []
-      const total = Number(res.total || 0)
+      const [detailRes, yearRes] = await Promise.all([
+        fetchRegister(detailRange.startDate, detailRange.endDate),
+        fetchRegister(`${year}-01-01`, yearEnd),
+      ])
 
-      if (items.length === 0) {
-        window.alert(month === ''
-          ? 'No expenses found for the selected period.'
-          : 'No expenses found for the selected month.')
+      const detailItems = detailRes.items || []
+      const detailTotal = Number(detailRes.total || 0)
+      const yearItems = yearRes.items || []
+      const yearTotal = Number(yearRes.total || 0)
+
+      let buckets = aggregateExpensesByMonth(yearItems, year)
+      if (yearItems.length === 0 && monthlyTrend.length > 0) {
+        buckets = buildMomRowsFromTrend(monthlyTrend, year)
+      }
+      const monthRows = buildMomSummaryRows(buckets)
+
+      if (detailItems.length === 0 && monthRows.every((row) => !row.total)) {
+        window.alert('No expenses found for the selected filters.')
         return
       }
 
-      const payload = buildExpenseMonthExportPayload({
-        items,
+      const detailPayload = buildExpenseMonthExportPayload({
+        items: detailItems,
         year,
         monthIndex: month,
-        filters: { paymentSource: paymentFilter, category: categoryFilter },
+        filters: {
+          paymentSource: paymentFilter,
+          category: categoryFilter,
+          startDate,
+          endDate,
+        },
       })
-      await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
+      const momPayload = buildExpenseMomExportPayload({
+        year,
+        monthRows,
+        filters: {
+          paymentSource: paymentFilter,
+          category: categoryFilter,
+        },
+      })
 
-      if (total > items.length) {
-        window.alert(`Exported ${items.length} of ${total} entries (API limit). Narrow filters or contact admin for a full export.`)
+      const fileBase = buildExpenseMonthlyReportsFileBase({ year, monthIndex: month })
+      await downloadXlsxSheets([
+        { rows: detailPayload.rows, sheetName: detailPayload.sheetName },
+        { rows: momPayload.rows, sheetName: momPayload.sheetName },
+      ], `${fileBase}.xlsx`)
+
+      const warnings = []
+      if (detailTotal > detailItems.length) {
+        warnings.push(`Detail sheet: exported ${detailItems.length} of ${detailTotal} entries.`)
+      }
+      if (yearTotal > yearItems.length) {
+        warnings.push(`MoM summary may be incomplete: ${yearItems.length} of ${yearTotal} year entries loaded.`)
+      }
+      if (warnings.length) {
+        window.alert(warnings.join('\n'))
       }
     } catch (e) {
-      window.alert(e.response?.data?.message || e.message || 'Failed to export month report')
+      window.alert(e.response?.data?.message || e.message || 'Failed to download monthly reports')
     } finally {
       setExportBusy(false)
     }
@@ -78,41 +116,13 @@ export function useExpenseRegisterExports({
     endDate,
     paymentFilter,
     categoryFilter,
+    monthlyTrend,
     fetchRegister,
   ])
 
-  const handleDownloadMom = useCallback(async () => {
-    if (!token || exportBusy) return
-    setExportBusy(true)
-    try {
-      const yearEnd = expenseMonthDateRange(year, '').endDate
-      const res = await fetchRegister(`${year}-01-01`, yearEnd, 500)
-      const items = res.items || []
-      const total = Number(res.total || 0)
-
-      let buckets = aggregateExpensesByMonth(items, year)
-      if (items.length === 0 && monthlyTrend.length > 0) {
-        buckets = buildMomRowsFromTrend(monthlyTrend, year)
-      }
-
-      const monthRows = buildMomSummaryRows(buckets)
-      const payload = buildExpenseMomExportPayload({ year, monthRows })
-      await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
-
-      if (total > items.length) {
-        window.alert(`MoM summary may be incomplete: only ${items.length} of ${total} year entries were loaded.`)
-      }
-    } catch (e) {
-      window.alert(e.response?.data?.message || e.message || 'Failed to export month-on-month report')
-    } finally {
-      setExportBusy(false)
-    }
-  }, [token, exportBusy, year, monthlyTrend, fetchRegister])
-
   return {
     exportBusy,
-    handleDownloadMonth,
-    handleDownloadMom,
+    handleDownloadMonthlyReports,
     expenseMonthLabel: expenseMonthLabel(month),
   }
 }
