@@ -1,18 +1,8 @@
 import { useCallback, useState } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
-import { downloadXlsxSheets } from './exportHelpers'
-import {
-  aggregateExpensesByMonth,
-  buildMomRowsFromTrend,
-  buildMomSummaryRows,
-  expenseMonthDateRange,
-  expenseMonthLabel,
-} from './expenseMonthFilterUtils'
-import {
-  buildExpenseMomExportPayload,
-  buildExpenseMonthExportPayload,
-  buildExpenseMonthlyReportsFileBase,
-} from './expenseExportHelpers'
+import { expenseMonthLabel } from './expenseMonthFilterUtils'
+import { buildExpensePdfMeta } from './expenseExportHelpers'
+import { exportExpenseRegisterPdf } from './expensePrintExport'
 import { cleanExpenseRegisterParams } from './useExpenseRegister'
 
 export function useExpenseRegisterExports({
@@ -23,7 +13,6 @@ export function useExpenseRegisterExports({
   endDate,
   categoryFilter,
   paymentFilter,
-  monthlyTrend = [],
 }) {
   const [exportBusy, setExportBusy] = useState(false)
 
@@ -42,32 +31,17 @@ export function useExpenseRegisterExports({
     if (!token || exportBusy) return
     setExportBusy(true)
     try {
-      const detailRange = { startDate, endDate }
-      const yearEnd = expenseMonthDateRange(year, '').endDate
+      const res = await fetchRegister(startDate, endDate)
+      const items = res.items || []
+      const total = Number(res.total || 0)
 
-      const [detailRes, yearRes] = await Promise.all([
-        fetchRegister(detailRange.startDate, detailRange.endDate),
-        fetchRegister(`${year}-01-01`, yearEnd),
-      ])
-
-      const detailItems = detailRes.items || []
-      const detailTotal = Number(detailRes.total || 0)
-      const yearItems = yearRes.items || []
-      const yearTotal = Number(yearRes.total || 0)
-
-      let buckets = aggregateExpensesByMonth(yearItems, year)
-      if (yearItems.length === 0 && monthlyTrend.length > 0) {
-        buckets = buildMomRowsFromTrend(monthlyTrend, year)
-      }
-      const monthRows = buildMomSummaryRows(buckets)
-
-      if (detailItems.length === 0 && monthRows.every((row) => !row.total)) {
+      if (items.length === 0) {
         window.alert('No expenses found for the selected filters.')
         return
       }
 
-      const detailPayload = buildExpenseMonthExportPayload({
-        items: detailItems,
+      const totalAmount = items.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+      const meta = buildExpensePdfMeta({
         year,
         monthIndex: month,
         filters: {
@@ -76,34 +50,23 @@ export function useExpenseRegisterExports({
           startDate,
           endDate,
         },
+        total,
+        exportedCount: items.length,
+        totalAmount,
       })
-      const momPayload = buildExpenseMomExportPayload({
+
+      await exportExpenseRegisterPdf({
+        items,
+        meta,
         year,
-        monthRows,
-        filters: {
-          paymentSource: paymentFilter,
-          category: categoryFilter,
-        },
+        monthIndex: month,
       })
 
-      const fileBase = buildExpenseMonthlyReportsFileBase({ year, monthIndex: month })
-      await downloadXlsxSheets([
-        { rows: detailPayload.rows, sheetName: detailPayload.sheetName },
-        { rows: momPayload.rows, sheetName: momPayload.sheetName },
-      ], `${fileBase}.xlsx`)
-
-      const warnings = []
-      if (detailTotal > detailItems.length) {
-        warnings.push(`Detail sheet: exported ${detailItems.length} of ${detailTotal} entries.`)
-      }
-      if (yearTotal > yearItems.length) {
-        warnings.push(`MoM summary may be incomplete: ${yearItems.length} of ${yearTotal} year entries loaded.`)
-      }
-      if (warnings.length) {
-        window.alert(warnings.join('\n'))
+      if (total > items.length) {
+        window.alert(`Exported ${items.length} of ${total} entries (API limit). Narrow filters for a complete export.`)
       }
     } catch (e) {
-      window.alert(e.response?.data?.message || e.message || 'Failed to download monthly reports')
+      window.alert(e.response?.data?.message || e.message || 'Failed to download expense report PDF')
     } finally {
       setExportBusy(false)
     }
@@ -116,7 +79,6 @@ export function useExpenseRegisterExports({
     endDate,
     paymentFilter,
     categoryFilter,
-    monthlyTrend,
     fetchRegister,
   ])
 

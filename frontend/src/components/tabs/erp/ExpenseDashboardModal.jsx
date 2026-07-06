@@ -156,7 +156,6 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     endDate: registerEndDate,
     categoryFilter,
     paymentFilter,
-    monthlyTrend,
   })
 
   const categoryBreakdown = monthFilter !== '' && registerItems.length > 0

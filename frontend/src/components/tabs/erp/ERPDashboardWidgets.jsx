@@ -361,7 +361,6 @@ function ExpensesWidget({ dashboard, token, onOpenLedgerEntry }) {
     endDate: registerEndDate,
     categoryFilter,
     paymentFilter,
-    monthlyTrend,
   })
 
   const categoryOptions = registerCategories.length > 0

@@ -190,9 +190,9 @@ export default function ExpenseRegisterSection({
               onClick={onDownloadMonthlyReports}
               disabled={exportBusy}
               style={{ ...exportButtonStyle, opacity: exportBusy ? 0.6 : 1 }}
-              aria-label="Download monthly reports"
+              aria-label="Download expense report PDF"
             >
-              {exportBusy ? '…' : 'Download'}
+              {exportBusy ? '…' : 'Download PDF'}
             </button>
           )}
           <select

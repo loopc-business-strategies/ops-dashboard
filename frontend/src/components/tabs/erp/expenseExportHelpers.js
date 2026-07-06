@@ -95,3 +95,63 @@ export function buildExpenseMonthlyReportsFileBase({ year, monthIndex = '' } = {
   const monthLabel = expenseMonthLabel(monthIndex).replace(/\s+/g, '-').toLowerCase()
   return `expenses-monthly-${year || 'year'}-${monthLabel}-${stamp}`
 }
+
+function truncateText(value, max = 80) {
+  const text = String(value || '').trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 1)}…`
+}
+
+function formatPdfAmount(value) {
+  const n = Number(value || 0)
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+/** Rows for jsPDF autoTable body (expense register PDF). */
+export function buildExpensesPdfTableBody(items = []) {
+  return items.map((row) => [
+    formatExportDate(row.date),
+    row.category || '',
+    truncateText(row.description),
+    formatPdfAmount(row.amount),
+    row.paymentMethod || row.paymentSource || '',
+    truncateText(row.paymentRoute || `${row.fundingAccount || ''} → ${row.expenseAccount || ''}`, 100),
+    row.ledgerRef || row.referenceType || '',
+  ])
+}
+
+export function buildExpensePdfMeta({
+  year,
+  monthIndex = '',
+  filters = {},
+  total = 0,
+  exportedCount = 0,
+  totalAmount = 0,
+} = {}) {
+  const lines = [
+    `Generated: ${new Date().toLocaleString()}`,
+    `Year: ${year || '—'}`,
+    `Month: ${expenseMonthLabel(monthIndex)}`,
+  ]
+  if (filters.startDate && filters.endDate) {
+    lines.push(`Date range: ${filters.startDate} to ${filters.endDate}`)
+  }
+  lines.push(`Payment: ${paymentFilterLabel(filters.paymentSource)}`)
+  lines.push(`Category: ${filters.category || 'All categories'}`)
+  lines.push(`Entries: ${exportedCount}${total > exportedCount ? ` of ${total}` : ''}`)
+  lines.push(`Total amount: ${formatPdfAmount(totalAmount)}`)
+  return {
+    title: 'Expense Register Report',
+    lines,
+    truncated: total > exportedCount,
+    exportedCount,
+    total,
+    totalAmount,
+  }
+}
+
+export function buildExpensePdfFileName({ year, monthIndex = '' } = {}) {
+  const stamp = new Date().toISOString().slice(0, 10)
+  const monthLabel = expenseMonthLabel(monthIndex).replace(/\s+/g, '-').toLowerCase()
+  return `expenses-report-${year || 'year'}-${monthLabel}-${stamp}.pdf`
+}
