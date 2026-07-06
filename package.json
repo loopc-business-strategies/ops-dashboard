@@ -87,6 +87,7 @@
     "check:vercel-rewrites": "node scripts/check-vercel-rewrites.mjs",
     "sync:erp-access": "node scripts/sync-erp-access-policy.js",
     "smoke:tenants": "node scripts/smoke-tenants.js",
+    "smoke:expense-portals": "node scripts/verify-expense-portals.js",
     "smoke:erp-acceptance": "node scripts/erp-acceptance-automated.mjs",
     "check:fcm": "node scripts/check-fcm-setup.mjs",
     "check:mobile-release-secrets": "node scripts/check-mobile-release-secrets.mjs",

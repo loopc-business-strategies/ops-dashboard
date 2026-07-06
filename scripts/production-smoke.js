@@ -228,13 +228,13 @@ async function verifyCsrfAuthShape(tenant) {
   return `${response.status} csrf/auth bypass shape`
 }
 
-async function verifyTenantMetalRatesLive(tenant) {
+async function buildTenantSmokeHeaders(tenant) {
   let smokeSession = null
   if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE) {
     smokeSession = await loginForSmoke(tenant)
   }
   if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !smokeSession) {
-    throw new Error(`metal-rates live probe requires credentials for ${tenant}`)
+    return null
   }
 
   const headers = {
@@ -244,6 +244,14 @@ async function verifyTenantMetalRatesLive(tenant) {
   if (SMOKE_AUTH_TOKEN) headers.authorization = `Bearer ${SMOKE_AUTH_TOKEN}`
   if (SMOKE_SESSION_COOKIE || smokeSession?.cookie) headers.cookie = SMOKE_SESSION_COOKIE || smokeSession.cookie
   if (smokeSession?.csrfToken) headers['x-csrf-token'] = smokeSession.csrfToken
+  return headers
+}
+
+async function verifyTenantMetalRatesLive(tenant) {
+  const headers = await buildTenantSmokeHeaders(tenant)
+  if (!headers) {
+    throw new Error(`metal-rates live probe requires credentials for ${tenant}`)
+  }
 
   const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/metal-rates/live`, { headers })
   const body = await response.json().catch(() => ({}))
@@ -257,6 +265,23 @@ async function verifyTenantMetalRatesLive(tenant) {
     throw new Error(`metal-rates/live returned non-positive prices (gold=${gold}, silver=${silver})`)
   }
   return `${response.status} live=${Boolean(body.live)} gold=${gold.toFixed(2)}`
+}
+
+async function verifyTenantExpenseRegister(tenant) {
+  const headers = await buildTenantSmokeHeaders(tenant)
+  if (!headers) {
+    throw new Error(`expense-register probe requires credentials for ${tenant}`)
+  }
+
+  const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/reports/expense-register?limit=5`, { headers })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || body.success !== true) {
+    throw new Error(`expense-register returned ${response.status}: ${body.message || 'unexpected response'}`)
+  }
+  if (!Array.isArray(body.items)) {
+    throw new Error('expense-register response missing items array')
+  }
+  return `${response.status} items=${body.items.length} total=${body.total ?? body.items.length}`
 }
 
 async function run() {
@@ -284,6 +309,7 @@ async function run() {
     if (SMOKE_REQUIRE_AUTH) {
       checks.push(check(`railway:${tenant}:erp-readonly`, () => verifyTenantReadOnlyErpPath(tenant)))
       checks.push(check(`railway:${tenant}:metal-rates-live`, () => verifyTenantMetalRatesLive(tenant)))
+      checks.push(check(`railway:${tenant}:expense-register`, () => verifyTenantExpenseRegister(tenant)))
     }
   }
 
