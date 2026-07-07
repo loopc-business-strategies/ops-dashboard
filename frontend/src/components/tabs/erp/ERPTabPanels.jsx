@@ -158,6 +158,7 @@ export default function ERPTabPanels({
   handleExportReportCsv,
   handleExportReportPdf,
   handleExportReportXlsx,
+  reportPdfDownloadEnabled,
   handleExportTransactionsCsv,
   handleExportTransactionsPdf,
   handleExportTransactionsXlsx,
@@ -728,6 +729,7 @@ export default function ERPTabPanels({
         handleExportReportCsv={handleExportReportCsv}
         handleExportReportXlsx={handleExportReportXlsx}
         handleExportReportPdf={handleExportReportPdf}
+        reportPdfDownloadEnabled={reportPdfDownloadEnabled}
         handlePrintCurrentReport={handlePrintCurrentReport}
         emptyCardStyle={ERP_EMPTY_CARD_STYLE}
         reports={reports}

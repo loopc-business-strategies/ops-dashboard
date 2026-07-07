@@ -126,6 +126,7 @@ export function buildErpTabPanelProps(scope) {
     handleExportReportCsv: scope.handleExportReportCsv,
     handleExportReportPdf: scope.handleExportReportPdf,
     handleExportReportXlsx: scope.handleExportReportXlsx,
+    reportPdfDownloadEnabled: scope.reportPdfDownloadEnabled,
     handleExportTransactionsCsv: scope.handleExportTransactionsCsv,
     handleExportTransactionsPdf: scope.handleExportTransactionsPdf,
     handleExportTransactionsXlsx: scope.handleExportTransactionsXlsx,

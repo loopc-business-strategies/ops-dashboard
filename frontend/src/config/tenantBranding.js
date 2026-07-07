@@ -33,6 +33,7 @@ const defaultBranding = {
   enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
   featureFlags: {
     procurementPlus: true,
+    reportPdfDownload: true,
   },
 }
 
@@ -95,6 +96,7 @@ const tenantBranding = {
     trn: '',
     featureFlags: {
       procurementPlus: true,
+      reportPdfDownload: true,
     },
   },
 }
@@ -102,6 +104,10 @@ const tenantBranding = {
 export function getTenantBranding(tenant) {
   const key = normalizeTenantKey(tenant)
   return tenantBranding[key] || defaultBranding
+}
+
+export function isReportPdfDownloadEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.reportPdfDownload === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

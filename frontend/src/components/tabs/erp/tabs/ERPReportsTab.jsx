@@ -12,6 +12,7 @@ export default function ERPReportsTab({
   handleExportReportCsv,
   handleExportReportXlsx,
   handleExportReportPdf,
+  reportPdfDownloadEnabled = false,
   handlePrintCurrentReport,
   emptyCardStyle,
   reports,
@@ -110,7 +111,9 @@ export default function ERPReportsTab({
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button onClick={handleExportReportCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', fontWeight: '700', cursor: 'pointer' }}>Export CSV</button>
                 <button onClick={handleExportReportXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Export XLSX</button>
-                <button onClick={handleExportReportPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #EF4444', background: '#FEF2F2', color: '#991B1B', fontWeight: '700', cursor: 'pointer' }}>Export PDF</button>
+                {reportPdfDownloadEnabled && (
+                  <button onClick={handleExportReportPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Download PDF</button>
+                )}
                 <button onClick={handlePrintCurrentReport} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', fontWeight: '700', cursor: 'pointer' }}>Print</button>
               </div>
             </div>

@@ -1,4 +1,10 @@
 import { clampBrandingDimension, createLogoRenderAsset } from './ERPBrandingUtils'
+import {
+  buildReportPdfMeta,
+  buildReportPdfTable,
+  formatReportPeriodText,
+  isReportDataReady,
+} from './reportExportHelpers'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
 import { loadPdfTools } from './lazyExportLibs'
 
@@ -12,11 +18,10 @@ export async function buildReportPrintHtml({
   formatMoneyAbs,
   formatReportDirectionalBalance,
   buildBrandingLogoTag,
+  ledgerReportRows = [],
 }) {
-  if (!reports.trialBalance) return null
-  const periodText = reports.trialBalance?.period?.startDate
-    ? `${reports.trialBalance.period.startDate} to ${reports.trialBalance.period.endDate || reports.trialBalance.period.startDate}`
-    : `As on ${new Date().toLocaleDateString()}`
+  if (!isReportDataReady(reportView, reports, ledgerReportRows)) return null
+  const periodText = formatReportPeriodText(reports, reportView)
   const logoMarkup = await buildBrandingLogoTag(branding, 'margin-bottom:10px;')
   const head = `
       <div class="brandbar"></div>
@@ -95,17 +100,19 @@ export async function exportReportPdf({
 }) {
   const { jsPDF, autoTable } = await loadPdfTools()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-  const titleMap = {
-    summary: 'Summary',
-    trial: 'Trial Balance',
-    pnl: 'Profit & Loss Statement',
-    balanceSheet: 'Balance Sheet',
-    dayBook: 'Day Book',
-    outstanding: 'Outstanding Statement',
-    forex: 'Forex Gain/Loss',
-    ledger: `Ledger Drilldown ${selectedReportAccountCode ? `- ${selectedReportAccountCode}` : ''}`,
-  }
-  const title = titleMap[reportView] || 'ERP Report'
+  const { title, periodText, summaryLines, fileBase } = buildReportPdfMeta({
+    reportView,
+    reports,
+    selectedReportAccountCode,
+  })
+  const { head, body } = buildReportPdfTable({
+    reportView,
+    reports,
+    ledgerReportRows,
+    formatMoney,
+    formatReportDirectionalBalance,
+  })
+
   const logoWidth = clampBrandingDimension(branding.logoWidth, defaultBranding.logoWidth, 80, 260)
   const logoHeight = clampBrandingDimension(branding.logoHeight, defaultBranding.logoHeight, 32, 120)
   const processedLogo = await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
@@ -127,83 +134,50 @@ export async function exportReportPdf({
   doc.text(title, 40, 42)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  if (branding.legalName) doc.text(String(branding.legalName), 40, 64)
-  doc.text(`${branding.entityName || defaultBranding.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}`, 40, branding.legalName ? 78 : 64)
-  doc.text(String(branding.reportSubtitle || defaultBranding.reportSubtitle), 40, branding.legalName ? 92 : 78)
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 40, branding.legalName ? 106 : 92)
-  let head = []
-  let body = []
-  if (reportView === 'trial' || reportView === 'summary') {
-    head = [['Code', 'Account', 'Type', 'Debit', 'Credit', 'Net']]
-    body = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => [
-      row.accountCode,
-      row.accountName,
-      row.accountType,
-      formatMoney(row.debit),
-      formatMoney(row.credit),
-      formatMoney(row.net),
-    ])
-  } else if (reportView === 'pnl') {
-    head = [['Section', 'Code', 'Account', 'Amount']]
-    body = [
-      ...(reports.profitLoss?.incomeBreakdown || []).map((row) => ['Income', row.accountCode, row.accountName, formatMoney(row.amount)]),
-      ...(reports.profitLoss?.expenseBreakdown || []).map((row) => ['Expense', row.accountCode, row.accountName, formatMoney(row.amount)]),
-      ['Total', 'NET', 'Net Profit', formatMoney(reports.profitLoss?.netProfit)],
-    ]
-  } else if (reportView === 'balanceSheet') {
-    head = [['Section', 'Code', 'Account', 'Balance']]
-    body = [
-      ...(reports.balanceSheet?.assets || []).map((row) => ['Asset', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Dr')]),
-      ...(reports.balanceSheet?.liabilities || []).map((row) => ['Liability', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Cr')]),
-      ...(reports.balanceSheet?.equity || []).map((row) => ['Equity', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Cr')]),
-    ]
-  } else if (reportView === 'dayBook') {
-    head = [['Date', 'Type', 'Description', 'Debit A/C', 'Credit A/C', 'Amount']]
-    body = (reports.dayBook?.entries || []).map((row) => [
-      new Date(row.date).toLocaleString(),
-      row.referenceType,
-      row.description || '',
-      row.debitAccountId?.accountCode || '',
-      row.creditAccountId?.accountCode || '',
-      formatMoney(row.amount),
-    ])
-  } else if (reportView === 'outstanding') {
-    head = [['Party', 'Name', 'Ledger', 'Outstanding', 'Age/Type']]
-    body = [
-      ...(reports.customerOutstanding?.rows || []).map((row) => ['Customer', row.customerName, row.ledgerAccount?.accountCode || '', formatMoney(row.outstanding), `90+: ${formatMoney(row.aging?.bucket90Plus || 0)}`]),
-      ...(reports.vendorOutstanding?.rows || []).map((row) => ['Vendor', row.vendorName, row.ledgerAccount?.accountCode || '', formatMoney(row.outstanding), row.outstandingType || '']),
-    ]
-  } else if (reportView === 'forex') {
-    head = [['Currency', 'Entries', 'Impact']]
-    body = Object.entries(reports.forex?.byCurrency || {}).map(([currency, row]) => [currency, String(row.count || 0), formatMoney(row.impact)])
-  } else if (reportView === 'ledger') {
-    head = [['Voucher', 'Date', 'Type', 'Description', 'Debit', 'Credit', 'Running']]
-    body = (ledgerReportRows || []).map((row) => [
-      String(row.entryId || '').slice(-6).toUpperCase(),
-      new Date(row.date).toLocaleString(),
-      row.referenceType,
-      row.description || '',
-      formatMoney(row.debit),
-      formatMoney(row.credit),
-      formatMoney(row.runningBalance),
-    ])
+  doc.setTextColor(55, 65, 81)
+  let metaY = branding.legalName ? 64 : 50
+  if (branding.legalName) {
+    doc.text(String(branding.legalName), 40, metaY)
+    metaY += 14
   }
+  doc.text(`${branding.entityName || defaultBranding.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}`, 40, metaY)
+  metaY += 14
+  doc.text(String(branding.reportSubtitle || defaultBranding.reportSubtitle), 40, metaY)
+  metaY += 14
+  doc.text(`Period: ${periodText}`, 40, metaY)
+  metaY += 14
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 40, metaY)
+  metaY += 14
+  summaryLines.forEach((line) => {
+    doc.text(line, 40, metaY)
+    metaY += 12
+  })
+
+  const tableStartY = metaY + 8
   autoTable(doc, {
     head,
     body,
-    startY: branding.legalName ? 122 : 108,
+    startY: tableStartY,
     styles: { fontSize: 8, cellPadding: 4 },
     headStyles: { fillColor: [17, 24, 39] },
     alternateRowStyles: { fillColor: [249, 250, 251] },
     margin: { left: 28, right: 28 },
+    didParseCell: (data) => {
+      const rowLabel = String(data.row?.raw?.[0] || '')
+      if (['Subtotal', 'Total'].includes(rowLabel)) {
+        data.cell.styles.fontStyle = 'bold'
+        data.cell.styles.fillColor = [243, 244, 246]
+      }
+    },
   })
-  const finalY = doc.lastAutoTable?.finalY || 110
+  const finalY = doc.lastAutoTable?.finalY || tableStartY
   const signatureY = Math.min(Math.max(finalY + 36, 680), 740)
   doc.setDrawColor(156, 163, 175)
   doc.line(40, signatureY, 180, signatureY)
   doc.line(220, signatureY, 360, signatureY)
   doc.line(400, signatureY, 540, signatureY)
   doc.setFontSize(9)
+  doc.setTextColor(17, 24, 39)
   doc.text(String(branding.preparedByTitle || defaultBranding.preparedByTitle), 40, signatureY + 14)
   doc.text(String(branding.preparedByName || user?.name || defaultBranding.preparedByName), 40, signatureY + 28)
   doc.text(String(branding.reviewedByTitle || defaultBranding.reviewedByTitle), 220, signatureY + 14)
@@ -214,8 +188,7 @@ export async function exportReportPdf({
   doc.setTextColor(107, 114, 128)
   doc.text(`${branding.companyName || defaultBranding.companyName} Reporting Suite`, 40, signatureY + 52)
   doc.text(String(branding.reportFooter || defaultBranding.reportFooter), 420, signatureY + 52)
-  const stamp = new Date().toISOString().slice(0, 10)
-  doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${stamp}.pdf`)
+  doc.save(`${fileBase}.pdf`)
 }
 
 export async function exportTransactionsPdf({ scope, transactionTypeLabels }) {

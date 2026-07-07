@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../../context/AuthContext'
 import { useLanguage } from '../../../../context/LanguageContext'
-import { isLocalTenantHost } from '../../../../config/tenantBranding'
+import { isLocalTenantHost, isReportPdfDownloadEnabled } from '../../../../config/tenantBranding'
 import { resolveErpUserTenantKey } from '../resolveErpUserTenant'
 import { buildDashboardSearchParams, buildEnquiryHref } from '../../../../utils/dashboardNavigation'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
@@ -47,6 +47,7 @@ export function useErpTabCoreSlice(props) {
 
   const { user, token } = useAuth()
   const inventoryTenantKey = resolveErpUserTenantKey(user)
+  const reportPdfDownloadEnabled = isReportPdfDownloadEnabled(inventoryTenantKey)
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
@@ -556,6 +557,7 @@ export function useErpTabCoreSlice(props) {
     inventoryStockCodeSettings,
     inventoryStockCodeSettingsKey,
     inventoryTenantKey,
+    reportPdfDownloadEnabled,
     inventoryVatFilter,
     inventoryVatSortDir,
     isDepartmentHead: _isDepartmentHead,

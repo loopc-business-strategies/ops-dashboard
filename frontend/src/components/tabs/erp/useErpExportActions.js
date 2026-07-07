@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { downloadCsv, downloadXlsxRows, printStatementHtml } from './exportHelpers'
-import { buildReportExportPayload } from './reportExportHelpers'
+import { buildReportExportPayload, getReportNotReadyMessage, isReportDataReady } from './reportExportHelpers'
 import { buildTransactionExportPayload } from './transactionExportHelpers'
 import { buildReportPrintHtml, exportReportPdf, exportTransactionsPdf } from './reportPrintExport'
 
@@ -161,7 +161,7 @@ export function useErpExportActions({
       ledgerReportRows,
     })
     if (!payload) {
-      setError('Load reports first before exporting')
+      setError(getReportNotReadyMessage(reportView, 'exporting'))
       return
     }
     downloadCsv(payload.rows, `${payload.fileBase}.csv`)
@@ -177,7 +177,7 @@ export function useErpExportActions({
       ledgerReportRows,
     })
     if (!payload) {
-      setError('Load reports first before exporting')
+      setError(getReportNotReadyMessage(reportView, 'exporting'))
       return
     }
     await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
@@ -185,8 +185,8 @@ export function useErpExportActions({
   }, [reportView, reports, branding, defaultBranding, ledgerReportRows, setError, showNotification])
 
   const handlePrintCurrentReport = useCallback(async () => {
-    if (!reports.trialBalance) {
-      setError('Load reports first before printing')
+    if (!isReportDataReady(reportView, reports, ledgerReportRows)) {
+      setError(getReportNotReadyMessage(reportView, 'printing'))
       return
     }
     const body = await buildReportPrintHtml({
@@ -199,9 +199,10 @@ export function useErpExportActions({
       formatMoneyAbs,
       formatReportDirectionalBalance,
       buildBrandingLogoTag,
+      ledgerReportRows,
     })
     if (!body) {
-      setError('Load reports first before printing')
+      setError(getReportNotReadyMessage(reportView, 'printing'))
       return
     }
     openPrintWindow('ERP Financial Statement', body)
@@ -216,14 +217,15 @@ export function useErpExportActions({
     formatMoneyAbs,
     formatReportDirectionalBalance,
     buildBrandingLogoTag,
+    ledgerReportRows,
     openPrintWindow,
     setError,
     showNotification,
   ])
 
   const handleExportReportPdf = useCallback(async () => {
-    if (!reports.trialBalance) {
-      setError('Load reports first before exporting PDF')
+    if (!isReportDataReady(reportView, reports, ledgerReportRows)) {
+      setError(getReportNotReadyMessage(reportView, 'downloading'))
       return
     }
     await exportReportPdf({
@@ -237,14 +239,14 @@ export function useErpExportActions({
       formatMoney,
       formatReportDirectionalBalance,
     })
-    showNotification('✅ PDF exported')
+    showNotification('✅ PDF downloaded')
   }, [
     reports,
     reportView,
+    ledgerReportRows,
     branding,
     defaultBranding,
     user,
-    ledgerReportRows,
     selectedReportAccountCode,
     formatMoney,
     formatReportDirectionalBalance,
