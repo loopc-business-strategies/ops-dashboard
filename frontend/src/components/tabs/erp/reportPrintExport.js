@@ -4,9 +4,10 @@ import {
   buildReportPdfMeta,
   buildReportPdfTable,
   buildReportPdfTableLayout,
-  fitReportPdfPageToContent,
+  computeReportPdfPageHeight,
   isReportDataReady,
   renderReportPdfHeader,
+  setReportPdfPageHeight,
   REPORT_PDF_MARGIN,
   REPORT_PDF_TABLE_FONT,
   REPORT_PDF_TABLE_PADDING,
@@ -24,6 +25,59 @@ function buildReportPrintHead({ reportTitle, periodText, logoMarkup }) {
         <p class="meta">Generated: ${new Date().toLocaleString()}</p>
       </div>
     `
+}
+
+function renderReportPdfBody(autoTable, doc, {
+  reportView,
+  head,
+  body,
+  tableStartY,
+  tableWidth,
+  tableMarginLeft,
+  tableMarginRight,
+  margin,
+}) {
+  autoTable(doc, {
+    head,
+    body,
+    startY: tableStartY,
+    tableWidth,
+    styles: { fontSize: REPORT_PDF_TABLE_FONT, cellPadding: REPORT_PDF_TABLE_PADDING, overflow: 'linebreak' },
+    bodyStyles: { valign: 'top' },
+    headStyles: {
+      fillColor: [17, 24, 39],
+      fontSize: REPORT_PDF_TABLE_FONT,
+      cellPadding: REPORT_PDF_TABLE_PADDING,
+      halign: 'center',
+    },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
+    columnStyles: buildReportPdfColumnStyles(reportView, tableWidth),
+    margin: { left: tableMarginLeft, right: tableMarginRight, bottom: margin },
+    didParseCell: (data) => {
+      const rowLabel = String(data.row?.raw?.[0] || '')
+      if (['Subtotal', 'Total'].includes(rowLabel)) {
+        data.cell.styles.fontStyle = 'bold'
+        data.cell.styles.fillColor = [243, 244, 246]
+      }
+    },
+  })
+}
+
+function createPortraitA4Pdf(jsPDF) {
+  return new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+}
+
+async function renderReportPdfLogo(doc, pageWidth, margin, branding, defaultBranding, logoAsset) {
+  const logoWidth = clampBrandingDimension(branding.logoWidth, defaultBranding.logoWidth, 48, 72)
+  const logoHeight = clampBrandingDimension(branding.logoHeight, defaultBranding.logoHeight, 20, 28)
+  const processedLogo = logoAsset ?? await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
+  if (processedLogo && String(processedLogo).startsWith('data:image/')) {
+    try {
+      doc.addImage(processedLogo, 'PNG', pageWidth - margin - logoWidth, 18, logoWidth, logoHeight, undefined, 'FAST')
+    } catch {
+      // Ignore invalid embedded image data and continue without logo.
+    }
+  }
 }
 
 export async function buildReportPrintHtml({
@@ -107,11 +161,7 @@ export async function exportReportPdf({
   formatReportDirectionalBalance,
 }) {
   const { jsPDF, autoTable } = await loadPdfTools()
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
   const margin = REPORT_PDF_MARGIN
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const { tableWidth, tableMarginLeft } = buildReportPdfTableLayout(pageWidth, margin)
-  const tableMarginRight = pageWidth - tableMarginLeft - tableWidth
 
   const { title, periodText, summaryLines, fileBase } = buildReportPdfMeta({
     reportView,
@@ -127,46 +177,50 @@ export async function exportReportPdf({
     forPdf: true,
   })
 
+  const headerOptions = { title, periodText, summaryLines, compact: true }
+  const measureDoc = createPortraitA4Pdf(jsPDF)
+  const measurePageWidth = measureDoc.internal.pageSize.getWidth()
+  const measureLayout = buildReportPdfTableLayout(measurePageWidth, margin)
+  const measureTableMarginRight = measurePageWidth - measureLayout.tableMarginLeft - measureLayout.tableWidth
+  const measureTableStartY = renderReportPdfHeader(measureDoc, headerOptions)
+  renderReportPdfBody(autoTable, measureDoc, {
+    reportView,
+    head,
+    body,
+    tableStartY: measureTableStartY,
+    tableWidth: measureLayout.tableWidth,
+    tableMarginLeft: measureLayout.tableMarginLeft,
+    tableMarginRight: measureTableMarginRight,
+    margin,
+  })
+
+  const multiPage = measureDoc.internal.getNumberOfPages() > 1
+  const doc = createPortraitA4Pdf(jsPDF)
+  if (!multiPage) {
+    const contentEndY = measureDoc.lastAutoTable?.finalY || measureTableStartY
+    setReportPdfPageHeight(doc, computeReportPdfPageHeight(contentEndY))
+  }
+
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const { tableWidth, tableMarginLeft } = buildReportPdfTableLayout(pageWidth, margin)
+  const tableMarginRight = pageWidth - tableMarginLeft - tableWidth
+
   const logoWidth = clampBrandingDimension(branding.logoWidth, defaultBranding.logoWidth, 48, 72)
   const logoHeight = clampBrandingDimension(branding.logoHeight, defaultBranding.logoHeight, 20, 28)
   const processedLogo = await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
-  if (processedLogo && String(processedLogo).startsWith('data:image/')) {
-    try {
-      doc.addImage(processedLogo, 'PNG', pageWidth - margin - logoWidth, 18, logoWidth, logoHeight, undefined, 'FAST')
-    } catch {
-      // Ignore invalid embedded image data and continue without logo.
-    }
-  }
+  await renderReportPdfLogo(doc, pageWidth, margin, branding, defaultBranding, processedLogo)
 
-  const tableStartY = renderReportPdfHeader(doc, { title, periodText, summaryLines, compact: true })
-
-  autoTable(doc, {
+  const tableStartY = renderReportPdfHeader(doc, headerOptions)
+  renderReportPdfBody(autoTable, doc, {
+    reportView,
     head,
     body,
-    startY: tableStartY,
+    tableStartY,
     tableWidth,
-    styles: { fontSize: REPORT_PDF_TABLE_FONT, cellPadding: REPORT_PDF_TABLE_PADDING, overflow: 'linebreak' },
-    bodyStyles: { valign: 'top' },
-    headStyles: {
-      fillColor: [17, 24, 39],
-      fontSize: REPORT_PDF_TABLE_FONT,
-      cellPadding: REPORT_PDF_TABLE_PADDING,
-      halign: 'center',
-    },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
-    columnStyles: buildReportPdfColumnStyles(reportView, tableWidth),
-    margin: { left: tableMarginLeft, right: tableMarginRight, bottom: margin },
-    didParseCell: (data) => {
-      const rowLabel = String(data.row?.raw?.[0] || '')
-      if (['Subtotal', 'Total'].includes(rowLabel)) {
-        data.cell.styles.fontStyle = 'bold'
-        data.cell.styles.fillColor = [243, 244, 246]
-      }
-    },
+    tableMarginLeft,
+    tableMarginRight,
+    margin,
   })
-
-  const contentEndY = doc.lastAutoTable?.finalY || tableStartY
-  fitReportPdfPageToContent(doc, contentEndY)
 
   doc.save(`${fileBase}.pdf`)
 }

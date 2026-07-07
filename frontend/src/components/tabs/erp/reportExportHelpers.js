@@ -39,14 +39,21 @@ export const REPORT_PDF_A4_HEIGHT = 842
 export const REPORT_PDF_MIN_PAGE_HEIGHT = 140
 export const REPORT_PDF_BOTTOM_PAD = 24
 
-export function fitReportPdfPageToContent(doc, contentEndY, {
+export function computeReportPdfPageHeight(contentEndY, {
   bottomPad = REPORT_PDF_BOTTOM_PAD,
   minHeight = REPORT_PDF_MIN_PAGE_HEIGHT,
   maxHeight = REPORT_PDF_A4_HEIGHT,
 } = {}) {
-  if (!doc?.internal || doc.internal.getNumberOfPages() !== 1) return contentEndY
-  const targetHeight = Math.ceil(contentEndY + bottomPad)
-  const height = Math.min(maxHeight, Math.max(minHeight, targetHeight))
+  const targetHeight = Math.ceil(Number(contentEndY || 0) + bottomPad)
+  return Math.min(maxHeight, Math.max(minHeight, targetHeight))
+}
+
+export function setReportPdfPageHeight(doc, heightPt) {
+  if (!doc?.internal) return heightPt
+  const height = Math.min(
+    REPORT_PDF_A4_HEIGHT,
+    Math.max(REPORT_PDF_MIN_PAGE_HEIGHT, Math.ceil(Number(heightPt || 0))),
+  )
   if (typeof doc.internal.pageSize.setHeight === 'function') {
     doc.internal.pageSize.setHeight(height)
   } else {
