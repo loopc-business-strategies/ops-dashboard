@@ -124,6 +124,15 @@ describe('buildExpenseBreakdownFromRegister', () => {
     expect(categories[0]).toEqual({ name: 'Gpay/Paytm', amount: 1050 })
     expect(categories[1]).toEqual({ name: 'Rent Expense', amount: 200 })
   })
+
+  it('nets negative reversal rows against category totals', () => {
+    const { categories, total } = buildExpenseBreakdownFromRegister([
+      { category: 'advance payment- payroll', amount: 6544 },
+      { category: 'advance payment- payroll', amount: -4000 },
+    ])
+    expect(total).toBe(2544)
+    expect(categories[0]).toEqual({ name: 'advance payment- payroll', amount: 2544 })
+  })
 })
 
 describe('peakExpenseTrendMonthIndex', () => {

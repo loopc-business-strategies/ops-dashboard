@@ -249,7 +249,11 @@ export default function ExpenseRegisterSection({
                   <td style={{ padding: '0.65rem 0.85rem', color: '#111827', whiteSpace: 'nowrap' }}>{formatExpenseDate(row.date)}</td>
                   <td style={{ padding: '0.65rem 0.85rem', color: '#111827', fontWeight: '700' }}>{row.category}</td>
                   <td style={{ padding: '0.65rem 0.85rem', color: '#374151', maxWidth: 220 }}>{row.description}</td>
-                  <td style={{ padding: '0.65rem 0.85rem', color: '#111827', fontWeight: '900', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtDollar(row.amount)}</td>
+                  <td style={{ padding: '0.65rem 0.85rem', color: Number(row.amount || 0) < 0 ? '#DC2626' : '#111827', fontWeight: '900', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {Number(row.amount || 0) < 0
+                      ? `(${fmtDollar(Math.abs(Number(row.amount || 0)))})`
+                      : fmtDollar(row.amount)}
+                  </td>
                   <td style={{ padding: '0.65rem 0.85rem' }}>
                     <span style={{ ...badge, display: 'inline-block', borderRadius: 4, padding: '2px 8px', fontSize: '0.68rem', fontWeight: '800' }}>
                       {row.paymentMethod || 'Other'}

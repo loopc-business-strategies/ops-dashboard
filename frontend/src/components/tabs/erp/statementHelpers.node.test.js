@@ -2,12 +2,9 @@ import { describe, expect, test } from 'vitest'
 import { computeMarginMetricsRaw } from './metalMarginPolicy'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
-  buildEffectiveStatementCurrencies,
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
-  convertStatementAmount,
-  convertStatementEntryAmounts,
   formatAccountEnquiryExcessDisplay,
   formatMarginExcessDisplay,
   getAccountEnquirySignedMetricColor,
@@ -24,64 +21,7 @@ import {
   resolveStatementMetalCode,
 } from './statementHelpers'
 
-const UZS_RATE = 0.000078
-const UZS_CURRENCIES = [
-  { code: 'USD', exchangeRate: 1 },
-  { code: 'UZS', exchangeRate: UZS_RATE },
-]
-
 describe('statement helpers', () => {
-  test('buildEffectiveStatementCurrencies fills UZS rate from statement rows when master list is empty', () => {
-    const effective = buildEffectiveStatementCurrencies([], [
-      { currency: 'SOMS', exchangeRate: UZS_RATE },
-    ])
-
-    expect(effective).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'UZS', exchangeRate: UZS_RATE }),
-    ]))
-  })
-
-  test('convertStatementAmount converts USD to UZS using effective currencies', () => {
-    const result = convertStatementAmount({
-      amount: 4923.14,
-      fromCurrency: 'USD',
-      toCurrency: 'UZS',
-      baseCurrency: 'USD',
-      currencies: UZS_CURRENCIES,
-    })
-
-    expect(result).toBeCloseTo(4923.14 / UZS_RATE, 0)
-  })
-
-  test('convertStatementAmount uses entry-native UZS amount when display matches row currency', () => {
-    const result = convertStatementAmount({
-      amount: 7.8,
-      fromCurrency: 'USD',
-      toCurrency: 'UZS',
-      baseCurrency: 'USD',
-      currencies: [],
-      entry: { currency: 'UZS', exchangeRate: UZS_RATE },
-    })
-
-    expect(result).toBe(100000)
-  })
-
-  test('convertStatementEntryAmounts converts debit, credit, and balance for a row', () => {
-    const entry = {
-      currency: 'USD',
-      exchangeRate: 1,
-      debitAmount: 7.8,
-      creditAmount: 0,
-      runningBalance: 7.8,
-    }
-
-    const amounts = convertStatementEntryAmounts(entry, 'UZS', 'USD', UZS_CURRENCIES)
-
-    expect(amounts.debit).toBe(100000)
-    expect(amounts.credit).toBe(0)
-    expect(amounts.balance).toBe(100000)
-  })
-
   test('builds currency options from configured currencies', () => {
     const options = buildStatementCurrencyOptions({
       includeAll: true,

@@ -62,7 +62,6 @@ export default function ERPTabModals({
   setShowStatementAuditIds,
   statementTableRef,
   convertStatementDisplayAmount,
-  convertStatementEntryAmounts,
   resolveMetalCode,
   statementSelectedMetalCode,
   pureWeightRunningByEntryKey,
@@ -148,7 +147,6 @@ export default function ERPTabModals({
         setShowStatementAuditIds={setShowStatementAuditIds}
         statementTableRef={statementTableRef}
         convertStatementDisplayAmount={convertStatementDisplayAmount}
-        convertStatementEntryAmounts={convertStatementEntryAmounts}
         resolveMetalCode={resolveMetalCode}
         statementSelectedMetalCode={statementSelectedMetalCode}
         pureWeightRunningByEntryKey={pureWeightRunningByEntryKey}

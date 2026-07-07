@@ -61,7 +61,6 @@ export default function AccountEnquiryModal({
   setShowStatementAuditIds,
   statementTableRef,
   convertStatementDisplayAmount,
-  convertStatementEntryAmounts,
   resolveMetalCode,
   statementSelectedMetalCode,
   pureWeightRunningByEntryKey,
@@ -322,8 +321,8 @@ export default function AccountEnquiryModal({
                         <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <select
-                            value={statementDisplayCurrency}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
+                            value={excessCurrency || baseCurrencyCode}
+                            onChange={(e) => setExcessCurrency(e.target.value)}
                             style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}
                           >
                             {(statementDisplayCurrencyOptions.length ? statementDisplayCurrencyOptions : [baseCurrencyCode]).map((currencyCode) => (
@@ -572,7 +571,13 @@ export default function AccountEnquiryModal({
                           ) : (
                             filteredStatementEntries.map((entry, index) => {
                               const receiptNo = resolveStatementReceiptNo(entry)
-                              const { debit: debitDisplay, credit: creditDisplay, balance: balanceDisplay } = convertStatementEntryAmounts(entry)
+                              // Account enquiry statement amounts are already in base currency from API.
+                              const debitUsd = Number(entry.debitAmount || 0)
+                              const creditUsd = Number(entry.creditAmount || 0)
+                              const balanceUsd = Number(entry.runningBalance || 0)
+                              const debitDisplay = convertStatementDisplayAmount(debitUsd)
+                              const creditDisplay = convertStatementDisplayAmount(creditUsd)
+                              const balanceDisplay = convertStatementDisplayAmount(balanceUsd)
                               const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
                               const entryMetalCode = resolveMetalCode(entry)
                               const isMetalRow = isMetalStatementEntry(entry) && entryMetalCode === statementSelectedMetalCode

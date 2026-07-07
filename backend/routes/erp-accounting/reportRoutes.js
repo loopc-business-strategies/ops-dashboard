@@ -21,8 +21,9 @@ const {
   buildMonthlyCashFlow,
   computeCustomerPeriodMetrics,
   getLedgerEntryAmount,
-  isDashboardExpenseLedgerEntry,
-  getDashboardExpenseCategory,
+  isDashboardExpenseRegisterEntry,
+  summarizeDashboardExpenses,
+  buildDashboardExpenseMonthlyTrend,
 } = require('../../utils/ledgerBalanceBatch')
 const {
   mapExpenseLedgerEntry,
@@ -1142,25 +1143,18 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
 
     let income = 0
-    let expenseTotal = 0
-    const expenseByAccount = {}
     periodLedger.forEach((entry) => {
-      const _debitType = getType(entry.debitAccountId)
       const creditType = getType(entry.creditAccountId)
       if (creditType === 'Income') income += getLedgerEntryAmount(entry)
-      if (isDashboardExpenseLedgerEntry(entry, getType)) {
-        const amount = getLedgerEntryAmount(entry)
-        expenseTotal += amount
-        const key = getDashboardExpenseCategory(entry, accountMetaMap)
-        expenseByAccount[key] = (expenseByAccount[key] || 0) + amount
-      }
     })
-    const expenseBreakdown = Object.entries(expenseByAccount)
+    const periodExpenseSummary = summarizeDashboardExpenses(periodLedger, accountMetaMap)
+    const expenseTotal = periodExpenseSummary.total
+    const expenseBreakdown = Object.entries(periodExpenseSummary.byCategory)
       .map(([name, amount]) => ({ name, amount: toMoney(amount) }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 6)
     const expenseEntries = periodLedger
-      .filter((entry) => isDashboardExpenseLedgerEntry(entry, getType))
+      .filter((entry) => isDashboardExpenseRegisterEntry(entry, getType))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
     const recentExpenses = expenseEntries.slice(0, 5).map((entry) => {
       const mapped = mapExpenseLedgerEntry(entry, accountMetaMap, getType, toMoney)
@@ -1173,44 +1167,18 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         paymentRoute: mapped.paymentRoute,
       }
     })
-    const expenseTrendMap = new Map()
-    const ensureExpenseTrendMonth = (date) => {
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      if (!expenseTrendMap.has(key)) {
-        expenseTrendMap.set(key, {
-          key,
-          month: date.toLocaleString('en-US', { month: 'short' }),
-          label: date.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
-          year: date.getFullYear(),
-          monthIndex: date.getMonth(),
-          amount: 0,
-          count: 0,
-        })
-      }
-      return expenseTrendMap.get(key)
-    }
-    for (let i = 5; i >= 0; i -= 1) {
-      ensureExpenseTrendMonth(new Date(today.getFullYear(), today.getMonth() - i, 1))
-    }
-    ledgerEntries.forEach((entry) => {
-      if (!isDashboardExpenseLedgerEntry(entry, getType)) return
-      const entryDate = new Date(entry.date)
-      if (Number.isNaN(entryDate.getTime())) return
-      const row = ensureExpenseTrendMonth(new Date(entryDate.getFullYear(), entryDate.getMonth(), 1))
-      row.amount += getLedgerEntryAmount(entry)
-      row.count += 1
-    })
-    const expenseMonthlyTrend = Array.from(expenseTrendMap.values())
-      .sort((a, b) => (a.year - b.year) || (a.monthIndex - b.monthIndex))
+    const expenseTrendRows = buildDashboardExpenseMonthlyTrend(ledgerEntries, accountMetaMap, today)
+    const expenseMonthlyTrend = expenseTrendRows
       .map((row) => ({ ...row, amount: toMoney(row.amount) }))
+    const expenseTrendByKey = new Map(expenseTrendRows.map((row) => [row.key, row]))
     const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
     const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
-    const ytdExpenseTotal = ledgerEntries.reduce((sum, entry) => {
+    const ytdLedger = ledgerEntries.filter((entry) => {
       const entryDate = new Date(entry.date)
-      if (!isDashboardExpenseLedgerEntry(entry, getType) || entryDate < ytdStart || entryDate > periodEnd) return sum
-      return sum + getLedgerEntryAmount(entry)
-    }, 0)
+      return entryDate >= ytdStart && entryDate <= periodEnd
+    })
+    const ytdExpenseTotal = summarizeDashboardExpenses(ytdLedger, accountMetaMap).total
 
     const activityFlow = {
       operating: { inflow: 0, outflow: 0, net: 0, count: 0 },
@@ -1708,8 +1676,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         total: toMoney(expenseTotal),
         breakdown: expenseBreakdown,
         monthlyTrend: expenseMonthlyTrend,
-        currentMonthTotal: toMoney(expenseTrendMap.get(currentMonthKey)?.amount || 0),
-        lastMonthTotal: toMoney(expenseTrendMap.get(lastMonthKey)?.amount || 0),
+        currentMonthTotal: toMoney(expenseTrendByKey.get(currentMonthKey)?.amount || 0),
+        lastMonthTotal: toMoney(expenseTrendByKey.get(lastMonthKey)?.amount || 0),
         ytdTotal: toMoney(ytdExpenseTotal),
         transactionCount: expenseEntries.length,
         recent: recentExpenses,

@@ -4,12 +4,9 @@ import { erpTabNeedsLiveMetalRates } from '../erpTabUtils'
 import { useErpLiveMetalSpotPrices } from '../useErpLiveMetalSpotPrices'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
-  buildEffectiveStatementCurrencies,
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
-  convertStatementAmount,
-  convertStatementEntryAmounts,
   normalizeStatementCurrencyCode,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
@@ -197,6 +194,7 @@ export function useAccountEnquiryStatement({
   erpBaseCurrencyCode,
   currencies,
   inventoryStockTypeOptions,
+  convertJvAmount,
 }) {
   const enquiryComputationEnabled = activeTab === 'enquiry' || showEnquiryModal
   const rawStatementEntries = enquiryComputationEnabled ? (accountEnquiryData?.statement?.entries || []) : []
@@ -283,22 +281,10 @@ export function useAccountEnquiryStatement({
   })
   const statementMetalOptions = buildStatementMetalOptions(inventoryStockTypeOptions)
 
-  const effectiveCurrencies = useMemo(
-    () => buildEffectiveStatementCurrencies(currencies, rawStatementEntries),
-    [currencies, rawStatementEntries],
-  )
-
-  const convertStatementDisplayAmount = (value, entry = null) => {
+  const convertStatementDisplayAmount = (value) => {
     const numeric = Number(value || 0)
     if (!Number.isFinite(numeric)) return 0
-    const converted = convertStatementAmount({
-      amount: numeric,
-      fromCurrency: modalStatementCurrency,
-      toCurrency: statementDisplayCurrency,
-      baseCurrency: modalStatementCurrency,
-      currencies: effectiveCurrencies,
-      entry,
-    })
+    const converted = convertJvAmount(numeric, modalStatementCurrency, statementDisplayCurrency)
     return Number.isFinite(converted) ? converted : numeric
   }
 
@@ -309,13 +295,7 @@ export function useAccountEnquiryStatement({
   const convertMetalSpotDisplayAmount = (value) => {
     const numeric = Number(value || 0)
     if (!Number.isFinite(numeric)) return 0
-    const converted = convertStatementAmount({
-      amount: numeric,
-      fromCurrency: spotMetalQuoteCurrency,
-      toCurrency: statementDisplayCurrency,
-      baseCurrency: modalStatementCurrency,
-      currencies: effectiveCurrencies,
-    })
+    const converted = convertJvAmount(numeric, spotMetalQuoteCurrency, statementDisplayCurrency)
     return Number.isFinite(converted) ? converted : numeric
   }
 
@@ -560,20 +540,6 @@ export function useAccountEnquiryStatement({
   const unknownFixMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unknown')
   const fixedMetalSummary = summarizeMetalDealRows(fixedMetalEntries)
   const unfixedMetalSummary = summarizeMetalDealRows(unfixedMetalEntries)
-  const fixedMetalSummaryDisplay = {
-    ...fixedMetalSummary,
-    saleAmount: convertStatementDisplayAmount(fixedMetalSummary.saleAmount),
-    purchaseAmount: convertStatementDisplayAmount(fixedMetalSummary.purchaseAmount),
-  }
-  const unfixedMetalSummaryDisplay = {
-    ...unfixedMetalSummary,
-    saleAmount: convertStatementDisplayAmount(unfixedMetalSummary.saleAmount),
-    purchaseAmount: convertStatementDisplayAmount(unfixedMetalSummary.purchaseAmount),
-  }
-  const unfixedMetalEntriesDisplay = unfixedMetalEntries.map((row) => ({
-    ...row,
-    amount: convertStatementDisplayAmount(row.amount, row),
-  }))
 
   const formatStatementDate = (value) => {
     if (!value) return '-'
@@ -608,20 +574,14 @@ export function useAccountEnquiryStatement({
     formatStatementNullableValue,
     getSignedColor,
     convertStatementDisplayAmount,
-    convertStatementEntryAmounts: (entry) => convertStatementEntryAmounts(
-      entry,
-      statementDisplayCurrency,
-      modalStatementCurrency,
-      effectiveCurrencies,
-    ),
     resolveStatementReceiptNo,
     resolveMetalCode,
     pureWeightRunningByEntryKey,
     formatStatementDate,
     recentPaymentReceiptEntry,
-    unfixedMetalEntries: unfixedMetalEntriesDisplay,
-    fixedMetalSummary: fixedMetalSummaryDisplay,
-    unfixedMetalSummary: unfixedMetalSummaryDisplay,
+    unfixedMetalEntries,
+    fixedMetalSummary,
+    unfixedMetalSummary,
     unknownFixMetalEntries,
     modalTotalFundsDisplay: convertStatementDisplayAmount(modalTotalFundsDisplay),
     modalRevaluationDisplay,

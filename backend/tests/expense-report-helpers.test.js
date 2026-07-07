@@ -81,6 +81,29 @@ describe('expenseReportHelpers', () => {
     expect(mapped.ledgerRef).toBe('JV-1024')
   })
 
+  it('maps credit-to-expense reversals as negative register rows', () => {
+    const toMoney = (n) => Math.round(Number(n) * 100) / 100
+    const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
+    const mapped = mapExpenseLedgerEntry(
+      {
+        _id: 'e3',
+        date: new Date('2026-03-10'),
+        amount: 40,
+        exchangeRate: 1,
+        debitAccountId: 'credit-bank',
+        creditAccountId: 'debit1',
+        description: 'Advance applied',
+        referenceType: 'journal',
+      },
+      accountMetaMap,
+      getType,
+      toMoney,
+    )
+    expect(mapped.amount).toBe(-40)
+    expect(mapped.category).toBe('Operating Expenses')
+    expect(mapped.paymentRoute).toBe('Operating Expenses (6100) → HSBC Current (1010)')
+  })
+
   it('builds expense register sorted newest first with filters', () => {
     const toMoney = (n) => Math.round(Number(n) * 100) / 100
     const ledgerEntries = [
@@ -133,5 +156,50 @@ describe('expenseReportHelpers', () => {
     })
     expect(bankOnly.total).toBe(1)
     expect(bankOnly.items[0].paymentRoute).toContain('HSBC Current')
+  })
+
+  it('includes credit-to-expense rows in register output', () => {
+    const toMoney = (n) => Math.round(Number(n) * 100) / 100
+    const payrollId = 'payroll-620001'
+    const bankId = 'credit-bank'
+    const payrollMetaMap = new Map([
+      [payrollId, { accountCode: '620001', accountName: 'advance payment- payroll', accountType: 'Expense' }],
+      [bankId, { accountCode: '1010', accountName: 'HSBC Current', accountType: 'Asset' }],
+    ])
+    const ledgerEntries = [
+      {
+        _id: 'debit-row',
+        date: new Date('2026-03-01'),
+        amount: 6544,
+        exchangeRate: 1,
+        debitAccountId: payrollId,
+        creditAccountId: bankId,
+        description: 'Advance paid',
+        referenceType: 'expense',
+      },
+      {
+        _id: 'credit-row',
+        date: new Date('2026-03-10'),
+        amount: 4000,
+        exchangeRate: 1,
+        debitAccountId: bankId,
+        creditAccountId: payrollId,
+        description: 'Advance applied',
+        referenceType: 'journal',
+      },
+    ]
+
+    const register = buildExpenseRegisterFromLedger({
+      ledgerEntries,
+      accountMetaMap: payrollMetaMap,
+      periodStart: new Date('2026-01-01'),
+      periodEnd: new Date('2026-12-31T23:59:59'),
+      toMoney,
+    })
+
+    expect(register.total).toBe(2)
+    expect(register.items.some((row) => row.amount === -4000)).toBe(true)
+    const net = register.items.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    expect(net).toBe(2544)
   })
 })

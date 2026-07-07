@@ -3,6 +3,8 @@ const {
   computeAgingFromEntries,
   getLedgerEntryAmount,
   isDashboardExpenseLedgerEntry,
+  isDashboardExpenseRegisterEntry,
+  summarizeDashboardExpenses,
 } = require('../utils/ledgerBalanceBatch')
 
 describe('computeAgingFromEntries', () => {
@@ -78,5 +80,32 @@ describe('dashboard expense helpers', () => {
 
   test('applies exchange rate to ledger amounts', () => {
     expect(getLedgerEntryAmount({ amount: 100, exchangeRate: 1.25 })).toBe(125)
+  })
+
+  test('nets expense debits and credits for account 620001-style payroll advances', () => {
+    const expenseId = 'exp-620001'
+    const bankId = 'bank-1000'
+    const accountMetaMap = new Map([
+      [expenseId, { accountCode: '620001', accountName: 'advance payment- payroll', accountType: 'Expense' }],
+      [bankId, { accountCode: '1000', accountName: 'Bank', accountType: 'Asset' }],
+    ])
+    const entries = [
+      { debitAccountId: expenseId, creditAccountId: bankId, amount: 6544, exchangeRate: 1 },
+      { debitAccountId: bankId, creditAccountId: expenseId, amount: 4000, exchangeRate: 1 },
+    ]
+
+    const summary = summarizeDashboardExpenses(entries, accountMetaMap)
+
+    expect(summary.total).toBe(2544)
+    expect(summary.byCategory['advance payment- payroll']).toBe(2544)
+  })
+
+  test('includes credit-to-expense rows in register eligibility', () => {
+    const getType = (accountId) => (String(accountId) === 'expense-1' ? 'Expense' : 'Asset')
+    expect(isDashboardExpenseRegisterEntry({
+      debitAccountId: 'bank-1',
+      creditAccountId: 'expense-1',
+      referenceType: 'journal',
+    }, getType)).toBe(true)
   })
 })

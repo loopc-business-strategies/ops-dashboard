@@ -55,13 +55,7 @@ export function useErpTabCatalogSlice(scope) {
     usdConversion,
     user,
     vendors,
-    loadCurrencies,
   } = scope
-
-  useEffect(() => {
-    if (!showEnquiryModal || currencies.length) return
-    loadCurrencies?.()
-  }, [showEnquiryModal, currencies.length, loadCurrencies])
 
   const selectedUsdConversionCurrency = resolveCurrencyRowByCode(currencies, usdConversion.targetCode, erpBaseCurrencyCode)
   const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
@@ -219,7 +213,6 @@ export function useErpTabCatalogSlice(scope) {
     formatStatementNullableValue,
     getSignedColor,
     convertStatementDisplayAmount,
-    convertStatementEntryAmounts,
     resolveStatementReceiptNo,
     resolveMetalCode,
     pureWeightRunningByEntryKey,
@@ -248,6 +241,7 @@ export function useErpTabCatalogSlice(scope) {
     erpBaseCurrencyCode,
     currencies,
     inventoryStockTypeOptions,
+    convertJvAmount,
   })
   const {
     customerMarginSearch,
@@ -471,7 +465,6 @@ export function useErpTabCatalogSlice(scope) {
     beginEnquiryModalDrag,
     beginFixingRegPanelDrag,
     convertStatementDisplayAmount,
-    convertStatementEntryAmounts,
     customerMarginCompactView,
     customerMarginContextMenu,
     customerMarginRows,

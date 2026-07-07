@@ -1,6 +1,7 @@
 const {
   getLedgerEntryAmount,
   isDashboardExpenseLedgerEntry,
+  isDashboardExpenseRegisterEntry,
   getDashboardExpenseCategory,
 } = require('./ledgerBalanceBatch')
 
@@ -63,6 +64,39 @@ function resolveLedgerRef(entry) {
 function mapExpenseLedgerEntry(entry, accountMetaMap, getAccountType, toMoney) {
   const debitMeta = accountMetaMap.get(String(entry.debitAccountId)) || {}
   const creditMeta = accountMetaMap.get(String(entry.creditAccountId)) || {}
+  const debitType = getAccountType(entry.debitAccountId)
+  const creditType = getAccountType(entry.creditAccountId)
+  const isCreditExpense = creditType === 'Expense' && debitType !== 'Expense'
+
+  if (isCreditExpense) {
+    const category = creditMeta.accountName || 'Other'
+    const paymentSource = classifyPaymentSource(debitMeta, entry)
+    const signedAmount = -getLedgerEntryAmount(entry)
+    return {
+      id: String(entry._id),
+      date: entry.date,
+      amount: toMoney(signedAmount),
+      currency: entry.currency || 'USD',
+      category,
+      description: entry.description || entry.notes || '-',
+      paymentSource,
+      paymentMethod: paymentSourceToMethodLabel(paymentSource),
+      paymentRoute: `${formatAccountLabel(creditMeta)} → ${formatAccountLabel(debitMeta)}`,
+      debitAccount: {
+        code: debitMeta.accountCode || '',
+        name: debitMeta.accountName || '',
+      },
+      creditAccount: {
+        code: creditMeta.accountCode || '',
+        name: creditMeta.accountName || '',
+      },
+      fundingAccount: formatAccountLabel(debitMeta),
+      expenseAccount: formatAccountLabel(creditMeta),
+      ledgerRef: resolveLedgerRef(entry),
+      referenceType: entry.referenceType || 'journal',
+    }
+  }
+
   const category = getDashboardExpenseCategory(entry, accountMetaMap)
     || debitMeta.accountName
     || 'Other'
@@ -112,7 +146,7 @@ function buildExpenseRegisterFromLedger({
     .filter((entry) => {
       const entryDate = new Date(entry.date)
       if (entryDate < periodStart || entryDate > periodEnd) return false
-      return isDashboardExpenseLedgerEntry(entry, getType)
+      return isDashboardExpenseRegisterEntry(entry, getType)
     })
     .sort((a, b) => {
       const dateDiff = new Date(b.date) - new Date(a.date)

@@ -235,6 +235,105 @@ function getDashboardExpenseCategory(entry, accountMetaMap) {
   return 'Other'
 }
 
+function getExpenseAccountCategory(accountId, accountMetaMap) {
+  return accountMetaMap.get(String(accountId))?.accountName || null
+}
+
+function isDashboardExpenseRegisterEntry(entry, getAccountType) {
+  if (typeof getAccountType === 'function') {
+    if (getAccountType(entry?.debitAccountId) === 'Expense') return true
+    if (getAccountType(entry?.creditAccountId) === 'Expense') return true
+  }
+  return isDashboardExpenseLedgerEntry(entry, getAccountType)
+}
+
+function accumulateDashboardExpenseAmounts(entry, accountMetaMap, getType, buckets) {
+  const amount = getLedgerEntryAmount(entry)
+  const debitType = getType(entry.debitAccountId)
+  const creditType = getType(entry.creditAccountId)
+  let handled = false
+
+  if (debitType === 'Expense') {
+    const key = getExpenseAccountCategory(entry.debitAccountId, accountMetaMap) || 'Other'
+    buckets[key] = (buckets[key] || 0) + amount
+    handled = true
+  }
+  if (creditType === 'Expense') {
+    const key = getExpenseAccountCategory(entry.creditAccountId, accountMetaMap) || 'Other'
+    buckets[key] = (buckets[key] || 0) - amount
+    handled = true
+  }
+  if (!handled && isDashboardExpenseLedgerEntry(entry, getType)) {
+    const key = getDashboardExpenseCategory(entry, accountMetaMap)
+    buckets[key] = (buckets[key] || 0) + amount
+  }
+}
+
+const DASHBOARD_EXPENSE_ZERO_EPS = 0.005
+
+function summarizeDashboardExpenses(entries, accountMetaMap) {
+  const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
+  const buckets = {}
+  entries.forEach((entry) => {
+    accumulateDashboardExpenseAmounts(entry, accountMetaMap, getType, buckets)
+  })
+
+  const byCategory = {}
+  let total = 0
+  Object.entries(buckets).forEach(([name, raw]) => {
+    const value = Math.max(Number(raw || 0), 0)
+    if (value < DASHBOARD_EXPENSE_ZERO_EPS) return
+    byCategory[name] = value
+    total += value
+  })
+
+  return { total, byCategory }
+}
+
+function buildDashboardExpenseMonthlyTrend(ledgerEntries, accountMetaMap, today = new Date()) {
+  const expenseTrendMap = new Map()
+  const ensureExpenseTrendMonth = (date) => {
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    if (!expenseTrendMap.has(key)) {
+      expenseTrendMap.set(key, {
+        key,
+        month: date.toLocaleString('en-US', { month: 'short' }),
+        label: date.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        year: date.getFullYear(),
+        monthIndex: date.getMonth(),
+        amount: 0,
+        count: 0,
+      })
+    }
+    return expenseTrendMap.get(key)
+  }
+
+  for (let i = 5; i >= 0; i -= 1) {
+    ensureExpenseTrendMonth(new Date(today.getFullYear(), today.getMonth() - i, 1))
+  }
+
+  const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
+  const entriesByMonth = new Map()
+  ledgerEntries.forEach((entry) => {
+    const entryDate = new Date(entry.date)
+    if (Number.isNaN(entryDate.getTime())) return
+    const key = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`
+    if (!entriesByMonth.has(key)) entriesByMonth.set(key, [])
+    entriesByMonth.get(key).push(entry)
+  })
+
+  entriesByMonth.forEach((monthEntries) => {
+    const anchorDate = new Date(monthEntries[0].date)
+    const row = ensureExpenseTrendMonth(new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1))
+    const { total } = summarizeDashboardExpenses(monthEntries, accountMetaMap)
+    row.amount = total
+    row.count = monthEntries.filter((entry) => isDashboardExpenseRegisterEntry(entry, getType)).length
+  })
+
+  return Array.from(expenseTrendMap.values())
+    .sort((a, b) => (a.year - b.year) || (a.monthIndex - b.monthIndex))
+}
+
 module.exports = {
   getOutstandingMapForAccounts,
   getAgingMapForAccounts,
@@ -245,6 +344,10 @@ module.exports = {
   computeAgingFromEntries,
   getLedgerEntryAmount,
   isDashboardExpenseLedgerEntry,
+  isDashboardExpenseRegisterEntry,
   getDashboardExpenseCategory,
+  accumulateDashboardExpenseAmounts,
+  summarizeDashboardExpenses,
+  buildDashboardExpenseMonthlyTrend,
   DASHBOARD_EXPENSE_REFERENCE_TYPES,
 }
