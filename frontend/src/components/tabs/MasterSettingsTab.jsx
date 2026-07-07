@@ -88,6 +88,7 @@ export default function MasterSettingsTab() {
   const [preview, setPreview] = useState('')
   const [webPushMsg, setWebPushMsg] = useState('')
   const [webPushAvailable, setWebPushAvailable] = useState(false)
+  const [notificationOpen, setNotificationOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -210,7 +211,33 @@ export default function MasterSettingsTab() {
         </p>
       </div>
 
-      {TOPIC_GROUPS.map((group) => (
+      <section style={UI.card}>
+        <button
+          type="button"
+          aria-expanded={notificationOpen}
+          onClick={() => setNotificationOpen((prev) => !prev)}
+          style={{
+            width: '100%',
+            border: 'none',
+            background: 'transparent',
+            color: UI.ink,
+            textAlign: 'left',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 0,
+          }}
+        >
+          <span style={{ fontSize: 16, fontWeight: 700 }}>Notification Settings</span>
+          <span style={{ fontSize: 16, color: UI.muted }}>{notificationOpen ? '▴' : '▾'}</span>
+        </button>
+        <p style={{ margin: '8px 0 0', color: UI.muted, fontSize: 13 }}>
+          Open to view all notification topics, digest schedule, and web push options.
+        </p>
+      </section>
+
+      {notificationOpen && TOPIC_GROUPS.map((group) => (
         <section key={group.title} style={UI.card}>
           <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>{group.title}</h3>
           {group.topics.map((topic) => (
@@ -225,7 +252,7 @@ export default function MasterSettingsTab() {
         </section>
       ))}
 
-      <section style={UI.card}>
+      {notificationOpen && <section style={UI.card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>Report digest schedule</h3>
         <SwitchToggle
           checked={prefs.reportDigest.enabled !== false}
@@ -246,9 +273,9 @@ export default function MasterSettingsTab() {
         <SwitchToggle checked={prefs.reportDigest.includeSalesToday !== false} onChange={() => toggleDigestFlag('includeSalesToday')} label="Sales / receipts today" />
         <SwitchToggle checked={prefs.reportDigest.includeBankCashBalance !== false} onChange={() => toggleDigestFlag('includeBankCashBalance')} label="Bank & cash balance" />
         <SwitchToggle checked={prefs.reportDigest.includeGoldPrice !== false} onChange={() => toggleDigestFlag('includeGoldPrice')} label="Gold price" />
-      </section>
+      </section>}
 
-      <section style={UI.card}>
+      {notificationOpen && <section style={UI.card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>Send report now</h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: UI.muted }}>Preview or push the digest to your bell and mobile/browser.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -264,9 +291,9 @@ export default function MasterSettingsTab() {
             {preview}
           </pre>
         )}
-      </section>
+      </section>}
 
-      <section style={UI.card}>
+      {notificationOpen && <section style={UI.card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>Web push (browser)</h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: UI.muted }}>
           {webPushAvailable
@@ -279,7 +306,7 @@ export default function MasterSettingsTab() {
           </button>
         )}
         {webPushMsg && <p style={{ marginTop: 8, fontSize: 13, color: UI.ink }}>{webPushMsg}</p>}
-      </section>
+      </section>}
 
       {(status || saving) && (
         <p style={{ fontSize: 13, color: saving ? UI.muted : UI.ink }}>{saving ? 'Saving…' : status}</p>

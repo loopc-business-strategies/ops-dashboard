@@ -29,7 +29,7 @@ const defaultBranding = {
     brandSecondary: '#13AA52',
     gradBar: 'linear-gradient(90deg, #00684A, #00b4d8)',
   },
-  enabledTabs: ['overview', 'chat', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+  enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
   enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
   featureFlags: {
     procurementPlus: true,
@@ -77,7 +77,7 @@ const tenantBranding = {
       brandSecondary: '#F97316',
       gradBar: 'linear-gradient(90deg, #9A3412, #F97316)',
     },
-    enabledTabs: ['overview', 'chat', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,

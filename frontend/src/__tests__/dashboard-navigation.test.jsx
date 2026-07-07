@@ -189,6 +189,39 @@ describe('Dashboard navigation behavior', () => {
     expect(chatLink.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
+  it('shows Master Settings in MG tenant sidebar', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'mg', _id: '507f1f77bcf86cd799439011' },
+      company: 'mg',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard()
+    expect(await screen.findByRole('link', { name: 'Master Settings' })).toBeTruthy()
+  })
+
+  it('shows Master Settings in CG tenant sidebar', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'cg', _id: '507f1f77bcf86cd799439011' },
+      company: 'cg',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard()
+    expect(await screen.findByRole('link', { name: 'Master Settings' })).toBeTruthy()
+  })
+
+  it('shows Master Settings in LOOPC tenant sidebar', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'loopc', _id: '507f1f77bcf86cd799439011' },
+      company: 'loopc',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard()
+    expect(await screen.findByRole('link', { name: 'Master Settings' })).toBeTruthy()
+  })
+
   it('loads ERP supplier margin from URL deep link', async () => {
     renderDashboard('/dashboard?tab=erp-supplier-margin')
     expect(await screen.findByText('erp-tab-focus:supplier-margin')).toBeTruthy()
