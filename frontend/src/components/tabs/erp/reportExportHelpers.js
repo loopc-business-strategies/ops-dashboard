@@ -26,63 +26,72 @@ const REPORT_PDF_TITLES = {
   ledger: 'Ledger Report',
 }
 
-export const REPORT_PDF_MARGIN = 28
-export const REPORT_PDF_LINE_HEIGHT = 11
+export const REPORT_PDF_MARGIN = 24
+export const REPORT_PDF_TITLE_SIZE = 12
+export const REPORT_PDF_META_SIZE = 7.5
+export const REPORT_PDF_LINE_HEIGHT = 9
+export const REPORT_PDF_TABLE_FONT = 7
+export const REPORT_PDF_TABLE_PADDING = 2
+export const REPORT_PDF_HEADER_GAP = 4
 
 export function buildReportPdfHeaderLines({
   periodText = '',
   summaryLines = [],
   generatedAt = new Date(),
+  compact = false,
 } = {}) {
-  return [
+  const lines = [
     `Period: ${periodText}`,
     `Generated: ${generatedAt.toLocaleString()}`,
-    ...summaryLines,
   ]
+  if (!compact) {
+    lines.push(...summaryLines)
+  }
+  return lines
 }
 
-export function renderReportPdfHeader(doc, { title, periodText, summaryLines } = {}) {
+export function renderReportPdfHeader(doc, { title, periodText, summaryLines, compact = true } = {}) {
   const margin = REPORT_PDF_MARGIN
   const pageWidth = doc.internal.pageSize.getWidth()
   doc.setFillColor(0, 104, 74)
-  doc.rect(margin, 20, pageWidth - margin * 2, 8, 'F')
+  doc.rect(margin, 16, pageWidth - margin * 2, 6, 'F')
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
+  doc.setFontSize(REPORT_PDF_TITLE_SIZE)
   doc.setTextColor(17, 24, 39)
-  doc.text(String(title), margin + 8, 48)
+  doc.text(String(title), margin + 4, 32)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(REPORT_PDF_META_SIZE)
   doc.setTextColor(55, 65, 81)
-  let metaY = 64
-  buildReportPdfHeaderLines({ periodText, summaryLines }).forEach((line) => {
-    doc.text(String(line), margin + 8, metaY)
+  let metaY = 44
+  buildReportPdfHeaderLines({ periodText, summaryLines, compact }).forEach((line) => {
+    doc.text(String(line), margin + 4, metaY)
     metaY += REPORT_PDF_LINE_HEIGHT
   })
-  return metaY + 8
+  return metaY + REPORT_PDF_HEADER_GAP
 }
 
 export function buildReportPdfColumnStyles(reportView, tableWidth) {
   const w = tableWidth
   if (reportView === 'trial' || reportView === 'summary') {
-    const fixed = 52 + 58 + 72 + 72 + 72
+    const fixed = 44 + 48 + 64 + 64 + 64
     return {
-      0: { cellWidth: 52 },
-      1: { cellWidth: Math.max(w - fixed, 120) },
-      2: { cellWidth: 58 },
-      3: { cellWidth: 72, halign: 'right' },
-      4: { cellWidth: 72, halign: 'right' },
-      5: { cellWidth: 72, halign: 'right' },
+      0: { cellWidth: 44 },
+      1: { cellWidth: Math.max(w - fixed, 100) },
+      2: { cellWidth: 48 },
+      3: { cellWidth: 64, halign: 'right' },
+      4: { cellWidth: 64, halign: 'right' },
+      5: { cellWidth: 64, halign: 'right' },
     }
   }
   if (reportView === 'pnl' || reportView === 'balanceSheet') {
-    const fixed = 60 + 52 + 80
+    const fixed = 44 + 44 + 68
     return {
-      0: { cellWidth: 60 },
-      1: { cellWidth: 52 },
-      2: { cellWidth: Math.max(w - fixed, 120) },
-      3: { cellWidth: 80, halign: 'right' },
+      0: { cellWidth: 44 },
+      1: { cellWidth: 44 },
+      2: { cellWidth: Math.max(w - fixed, 100) },
+      3: { cellWidth: 68, halign: 'right' },
     }
   }
   if (reportView === 'dayBook') {
@@ -216,6 +225,7 @@ export function buildReportPdfTable({
   ledgerReportRows = [],
   formatMoney = (value) => String(value ?? ''),
   formatReportDirectionalBalance = (row, direction) => String(row?.balance ?? direction ?? ''),
+  forPdf = false,
 } = {}) {
   if (reportView === 'trial' || reportView === 'summary') {
     return {
@@ -234,7 +244,9 @@ export function buildReportPdfTable({
   if (reportView === 'pnl') {
     const incomeRows = (reports.profitLoss?.incomeBreakdown || []).map((row) => ['Income', row.accountCode, row.accountName, formatMoney(row.amount)])
     const expenseRows = (reports.profitLoss?.expenseBreakdown || []).map((row) => ['Expense', row.accountCode, row.accountName, formatMoney(row.amount)])
-    const monthlyRows = (reports.profitLoss?.monthlyComparison || []).map((row) => ['Monthly', row.label, 'Net Profit', formatMoney(row.netProfit)])
+    const monthlyRows = forPdf
+      ? []
+      : (reports.profitLoss?.monthlyComparison || []).map((row) => ['Monthly', row.label, 'Net Profit', formatMoney(row.netProfit)])
     return {
       head: [['Section', 'Code', 'Account', 'Amount']],
       body: [

@@ -6,6 +6,8 @@ import {
   isReportDataReady,
   renderReportPdfHeader,
   REPORT_PDF_MARGIN,
+  REPORT_PDF_TABLE_FONT,
+  REPORT_PDF_TABLE_PADDING,
 } from './reportExportHelpers'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
 import { loadPdfTools } from './lazyExportLibs'
@@ -99,32 +101,32 @@ function renderReportPdfSignatures(doc, {
 }) {
   const margin = REPORT_PDF_MARGIN
   const pageHeight = doc.internal.pageSize.getHeight()
-  let signatureY = startY + 36
-  const blockHeight = 70
+  let signatureY = startY + 24
+  const blockHeight = 56
 
   if (signatureY + blockHeight > pageHeight - margin) {
     doc.addPage()
-    signatureY = margin + 24
+    signatureY = margin + 16
   }
 
   doc.setDrawColor(156, 163, 175)
-  doc.line(margin + 12, signatureY, margin + 152, signatureY)
-  doc.line(margin + 192, signatureY, margin + 332, signatureY)
-  doc.line(margin + 372, signatureY, margin + 512, signatureY)
-  doc.setFontSize(9)
+  doc.line(margin + 8, signatureY, margin + 148, signatureY)
+  doc.line(margin + 188, signatureY, margin + 328, signatureY)
+  doc.line(margin + 368, signatureY, margin + 508, signatureY)
+  doc.setFontSize(8)
   doc.setTextColor(17, 24, 39)
-  doc.text(String(branding.preparedByTitle || defaultBranding.preparedByTitle), margin + 12, signatureY + 14)
-  doc.text(String(branding.preparedByName || user?.name || defaultBranding.preparedByName), margin + 12, signatureY + 28)
-  doc.text(String(branding.reviewedByTitle || defaultBranding.reviewedByTitle), margin + 192, signatureY + 14)
-  doc.text(String(branding.reviewedByName || defaultBranding.reviewedByName), margin + 192, signatureY + 28)
-  doc.text(String(branding.approvedByTitle || defaultBranding.approvedByTitle), margin + 372, signatureY + 14)
-  doc.text(String(branding.approvedByName || defaultBranding.approvedByName), margin + 372, signatureY + 28)
+  doc.text(String(branding.preparedByTitle || defaultBranding.preparedByTitle), margin + 8, signatureY + 12)
+  doc.text(String(branding.preparedByName || user?.name || defaultBranding.preparedByName), margin + 8, signatureY + 24)
+  doc.text(String(branding.reviewedByTitle || defaultBranding.reviewedByTitle), margin + 188, signatureY + 12)
+  doc.text(String(branding.reviewedByName || defaultBranding.reviewedByName), margin + 188, signatureY + 24)
+  doc.text(String(branding.approvedByTitle || defaultBranding.approvedByTitle), margin + 368, signatureY + 12)
+  doc.text(String(branding.approvedByName || defaultBranding.approvedByName), margin + 368, signatureY + 24)
 
   const footer = String(branding.reportFooter || defaultBranding.reportFooter || '').trim()
   if (footer) {
-    doc.setFontSize(8)
+    doc.setFontSize(7)
     doc.setTextColor(107, 114, 128)
-    doc.text(footer, margin + 12, signatureY + 52)
+    doc.text(footer, margin + 8, signatureY + 42)
   }
 }
 
@@ -156,29 +158,30 @@ export async function exportReportPdf({
     ledgerReportRows,
     formatMoney,
     formatReportDirectionalBalance,
+    forPdf: true,
   })
 
-  const logoWidth = clampBrandingDimension(branding.logoWidth, defaultBranding.logoWidth, 80, 120)
-  const logoHeight = clampBrandingDimension(branding.logoHeight, defaultBranding.logoHeight, 32, 48)
+  const logoWidth = clampBrandingDimension(branding.logoWidth, defaultBranding.logoWidth, 48, 72)
+  const logoHeight = clampBrandingDimension(branding.logoHeight, defaultBranding.logoHeight, 20, 28)
   const processedLogo = await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
   if (processedLogo && String(processedLogo).startsWith('data:image/')) {
     try {
-      doc.addImage(processedLogo, 'PNG', pageWidth - margin - logoWidth, 28, logoWidth, logoHeight, undefined, 'FAST')
+      doc.addImage(processedLogo, 'PNG', pageWidth - margin - logoWidth, 18, logoWidth, logoHeight, undefined, 'FAST')
     } catch {
       // Ignore invalid embedded image data and continue without logo.
     }
   }
 
-  const tableStartY = renderReportPdfHeader(doc, { title, periodText, summaryLines })
+  const tableStartY = renderReportPdfHeader(doc, { title, periodText, summaryLines, compact: true })
 
   autoTable(doc, {
     head,
     body,
     startY: tableStartY,
     tableWidth,
-    styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+    styles: { fontSize: REPORT_PDF_TABLE_FONT, cellPadding: REPORT_PDF_TABLE_PADDING, overflow: 'linebreak' },
     bodyStyles: { valign: 'top' },
-    headStyles: { fillColor: [17, 24, 39] },
+    headStyles: { fillColor: [17, 24, 39], fontSize: REPORT_PDF_TABLE_FONT, cellPadding: REPORT_PDF_TABLE_PADDING },
     alternateRowStyles: { fillColor: [249, 250, 251] },
     columnStyles: buildReportPdfColumnStyles(reportView, tableWidth),
     margin: { left: margin, right: margin },

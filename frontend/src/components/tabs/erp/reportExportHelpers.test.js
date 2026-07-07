@@ -112,10 +112,23 @@ describe('buildReportPdfHeaderLines', () => {
     expect(lines[2]).toContain('Total Debit')
     expect(lines.some((line) => /ops dashboard|main entity|finance & accounts/i.test(line))).toBe(false)
   })
+
+  it('returns only period and generated when compact is true', () => {
+    const lines = buildReportPdfHeaderLines({
+      periodText: '2026-01-01 to 2026-06-30',
+      summaryLines: ['Total Debit: 1,000.00', 'Net Profit: 500.00'],
+      generatedAt: new Date('2026-07-07T08:00:00'),
+      compact: true,
+    })
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toContain('Period:')
+    expect(lines[1]).toContain('Generated:')
+    expect(lines.some((line) => line.includes('Total Debit'))).toBe(false)
+  })
 })
 
 describe('renderReportPdfHeader', () => {
-  it('returns y position below all header lines', () => {
+  it('returns compact y position below period and generated only', () => {
     const calls = []
     const doc = {
       internal: { pageSize: { getWidth: () => 595 } },
@@ -130,11 +143,37 @@ describe('renderReportPdfHeader', () => {
       title: 'Trial Balance Report',
       periodText: '2026-01-01 to 2026-06-30',
       summaryLines: ['Total Debit: 1,000.00', 'Total Credit: 1,000.00'],
+      compact: true,
     })
-    expect(nextY).toBeGreaterThan(64)
     const metaYs = calls.filter((c) => c.line.startsWith('Period:')).map((c) => c.y)
-    expect(metaYs[0]).toBe(64)
-    expect(nextY).toBeGreaterThan(metaYs[0])
+    expect(metaYs[0]).toBe(44)
+    expect(nextY).toBe(66)
+    expect(calls.some((c) => c.line.includes('Total Debit'))).toBe(false)
+  })
+
+  it('returns lower nextY in compact mode than with summary lines', () => {
+    const doc = {
+      internal: { pageSize: { getWidth: () => 595 } },
+      setFillColor: () => {},
+      rect: () => {},
+      setFont: () => {},
+      setFontSize: () => {},
+      setTextColor: () => {},
+      text: () => {},
+    }
+    const compactY = renderReportPdfHeader(doc, {
+      title: 'Profit and Loss Report',
+      periodText: '2026-01-01 to 2026-06-30',
+      summaryLines: ['Total Income: 5,000.00', 'Total Expense: 3,000.00', 'Net Profit: 2,000.00'],
+      compact: true,
+    })
+    const fullY = renderReportPdfHeader(doc, {
+      title: 'Profit and Loss Report',
+      periodText: '2026-01-01 to 2026-06-30',
+      summaryLines: ['Total Income: 5,000.00', 'Total Expense: 3,000.00', 'Net Profit: 2,000.00'],
+      compact: false,
+    })
+    expect(compactY).toBeLessThan(fullY)
   })
 })
 
@@ -156,6 +195,47 @@ describe('buildReportPdfTable', () => {
     expect(body.some((row) => row[2] === 'Total Income')).toBe(true)
     expect(body.some((row) => row[2] === 'Total Expense')).toBe(true)
     expect(body.some((row) => row[2] === 'Net Profit' && row[3] === '$4000.00')).toBe(true)
+  })
+
+  it('omits monthly comparison rows from P&L when forPdf is true', () => {
+    const { body } = buildReportPdfTable({
+      reportView: 'pnl',
+      reports: {
+        profitLoss: {
+          incomeBreakdown: [{ accountCode: '4000', accountName: 'Sales', amount: 5000 }],
+          expenseBreakdown: [],
+          totalIncome: 5000,
+          totalExpense: 0,
+          netProfit: 5000,
+          monthlyComparison: [
+            { label: 'Feb 2026', netProfit: 100 },
+            { label: 'Mar 2026', netProfit: 200 },
+          ],
+        },
+      },
+      formatMoney,
+      forPdf: true,
+    })
+    expect(body.some((row) => row[0] === 'Monthly')).toBe(false)
+  })
+
+  it('includes monthly comparison rows in non-PDF export', () => {
+    const { body } = buildReportPdfTable({
+      reportView: 'pnl',
+      reports: {
+        profitLoss: {
+          incomeBreakdown: [],
+          expenseBreakdown: [],
+          totalIncome: 0,
+          totalExpense: 0,
+          netProfit: 0,
+          monthlyComparison: [{ label: 'Feb 2026', netProfit: 100 }],
+        },
+      },
+      formatMoney,
+      forPdf: false,
+    })
+    expect(body.some((row) => row[0] === 'Monthly' && row[1] === 'Feb 2026')).toBe(true)
   })
 })
 
