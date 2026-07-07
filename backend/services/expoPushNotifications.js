@@ -6,6 +6,7 @@
 const User = require('../models/User')
 const { normalizeTenant } = require('../config/tenants')
 const { MOBILE_APP_NAME } = require('../config/mobileApp')
+const { buildVoucherNotificationTitle } = require('./voucherNotificationHelpers')
 
 let ExpoCtor = null
 try {
@@ -43,6 +44,23 @@ function buildCopy(type, data = {}) {
   }
 
   if (msg) {
+    const voucherTypes = new Set([
+      'transaction_approved',
+      'transaction_returned',
+      'transaction_rejected',
+      'transaction_submitted',
+      'transaction_posted',
+      'voucher_approved',
+      'voucher_returned',
+      'voucher_rejected',
+      'voucher_submitted',
+      'voucher_posted',
+      'jv_posted',
+    ])
+    if (voucherTypes.has(String(type || ''))) {
+      const title = buildVoucherNotificationTitle(type, data.type).slice(0, MAX_TITLE)
+      return { title, body: msg.slice(0, MAX_BODY) }
+    }
     return { title: MOBILE_APP_NAME, body: msg.slice(0, MAX_BODY) }
   }
   switch (type) {

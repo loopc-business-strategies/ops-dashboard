@@ -32,7 +32,15 @@ describe('expoPushNotifications', () => {
   })
 
   test('buildCopy handles voucher and report types', () => {
-    expect(buildCopy('voucher_posted', { message: 'Pay/2026/0001 posted' }).body).toContain('Pay/2026/0001')
+    expect(buildCopy('voucher_posted', {
+      type: 'payment',
+      message: 'Pay/2026/0001 · $100.00 USD to Acme · posted by Jane',
+    }).title).toBe('Payment posted')
+    expect(buildCopy('voucher_posted', {
+      type: 'payment',
+      message: 'Pay/2026/0001 · $100.00 USD to Acme · posted by Jane',
+    }).body).toContain('Pay/2026/0001')
+    expect(buildCopy('jv_posted', { message: 'Jv/2026/0020 · $3,000.00 USD' }).title).toBe('Journal posted')
     expect(buildCopy('jv_posted', { message: '' }).title).toBe('Journal posted')
     expect(buildCopy('report_digest', { title: `${MOBILE_APP_NAME} report`, message: 'line1' }).title).toBe(`${MOBILE_APP_NAME} report`)
     expect(buildCopy('report_digest', { message: 'line1' }).title).toBe(`${MOBILE_APP_NAME} report`)

@@ -5,6 +5,11 @@ const mongoose = require('mongoose')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const { runJvLedgerFxBackfillOnNativeDb } = require('../../services/jvLedgerFxBackfill')
 const { notifyErpUsers } = require('../../services/notificationDispatch')
+const {
+  formatNotificationAccountLabel,
+  formatNotificationMoney,
+  buildJvPostedMessage,
+} = require('../../services/voucherNotificationHelpers')
 const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
 const { escapeRegex } = require('../../utils/escapeRegex')
 const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
@@ -38,8 +43,49 @@ function registerLedgerRoutes(deps) {
     Ledger,
     Transaction,
     Currency,
+    ChartOfAccount,
     BASE_CURRENCY_CODE,
   } = deps
+
+async function loadAccountLabelMap(tenant, accountIds = []) {
+  const uniqueIds = [...new Set(accountIds.map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!uniqueIds.length) return new Map()
+  const TenantCoA = await ChartOfAccount.getTenantModel(tenant)
+  const rows = await TenantCoA.find({ _id: { $in: uniqueIds } })
+    .select('accountCode accountName')
+    .lean()
+  return new Map(rows.map((row) => [String(row._id), row]))
+}
+
+async function queueJvPostedNotify(tenantKey, {
+  vocNo,
+  amount,
+  currency = 'USD',
+  debitAccountId,
+  creditAccountId,
+  isBankJv = false,
+}) {
+  const accountMap = await loadAccountLabelMap(tenantKey, [debitAccountId, creditAccountId])
+  const debitLabel = formatNotificationAccountLabel(accountMap.get(String(debitAccountId)))
+  const creditLabel = formatNotificationAccountLabel(accountMap.get(String(creditAccountId)))
+  const payload = {
+    vocNo,
+    amount: Number(amount || 0),
+    currency: String(currency || 'USD').toUpperCase(),
+    debitAccountName: debitLabel,
+    creditAccountName: creditLabel,
+    formattedAmount: formatNotificationMoney(amount, currency),
+    message: buildJvPostedMessage({
+      vocNo,
+      amount,
+      currency,
+      debitLabel,
+      creditLabel,
+      isBankJv,
+    }),
+  }
+  await notifyErpUsers(tenantKey, 'jv_posted', payload)
+}
 
 const decodeCursor = (cursor) => {
   if (!cursor) return null
@@ -405,13 +451,13 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
     const refType = String(referenceType || 'journal').toLowerCase()
     if (refType === 'journal' || refType === 'bank_jv') {
       const vocNo = jvDescriptionHead(description)
-      const label = refType === 'bank_jv' ? 'Bank JV' : 'JV'
-      void notifyErpUsers(tenantKey, 'jv_posted', {
+      void queueJvPostedNotify(tenantKey, {
         vocNo,
         amount: Number(entry.amount || 0),
-        description: String(description || ''),
-        accountCodes: [String(debitAccountId), String(creditAccountId)],
-        message: `${label} ${vocNo || 'posted'}: ${Number(entry.amount || 0)}`,
+        currency: entry.currency || posting?.currency || 'USD',
+        debitAccountId,
+        creditAccountId,
+        isBankJv: refType === 'bank_jv',
       }).catch((err) => console.warn('[notify] jv_posted', err?.message || err))
     }
 
@@ -574,14 +620,15 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
     }
 
     const vocNo = jvDescriptionHead(firstDescription)
-    const label = mode === 'bank_jv' ? 'Bank JV' : 'JV'
     const totalAmount = createdEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
-    void notifyErpUsers(tenantKey, 'jv_posted', {
+    const firstEntry = createdEntries[0]
+    void queueJvPostedNotify(tenantKey, {
       vocNo,
       amount: totalAmount,
-      description: firstDescription,
-      accountCodes: createdEntries.flatMap((e) => [String(e.debitAccountId), String(e.creditAccountId)]),
-      message: `${label} ${vocNo || 'posted'}: ${totalAmount}`,
+      currency: firstEntry?.currency || 'USD',
+      debitAccountId: firstEntry?.debitAccountId,
+      creditAccountId: firstEntry?.creditAccountId,
+      isBankJv: mode === 'bank_jv',
     }).catch((err) => console.warn('[notify] jv_posted', err?.message || err))
 
     return res.status(201).json({

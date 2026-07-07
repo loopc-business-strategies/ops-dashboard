@@ -1,6 +1,13 @@
 const User = require('../models/User')
 const { deriveErpAccessPolicy } = require('./erpAccounting/accessPolicy')
 const { isTopicEnabled } = require('./notificationPreferences')
+const {
+  formatNotificationMoney,
+  formatNotificationAccountLabel,
+  resolveVoucherPartyLabel,
+  resolveVoucherRef,
+  buildVoucherWorkflowMessage,
+} = require('./voucherNotificationHelpers')
 
 let realtimeServerRef = null
 
@@ -55,19 +62,36 @@ async function notifyErpUsers(tenant, type, data = {}) {
 }
 
 function buildVoucherNotificationData(tx, extra = {}) {
-  const vocNo = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || '').trim()
+  const vocNo = resolveVoucherRef(tx)
   const amount = Number(tx?.amount || 0)
   const currency = String(tx?.currency || 'USD').toUpperCase()
-  const party = String(tx?.voucherMeta?.partyCode || tx?.voucherMeta?.partyName || '').trim()
+  const partyName = String(tx?.voucherMeta?.partyName || '').trim()
+  const partyCode = String(tx?.voucherMeta?.partyCode || '').trim()
+  const partyLabel = resolveVoucherPartyLabel(tx)
+  const debitAccountName = formatNotificationAccountLabel(tx?.debitAccountId)
+  const creditAccountName = formatNotificationAccountLabel(tx?.creditAccountId)
+  const formattedAmount = formatNotificationMoney(amount, currency)
+  const actorName = String(extra.actorName || '').trim()
+  const action = String(extra.action || '').trim()
+  const comment = String(extra.comment || '').trim()
+  const message = extra.message
+    || (action ? buildVoucherWorkflowMessage(tx, { action, actorName, comment }) : '')
+
   return {
     transactionId: String(tx?._id || ''),
     type: tx?.type,
     vocNo,
     amount,
     currency,
-    party,
+    party: partyCode || partyName || partyLabel,
+    partyName,
+    partyLabel,
+    debitAccountName,
+    creditAccountName,
+    formattedAmount,
     status: tx?.status,
-    message: extra.message || '',
+    actorName,
+    message,
     ...extra,
   }
 }

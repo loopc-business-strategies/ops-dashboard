@@ -452,6 +452,7 @@ function registerErpAccountingRoutes(router) {
     Ledger,
     Transaction,
     Currency,
+    ChartOfAccount,
     BASE_CURRENCY_CODE,
   })
   

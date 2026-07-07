@@ -71,9 +71,15 @@ describe('notificationDispatch', () => {
       currency: 'USD',
       status: 'posted',
       voucherMeta: { vocNo: 'Pay/2026/0001', partyName: 'Acme' },
-    }, { message: 'test' })
+      creditAccountId: { accountName: 'Bank USD', accountCode: '101001' },
+    }, { action: 'posted', actorName: 'Jane' })
     expect(data.vocNo).toBe('Pay/2026/0001')
     expect(data.amount).toBe(100)
-    expect(data.message).toBe('test')
+    expect(data.partyLabel).toBe('Acme')
+    expect(data.formattedAmount).toBe('$100.00 USD')
+    expect(data.debitAccountName).toBe('')
+    expect(data.creditAccountName).toBe('Bank USD (101001)')
+    expect(data.message).toContain('Pay/2026/0001')
+    expect(data.message).toContain('posted by Jane')
   })
 })
