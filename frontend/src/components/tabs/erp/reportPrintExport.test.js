@@ -32,6 +32,6 @@ describe('reportPrintExport helpers', () => {
       reports: {},
       selectedReportAccountCode: '1010',
     })
-    expect(meta.title).toContain('1010')
+    expect(meta.title).toBe('Ledger Report - 1010')
   })
 })

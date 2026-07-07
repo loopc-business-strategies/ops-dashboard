@@ -1,12 +1,26 @@
 import { clampBrandingDimension, createLogoRenderAsset } from './ERPBrandingUtils'
 import {
+  buildReportPdfColumnStyles,
   buildReportPdfMeta,
   buildReportPdfTable,
-  formatReportPeriodText,
   isReportDataReady,
+  renderReportPdfHeader,
+  REPORT_PDF_MARGIN,
 } from './reportExportHelpers'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
 import { loadPdfTools } from './lazyExportLibs'
+
+function buildReportPrintHead({ reportTitle, periodText, logoMarkup }) {
+  return `
+      <div class="brandbar"></div>
+      <div class="head">
+        ${logoMarkup}
+        <p class="title">${reportTitle}</p>
+        <p class="meta">Period: ${periodText}</p>
+        <p class="meta">Generated: ${new Date().toLocaleString()}</p>
+      </div>
+    `
+}
 
 export async function buildReportPrintHtml({
   reportView,
@@ -19,33 +33,23 @@ export async function buildReportPrintHtml({
   formatReportDirectionalBalance,
   buildBrandingLogoTag,
   ledgerReportRows = [],
+  selectedReportAccountCode = '',
 }) {
   if (!isReportDataReady(reportView, reports, ledgerReportRows)) return null
-  const periodText = formatReportPeriodText(reports, reportView)
+  const { title, periodText } = buildReportPdfMeta({
+    reportView,
+    reports,
+    selectedReportAccountCode,
+  })
   const logoMarkup = await buildBrandingLogoTag(branding, 'margin-bottom:10px;')
-  const head = `
-      <div class="brandbar"></div>
-      <div class="head">
-        ${logoMarkup}
-        <p class="subtitle">${branding.companyName || defaultBranding.companyName}</p>
-        <p class="title">ERP Financial Statement</p>
-        <p class="meta">${branding.entityName || defaultBranding.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}</p>
-        ${branding.legalName ? `<p class="meta">${branding.legalName}</p>` : ''}
-        <p class="meta">${branding.reportSubtitle || defaultBranding.reportSubtitle} | Prepared for statutory / CA-style review</p>
-        <p class="meta">Period: ${periodText}</p>
-        <p class="meta">Generated: ${new Date().toLocaleString()}</p>
-      </div>
-    `
+  const head = buildReportPrintHead({ reportTitle: title, periodText, logoMarkup })
   const signatureBlock = `
       <div class="signatures">
         <div class="sign-box">${branding.preparedByTitle || defaultBranding.preparedByTitle}<br />${branding.preparedByName || user?.name || defaultBranding.preparedByName}</div>
         <div class="sign-box">${branding.reviewedByTitle || defaultBranding.reviewedByTitle}<br />${branding.reviewedByName || defaultBranding.reviewedByName}</div>
         <div class="sign-box">${branding.approvedByTitle || defaultBranding.approvedByTitle}<br />${branding.approvedByName || defaultBranding.approvedByName}</div>
       </div>
-      <div class="footer">
-        <span>${branding.companyName || defaultBranding.companyName} Reporting Suite</span>
-        <span>${branding.reportFooter || defaultBranding.reportFooter}</span>
-      </div>
+      ${branding.reportFooter || defaultBranding.reportFooter ? `<div class="footer"><span>${branding.reportFooter || defaultBranding.reportFooter}</span></div>` : ''}
     `
   if (reportView === 'pnl') {
     return `
@@ -61,7 +65,7 @@ export async function buildReportPrintHtml({
       `
   }
   if (reportView === 'balanceSheet') {
-    const section = (title, rows, fallbackDirection) => `<div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}</td><td class="num">${formatReportDirectionalBalance(row, fallbackDirection)}</td></tr>`).join('')}</tbody></table></div>`
+    const section = (sectionTitle, rows, fallbackDirection) => `<div class="section"><p class="section-title">${sectionTitle}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}</td><td class="num">${formatReportDirectionalBalance(row, fallbackDirection)}</td></tr>`).join('')}</tbody></table></div>`
     return `
         ${head}
         <div class="summary">
@@ -82,9 +86,46 @@ export async function buildReportPrintHtml({
           <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
           <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
         </div>
-        <div class="section"><p class="section-title">${reportView === 'summary' ? 'Summary' : 'Trial Balance'}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net</th></tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td><td class="num">${formatMoney(row.debit)}</td><td class="num">${formatMoney(row.credit)}</td><td class="num">${formatMoney(row.net)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net</th></tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td><td class="num">${formatMoney(row.debit)}</td><td class="num">${formatMoney(row.credit)}</td><td class="num">${formatMoney(row.net)}</td></tr>`).join('')}</tbody></table></div>
         ${signatureBlock}
       `
+}
+
+function renderReportPdfSignatures(doc, {
+  branding,
+  defaultBranding,
+  user,
+  startY,
+}) {
+  const margin = REPORT_PDF_MARGIN
+  const pageHeight = doc.internal.pageSize.getHeight()
+  let signatureY = startY + 36
+  const blockHeight = 70
+
+  if (signatureY + blockHeight > pageHeight - margin) {
+    doc.addPage()
+    signatureY = margin + 24
+  }
+
+  doc.setDrawColor(156, 163, 175)
+  doc.line(margin + 12, signatureY, margin + 152, signatureY)
+  doc.line(margin + 192, signatureY, margin + 332, signatureY)
+  doc.line(margin + 372, signatureY, margin + 512, signatureY)
+  doc.setFontSize(9)
+  doc.setTextColor(17, 24, 39)
+  doc.text(String(branding.preparedByTitle || defaultBranding.preparedByTitle), margin + 12, signatureY + 14)
+  doc.text(String(branding.preparedByName || user?.name || defaultBranding.preparedByName), margin + 12, signatureY + 28)
+  doc.text(String(branding.reviewedByTitle || defaultBranding.reviewedByTitle), margin + 192, signatureY + 14)
+  doc.text(String(branding.reviewedByName || defaultBranding.reviewedByName), margin + 192, signatureY + 28)
+  doc.text(String(branding.approvedByTitle || defaultBranding.approvedByTitle), margin + 372, signatureY + 14)
+  doc.text(String(branding.approvedByName || defaultBranding.approvedByName), margin + 372, signatureY + 28)
+
+  const footer = String(branding.reportFooter || defaultBranding.reportFooter || '').trim()
+  if (footer) {
+    doc.setFontSize(8)
+    doc.setTextColor(107, 114, 128)
+    doc.text(footer, margin + 12, signatureY + 52)
+  }
 }
 
 export async function exportReportPdf({
@@ -100,6 +141,10 @@ export async function exportReportPdf({
 }) {
   const { jsPDF, autoTable } = await loadPdfTools()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+  const margin = REPORT_PDF_MARGIN
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const tableWidth = pageWidth - margin * 2
+
   const { title, periodText, summaryLines, fileBase } = buildReportPdfMeta({
     reportView,
     reports,
@@ -113,55 +158,30 @@ export async function exportReportPdf({
     formatReportDirectionalBalance,
   })
 
-  const logoWidth = clampBrandingDimension(branding.logoWidth, defaultBranding.logoWidth, 80, 260)
-  const logoHeight = clampBrandingDimension(branding.logoHeight, defaultBranding.logoHeight, 32, 120)
+  const logoWidth = clampBrandingDimension(branding.logoWidth, defaultBranding.logoWidth, 80, 120)
+  const logoHeight = clampBrandingDimension(branding.logoHeight, defaultBranding.logoHeight, 32, 48)
   const processedLogo = await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
-  doc.setFillColor(0, 104, 74)
-  doc.rect(28, 24, 539, 10, 'F')
   if (processedLogo && String(processedLogo).startsWith('data:image/')) {
     try {
-      doc.addImage(processedLogo, 'PNG', 540 - logoWidth, 36, logoWidth, logoHeight, undefined, 'FAST')
+      doc.addImage(processedLogo, 'PNG', pageWidth - margin - logoWidth, 28, logoWidth, logoHeight, undefined, 'FAST')
     } catch {
-      // Ignore invalid embedded image data and continue with text branding.
+      // Ignore invalid embedded image data and continue without logo.
     }
   }
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(6, 95, 70)
-  doc.text(String(branding.companyName || defaultBranding.companyName).toUpperCase(), 40, 52)
-  doc.setFontSize(16)
-  doc.setTextColor(17, 24, 39)
-  doc.text(title, 40, 42)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(55, 65, 81)
-  let metaY = branding.legalName ? 64 : 50
-  if (branding.legalName) {
-    doc.text(String(branding.legalName), 40, metaY)
-    metaY += 14
-  }
-  doc.text(`${branding.entityName || defaultBranding.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}`, 40, metaY)
-  metaY += 14
-  doc.text(String(branding.reportSubtitle || defaultBranding.reportSubtitle), 40, metaY)
-  metaY += 14
-  doc.text(`Period: ${periodText}`, 40, metaY)
-  metaY += 14
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 40, metaY)
-  metaY += 14
-  summaryLines.forEach((line) => {
-    doc.text(line, 40, metaY)
-    metaY += 12
-  })
 
-  const tableStartY = metaY + 8
+  const tableStartY = renderReportPdfHeader(doc, { title, periodText, summaryLines })
+
   autoTable(doc, {
     head,
     body,
     startY: tableStartY,
-    styles: { fontSize: 8, cellPadding: 4 },
+    tableWidth,
+    styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+    bodyStyles: { valign: 'top' },
     headStyles: { fillColor: [17, 24, 39] },
     alternateRowStyles: { fillColor: [249, 250, 251] },
-    margin: { left: 28, right: 28 },
+    columnStyles: buildReportPdfColumnStyles(reportView, tableWidth),
+    margin: { left: margin, right: margin },
     didParseCell: (data) => {
       const rowLabel = String(data.row?.raw?.[0] || '')
       if (['Subtotal', 'Total'].includes(rowLabel)) {
@@ -170,24 +190,15 @@ export async function exportReportPdf({
       }
     },
   })
+
   const finalY = doc.lastAutoTable?.finalY || tableStartY
-  const signatureY = Math.min(Math.max(finalY + 36, 680), 740)
-  doc.setDrawColor(156, 163, 175)
-  doc.line(40, signatureY, 180, signatureY)
-  doc.line(220, signatureY, 360, signatureY)
-  doc.line(400, signatureY, 540, signatureY)
-  doc.setFontSize(9)
-  doc.setTextColor(17, 24, 39)
-  doc.text(String(branding.preparedByTitle || defaultBranding.preparedByTitle), 40, signatureY + 14)
-  doc.text(String(branding.preparedByName || user?.name || defaultBranding.preparedByName), 40, signatureY + 28)
-  doc.text(String(branding.reviewedByTitle || defaultBranding.reviewedByTitle), 220, signatureY + 14)
-  doc.text(String(branding.reviewedByName || defaultBranding.reviewedByName), 220, signatureY + 28)
-  doc.text(String(branding.approvedByTitle || defaultBranding.approvedByTitle), 400, signatureY + 14)
-  doc.text(String(branding.approvedByName || defaultBranding.approvedByName), 400, signatureY + 28)
-  doc.setFontSize(8)
-  doc.setTextColor(107, 114, 128)
-  doc.text(`${branding.companyName || defaultBranding.companyName} Reporting Suite`, 40, signatureY + 52)
-  doc.text(String(branding.reportFooter || defaultBranding.reportFooter), 420, signatureY + 52)
+  renderReportPdfSignatures(doc, {
+    branding,
+    defaultBranding,
+    user,
+    startY: finalY,
+  })
+
   doc.save(`${fileBase}.pdf`)
 }
 

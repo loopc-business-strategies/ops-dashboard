@@ -200,6 +200,7 @@ export function useErpExportActions({
       formatReportDirectionalBalance,
       buildBrandingLogoTag,
       ledgerReportRows,
+      selectedReportAccountCode,
     })
     if (!body) {
       setError(getReportNotReadyMessage(reportView, 'printing'))
@@ -218,6 +219,7 @@ export function useErpExportActions({
     formatReportDirectionalBalance,
     buildBrandingLogoTag,
     ledgerReportRows,
+    selectedReportAccountCode,
     openPrintWindow,
     setError,
     showNotification,

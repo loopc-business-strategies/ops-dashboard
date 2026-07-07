@@ -16,14 +16,114 @@ const REPORT_VIEW_LABELS = {
 }
 
 const REPORT_PDF_TITLES = {
-  summary: 'Summary',
-  trial: 'Trial Balance',
-  pnl: 'Profit & Loss Statement',
-  balanceSheet: 'Balance Sheet',
-  dayBook: 'Day Book',
-  outstanding: 'Outstanding Statement',
-  forex: 'Forex Gain/Loss',
-  ledger: 'Ledger Drilldown',
+  summary: 'Summary Report',
+  trial: 'Trial Balance Report',
+  pnl: 'Profit and Loss Report',
+  balanceSheet: 'Balance Sheet Report',
+  dayBook: 'Day Book Report',
+  outstanding: 'Outstanding Report',
+  forex: 'Forex Gain/Loss Report',
+  ledger: 'Ledger Report',
+}
+
+export const REPORT_PDF_MARGIN = 28
+export const REPORT_PDF_LINE_HEIGHT = 11
+
+export function buildReportPdfHeaderLines({
+  periodText = '',
+  summaryLines = [],
+  generatedAt = new Date(),
+} = {}) {
+  return [
+    `Period: ${periodText}`,
+    `Generated: ${generatedAt.toLocaleString()}`,
+    ...summaryLines,
+  ]
+}
+
+export function renderReportPdfHeader(doc, { title, periodText, summaryLines } = {}) {
+  const margin = REPORT_PDF_MARGIN
+  const pageWidth = doc.internal.pageSize.getWidth()
+  doc.setFillColor(0, 104, 74)
+  doc.rect(margin, 20, pageWidth - margin * 2, 8, 'F')
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(17, 24, 39)
+  doc.text(String(title), margin + 8, 48)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(55, 65, 81)
+  let metaY = 64
+  buildReportPdfHeaderLines({ periodText, summaryLines }).forEach((line) => {
+    doc.text(String(line), margin + 8, metaY)
+    metaY += REPORT_PDF_LINE_HEIGHT
+  })
+  return metaY + 8
+}
+
+export function buildReportPdfColumnStyles(reportView, tableWidth) {
+  const w = tableWidth
+  if (reportView === 'trial' || reportView === 'summary') {
+    const fixed = 52 + 58 + 72 + 72 + 72
+    return {
+      0: { cellWidth: 52 },
+      1: { cellWidth: Math.max(w - fixed, 120) },
+      2: { cellWidth: 58 },
+      3: { cellWidth: 72, halign: 'right' },
+      4: { cellWidth: 72, halign: 'right' },
+      5: { cellWidth: 72, halign: 'right' },
+    }
+  }
+  if (reportView === 'pnl' || reportView === 'balanceSheet') {
+    const fixed = 60 + 52 + 80
+    return {
+      0: { cellWidth: 60 },
+      1: { cellWidth: 52 },
+      2: { cellWidth: Math.max(w - fixed, 120) },
+      3: { cellWidth: 80, halign: 'right' },
+    }
+  }
+  if (reportView === 'dayBook') {
+    return {
+      0: { cellWidth: 88 },
+      1: { cellWidth: 52 },
+      2: { cellWidth: Math.max(w - 88 - 52 - 56 - 56 - 72, 100) },
+      3: { cellWidth: 56 },
+      4: { cellWidth: 56 },
+      5: { cellWidth: 72, halign: 'right' },
+    }
+  }
+  if (reportView === 'outstanding') {
+    const fixed = 56 + 52 + 56 + 88
+    return {
+      0: { cellWidth: 56 },
+      1: { cellWidth: Math.max(w - fixed, 120) },
+      2: { cellWidth: 52 },
+      3: { cellWidth: 72, halign: 'right' },
+      4: { cellWidth: 88 },
+    }
+  }
+  if (reportView === 'forex') {
+    return {
+      0: { cellWidth: Math.max(w - 156, 80) },
+      1: { cellWidth: 72, halign: 'right' },
+      2: { cellWidth: 84, halign: 'right' },
+    }
+  }
+  if (reportView === 'ledger') {
+    return {
+      0: { cellWidth: 48 },
+      1: { cellWidth: 88 },
+      2: { cellWidth: 48 },
+      3: { cellWidth: Math.max(w - 48 - 88 - 48 - 56 - 56 - 72, 80) },
+      4: { cellWidth: 56, halign: 'right' },
+      5: { cellWidth: 56, halign: 'right' },
+      6: { cellWidth: 72, halign: 'right' },
+    }
+  }
+  return {}
 }
 
 export function isReportDataReady(reportView = 'summary', reports = {}, ledgerReportRows = []) {
@@ -75,7 +175,7 @@ export function buildReportPdfMeta({
 } = {}) {
   const titleBase = REPORT_PDF_TITLES[reportView] || 'ERP Report'
   const title = reportView === 'ledger' && selectedReportAccountCode
-    ? `${titleBase} - ${selectedReportAccountCode}`
+    ? `${REPORT_PDF_TITLES.ledger} - ${selectedReportAccountCode}`
     : titleBase
   const periodText = formatReportPeriodText(reports, reportView)
   const summaryLines = []

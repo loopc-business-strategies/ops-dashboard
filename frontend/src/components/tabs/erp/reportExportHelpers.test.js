@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { isReportPdfDownloadEnabled } from '../../../config/tenantBranding'
 import {
   buildReportExportPayload,
+  buildReportPdfHeaderLines,
   buildReportPdfMeta,
   buildReportPdfTable,
   formatReportPeriodText,
   getReportNotReadyMessage,
   isReportDataReady,
+  renderReportPdfHeader,
 } from './reportExportHelpers'
 
 const formatMoney = (value) => `$${Number(value || 0).toFixed(2)}`
@@ -75,7 +77,7 @@ describe('buildReportPdfMeta', () => {
         },
       },
     })
-    expect(meta.title).toBe('Trial Balance')
+    expect(meta.title).toBe('Trial Balance Report')
     expect(meta.periodText).toContain('2026-01-01')
     expect(meta.summaryLines.some((line) => line.includes('Balanced'))).toBe(true)
     expect(meta.fileBase).toContain('trial-balance')
@@ -93,8 +95,46 @@ describe('buildReportPdfMeta', () => {
         },
       },
     })
-    expect(meta.title).toBe('Profit & Loss Statement')
+    expect(meta.title).toBe('Profit and Loss Report')
     expect(meta.summaryLines.some((line) => line.includes('Net Profit'))).toBe(true)
+  })
+})
+
+describe('buildReportPdfHeaderLines', () => {
+  it('includes period, generated, and summary lines without branding boilerplate', () => {
+    const lines = buildReportPdfHeaderLines({
+      periodText: '2026-01-01 to 2026-06-30',
+      summaryLines: ['Total Debit: 1,000.00'],
+      generatedAt: new Date('2026-07-07T08:00:00'),
+    })
+    expect(lines[0]).toContain('Period: 2026-01-01')
+    expect(lines[1]).toContain('Generated:')
+    expect(lines[2]).toContain('Total Debit')
+    expect(lines.some((line) => /ops dashboard|main entity|finance & accounts/i.test(line))).toBe(false)
+  })
+})
+
+describe('renderReportPdfHeader', () => {
+  it('returns y position below all header lines', () => {
+    const calls = []
+    const doc = {
+      internal: { pageSize: { getWidth: () => 595 } },
+      setFillColor: () => {},
+      rect: () => {},
+      setFont: () => {},
+      setFontSize: () => {},
+      setTextColor: () => {},
+      text: (line, _x, y) => calls.push({ line, y }),
+    }
+    const nextY = renderReportPdfHeader(doc, {
+      title: 'Trial Balance Report',
+      periodText: '2026-01-01 to 2026-06-30',
+      summaryLines: ['Total Debit: 1,000.00', 'Total Credit: 1,000.00'],
+    })
+    expect(nextY).toBeGreaterThan(64)
+    const metaYs = calls.filter((c) => c.line.startsWith('Period:')).map((c) => c.y)
+    expect(metaYs[0]).toBe(64)
+    expect(nextY).toBeGreaterThan(metaYs[0])
   })
 })
 
