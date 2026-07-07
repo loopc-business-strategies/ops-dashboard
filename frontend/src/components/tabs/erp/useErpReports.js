@@ -1,10 +1,13 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import {
+  currentExpenseMonthIndex,
+  currentExpenseYear,
+  expenseMonthDateRange,
+} from './expenseMonthFilterUtils'
 
 function buildReportDateRange(reportFilters) {
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   const startOfYear = new Date(now.getFullYear(), 0, 1)
   let startDate = ''
   let endDate = ''
@@ -12,8 +15,12 @@ function buildReportDateRange(reportFilters) {
     startDate = now.toISOString().slice(0, 10)
     endDate = startDate
   } else if (reportFilters.period === 'month') {
-    startDate = startOfMonth.toISOString().slice(0, 10)
-    endDate = endOfMonth.toISOString().slice(0, 10)
+    const monthRange = expenseMonthDateRange(
+      reportFilters.reportYear || currentExpenseYear(),
+      reportFilters.reportMonth ?? currentExpenseMonthIndex(),
+    )
+    startDate = monthRange.startDate
+    endDate = monthRange.endDate
   } else if (reportFilters.period === 'ytd') {
     startDate = startOfYear.toISOString().slice(0, 10)
     endDate = now.toISOString().slice(0, 10)
@@ -104,24 +111,7 @@ export function useErpReports({
       return
     }
     try {
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      let startDate = ''
-      let endDate = ''
-      if (reportFilters.period === 'today') {
-        startDate = now.toISOString().slice(0, 10)
-        endDate = startDate
-      } else if (reportFilters.period === 'month') {
-        startDate = startOfMonth.toISOString().slice(0, 10)
-        endDate = endOfMonth.toISOString().slice(0, 10)
-      } else if (reportFilters.period === 'ytd') {
-        startDate = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
-        endDate = now.toISOString().slice(0, 10)
-      } else if (reportFilters.period === 'custom') {
-        startDate = reportFilters.startDate || ''
-        endDate = reportFilters.endDate || ''
-      }
+      const { startDate, endDate } = buildReportDateRange(reportFilters)
       const data = await erpAccountingAPI.getLedgerReport(token, {
         accountId,
         ...(startDate ? { startDate } : {}),

@@ -19,6 +19,15 @@ describe('useErpReportsController helpers', () => {
       endDate: '2026-06-30',
       commonRange: { startDate: '2026-06-01', endDate: '2026-06-30' },
     })
+    expect(buildErpReportDateRange({
+      period: 'month',
+      reportYear: '2026',
+      reportMonth: '3',
+    }, now)).toEqual({
+      startDate: '2026-04-01',
+      endDate: '2026-04-30',
+      commonRange: { startDate: '2026-04-01', endDate: '2026-04-30' },
+    })
     expect(buildErpReportDateRange({ period: 'today' }, now)).toEqual({
       startDate: '2026-06-24',
       endDate: '2026-06-24',
@@ -48,6 +57,31 @@ describe('useErpReportsController helpers', () => {
 
     expect(buildErpReportRequestKey({ ...common, reportFilters: { ...baseFilters, search: 'cash' } }))
       .toBe(buildErpReportRequestKey({ ...common, reportFilters: { ...baseFilters, search: 'bank' } }))
+  })
+
+  test('buildErpReportRequestKey changes when selected report month changes', () => {
+    const common = {
+      targetView: 'pnl',
+      commonRange: { startDate: '2026-06-01', endDate: '2026-06-30' },
+    }
+    const baseFilters = {
+      reportYear: '2026',
+      reportMonth: '5',
+      accountType: '',
+      includeZeroAccounts: false,
+      sortBy: 'accountCode',
+      sortDir: 'asc',
+      comparePrevious: true,
+      referenceType: '',
+      minAmount: '',
+    }
+
+    const juneKey = buildErpReportRequestKey({ ...common, reportFilters: baseFilters })
+    const julyKey = buildErpReportRequestKey({
+      ...common,
+      reportFilters: { ...baseFilters, reportMonth: '6' },
+    })
+    expect(juneKey).not.toBe(julyKey)
   })
 
   test('createInitialReportsState returns independent empty report buckets', () => {

@@ -1,5 +1,10 @@
 import { trialBalanceRowsForView } from '../trialBalanceReportRows'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
+import {
+  buildReportYearOptions,
+  expenseMonthDateRange,
+  REPORT_MONTH_OPTIONS,
+} from '../expenseMonthFilterUtils'
 
 export default function ERPReportsTab({
   activeTab,
@@ -53,6 +58,34 @@ export default function ERPReportsTab({
   const trialBalanceShown = trialBalanceFiltered.slice(0, TRIAL_BALANCE_UI_ROW_CAP)
   const dayBookEntries = reports.dayBook?.entries || []
   const dayBookShown = dayBookEntries.slice(0, DAY_BOOK_UI_ROW_CAP)
+  const reportYearOptions = buildReportYearOptions(reportFilters.reportYear)
+  const activePeriodBadgeStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
+    borderRadius: '999px',
+    color: '#1E3A8A',
+    fontWeight: '700',
+    fontSize: '0.82rem',
+    padding: '0.45rem 0.75rem',
+  }
+
+  const applyReportMonthFilters = (updates) => {
+    setReportFilters((prev) => {
+      const next = { ...prev, ...updates, period: 'month' }
+      const { startDate, endDate } = expenseMonthDateRange(next.reportYear, next.reportMonth)
+      return { ...next, startDate, endDate }
+    })
+  }
+
+  const renderActivePeriodBadge = (marginBottom = '0.7rem') => (
+    <div style={{ ...activePeriodBadgeStyle, marginBottom }}>
+      <span>Active Period</span>
+      <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
+    </div>
+  )
 
   return (
     <>
@@ -63,12 +96,47 @@ export default function ERPReportsTab({
 
           <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', marginBottom: '1rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
-              <select value={reportFilters.period} onChange={(e) => setReportFilters((prev) => ({ ...prev, period: e.target.value }))} style={modalInputStyle}>
+              <select
+                value={reportFilters.period}
+                onChange={(e) => {
+                  const period = e.target.value
+                  setReportFilters((prev) => {
+                    if (period !== 'month') return { ...prev, period }
+                    const { startDate, endDate } = expenseMonthDateRange(prev.reportYear, prev.reportMonth)
+                    return { ...prev, period, startDate, endDate }
+                  })
+                }}
+                style={modalInputStyle}
+              >
                 <option value="today">Today</option>
-                <option value="month">This Month</option>
+                <option value="month">Month</option>
                 <option value="ytd">Year To Date</option>
                 <option value="custom">Custom Range</option>
               </select>
+              {reportFilters.period === 'month' && (
+                <>
+                  <select
+                    value={reportFilters.reportYear}
+                    onChange={(e) => applyReportMonthFilters({ reportYear: e.target.value })}
+                    style={modalInputStyle}
+                    aria-label="Report year"
+                  >
+                    {reportYearOptions.map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={reportFilters.reportMonth}
+                    onChange={(e) => applyReportMonthFilters({ reportMonth: e.target.value })}
+                    style={modalInputStyle}
+                    aria-label="Report month"
+                  >
+                    {REPORT_MONTH_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </>
+              )}
               <input type="date" value={reportFilters.startDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, startDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
               <input type="date" value={reportFilters.endDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, endDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
               <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={modalInputStyle}>
@@ -190,10 +258,7 @@ export default function ERPReportsTab({
 
           {(reportView === 'summary' || reportView === 'trial') && (
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem', marginBottom: '0.7rem' }}>
-                <span>Active Period</span>
-                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
-              </div>
+              {renderActivePeriodBadge()}
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>{reportView === 'summary' ? 'Summary' : 'Trial Balance'}</p>
@@ -249,9 +314,8 @@ export default function ERPReportsTab({
 
           {reportView === 'pnl' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ gridColumn: '1 / -1', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}>
-                <span>Active Period</span>
-                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
+              <div style={{ gridColumn: '1 / -1' }}>
+                {renderActivePeriodBadge('0')}
               </div>
               <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Income Breakdown</p>
@@ -306,9 +370,8 @@ export default function ERPReportsTab({
 
           {reportView === 'balanceSheet' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-              <div style={{ gridColumn: '1 / -1', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}>
-                <span>Active Period</span>
-                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
+              <div style={{ gridColumn: '1 / -1' }}>
+                {renderActivePeriodBadge('0')}
               </div>
               {[['Assets', reports.balanceSheet?.assets || []], ['Liabilities', reports.balanceSheet?.liabilities || []], ['Equity', reports.balanceSheet?.equity || []]].map(([title, rows]) => (
                 <div key={title} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
@@ -353,6 +416,7 @@ export default function ERPReportsTab({
 
           {reportView === 'dayBook' && (
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              {renderActivePeriodBadge('0.5rem')}
               <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Day Book Entries</p>
               <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.84rem' }}>
                 Total Entries: {reports.dayBook?.totals?.count || 0} | Debit: {Number(reports.dayBook?.totals?.debit || 0).toLocaleString()} | Credit: {Number(reports.dayBook?.totals?.credit || 0).toLocaleString()}
@@ -393,6 +457,9 @@ export default function ERPReportsTab({
 
           {reportView === 'outstanding' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem', fontWeight: '600' }}>
+                Outstanding balances are shown as of today. Month filter applies to other reports only.
+              </p>
               <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.45rem' }}>Customer Outstanding</p>
                 <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {Number(reports.customerOutstanding?.totals?.outstanding || 0).toLocaleString()} | Limit Exceeded: {reports.customerOutstanding?.totals?.limitExceededCount || 0}</p>
@@ -441,6 +508,7 @@ export default function ERPReportsTab({
 
           {reportView === 'forex' && (
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              {renderActivePeriodBadge('0.5rem')}
               <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Forex Gain/Loss Analysis</p>
               <p style={{ margin: '0 0 0.6rem', color: C.inkSoft, fontSize: '0.84rem' }}>Entries: {reports.forex?.entriesCount || 0} | Total Impact: {Number(reports.forex?.forexImpact || 0).toLocaleString()}</p>
               <div style={{ overflowX: 'auto' }}>
@@ -458,6 +526,7 @@ export default function ERPReportsTab({
 
           {reportView === 'ledger' && (
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              {renderActivePeriodBadge('0.5rem')}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.6rem', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <select
                   value={selectedReportAccountId}

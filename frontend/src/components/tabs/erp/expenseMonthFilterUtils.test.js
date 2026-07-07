@@ -4,9 +4,11 @@ import {
   buildExpenseBreakdownFromRegister,
   buildExpenseTrendBuckets,
   buildMomSummaryRows,
+  buildReportYearOptions,
   expenseMonthDateRange,
   expenseMonthLabel,
   peakExpenseTrendMonthIndex,
+  REPORT_MONTH_OPTIONS,
 } from './expenseMonthFilterUtils'
 import { buildExpenseMomExportPayload, buildExpenseMonthExportPayload } from './expenseExportHelpers'
 
@@ -74,6 +76,18 @@ describe('expenseMonthLabel', () => {
   it('returns All months for empty index', () => {
     expect(expenseMonthLabel('')).toBe('All months')
     expect(expenseMonthLabel('6')).toBe('July')
+  })
+})
+
+describe('report month helpers', () => {
+  it('exposes calendar month options without an all-months entry', () => {
+    expect(REPORT_MONTH_OPTIONS).toHaveLength(12)
+    expect(REPORT_MONTH_OPTIONS[0]).toEqual({ value: '0', label: 'January' })
+    expect(REPORT_MONTH_OPTIONS.some((option) => option.label === 'June')).toBe(true)
+  })
+
+  it('builds a year list around the selected year', () => {
+    expect(buildReportYearOptions('2026')).toEqual(['2024', '2025', '2026', '2027'])
   })
 })
 

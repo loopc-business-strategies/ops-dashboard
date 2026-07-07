@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  currentExpenseMonthIndex,
+  currentExpenseYear,
+  expenseMonthDateRange,
+} from './expenseMonthFilterUtils'
 
 export const REPORT_REQUEST_DEBOUNCE_MS = 250
 export const REPORT_RATE_LIMIT_COOLDOWN_MS = 60_000
@@ -21,8 +26,6 @@ function formatLocalDate(date) {
 }
 
 export function buildErpReportDateRange(reportFilters, now = new Date()) {
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   const startOfYear = new Date(now.getFullYear(), 0, 1)
   let startDate = ''
   let endDate = ''
@@ -31,8 +34,12 @@ export function buildErpReportDateRange(reportFilters, now = new Date()) {
     startDate = formatLocalDate(now)
     endDate = startDate
   } else if (reportFilters.period === 'month') {
-    startDate = formatLocalDate(startOfMonth)
-    endDate = formatLocalDate(endOfMonth)
+    const monthRange = expenseMonthDateRange(
+      reportFilters.reportYear || String(now.getFullYear()),
+      reportFilters.reportMonth ?? String(now.getMonth()),
+    )
+    startDate = monthRange.startDate
+    endDate = monthRange.endDate
   } else if (reportFilters.period === 'ytd') {
     startDate = formatLocalDate(startOfYear)
     endDate = formatLocalDate(now)
@@ -55,6 +62,8 @@ export function buildErpReportRequestKey({ targetView, commonRange, reportFilter
   return JSON.stringify({
     targetView,
     commonRange,
+    reportYear: reportFilters.reportYear,
+    reportMonth: reportFilters.reportMonth,
     accountType: reportFilters.accountType,
     includeZeroAccounts: reportFilters.includeZeroAccounts,
     sortBy: reportFilters.sortBy,
@@ -81,6 +90,8 @@ export function useErpReportsController({
   const [reportView, setReportView] = useState('summary')
   const [reportFilters, setReportFilters] = useState({
     period: 'ytd',
+    reportYear: currentExpenseYear(),
+    reportMonth: currentExpenseMonthIndex(),
     startDate: '',
     endDate: '',
     accountType: '',
@@ -106,6 +117,8 @@ export function useErpReportsController({
   const loadReportBrandingRef = useRef(loadReportBranding)
   const reportQueryFilters = useMemo(() => ({
     period: reportFilters.period,
+    reportYear: reportFilters.reportYear,
+    reportMonth: reportFilters.reportMonth,
     startDate: reportFilters.startDate,
     endDate: reportFilters.endDate,
     accountType: reportFilters.accountType,
@@ -123,15 +136,25 @@ export function useErpReportsController({
     reportFilters.minAmount,
     reportFilters.period,
     reportFilters.referenceType,
+    reportFilters.reportMonth,
+    reportFilters.reportYear,
     reportFilters.sortBy,
     reportFilters.sortDir,
     reportFilters.startDate,
   ])
   const ledgerDateFilters = useMemo(() => ({
     period: reportFilters.period,
+    reportYear: reportFilters.reportYear,
+    reportMonth: reportFilters.reportMonth,
     startDate: reportFilters.startDate,
     endDate: reportFilters.endDate,
-  }), [reportFilters.endDate, reportFilters.period, reportFilters.startDate])
+  }), [
+    reportFilters.endDate,
+    reportFilters.period,
+    reportFilters.reportMonth,
+    reportFilters.reportYear,
+    reportFilters.startDate,
+  ])
 
   useEffect(() => {
     loadAccountsRef.current = loadAccounts

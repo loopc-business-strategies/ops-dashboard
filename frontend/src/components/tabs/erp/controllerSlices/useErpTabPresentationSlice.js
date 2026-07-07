@@ -3,6 +3,8 @@ import { resolveErpUserTenantBranding } from '../resolveErpUserTenant'
 import erpAccountingAPI from '../../../../api/erp-accounting'
 import { useJournalVoucher } from '../useJournalVoucher'
 import { useEnquiryDeepLinkEffects } from '../accountEnquiry/useEnquiryDeepLinkEffects'
+import { expenseMonthLabel } from '../expenseMonthFilterUtils'
+import { buildErpReportDateRange } from '../useErpReportsController'
 
 
 import { generateStatementHtml as buildStatementHtml } from '../statementPrintHtml'
@@ -120,9 +122,10 @@ export function useErpTabPresentationSlice(scope) {
       return `Today (${formatDate(today)})`
     }
     if (reportFilters.period === 'month') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      return `This Month (${formatDate(start)} - ${formatDate(end)})`
+      const { startDate, endDate } = buildErpReportDateRange(reportFilters, now)
+      const monthName = expenseMonthLabel(reportFilters.reportMonth)
+      const year = reportFilters.reportYear || String(now.getFullYear())
+      return `Month (${monthName} ${year}: ${formatDate(startDate)} - ${formatDate(endDate)})`
     }
     if (reportFilters.period === 'ytd') {
       const start = new Date(now.getFullYear(), 0, 1)

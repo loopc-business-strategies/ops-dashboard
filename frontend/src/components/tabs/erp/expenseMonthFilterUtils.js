@@ -6,6 +6,11 @@ export const EXPENSE_MONTH_OPTIONS = [
   ...MONTH_NAMES.map((label, index) => ({ value: String(index), label })),
 ]
 
+export const REPORT_MONTH_OPTIONS = MONTH_NAMES.map((label, index) => ({
+  value: String(index),
+  label,
+}))
+
 export function currentExpenseYear() {
   return String(new Date().getFullYear())
 }
@@ -59,6 +64,11 @@ export function buildYearOptions(monthlyTrend = [], selectedYear) {
   const years = new Set(monthlyTrend.map((row) => String(row.year)).filter(Boolean))
   years.add(String(selectedYear || currentExpenseYear()))
   return [...years].sort()
+}
+
+export function buildReportYearOptions(selectedYear) {
+  const anchor = Number(selectedYear) || new Date().getFullYear()
+  return [anchor - 2, anchor - 1, anchor, anchor + 1].map(String)
 }
 
 export function aggregateExpensesByMonth(items = [], year) {
