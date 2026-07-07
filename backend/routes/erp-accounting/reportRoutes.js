@@ -22,6 +22,7 @@ const {
   computeCustomerPeriodMetrics,
   getLedgerEntryAmount,
   isDashboardExpenseRegisterEntry,
+  filterVoidedExpenseLedgerEntries,
   summarizeDashboardExpenses,
   buildDashboardExpenseMonthlyTrend,
 } = require('../../utils/ledgerBalanceBatch')
@@ -1147,13 +1148,16 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       const creditType = getType(entry.creditAccountId)
       if (creditType === 'Income') income += getLedgerEntryAmount(entry)
     })
-    const periodExpenseSummary = summarizeDashboardExpenses(periodLedger, accountMetaMap)
+    const periodExpenseSummary = summarizeDashboardExpenses(periodLedger, accountMetaMap, {
+      reversalSourceEntries: ledgerEntries,
+    })
     const expenseTotal = periodExpenseSummary.total
     const expenseBreakdown = Object.entries(periodExpenseSummary.byCategory)
       .map(([name, amount]) => ({ name, amount: toMoney(amount) }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 6)
-    const expenseEntries = periodLedger
+    const activePeriodLedger = filterVoidedExpenseLedgerEntries(periodLedger, ledgerEntries)
+    const expenseEntries = activePeriodLedger
       .filter((entry) => isDashboardExpenseRegisterEntry(entry, getType))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
     const recentExpenses = expenseEntries.slice(0, 5).map((entry) => {
@@ -1178,7 +1182,9 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       const entryDate = new Date(entry.date)
       return entryDate >= ytdStart && entryDate <= periodEnd
     })
-    const ytdExpenseTotal = summarizeDashboardExpenses(ytdLedger, accountMetaMap).total
+    const ytdExpenseTotal = summarizeDashboardExpenses(ytdLedger, accountMetaMap, {
+      reversalSourceEntries: ledgerEntries,
+    }).total
 
     const activityFlow = {
       operating: { inflow: 0, outflow: 0, net: 0, count: 0 },

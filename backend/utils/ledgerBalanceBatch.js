@@ -247,6 +247,33 @@ function isDashboardExpenseRegisterEntry(entry, getAccountType) {
   return isDashboardExpenseLedgerEntry(entry, getAccountType)
 }
 
+function buildReversedLedgerOriginalIdSet(entries) {
+  const ids = new Set()
+  ;(entries || []).forEach((entry) => {
+    if (String(entry?.referenceType || '').toLowerCase() !== 'reversal') return
+    const refId = String(entry?.referenceId || '').trim()
+    if (refId) {
+      ids.add(refId)
+      return
+    }
+    const match = String(entry?.description || '').match(/REVERSAL of Entry\s+([a-f0-9]{24})/i)
+    if (match?.[1]) ids.add(match[1])
+  })
+  return ids
+}
+
+function isVoidedExpenseLedgerDisplayEntry(entry, reversedOriginalIds) {
+  if (!entry) return false
+  if (String(entry?.referenceType || '').toLowerCase() === 'reversal') return true
+  const id = String(entry?._id || '')
+  return Boolean(id) && reversedOriginalIds.has(id)
+}
+
+function filterVoidedExpenseLedgerEntries(entries, reversalSourceEntries) {
+  const reversedOriginalIds = buildReversedLedgerOriginalIdSet(reversalSourceEntries || entries)
+  return (entries || []).filter((entry) => !isVoidedExpenseLedgerDisplayEntry(entry, reversedOriginalIds))
+}
+
 function accumulateDashboardExpenseAmounts(entry, accountMetaMap, getType, buckets) {
   const amount = getLedgerEntryAmount(entry)
   const debitType = getType(entry.debitAccountId)
@@ -271,10 +298,11 @@ function accumulateDashboardExpenseAmounts(entry, accountMetaMap, getType, bucke
 
 const DASHBOARD_EXPENSE_ZERO_EPS = 0.005
 
-function summarizeDashboardExpenses(entries, accountMetaMap) {
+function summarizeDashboardExpenses(entries, accountMetaMap, options = {}) {
   const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
   const buckets = {}
-  entries.forEach((entry) => {
+  const activeEntries = filterVoidedExpenseLedgerEntries(entries, options.reversalSourceEntries)
+  activeEntries.forEach((entry) => {
     accumulateDashboardExpenseAmounts(entry, accountMetaMap, getType, buckets)
   })
 
@@ -313,6 +341,7 @@ function buildDashboardExpenseMonthlyTrend(ledgerEntries, accountMetaMap, today 
   }
 
   const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
+  const reversedOriginalIds = buildReversedLedgerOriginalIdSet(ledgerEntries)
   const entriesByMonth = new Map()
   ledgerEntries.forEach((entry) => {
     const entryDate = new Date(entry.date)
@@ -325,9 +354,10 @@ function buildDashboardExpenseMonthlyTrend(ledgerEntries, accountMetaMap, today 
   entriesByMonth.forEach((monthEntries) => {
     const anchorDate = new Date(monthEntries[0].date)
     const row = ensureExpenseTrendMonth(new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1))
-    const { total } = summarizeDashboardExpenses(monthEntries, accountMetaMap)
+    const activeMonthEntries = monthEntries.filter((entry) => !isVoidedExpenseLedgerDisplayEntry(entry, reversedOriginalIds))
+    const { total } = summarizeDashboardExpenses(activeMonthEntries, accountMetaMap)
     row.amount = total
-    row.count = monthEntries.filter((entry) => isDashboardExpenseRegisterEntry(entry, getType)).length
+    row.count = activeMonthEntries.filter((entry) => isDashboardExpenseRegisterEntry(entry, getType)).length
   })
 
   return Array.from(expenseTrendMap.values())
@@ -345,6 +375,9 @@ module.exports = {
   getLedgerEntryAmount,
   isDashboardExpenseLedgerEntry,
   isDashboardExpenseRegisterEntry,
+  buildReversedLedgerOriginalIdSet,
+  isVoidedExpenseLedgerDisplayEntry,
+  filterVoidedExpenseLedgerEntries,
   getDashboardExpenseCategory,
   accumulateDashboardExpenseAmounts,
   summarizeDashboardExpenses,

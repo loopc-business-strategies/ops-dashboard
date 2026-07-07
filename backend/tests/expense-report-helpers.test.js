@@ -202,4 +202,61 @@ describe('expenseReportHelpers', () => {
     const net = register.items.reduce((sum, row) => sum + Number(row.amount || 0), 0)
     expect(net).toBe(2544)
   })
+
+  it('hides voided originals and reversal rows from the expense register', () => {
+    const toMoney = (n) => Math.round(Number(n) * 100) / 100
+    const payrollId = 'payroll-620001'
+    const profId = 'prof-6400'
+    const creditorId = 'creditor-2308'
+    const payrollMetaMap = new Map([
+      [payrollId, { accountCode: '620001', accountName: 'advance payment- payroll', accountType: 'Expense' }],
+      [profId, { accountCode: '6400', accountName: 'Professional Fees', accountType: 'Expense' }],
+      [creditorId, { accountCode: '2308', accountName: 'LOOP C Creditor', accountType: 'Liability' }],
+    ])
+    const ledgerEntries = [
+      {
+        _id: 'orig-payroll',
+        date: new Date('2026-05-25'),
+        amount: 1800,
+        exchangeRate: 1,
+        debitAccountId: payrollId,
+        creditAccountId: creditorId,
+        description: 'Jv/2026/0019',
+        referenceType: 'journal',
+      },
+      {
+        _id: 'rev-payroll',
+        date: new Date('2026-05-25'),
+        amount: 1800,
+        exchangeRate: 1,
+        debitAccountId: creditorId,
+        creditAccountId: payrollId,
+        description: 'REVERSAL of Entry orig-payroll: Jv/2026/0018',
+        referenceType: 'reversal',
+        referenceId: 'orig-payroll',
+      },
+      {
+        _id: 'repost-payroll',
+        date: new Date('2026-05-25'),
+        amount: 1800,
+        exchangeRate: 1,
+        debitAccountId: payrollId,
+        creditAccountId: creditorId,
+        description: 'Jv/2026/0020',
+        referenceType: 'journal',
+      },
+    ]
+
+    const register = buildExpenseRegisterFromLedger({
+      ledgerEntries,
+      accountMetaMap: payrollMetaMap,
+      periodStart: new Date('2026-01-01'),
+      periodEnd: new Date('2026-12-31T23:59:59'),
+      toMoney,
+    })
+
+    expect(register.total).toBe(1)
+    expect(register.items[0].description).toBe('Jv/2026/0020')
+    expect(register.items[0].amount).toBe(1800)
+  })
 })

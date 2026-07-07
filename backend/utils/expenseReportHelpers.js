@@ -3,6 +3,7 @@ const {
   isDashboardExpenseLedgerEntry,
   isDashboardExpenseRegisterEntry,
   getDashboardExpenseCategory,
+  filterVoidedExpenseLedgerEntries,
 } = require('./ledgerBalanceBatch')
 
 const PAYMENT_SOURCE_LABELS = {
@@ -141,8 +142,9 @@ function buildExpenseRegisterFromLedger({
   const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
   const normalizedCategory = String(categoryFilter || '').trim()
   const normalizedPayment = String(paymentSourceFilter || 'all').trim().toLowerCase()
+  const activeLedgerEntries = filterVoidedExpenseLedgerEntries(ledgerEntries, ledgerEntries)
 
-  const expenseEntries = ledgerEntries
+  const expenseEntries = activeLedgerEntries
     .filter((entry) => {
       const entryDate = new Date(entry.date)
       if (entryDate < periodStart || entryDate > periodEnd) return false

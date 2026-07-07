@@ -108,4 +108,73 @@ describe('dashboard expense helpers', () => {
       referenceType: 'journal',
     }, getType)).toBe(true)
   })
+
+  test('excludes voided original and reversal pairs from dashboard expense totals', () => {
+    const payrollId = 'payroll-620001'
+    const profId = 'prof-6400'
+    const creditorId = 'creditor-2308'
+    const accountMetaMap = new Map([
+      [payrollId, { accountCode: '620001', accountName: 'advance payment- payroll', accountType: 'Expense' }],
+      [profId, { accountCode: '6400', accountName: 'Professional Fees', accountType: 'Expense' }],
+      [creditorId, { accountCode: '2308', accountName: 'LOOP C Creditor', accountType: 'Liability' }],
+    ])
+    const entries = [
+      {
+        _id: 'orig-payroll',
+        debitAccountId: payrollId,
+        creditAccountId: creditorId,
+        amount: 1800,
+        exchangeRate: 1,
+        referenceType: 'journal',
+      },
+      {
+        _id: 'orig-prof',
+        debitAccountId: profId,
+        creditAccountId: creditorId,
+        amount: 1200,
+        exchangeRate: 1,
+        referenceType: 'journal',
+      },
+      {
+        _id: 'rev-payroll',
+        debitAccountId: creditorId,
+        creditAccountId: payrollId,
+        amount: 1800,
+        exchangeRate: 1,
+        referenceType: 'reversal',
+        referenceId: 'orig-payroll',
+      },
+      {
+        _id: 'rev-prof',
+        debitAccountId: creditorId,
+        creditAccountId: profId,
+        amount: 1200,
+        exchangeRate: 1,
+        referenceType: 'reversal',
+        referenceId: 'orig-prof',
+      },
+      {
+        _id: 'repost-payroll',
+        debitAccountId: payrollId,
+        creditAccountId: creditorId,
+        amount: 1800,
+        exchangeRate: 1,
+        referenceType: 'journal',
+      },
+      {
+        _id: 'repost-prof',
+        debitAccountId: profId,
+        creditAccountId: creditorId,
+        amount: 1200,
+        exchangeRate: 1,
+        referenceType: 'journal',
+      },
+    ]
+
+    const summary = summarizeDashboardExpenses(entries, accountMetaMap, { reversalSourceEntries: entries })
+
+    expect(summary.total).toBe(3000)
+    expect(summary.byCategory['advance payment- payroll']).toBe(1800)
+    expect(summary.byCategory['Professional Fees']).toBe(1200)
+  })
 })
