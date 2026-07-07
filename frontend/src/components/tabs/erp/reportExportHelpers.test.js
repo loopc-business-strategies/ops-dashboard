@@ -6,10 +6,14 @@ import {
   buildReportPdfMeta,
   buildReportPdfTable,
   buildReportPdfTableLayout,
+  fitReportPdfPageToContent,
   formatReportPeriodText,
   getReportNotReadyMessage,
   isReportDataReady,
   renderReportPdfHeader,
+  REPORT_PDF_A4_HEIGHT,
+  REPORT_PDF_BOTTOM_PAD,
+  REPORT_PDF_MIN_PAGE_HEIGHT,
 } from './reportExportHelpers'
 
 const formatMoney = (value) => `$${Number(value || 0).toFixed(2)}`
@@ -113,6 +117,51 @@ describe('buildReportPdfTableLayout', () => {
     expect(tableMarginLeft).toBe(margin + Math.round((contentWidth - tableWidth) / 2))
     expect(tableMarginLeft).toBe(tableMarginRight)
     expect(tableMarginLeft + tableWidth + tableMarginRight).toBe(pageWidth)
+  })
+})
+
+describe('fitReportPdfPageToContent', () => {
+  const buildMockDoc = (pageCount = 1, useSetHeight = true) => {
+    const pageSize = {
+      height: REPORT_PDF_A4_HEIGHT,
+      setHeight: useSetHeight ? (h) => { pageSize.height = h } : undefined,
+    }
+    return {
+      internal: {
+        getNumberOfPages: () => pageCount,
+        pageSize,
+      },
+    }
+  }
+
+  it('sets single-page height to content end plus bottom pad', () => {
+    const doc = buildMockDoc(1)
+    const height = fitReportPdfPageToContent(doc, 210)
+    expect(height).toBe(210 + REPORT_PDF_BOTTOM_PAD)
+    expect(doc.internal.pageSize.height).toBe(234)
+  })
+
+  it('clamps height to minimum and maximum bounds', () => {
+    const lowDoc = buildMockDoc(1)
+    expect(fitReportPdfPageToContent(lowDoc, 50)).toBe(REPORT_PDF_MIN_PAGE_HEIGHT)
+
+    const highDoc = buildMockDoc(1)
+    expect(fitReportPdfPageToContent(highDoc, REPORT_PDF_A4_HEIGHT)).toBe(REPORT_PDF_A4_HEIGHT)
+  })
+
+  it('falls back to pageSize.height when setHeight is unavailable', () => {
+    const doc = buildMockDoc(1, false)
+    delete doc.internal.pageSize.setHeight
+    const height = fitReportPdfPageToContent(doc, 200)
+    expect(height).toBe(200 + REPORT_PDF_BOTTOM_PAD)
+    expect(doc.internal.pageSize.height).toBe(224)
+  })
+
+  it('does not resize multi-page documents', () => {
+    const doc = buildMockDoc(2)
+    const result = fitReportPdfPageToContent(doc, 210)
+    expect(result).toBe(210)
+    expect(doc.internal.pageSize.height).toBe(REPORT_PDF_A4_HEIGHT)
   })
 })
 

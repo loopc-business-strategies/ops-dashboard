@@ -4,6 +4,7 @@ import {
   buildReportPdfMeta,
   buildReportPdfTable,
   buildReportPdfTableLayout,
+  fitReportPdfPageToContent,
   isReportDataReady,
   renderReportPdfHeader,
   REPORT_PDF_MARGIN,
@@ -163,6 +164,9 @@ export async function exportReportPdf({
       }
     },
   })
+
+  const contentEndY = doc.lastAutoTable?.finalY || tableStartY
+  fitReportPdfPageToContent(doc, contentEndY)
 
   doc.save(`${fileBase}.pdf`)
 }
