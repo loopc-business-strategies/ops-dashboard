@@ -40,6 +40,7 @@ export default function ERPReportsTab({
   handleJumpToTransaction,
 }) {
   const activeAccounts = filterActiveAccounts(accounts)
+  const INCLUDE_ZERO_REPORT_VIEWS = new Set(['trial', 'pnl', 'balanceSheet'])
   const TRIAL_BALANCE_UI_ROW_CAP = 500
   const DAY_BOOK_UI_ROW_CAP = 600
 
@@ -97,7 +98,7 @@ export default function ERPReportsTab({
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                {reportView === 'trial' && (
+                {INCLUDE_ZERO_REPORT_VIEWS.has(reportView) && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
                     <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
                     Include zero-balance accounts

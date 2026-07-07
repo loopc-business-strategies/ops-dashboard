@@ -115,6 +115,120 @@ function summarizeProfitLossEntriesFromLedgerRows(
   }
 }
 
+const BALANCE_SHEET_ZERO_EPS = 1e-6
+
+function buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount, includeZero = false, toMoney = defaultToMoney) {
+  const assets = []
+  const liabilities = []
+  const equity = []
+  let incomeSignedTotal = 0
+  let expenseSignedTotal = 0
+
+  const keepRow = (balance) => includeZero || Math.abs(Number(balance || 0)) > BALANCE_SHEET_ZERO_EPS
+
+  const isCurrentBalanceSheetAccount = (account) => {
+    const text = `${String(account.accountCode || '')} ${String(account.accountName || '')}`
+    return /(cash|bank|receivable|debtor|customer|inventory|stock|payable|creditor|tax|accrual|short)/i.test(text)
+  }
+
+  const buildBalanceSheetRow = (account, signedBalance, balance, classification, direction) => {
+    const normalSection = account.accountType === 'Asset'
+      ? 'Asset'
+      : account.accountType === 'Liability'
+        ? 'Liability'
+        : account.accountType === 'Equity'
+          ? 'Equity'
+          : account.accountType
+    return {
+      accountId: account._id,
+      accountCode: account.accountCode,
+      accountName: account.accountName,
+      accountType: account.accountType,
+      normalSection,
+      classification,
+      balance: toMoney(balance),
+      signedBalance: toMoney(signedBalance),
+      direction,
+      isReclassified: classification !== normalSection,
+      isCurrent: isCurrentBalanceSheetAccount(account),
+    }
+  }
+
+  accounts.forEach((account) => {
+    const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(String(account._id)) || 0)
+    if (account.accountType === 'Asset') {
+      if (bal >= 0) {
+        if (keepRow(bal)) assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
+      } else if (keepRow(Math.abs(bal))) {
+        liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
+      }
+      return
+    }
+    if (account.accountType === 'Liability') {
+      if (bal <= 0) {
+        if (keepRow(Math.abs(bal))) liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
+      } else if (keepRow(bal)) {
+        assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
+      }
+      return
+    }
+    if (account.accountType === 'Equity') {
+      if (keepRow(Math.abs(bal))) equity.push(buildBalanceSheetRow(account, bal, -bal, 'Equity', bal <= 0 ? 'Cr' : 'Dr'))
+      return
+    }
+    if (account.accountType === 'Income') incomeSignedTotal += bal
+    if (account.accountType === 'Expense') expenseSignedTotal += bal
+  })
+
+  const retainedEarnings = toMoney(-(Number(incomeSignedTotal) + Number(expenseSignedTotal)))
+  if (Math.abs(retainedEarnings) >= 0.01) {
+    equity.push({
+      accountId: null,
+      accountCode: 'RETAINED',
+      accountName: 'Current Period Earnings',
+      balance: retainedEarnings,
+      signedBalance: toMoney(-retainedEarnings),
+      direction: retainedEarnings >= 0 ? 'Cr' : 'Dr',
+      classification: 'Equity',
+      normalSection: 'Equity',
+      isReclassified: false,
+      isCurrent: false,
+    })
+  }
+
+  const totalAssets = toMoney(assets.reduce((s, x) => s + Number(x.balance || 0), 0))
+  const totalLiabilities = toMoney(liabilities.reduce((s, x) => s + Number(x.balance || 0), 0))
+  const totalEquity = toMoney(equity.reduce((s, x) => s + Number(x.balance || 0), 0))
+  const liabilitiesPlusEquity = toMoney(Number(totalLiabilities) + Number(totalEquity))
+  const currentAssets = toMoney(assets.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
+  const currentLiabilities = toMoney(liabilities.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
+  const workingCapital = toMoney(Number(currentAssets) - Number(currentLiabilities))
+  const currentRatio = Number(currentLiabilities) > 0 ? toMoney(Number(currentAssets) / Number(currentLiabilities)) : null
+
+  return {
+    assets,
+    liabilities,
+    equity,
+    totalAssets,
+    totalLiabilities,
+    totalEquity,
+    liabilitiesPlusEquity,
+    difference: toMoney(Number(totalAssets) - Number(liabilitiesPlusEquity)),
+    currentAssets,
+    currentLiabilities,
+    workingCapital,
+    currentRatio,
+    balanced: Math.abs(Number(totalAssets) - Number(liabilitiesPlusEquity)) < 0.01,
+  }
+}
+
+const TRIAL_BALANCE_NET_ZERO_EPS = 1e-6
+
+function filterTrialBalanceRowsForIncludeZero(rows, includeZero = false) {
+  if (includeZero) return rows
+  return rows.filter((row) => Math.abs(Number(row.net ?? 0)) > TRIAL_BALANCE_NET_ZERO_EPS)
+}
+
 function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
   const parseBool = (value, fallback = false) => {
     if (value === undefined || value === null || value === '') return fallback
@@ -248,104 +362,7 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     return { monthlyComparison, quarterlyComparison }
   }
 
-  const buildBalanceSheetSummaryFromBalances = (accounts, balanceByAccount) => {
-    const assets = []
-    const liabilities = []
-    const equity = []
-    let incomeSignedTotal = 0
-    let expenseSignedTotal = 0
-
-    const isCurrentBalanceSheetAccount = (account) => {
-      const text = `${String(account.accountCode || '')} ${String(account.accountName || '')}`
-      return /(cash|bank|receivable|debtor|customer|inventory|stock|payable|creditor|tax|accrual|short)/i.test(text)
-    }
-
-    const buildBalanceSheetRow = (account, signedBalance, balance, classification, direction) => {
-      const normalSection = account.accountType === 'Asset'
-        ? 'Asset'
-        : account.accountType === 'Liability'
-          ? 'Liability'
-          : account.accountType === 'Equity'
-            ? 'Equity'
-            : account.accountType
-      return {
-        accountId: account._id,
-        accountCode: account.accountCode,
-        accountName: account.accountName,
-        accountType: account.accountType,
-        normalSection,
-        classification,
-        balance: toMoney(balance),
-        signedBalance: toMoney(signedBalance),
-        direction,
-        isReclassified: classification !== normalSection,
-        isCurrent: isCurrentBalanceSheetAccount(account),
-      }
-    }
-
-    accounts.forEach((account) => {
-      const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(String(account._id)) || 0)
-      if (account.accountType === 'Asset') {
-        if (bal >= 0) assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
-        else liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
-        return
-      }
-      if (account.accountType === 'Liability') {
-        if (bal <= 0) liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
-        else assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
-        return
-      }
-      if (account.accountType === 'Equity') {
-        equity.push(buildBalanceSheetRow(account, bal, -bal, 'Equity', bal <= 0 ? 'Cr' : 'Dr'))
-        return
-      }
-      if (account.accountType === 'Income') incomeSignedTotal += bal
-      if (account.accountType === 'Expense') expenseSignedTotal += bal
-    })
-
-    const retainedEarnings = toMoney(-(Number(incomeSignedTotal) + Number(expenseSignedTotal)))
-    if (Math.abs(retainedEarnings) >= 0.01) {
-      equity.push({
-        accountId: null,
-        accountCode: 'RETAINED',
-        accountName: 'Current Period Earnings',
-        balance: retainedEarnings,
-        signedBalance: toMoney(-retainedEarnings),
-        direction: retainedEarnings >= 0 ? 'Cr' : 'Dr',
-        classification: 'Equity',
-        normalSection: 'Equity',
-        isReclassified: false,
-        isCurrent: false,
-      })
-    }
-
-    const totalAssets = toMoney(assets.reduce((s, x) => s + Number(x.balance || 0), 0))
-    const totalLiabilities = toMoney(liabilities.reduce((s, x) => s + Number(x.balance || 0), 0))
-    const totalEquity = toMoney(equity.reduce((s, x) => s + Number(x.balance || 0), 0))
-    const liabilitiesPlusEquity = toMoney(Number(totalLiabilities) + Number(totalEquity))
-    const currentAssets = toMoney(assets.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
-    const currentLiabilities = toMoney(liabilities.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
-    const workingCapital = toMoney(Number(currentAssets) - Number(currentLiabilities))
-    const currentRatio = Number(currentLiabilities) > 0 ? toMoney(Number(currentAssets) / Number(currentLiabilities)) : null
-
-    return {
-      assets,
-      liabilities,
-      equity,
-      totalAssets,
-      totalLiabilities,
-      totalEquity,
-      liabilitiesPlusEquity,
-      difference: toMoney(Number(totalAssets) - Number(liabilitiesPlusEquity)),
-      currentAssets,
-      currentLiabilities,
-      workingCapital,
-      currentRatio,
-      balanced: Math.abs(Number(totalAssets) - Number(liabilitiesPlusEquity)) < 0.01,
-    }
-  }
-
-  const buildBalanceSheetSummary = async (endDate) => {
+  const buildBalanceSheetSummary = async (endDate, includeZero = false) => {
     const [accounts, entries] = await Promise.all([
       ChartOfAccount.find({ isActive: true }).lean(),
       Ledger.find({
@@ -363,10 +380,10 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
       if (creditKey) balanceByAccount.set(creditKey, Number(balanceByAccount.get(creditKey) || 0) - amount)
     })
 
-    return buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount)
+    return buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount, includeZero, toMoney)
   }
 
-  const buildBalanceSheetComparisons = async (comparisonAnchor) => {
+  const buildBalanceSheetComparisons = async (comparisonAnchor, includeZero = false) => {
     const anchorDate = comparisonAnchor ? new Date(comparisonAnchor) : new Date()
     const monthEnds = []
     for (let i = 5; i >= 0; i -= 1) {
@@ -404,7 +421,7 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
         if (debitKey) balanceByAccount.set(debitKey, Number(balanceByAccount.get(debitKey) || 0) + amount)
         if (creditKey) balanceByAccount.set(creditKey, Number(balanceByAccount.get(creditKey) || 0) - amount)
       })
-      return buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount)
+      return buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount, includeZero, toMoney)
     }
 
     const monthlyComparison = monthEnds.map((monthEnd) => {
@@ -450,6 +467,8 @@ module.exports = {
   createReportSummaryService,
   summarizeProfitLossEntriesFromLedgerRows,
   buildProfitLossDateQuery,
+  buildBalanceSheetSummaryFromBalances,
+  filterTrialBalanceRowsForIncludeZero,
   toEndOfDay,
   toStartOfDay,
 }

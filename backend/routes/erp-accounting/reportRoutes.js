@@ -124,7 +124,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       startDate,
       endDate,
       accountType,
-      includeZero = 'true',
+      includeZero = 'false',
       sortBy = 'accountCode',
       sortDir = 'asc',
       minAbsolute = '0',
@@ -220,7 +220,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       net: toMoney(Number(item.openingNet || 0) + item.debit - item.credit),
     }))
 
-    if (parseBool(includeZero, true)) {
+    if (parseBool(includeZero, false)) {
       const allAccountsQuery = { isActive: true }
       if (accountType) allAccountsQuery.accountType = accountType
       const allAccounts = await ChartOfAccount.find(allAccountsQuery).select('accountCode accountName accountType openingBalance')
@@ -243,7 +243,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
     // When includeZero is false, omit accounts with zero net balance (checkbox label). Includes
     // wash rows (debit = credit, net ~0). Each removed row drops equal debit and credit, so totals stay balanced.
     const TRIAL_BALANCE_NET_ZERO_EPS = 1e-6
-    if (!parseBool(includeZero, true)) {
+    if (!parseBool(includeZero, false)) {
       trialBalance = trialBalance.filter((row) => {
         const n = Math.abs(Number(row.net ?? 0))
         return n > TRIAL_BALANCE_NET_ZERO_EPS
@@ -444,12 +444,14 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
 router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { endDate, includeComparisons = 'true' } = req.query
+    const { endDate, includeZero = 'false', includeComparisons = 'true' } = req.query
+    const includeZeroRows = parseBool(includeZero, false)
     const withComparisons = parseBool(includeComparisons, true)
     const cacheKey = reportCache.buildKey([
       reportTenantKey(req),
       'balance-sheet',
       endDate,
+      includeZero,
       includeComparisons,
     ])
     const cached = await reportCache.getShared(cacheKey)
@@ -457,8 +459,8 @@ router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, r
 
     const anchorDate = endDate ? new Date(endDate) : new Date()
     const [snapshot, comparisonData] = await Promise.all([
-      buildBalanceSheetSummary(endDate),
-      withComparisons ? buildBalanceSheetComparisons(anchorDate) : Promise.resolve({ monthlyComparison: [], quarterlyComparison: [] }),
+      buildBalanceSheetSummary(endDate, includeZeroRows),
+      withComparisons ? buildBalanceSheetComparisons(anchorDate, includeZeroRows) : Promise.resolve({ monthlyComparison: [], quarterlyComparison: [] }),
     ])
 
     const payload = {

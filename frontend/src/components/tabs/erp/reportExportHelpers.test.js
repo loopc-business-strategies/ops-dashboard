@@ -5,6 +5,7 @@ import {
   buildReportPdfHeaderLines,
   buildReportPdfMeta,
   buildReportPdfTable,
+  buildReportPdfTableLayout,
   formatReportPeriodText,
   getReportNotReadyMessage,
   isReportDataReady,
@@ -97,6 +98,21 @@ describe('buildReportPdfMeta', () => {
     })
     expect(meta.title).toBe('Profit and Loss Report')
     expect(meta.summaryLines.some((line) => line.includes('Net Profit'))).toBe(true)
+  })
+})
+
+describe('buildReportPdfTableLayout', () => {
+  it('centers the table block symmetrically on an A4 page', () => {
+    const pageWidth = 595
+    const margin = 24
+    const { contentWidth, tableWidth, tableMarginLeft } = buildReportPdfTableLayout(pageWidth, margin)
+    const tableMarginRight = pageWidth - tableMarginLeft - tableWidth
+
+    expect(contentWidth).toBe(pageWidth - margin * 2)
+    expect(tableWidth).toBe(Math.round(contentWidth * 0.88))
+    expect(tableMarginLeft).toBe(margin + Math.round((contentWidth - tableWidth) / 2))
+    expect(tableMarginLeft).toBe(tableMarginRight)
+    expect(tableMarginLeft + tableWidth + tableMarginRight).toBe(pageWidth)
   })
 })
 

@@ -33,6 +33,14 @@ export const REPORT_PDF_LINE_HEIGHT = 9
 export const REPORT_PDF_TABLE_FONT = 7
 export const REPORT_PDF_TABLE_PADDING = 2
 export const REPORT_PDF_HEADER_GAP = 4
+export const REPORT_PDF_TABLE_WIDTH_RATIO = 0.88
+
+export function buildReportPdfTableLayout(pageWidth, margin = REPORT_PDF_MARGIN) {
+  const contentWidth = pageWidth - margin * 2
+  const tableWidth = Math.round(contentWidth * REPORT_PDF_TABLE_WIDTH_RATIO)
+  const tableMarginLeft = margin + Math.round((contentWidth - tableWidth) / 2)
+  return { contentWidth, tableWidth, tableMarginLeft }
+}
 
 export function buildReportPdfHeaderLines({
   periodText = '',

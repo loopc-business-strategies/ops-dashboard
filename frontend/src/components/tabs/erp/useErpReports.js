@@ -49,7 +49,7 @@ export function useErpReports({
       const updates = {}
 
       if (targetView === 'summary' || targetView === 'trial') {
-        const includeZero = targetView === 'summary' ? false : reportFilters.includeZeroAccounts
+        const includeZero = targetView === 'summary' ? 'false' : (reportFilters.includeZeroAccounts ? 'true' : 'false')
         updates.trialBalance = await erpAccountingAPI.getTrialBalance(token, {
           ...commonRange,
           ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
@@ -61,13 +61,14 @@ export function useErpReports({
       if (targetView === 'pnl') {
         updates.profitLoss = await erpAccountingAPI.getProfitLossReport(token, {
           ...commonRange,
-          includeZero: reportFilters.includeZeroAccounts,
+          includeZero: reportFilters.includeZeroAccounts ? 'true' : 'false',
           comparePrevious: reportFilters.comparePrevious,
         })
       }
       if (targetView === 'balanceSheet') {
         updates.balanceSheet = await erpAccountingAPI.getBalanceSheetReport(token, {
           ...(endDate ? { endDate } : {}),
+          includeZero: reportFilters.includeZeroAccounts ? 'true' : 'false',
         })
       }
       if (targetView === 'dayBook') {

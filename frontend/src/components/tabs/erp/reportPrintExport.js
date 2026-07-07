@@ -3,6 +3,7 @@ import {
   buildReportPdfColumnStyles,
   buildReportPdfMeta,
   buildReportPdfTable,
+  buildReportPdfTableLayout,
   isReportDataReady,
   renderReportPdfHeader,
   REPORT_PDF_MARGIN,
@@ -93,49 +94,12 @@ export async function buildReportPrintHtml({
       `
 }
 
-function renderReportPdfSignatures(doc, {
-  branding,
-  defaultBranding,
-  user,
-  startY,
-}) {
-  const margin = REPORT_PDF_MARGIN
-  const pageHeight = doc.internal.pageSize.getHeight()
-  let signatureY = startY + 24
-  const blockHeight = 56
-
-  if (signatureY + blockHeight > pageHeight - margin) {
-    doc.addPage()
-    signatureY = margin + 16
-  }
-
-  doc.setDrawColor(156, 163, 175)
-  doc.line(margin + 8, signatureY, margin + 148, signatureY)
-  doc.line(margin + 188, signatureY, margin + 328, signatureY)
-  doc.line(margin + 368, signatureY, margin + 508, signatureY)
-  doc.setFontSize(8)
-  doc.setTextColor(17, 24, 39)
-  doc.text(String(branding.preparedByTitle || defaultBranding.preparedByTitle), margin + 8, signatureY + 12)
-  doc.text(String(branding.preparedByName || user?.name || defaultBranding.preparedByName), margin + 8, signatureY + 24)
-  doc.text(String(branding.reviewedByTitle || defaultBranding.reviewedByTitle), margin + 188, signatureY + 12)
-  doc.text(String(branding.reviewedByName || defaultBranding.reviewedByName), margin + 188, signatureY + 24)
-  doc.text(String(branding.approvedByTitle || defaultBranding.approvedByTitle), margin + 368, signatureY + 12)
-  doc.text(String(branding.approvedByName || defaultBranding.approvedByName), margin + 368, signatureY + 24)
-
-  const footer = String(branding.reportFooter || defaultBranding.reportFooter || '').trim()
-  if (footer) {
-    doc.setFontSize(7)
-    doc.setTextColor(107, 114, 128)
-    doc.text(footer, margin + 8, signatureY + 42)
-  }
-}
-
 export async function exportReportPdf({
   reportView,
   reports,
   branding,
   defaultBranding,
-  user,
+  user: _user,
   ledgerReportRows,
   selectedReportAccountCode,
   formatMoney,
@@ -145,7 +109,8 @@ export async function exportReportPdf({
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
   const margin = REPORT_PDF_MARGIN
   const pageWidth = doc.internal.pageSize.getWidth()
-  const tableWidth = pageWidth - margin * 2
+  const { tableWidth, tableMarginLeft } = buildReportPdfTableLayout(pageWidth, margin)
+  const tableMarginRight = pageWidth - tableMarginLeft - tableWidth
 
   const { title, periodText, summaryLines, fileBase } = buildReportPdfMeta({
     reportView,
@@ -181,10 +146,15 @@ export async function exportReportPdf({
     tableWidth,
     styles: { fontSize: REPORT_PDF_TABLE_FONT, cellPadding: REPORT_PDF_TABLE_PADDING, overflow: 'linebreak' },
     bodyStyles: { valign: 'top' },
-    headStyles: { fillColor: [17, 24, 39], fontSize: REPORT_PDF_TABLE_FONT, cellPadding: REPORT_PDF_TABLE_PADDING },
+    headStyles: {
+      fillColor: [17, 24, 39],
+      fontSize: REPORT_PDF_TABLE_FONT,
+      cellPadding: REPORT_PDF_TABLE_PADDING,
+      halign: 'center',
+    },
     alternateRowStyles: { fillColor: [249, 250, 251] },
     columnStyles: buildReportPdfColumnStyles(reportView, tableWidth),
-    margin: { left: margin, right: margin },
+    margin: { left: tableMarginLeft, right: tableMarginRight, bottom: margin },
     didParseCell: (data) => {
       const rowLabel = String(data.row?.raw?.[0] || '')
       if (['Subtotal', 'Total'].includes(rowLabel)) {
@@ -192,14 +162,6 @@ export async function exportReportPdf({
         data.cell.styles.fillColor = [243, 244, 246]
       }
     },
-  })
-
-  const finalY = doc.lastAutoTable?.finalY || tableStartY
-  renderReportPdfSignatures(doc, {
-    branding,
-    defaultBranding,
-    user,
-    startY: finalY,
   })
 
   doc.save(`${fileBase}.pdf`)
