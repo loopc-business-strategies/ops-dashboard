@@ -1,3 +1,5 @@
+import { convertJvAmountBetweenCurrencies } from './journalVoucherHelpers'
+
 const STANDARD_METAL_CODES = new Set(['XAU', 'XAG', 'XPT', 'XPD'])
 
 export const DEFAULT_STATEMENT_METAL_OPTIONS = [
@@ -90,6 +92,109 @@ export function buildStatementCurrencyOptions({
   return Array.from(new Set(values
     .map((value) => normalizeStatementCurrencyCode(value))
     .filter(Boolean)))
+}
+
+/**
+ * Merge ERP currency master data with rates inferred from statement rows.
+ * Statement entry rates fill gaps when the master list is empty or missing a code.
+ */
+export function buildEffectiveStatementCurrencies(masterCurrencies = [], statementEntries = []) {
+  const byCode = new Map()
+
+  for (const currency of masterCurrencies || []) {
+    const code = normalizeStatementCurrencyCode(currency?.code)
+    if (!code) continue
+    byCode.set(code, { ...currency, code })
+  }
+
+  for (const entry of statementEntries || []) {
+    const code = normalizeStatementCurrencyCode(entry?.currency)
+    const rate = Number(entry?.exchangeRate || 0)
+    if (!code || !Number.isFinite(rate) || rate <= 0) continue
+    const existing = byCode.get(code)
+    if (!existing || !Number(existing.exchangeRate)) {
+      byCode.set(code, {
+        code,
+        name: existing?.name || code,
+        exchangeRate: rate,
+        baseCurrency: Boolean(existing?.baseCurrency),
+      })
+    }
+  }
+
+  return Array.from(byCode.values())
+}
+
+/**
+ * Convert a base-currency statement amount into the selected display currency.
+ * Uses entry-native FC amounts when the row currency matches the display target.
+ */
+export function convertStatementAmount({
+  amount,
+  fromCurrency,
+  toCurrency,
+  baseCurrency = 'USD',
+  currencies = [],
+  entry = null,
+} = {}) {
+  const numeric = Number(amount || 0)
+  if (!Number.isFinite(numeric)) return null
+
+  const base = normalizeStatementCurrencyCode(baseCurrency || 'USD') || 'USD'
+  const from = normalizeStatementCurrencyCode(fromCurrency || base)
+  const to = normalizeStatementCurrencyCode(toCurrency || base)
+  if (from === to) return numeric
+
+  const entryCurrency = normalizeStatementCurrencyCode(entry?.currency)
+  const entryRate = Number(entry?.exchangeRate || 0)
+  if (
+    entry
+    && to === entryCurrency
+    && entryCurrency !== base
+    && entryRate > 0
+    && from === base
+  ) {
+    return Number((numeric / entryRate).toFixed(2))
+  }
+
+  const converted = convertJvAmountBetweenCurrencies(
+    numeric,
+    from,
+    to,
+    currencies,
+    base,
+  )
+  return Number.isFinite(converted) ? converted : null
+}
+
+/** Convert debit/credit/running balance for a statement row into display currency. */
+export function convertStatementEntryAmounts(
+  entry = {},
+  displayCurrency,
+  baseCurrency = 'USD',
+  currencies = [],
+) {
+  const base = normalizeStatementCurrencyCode(baseCurrency || 'USD') || 'USD'
+  const display = normalizeStatementCurrencyCode(displayCurrency || base)
+
+  const convertField = (value) => {
+    const converted = convertStatementAmount({
+      amount: value,
+      fromCurrency: base,
+      toCurrency: display,
+      baseCurrency: base,
+      currencies,
+      entry,
+    })
+    const numeric = Number(value || 0)
+    return Number.isFinite(converted) ? converted : numeric
+  }
+
+  return {
+    debit: convertField(entry.debitAmount),
+    credit: convertField(entry.creditAmount),
+    balance: convertField(entry.runningBalance),
+  }
 }
 
 export function buildStatementMetalOptions(stockTypeOptions = []) {

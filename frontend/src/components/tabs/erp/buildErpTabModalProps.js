@@ -58,6 +58,7 @@ export function buildErpTabModalProps(scope) {
     setShowStatementAuditIds: scope.setShowStatementAuditIds,
     statementTableRef: scope.statementTableRef,
     convertStatementDisplayAmount: scope.convertStatementDisplayAmount,
+    convertStatementEntryAmounts: scope.convertStatementEntryAmounts,
     resolveMetalCode: scope.resolveMetalCode,
     statementSelectedMetalCode: scope.statementSelectedMetalCode,
     pureWeightRunningByEntryKey: scope.pureWeightRunningByEntryKey,
