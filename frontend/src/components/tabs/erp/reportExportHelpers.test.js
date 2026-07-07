@@ -14,7 +14,14 @@ import {
   setReportPdfPageHeight,
   REPORT_PDF_A4_HEIGHT,
   REPORT_PDF_BOTTOM_PAD,
+  REPORT_PDF_BRAND_BAR_GAP,
+  REPORT_PDF_BRAND_BAR_HEIGHT,
+  REPORT_PDF_BRAND_BAR_TOP,
+  REPORT_PDF_HEADER_GAP,
+  REPORT_PDF_LINE_HEIGHT,
   REPORT_PDF_MIN_PAGE_HEIGHT,
+  REPORT_PDF_TABLE_PADDING,
+  REPORT_PDF_TITLE_BASELINE_OFFSET,
 } from './reportExportHelpers'
 
 const formatMoney = (value) => `$${Number(value || 0).toFixed(2)}`
@@ -198,7 +205,7 @@ describe('renderReportPdfHeader', () => {
       setFont: () => {},
       setFontSize: () => {},
       setTextColor: () => {},
-      text: (line, _x, y) => calls.push({ line, y }),
+      text: (line, x, y) => calls.push({ line, x, y }),
     }
     const nextY = renderReportPdfHeader(doc, {
       title: 'Trial Balance Report',
@@ -206,10 +213,43 @@ describe('renderReportPdfHeader', () => {
       summaryLines: ['Total Debit: 1,000.00', 'Total Credit: 1,000.00'],
       compact: true,
     })
+    const barBottom = REPORT_PDF_BRAND_BAR_TOP + REPORT_PDF_BRAND_BAR_HEIGHT
+    const titleY = barBottom + REPORT_PDF_BRAND_BAR_GAP + REPORT_PDF_TITLE_BASELINE_OFFSET
+    const metaStartY = titleY + REPORT_PDF_LINE_HEIGHT + 2
     const metaYs = calls.filter((c) => c.line.startsWith('Period:')).map((c) => c.y)
-    expect(metaYs[0]).toBe(44)
-    expect(nextY).toBe(66)
+    expect(metaYs[0]).toBe(metaStartY)
+    expect(nextY).toBe(metaStartY + REPORT_PDF_LINE_HEIGHT * 2 + REPORT_PDF_HEADER_GAP)
     expect(calls.some((c) => c.line.includes('Total Debit'))).toBe(false)
+  })
+
+  it('aligns header text and green bar with the centered table block', () => {
+    const rects = []
+    const texts = []
+    const pageWidth = 595
+    const margin = 24
+    const { tableMarginLeft, tableWidth } = buildReportPdfTableLayout(pageWidth, margin)
+    const textX = tableMarginLeft + REPORT_PDF_TABLE_PADDING
+    const doc = {
+      internal: { pageSize: { getWidth: () => pageWidth } },
+      setFillColor: () => {},
+      rect: (x, y, w, h) => rects.push({ x, y, w, h }),
+      setFont: () => {},
+      setFontSize: () => {},
+      setTextColor: () => {},
+      text: (line, x, y) => texts.push({ line, x, y }),
+    }
+    renderReportPdfHeader(doc, {
+      title: 'Profit and Loss Report',
+      periodText: '2026-01-01 to 2026-06-30',
+      compact: true,
+    })
+    expect(rects[0]).toEqual({
+      x: tableMarginLeft,
+      y: REPORT_PDF_BRAND_BAR_TOP,
+      w: tableWidth,
+      h: REPORT_PDF_BRAND_BAR_HEIGHT,
+    })
+    expect(texts.every((entry) => entry.x === textX)).toBe(true)
   })
 
   it('returns lower nextY in compact mode than with summary lines', () => {

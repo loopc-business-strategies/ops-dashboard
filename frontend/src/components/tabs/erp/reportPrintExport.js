@@ -9,8 +9,10 @@ import {
   renderReportPdfHeader,
   setReportPdfPageHeight,
   REPORT_PDF_MARGIN,
+  REPORT_PDF_SUBTOTAL_ROW_FILL,
   REPORT_PDF_TABLE_FONT,
   REPORT_PDF_TABLE_PADDING,
+  REPORT_PDF_TOTAL_ROW_FILL,
 } from './reportExportHelpers'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
 import { loadPdfTools } from './lazyExportLibs'
@@ -55,9 +57,13 @@ function renderReportPdfBody(autoTable, doc, {
     margin: { left: tableMarginLeft, right: tableMarginRight, bottom: margin },
     didParseCell: (data) => {
       const rowLabel = String(data.row?.raw?.[0] || '')
-      if (['Subtotal', 'Total'].includes(rowLabel)) {
+      if (rowLabel === 'Subtotal') {
         data.cell.styles.fontStyle = 'bold'
-        data.cell.styles.fillColor = [243, 244, 246]
+        data.cell.styles.fillColor = REPORT_PDF_SUBTOTAL_ROW_FILL
+      }
+      if (rowLabel === 'Total') {
+        data.cell.styles.fontStyle = 'bold'
+        data.cell.styles.fillColor = REPORT_PDF_TOTAL_ROW_FILL
       }
     },
   })

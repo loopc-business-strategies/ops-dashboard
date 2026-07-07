@@ -33,6 +33,12 @@ export const REPORT_PDF_LINE_HEIGHT = 9
 export const REPORT_PDF_TABLE_FONT = 7
 export const REPORT_PDF_TABLE_PADDING = 2
 export const REPORT_PDF_HEADER_GAP = 4
+export const REPORT_PDF_BRAND_BAR_TOP = 16
+export const REPORT_PDF_BRAND_BAR_HEIGHT = 6
+export const REPORT_PDF_BRAND_BAR_GAP = 10
+export const REPORT_PDF_TITLE_BASELINE_OFFSET = 6
+export const REPORT_PDF_SUBTOTAL_ROW_FILL = [209, 213, 219]
+export const REPORT_PDF_TOTAL_ROW_FILL = [179, 186, 198]
 export const REPORT_PDF_TABLE_WIDTH_RATIO = 0.88
 export const REPORT_PDF_A4_WIDTH = 595
 export const REPORT_PDF_A4_HEIGHT = 842
@@ -88,20 +94,25 @@ export function buildReportPdfHeaderLines({
 export function renderReportPdfHeader(doc, { title, periodText, summaryLines, compact = true } = {}) {
   const margin = REPORT_PDF_MARGIN
   const pageWidth = doc.internal.pageSize.getWidth()
+  const { tableMarginLeft, tableWidth } = buildReportPdfTableLayout(pageWidth, margin)
+  const textX = tableMarginLeft + REPORT_PDF_TABLE_PADDING
+  const barBottom = REPORT_PDF_BRAND_BAR_TOP + REPORT_PDF_BRAND_BAR_HEIGHT
+
   doc.setFillColor(0, 104, 74)
-  doc.rect(margin, 16, pageWidth - margin * 2, 6, 'F')
+  doc.rect(tableMarginLeft, REPORT_PDF_BRAND_BAR_TOP, tableWidth, REPORT_PDF_BRAND_BAR_HEIGHT, 'F')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(REPORT_PDF_TITLE_SIZE)
   doc.setTextColor(17, 24, 39)
-  doc.text(String(title), margin + 4, 32)
+  const titleY = barBottom + REPORT_PDF_BRAND_BAR_GAP + REPORT_PDF_TITLE_BASELINE_OFFSET
+  doc.text(String(title), textX, titleY)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(REPORT_PDF_META_SIZE)
   doc.setTextColor(55, 65, 81)
-  let metaY = 44
+  let metaY = titleY + REPORT_PDF_LINE_HEIGHT + 2
   buildReportPdfHeaderLines({ periodText, summaryLines, compact }).forEach((line) => {
-    doc.text(String(line), margin + 4, metaY)
+    doc.text(String(line), textX, metaY)
     metaY += REPORT_PDF_LINE_HEIGHT
   })
   return metaY + REPORT_PDF_HEADER_GAP
