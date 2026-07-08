@@ -31,7 +31,35 @@ describe('statement helpers', () => {
       currencies: [{ code: 'eur' }, { code: 'UZS' }],
     })
 
-    expect(options).toEqual(['ALL', 'AED', 'USD', 'EUR', 'UZS'])
+    expect(options).toEqual(['ALL', 'USD', 'AED', 'EUR', 'UZS'])
+  })
+
+  test('display options without ALL include default currencies when master is empty', () => {
+    const options = buildStatementCurrencyOptions({
+      includeAll: false,
+      accountCurrency: 'USD',
+      rateCurrency: 'USD',
+      baseCurrency: 'USD',
+      currencies: [],
+    })
+
+    expect(options).toEqual(['USD', 'AED', 'EUR', 'UZS'])
+  })
+
+  test('excludes inactive currencies from statement options', () => {
+    const options = buildStatementCurrencyOptions({
+      includeAll: false,
+      baseCurrency: 'USD',
+      currencies: [
+        { code: 'USD', isActive: true },
+        { code: 'EUR', isActive: true },
+        { code: 'AED', isActive: false },
+        { code: 'UZS', isActive: true },
+      ],
+    })
+
+    expect(options).toEqual(['USD', 'EUR', 'UZS'])
+    expect(options).not.toContain('AED')
   })
 
   test('keeps the all-currencies statement option available for mixed-currency bank accounts', () => {

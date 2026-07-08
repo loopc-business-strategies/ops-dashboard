@@ -1,5 +1,6 @@
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
+import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES } from '../statementHelpers'
 
 const linkButtonStyle = {
   textDecoration: 'none',
@@ -325,7 +326,9 @@ export default function AccountEnquiryModal({
                             onChange={(e) => setExcessCurrency(e.target.value)}
                             style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}
                           >
-                            {(statementDisplayCurrencyOptions.length ? statementDisplayCurrencyOptions : [baseCurrencyCode]).map((currencyCode) => (
+                            {(statementDisplayCurrencyOptions.length
+                              ? statementDisplayCurrencyOptions
+                              : DEFAULT_STATEMENT_DISPLAY_CURRENCIES).map((currencyCode) => (
                               <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
                             ))}
                           </select>
@@ -522,7 +525,9 @@ export default function AccountEnquiryModal({
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
                             style={ERP_MODAL_INPUT_STYLE}
                           >
-                            {statementDisplayCurrencyOptions.map((currencyCode) => (
+                            {(statementDisplayCurrencyOptions.length
+                              ? statementDisplayCurrencyOptions
+                              : DEFAULT_STATEMENT_DISPLAY_CURRENCIES).map((currencyCode) => (
                               <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
                             ))}
                           </select>

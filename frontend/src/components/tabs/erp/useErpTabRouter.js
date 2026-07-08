@@ -11,6 +11,7 @@ export function useErpTabRouter({
   canAccessTransactions,
   canAccessVouchers,
   canAccessFixingRegister,
+  showEnquiryModal = false,
   accounts,
   customers,
   currencies,
@@ -105,7 +106,10 @@ export function useErpTabRouter({
     } else if (activeTab === 'currencies') {
       loadCurrencies()
       if (!accounts.length) loadAccounts()
-    } else if (activeTab === 'enquiry') loadAccounts({ scope: 'summary' })
+    } else if (activeTab === 'enquiry') {
+      loadAccounts({ scope: 'summary' })
+      if (!currencies.length) loadCurrencies()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token])
 
@@ -160,6 +164,12 @@ export function useErpTabRouter({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, user?.tenant, user?.company, canAccessERP])
+
+  useEffect(() => {
+    if (!token || !showEnquiryModal) return
+    if (!currencies.length) loadCurrencies()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, showEnquiryModal, currencies.length])
 
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token) return

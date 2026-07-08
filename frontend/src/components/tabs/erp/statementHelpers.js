@@ -70,6 +70,8 @@ export function normalizeStatementCurrencyCode(value = '') {
   return code
 }
 
+export const DEFAULT_STATEMENT_DISPLAY_CURRENCIES = ['USD', 'EUR', 'AED', 'UZS']
+
 export function buildStatementCurrencyOptions({
   currencies = [],
   accountCurrency = '',
@@ -78,18 +80,34 @@ export function buildStatementCurrencyOptions({
   modalCurrency = 'USD',
   includeAll = false,
 } = {}) {
+  const activeCurrencyCodes = (currencies || [])
+    .filter((currency) => currency?.isActive !== false)
+    .map((currency) => currency?.code)
+
+  const configuredCodes = activeCurrencyCodes.length
+    ? activeCurrencyCodes
+    : DEFAULT_STATEMENT_DISPLAY_CURRENCIES
+
   const values = [
     includeAll ? 'ALL' : '',
     accountCurrency,
     rateCurrency,
     baseCurrency,
     modalCurrency,
-    ...currencies.map((currency) => currency?.code),
+    ...configuredCodes,
   ]
 
-  return Array.from(new Set(values
+  const unique = Array.from(new Set(values
     .map((value) => normalizeStatementCurrencyCode(value))
     .filter(Boolean)))
+
+  return unique.sort((left, right) => {
+    if (left === 'ALL') return -1
+    if (right === 'ALL') return 1
+    if (left === 'USD') return -1
+    if (right === 'USD') return 1
+    return left.localeCompare(right)
+  })
 }
 
 export function buildStatementMetalOptions(stockTypeOptions = []) {
