@@ -1,6 +1,5 @@
 const {
   getLedgerEntryAmount,
-  isDashboardExpenseLedgerEntry,
   isDashboardExpenseRegisterEntry,
   getDashboardExpenseCategory,
   filterVoidedExpenseLedgerEntries,

@@ -100,10 +100,6 @@ const emitRealtime = (req, cb) => {
 
 const { notifyErpUsers, notifyUsers, buildVoucherNotificationData } = require('../../services/notificationDispatch')
 
-function voucherRef(tx) {
-  return String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || '').trim() || String(tx?._id || '')
-}
-
 function queueErpVoucherNotify(req, tx, type, action, extra = {}) {
   const tenant = String(resolveRequestTenantKey(req) || 'default')
   void notifyErpUsers(tenant, type, buildVoucherNotificationData(tx, {
