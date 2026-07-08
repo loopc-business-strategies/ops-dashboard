@@ -108,18 +108,22 @@ describe('ERPBrandingUtils – createLogoRenderAsset', () => {
 })
 
 describe('ERPBrandingUtils – logo uploads', () => {
-  test('accept string explicitly includes PNG and SVG', () => {
+  test('accept string explicitly includes PNG, SVG, JPEG, and WebP', () => {
     expect(LOGO_UPLOAD_ACCEPT).toContain('image/png')
     expect(LOGO_UPLOAD_ACCEPT).toContain('image/svg+xml')
+    expect(LOGO_UPLOAD_ACCEPT).toContain('image/jpeg')
+    expect(LOGO_UPLOAD_ACCEPT).toContain('image/webp')
     expect(LOGO_UPLOAD_ACCEPT).toContain('.png')
     expect(LOGO_UPLOAD_ACCEPT).toContain('.svg')
   })
 
-  test('supports PNG and SVG logo files only', () => {
+  test('supports PNG, SVG, JPEG, and WebP logo files', () => {
     expect(isSupportedLogoUpload({ name: 'logo.png', type: 'image/png' })).toBe(true)
     expect(isSupportedLogoUpload({ name: 'logo.svg', type: 'image/svg+xml' })).toBe(true)
     expect(isSupportedLogoUpload({ name: 'logo.SVG', type: '' })).toBe(true)
-    expect(isSupportedLogoUpload({ name: 'logo.jpg', type: 'image/jpeg' })).toBe(false)
+    expect(isSupportedLogoUpload({ name: 'logo.jpg', type: 'image/jpeg' })).toBe(true)
+    expect(isSupportedLogoUpload({ name: 'logo.webp', type: 'image/webp' })).toBe(true)
+    expect(isSupportedLogoUpload({ name: 'logo.gif', type: 'image/gif' })).toBe(false)
   })
 
   test('allows logo uploads up to 3 MB', () => {
