@@ -94,5 +94,8 @@ describe('MasterSettingsTab', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Voucher Settings/i }))
     expect(await screen.findByText('Save voucher settings')).toBeTruthy()
     expect(screen.getByText('Table headers')).toBeTruthy()
+    expect(screen.getByText('Full voucher preview')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open full preview' })).toBeTruthy()
+    expect(screen.getByText('No line items')).toBeTruthy()
   })
 })

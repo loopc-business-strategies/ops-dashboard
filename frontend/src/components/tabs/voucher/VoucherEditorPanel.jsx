@@ -82,6 +82,7 @@ export default function VoucherEditorPanel({
   navPrev,
   openAddLine,
   openCreate,
+  onPrintPreview,
   partyComboGroups,
   receiptPaymentNetAmtLabelCurrency,
   recentPartyVouchers,
@@ -264,7 +265,7 @@ export default function VoucherEditorPanel({
                 <TbBtn tip="▶ Next — goes one record forward" label="▶ Next" icon="▶" onClick={navNext} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
                 <TbBtn tip="▶| Last — jumps to the most recent voucher" label="▶| Last" icon="⏭" onClick={navLast} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
                 <Sep />
-                <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => window.print()} />
+                <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => (onPrintPreview ? onPrintPreview() : window.print())} />
                 <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
                 <TbBtn tip="Barcode — scan or view an item barcode linked to stock" label="Barcode" onClick={handleBarcodeAction} />
                 <TbBtn tip="Refresh Parties — reload customer and vendor list" label="↺ Parties" onClick={refreshParties} />

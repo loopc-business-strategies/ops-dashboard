@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
-import { isVoucherTypeEnabled } from '../../config/tenantBranding'
+import { isVoucherTypeEnabled, isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
 import { resolveErpUserTenantKey } from './erp/resolveErpUserTenant'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
@@ -13,6 +13,7 @@ import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import VoucherListPanel from './voucher/VoucherListPanel'
 import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
 import VoucherPrintPanel from './voucher/VoucherPrintPanel'
+import VoucherPreviewModal from './voucher/VoucherPreviewModal'
 import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { useVoucherPendingOpen } from './voucher/useVoucherPendingOpen'
 import {
@@ -57,6 +58,8 @@ export default function VoucherTab({
 
   // ─── top-level state ────────────────────────────────────────────────────────
   const [voucherType, setVoucherType] = useState(() => enabledVoucherTypes[0] || 'payment')
+  const [showVoucherPreview, setShowVoucherPreview] = useState(false)
+  const voucherPreviewEnabled = isMasterDocumentSettingsEnabled(tenantKey)
 
   // ─── own customers/vendors state (always fresh, not stale props) ─────────────
   const [localCustomers, setLocalCustomers] = useState(propCustomers)
@@ -650,6 +653,14 @@ export default function VoucherTab({
     resolveVoucherParty,
     lineItems,
   })
+
+  const handlePrintPreview = useCallback(() => {
+    if (voucherPreviewEnabled) {
+      setShowVoucherPreview(true)
+      return
+    }
+    window.print()
+  }, [voucherPreviewEnabled])
 
   const canCreate = voucherType === 'payment'
     ? canCreatePayment
@@ -2155,8 +2166,18 @@ export default function VoucherTab({
         voucherType={voucherType}
         vouchers={vouchers}
         workflowNote={workflowNote}
+        onPrintPreview={handlePrintPreview}
       />
     </div>
+
+    <VoucherPreviewModal
+      open={showVoucherPreview}
+      onClose={() => setShowVoucherPreview(false)}
+      mode="live"
+      title={printModel.printTitle || 'Voucher Preview'}
+      printModel={printModel}
+      onPrint={() => window.print()}
+    />
 
     <VoucherPrintPanel printModel={printModel} />
     </>

@@ -2,7 +2,7 @@ import DocumentPrintHeader from '../erp/DocumentPrintHeader'
 import MGMetalInvoicePrintLayout from '../erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from '../erp/MGVoucherPrintLayout'
 
-export default function VoucherPrintPanel({ printModel }) {
+export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) {
   const {
     isMgCurrencyVoucher,
     isMgMetalVoucher,
@@ -60,8 +60,26 @@ export default function VoucherPrintPanel({ printModel }) {
   const headerAmountFcLabel = tableHeaders.amountFc || (isMetalVoucher ? 'Pure Wt.' : 'Amount FC')
   const headerAmountLcLabel = tableHeaders.amountLc || (isMetalVoucher ? 'Total' : printAmountLabel)
 
+  const isPreview = renderMode === 'preview'
+  const rootClassName = isPreview ? 'voucher-preview-panel' : 'voucher-print-only'
+  const rootStyle = {
+    display: isPreview ? 'block' : 'none',
+    padding: isMgCurrencyVoucher || isMgMetalVoucher ? '0 10px' : '18px 24px',
+    color: '#111827',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '12px',
+    ...(isPreview ? {
+      background: '#FFFFFF',
+      border: '1px solid #E5E7EB',
+      borderRadius: '8px',
+      maxWidth: '820px',
+      margin: '0 auto',
+      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
+    } : {}),
+  }
+
   return (
-    <div className="voucher-print-only" style={{ display: 'none', padding: isMgCurrencyVoucher || isMgMetalVoucher ? '0 10px' : '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
+    <div className={rootClassName} style={rootStyle}>
       {isMgCurrencyVoucher ? (
         <MGVoucherPrintLayout
           companyName={mgCompanyName}
