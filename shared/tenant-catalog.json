@@ -20,7 +20,7 @@
       "envVar": "MONGO_URI_CG",
       "brandPrimary": "#9A3412",
       "sharedInboxEmail": "",
-      "enabledTabs": ["overview", "chat", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "loopc": {
       "key": "loopc",
@@ -31,7 +31,7 @@
       "envVar": "MONGO_URI_LOOPC",
       "brandPrimary": "#00684A",
       "sharedInboxEmail": "business@loopcstrategies.com",
-      "enabledTabs": ["overview", "chat", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     }
   },
   "customDomains": {
