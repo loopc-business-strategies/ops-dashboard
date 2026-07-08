@@ -1,9 +1,12 @@
-export default function DocumentPrintHeader({ branding, title, meta = [] }) {
+export default function DocumentPrintHeader({ branding, title, meta = [], layoutSettings = null }) {
   const companyName = branding?.companyName || ''
   const logoUrl = branding?.logoUrl || ''
   const logoWidth = Number(branding?.logoWidth || 160)
   const logoHeight = Number(branding?.logoHeight || 56)
   const logoFit = branding?.logoFit || 'contain'
+  const logoOffsetX = Number(layoutSettings?.logoOffsetX || 0)
+  const logoOffsetY = Number(layoutSettings?.logoOffsetY || 0)
+  const logoTransparent = layoutSettings?.logoTransparent !== false
   const details = [
     branding?.address,
     branding?.phone,
@@ -29,13 +32,28 @@ export default function DocumentPrintHeader({ branding, title, meta = [] }) {
             </div>
           ))}
         </div>
-        <div style={{ minWidth: `${Math.min(Math.max(logoWidth, 120), 220)}px`, display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{
+          position: 'relative',
+          minWidth: `${Math.min(Math.max(logoWidth, 120), 220)}px`,
+          minHeight: `${logoHeight}px`,
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}
+        >
           {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt="Company Logo"
-              style={{ width: `${logoWidth}px`, height: `${logoHeight}px`, maxWidth: '220px', maxHeight: '96px', objectFit: logoFit }}
-            />
+            <div style={{
+              position: 'relative',
+              top: `${logoOffsetY}px`,
+              right: `${-logoOffsetX}px`,
+              background: logoTransparent ? 'transparent' : '#FFFFFF',
+            }}
+            >
+              <img
+                src={logoUrl}
+                alt="Company Logo"
+                style={{ width: `${logoWidth}px`, height: `${logoHeight}px`, maxWidth: '220px', maxHeight: '96px', objectFit: logoFit, display: 'block' }}
+              />
+            </div>
           ) : null}
         </div>
       </div>

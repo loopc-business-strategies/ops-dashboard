@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { resolveErpUserTenantBranding } from '../erp/resolveErpUserTenant'
-import { resolveDocumentBranding } from '../erp/documentBranding'
+import { resolveVoucherPrintSettings } from '../erp/documentBranding'
 import {
   fmt,
   getAccountCodeValue,
@@ -32,7 +32,8 @@ export function useVoucherPrintModel({
     const branding = user?.branding || {}
     const tenant = user?.tenant || {}
     const activeTenantBranding = resolveErpUserTenantBranding(user)
-    const documentBranding = resolveDocumentBranding({ reportBranding, user, tenantBranding: activeTenantBranding })
+    const voucherPrintSettings = resolveVoucherPrintSettings({ reportBranding, user, tenantBranding: activeTenantBranding })
+    const documentBranding = voucherPrintSettings
     const voucher = {
       currency: header?.currCode || 'USD',
       partyName: header?.partyName || '',
@@ -121,6 +122,8 @@ export function useVoucherPrintModel({
 
     return {
       documentBranding,
+      voucherPrintSettings,
+      voucherPrint: voucherPrintSettings.voucherPrint,
       voucher,
       header,
       currencyLabel,

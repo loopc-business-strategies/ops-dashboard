@@ -9,6 +9,11 @@ import {
   ensureWebPushSubscription,
   isWebPushAvailable,
 } from '../../utils/webPushRegister'
+import { useAuth } from '../../context/AuthContext'
+import { isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
+import { useReportBrandingSettings } from './master-settings/useReportBrandingSettings'
+import VoucherSettingsPanel from './master-settings/VoucherSettingsPanel'
+import StatementSettingsPanel from './master-settings/StatementSettingsPanel'
 
 const UI = {
   card: { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14, padding: '1.1rem 1.2rem' },
@@ -81,6 +86,10 @@ function SwitchToggle({ checked, onChange, label, desc }) {
 }
 
 export default function MasterSettingsTab() {
+  const { token, user, company } = useAuth()
+  const tenantKey = String(user?.company || company?.key || company || '').trim().toLowerCase()
+  const documentSettingsEnabled = isMasterDocumentSettingsEnabled(tenantKey)
+
   const [prefs, setPrefs] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -89,6 +98,18 @@ export default function MasterSettingsTab() {
   const [webPushMsg, setWebPushMsg] = useState('')
   const [webPushAvailable, setWebPushAvailable] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const [voucherOpen, setVoucherOpen] = useState(false)
+  const [statementOpen, setStatementOpen] = useState(false)
+
+  const {
+    branding,
+    setBranding,
+    loading: brandingLoading,
+    saving: brandingSaving,
+    error: brandingError,
+    status: brandingStatus,
+    save: saveBranding,
+  } = useReportBrandingSettings({ token, enabled: documentSettingsEnabled })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -196,46 +217,93 @@ export default function MasterSettingsTab() {
     setWebPushMsg(reasons[result.reason] || result.reason || 'Could not enable browser notifications')
   }
 
-  if (loading || !prefs) {
+  if (loading || !prefs || (documentSettingsEnabled && brandingLoading)) {
     return (
       <div style={{ padding: 24, color: UI.muted }}>Loading Master Settings…</div>
     )
   }
+
+  const renderCollapsibleHeader = (title, open, setOpen, description) => (
+    <section style={UI.card}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        style={{
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          color: UI.ink,
+          textAlign: 'left',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: 0,
+        }}
+      >
+        <span style={{ fontSize: 16, fontWeight: 700 }}>{title}</span>
+        <span style={{ fontSize: 16, color: UI.muted }}>{open ? '▴' : '▾'}</span>
+      </button>
+      <p style={{ margin: '8px 0 0', color: UI.muted, fontSize: 13 }}>{description}</p>
+    </section>
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
       <div>
         <h2 style={{ margin: 0, color: UI.ink, fontSize: 22, fontWeight: 800 }}>Master Settings</h2>
         <p style={{ margin: '6px 0 0', color: UI.muted, fontSize: 14 }}>
-          Notification topics, daily report digest, and browser push preferences.
+          Notification topics, voucher and statement print branding, digest schedule, and browser push preferences.
         </p>
       </div>
 
-      <section style={UI.card}>
-        <button
-          type="button"
-          aria-expanded={notificationOpen}
-          onClick={() => setNotificationOpen((prev) => !prev)}
-          style={{
-            width: '100%',
-            border: 'none',
-            background: 'transparent',
-            color: UI.ink,
-            textAlign: 'left',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 0,
-          }}
-        >
-          <span style={{ fontSize: 16, fontWeight: 700 }}>Notification Settings</span>
-          <span style={{ fontSize: 16, color: UI.muted }}>{notificationOpen ? '▴' : '▾'}</span>
-        </button>
-        <p style={{ margin: '8px 0 0', color: UI.muted, fontSize: 13 }}>
-          Open to view all notification topics, digest schedule, and web push options.
-        </p>
-      </section>
+      {documentSettingsEnabled && renderCollapsibleHeader(
+        'Voucher Settings',
+        voucherOpen,
+        setVoucherOpen,
+        'Logo, company details, table headers, and signatories for all voucher prints.',
+      )}
+
+      {documentSettingsEnabled && voucherOpen && (
+        <section style={UI.card}>
+          <VoucherSettingsPanel
+            branding={branding}
+            onChange={setBranding}
+            onSave={saveBranding}
+            saving={brandingSaving}
+            error={brandingError}
+            status={brandingStatus}
+          />
+        </section>
+      )}
+
+      {documentSettingsEnabled && renderCollapsibleHeader(
+        'Statement Settings',
+        statementOpen,
+        setStatementOpen,
+        'Logo, company details, and signatories for Account Summary statement print and preview.',
+      )}
+
+      {documentSettingsEnabled && statementOpen && (
+        <section style={UI.card}>
+          <StatementSettingsPanel
+            branding={branding}
+            onChange={setBranding}
+            onSave={saveBranding}
+            saving={brandingSaving}
+            error={brandingError}
+            status={brandingStatus}
+          />
+        </section>
+      )}
+
+      {renderCollapsibleHeader(
+        'Notification Settings',
+        notificationOpen,
+        setNotificationOpen,
+        'Open to view all notification topics, digest schedule, and web push options.',
+      )}
 
       {notificationOpen && TOPIC_GROUPS.map((group) => (
         <section key={group.title} style={UI.card}>

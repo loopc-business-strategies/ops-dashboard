@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import MasterSettingsTab from './MasterSettingsTab'
 
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({ token: 'test-token', user: { company: 'loopc' }, company: { key: 'loopc' } }),
+}))
+
 vi.mock('../../api/notifications', () => ({
   getNotificationPreferences: vi.fn(async () => ({
     notificationPreferences: {
@@ -43,6 +47,20 @@ vi.mock('../../utils/webPushRegister', () => ({
   ensureWebPushSubscription: vi.fn(async () => ({ ok: true })),
 }))
 
+vi.mock('../../api/erp-accounting', () => ({
+  default: {
+    getReportBranding: vi.fn(async () => ({
+      branding: {
+        companyName: 'LoopC',
+        address: 'Dubai',
+        voucherPrint: { tableHeaders: { no: 'No.' } },
+        statementPrint: { title: 'Statement of Account' },
+      },
+    })),
+    updateReportBranding: vi.fn(async (payload) => ({ branding: payload })),
+  },
+}))
+
 describe('MasterSettingsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -63,5 +81,18 @@ describe('MasterSettingsTab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Notification Settings/i }))
     expect(screen.queryByText('Vouchers')).toBeNull()
+  })
+
+  it('shows voucher and statement settings sections for LOOPC', async () => {
+    render(<MasterSettingsTab />)
+    expect(await screen.findByRole('button', { name: /Voucher Settings/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Statement Settings/i })).toBeTruthy()
+  })
+
+  it('expands voucher settings panel', async () => {
+    render(<MasterSettingsTab />)
+    fireEvent.click(await screen.findByRole('button', { name: /Voucher Settings/i }))
+    expect(await screen.findByText('Save voucher settings')).toBeTruthy()
+    expect(screen.getByText('Table headers')).toBeTruthy()
   })
 })

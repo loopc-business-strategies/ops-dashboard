@@ -965,6 +965,8 @@ export default function ERPTabPanels({
             currencies={currencies}
             canManage={canManageDirectDeals}
             isSuperAdmin={isSuperAdmin}
+            user={user}
+            reportBranding={reportBranding}
           />
         </Suspense>
       )}

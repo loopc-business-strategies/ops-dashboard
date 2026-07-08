@@ -48,11 +48,11 @@ export function useErpBranding({
   const handleBrandingLogoFile = useCallback(async (file) => {
     if (!file) return
     if (!isSupportedLogoUpload(file)) {
-      setError('Logo upload supports PNG and SVG files only.')
+      setError('Logo upload supports PNG, SVG, JPEG, and WebP files.')
       return
     }
     if (Number(file.size || 0) > LOGO_UPLOAD_MAX_BYTES) {
-      setError('Logo file is too large. Please upload a PNG or SVG up to 3 MB.')
+      setError('Logo file is too large. Please upload an image up to 3 MB.')
       return
     }
     const reader = new FileReader()

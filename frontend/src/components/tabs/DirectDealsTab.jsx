@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { useLanguage } from '../../context/LanguageContext'
+import { getTenantBranding, isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
+import { resolveVoucherPrintSettings } from './erp/documentBranding'
+import { createLogoRenderAsset } from './erp/ERPBrandingUtils'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -202,7 +205,15 @@ const worksheetToRows = (worksheet) => {
   return rows
 }
 
-export default function DirectDealsTab({ token, customers = [], currencies: _currencies = [], canManage = false, isSuperAdmin = false }) {
+export default function DirectDealsTab({
+  token,
+  customers = [],
+  currencies: _currencies = [],
+  canManage = false,
+  isSuperAdmin = false,
+  user = null,
+  reportBranding = null,
+}) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -517,21 +528,69 @@ export default function DirectDealsTab({ token, customers = [], currencies: _cur
   const exportDealToPdf = async (deal) => {
     const { jsPDF, autoTable } = await loadPdfTools()
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+    const tenantKey = String(user?.company || user?.tenant?.key || '').trim().toLowerCase()
+    const tenantBranding = getTenantBranding(tenantKey)
+    const voucherSettings = resolveVoucherPrintSettings({ reportBranding, user, tenantBranding })
+    const useBrandedHeader = isMasterDocumentSettingsEnabled(tenantKey) && voucherSettings.enabled
+
+    let startY = 36
+    if (useBrandedHeader) {
+      const leftX = 40
+      const rightX = 560
+      pdf.setFontSize(13)
+      pdf.setFont(undefined, 'bold')
+      pdf.text(voucherSettings.companyName || 'Company', leftX, 34)
+      pdf.setFont(undefined, 'normal')
+      pdf.setFontSize(9)
+      const addressLines = String(voucherSettings.address || '').split('\n').filter(Boolean)
+      addressLines.forEach((line, index) => {
+        pdf.text(line, leftX, 50 + (index * 12))
+      })
+      const contactY = 50 + (addressLines.length * 12)
+      if (voucherSettings.phone) pdf.text(`Phone: ${voucherSettings.phone}`, leftX, contactY)
+      if (voucherSettings.trn) pdf.text(`TRN: ${voucherSettings.trn}`, leftX, contactY + 12)
+
+      if (voucherSettings.logoUrl) {
+        const renderedLogo = await createLogoRenderAsset(
+          voucherSettings.logoUrl,
+          voucherSettings.logoWidth,
+          voucherSettings.logoHeight,
+          voucherSettings.logoFit,
+        )
+        if (renderedLogo) {
+          const logoX = rightX + Number(voucherSettings.voucherPrint?.logoOffsetX || 0)
+          const logoY = 18 + Number(voucherSettings.voucherPrint?.logoOffsetY || 0)
+          pdf.addImage(
+            renderedLogo,
+            'PNG',
+            logoX,
+            logoY,
+            Number(voucherSettings.logoWidth || 120),
+            Number(voucherSettings.logoHeight || 56),
+          )
+        }
+      }
+      startY = Math.max(88, contactY + 28)
+      pdf.setDrawColor(17, 24, 39)
+      pdf.setLineWidth(1)
+      pdf.line(40, startY - 10, 800, startY - 10)
+    }
+
     pdf.setFontSize(14)
-    pdf.text('Fixing Deal Voucher', 40, 36)
+    pdf.text('Fixing Deal Voucher', 40, startY)
     pdf.setFontSize(10)
-    pdf.text(`Doc No: ${deal.docNo || '-'}`, 40, 56)
-    pdf.text(`Type: ${deal.entryType === 'fixing' ? 'Fixing' : 'Non-Fixing'}`, 220, 56)
-    pdf.text(`Doc Date: ${deal.docDate ? String(deal.docDate).slice(0, 10) : '-'}`, 380, 56)
-    pdf.text(`Value Date: ${deal.valueDate ? String(deal.valueDate).slice(0, 10) : '-'}`, 560, 56)
-    pdf.text(`Branch: ${deal.branch || '-'}`, 40, 72)
-    pdf.text(`Currency: ${deal.currency || '-'}`, 220, 72)
-    pdf.text(`Status: ${deal.status || '-'}`, 380, 72)
-    pdf.text(`Total Qty: ${fmtQty(deal.totalQty)}`, 40, 88)
-    pdf.text(`Total Amount: ${deal.currency || 'USD'} ${fmtMoney(deal.totalAmount)}`, 220, 88)
+    pdf.text(`Doc No: ${deal.docNo || '-'}`, 40, startY + 20)
+    pdf.text(`Type: ${deal.entryType === 'fixing' ? 'Fixing' : 'Non-Fixing'}`, 220, startY + 20)
+    pdf.text(`Doc Date: ${deal.docDate ? String(deal.docDate).slice(0, 10) : '-'}`, 380, startY + 20)
+    pdf.text(`Value Date: ${deal.valueDate ? String(deal.valueDate).slice(0, 10) : '-'}`, 560, startY + 20)
+    pdf.text(`Branch: ${deal.branch || '-'}`, 40, startY + 36)
+    pdf.text(`Currency: ${deal.currency || '-'}`, 220, startY + 36)
+    pdf.text(`Status: ${deal.status || '-'}`, 380, startY + 36)
+    pdf.text(`Total Qty: ${fmtQty(deal.totalQty)}`, 40, startY + 52)
+    pdf.text(`Total Amount: ${deal.currency || 'USD'} ${fmtMoney(deal.totalAmount)}`, 220, startY + 52)
 
     autoTable(pdf, {
-      startY: 104,
+      startY: startY + 68,
       head: [['#', 'Customer', 'Direction', 'Metal', 'Qty', 'Stock', 'Price', 'Eq.OZ', 'Amount']],
       body: (deal.lineItems || []).map((line, idx) => [
         idx + 1,

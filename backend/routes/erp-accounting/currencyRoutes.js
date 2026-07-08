@@ -3,6 +3,10 @@ const { normalizeTenant } = require('../../config/tenants')
 const rateLimit = require('express-rate-limit')
 const { publishRealtimeEvent } = require('../../utils/realtimeBus')
 const {
+  normalizeVoucherPrint,
+  normalizeStatementPrint,
+} = require('../../services/erpAccounting/reportBrandingService')
+const {
   normalizeBridgeMetalRates,
   buildMetalRatesResponse,
   getBridgeTokenFromRequest,
@@ -303,6 +307,20 @@ function registerCurrencyRoutes(deps) {
       updates.logoWidth = Number.isFinite(Number(updates.logoWidth)) ? Math.min(Math.max(Number(updates.logoWidth), 80), 260) : (existing?.logoWidth || DEFAULT_REPORT_BRANDING.logoWidth)
       updates.logoHeight = Number.isFinite(Number(updates.logoHeight)) ? Math.min(Math.max(Number(updates.logoHeight), 32), 120) : (existing?.logoHeight || DEFAULT_REPORT_BRANDING.logoHeight)
       updates.logoFit = ['contain', 'cover', 'fill'].includes(updates.logoFit) ? updates.logoFit : (existing?.logoFit || DEFAULT_REPORT_BRANDING.logoFit)
+
+      if (req.body.voucherPrint !== undefined) {
+        updates.voucherPrint = normalizeVoucherPrint({
+          ...(existing?.voucherPrint?.toObject ? existing.voucherPrint.toObject() : existing?.voucherPrint || {}),
+          ...(req.body.voucherPrint || {}),
+        })
+      }
+
+      if (req.body.statementPrint !== undefined) {
+        updates.statementPrint = normalizeStatementPrint({
+          ...(existing?.statementPrint?.toObject ? existing.statementPrint.toObject() : existing?.statementPrint || {}),
+          ...(req.body.statementPrint || {}),
+        })
+      }
 
       const isDefault = req.body.isDefault !== undefined ? Boolean(req.body.isDefault) : (existing?.isDefault || key === 'default')
       updates.isDefault = isDefault

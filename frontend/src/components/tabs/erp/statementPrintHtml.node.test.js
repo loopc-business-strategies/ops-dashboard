@@ -65,4 +65,26 @@ describe('statementPrintHtml', () => {
     expect(result?.html).toContain('class="col-doc">Pay/2025/0014</td>')
     expect(result?.html).toContain('font-variant-numeric: tabular-nums')
   })
+
+  test('uses company-left logo-right LOOPC header layout', async () => {
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      tenantBranding: { key: 'loopc', displayName: 'LoopC' },
+      user: { name: 'Nan', company: 'loopc' },
+      branding: {
+        companyName: 'LoopC Trading',
+        address: 'Dubai',
+        statementPrint: {
+          title: 'Account Statement',
+          subtitle: 'Internal copy',
+          signatories: [{ title: 'Prepared By', name: 'Ops', visible: true }],
+        },
+      },
+    })
+    expect(result?.html).toContain('header-loopc')
+    expect(result?.html).toContain('LoopC Trading')
+    expect(result?.html).toContain('Account Statement')
+    expect(result?.html).toContain('Internal copy')
+    expect(result?.html).toContain('Prepared By')
+  })
 })

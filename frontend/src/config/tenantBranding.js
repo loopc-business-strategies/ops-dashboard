@@ -34,6 +34,7 @@ const defaultBranding = {
   featureFlags: {
     procurementPlus: true,
     reportPdfDownload: true,
+    masterDocumentSettings: true,
   },
 }
 
@@ -97,6 +98,7 @@ const tenantBranding = {
     featureFlags: {
       procurementPlus: true,
       reportPdfDownload: true,
+      masterDocumentSettings: true,
     },
   },
 }
@@ -108,6 +110,10 @@ export function getTenantBranding(tenant) {
 
 export function isReportPdfDownloadEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.reportPdfDownload === true
+}
+
+export function isMasterDocumentSettingsEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.masterDocumentSettings === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

@@ -45,7 +45,20 @@ export default function VoucherPrintPanel({ printModel }) {
     printPostingDirection,
     numberToWords,
     lineItems,
+    voucherPrint,
+    voucherPrintSettings,
   } = printModel
+
+  const useCustomVoucherLayout = voucherPrintSettings?.enabled === true
+  const tableHeaders = voucherPrint?.tableHeaders || {}
+  const visibleSignatories = (voucherPrint?.signatories || []).filter((item) => item.visible !== false)
+  const confirmedForLabel = voucherPrint?.confirmedForLabel || 'Confirmed for & on behalf of'
+  const footerNote = voucherPrint?.footerNote || ''
+  const headerNoLabel = tableHeaders.no || 'No.'
+  const headerDescriptionLabel = tableHeaders.description || (isMetalVoucher ? 'Stock / Account Description' : 'Account Description')
+  const headerTypeLabel = tableHeaders.type || (isMetalVoucher ? 'Metal' : 'Type')
+  const headerAmountFcLabel = tableHeaders.amountFc || (isMetalVoucher ? 'Pure Wt.' : 'Amount FC')
+  const headerAmountLcLabel = tableHeaders.amountLc || (isMetalVoucher ? 'Total' : printAmountLabel)
 
   return (
     <div className="voucher-print-only" style={{ display: 'none', padding: isMgCurrencyVoucher || isMgMetalVoucher ? '0 10px' : '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
@@ -101,7 +114,12 @@ export default function VoucherPrintPanel({ printModel }) {
         />
       ) : (
       <>
-      <DocumentPrintHeader branding={documentBranding} title={printTitle} meta={printMeta} />
+      <DocumentPrintHeader
+        branding={documentBranding}
+        title={printTitle}
+        meta={printMeta}
+        layoutSettings={useCustomVoucherLayout ? voucherPrint : null}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px', marginBottom: '10px' }}>
         <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
@@ -120,11 +138,11 @@ export default function VoucherPrintPanel({ printModel }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
           <thead>
             <tr style={{ background: '#E5E7EB' }}>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>No.</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>{isMetalVoucher ? 'Stock / Account Description' : 'Account Description'}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>{isMetalVoucher ? 'Metal' : 'Type'}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{isMetalVoucher ? 'Pure Wt.' : 'Amount FC'}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{isMetalVoucher ? 'Total' : printAmountLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>{headerNoLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>{headerDescriptionLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>{headerTypeLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{headerAmountFcLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{headerAmountLcLabel}</th>
             </tr>
           </thead>
           <tbody>
@@ -157,11 +175,11 @@ export default function VoucherPrintPanel({ printModel }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
           <thead>
             <tr style={{ background: '#E5E7EB' }}>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>No.</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>Account Description</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>Type</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>Amount FC</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{`Amount (${currencyLabel || 'USD'})`}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>{headerNoLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>{headerDescriptionLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>{headerTypeLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{headerAmountFcLabel}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{useCustomVoucherLayout ? headerAmountLcLabel : `Amount (${currencyLabel || 'USD'})`}</th>
             </tr>
           </thead>
           <tbody>
@@ -270,7 +288,7 @@ export default function VoucherPrintPanel({ printModel }) {
         {lineItems?.[0]?.narration || ''}
       </div>
 
-      <div style={{ marginTop: '10px', fontSize: '11px' }}>Confirmed for & on behalf of</div>
+      <div style={{ marginTop: '10px', fontSize: '11px' }}>{confirmedForLabel}</div>
       {voucherType === 'payment' ? (
         <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '20px' }}>
           <div style={{ fontWeight: '600', fontSize: '11px', color: '#111' }}>
@@ -287,17 +305,18 @@ export default function VoucherPrintPanel({ printModel }) {
         </div>
       )}
 
-      <div style={{ marginTop: '88px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '36px', textAlign: 'center', fontWeight: '700' }}>
-        <div>
-          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>RECEIVER'S SIGNATURE</div>
-        </div>
-        <div>
-          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>CHECKED BY</div>
-        </div>
-        <div>
-          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>AUTHORISED SIGNATORY</div>
-        </div>
+      <div style={{ marginTop: '88px', display: 'grid', gridTemplateColumns: `repeat(${Math.max(visibleSignatories.length, 1)}, 1fr)`, gap: '36px', textAlign: 'center', fontWeight: '700' }}>
+        {(visibleSignatories.length ? visibleSignatories : [{ title: "RECEIVER'S SIGNATURE" }, { title: 'CHECKED BY' }, { title: 'AUTHORISED SIGNATORY' }]).map((item, index) => (
+          <div key={`${item.title}-${index}`}>
+            {item.name ? <div style={{ fontSize: '10px', marginBottom: '28px' }}>{item.name}</div> : <div style={{ minHeight: '28px' }} />}
+            <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>{item.title}</div>
+          </div>
+        ))}
       </div>
+
+      {footerNote ? (
+        <div style={{ marginTop: '12px', fontSize: '9px', color: '#555555' }}>{footerNote}</div>
+      ) : null}
       </>
       )}
     </div>

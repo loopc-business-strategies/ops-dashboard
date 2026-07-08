@@ -1,5 +1,12 @@
-import { getTenantBranding } from '../../../config/tenantBranding'
-import { DEFAULT_BRANDING, clampBrandingDimension } from './ERPBrandingUtils'
+import { getTenantBranding, isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
+import {
+  DEFAULT_BRANDING,
+  DEFAULT_STATEMENT_PRINT,
+  DEFAULT_VOUCHER_PRINT,
+  clampBrandingDimension,
+  normalizeStatementPrint,
+  normalizeVoucherPrint,
+} from './ERPBrandingUtils'
 import { sanitizeLogoUrl } from '../../../utils/safeHtml'
 
 const hasValue = (value) => String(value || '').trim().length > 0
@@ -7,6 +14,17 @@ const hasValue = (value) => String(value || '').trim().length > 0
 const pick = (...values) => {
   const found = values.find(hasValue)
   return found === undefined || found === null ? '' : String(found)
+}
+
+const resolveTenantKey = ({ user = {}, tenantBranding } = {}) => {
+  const tenant = user?.tenant || {}
+  return String(
+    tenant?.key
+    || tenant?.name
+    || user?.company
+    || tenantBranding?.key
+    || '',
+  ).trim().toLowerCase()
 }
 
 export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenantBranding } = {}) => {
@@ -41,5 +59,47 @@ export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenant
       fallbackTenantBranding?.colors?.brandPrimary,
       '#374151',
     ),
+    voucherPrint: normalizeVoucherPrint(reportBranding?.voucherPrint),
+    statementPrint: normalizeStatementPrint(reportBranding?.statementPrint),
+  }
+}
+
+export const resolveVoucherPrintSettings = ({ reportBranding = {}, user = {}, tenantBranding } = {}) => {
+  const tenantKey = resolveTenantKey({ user, tenantBranding })
+  const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
+  const voucherPrint = normalizeVoucherPrint(reportBranding?.voucherPrint)
+
+  if (!isMasterDocumentSettingsEnabled(tenantKey)) {
+    return {
+      ...branding,
+      enabled: false,
+      voucherPrint: DEFAULT_VOUCHER_PRINT,
+    }
+  }
+
+  return {
+    ...branding,
+    enabled: true,
+    voucherPrint,
+  }
+}
+
+export const resolveStatementPrintSettings = ({ reportBranding = {}, user = {}, tenantBranding } = {}) => {
+  const tenantKey = resolveTenantKey({ user, tenantBranding })
+  const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
+  const statementPrint = normalizeStatementPrint(reportBranding?.statementPrint)
+
+  if (!isMasterDocumentSettingsEnabled(tenantKey)) {
+    return {
+      ...branding,
+      enabled: false,
+      statementPrint: DEFAULT_STATEMENT_PRINT,
+    }
+  }
+
+  return {
+    ...branding,
+    enabled: true,
+    statementPrint,
   }
 }

@@ -1,4 +1,5 @@
 import { clampBrandingDimension, createLogoRenderAsset } from './ERPBrandingUtils'
+import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
 import {
   computeStatementExportOpeningBalances,
   matchesStatementMetal,
@@ -125,6 +126,18 @@ export async function generateStatementHtml(ctx) {
     branding?.companyName,
   ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
   const isModernGoldStatement = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
+  const tenantKey = String(tenantBranding?.key || user?.company || user?.tenant?.key || '').trim().toLowerCase()
+  const useMasterStatementLayout = isMasterDocumentSettingsEnabled(tenantKey) && !isModernGoldStatement
+  const statementPrint = branding?.statementPrint || {}
+  const statementTitle = String(statementPrint.title || 'Statement of Account').trim() || 'Statement of Account'
+  const statementSubtitle = String(statementPrint.subtitle || '').trim()
+  const statementFooterNote = String(statementPrint.footerNote || '').trim()
+  const visibleStatementSignatories = (Array.isArray(statementPrint.signatories) ? statementPrint.signatories : [])
+    .filter((item) => item?.visible !== false)
+  const showPrintNote = statementPrint.showPrintNote !== false
+  const logoOffsetX = Number(statementPrint.logoOffsetX || 0)
+  const logoOffsetY = Number(statementPrint.logoOffsetY || 0)
+  const logoTransparent = statementPrint.logoTransparent !== false
   const brandingProfile = {
     ...branding,
     companyName: isModernGoldStatement && (!branding.companyName || branding.companyName === DEFAULT_BRANDING.companyName)
@@ -152,7 +165,43 @@ export async function generateStatementHtml(ctx) {
   const logoWidth = statementLogoWidth
   const logoHeight = statementLogoHeight
   const logoMarkup = processedLogo
-    ? `<img src="${processedLogo}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:contain;display:block;" />`
+    ? `<img src="${processedLogo}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:contain;display:block;background:${logoTransparent ? 'transparent' : '#FFFFFF'};position:relative;top:${logoOffsetY}px;right:${-logoOffsetX}px;" />`
+    : ''
+  const companyBlock = `
+              <div class="brand-copy${useMasterStatementLayout ? ' brand-copy-loopc' : ''}">
+                <div class="company">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
+                ${companyAddress ? `<div class="muted">${escapeHtml(companyAddress).replace(/\n/g, '<br />')}</div>` : ''}
+                ${companyPhone ? `<div class="muted">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
+              </div>`
+  const statementHeadBlock = `
+              <div class="statement-head${useMasterStatementLayout ? ' statement-head-loopc' : ''}">
+                <div class="title">${escapeHtml(statementTitle)}</div>
+                ${statementSubtitle ? `<div class="subtitle">${escapeHtml(statementSubtitle)}</div>` : ''}
+                <div class="dates">Doc Date From ${escapeHtml(formatDateForHeader(headerStartDate) || '-')} To ${escapeHtml(formatDateForHeader(headerEndDate) || '-')}</div>
+              </div>`
+  const headerMarkup = useMasterStatementLayout
+    ? `
+            <div class="header header-loopc">
+              ${companyBlock}
+              <div class="logo-wrap">${logoMarkup}</div>
+            </div>
+            ${statementHeadBlock}`
+    : `
+            <div class="header">
+              <div>${logoMarkup}</div>
+              ${companyBlock}
+              ${statementHeadBlock}
+            </div>`
+  const signatoryMarkup = visibleStatementSignatories.length
+    ? `
+            <div class="signatories">
+              ${visibleStatementSignatories.map((item) => `
+                <div class="signatory">
+                  ${item.name ? `<div class="signatory-name">${escapeHtml(item.name)}</div>` : '<div class="signatory-name">&nbsp;</div>'}
+                  <div class="signatory-line">${escapeHtml(item.title || '')}</div>
+                </div>
+              `).join('')}
+            </div>`
     : ''
   const html = `
       <html>
@@ -168,6 +217,16 @@ export async function generateStatementHtml(ctx) {
             body { font-family: Arial, Helvetica, sans-serif; color: var(--soa-ink); margin: 0; padding: 16px 18px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .sheet { width: 100%; }
             .header { display: grid; grid-template-columns: ${Math.max(164, logoWidth + 4)}px minmax(0, 1fr) 330px; align-items: start; gap: 18px; margin-bottom: 12px; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .header-loopc { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 8px; }
+            .header-loopc .logo-wrap { min-width: ${Math.max(120, logoWidth)}px; display: flex; justify-content: flex-end; }
+            .brand-copy-loopc { padding-top: 0; font-size: 16px; }
+            .brand-copy-loopc .company { font-size: 22px; margin-bottom: 8px; }
+            .statement-head-loopc { text-align: center; padding-top: 8px; margin-bottom: 12px; }
+            .statement-head-loopc .subtitle { font-size: 14px; color: #4B5563; margin-bottom: 4px; }
+            .signatories { margin-top: 18px; display: grid; grid-template-columns: repeat(${Math.max(visibleStatementSignatories.length, 1)}, 1fr); gap: 24px; text-align: center; }
+            .signatory-name { min-height: 24px; font-size: 12px; margin-bottom: 36px; }
+            .signatory-line { border-top: 1px solid var(--soa-border); padding-top: 6px; font-weight: 700; font-size: 13px; }
+            .statement-footer-note { margin-top: 10px; font-size: 12px; color: #4B5563; }
             .brand-copy { font-size: 18px; line-height: 1.34; padding-top: 24px; }
             .brand-copy .company { font-size: 29px; font-weight: 800; letter-spacing: 0; margin-bottom: 14px; color: #050505; }
             .muted { color: var(--soa-ink); }
@@ -200,18 +259,7 @@ export async function generateStatementHtml(ctx) {
         </head>
         <body>
           <div class="sheet">
-            <div class="header">
-              <div>${logoMarkup}</div>
-              <div class="brand-copy">
-                <div class="company">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
-                ${companyAddress ? `<div class="muted">${escapeHtml(companyAddress).replace(/\n/g, '<br />')}</div>` : ''}
-                ${companyPhone ? `<div class="muted">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
-              </div>
-              <div class="statement-head">
-                <div class="title">Statement Of Account</div>
-                <div class="dates">Doc Date From ${escapeHtml(formatDateForHeader(headerStartDate) || '-')} To ${escapeHtml(formatDateForHeader(headerEndDate) || '-')}</div>
-              </div>
-            </div>
+            ${headerMarkup}
             <div class="party-box">
               <div class="party-code">${escapeHtml(accountEnquiryData.account.accountCode || '')}</div>
               <div class="party-name">${escapeHtml(accountEnquiryData.account.accountName || 'Account')}</div>
@@ -274,6 +322,9 @@ export async function generateStatementHtml(ctx) {
               <span>Printed By: ${escapeHtml(user?.name || 'User')} On ${escapeHtml(new Date().toLocaleString())}</span>
               <span>Page 1 of 1</span>
             </div>
+            ${signatoryMarkup}
+            ${statementFooterNote ? `<div class="statement-footer-note">${escapeHtml(statementFooterNote)}</div>` : ''}
+            ${showPrintNote ? '<div class="print-note">Generated from Account Summary</div>' : ''}
           </div>
         </body>
       </html>

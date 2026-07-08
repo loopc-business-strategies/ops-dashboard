@@ -1,30 +1,53 @@
 import { describe, expect, test } from 'vitest'
-import { resolveDocumentBranding } from './documentBranding'
+import {
+  resolveStatementPrintSettings,
+  resolveVoucherPrintSettings,
+} from './documentBranding'
 
-describe('resolveDocumentBranding', () => {
-  test('does not use tenant default logo for document printouts', () => {
-    const branding = resolveDocumentBranding({
-      reportBranding: {},
-      tenantBranding: {
-        displayName: 'MG',
-        companyName: 'Modern Gold',
-        logoImage: '/logos/mg-logo.svg',
-      },
+describe('documentBranding resolvers', () => {
+  const baseBranding = {
+    companyName: 'LoopC Metals',
+    address: 'Dubai',
+    logoUrl: 'data:image/png;base64,abc',
+    voucherPrint: {
+      tableHeaders: { no: 'S.No' },
+      signatories: [{ title: 'Receiver', name: 'Sam', visible: true }],
+    },
+    statementPrint: {
+      title: 'Customer Statement',
+      subtitle: 'Confidential',
+    },
+  }
+
+  test('resolveVoucherPrintSettings is disabled outside LOOPC', () => {
+    const result = resolveVoucherPrintSettings({
+      reportBranding: baseBranding,
+      user: { company: 'mg' },
+      tenantBranding: { key: 'mg' },
     })
-
-    expect(branding.logoUrl).toBe('')
+    expect(result.enabled).toBe(false)
+    expect(result.companyName).toBe('LoopC Metals')
   })
 
-  test('uses uploaded logo from logo settings when present', () => {
-    const branding = resolveDocumentBranding({
-      reportBranding: {
-        logoUrl: 'data:image/png;base64,uploaded',
-      },
-      tenantBranding: {
-        logoImage: '/logos/mg-logo.svg',
-      },
+  test('resolveVoucherPrintSettings enables LOOPC voucher print settings', () => {
+    const result = resolveVoucherPrintSettings({
+      reportBranding: baseBranding,
+      user: { company: 'loopc' },
+      tenantBranding: { key: 'loopc' },
     })
+    expect(result.enabled).toBe(true)
+    expect(result.voucherPrint.tableHeaders.no).toBe('S.No')
+    expect(result.voucherPrint.signatories[0].name).toBe('Sam')
+  })
 
-    expect(branding.logoUrl).toBe('data:image/png;base64,uploaded')
+  test('resolveStatementPrintSettings enables LOOPC statement print settings', () => {
+    const result = resolveStatementPrintSettings({
+      reportBranding: baseBranding,
+      user: { company: 'loopc' },
+      tenantBranding: { key: 'loopc' },
+    })
+    expect(result.enabled).toBe(true)
+    expect(result.statementPrint.title).toBe('Customer Statement')
+    expect(result.statementPrint.subtitle).toBe('Confidential')
   })
 })
