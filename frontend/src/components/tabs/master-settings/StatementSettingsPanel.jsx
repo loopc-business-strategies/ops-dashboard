@@ -4,6 +4,7 @@ import DocumentLogoEditor from './DocumentLogoEditor'
 import SignatoryEditor from './SignatoryEditor'
 import StatementPreviewModal from '../erp/accountEnquiry/StatementPreviewModal'
 import { useStatementPreviewHtml } from './useStatementPreviewHtml'
+import { applyDocumentLogoPatch } from './documentLogoChange'
 
 const inputStyle = {
   width: '100%',
@@ -24,6 +25,7 @@ export default function StatementSettingsPanel({
 }) {
   const [previewDataMode, setPreviewDataMode] = useState('empty')
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [logoError, setLogoError] = useState('')
   const statementPrint = branding.statementPrint || {}
 
   const {
@@ -91,10 +93,7 @@ export default function StatementSettingsPanel({
       <DocumentLogoEditor
         branding={branding}
         layoutSettings={statementPrint}
-        onChange={(patch) => {
-          if (patch.error !== undefined) return
-          patchBranding(patch)
-        }}
+        onChange={(patch) => applyDocumentLogoPatch(patch, { setLogoError, patchBranding })}
         onLayoutChange={patchStatementPrint}
       />
 
@@ -225,6 +224,7 @@ export default function StatementSettingsPanel({
         </button>
         {status ? <span style={{ fontSize: 13, color: '#166534' }}>{status}</span> : null}
         {error ? <span style={{ fontSize: 13, color: '#B91C1C' }}>{error}</span> : null}
+        {logoError ? <span style={{ fontSize: 13, color: '#B91C1C' }}>{logoError}</span> : null}
       </div>
 
       <StatementPreviewModal

@@ -182,25 +182,34 @@ export const brandingOptionLabel = (branding) => {
  * @param {File} file
  * @returns {Promise<string>}
  */
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(String(reader.result || ''))
+  reader.onerror = () => reject(new Error('Failed to read logo file'))
+  reader.readAsDataURL(file)
+})
+
 export const normalizeLogoUploadToDataUrl = async (file) => {
-  if (!file || typeof document === 'undefined') return ''
-  const type = String(file.type || '').toLowerCase()
-  if (type === 'image/svg+xml') {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result || ''))
-      reader.onerror = () => reject(new Error('Failed to read logo file'))
-      reader.readAsDataURL(file)
-    })
+  if (!file || typeof document === 'undefined') {
+    throw new Error('Failed to process logo file.')
   }
 
-  const objectUrl = URL.createObjectURL(file)
-  try {
-    const rendered = await createLogoRenderAsset(objectUrl, 260, 120, 'contain')
-    return rendered || objectUrl
-  } finally {
-    URL.revokeObjectURL(objectUrl)
+  const type = String(file.type || '').toLowerCase()
+  const dataUrl = await readFileAsDataUrl(file)
+  if (!dataUrl) {
+    throw new Error('Failed to process logo file.')
   }
+
+  if (type === 'image/svg+xml') {
+    return dataUrl
+  }
+
+  const rendered = await createLogoRenderAsset(dataUrl, 260, 120, 'contain')
+  const result = rendered || dataUrl
+  if (!result) {
+    throw new Error('Failed to process logo file.')
+  }
+  return result
 }
 
 /**

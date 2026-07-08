@@ -3,7 +3,10 @@
  * Verifies the exported constants and pure functions stay stable.
  */
 
-import {
+import { describe, expect, test, vi, afterEach } from 'vitest'
+import * as ERPBrandingUtils from './ERPBrandingUtils'
+
+const {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
   LOGO_UPLOAD_ACCEPT,
@@ -13,7 +16,8 @@ import {
   brandingOptionLabel,
   createLogoRenderAsset,
   isSupportedLogoUpload,
-} from './ERPBrandingUtils'
+  normalizeLogoUploadToDataUrl,
+} = ERPBrandingUtils
 
 describe('ERPBrandingUtils – DEFAULT_BRANDING', () => {
   test('has required shape with sensible defaults', () => {
@@ -128,5 +132,112 @@ describe('ERPBrandingUtils – logo uploads', () => {
 
   test('allows logo uploads up to 3 MB', () => {
     expect(LOGO_UPLOAD_MAX_BYTES).toBe(3 * 1024 * 1024)
+  })
+})
+
+describe('ERPBrandingUtils – normalizeLogoUploadToDataUrl', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  test('returns SVG data URL without raster normalization', async () => {
+    class MockFileReader {
+      readAsDataURL() {
+        this.result = 'data:image/svg+xml;base64,abc'
+        this.onload?.()
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader)
+
+    const result = await normalizeLogoUploadToDataUrl({
+      type: 'image/svg+xml',
+      name: 'logo.svg',
+    })
+    expect(result).toBe('data:image/svg+xml;base64,abc')
+  })
+
+  test('normalizes raster uploads to PNG data URL', async () => {
+    class MockFileReader {
+      readAsDataURL() {
+        this.result = 'data:image/png;base64,raw'
+        this.onload?.()
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader)
+
+    class MockImage {
+      constructor() {
+        this.width = 100
+        this.height = 50
+        this.crossOrigin = ''
+      }
+
+      set src(_value) {
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    vi.stubGlobal('Image', MockImage)
+
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+    })
+    const toDataURL = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValue('data:image/png;base64,normalized')
+
+    const result = await normalizeLogoUploadToDataUrl({
+      type: 'image/png',
+      name: 'logo.png',
+    })
+
+    expect(result).toBe('data:image/png;base64,normalized')
+    getContext.mockRestore()
+    toDataURL.mockRestore()
+  })
+
+  test('falls back to raw data URL when raster normalization returns empty', async () => {
+    class MockFileReader {
+      readAsDataURL() {
+        this.result = 'data:image/png;base64,raw'
+        this.onload?.()
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader)
+
+    class MockImage {
+      constructor() {
+        this.width = 100
+        this.height = 50
+        this.crossOrigin = ''
+      }
+
+      set src(_value) {
+        queueMicrotask(() => this.onerror?.())
+      }
+    }
+    vi.stubGlobal('Image', MockImage)
+
+    const result = await normalizeLogoUploadToDataUrl({
+      type: 'image/png',
+      name: 'logo.png',
+    })
+
+    expect(result).toBe('data:image/png;base64,raw')
+  })
+
+  test('throws when file read returns empty result', async () => {
+    class MockFileReader {
+      readAsDataURL() {
+        this.result = ''
+        this.onload?.()
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader)
+
+    await expect(normalizeLogoUploadToDataUrl({
+      type: 'image/png',
+      name: 'logo.png',
+    })).rejects.toThrow('Failed to process logo file.')
   })
 })

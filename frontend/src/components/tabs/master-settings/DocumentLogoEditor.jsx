@@ -36,7 +36,11 @@ export default function DocumentLogoEditor({
     }
     try {
       const logoUrl = await normalizeLogoUploadToDataUrl(file)
-      onChange({ logoUrl, error: '' })
+      if (!logoUrl) {
+        onChange({ error: 'Failed to process logo file.' })
+        return
+      }
+      onChange({ logoUrl })
     } catch {
       onChange({ error: 'Failed to process logo file.' })
     }
@@ -68,7 +72,7 @@ export default function DocumentLogoEditor({
           {branding.logoUrl ? (
             <button
               type="button"
-              onClick={() => onChange({ logoUrl: '', error: '' })}
+              onClick={() => onChange({ logoUrl: '' })}
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', cursor: 'pointer' }}
             >
               Remove

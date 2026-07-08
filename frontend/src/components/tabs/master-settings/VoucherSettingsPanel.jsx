@@ -9,6 +9,7 @@ import {
   VOUCHER_PREVIEW_TYPES,
   buildVoucherPreviewPrintModel,
 } from '../voucher/voucherPreviewSamples'
+import { applyDocumentLogoPatch } from './documentLogoChange'
 
 const inputStyle = {
   width: '100%',
@@ -94,14 +95,7 @@ export default function VoucherSettingsPanel({
       <DocumentLogoEditor
         branding={branding}
         layoutSettings={voucherPrint}
-        onChange={(patch) => {
-          if (patch.error !== undefined) {
-            setLogoError(patch.error)
-            return
-          }
-          setLogoError('')
-          patchBranding(patch)
-        }}
+        onChange={(patch) => applyDocumentLogoPatch(patch, { setLogoError, patchBranding })}
         onLayoutChange={patchVoucherPrint}
       />
 
