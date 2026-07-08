@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import DocumentLayoutPreview from './DocumentLayoutPreview'
 import DocumentLogoEditor from './DocumentLogoEditor'
+import LogoSizeSlider from './LogoSizeSlider'
 import SignatoryEditor from './SignatoryEditor'
 import VoucherTableHeaderEditor from './VoucherTableHeaderEditor'
 import VoucherPreviewModal from '../voucher/VoucherPreviewModal'
@@ -59,6 +60,12 @@ export default function VoucherSettingsPanel({
           { label: 'Date', value: '08-Jul-26' },
           { label: 'Prepared By', value: 'Finance Officer' },
         ]}
+      />
+
+      <LogoSizeSlider
+        branding={branding}
+        onChange={patchBranding}
+        disabled={!branding.logoUrl}
       />
 
       <div style={{ display: 'grid', gap: 10 }}>

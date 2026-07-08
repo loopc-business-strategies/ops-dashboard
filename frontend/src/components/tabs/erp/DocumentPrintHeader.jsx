@@ -34,7 +34,7 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
         </div>
         <div style={{
           position: 'relative',
-          minWidth: `${Math.min(Math.max(logoWidth, 120), 220)}px`,
+          minWidth: `${logoWidth}px`,
           minHeight: `${logoHeight}px`,
           display: 'flex',
           justifyContent: 'flex-end',
@@ -51,7 +51,7 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
               <img
                 src={logoUrl}
                 alt="Company Logo"
-                style={{ width: `${logoWidth}px`, height: `${logoHeight}px`, maxWidth: '220px', maxHeight: '96px', objectFit: logoFit, display: 'block' }}
+                style={{ width: `${logoWidth}px`, height: `${logoHeight}px`, maxWidth: `${logoWidth}px`, maxHeight: `${logoHeight}px`, objectFit: logoFit, display: 'block' }}
               />
             </div>
           ) : null}

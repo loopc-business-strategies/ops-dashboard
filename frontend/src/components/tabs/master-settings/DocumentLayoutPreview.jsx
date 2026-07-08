@@ -43,6 +43,8 @@ export default function DocumentLayoutPreview({
   }, [])
 
   const details = [branding.address, branding.phone, branding.trn ? `TRN: ${branding.trn}` : ''].filter(Boolean)
+  const logoWidth = Number(branding.logoWidth || 160)
+  const logoHeight = Number(branding.logoHeight || 56)
 
   return (
     <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, padding: 14, background: '#fff' }}>
@@ -67,7 +69,7 @@ export default function DocumentLayoutPreview({
               </div>
             ))}
           </div>
-          <div style={{ position: 'relative', width: Math.min(Math.max(Number(branding.logoWidth || 160), 120), 220), minHeight: Number(branding.logoHeight || 56) }}>
+          <div style={{ position: 'relative', width: logoWidth, minHeight: logoHeight }}>
             {branding.logoUrl ? (
               <div
                 role="presentation"
@@ -89,10 +91,10 @@ export default function DocumentLayoutPreview({
                   src={branding.logoUrl}
                   alt="Logo preview"
                   style={{
-                    width: `${branding.logoWidth}px`,
-                    height: `${branding.logoHeight}px`,
-                    maxWidth: '220px',
-                    maxHeight: '96px',
+                    width: `${logoWidth}px`,
+                    height: `${logoHeight}px`,
+                    maxWidth: `${logoWidth}px`,
+                    maxHeight: `${logoHeight}px`,
                     objectFit: branding.logoFit || 'contain',
                     display: 'block',
                     pointerEvents: 'none',
