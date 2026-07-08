@@ -22,4 +22,27 @@ describe('DocumentPrintHeader logo sizing', () => {
     expect(logo.style.height).toBe('110px')
     expect(logo.style.width).toBe('220px')
   })
+
+  it('uses layoutSettings titleAccentColor for title lines', () => {
+    const { rerender } = render(
+      <DocumentPrintHeader
+        branding={{ companyName: 'LoopC' }}
+        title="Payment Voucher"
+        layoutSettings={{ titleAccentColor: '#005B96' }}
+      />,
+    )
+
+    const lines = screen.getAllByTestId('title-accent-line')
+    expect(lines).toHaveLength(2)
+    expect(lines[0].style.borderTopColor).toBe('rgb(0, 91, 150)')
+    expect(lines[0].style.borderTopWidth).toBe('3px')
+
+    rerender(
+      <DocumentPrintHeader
+        branding={{ companyName: 'LoopC' }}
+        title="Payment Voucher"
+      />,
+    )
+    expect(screen.getAllByTestId('title-accent-line')[0].style.borderTopColor).toBe('rgb(127, 29, 29)')
+  })
 })

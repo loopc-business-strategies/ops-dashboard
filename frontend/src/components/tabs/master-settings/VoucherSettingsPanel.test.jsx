@@ -4,7 +4,12 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import VoucherSettingsPanel from './VoucherSettingsPanel'
 
 vi.mock('./DocumentLayoutPreview', () => ({
-  default: () => <div>Layout preview</div>,
+  default: ({ layoutSettings }) => (
+    <div>
+      Layout preview
+      <span data-testid="preview-accent-color">{layoutSettings?.titleAccentColor || ''}</span>
+    </div>
+  ),
 }))
 
 vi.mock('./DocumentLogoEditor', () => ({
@@ -91,5 +96,38 @@ describe('VoucherSettingsPanel logo upload', () => {
       />,
     )
     expect(screen.getByTestId('auto-cleanup-flag').textContent).toBe('false')
+  })
+
+  it('updates titleAccentColor from the color picker and resets to default', () => {
+    function Harness() {
+      const [branding, setBranding] = useState({
+        companyName: 'LoopC',
+        logoUrl: '',
+        voucherPrint: { titleAccentColor: '#7F1D1D' },
+      })
+      return (
+        <div>
+          <span data-testid="accent-color">{branding.voucherPrint.titleAccentColor}</span>
+          <VoucherSettingsPanel
+            branding={branding}
+            onChange={setBranding}
+            onSave={vi.fn()}
+            saving={false}
+            error=""
+            status=""
+            user={{ company: 'loopc' }}
+          />
+        </div>
+      )
+    }
+
+    render(<Harness />)
+    const colorInput = screen.getByLabelText('Title line color')
+    fireEvent.change(colorInput, { target: { value: '#005b96' } })
+    expect(screen.getByTestId('accent-color').textContent).toBe('#005B96')
+    expect(screen.getByTestId('preview-accent-color').textContent).toBe('#005B96')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
+    expect(screen.getByTestId('accent-color').textContent).toBe('#7F1D1D')
   })
 })

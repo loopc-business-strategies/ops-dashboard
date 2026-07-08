@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { DEFAULT_TITLE_ACCENT_COLOR, normalizeTitleAccentColor } from '../erp/ERPBrandingUtils'
 
 export default function DocumentLayoutPreview({
   branding,
@@ -13,6 +14,10 @@ export default function DocumentLayoutPreview({
   const logoOffsetX = Number(layoutSettings.logoOffsetX || 0)
   const logoOffsetY = Number(layoutSettings.logoOffsetY || 0)
   const logoTransparent = layoutSettings.logoTransparent !== false
+  const titleAccentColor = normalizeTitleAccentColor(
+    layoutSettings.titleAccentColor,
+    DEFAULT_TITLE_ACCENT_COLOR,
+  )
 
   const onPointerDown = useCallback((event) => {
     if (!onLayoutChange) return
@@ -111,9 +116,9 @@ export default function DocumentLayoutPreview({
 
         {title ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
-            <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
+            <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
             <div style={{ fontWeight: 700, fontSize: 14, textTransform: 'uppercase' }}>{title}</div>
-            <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
+            <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
           </div>
         ) : null}
 

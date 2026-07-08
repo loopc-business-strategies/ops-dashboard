@@ -9,6 +9,8 @@ import * as ERPBrandingUtils from './ERPBrandingUtils'
 const {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
+  DEFAULT_TITLE_ACCENT_COLOR,
+  DEFAULT_VOUCHER_PRINT,
   LOGO_UPLOAD_ACCEPT,
   LOGO_UPLOAD_MAX_BYTES,
   normalizeBrandingKey,
@@ -18,6 +20,8 @@ const {
   isSupportedLogoUpload,
   normalizeLogoDataUrl,
   normalizeLogoUploadToDataUrl,
+  normalizeTitleAccentColor,
+  normalizeVoucherPrint,
 } = ERPBrandingUtils
 
 describe('ERPBrandingUtils – DEFAULT_BRANDING', () => {
@@ -28,6 +32,16 @@ describe('ERPBrandingUtils – DEFAULT_BRANDING', () => {
     expect(typeof DEFAULT_BRANDING.logoHeight).toBe('number')
     expect(DEFAULT_BRANDING.logoWidth).toBeGreaterThan(0)
     expect(DEFAULT_BRANDING.logoHeight).toBeGreaterThan(0)
+    expect(DEFAULT_VOUCHER_PRINT.titleAccentColor).toBe(DEFAULT_TITLE_ACCENT_COLOR)
+    expect(DEFAULT_TITLE_ACCENT_COLOR).toBe('#7F1D1D')
+  })
+
+  test('normalizeTitleAccentColor and normalizeVoucherPrint handle accent color', () => {
+    expect(normalizeTitleAccentColor('#005b96')).toBe('#005B96')
+    expect(normalizeTitleAccentColor('#abc')).toBe('#AABBCC')
+    expect(normalizeTitleAccentColor('not-a-color')).toBe('#7F1D1D')
+    expect(normalizeVoucherPrint({ titleAccentColor: '#123456' }).titleAccentColor).toBe('#123456')
+    expect(normalizeVoucherPrint({ titleAccentColor: '' }).titleAccentColor).toBe('#7F1D1D')
   })
 
   test('DEFAULT_BRANDING_PROFILES contains one entry mirroring DEFAULT_BRANDING', () => {

@@ -1,3 +1,5 @@
+import { DEFAULT_TITLE_ACCENT_COLOR, normalizeTitleAccentColor } from './ERPBrandingUtils'
+
 export default function DocumentPrintHeader({ branding, title, meta = [], layoutSettings = null }) {
   const companyName = branding?.companyName || ''
   const logoUrl = branding?.logoUrl || ''
@@ -7,6 +9,10 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
   const logoOffsetX = Number(layoutSettings?.logoOffsetX || 0)
   const logoOffsetY = Number(layoutSettings?.logoOffsetY || 0)
   const logoTransparent = layoutSettings?.logoTransparent !== false
+  const titleAccentColor = normalizeTitleAccentColor(
+    layoutSettings?.titleAccentColor,
+    DEFAULT_TITLE_ACCENT_COLOR,
+  )
   const logoFrameWidth = 260
   const logoFrameHeight = 120
   const details = [
@@ -60,9 +66,9 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-        <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
+        <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
         <div style={{ fontWeight: '700', fontSize: '16px', letterSpacing: '0.02em', textAlign: 'center', textTransform: 'uppercase' }}>{title}</div>
-        <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
+        <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
       </div>
       {meta.length ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '6px', marginBottom: '10px', fontSize: '10px' }}>

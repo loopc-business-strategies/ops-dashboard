@@ -17,6 +17,7 @@ describe('reportBrandingService', () => {
 
   test('DEFAULT_REPORT_BRANDING includes voucher and statement print defaults', () => {
     expect(DEFAULT_REPORT_BRANDING.voucherPrint.tableHeaders.no).toBe('No.')
+    expect(DEFAULT_REPORT_BRANDING.voucherPrint.titleAccentColor).toBe('#7F1D1D')
     expect(DEFAULT_REPORT_BRANDING.statementPrint.title).toBe('Statement of Account')
   })
 
@@ -33,6 +34,13 @@ describe('reportBrandingService', () => {
     expect(result.signatories[0].title).toBe('Receiver')
     expect(result.signatories[0].name).toBe('Ali')
     expect(result.signatories[1].title).toBe(DEFAULT_VOUCHER_PRINT.signatories[1].title)
+  })
+
+  test('normalizeVoucherPrint keeps valid titleAccentColor and falls back for invalid', () => {
+    expect(normalizeVoucherPrint({ titleAccentColor: '#0a5b96' }).titleAccentColor).toBe('#0A5B96')
+    expect(normalizeVoucherPrint({ titleAccentColor: '#abc' }).titleAccentColor).toBe('#AABBCC')
+    expect(normalizeVoucherPrint({ titleAccentColor: 'red' }).titleAccentColor).toBe('#7F1D1D')
+    expect(normalizeVoucherPrint({}).titleAccentColor).toBe('#7F1D1D')
   })
 
   test('normalizeStatementPrint applies title and showPrintNote defaults', () => {

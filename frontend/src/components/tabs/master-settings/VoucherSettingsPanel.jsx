@@ -12,6 +12,7 @@ import {
 } from '../voucher/voucherPreviewSamples'
 import { applyDocumentLogoPatch } from './documentLogoChange'
 import { resolveErpUserTenantKey } from '../erp/resolveErpUserTenant'
+import { DEFAULT_TITLE_ACCENT_COLOR, normalizeTitleAccentColor } from '../erp/ERPBrandingUtils'
 
 const inputStyle = {
   width: '100%',
@@ -36,6 +37,10 @@ export default function VoucherSettingsPanel({
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const voucherPrint = branding.voucherPrint || {}
   const isLoopcTenant = resolveErpUserTenantKey(user) === 'loopc'
+  const titleAccentColor = normalizeTitleAccentColor(
+    voucherPrint.titleAccentColor,
+    DEFAULT_TITLE_ACCENT_COLOR,
+  )
 
   const patchBranding = (patch) => onChange((prev) => ({ ...prev, ...patch }))
   const patchVoucherPrint = (patch) => onChange((prev) => ({
@@ -69,6 +74,43 @@ export default function VoucherSettingsPanel({
         onChange={patchBranding}
         disabled={!branding.logoUrl}
       />
+
+      <div style={{ display: 'grid', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <label htmlFor="voucher-title-line-color" style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
+            Title line color
+          </label>
+          <button
+            type="button"
+            onClick={() => patchVoucherPrint({ titleAccentColor: DEFAULT_TITLE_ACCENT_COLOR })}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 6,
+              border: '1px solid #D1D5DB',
+              background: '#FFFFFF',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Reset to default
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            id="voucher-title-line-color"
+            type="color"
+            value={titleAccentColor}
+            onChange={(e) => patchVoucherPrint({ titleAccentColor: normalizeTitleAccentColor(e.target.value) })}
+            aria-label="Title line color"
+            style={{ width: 44, height: 32, padding: 0, border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', background: 'transparent' }}
+          />
+          <span style={{ fontSize: 12, color: '#6B7280', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+            {titleAccentColor}
+          </span>
+        </div>
+      </div>
 
       <div style={{ display: 'grid', gap: 10 }}>
         <label style={{ fontSize: 12, color: '#6B7280' }}>

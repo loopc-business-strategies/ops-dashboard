@@ -17,10 +17,13 @@ export const DEFAULT_STATEMENT_SIGNATORIES = [
   { title: 'Authorized Signatory', name: '', visible: true },
 ]
 
+export const DEFAULT_TITLE_ACCENT_COLOR = '#7F1D1D'
+
 export const DEFAULT_VOUCHER_PRINT = {
   logoOffsetX: 0,
   logoOffsetY: 0,
   logoTransparent: true,
+  titleAccentColor: DEFAULT_TITLE_ACCENT_COLOR,
   tableHeaders: {
     no: 'No.',
     description: 'Account Description',
@@ -31,6 +34,24 @@ export const DEFAULT_VOUCHER_PRINT = {
   signatories: DEFAULT_SIGNATORIES,
   confirmedForLabel: 'Confirmed for & on behalf of',
   footerNote: '',
+}
+
+const HEX_COLOR_RE = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/
+
+/**
+ * Coerce a color string to a safe 6-digit hex (or default).
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+export const normalizeTitleAccentColor = (value, fallback = DEFAULT_TITLE_ACCENT_COLOR) => {
+  const raw = String(value ?? '').trim()
+  if (!HEX_COLOR_RE.test(raw)) return fallback
+  if (raw.length === 4) {
+    const [, r, g, b] = raw
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase()
+  }
+  return raw.toUpperCase()
 }
 
 export const DEFAULT_STATEMENT_PRINT = {
@@ -113,6 +134,7 @@ export const normalizeVoucherPrint = (value = {}) => ({
   logoOffsetX: clampOffset(value.logoOffsetX, DEFAULT_VOUCHER_PRINT.logoOffsetX),
   logoOffsetY: clampOffset(value.logoOffsetY, DEFAULT_VOUCHER_PRINT.logoOffsetY),
   logoTransparent: value.logoTransparent !== false,
+  titleAccentColor: normalizeTitleAccentColor(value.titleAccentColor, DEFAULT_VOUCHER_PRINT.titleAccentColor),
   tableHeaders: {
     ...DEFAULT_VOUCHER_PRINT.tableHeaders,
     ...(value.tableHeaders || {}),
