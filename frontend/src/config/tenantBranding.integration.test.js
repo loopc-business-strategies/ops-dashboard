@@ -35,9 +35,9 @@ describe('tenant branding integration', () => {
     expect(mg.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
   })
 
-  test('enables advanced ERP list filters only for LOOPC', () => {
+  test('enables advanced ERP list filters for LOOPC, MG, and CG', () => {
     expect(isErpAdvancedListFiltersEnabled('loopc')).toBe(true)
-    expect(isErpAdvancedListFiltersEnabled('mg')).toBe(false)
-    expect(isErpAdvancedListFiltersEnabled('cg')).toBe(false)
+    expect(isErpAdvancedListFiltersEnabled('mg')).toBe(true)
+    expect(isErpAdvancedListFiltersEnabled('cg')).toBe(true)
   })
 })
