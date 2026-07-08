@@ -35,6 +35,7 @@ const defaultBranding = {
     procurementPlus: true,
     reportPdfDownload: true,
     masterDocumentSettings: true,
+    erpAdvancedListFilters: true,
   },
 }
 
@@ -99,6 +100,7 @@ const tenantBranding = {
       procurementPlus: true,
       reportPdfDownload: true,
       masterDocumentSettings: true,
+      erpAdvancedListFilters: true,
     },
   },
 }
@@ -114,6 +116,10 @@ export function isReportPdfDownloadEnabled(tenant) {
 
 export function isMasterDocumentSettingsEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.masterDocumentSettings === true
+}
+
+export function isErpAdvancedListFiltersEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.erpAdvancedListFilters === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

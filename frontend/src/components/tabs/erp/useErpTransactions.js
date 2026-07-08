@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchAllVendorsAggregated } from './useErpVendors'
 import { filterActiveAccounts } from './accountDropdownHelpers'
+import { normalizeFilterMonths, normalizeFilterYear, toMonthCsv } from './erpListFilters'
 
 export function useErpTransactions({
   token,
@@ -80,6 +81,8 @@ export function useErpTransactions({
         ...((overrides.type ?? transactionFilters.type) ? { type: overrides.type ?? transactionFilters.type } : {}),
         ...((overrides.startDate ?? transactionFilters.startDate) ? { startDate: overrides.startDate ?? transactionFilters.startDate } : {}),
         ...((overrides.endDate ?? transactionFilters.endDate) ? { endDate: overrides.endDate ?? transactionFilters.endDate } : {}),
+        ...(normalizeFilterYear(overrides.year ?? transactionFilters.year) ? { year: normalizeFilterYear(overrides.year ?? transactionFilters.year) } : {}),
+        ...(normalizeFilterMonths(overrides.months ?? transactionFilters.months).length ? { months: toMonthCsv(overrides.months ?? transactionFilters.months) } : {}),
       }
       if (!hasCursorOverride && overrides.page) {
         params.page = overrides.page

@@ -99,6 +99,7 @@ export default function ERPTabPanels({
   enquiryLoading,
   enquiryStatus,
   erpBaseCurrencyCode,
+  erpAdvancedListFiltersEnabled,
   erpLiveMetalSnapshot,
   fetchAccountEnquiryByCode,
   filteredGroupedSummaryAccounts,
@@ -581,6 +582,7 @@ export default function ERPTabPanels({
         ledger={ledger}
         ledgerMeta={ledgerMeta}
         loadLedger={loadLedger}
+        erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
         jvReadOnly={jvReadOnly}
         handleOpenJv={handleOpenJv}
         handleEditJv={handleEditJv}
@@ -667,6 +669,7 @@ export default function ERPTabPanels({
         availableTransactionTypes={availableTransactionTypes}
         TRANSACTION_TYPE_LABELS={TRANSACTION_TYPE_LABELS}
         loadTransactions={loadTransactions}
+        erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
         handleExportTransactionsCsv={handleExportTransactionsCsv}
         handleExportTransactionsXlsx={handleExportTransactionsXlsx}
         handleExportTransactionsPdf={handleExportTransactionsPdf}
@@ -949,6 +952,7 @@ export default function ERPTabPanels({
             vendors={vendors}
             currencies={currencies}
             reportBranding={branding}
+            erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
             pendingOpenTransactionId={jumpToVoucher?.id || null}
             pendingOpenTransactionType={jumpToVoucher?.type || null}
             onPendingOpenTransactionConsumed={onJumpToVoucherConsumed}

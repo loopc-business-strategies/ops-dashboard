@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { filterActiveAccounts } from './accountDropdownHelpers'
+import { normalizeFilterMonths, normalizeFilterYear, toMonthCsv } from './erpListFilters'
 
 export function useErpLedger({
   token,
@@ -29,6 +30,9 @@ export function useErpLedger({
         limit: 100,
         ...ledgerFilters,
         referenceType: ledgerFilters.referenceType || ledgerVoucherTab,
+        ...(ledgerFilters.search ? { search: ledgerFilters.search } : {}),
+        ...(normalizeFilterYear(ledgerFilters.year) ? { year: normalizeFilterYear(ledgerFilters.year) } : {}),
+        ...(normalizeFilterMonths(ledgerFilters.months).length ? { months: toMonthCsv(ledgerFilters.months) } : {}),
         ...(cursor ? { cursor } : {}),
       }
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([

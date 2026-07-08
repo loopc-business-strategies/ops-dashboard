@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import TransactionComposerForm from './TransactionComposerForm'
+import ErpMonthYearFilter from '../ErpMonthYearFilter'
+import { normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from '../erpListFilters'
 
 export default function ERPTransactionsTab({
   activeTab,
@@ -59,6 +61,7 @@ export default function ERPTransactionsTab({
   handleDeleteTransaction: _handleDeleteTransaction,
   transactionMeta,
   loading,
+  erpAdvancedListFiltersEnabled = false,
 }) {
   const getLineNarration = (tx) => (tx.voucherMeta?.lineItems || [])
     .map((line) => line?.narration || line?.exp || '')
@@ -184,7 +187,7 @@ export default function ERPTransactionsTab({
           </div>
           <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.5rem' }}>
-              <input placeholder="Search narration/party/voucher/currency" value={transactionFilters.search} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, search: e.target.value }))} style={modalInputStyle} />
+              <input placeholder="Search voucher/account/name/narration" value={transactionFilters.search} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, search: normalizeFilterSearchTerm(e.target.value) }))} style={modalInputStyle} />
               <select value={transactionFilters.status} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, status: e.target.value }))} style={modalInputStyle}>
                 <option value="">All statuses</option>
                 <option value="draft">Draft</option>
@@ -207,9 +210,21 @@ export default function ERPTransactionsTab({
                 <input type="date" value={transactionFilters.endDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={modalInputStyle} />
               </label>
             </div>
+            {erpAdvancedListFiltersEnabled ? (
+              <div style={{ marginTop: '0.65rem' }}>
+                <ErpMonthYearFilter
+                  year={transactionFilters.year}
+                  months={transactionFilters.months}
+                  onYearChange={(value) => setTransactionFilters((prev) => ({ ...prev, year: normalizeFilterYear(value) }))}
+                  onMonthsChange={(value) => setTransactionFilters((prev) => ({ ...prev, months: normalizeFilterMonths(value) }))}
+                  inputStyle={modalInputStyle}
+                  yearLabel="Transaction year"
+                />
+              </div>
+            ) : null}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button type="button" onClick={() => loadTransactions({ cursor: null, cursorHistory: [] })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Apply Filters</button>
-              <button type="button" onClick={() => { const resetFilters = { search: '', status: '', type: '', startDate: '', endDate: '' }; setTransactionFilters(resetFilters); loadTransactions({ cursor: null, cursorHistory: [], ...resetFilters }) }} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Reset</button>
+              <button type="button" onClick={() => { const resetFilters = { search: '', status: '', type: '', startDate: '', endDate: '', year: '', months: [] }; setTransactionFilters(resetFilters); loadTransactions({ cursor: null, cursorHistory: [], ...resetFilters }) }} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Reset</button>
               <button type="button" onClick={handleExportTransactionsCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700' }}>Export CSV</button>
               <button type="button" onClick={handleExportTransactionsXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', cursor: 'pointer', fontWeight: '700' }}>Export XLSX</button>
               <button type="button" onClick={handleExportTransactionsPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #EF4444', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>

@@ -126,6 +126,9 @@ export function useErpTabRouter({
     ledgerFilters.department,
     ledgerFilters.referenceType,
     ledgerFilters.accountId,
+    ledgerFilters.search,
+    ledgerFilters.year,
+    Array.isArray(ledgerFilters.months) ? ledgerFilters.months.join(',') : '',
     ledgerVoucherTab,
   ])
 

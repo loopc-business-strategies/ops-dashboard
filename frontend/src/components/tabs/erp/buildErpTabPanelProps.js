@@ -67,6 +67,7 @@ export function buildErpTabPanelProps(scope) {
     enquiryLoading: scope.enquiryLoading,
     enquiryStatus: scope.enquiryStatus,
     erpBaseCurrencyCode: scope.erpBaseCurrencyCode,
+    erpAdvancedListFiltersEnabled: scope.erpAdvancedListFiltersEnabled,
     erpLiveMetalSnapshot: scope.erpLiveMetalSnapshot,
     fetchAccountEnquiryByCode: scope.fetchAccountEnquiryByCode,
     filteredGroupedSummaryAccounts: scope.filteredGroupedSummaryAccounts,

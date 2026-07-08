@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import tenantRoutingCases from '../../../shared/tenant-routing-cases.json'
-import { getTenantBranding, resolveTenantFromHostname, resolveTenantFromSearch } from './tenantBranding'
+import {
+  getTenantBranding,
+  isErpAdvancedListFiltersEnabled,
+  resolveTenantFromHostname,
+  resolveTenantFromSearch,
+} from './tenantBranding'
 
 describe('tenant branding integration', () => {
   test.each(tenantRoutingCases)('matches shared tenant routing case: $name', ({ hostname, fallback, expected }) => {
@@ -28,5 +33,11 @@ describe('tenant branding integration', () => {
     expect(getTenantBranding('loopc').logoImage).toBe('/logos/loopc-logo.svg')
     expect(mg.enabledTabs).toContain('erp')
     expect(mg.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
+  })
+
+  test('enables advanced ERP list filters only for LOOPC', () => {
+    expect(isErpAdvancedListFiltersEnabled('loopc')).toBe(true)
+    expect(isErpAdvancedListFiltersEnabled('mg')).toBe(false)
+    expect(isErpAdvancedListFiltersEnabled('cg')).toBe(false)
   })
 })

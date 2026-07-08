@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import JournalVoucherModal from './JournalVoucherModal'
 import {
   groupJvLedgerEntries,
@@ -6,6 +7,8 @@ import {
   normalizeJvCurrencyCode,
 } from '../journalVoucherHelpers'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
+import ErpMonthYearFilter from '../ErpMonthYearFilter'
+import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from '../erpListFilters'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -64,6 +67,7 @@ export default function ERPLedgerTab({
   isFinance,
   handleRepairJvFxPreview,
   handleRepairJvFxApply,
+  erpAdvancedListFiltersEnabled = false,
 }) {
   const activeAccounts = filterActiveAccounts(accounts)
   const visibleJvLedgerEntries = activeTab === 'ledger'
@@ -73,6 +77,18 @@ export default function ERPLedgerTab({
     ))
     : []
   const groupedJvVouchers = groupJvLedgerEntries(visibleJvLedgerEntries, { baseCurrencyCode })
+  const filteredGroupedJvVouchers = useMemo(() => groupedJvVouchers.filter((voucher) => {
+    const searchMatched = includesSearchTerm([
+      voucher.voucherNo,
+      voucher.narration,
+      voucher.debitAccounts,
+      voucher.creditAccounts,
+      voucher.autoTxNo,
+      voucher.chequeNo,
+    ], ledgerFilters.search)
+    if (!searchMatched) return false
+    return matchesYearMonths(voucher.date, ledgerFilters.year, ledgerFilters.months)
+  }), [groupedJvVouchers, ledgerFilters.search, ledgerFilters.year, ledgerFilters.months])
 
   return (
     <>
@@ -244,16 +260,46 @@ export default function ERPLedgerTab({
                 <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
               ))}
             </select>
+            {erpAdvancedListFiltersEnabled ? (
+              <input
+                type="text"
+                value={ledgerFilters.search || ''}
+                onChange={(event) => setLedgerFilters((prev) => ({ ...prev, search: normalizeFilterSearchTerm(event.target.value) }))}
+                placeholder="Search voucher no, account, narration"
+                style={modalInputStyle}
+              />
+            ) : null}
             <button
-              onClick={() => setLedgerFilters({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })}
+              onClick={() => setLedgerFilters({
+                startDate: '',
+                endDate: '',
+                department: '',
+                referenceType: '',
+                accountId: '',
+                search: '',
+                year: '',
+                months: [],
+              })}
               style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content' }}
             >
               Reset Filters
             </button>
           </div>
+          {erpAdvancedListFiltersEnabled ? (
+            <div style={{ marginBottom: '1rem' }}>
+              <ErpMonthYearFilter
+                year={ledgerFilters.year}
+                months={ledgerFilters.months}
+                onYearChange={(value) => setLedgerFilters((prev) => ({ ...prev, year: normalizeFilterYear(value) }))}
+                onMonthsChange={(value) => setLedgerFilters((prev) => ({ ...prev, months: normalizeFilterMonths(value) }))}
+                inputStyle={modalInputStyle}
+                yearLabel="Ledger year"
+              />
+            </div>
+          ) : null}
           <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
             {(() => {
-              const pagedLedgerEntries = [...groupedJvVouchers]
+              const pagedLedgerEntries = [...filteredGroupedJvVouchers]
                 .sort((a, b) => {
                   if (sorting.ledger.by === 'date') {
                     return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
@@ -416,7 +462,7 @@ export default function ERPLedgerTab({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
             <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>
-              Showing {Number(groupedJvVouchers.length || 0).toLocaleString()} vouchers
+              Showing {Number(filteredGroupedJvVouchers.length || 0).toLocaleString()} vouchers
               {visibleJvLedgerEntries.length > 0
                 ? ` (${Number(visibleJvLedgerEntries.length).toLocaleString()} ledger lines loaded)`
                 : ''}
@@ -448,7 +494,7 @@ export default function ERPLedgerTab({
             </div>
           </div>
 
-          {groupedJvVouchers.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No {ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Journal Voucher'} entries yet.</p>}
+          {filteredGroupedJvVouchers.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No {ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Journal Voucher'} entries yet.</p>}
         </div>
       )}
 

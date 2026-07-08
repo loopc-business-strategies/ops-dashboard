@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../../context/AuthContext'
 import { useLanguage } from '../../../../context/LanguageContext'
-import { isLocalTenantHost, isReportPdfDownloadEnabled } from '../../../../config/tenantBranding'
+import { isErpAdvancedListFiltersEnabled, isLocalTenantHost, isReportPdfDownloadEnabled } from '../../../../config/tenantBranding'
 import { resolveErpUserTenantKey } from '../resolveErpUserTenant'
 import { buildDashboardSearchParams, buildEnquiryHref } from '../../../../utils/dashboardNavigation'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
@@ -48,6 +48,7 @@ export function useErpTabCoreSlice(props) {
   const { user, token } = useAuth()
   const inventoryTenantKey = resolveErpUserTenantKey(user)
   const reportPdfDownloadEnabled = isReportPdfDownloadEnabled(inventoryTenantKey)
+  const erpAdvancedListFiltersEnabled = isErpAdvancedListFiltersEnabled(inventoryTenantKey)
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
@@ -191,7 +192,16 @@ export function useErpTabCoreSlice(props) {
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showCurrencyForm, setShowCurrencyForm] = useState(false)
   const [showMappingForm, setShowMappingForm] = useState(false)
-  const [ledgerFilters, setLedgerFilters] = useState({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })
+  const [ledgerFilters, setLedgerFilters] = useState({
+    startDate: '',
+    endDate: '',
+    department: '',
+    referenceType: '',
+    accountId: '',
+    search: '',
+    year: '',
+    months: [],
+  })
   const [editState, setEditState] = useState({ type: '', record: null, form: {} })
   const [success, setSuccess] = useState('')
   const [pagination, setPagination] = useState({ accounts: 1, ledger: 1, mappings: 1 })
@@ -280,7 +290,15 @@ export function useErpTabCoreSlice(props) {
   const [reportBranding, setReportBranding] = useState(DEFAULT_BRANDING)
   const [brandingForm, setBrandingForm] = useState(DEFAULT_BRANDING)
   const [brandingPreviewLogo, setBrandingPreviewLogo] = useState('')
-  const [transactionFilters, setTransactionFilters] = useState({ search: '', status: '', type: '', startDate: '', endDate: '' })
+  const [transactionFilters, setTransactionFilters] = useState({
+    search: '',
+    status: '',
+    type: '',
+    startDate: '',
+    endDate: '',
+    year: '',
+    months: [],
+  })
   const [transactionSummary, setTransactionSummary] = useState({ totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
   const [ledgerMeta, setLedgerMeta] = useState({ cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
   const [transactionMeta, setTransactionMeta] = useState({ page: 1, limit: 25, total: 0, cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
@@ -530,6 +548,7 @@ export function useErpTabCoreSlice(props) {
     enquiryLoading,
     enquiryStatus,
     erpAccountsTenantKey,
+    erpAdvancedListFiltersEnabled,
     erpBaseCurrencyCode,
     erpGoldPriceUSD,
     erpLiveMetalSnapshot,

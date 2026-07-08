@@ -1,4 +1,5 @@
 import { btn, computeVoucherGrandTotal, fmt, inputStyle, isMetalStockVoucherType, S } from './voucherTabShared'
+import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 
 const STATUS_COLORS = {
   draft: { bg: '#FEF3C7', color: '#92400E' },
@@ -15,6 +16,12 @@ export default function VoucherListPanel({
   isSimpleMetalVoucher,
   selectedStatus,
   onSelectedStatusChange,
+  voucherSearch,
+  onVoucherSearchChange,
+  voucherFilterYear,
+  onVoucherFilterYearChange,
+  voucherFilterMonths,
+  onVoucherFilterMonthsChange,
   t,
   loadVouchers,
   canCreate,
@@ -31,10 +38,11 @@ export default function VoucherListPanel({
   handleVoidVoucher,
   handleRevalueFxJournal,
   displayVoucherDocNo,
+  erpAdvancedListFiltersEnabled,
 }) {
   return (
     <div>
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: S.ink }}>
           {voucherLabel} — List
         </h3>
@@ -51,11 +59,32 @@ export default function VoucherListPanel({
           <option value="returned">{t('statusReturned')}</option>
           <option value="rejected">{t('statusRejected')}</option>
         </select>
+        {erpAdvancedListFiltersEnabled ? (
+          <input
+            type="text"
+            value={voucherSearch}
+            onChange={(event) => onVoucherSearchChange(event.target.value)}
+            placeholder="Search voucher no, account, party, narration"
+            style={{ ...inputStyle, width: '280px' }}
+          />
+        ) : null}
         <button type="button" style={btn('gray')} onClick={loadVouchers}>↺ Refresh</button>
         {canCreate && (
           <button type="button" style={{ ...btn('primary'), marginLeft: 'auto' }} onClick={() => openCreate()}>+ New</button>
         )}
       </div>
+      {erpAdvancedListFiltersEnabled ? (
+        <div style={{ marginBottom: '1rem' }}>
+          <ErpMonthYearFilter
+            year={voucherFilterYear}
+            months={voucherFilterMonths}
+            onYearChange={onVoucherFilterYearChange}
+            onMonthsChange={onVoucherFilterMonthsChange}
+            inputStyle={inputStyle}
+            yearLabel="Doc year"
+          />
+        </div>
+      ) : null}
 
       {loadingList ? (
         <p style={{ color: S.muted }}>{t('loading')}</p>

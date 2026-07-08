@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { isVoucherTypeEnabled, isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
@@ -23,6 +23,7 @@ import {
   filterPartyAccounts,
 } from './erp/accountDropdownHelpers'
 import { useVoucherTabAccess } from './voucher/useVoucherTabAccess'
+import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from './erp/erpListFilters'
 
 export default function VoucherTab({
   token,
@@ -35,6 +36,7 @@ export default function VoucherTab({
   pendingOpenTransactionId = null,
   pendingOpenTransactionType = null,
   onPendingOpenTransactionConsumed = null,
+  erpAdvancedListFiltersEnabled = false,
 }) {
   const showAccountDetailsTab = false
   const { t } = useLanguage()
@@ -135,6 +137,9 @@ export default function VoucherTab({
   const formReadOnly = isReadOnly || mode === 'view'
   const [editingId, setEditingId] = useState(null)
   const [selectedStatus, setSelectedStatus] = useState('') // workflow filter
+  const [voucherSearch, setVoucherSearch] = useState('')
+  const [voucherFilterYear, setVoucherFilterYear] = useState('')
+  const [voucherFilterMonths, setVoucherFilterMonths] = useState([])
   const [menuTab, setMenuTab] = useState('header')        // 'header' | 'accounts' | 'lineItems' | 'attachments'
   const [workflowNote, setWorkflowNote] = useState('')
   const [selectedPartyId, setSelectedPartyId] = useState('')
@@ -1835,9 +1840,30 @@ export default function VoucherTab({
   }, [menuTab, header.partyCode, resolveVoucherParty, loadRecentPartyVouchers])
 
   // ─── filtered list ───────────────────────────────────────────────────────────
-  const filteredVouchers = selectedStatus
-    ? vouchers.filter(v => v.status === selectedStatus)
-    : vouchers
+  const filteredVouchers = useMemo(() => vouchers.filter((voucher) => {
+    if (selectedStatus && voucher.status !== selectedStatus) return false
+    const meta = voucher.voucherMeta || {}
+    const searchMatched = includesSearchTerm([
+      displayVoucherDocNo(voucher, voucherType),
+      meta.vocNo,
+      meta.partyCode,
+      meta.partyName,
+      meta.narration,
+      voucher.description,
+      ...(Array.isArray(meta.lineItems) ? meta.lineItems.flatMap((line) => [line?.narration, line?.exp]) : []),
+    ], voucherSearch)
+    if (!searchMatched) return false
+    const dateValue = meta.docDate || meta.valueDate || voucher.date
+    return matchesYearMonths(dateValue, voucherFilterYear, voucherFilterMonths)
+  }), [
+    vouchers,
+    selectedStatus,
+    voucherType,
+    voucherSearch,
+    voucherFilterYear,
+    voucherFilterMonths,
+    displayVoucherDocNo,
+  ])
   const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
   const currentVoucherStatus = currentVoucher?.status || 'draft'
   const canDeleteCurrentVoucher = Boolean(editingId) && !isReadOnly && currentVoucherStatus !== 'posted'
@@ -2047,6 +2073,12 @@ export default function VoucherTab({
           isSimpleMetalVoucher={isSimpleMetalVoucher}
           selectedStatus={selectedStatus}
           onSelectedStatusChange={setSelectedStatus}
+          voucherSearch={voucherSearch}
+          onVoucherSearchChange={(value) => setVoucherSearch(normalizeFilterSearchTerm(value))}
+          voucherFilterYear={voucherFilterYear}
+          onVoucherFilterYearChange={(value) => setVoucherFilterYear(normalizeFilterYear(value))}
+          voucherFilterMonths={voucherFilterMonths}
+          onVoucherFilterMonthsChange={(value) => setVoucherFilterMonths(normalizeFilterMonths(value))}
           t={t}
           loadVouchers={loadVouchers}
           canCreate={canCreate}
@@ -2063,6 +2095,7 @@ export default function VoucherTab({
           handleVoidVoucher={handleVoidVoucher}
           handleRevalueFxJournal={handleRevalueFxJournal}
           displayVoucherDocNo={resolveDisplayVoucherDocNo}
+          erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
         />
       )}
 
