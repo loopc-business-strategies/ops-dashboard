@@ -7,6 +7,8 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
   const logoOffsetX = Number(layoutSettings?.logoOffsetX || 0)
   const logoOffsetY = Number(layoutSettings?.logoOffsetY || 0)
   const logoTransparent = layoutSettings?.logoTransparent !== false
+  const logoFrameWidth = 260
+  const logoFrameHeight = 120
   const details = [
     branding?.address,
     branding?.phone,
@@ -34,8 +36,8 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
         </div>
         <div style={{
           position: 'relative',
-          minWidth: `${logoWidth}px`,
-          minHeight: `${logoHeight}px`,
+          minWidth: `${logoFrameWidth}px`,
+          minHeight: `${logoFrameHeight}px`,
           display: 'flex',
           justifyContent: 'flex-end',
         }}

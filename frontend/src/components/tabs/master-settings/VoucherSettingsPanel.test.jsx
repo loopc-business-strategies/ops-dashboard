@@ -8,13 +8,16 @@ vi.mock('./DocumentLayoutPreview', () => ({
 }))
 
 vi.mock('./DocumentLogoEditor', () => ({
-  default: ({ onChange }) => (
-    <button
-      type="button"
-      onClick={() => onChange({ logoUrl: 'data:image/png;base64,uploaded' })}
-    >
-      Mock upload logo
-    </button>
+  default: ({ onChange, enableAutoLogoCleanup }) => (
+    <div>
+      <button
+        type="button"
+        onClick={() => onChange({ logoUrl: 'data:image/png;base64,uploaded' })}
+      >
+        Mock upload logo
+      </button>
+      <span data-testid="auto-cleanup-flag">{String(Boolean(enableAutoLogoCleanup))}</span>
+    </div>
   ),
 }))
 
@@ -61,5 +64,32 @@ describe('VoucherSettingsPanel logo upload', () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'Mock upload logo' }))
     expect(screen.getByTestId('logo-url').textContent).toBe('data:image/png;base64,uploaded')
+  })
+
+  it('enables automatic logo cleanup for LOOPC only', () => {
+    const sharedProps = {
+      branding: { companyName: 'Test', logoUrl: '', voucherPrint: {} },
+      onChange: vi.fn(),
+      onSave: vi.fn(),
+      saving: false,
+      error: '',
+      status: '',
+    }
+
+    const { rerender } = render(
+      <VoucherSettingsPanel
+        {...sharedProps}
+        user={{ company: 'loopc' }}
+      />,
+    )
+    expect(screen.getByTestId('auto-cleanup-flag').textContent).toBe('true')
+
+    rerender(
+      <VoucherSettingsPanel
+        {...sharedProps}
+        user={{ company: 'mg' }}
+      />,
+    )
+    expect(screen.getByTestId('auto-cleanup-flag').textContent).toBe('false')
   })
 })

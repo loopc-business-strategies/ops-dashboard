@@ -16,6 +16,7 @@ const {
   brandingOptionLabel,
   createLogoRenderAsset,
   isSupportedLogoUpload,
+  normalizeLogoDataUrl,
   normalizeLogoUploadToDataUrl,
 } = ERPBrandingUtils
 
@@ -182,6 +183,8 @@ describe('ERPBrandingUtils – normalizeLogoUploadToDataUrl', () => {
     const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       clearRect: vi.fn(),
       drawImage: vi.fn(),
+      getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 })),
+      putImageData: vi.fn(),
     })
     const toDataURL = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL')
       .mockReturnValue('data:image/png;base64,normalized')
@@ -192,6 +195,53 @@ describe('ERPBrandingUtils – normalizeLogoUploadToDataUrl', () => {
     })
 
     expect(result).toBe('data:image/png;base64,normalized')
+    getContext.mockRestore()
+    toDataURL.mockRestore()
+  })
+
+  test('applies background cleanup path when requested', async () => {
+    class MockFileReader {
+      readAsDataURL() {
+        this.result = 'data:image/png;base64,raw'
+        this.onload?.()
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader)
+
+    class MockImage {
+      constructor() {
+        this.width = 100
+        this.height = 50
+        this.crossOrigin = ''
+      }
+
+      set src(_value) {
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    vi.stubGlobal('Image', MockImage)
+
+    const getImageData = vi.fn(() => ({ data: new Uint8ClampedArray([255, 255, 255, 255]), width: 1, height: 1 }))
+    const putImageData = vi.fn()
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      getImageData,
+      putImageData,
+    })
+    const toDataURL = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValue('data:image/png;base64,normalized')
+
+    const result = await normalizeLogoUploadToDataUrl({
+      type: 'image/png',
+      name: 'logo.png',
+    }, {
+      removeBackground: true,
+    })
+
+    expect(result).toBe('data:image/png;base64,normalized')
+    expect(getImageData).toHaveBeenCalled()
+    expect(putImageData).toHaveBeenCalled()
     getContext.mockRestore()
     toDataURL.mockRestore()
   })
@@ -239,5 +289,24 @@ describe('ERPBrandingUtils – normalizeLogoUploadToDataUrl', () => {
       type: 'image/png',
       name: 'logo.png',
     })).rejects.toThrow('Failed to process logo file.')
+  })
+})
+
+describe('ERPBrandingUtils – normalizeLogoDataUrl', () => {
+  test('returns original URL when rendering fails', async () => {
+    class MockImage {
+      set src(_value) {
+        queueMicrotask(() => this.onerror?.())
+      }
+    }
+    vi.stubGlobal('Image', MockImage)
+
+    const result = await normalizeLogoDataUrl('data:image/png;base64,raw', {
+      removeBackground: true,
+      width: 200,
+      height: 80,
+    })
+    expect(typeof result).toBe('string')
+    expect(result.length).toBeGreaterThan(0)
   })
 })

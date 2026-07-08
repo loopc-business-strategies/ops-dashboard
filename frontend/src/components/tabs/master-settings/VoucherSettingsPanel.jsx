@@ -11,6 +11,7 @@ import {
   buildVoucherPreviewPrintModel,
 } from '../voucher/voucherPreviewSamples'
 import { applyDocumentLogoPatch } from './documentLogoChange'
+import { resolveErpUserTenantKey } from '../erp/resolveErpUserTenant'
 
 const inputStyle = {
   width: '100%',
@@ -34,6 +35,7 @@ export default function VoucherSettingsPanel({
   const [previewDataMode, setPreviewDataMode] = useState('empty')
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const voucherPrint = branding.voucherPrint || {}
+  const isLoopcTenant = resolveErpUserTenantKey(user) === 'loopc'
 
   const patchBranding = (patch) => onChange((prev) => ({ ...prev, ...patch }))
   const patchVoucherPrint = (patch) => onChange((prev) => ({
@@ -104,6 +106,7 @@ export default function VoucherSettingsPanel({
         layoutSettings={voucherPrint}
         onChange={(patch) => applyDocumentLogoPatch(patch, { setLogoError, patchBranding })}
         onLayoutChange={patchVoucherPrint}
+        enableAutoLogoCleanup={isLoopcTenant}
       />
 
       <div>

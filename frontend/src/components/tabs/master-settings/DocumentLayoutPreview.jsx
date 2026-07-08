@@ -45,6 +45,8 @@ export default function DocumentLayoutPreview({
   const details = [branding.address, branding.phone, branding.trn ? `TRN: ${branding.trn}` : ''].filter(Boolean)
   const logoWidth = Number(branding.logoWidth || 160)
   const logoHeight = Number(branding.logoHeight || 56)
+  const logoFrameWidth = 260
+  const logoFrameHeight = 120
 
   return (
     <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, padding: 14, background: '#fff' }}>
@@ -69,7 +71,7 @@ export default function DocumentLayoutPreview({
               </div>
             ))}
           </div>
-          <div style={{ position: 'relative', width: logoWidth, minHeight: logoHeight }}>
+          <div style={{ position: 'relative', width: logoFrameWidth, minHeight: logoFrameHeight }}>
             {branding.logoUrl ? (
               <div
                 role="presentation"
@@ -78,7 +80,7 @@ export default function DocumentLayoutPreview({
                 onPointerUp={onPointerUp}
                 style={{
                   position: 'absolute',
-                  top: logoOffsetY,
+                  top: Math.min(Math.max(logoOffsetY, -120), 120),
                   right: -logoOffsetX,
                   cursor: onLayoutChange ? 'grab' : 'default',
                   touchAction: 'none',

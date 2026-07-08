@@ -189,7 +189,40 @@ const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file)
 })
 
-export const normalizeLogoUploadToDataUrl = async (file) => {
+const removeNearWhiteBackground = (ctx, width, height) => {
+  try {
+    const imageData = ctx.getImageData(0, 0, width, height)
+    const data = imageData.data
+    for (let index = 0; index < data.length; index += 4) {
+      const red = data[index]
+      const green = data[index + 1]
+      const blue = data[index + 2]
+      const alpha = data[index + 3]
+      const max = Math.max(red, green, blue)
+      const min = Math.min(red, green, blue)
+      // Remove mostly neutral light background while preserving saturated logo colors.
+      if (alpha > 0 && red >= 220 && green >= 220 && blue >= 220 && (max - min) <= 18) {
+        data[index + 3] = 0
+      }
+    }
+    ctx.putImageData(imageData, 0, 0)
+  } catch {
+    // Keep original image if pixel extraction is blocked or unavailable.
+  }
+}
+
+export const normalizeLogoDataUrl = async (logoUrl, options = {}) => {
+  const {
+    removeBackground = false,
+    width = 260,
+    height = 120,
+    fit = 'contain',
+  } = options
+  const rendered = await createLogoRenderAsset(logoUrl, width, height, fit, { removeBackground })
+  return rendered || logoUrl
+}
+
+export const normalizeLogoUploadToDataUrl = async (file, options = {}) => {
   if (!file || typeof document === 'undefined') {
     throw new Error('Failed to process logo file.')
   }
@@ -204,8 +237,12 @@ export const normalizeLogoUploadToDataUrl = async (file) => {
     return dataUrl
   }
 
-  const rendered = await createLogoRenderAsset(dataUrl, 260, 120, 'contain')
-  const result = rendered || dataUrl
+  const result = await normalizeLogoDataUrl(dataUrl, {
+    removeBackground: options.removeBackground === true,
+    width: 260,
+    height: 120,
+    fit: 'contain',
+  })
   if (!result) {
     throw new Error('Failed to process logo file.')
   }
@@ -221,9 +258,10 @@ export const normalizeLogoUploadToDataUrl = async (file) => {
  * @param {'contain'|'cover'|'fill'} fit
  * @returns {Promise<string>}
  */
-export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain') => {
+export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain', options = {}) => {
   const safeUrl = sanitizeLogoUrl(logoUrl)
   if (!safeUrl || typeof document === 'undefined') return ''
+  const removeBackground = options?.removeBackground === true
 
   const boxWidth = clampBrandingDimension(width, DEFAULT_BRANDING.logoWidth, 80, 260)
   const boxHeight = clampBrandingDimension(height, DEFAULT_BRANDING.logoHeight, 32, 120)
@@ -251,6 +289,9 @@ export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'conta
           const dx = (boxWidth - drawWidth) / 2
           const dy = (boxHeight - drawHeight) / 2
           ctx.drawImage(image, dx, dy, drawWidth, drawHeight)
+        }
+        if (removeBackground) {
+          removeNearWhiteBackground(ctx, boxWidth, boxHeight)
         }
 
         resolve(canvas.toDataURL('image/png'))

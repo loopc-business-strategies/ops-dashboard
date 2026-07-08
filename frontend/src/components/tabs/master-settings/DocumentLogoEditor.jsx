@@ -4,6 +4,7 @@ import {
   LOGO_UPLOAD_MAX_BYTES,
   clampBrandingDimension,
   isSupportedLogoUpload,
+  normalizeLogoDataUrl,
   normalizeLogoUploadToDataUrl,
 } from '../erp/ERPBrandingUtils'
 
@@ -21,6 +22,7 @@ export default function DocumentLogoEditor({
   layoutSettings = {},
   onLayoutChange,
   showTransparentToggle = true,
+  enableAutoLogoCleanup = false,
 }) {
   const fileRef = useRef(null)
 
@@ -35,7 +37,28 @@ export default function DocumentLogoEditor({
       return
     }
     try {
-      const logoUrl = await normalizeLogoUploadToDataUrl(file)
+      const logoUrl = await normalizeLogoUploadToDataUrl(file, {
+        removeBackground: enableAutoLogoCleanup,
+      })
+      if (!logoUrl) {
+        onChange({ error: 'Failed to process logo file.' })
+        return
+      }
+      onChange({ logoUrl })
+    } catch {
+      onChange({ error: 'Failed to process logo file.' })
+    }
+  }
+
+  const handleEditLogo = async () => {
+    if (!branding.logoUrl) return
+    try {
+      const logoUrl = await normalizeLogoDataUrl(branding.logoUrl, {
+        removeBackground: enableAutoLogoCleanup,
+        width: 260,
+        height: 120,
+        fit: branding.logoFit || 'contain',
+      })
       if (!logoUrl) {
         onChange({ error: 'Failed to process logo file.' })
         return
@@ -72,6 +95,15 @@ export default function DocumentLogoEditor({
           {branding.logoUrl ? (
             <button
               type="button"
+              onClick={() => void handleEditLogo()}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer' }}
+            >
+              Edit logo
+            </button>
+          ) : null}
+          {branding.logoUrl ? (
+            <button
+              type="button"
               onClick={() => onChange({ logoUrl: '' })}
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', cursor: 'pointer' }}
             >
@@ -81,6 +113,7 @@ export default function DocumentLogoEditor({
         </div>
         <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6B7280' }}>
           PNG, SVG, JPEG, or WebP. Images are normalized for print; transparency is preserved when supported.
+          {enableAutoLogoCleanup ? ' LOOPC: uploads are converted to PNG and background cleanup is applied automatically.' : ''}
         </p>
       </div>
 
