@@ -98,4 +98,15 @@ describe('MasterSettingsTab', () => {
     expect(screen.getByRole('button', { name: 'Open full preview' })).toBeTruthy()
     expect(screen.getByText('No line items')).toBeTruthy()
   })
+
+  it('expands statement settings panel with full preview controls', async () => {
+    render(<MasterSettingsTab />)
+    fireEvent.click(await screen.findByRole('button', { name: /Statement Settings/i }))
+    expect(await screen.findByText('Save statement settings')).toBeTruthy()
+    expect(screen.getByText('Full statement preview')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Empty' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sample' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open full preview' })).toBeTruthy()
+    expect(await screen.findByTitle('Statement inline preview')).toBeTruthy()
+  })
 })

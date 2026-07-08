@@ -295,6 +295,7 @@ export default function MasterSettingsTab() {
             saving={brandingSaving}
             error={brandingError}
             status={brandingStatus}
+            user={user}
           />
         </section>
       )}

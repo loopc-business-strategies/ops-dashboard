@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import DocumentLayoutPreview from './DocumentLayoutPreview'
 import DocumentLogoEditor from './DocumentLogoEditor'
 import SignatoryEditor from './SignatoryEditor'
+import StatementPreviewModal from '../erp/accountEnquiry/StatementPreviewModal'
+import { useStatementPreviewHtml } from './useStatementPreviewHtml'
 
 const inputStyle = {
   width: '100%',
@@ -17,8 +20,22 @@ export default function StatementSettingsPanel({
   saving,
   error,
   status,
+  user = null,
 }) {
+  const [previewDataMode, setPreviewDataMode] = useState('empty')
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const statementPrint = branding.statementPrint || {}
+
+  const {
+    html: previewHtml,
+    loading: previewLoading,
+    error: previewError,
+    title: previewTitle,
+  } = useStatementPreviewHtml({
+    branding,
+    user,
+    previewMode: previewDataMode,
+  })
 
   const patchBranding = (patch) => onChange((prev) => ({ ...prev, ...patch }))
   const patchStatementPrint = (patch) => onChange((prev) => ({
@@ -129,6 +146,74 @@ export default function StatementSettingsPanel({
         Show generated-on timestamp in statement preview
       </label>
 
+      <section style={{ borderTop: '1px solid #E5E7EB', paddingTop: 14 }}>
+        <h4 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700 }}>Full statement preview</h4>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6B7280' }}>
+          Preview the complete statement layout with empty or sample data. Changes update live before saving.
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: 'inline-flex', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden' }}>
+            {['empty', 'sample'].map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPreviewDataMode(value)}
+                style={{
+                  padding: '6px 12px',
+                  border: 'none',
+                  background: previewDataMode === value ? '#005B96' : '#FFFFFF',
+                  color: previewDataMode === value ? '#FFFFFF' : '#374151',
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                {value === 'empty' ? 'Empty' : 'Sample'}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPreviewModalOpen(true)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #005B96', background: '#EFF6FF', color: '#005B96', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Open full preview
+          </button>
+        </div>
+        <div style={{
+          border: '1px solid #E5E7EB',
+          borderRadius: 10,
+          background: '#F8FAFC',
+          padding: 12,
+          minHeight: 200,
+          maxHeight: 420,
+          overflow: 'auto',
+        }}
+        >
+          {previewLoading ? (
+            <div style={{ padding: 24, textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+              Preparing statement preview…
+            </div>
+          ) : previewError ? (
+            <div style={{ padding: 24, textAlign: 'center', color: '#B91C1C', fontSize: 13 }}>
+              {previewError}
+            </div>
+          ) : (
+            <iframe
+              title="Statement inline preview"
+              srcDoc={previewHtml}
+              style={{
+                width: '100%',
+                height: 420,
+                border: 'none',
+                display: 'block',
+                background: '#FFFFFF',
+              }}
+            />
+          )}
+        </div>
+      </section>
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           type="button"
@@ -141,6 +226,15 @@ export default function StatementSettingsPanel({
         {status ? <span style={{ fontSize: 13, color: '#166534' }}>{status}</span> : null}
         {error ? <span style={{ fontSize: 13, color: '#B91C1C' }}>{error}</span> : null}
       </div>
+
+      <StatementPreviewModal
+        open={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        title={previewTitle}
+        html={previewHtml}
+        loading={previewLoading}
+        showPrintButton
+      />
     </div>
   )
 }

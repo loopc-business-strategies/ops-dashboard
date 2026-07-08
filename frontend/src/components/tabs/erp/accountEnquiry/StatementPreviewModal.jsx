@@ -6,6 +6,8 @@ function StatementPreviewModal({
   title,
   html,
   loading,
+  showPrintButton = false,
+  onPrint,
 }) {
   const panelRef = useRef(null)
   const offsetRef = useRef({ x: 0, y: 0 })
@@ -85,6 +87,22 @@ function StatementPreviewModal({
   useEffect(() => () => {
     cleanupDragListeners()
   }, [])
+
+  const handlePrint = () => {
+    if (onPrint) {
+      onPrint()
+      return
+    }
+    if (!html) return
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
+    if (!printWindow) return
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+    printWindow.close()
+  }
 
   if (!open) return null
 
@@ -186,9 +204,30 @@ function StatementPreviewModal({
           padding: '1rem 1.5rem',
           display: 'flex',
           justifyContent: 'flex-end',
+          gap: '10px',
           flexShrink: 0,
         }}
         >
+          {showPrintButton ? (
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={loading || !html}
+              style={{
+                padding: '0.6rem 1.2rem',
+                background: '#005B96',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '0.5rem',
+                fontSize: '0.95rem',
+                cursor: loading || !html ? 'not-allowed' : 'pointer',
+                fontWeight: '700',
+                opacity: loading || !html ? 0.65 : 1,
+              }}
+            >
+              Print
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => onClose()}
