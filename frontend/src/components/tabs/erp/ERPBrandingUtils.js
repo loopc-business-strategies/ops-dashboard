@@ -111,6 +111,7 @@ export const DEFAULT_BRANDING_PROFILES = [{
 
 export const LOGO_UPLOAD_ACCEPT = 'image/png,image/svg+xml,image/jpeg,image/webp,.png,.svg,.jpg,.jpeg,.webp'
 export const LOGO_UPLOAD_MAX_BYTES = 3 * 1024 * 1024
+export const LOGO_UPLOAD_MAX_DIMENSION = 1024
 export const SUPPORTED_LOGO_MIME_TYPES = new Set(['image/png', 'image/svg+xml', 'image/jpeg', 'image/webp'])
 export const SUPPORTED_LOGO_EXTENSIONS = new Set(['png', 'svg', 'jpg', 'jpeg', 'webp'])
 
@@ -244,15 +245,54 @@ const removeNearWhiteBackground = (ctx, width, height) => {
   }
 }
 
+const processLogoWithBackgroundCleanup = async (logoUrl, maxDimension = LOGO_UPLOAD_MAX_DIMENSION) => {
+  const safeUrl = sanitizeLogoUrl(logoUrl)
+  if (!safeUrl || typeof document === 'undefined') return ''
+
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.onload = () => {
+      try {
+        let width = image.naturalWidth || image.width
+        let height = image.naturalHeight || image.height
+        const maxSide = Math.max(width, height)
+        if (maxSide > maxDimension) {
+          const ratio = maxDimension / maxSide
+          width = Math.round(width * ratio)
+          height = Math.round(height * ratio)
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve('')
+        ctx.clearRect(0, 0, width, height)
+        ctx.drawImage(image, 0, 0, width, height)
+        removeNearWhiteBackground(ctx, width, height)
+        resolve(canvas.toDataURL('image/png'))
+      } catch {
+        resolve('')
+      }
+    }
+    image.onerror = () => resolve('')
+    image.src = safeUrl
+  })
+}
+
 export const normalizeLogoDataUrl = async (logoUrl, options = {}) => {
   const {
     removeBackground = false,
-    width = 260,
-    height = 120,
-    fit = 'contain',
+    maxDimension = LOGO_UPLOAD_MAX_DIMENSION,
   } = options
-  const rendered = await createLogoRenderAsset(logoUrl, width, height, fit, { removeBackground })
-  return rendered || logoUrl
+
+  if (removeBackground) {
+    const cleaned = await processLogoWithBackgroundCleanup(logoUrl, maxDimension)
+    return cleaned || logoUrl
+  }
+
+  return logoUrl
 }
 
 export const normalizeLogoUploadToDataUrl = async (file, options = {}) => {
@@ -270,16 +310,18 @@ export const normalizeLogoUploadToDataUrl = async (file, options = {}) => {
     return dataUrl
   }
 
-  const result = await normalizeLogoDataUrl(dataUrl, {
-    removeBackground: options.removeBackground === true,
-    width: 260,
-    height: 120,
-    fit: 'contain',
-  })
-  if (!result) {
-    throw new Error('Failed to process logo file.')
+  if (options.removeBackground === true) {
+    const result = await processLogoWithBackgroundCleanup(
+      dataUrl,
+      options.maxDimension ?? LOGO_UPLOAD_MAX_DIMENSION,
+    )
+    if (!result) {
+      throw new Error('Failed to process logo file.')
+    }
+    return result
   }
-  return result
+
+  return dataUrl
 }
 
 /**

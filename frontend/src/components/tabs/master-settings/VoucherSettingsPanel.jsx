@@ -11,7 +11,6 @@ import {
   buildVoucherPreviewPrintModel,
 } from '../voucher/voucherPreviewSamples'
 import { applyDocumentLogoPatch } from './documentLogoChange'
-import { resolveErpUserTenantKey } from '../erp/resolveErpUserTenant'
 import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from '../erp/ERPBrandingUtils'
 
 const inputStyle = {
@@ -36,7 +35,6 @@ export default function VoucherSettingsPanel({
   const [previewDataMode, setPreviewDataMode] = useState('empty')
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const voucherPrint = branding.voucherPrint || {}
-  const isLoopcTenant = resolveErpUserTenantKey(user) === 'loopc'
   const titleAccentColor = normalizeTitleAccentColor(
     voucherPrint.titleAccentColor,
     DEFAULT_TITLE_ACCENT_COLOR,
@@ -191,7 +189,7 @@ export default function VoucherSettingsPanel({
         layoutSettings={voucherPrint}
         onChange={(patch) => applyDocumentLogoPatch(patch, { setLogoError, patchBranding })}
         onLayoutChange={patchVoucherPrint}
-        enableAutoLogoCleanup={isLoopcTenant}
+        enableAutoLogoCleanup
       />
 
       <div>

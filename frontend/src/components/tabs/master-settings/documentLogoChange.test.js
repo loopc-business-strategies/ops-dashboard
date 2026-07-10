@@ -1,9 +1,28 @@
 import { describe, expect, test, vi } from 'vitest'
 import {
   applyDocumentLogoPatch,
+  computeVoucherLogoDimensions,
   logoSizePercentFromDimensions,
   scaleDocumentLogoSize,
 } from './documentLogoChange'
+
+describe('computeVoucherLogoDimensions', () => {
+  test('fills wide logos to frame width', () => {
+    expect(computeVoucherLogoDimensions(1000, 200)).toEqual({ logoWidth: 260, logoHeight: 52 })
+  })
+
+  test('fills square logos to frame height', () => {
+    expect(computeVoucherLogoDimensions(500, 500)).toEqual({ logoWidth: 120, logoHeight: 120 })
+  })
+
+  test('fills tall logos to frame height', () => {
+    expect(computeVoucherLogoDimensions(200, 800)).toEqual({ logoWidth: 80, logoHeight: 120 })
+  })
+
+  test('falls back to baseline for invalid dimensions', () => {
+    expect(computeVoucherLogoDimensions(0, 0)).toEqual({ logoWidth: 180, logoHeight: 56 })
+  })
+})
 
 describe('applyDocumentLogoPatch', () => {
   test('applies logoUrl when error is empty string', () => {

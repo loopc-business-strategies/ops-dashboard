@@ -72,7 +72,7 @@ describe('VoucherSettingsPanel logo upload', () => {
     expect(screen.getByTestId('logo-url').textContent).toBe('data:image/png;base64,uploaded')
   })
 
-  it('enables automatic logo cleanup for LOOPC only', () => {
+  test('enables automatic logo cleanup for all tenants', () => {
     const sharedProps = {
       branding: { companyName: 'Test', logoUrl: '', voucherPrint: {} },
       onChange: vi.fn(),
@@ -96,7 +96,15 @@ describe('VoucherSettingsPanel logo upload', () => {
         user={{ company: 'mg' }}
       />,
     )
-    expect(screen.getByTestId('auto-cleanup-flag').textContent).toBe('false')
+    expect(screen.getByTestId('auto-cleanup-flag').textContent).toBe('true')
+
+    rerender(
+      <VoucherSettingsPanel
+        {...sharedProps}
+        user={{ company: 'cg' }}
+      />,
+    )
+    expect(screen.getByTestId('auto-cleanup-flag').textContent).toBe('true')
   })
 
   it('updates titleAccentColor from the color picker and resets to default', () => {

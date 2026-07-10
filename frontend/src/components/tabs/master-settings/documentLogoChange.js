@@ -4,6 +4,74 @@ export const LOGO_SIZE_MIN_PERCENT = 50
 export const LOGO_SIZE_MAX_PERCENT = 200
 export const LOGO_SIZE_BASELINE_WIDTH = DEFAULT_BRANDING.logoWidth
 export const LOGO_SIZE_BASELINE_HEIGHT = DEFAULT_BRANDING.logoHeight
+export const VOUCHER_LOGO_FRAME_WIDTH = 260
+export const VOUCHER_LOGO_FRAME_HEIGHT = 120
+const MIN_LOGO_WIDTH = 80
+const MAX_LOGO_WIDTH = 260
+const MIN_LOGO_HEIGHT = 32
+const MAX_LOGO_HEIGHT = 120
+
+/**
+ * Maximal display size (contain) for a logo inside the voucher header frame.
+ * @param {number} naturalWidth
+ * @param {number} naturalHeight
+ * @returns {{ logoWidth: number, logoHeight: number }}
+ */
+export function computeVoucherLogoDimensions(naturalWidth, naturalHeight) {
+  const naturalW = Number(naturalWidth)
+  const naturalH = Number(naturalHeight)
+  if (!Number.isFinite(naturalW) || !Number.isFinite(naturalH) || naturalW <= 0 || naturalH <= 0) {
+    return {
+      logoWidth: LOGO_SIZE_BASELINE_WIDTH,
+      logoHeight: LOGO_SIZE_BASELINE_HEIGHT,
+    }
+  }
+
+  const scale = Math.min(
+    VOUCHER_LOGO_FRAME_WIDTH / naturalW,
+    VOUCHER_LOGO_FRAME_HEIGHT / naturalH,
+    MAX_LOGO_WIDTH / naturalW,
+    MAX_LOGO_HEIGHT / naturalH,
+  )
+
+  const logoWidth = clampBrandingDimension(
+    Math.round(naturalW * scale),
+    LOGO_SIZE_BASELINE_WIDTH,
+    MIN_LOGO_WIDTH,
+    MAX_LOGO_WIDTH,
+  )
+  const logoHeight = clampBrandingDimension(
+    Math.round(naturalH * scale),
+    LOGO_SIZE_BASELINE_HEIGHT,
+    MIN_LOGO_HEIGHT,
+    MAX_LOGO_HEIGHT,
+  )
+
+  return { logoWidth, logoHeight }
+}
+
+/**
+ * @param {string} src
+ * @returns {Promise<{ width: number, height: number }>}
+ */
+export function loadImageNaturalSize(src) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined' || !String(src || '').trim()) {
+      reject(new Error('Failed to load logo dimensions.'))
+      return
+    }
+
+    const image = new Image()
+    image.onload = () => {
+      resolve({
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height,
+      })
+    }
+    image.onerror = () => reject(new Error('Failed to load logo dimensions.'))
+    image.src = src
+  })
+}
 
 export function scaleDocumentLogoSize(_dimensions = {}, scalePercent) {
   const scale = Number(scalePercent) / 100

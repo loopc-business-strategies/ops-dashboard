@@ -95,6 +95,7 @@ export default function StatementSettingsPanel({
         layoutSettings={statementPrint}
         onChange={(patch) => applyDocumentLogoPatch(patch, { setLogoError, patchBranding })}
         onLayoutChange={patchStatementPrint}
+        enableAutoLogoCleanup
       />
 
       <div style={{ display: 'grid', gap: 10 }}>

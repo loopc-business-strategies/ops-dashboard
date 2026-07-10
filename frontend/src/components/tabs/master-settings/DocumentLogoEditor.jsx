@@ -7,6 +7,7 @@ import {
   normalizeLogoDataUrl,
   normalizeLogoUploadToDataUrl,
 } from '../erp/ERPBrandingUtils'
+import { computeVoucherLogoDimensions, loadImageNaturalSize } from './documentLogoChange'
 
 const inputStyle = {
   width: '100%',
@@ -14,6 +15,17 @@ const inputStyle = {
   borderRadius: 8,
   border: '1px solid #E5E7EB',
   fontSize: 13,
+}
+
+async function buildLogoUploadPatch(logoUrl) {
+  const { width, height } = await loadImageNaturalSize(logoUrl)
+  const { logoWidth, logoHeight } = computeVoucherLogoDimensions(width, height)
+  return {
+    logoUrl,
+    logoWidth,
+    logoHeight,
+    logoFit: 'contain',
+  }
 }
 
 export default function DocumentLogoEditor({
@@ -44,7 +56,7 @@ export default function DocumentLogoEditor({
         onChange({ error: 'Failed to process logo file.' })
         return
       }
-      onChange({ logoUrl })
+      onChange(await buildLogoUploadPatch(logoUrl))
     } catch {
       onChange({ error: 'Failed to process logo file.' })
     }
@@ -55,15 +67,12 @@ export default function DocumentLogoEditor({
     try {
       const logoUrl = await normalizeLogoDataUrl(branding.logoUrl, {
         removeBackground: enableAutoLogoCleanup,
-        width: 260,
-        height: 120,
-        fit: branding.logoFit || 'contain',
       })
       if (!logoUrl) {
         onChange({ error: 'Failed to process logo file.' })
         return
       }
-      onChange({ logoUrl })
+      onChange(await buildLogoUploadPatch(logoUrl))
     } catch {
       onChange({ error: 'Failed to process logo file.' })
     }
@@ -112,8 +121,8 @@ export default function DocumentLogoEditor({
           ) : null}
         </div>
         <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6B7280' }}>
-          PNG, SVG, JPEG, or WebP. Images are normalized for print; transparency is preserved when supported.
-          {enableAutoLogoCleanup ? ' LOOPC: uploads are converted to PNG and background cleanup is applied automatically.' : ''}
+          PNG, SVG, JPEG, or WebP. Uploads are sized automatically for the voucher header; use the logo size slider to adjust.
+          {enableAutoLogoCleanup ? ' Raster images are converted to PNG with automatic background cleanup.' : ''}
         </p>
       </div>
 

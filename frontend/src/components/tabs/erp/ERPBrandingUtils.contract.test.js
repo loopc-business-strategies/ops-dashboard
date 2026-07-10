@@ -172,7 +172,7 @@ describe('ERPBrandingUtils – normalizeLogoUploadToDataUrl', () => {
     expect(result).toBe('data:image/svg+xml;base64,abc')
   })
 
-  test('normalizes raster uploads to PNG data URL', async () => {
+  test('returns original raster data URL when cleanup is disabled', async () => {
     class MockFileReader {
       readAsDataURL() {
         this.result = 'data:image/png;base64,raw'
@@ -208,7 +208,8 @@ describe('ERPBrandingUtils – normalizeLogoUploadToDataUrl', () => {
       name: 'logo.png',
     })
 
-    expect(result).toBe('data:image/png;base64,normalized')
+    expect(result).toBe('data:image/png;base64,raw')
+    expect(toDataURL).not.toHaveBeenCalled()
     getContext.mockRestore()
     toDataURL.mockRestore()
   })
