@@ -113,6 +113,8 @@ export function useErpTabRouter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token])
 
+  const ledgerMonthsKey = Array.isArray(ledgerFilters.months) ? ledgerFilters.months.join(',') : ''
+
   useEffect(() => {
     if (!canAccessERP || !token || activeTab !== 'ledger') return
     loadLedger()
@@ -128,7 +130,7 @@ export function useErpTabRouter({
     ledgerFilters.accountId,
     ledgerFilters.search,
     ledgerFilters.year,
-    Array.isArray(ledgerFilters.months) ? ledgerFilters.months.join(',') : '',
+    ledgerMonthsKey,
     ledgerVoucherTab,
   ])
 
