@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import { isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
 import {
   ERPAccountsTabContainer,
   ERPVouchersTabContainer,
@@ -399,6 +400,10 @@ export default function ERPTabPanels({
   voucherSource,
   voucherSourceLoading,
 }) {
+  const masterDocumentSettingsEnabled = isMasterDocumentSettingsEnabled(
+    String(user?.company || user?.tenant?.key || '').trim().toLowerCase(),
+  )
+
   return (
     <>
       {activeTab === 'dashboard' && (
@@ -885,22 +890,25 @@ export default function ERPTabPanels({
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPSettingsTab
             C={C}
-            selectedBrandingKey={selectedBrandingKey}
-            setSelectedBrandingKey={setSelectedBrandingKey}
-            handleSelectBrandingProfile={handleSelectBrandingProfile}
-            brandingProfiles={brandingProfiles}
-            brandingForm={brandingForm}
-            setBrandingForm={setBrandingForm}
-            reportBranding={reportBranding}
-            handleBrandingLogoFile={handleBrandingLogoFile}
-            saving={saving}
-            canManageAccounts={canManageAccounts}
-            handleSaveBranding={handleSaveBranding}
+            masterDocumentSettingsEnabled={masterDocumentSettingsEnabled}
             inventoryStockCodeSettings={inventoryStockCodeSettings}
             setInventoryStockCodeSettings={setInventoryStockCodeSettings}
-            handleCreateBrandingDraft={handleCreateBrandingDraft}
-            brandingPreviewLogo={brandingPreviewLogo}
-            brandingPreview={brandingPreview}
+            {...(masterDocumentSettingsEnabled ? {} : {
+              selectedBrandingKey,
+              setSelectedBrandingKey,
+              handleSelectBrandingProfile,
+              brandingProfiles,
+              brandingForm,
+              setBrandingForm,
+              reportBranding,
+              handleBrandingLogoFile,
+              saving,
+              canManageAccounts,
+              handleSaveBranding,
+              handleCreateBrandingDraft,
+              brandingPreviewLogo,
+              brandingPreview,
+            })}
           />
         </Suspense>
       )}

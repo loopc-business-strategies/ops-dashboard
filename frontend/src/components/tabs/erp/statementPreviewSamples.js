@@ -114,6 +114,7 @@ export function buildStatementPreviewContext({
       startDate: isSample ? SAMPLE_START : '',
       endDate: isSample ? SAMPLE_END : '',
     },
+    screenPreview: true,
   }
 }
 

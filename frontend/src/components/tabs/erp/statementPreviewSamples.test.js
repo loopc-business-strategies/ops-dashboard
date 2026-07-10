@@ -4,13 +4,24 @@ import {
   buildStatementPreviewHtml,
 } from './statementPreviewSamples'
 
+const createLogoRenderAsset = vi.fn(async () => 'data:image/png;base64,rasterized')
+
 vi.mock('./ERPBrandingUtils', () => ({
   DEFAULT_BRANDING: { companyName: 'LoopC', logoWidth: 120, logoHeight: 90 },
   clampBrandingDimension: (_value, fallback) => fallback ?? 120,
-  createLogoRenderAsset: async () => null,
+  createLogoRenderAsset: (...args) => createLogoRenderAsset(...args),
 }))
 
 describe('statementPreviewSamples', () => {
+  test('preview context enables screen preview mode', () => {
+    const ctx = buildStatementPreviewContext({
+      mode: 'empty',
+      branding: { companyName: 'LoopC' },
+      user: { company: 'loopc', name: 'Tester' },
+    })
+    expect(ctx.screenPreview).toBe(true)
+  })
+
   test('empty preview returns zero entries and blank account name', () => {
     const ctx = buildStatementPreviewContext({
       mode: 'empty',
@@ -82,5 +93,24 @@ describe('statementPreviewSamples', () => {
     })
     expect(result.html).toContain('Balance B/F')
     expect(result.html).toContain('Balance C/F')
+  })
+
+  test('buildStatementPreviewHtml uses original logoUrl and skips logo rasterization', async () => {
+    createLogoRenderAsset.mockClear()
+    const logoUrl = 'data:image/png;base64,preview-logo'
+    const result = await buildStatementPreviewHtml({
+      mode: 'empty',
+      branding: {
+        companyName: 'LoopC',
+        logoUrl,
+        logoWidth: 180,
+        logoHeight: 56,
+        logoFit: 'contain',
+      },
+      user: { company: 'loopc', name: 'Tester' },
+    })
+    expect(createLogoRenderAsset).not.toHaveBeenCalled()
+    expect(result.html).toContain(logoUrl)
+    expect(result.html).not.toContain('data:image/png;base64,rasterized')
   })
 })

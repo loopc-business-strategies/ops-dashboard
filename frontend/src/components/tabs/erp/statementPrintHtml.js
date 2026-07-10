@@ -1,5 +1,6 @@
 import { clampBrandingDimension, createLogoRenderAsset } from './ERPBrandingUtils'
 import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
+import { sanitizeLogoUrl } from '../../../utils/safeHtml'
 import {
   computeStatementExportOpeningBalances,
   matchesStatementMetal,
@@ -35,6 +36,7 @@ export async function generateStatementHtml(ctx) {
     branding,
     defaultBranding: DEFAULT_BRANDING,
     statementFilters,
+    screenPreview = false,
   } = ctx
 
   if (!accountEnquiryData) return null
@@ -156,16 +158,18 @@ export async function generateStatementHtml(ctx) {
   const statementLogoHeight = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
     ? Math.max(90, clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120))
     : clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
-  const processedLogo = await createLogoRenderAsset(
-    brandingProfile.logoUrl,
-    statementLogoWidth,
-    statementLogoHeight,
-    brandingProfile.logoFit,
-  )
   const logoWidth = statementLogoWidth
   const logoHeight = statementLogoHeight
-  const logoMarkup = processedLogo
-    ? `<img src="${processedLogo}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:contain;display:block;background:${logoTransparent ? 'transparent' : '#FFFFFF'};position:relative;top:${logoOffsetY}px;right:${-logoOffsetX}px;" />`
+  const logoSrc = screenPreview
+    ? sanitizeLogoUrl(brandingProfile.logoUrl)
+    : await createLogoRenderAsset(
+      brandingProfile.logoUrl,
+      statementLogoWidth,
+      statementLogoHeight,
+      brandingProfile.logoFit,
+    )
+  const logoMarkup = logoSrc
+    ? `<img src="${escapeHtml(logoSrc)}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:${escapeHtml(brandingProfile.logoFit || 'contain')};display:block;background:${logoTransparent ? 'transparent' : '#FFFFFF'};position:relative;top:${logoOffsetY}px;right:${-logoOffsetX}px;" />`
     : ''
   const companyBlock = `
               <div class="brand-copy${useMasterStatementLayout ? ' brand-copy-loopc' : ''}">

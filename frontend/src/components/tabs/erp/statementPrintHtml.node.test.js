@@ -1,9 +1,11 @@
 import { describe, expect, test, vi } from 'vitest'
 import { generateStatementHtml } from './statementPrintHtml'
 
+const createLogoRenderAsset = vi.fn(async () => 'data:image/png;base64,rasterized')
+
 vi.mock('./ERPBrandingUtils', () => ({
   clampBrandingDimension: (_value, fallback) => fallback ?? 120,
-  createLogoRenderAsset: async () => null,
+  createLogoRenderAsset: (...args) => createLogoRenderAsset(...args),
 }))
 
 const baseCtx = {
@@ -94,5 +96,37 @@ describe('statementPrintHtml', () => {
     expect(result?.html).toContain('brand-copy-loopc')
     expect(result?.html).toContain('MODERN GOLD JEWELRY MANUFACTURING')
     expect(result?.html).toContain('.brand-copy-loopc .company { font-size: 15px')
+  })
+
+  test('screen preview embeds original logoUrl without rasterization', async () => {
+    createLogoRenderAsset.mockClear()
+    const logoUrl = 'data:image/png;base64,sharp-logo'
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      screenPreview: true,
+      branding: {
+        ...baseCtx.branding,
+        logoUrl,
+        logoWidth: 180,
+        logoHeight: 56,
+      },
+    })
+    expect(createLogoRenderAsset).not.toHaveBeenCalled()
+    expect(result?.html).toContain(logoUrl)
+  })
+
+  test('print export rasterizes logo for output', async () => {
+    createLogoRenderAsset.mockClear()
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      branding: {
+        ...baseCtx.branding,
+        logoUrl: 'data:image/png;base64,sharp-logo',
+        logoWidth: 180,
+        logoHeight: 56,
+      },
+    })
+    expect(createLogoRenderAsset).toHaveBeenCalled()
+    expect(result?.html).toContain('data:image/png;base64,rasterized')
   })
 })

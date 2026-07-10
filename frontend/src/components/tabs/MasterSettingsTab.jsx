@@ -14,6 +14,7 @@ import { isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
 import { useReportBrandingSettings } from './master-settings/useReportBrandingSettings'
 import VoucherSettingsPanel from './master-settings/VoucherSettingsPanel'
 import StatementSettingsPanel from './master-settings/StatementSettingsPanel'
+import ReportSettingsPanel from './master-settings/ReportSettingsPanel'
 
 const UI = {
   card: { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14, padding: '1.1rem 1.2rem' },
@@ -100,6 +101,7 @@ export default function MasterSettingsTab() {
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [voucherOpen, setVoucherOpen] = useState(false)
   const [statementOpen, setStatementOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
 
   const {
     branding,
@@ -254,7 +256,7 @@ export default function MasterSettingsTab() {
       <div>
         <h2 style={{ margin: 0, color: UI.ink, fontSize: 22, fontWeight: 800 }}>Master Settings</h2>
         <p style={{ margin: '6px 0 0', color: UI.muted, fontSize: 14 }}>
-          Notification topics, voucher and statement print branding, digest schedule, and browser push preferences.
+          Notification topics, voucher, statement, and financial report branding, digest schedule, and browser push preferences.
         </p>
       </div>
 
@@ -296,6 +298,26 @@ export default function MasterSettingsTab() {
             error={brandingError}
             status={brandingStatus}
             user={user}
+          />
+        </section>
+      )}
+
+      {documentSettingsEnabled && renderCollapsibleHeader(
+        'Report Settings',
+        reportOpen,
+        setReportOpen,
+        'Entity details, report subtitle/footer, and signatories for P&L and financial report exports.',
+      )}
+
+      {documentSettingsEnabled && reportOpen && (
+        <section style={UI.card}>
+          <ReportSettingsPanel
+            branding={branding}
+            onChange={setBranding}
+            onSave={saveBranding}
+            saving={brandingSaving}
+            error={brandingError}
+            status={brandingStatus}
           />
         </section>
       )}
