@@ -507,6 +507,7 @@ router.post('/translate', protect, chatTranslateLimiter, validateBody(translateM
       detectedSourceLang: result.detectedSourceLang,
       targetLang,
       provider: result.provider,
+      sameLanguage: Boolean(result.sameLanguage),
     })
   } catch (err) {
     const status = err.statusCode || 500

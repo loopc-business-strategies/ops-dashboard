@@ -6,6 +6,7 @@ const {
   detectSourceLang,
   normalizeLang,
   translateWithMyMemory,
+  decodeHtmlEntities,
 } = require('../services/translators/myMemoryTranslator')
 
 describe('chatTranslationAccess', () => {
@@ -64,6 +65,7 @@ describe('myMemoryTranslator', () => {
 
     expect(result.translatedText).toBe('Salom jamoa')
     expect(result.provider).toBe('mymemory')
+    expect(result.sameLanguage).toBe(false)
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('api.mymemory.translated.net/get'),
       expect.objectContaining({ headers: { Accept: 'application/json' } }),
@@ -88,5 +90,23 @@ describe('myMemoryTranslator', () => {
 
     expect(result.translatedText).toContain('@Ali')
     expect(result.translatedText).toContain('ERP')
+  })
+
+  test('translateWithMyMemory flags same-language translations', async () => {
+    global.fetch = jest.fn()
+
+    const result = await translateWithMyMemory({
+      text: 'كيف الحال',
+      targetLang: 'ar',
+      sourceLang: 'auto',
+    })
+
+    expect(result.translatedText).toBe('كيف الحال')
+    expect(result.sameLanguage).toBe(true)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  test('decodeHtmlEntities returns readable Arabic', () => {
+    expect(decodeHtmlEntities('&#x643;&#x64a;&#x641; &#x627;&#x644;&#x62d;&#x627;&#x644;')).toBe('كيف الحال')
   })
 })

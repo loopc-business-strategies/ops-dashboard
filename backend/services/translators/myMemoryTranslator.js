@@ -35,6 +35,20 @@ function restoreTokens(text, placeholders) {
   return restored
 }
 
+function decodeHtmlEntities(text) {
+  const raw = String(text || '')
+  if (!raw.includes('&')) return raw
+
+  return raw
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, num) => String.fromCodePoint(Number(num)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+}
+
 async function fetchMyMemoryTranslation(text, sourceLang, targetLang) {
   const params = new URLSearchParams({
     q: text,
@@ -56,7 +70,7 @@ async function fetchMyMemoryTranslation(text, sourceLang, targetLang) {
 
   const payload = await response.json()
   const status = Number(payload?.responseStatus)
-  const translated = String(payload?.responseData?.translatedText || '').trim()
+  const translated = decodeHtmlEntities(String(payload?.responseData?.translatedText || '').trim())
   const match = String(payload?.matches?.[0]?.match || '').trim().toLowerCase()
 
   if (status === 429 || /MYMEMORY WARNING|QUOTA/i.test(translated)) {
@@ -99,12 +113,13 @@ async function translateWithMyMemory({ text, targetLang, sourceLang = 'auto' }) 
       translatedText: rawText,
       detectedSourceLang: resolvedSource,
       provider: 'mymemory',
+      sameLanguage: true,
     }
   }
 
   const { protectedText, placeholders } = protectTokens(rawText)
   const result = await fetchMyMemoryTranslation(protectedText, resolvedSource, normalizedTarget)
-  const restored = restoreTokens(result.translatedText, placeholders).trim()
+  const restored = decodeHtmlEntities(restoreTokens(result.translatedText, placeholders).trim())
   if (!restored) {
     const err = new Error('Translation provider returned an empty result.')
     err.statusCode = 502
@@ -115,6 +130,7 @@ async function translateWithMyMemory({ text, targetLang, sourceLang = 'auto' }) 
     translatedText: restored,
     detectedSourceLang: result.detectedSourceLang || resolvedSource,
     provider: 'mymemory',
+    sameLanguage: false,
   }
 }
 
@@ -122,5 +138,6 @@ module.exports = {
   translateWithMyMemory,
   detectSourceLang,
   normalizeLang,
+  decodeHtmlEntities,
   SUPPORTED_LANGS,
 }
