@@ -1,4 +1,13 @@
-import { clampBrandingDimension, createLogoRenderAsset } from './ERPBrandingUtils'
+import {
+  DEFAULT_STATEMENT_PRINT,
+  STATEMENT_ADDRESS_FONT_MAX,
+  STATEMENT_ADDRESS_FONT_MIN,
+  STATEMENT_COMPANY_NAME_FONT_MAX,
+  STATEMENT_COMPANY_NAME_FONT_MIN,
+  clampBrandingDimension,
+  clampStatementFontSize,
+  createLogoRenderAsset,
+} from './ERPBrandingUtils'
 import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
 import { sanitizeLogoUrl } from '../../../utils/safeHtml'
 import {
@@ -140,6 +149,19 @@ export async function generateStatementHtml(ctx) {
   const logoOffsetX = Number(statementPrint.logoOffsetX || 0)
   const logoOffsetY = Number(statementPrint.logoOffsetY || 0)
   const logoTransparent = statementPrint.logoTransparent !== false
+  const companyNameFontSize = clampStatementFontSize(
+    statementPrint.companyNameFontSize,
+    DEFAULT_STATEMENT_PRINT.companyNameFontSize,
+    STATEMENT_COMPANY_NAME_FONT_MIN,
+    STATEMENT_COMPANY_NAME_FONT_MAX,
+  )
+  const addressFontSize = clampStatementFontSize(
+    statementPrint.addressFontSize,
+    DEFAULT_STATEMENT_PRINT.addressFontSize,
+    STATEMENT_ADDRESS_FONT_MIN,
+    STATEMENT_ADDRESS_FONT_MAX,
+  )
+  const brandCopyClass = useMasterStatementLayout ? 'brand-copy-loopc' : 'brand-copy'
   const brandingProfile = {
     ...branding,
     companyName: !useMasterStatementLayout && isModernGoldStatement && (!branding.companyName || branding.companyName === DEFAULT_BRANDING.companyName)
@@ -172,10 +194,10 @@ export async function generateStatementHtml(ctx) {
     ? `<img src="${escapeHtml(logoSrc)}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:${escapeHtml(brandingProfile.logoFit || 'contain')};display:block;background:${logoTransparent ? 'transparent' : '#FFFFFF'};position:relative;top:${logoOffsetY}px;right:${-logoOffsetX}px;" />`
     : ''
   const companyBlock = `
-              <div class="brand-copy${useMasterStatementLayout ? ' brand-copy-loopc' : ''}">
-                <div class="company">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
-                ${companyAddress ? `<div class="muted">${escapeHtml(companyAddress).replace(/\n/g, '<br />')}</div>` : ''}
-                ${companyPhone ? `<div class="muted">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
+              <div class="${brandCopyClass}">
+                <div class="company" style="font-size:${companyNameFontSize}px">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
+                ${companyAddress ? `<div class="muted" style="font-size:${addressFontSize}px">${escapeHtml(companyAddress).replace(/\n/g, '<br />')}</div>` : ''}
+                ${companyPhone ? `<div class="muted" style="font-size:${addressFontSize}px">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted" style="font-size:${addressFontSize}px">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
               </div>`
   const statementHeadBlock = `
               <div class="statement-head${useMasterStatementLayout ? ' statement-head-loopc' : ''}">

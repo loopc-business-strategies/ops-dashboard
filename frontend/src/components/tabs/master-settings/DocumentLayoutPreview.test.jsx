@@ -96,4 +96,45 @@ describe('DocumentLayoutPreview statement variant', () => {
     expect(screen.queryByText(/Account:/)).toBeNull()
     expect(screen.queryByText(/Period:/)).toBeNull()
   })
+
+  it('uses configurable company and address font sizes in statement variant', () => {
+    render(
+      <DocumentLayoutPreview
+        layoutVariant="statement"
+        branding={{ companyName: 'MODERN GOLD JEWELRY MANUFACTURING FE LLC', address: 'Dubai, UAE' }}
+        layoutSettings={{ companyNameFontSize: 13, addressFontSize: 9 }}
+        title="Statement of Account"
+        dateRange="01-Jan-26 to 08-Jul-26"
+      />,
+    )
+
+    expect(screen.getByText('MODERN GOLD JEWELRY MANUFACTURING FE LLC').style.fontSize).toBe('13px')
+    expect(screen.getByText('Dubai, UAE').style.fontSize).toBe('9px')
+  })
+
+  it('uses default voucher typography in voucher variant', () => {
+    render(
+      <DocumentLayoutPreview
+        branding={{ companyName: 'LoopC Trading', address: 'Dubai, UAE' }}
+        layoutSettings={{}}
+        title="Payment Voucher"
+      />,
+    )
+
+    expect(screen.getByText('LoopC Trading').style.fontSize).toBe('15px')
+    expect(screen.getByText('Dubai, UAE').style.fontSize).toBe('9px')
+  })
+
+  it('uses configurable company and address font sizes in voucher variant', () => {
+    render(
+      <DocumentLayoutPreview
+        branding={{ companyName: 'LoopC Trading', address: 'Dubai, UAE' }}
+        layoutSettings={{ companyNameFontSize: 12, addressFontSize: 8 }}
+        title="Payment Voucher"
+      />,
+    )
+
+    expect(screen.getByText('LoopC Trading').style.fontSize).toBe('12px')
+    expect(screen.getByText('Dubai, UAE').style.fontSize).toBe('8px')
+  })
 })

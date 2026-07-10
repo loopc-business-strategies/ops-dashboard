@@ -1,10 +1,19 @@
 import { useState } from 'react'
 import DocumentLayoutPreview from './DocumentLayoutPreview'
 import DocumentLogoEditor from './DocumentLogoEditor'
+import LogoSizeSlider from './LogoSizeSlider'
 import SignatoryEditor from './SignatoryEditor'
+import StatementTypographyControl from './StatementTypographyControl'
 import StatementPreviewModal from '../erp/accountEnquiry/StatementPreviewModal'
 import { useStatementPreviewHtml } from './useStatementPreviewHtml'
 import { applyDocumentLogoPatch } from './documentLogoChange'
+import {
+  DEFAULT_STATEMENT_PRINT,
+  STATEMENT_ADDRESS_FONT_MAX,
+  STATEMENT_ADDRESS_FONT_MIN,
+  STATEMENT_COMPANY_NAME_FONT_MAX,
+  STATEMENT_COMPANY_NAME_FONT_MIN,
+} from '../erp/ERPBrandingUtils'
 
 const inputStyle = {
   width: '100%',
@@ -88,12 +97,38 @@ export default function StatementSettingsPanel({
         </div>
       </div>
 
+      <div style={{ display: 'grid', gap: 12 }}>
+        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Header typography</h4>
+        <StatementTypographyControl
+          label="Company name size"
+          value={statementPrint.companyNameFontSize ?? DEFAULT_STATEMENT_PRINT.companyNameFontSize}
+          min={STATEMENT_COMPANY_NAME_FONT_MIN}
+          max={STATEMENT_COMPANY_NAME_FONT_MAX}
+          defaultValue={DEFAULT_STATEMENT_PRINT.companyNameFontSize}
+          onChange={(companyNameFontSize) => patchStatementPrint({ companyNameFontSize })}
+        />
+        <StatementTypographyControl
+          label="Address size"
+          value={statementPrint.addressFontSize ?? DEFAULT_STATEMENT_PRINT.addressFontSize}
+          min={STATEMENT_ADDRESS_FONT_MIN}
+          max={STATEMENT_ADDRESS_FONT_MAX}
+          defaultValue={DEFAULT_STATEMENT_PRINT.addressFontSize}
+          onChange={(addressFontSize) => patchStatementPrint({ addressFontSize })}
+        />
+      </div>
+
       <DocumentLogoEditor
         branding={branding}
         layoutSettings={statementPrint}
         onChange={(patch) => applyDocumentLogoPatch(patch, { setLogoError, patchBranding })}
         onLayoutChange={patchStatementPrint}
         enableAutoLogoCleanup
+      />
+
+      <LogoSizeSlider
+        branding={branding}
+        onChange={patchBranding}
+        disabled={!branding.logoUrl}
       />
 
       <div style={{ display: 'grid', gap: 10 }}>

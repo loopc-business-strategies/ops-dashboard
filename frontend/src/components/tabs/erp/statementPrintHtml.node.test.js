@@ -4,7 +4,17 @@ import { generateStatementHtml } from './statementPrintHtml'
 const createLogoRenderAsset = vi.fn(async () => 'data:image/png;base64,rasterized')
 
 vi.mock('./ERPBrandingUtils', () => ({
+  DEFAULT_STATEMENT_PRINT: { companyNameFontSize: 15, addressFontSize: 10 },
+  STATEMENT_COMPANY_NAME_FONT_MIN: 10,
+  STATEMENT_COMPANY_NAME_FONT_MAX: 28,
+  STATEMENT_ADDRESS_FONT_MIN: 8,
+  STATEMENT_ADDRESS_FONT_MAX: 16,
   clampBrandingDimension: (_value, fallback) => fallback ?? 120,
+  clampStatementFontSize: (value, fallback, min, max) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.min(Math.max(parsed, min), max)
+  },
   createLogoRenderAsset: (...args) => createLogoRenderAsset(...args),
 }))
 
@@ -95,7 +105,23 @@ describe('statementPrintHtml', () => {
     expect(result?.html).toContain('header-loopc')
     expect(result?.html).toContain('brand-copy-loopc')
     expect(result?.html).toContain('MODERN GOLD JEWELRY MANUFACTURING')
-    expect(result?.html).toContain('.brand-copy-loopc .company { font-size: 15px')
+    expect(result?.html).toContain('class="company" style="font-size:15px"')
+    expect(result?.html).not.toContain('class="brand-copy brand-copy-loopc"')
+  })
+
+  test('custom statement typography sizes appear inline in print HTML', async () => {
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      branding: {
+        ...baseCtx.branding,
+        statementPrint: {
+          companyNameFontSize: 13,
+          addressFontSize: 9,
+        },
+      },
+    })
+    expect(result?.html).toContain('class="company" style="font-size:13px"')
+    expect(result?.html).toContain('class="muted" style="font-size:9px"')
   })
 
   test('screen preview embeds original logoUrl without rasterization', async () => {

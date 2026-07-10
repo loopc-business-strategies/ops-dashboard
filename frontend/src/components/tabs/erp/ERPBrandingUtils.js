@@ -36,6 +36,8 @@ export const DEFAULT_VOUCHER_PRINT = {
   signatories: DEFAULT_SIGNATORIES,
   confirmedForLabel: 'Confirmed for & on behalf of',
   footerNote: '',
+  companyNameFontSize: 15,
+  addressFontSize: 9,
 }
 
 const HEX_COLOR_RE = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/
@@ -64,6 +66,11 @@ export const normalizeHeaderDividerColor = (value, fallback = DEFAULT_HEADER_DIV
   normalizeHexColor(value, fallback)
 )
 
+export const STATEMENT_COMPANY_NAME_FONT_MIN = 10
+export const STATEMENT_COMPANY_NAME_FONT_MAX = 28
+export const STATEMENT_ADDRESS_FONT_MIN = 8
+export const STATEMENT_ADDRESS_FONT_MAX = 16
+
 export const DEFAULT_STATEMENT_PRINT = {
   logoOffsetX: 0,
   logoOffsetY: 0,
@@ -73,6 +80,8 @@ export const DEFAULT_STATEMENT_PRINT = {
   footerNote: '',
   signatories: DEFAULT_STATEMENT_SIGNATORIES,
   showPrintNote: true,
+  companyNameFontSize: 15,
+  addressFontSize: 10,
 }
 
 export const DEFAULT_BRANDING = {
@@ -154,7 +163,25 @@ export const normalizeVoucherPrint = (value = {}) => ({
   signatories: normalizeSignatories(value.signatories, DEFAULT_SIGNATORIES),
   confirmedForLabel: String(value.confirmedForLabel ?? DEFAULT_VOUCHER_PRINT.confirmedForLabel).trim() || DEFAULT_VOUCHER_PRINT.confirmedForLabel,
   footerNote: String(value.footerNote ?? '').trim(),
+  companyNameFontSize: clampStatementFontSize(
+    value.companyNameFontSize,
+    DEFAULT_VOUCHER_PRINT.companyNameFontSize,
+    STATEMENT_COMPANY_NAME_FONT_MIN,
+    STATEMENT_COMPANY_NAME_FONT_MAX,
+  ),
+  addressFontSize: clampStatementFontSize(
+    value.addressFontSize,
+    DEFAULT_VOUCHER_PRINT.addressFontSize,
+    STATEMENT_ADDRESS_FONT_MIN,
+    STATEMENT_ADDRESS_FONT_MAX,
+  ),
 })
+
+export const clampStatementFontSize = (value, fallback, min, max) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(Math.max(parsed, min), max)
+}
 
 export const normalizeStatementPrint = (value = {}) => ({
   ...DEFAULT_STATEMENT_PRINT,
@@ -167,6 +194,18 @@ export const normalizeStatementPrint = (value = {}) => ({
   footerNote: String(value.footerNote ?? '').trim(),
   signatories: normalizeSignatories(value.signatories, DEFAULT_STATEMENT_SIGNATORIES),
   showPrintNote: value.showPrintNote !== false,
+  companyNameFontSize: clampStatementFontSize(
+    value.companyNameFontSize,
+    DEFAULT_STATEMENT_PRINT.companyNameFontSize,
+    STATEMENT_COMPANY_NAME_FONT_MIN,
+    STATEMENT_COMPANY_NAME_FONT_MAX,
+  ),
+  addressFontSize: clampStatementFontSize(
+    value.addressFontSize,
+    DEFAULT_STATEMENT_PRINT.addressFontSize,
+    STATEMENT_ADDRESS_FONT_MIN,
+    STATEMENT_ADDRESS_FONT_MAX,
+  ),
 })
 
 /**

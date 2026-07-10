@@ -8,7 +8,17 @@ const createLogoRenderAsset = vi.fn(async () => 'data:image/png;base64,rasterize
 
 vi.mock('./ERPBrandingUtils', () => ({
   DEFAULT_BRANDING: { companyName: 'LoopC', logoWidth: 120, logoHeight: 90 },
+  DEFAULT_STATEMENT_PRINT: { companyNameFontSize: 15, addressFontSize: 10 },
+  STATEMENT_COMPANY_NAME_FONT_MIN: 10,
+  STATEMENT_COMPANY_NAME_FONT_MAX: 28,
+  STATEMENT_ADDRESS_FONT_MIN: 8,
+  STATEMENT_ADDRESS_FONT_MAX: 16,
   clampBrandingDimension: (_value, fallback) => fallback ?? 120,
+  clampStatementFontSize: (value, fallback, min, max) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.min(Math.max(parsed, min), max)
+  },
   createLogoRenderAsset: (...args) => createLogoRenderAsset(...args),
 }))
 
@@ -81,8 +91,26 @@ describe('statementPreviewSamples', () => {
     expect(result.html).toContain('header-loopc')
     expect(result.html).toContain('brand-copy-loopc')
     expect(result.html).toContain('MODERN GOLD JEWELRY MANUFACTURING FE LLC')
-    expect(result.html).toContain('.brand-copy-loopc .company { font-size: 15px')
-    expect(result.html).toContain('class="brand-copy brand-copy-loopc"')
+    expect(result.html).toContain('class="company" style="font-size:15px"')
+    expect(result.html).toContain('class="muted" style="font-size:10px"')
+    expect(result.html).not.toContain('class="brand-copy brand-copy-loopc"')
+  })
+
+  test('custom statement typography sizes appear inline in preview HTML', async () => {
+    const result = await buildStatementPreviewHtml({
+      mode: 'sample',
+      branding: {
+        companyName: 'MODERN GOLD JEWELRY MANUFACTURING FE LLC',
+        address: 'Dubai, UAE',
+        statementPrint: {
+          companyNameFontSize: 13,
+          addressFontSize: 9,
+        },
+      },
+      user: { company: 'mg', name: 'Tester' },
+    })
+    expect(result.html).toContain('class="company" style="font-size:13px"')
+    expect(result.html).toContain('class="muted" style="font-size:9px"')
   })
 
   test('empty preview HTML still renders carry-forward rows', async () => {

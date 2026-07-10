@@ -51,6 +51,17 @@ describe('reportBrandingService', () => {
     expect(normalizeVoucherPrint({}).headerDividerColor).toBe('#111827')
   })
 
+  test('normalizeVoucherPrint clamps typography font sizes', () => {
+    const result = normalizeVoucherPrint({
+      companyNameFontSize: 40,
+      addressFontSize: 4,
+    })
+    expect(result.companyNameFontSize).toBe(28)
+    expect(result.addressFontSize).toBe(8)
+    expect(normalizeVoucherPrint({}).companyNameFontSize).toBe(15)
+    expect(normalizeVoucherPrint({}).addressFontSize).toBe(9)
+  })
+
   test('normalizeStatementPrint applies title and showPrintNote defaults', () => {
     const result = normalizeStatementPrint({
       title: 'Account Statement',
@@ -59,5 +70,16 @@ describe('reportBrandingService', () => {
     expect(result.title).toBe('Account Statement')
     expect(result.showPrintNote).toBe(false)
     expect(result.logoTransparent).toBe(true)
+    expect(result.companyNameFontSize).toBe(15)
+    expect(result.addressFontSize).toBe(10)
+  })
+
+  test('normalizeStatementPrint clamps typography font sizes', () => {
+    const result = normalizeStatementPrint({
+      companyNameFontSize: 40,
+      addressFontSize: 4,
+    })
+    expect(result.companyNameFontSize).toBe(28)
+    expect(result.addressFontSize).toBe(8)
   })
 })

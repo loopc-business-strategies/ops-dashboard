@@ -1,4 +1,15 @@
-import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from './ERPBrandingUtils'
+import {
+  DEFAULT_VOUCHER_PRINT,
+  DEFAULT_TITLE_ACCENT_COLOR,
+  DEFAULT_HEADER_DIVIDER_COLOR,
+  STATEMENT_ADDRESS_FONT_MAX,
+  STATEMENT_ADDRESS_FONT_MIN,
+  STATEMENT_COMPANY_NAME_FONT_MAX,
+  STATEMENT_COMPANY_NAME_FONT_MIN,
+  clampStatementFontSize,
+  normalizeTitleAccentColor,
+  normalizeHeaderDividerColor,
+} from './ERPBrandingUtils'
 
 export default function DocumentPrintHeader({ branding, title, meta = [], layoutSettings = null }) {
   const companyName = branding?.companyName || ''
@@ -16,6 +27,18 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
   const headerDividerColor = normalizeHeaderDividerColor(
     layoutSettings?.headerDividerColor,
     DEFAULT_HEADER_DIVIDER_COLOR,
+  )
+  const companyNameFontSize = clampStatementFontSize(
+    layoutSettings?.companyNameFontSize,
+    DEFAULT_VOUCHER_PRINT.companyNameFontSize,
+    STATEMENT_COMPANY_NAME_FONT_MIN,
+    STATEMENT_COMPANY_NAME_FONT_MAX,
+  )
+  const addressFontSize = clampStatementFontSize(
+    layoutSettings?.addressFontSize,
+    DEFAULT_VOUCHER_PRINT.addressFontSize,
+    STATEMENT_ADDRESS_FONT_MIN,
+    STATEMENT_ADDRESS_FONT_MAX,
   )
   const logoFrameWidth = 260
   const logoFrameHeight = 120
@@ -37,9 +60,9 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
         marginBottom: '10px',
       }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          {companyName ? <div style={{ fontWeight: '700', fontSize: '15px', color: '#111827' }}>{companyName}</div> : null}
+          {companyName ? <div style={{ fontWeight: '700', fontSize: `${companyNameFontSize}px`, color: '#111827' }}>{companyName}</div> : null}
           {details.map((line, index) => (
-            <div key={`${line}-${index}`} style={{ fontSize: '9px', color: '#555555', marginTop: index === 0 ? '3px' : '2px', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+            <div key={`${line}-${index}`} style={{ fontSize: `${addressFontSize}px`, color: '#555555', marginTop: index === 0 ? '3px' : '2px', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
               {line}
             </div>
           ))}

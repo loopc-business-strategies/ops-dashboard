@@ -32,6 +32,8 @@ const voucherPrintSchema = new mongoose.Schema(
     signatories: { type: [signatoryBlockSchema], default: undefined },
     confirmedForLabel: { type: String, trim: true, default: 'Confirmed for & on behalf of' },
     footerNote: { type: String, trim: true, default: '' },
+    companyNameFontSize: { type: Number, default: 15 },
+    addressFontSize: { type: Number, default: 9 },
   },
   { _id: false }
 )
@@ -46,6 +48,8 @@ const statementPrintSchema = new mongoose.Schema(
     footerNote: { type: String, trim: true, default: '' },
     signatories: { type: [signatoryBlockSchema], default: undefined },
     showPrintNote: { type: Boolean, default: true },
+    companyNameFontSize: { type: Number, default: 15 },
+    addressFontSize: { type: Number, default: 10 },
   },
   { _id: false }
 )

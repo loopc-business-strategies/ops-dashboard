@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import DocumentPrintHeader from '../erp/DocumentPrintHeader'
+import { DEFAULT_VOUCHER_PRINT } from '../erp/ERPBrandingUtils'
 
 describe('DocumentPrintHeader logo sizing', () => {
   it('uses branding logo dimensions without a 96px height cap', () => {
@@ -68,5 +69,37 @@ describe('DocumentPrintHeader logo sizing', () => {
     )
 
     expect(screen.getByTestId('header-divider').style.borderBottomColor).toBe('rgb(17, 24, 39)')
+  })
+
+  it('uses layoutSettings company and address font sizes', () => {
+    render(
+      <DocumentPrintHeader
+        branding={{
+          companyName: 'LoopC Trading',
+          address: 'Dubai, UAE',
+        }}
+        title="Payment Voucher"
+        layoutSettings={{ companyNameFontSize: 13, addressFontSize: 8 }}
+      />,
+    )
+
+    expect(screen.getByText('LoopC Trading').style.fontSize).toBe('13px')
+    expect(screen.getByText('Dubai, UAE').style.fontSize).toBe('8px')
+  })
+
+  it('falls back to default voucher typography when layoutSettings font sizes are missing', () => {
+    render(
+      <DocumentPrintHeader
+        branding={{
+          companyName: 'LoopC Trading',
+          address: 'Dubai, UAE',
+        }}
+        title="Payment Voucher"
+        layoutSettings={{}}
+      />,
+    )
+
+    expect(screen.getByText('LoopC Trading').style.fontSize).toBe(`${DEFAULT_VOUCHER_PRINT.companyNameFontSize}px`)
+    expect(screen.getByText('Dubai, UAE').style.fontSize).toBe(`${DEFAULT_VOUCHER_PRINT.addressFontSize}px`)
   })
 })

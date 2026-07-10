@@ -1,5 +1,12 @@
 import { useCallback, useRef } from 'react'
-import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from '../erp/ERPBrandingUtils'
+import {
+  DEFAULT_STATEMENT_PRINT,
+  DEFAULT_VOUCHER_PRINT,
+  DEFAULT_TITLE_ACCENT_COLOR,
+  DEFAULT_HEADER_DIVIDER_COLOR,
+  normalizeTitleAccentColor,
+  normalizeHeaderDividerColor,
+} from '../erp/ERPBrandingUtils'
 
 const parseStatementDateRange = (dateRange = '') => {
   const [start = '-', end = '-'] = String(dateRange || '').split(/\s+to\s+/i)
@@ -62,6 +69,9 @@ export default function DocumentLayoutPreview({
   const details = [branding.address, branding.phone, branding.trn ? `TRN: ${branding.trn}` : ''].filter(Boolean)
   const logoWidth = Number(branding.logoWidth || 160)
   const logoHeight = Number(branding.logoHeight || 56)
+  const typographyDefaults = isStatementLayout ? DEFAULT_STATEMENT_PRINT : DEFAULT_VOUCHER_PRINT
+  const companyNameFontSize = Number(layoutSettings.companyNameFontSize) || typographyDefaults.companyNameFontSize
+  const addressFontSize = Number(layoutSettings.addressFontSize) || typographyDefaults.addressFontSize
   const logoFrameWidth = 260
   const logoFrameHeight = 120
   const { start: dateStart, end: dateEnd } = parseStatementDateRange(dateRange)
@@ -91,10 +101,10 @@ export default function DocumentLayoutPreview({
         <div data-testid="header-divider" style={headerRowStyle}>
           <div style={{ flex: 1, minWidth: 0, maxWidth: 420 }}>
             {branding.companyName ? (
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: 1.3 }}>{branding.companyName}</div>
+              <div style={{ fontWeight: 700, fontSize: companyNameFontSize, color: '#111827', lineHeight: 1.3 }}>{branding.companyName}</div>
             ) : null}
             {details.map((line, index) => (
-              <div key={`${line}-${index}`} style={{ fontSize: 10, color: '#555', marginTop: index === 0 ? 3 : 2, whiteSpace: 'pre-line', lineHeight: 1.5 }}>
+              <div key={`${line}-${index}`} style={{ fontSize: addressFontSize, color: '#555', marginTop: index === 0 ? 3 : 2, whiteSpace: 'pre-line', lineHeight: 1.5 }}>
                 {line}
               </div>
             ))}

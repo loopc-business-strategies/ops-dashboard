@@ -39,6 +39,8 @@ const DEFAULT_VOUCHER_PRINT = {
   signatories: DEFAULT_SIGNATORIES,
   confirmedForLabel: 'Confirmed for & on behalf of',
   footerNote: '',
+  companyNameFontSize: 15,
+  addressFontSize: 9,
 }
 
 const HEX_COLOR_RE = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/
@@ -61,6 +63,11 @@ const normalizeHeaderDividerColor = (value, fallback = DEFAULT_HEADER_DIVIDER_CO
   normalizeHexColor(value, fallback)
 )
 
+const STATEMENT_COMPANY_NAME_FONT_MIN = 10
+const STATEMENT_COMPANY_NAME_FONT_MAX = 28
+const STATEMENT_ADDRESS_FONT_MIN = 8
+const STATEMENT_ADDRESS_FONT_MAX = 16
+
 const DEFAULT_STATEMENT_PRINT = {
   logoOffsetX: 0,
   logoOffsetY: 0,
@@ -70,6 +77,8 @@ const DEFAULT_STATEMENT_PRINT = {
   footerNote: '',
   signatories: DEFAULT_STATEMENT_SIGNATORIES,
   showPrintNote: true,
+  companyNameFontSize: 15,
+  addressFontSize: 10,
 }
 
 const DEFAULT_REPORT_BRANDING = {
@@ -104,6 +113,12 @@ const clampOffset = (value, fallback = 0) => {
   return Math.min(Math.max(parsed, -120), 120)
 }
 
+const clampStatementFontSize = (value, fallback, min, max) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(Math.max(parsed, min), max)
+}
+
 const normalizeSignatories = (items, fallback) => {
   const source = Array.isArray(items) ? items : fallback
   return fallback.map((defaultItem, index) => {
@@ -136,6 +151,18 @@ const normalizeVoucherPrint = (value = {}) => ({
   signatories: normalizeSignatories(value.signatories, DEFAULT_SIGNATORIES),
   confirmedForLabel: String(value.confirmedForLabel ?? DEFAULT_VOUCHER_PRINT.confirmedForLabel).trim() || DEFAULT_VOUCHER_PRINT.confirmedForLabel,
   footerNote: String(value.footerNote ?? '').trim(),
+  companyNameFontSize: clampStatementFontSize(
+    value.companyNameFontSize,
+    DEFAULT_VOUCHER_PRINT.companyNameFontSize,
+    STATEMENT_COMPANY_NAME_FONT_MIN,
+    STATEMENT_COMPANY_NAME_FONT_MAX,
+  ),
+  addressFontSize: clampStatementFontSize(
+    value.addressFontSize,
+    DEFAULT_VOUCHER_PRINT.addressFontSize,
+    STATEMENT_ADDRESS_FONT_MIN,
+    STATEMENT_ADDRESS_FONT_MAX,
+  ),
 })
 
 const normalizeStatementPrint = (value = {}) => ({
@@ -149,6 +176,18 @@ const normalizeStatementPrint = (value = {}) => ({
   footerNote: String(value.footerNote ?? '').trim(),
   signatories: normalizeSignatories(value.signatories, DEFAULT_STATEMENT_SIGNATORIES),
   showPrintNote: value.showPrintNote !== false,
+  companyNameFontSize: clampStatementFontSize(
+    value.companyNameFontSize,
+    DEFAULT_STATEMENT_PRINT.companyNameFontSize,
+    STATEMENT_COMPANY_NAME_FONT_MIN,
+    STATEMENT_COMPANY_NAME_FONT_MAX,
+  ),
+  addressFontSize: clampStatementFontSize(
+    value.addressFontSize,
+    DEFAULT_STATEMENT_PRINT.addressFontSize,
+    STATEMENT_ADDRESS_FONT_MIN,
+    STATEMENT_ADDRESS_FONT_MAX,
+  ),
 })
 
 const normalizeBrandingKey = (value) => {

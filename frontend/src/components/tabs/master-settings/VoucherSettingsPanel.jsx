@@ -11,7 +11,18 @@ import {
   buildVoucherPreviewPrintModel,
 } from '../voucher/voucherPreviewSamples'
 import { applyDocumentLogoPatch } from './documentLogoChange'
-import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from '../erp/ERPBrandingUtils'
+import StatementTypographyControl from './StatementTypographyControl'
+import {
+  DEFAULT_TITLE_ACCENT_COLOR,
+  DEFAULT_HEADER_DIVIDER_COLOR,
+  DEFAULT_VOUCHER_PRINT,
+  STATEMENT_ADDRESS_FONT_MAX,
+  STATEMENT_ADDRESS_FONT_MIN,
+  STATEMENT_COMPANY_NAME_FONT_MAX,
+  STATEMENT_COMPANY_NAME_FONT_MIN,
+  normalizeTitleAccentColor,
+  normalizeHeaderDividerColor,
+} from '../erp/ERPBrandingUtils'
 
 const inputStyle = {
   width: '100%',
@@ -182,6 +193,26 @@ export default function VoucherSettingsPanel({
             <input type="text" value={branding.trn || ''} onChange={(e) => patchBranding({ trn: e.target.value })} style={{ ...inputStyle, marginTop: 4 }} />
           </label>
         </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: 12 }}>
+        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Header typography</h4>
+        <StatementTypographyControl
+          label="Company name size"
+          value={voucherPrint.companyNameFontSize ?? DEFAULT_VOUCHER_PRINT.companyNameFontSize}
+          min={STATEMENT_COMPANY_NAME_FONT_MIN}
+          max={STATEMENT_COMPANY_NAME_FONT_MAX}
+          defaultValue={DEFAULT_VOUCHER_PRINT.companyNameFontSize}
+          onChange={(companyNameFontSize) => patchVoucherPrint({ companyNameFontSize })}
+        />
+        <StatementTypographyControl
+          label="Address size"
+          value={voucherPrint.addressFontSize ?? DEFAULT_VOUCHER_PRINT.addressFontSize}
+          min={STATEMENT_ADDRESS_FONT_MIN}
+          max={STATEMENT_ADDRESS_FONT_MAX}
+          defaultValue={DEFAULT_VOUCHER_PRINT.addressFontSize}
+          onChange={(addressFontSize) => patchVoucherPrint({ addressFontSize })}
+        />
       </div>
 
       <DocumentLogoEditor
