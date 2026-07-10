@@ -6,6 +6,8 @@ import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import messagesAPI from '../../api/messages'
+import { getTenantBranding } from '../../config/tenantBranding'
+import { CHAT_TRANSLATE_LANGS, isRtlChatLang } from '../../utils/chatTranslate'
 import { buildRealtimeEventsUrl } from '../../utils/realtimeSocket'
 import { countOnlineMembers as countOnlineMemberIds, createOnlineLookup } from '../../utils/chatPresence'
 
@@ -325,9 +327,10 @@ function IBtn({ onClick, title, children, style = {} }) {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────
 function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed, focusComposerNonce = 0, onlineUserIds = [] }) {
-  const { user, token }  = useAuth()
+  const { user, token, company }  = useAuth()
   const perms     = usePermissions()
   const { t } = useLanguage()
+  const chatTranslateEnabled = Boolean(getTenantBranding(user?.company || company)?.featureFlags?.chatTranslate)
 
   const [chats,         setChats]         = useState(INITIAL_CHATS)
   const [activeChatId,  setActiveChatId]  = useState(null)
@@ -337,6 +340,10 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   }, [chats])
   const [search,        setSearch]        = useState('')
   const [msgText,       setMsgText]       = useState('')
+  const [translateTargetLang, setTranslateTargetLang] = useState('en')
+  const [translatePreview, setTranslatePreview] = useState('')
+  const [translateOriginal, setTranslateOriginal] = useState('')
+  const [translateLoading, setTranslateLoading] = useState(false)
   const [showGroupModal,setShowGroupModal]= useState(false)
   const [typingChatId,  setTypingChatId]  = useState(null)
   const [toast,         setToast]         = useState(null)
@@ -681,9 +688,16 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const activeDmOnline = activeChat?.type === 'direct' ? isUserOnline(activeChat.otherId) : false
   const activeGroupOnlineCount = activeChat?.type === 'group' ? countOnlineMembers(activeChat.members) : 0
 
+  function resetTranslateState() {
+    setTranslatePreview('')
+    setTranslateOriginal('')
+    setTranslateLoading(false)
+  }
+
   function openChat(id) {
     setActiveChatId(id)
     setMsgText('')
+    resetTranslateState()
     setChats(prev => prev.map(c => c.id === id ? { ...c, unread:0 } : c))
   }
 
@@ -696,6 +710,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
     if (chats.some((c) => c.id === openChatId)) {
       setActiveChatId(openChatId)
       setMsgText('')
+      resetTranslateState()
       setChats((prev) => prev.map((c) => (c.id === openChatId ? { ...c, unread: 0 } : c)))
       pendingDeepLinkChatRef.current = { id: null, attempts: 0 }
       onOpenChatIdConsumed()
@@ -732,12 +747,49 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
     setTimeout(() => setToast(null), 3200)
   }
 
+  async function handleTranslateMessage() {
+    const text = msgText.trim()
+    if (!text || translateLoading) return
+    setTranslateLoading(true)
+    try {
+      const result = await messagesAPI.translateMessage(token, {
+        text,
+        targetLang: translateTargetLang,
+        sourceLang: 'auto',
+      })
+      const translated = String(result?.translatedText || '').trim()
+      if (!result?.success || !translated) {
+        throw new Error(result?.message || t('chatTranslateFailed'))
+      }
+      setTranslateOriginal(text)
+      setTranslatePreview(translated)
+    } catch (err) {
+      const serverMsg = err?.response?.data?.message || err?.message || t('chatTranslateFailed')
+      showToast(t('chatTranslateFailed'), serverMsg, '#DC2626')
+    } finally {
+      setTranslateLoading(false)
+    }
+  }
+
+  function handleUseTranslation() {
+    const next = translatePreview.trim()
+    if (!next) return
+    setMsgText(next)
+    resetTranslateState()
+  }
+
+  function handleRevertTranslation() {
+    if (translateOriginal) setMsgText(translateOriginal)
+    resetTranslateState()
+  }
+
   async function sendMessage(chatId) {
     const text = msgText.trim()
     if (!text || !chatId) return
     const newMsg = { id:`m${Date.now()}`, from:myId, text, time:new Date().toISOString(), file:null, pending: true }
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages:[...c.messages, newMsg] } : c))
     setMsgText('')
+    resetTranslateState()
     const currentChat = chatsRef.current.find(c => c.id === chatId)
     if (!currentChat) {
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, messages: c.messages.filter((m) => m.id !== newMsg.id) } : c)))
@@ -849,6 +901,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
           )),
         } : c)))
         setMsgText('')
+        resetTranslateState()
         showToast('📎 File sent', file.name)
       } else {
         setChats((prev) => prev.map((c) => (
@@ -1228,6 +1281,55 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
             {/* Input bar */}
             <div style={{ padding:'12px 16px', background:C.inputBg, borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
+              {chatTranslateEnabled && translatePreview ? (
+                <div style={{ marginBottom:10, padding:'10px 12px', borderRadius:12, background:'#f0faf5', border:'1px solid rgba(0,104,74,0.18)' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:8 }}>
+                    <span style={{ fontSize:11, fontWeight:700, color:'#0f766e' }}>{t('chatTranslatePreview')}</span>
+                    <span style={{ fontSize:10, color:'#64748b' }}>
+                      {CHAT_TRANSLATE_LANGS.find((lang) => lang.code === translateTargetLang)
+                        ? t(CHAT_TRANSLATE_LANGS.find((lang) => lang.code === translateTargetLang).labelKey)
+                        : translateTargetLang}
+                    </span>
+                  </div>
+                  <textarea
+                    value={translatePreview}
+                    onChange={(e) => setTranslatePreview(e.target.value.slice(0, 4000))}
+                    dir={isRtlChatLang(translateTargetLang) ? 'rtl' : 'ltr'}
+                    rows={2}
+                    style={{
+                      width:'100%',
+                      resize:'vertical',
+                      minHeight:52,
+                      border:'1px solid rgba(0,104,74,0.2)',
+                      borderRadius:10,
+                      padding:'8px 10px',
+                      fontSize:13,
+                      lineHeight:1.5,
+                      fontFamily:'inherit',
+                      color:'#1c2a33',
+                      background:'#ffffff',
+                    }}
+                  />
+                  <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleUseTranslation}
+                      disabled={!translatePreview.trim()}
+                      style={{ padding:'6px 12px', borderRadius:999, border:'none', background:C.accent, color:'#fff', fontSize:12, fontWeight:700, cursor: translatePreview.trim() ? 'pointer' : 'not-allowed' }}
+                    >
+                      {t('chatTranslateUse')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRevertTranslation}
+                      style={{ padding:'6px 12px', borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, fontWeight:600, cursor:'pointer' }}
+                    >
+                      {t('chatTranslateRevert')}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
 
                 {/* Attach */}
@@ -1258,6 +1360,41 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
                   />
                   <button style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, opacity:.6 }} onClick={() => {}}>😊</button>
                 </div>
+
+                {chatTranslateEnabled ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                    <select
+                      value={translateTargetLang}
+                      onChange={(e) => setTranslateTargetLang(e.target.value)}
+                      aria-label={t('chatTranslateTargetLang')}
+                      style={{ height:34, borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px' }}
+                    >
+                      {CHAT_TRANSLATE_LANGS.map((lang) => (
+                        <option key={lang.code} value={lang.code}>{t(lang.labelKey)}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleTranslateMessage}
+                      disabled={!msgText.trim() || translateLoading}
+                      title={t('chatTranslateAction')}
+                      style={{
+                        height:34,
+                        padding:'0 12px',
+                        borderRadius:999,
+                        border:'1px solid rgba(0,104,74,0.25)',
+                        background: msgText.trim() && !translateLoading ? '#ecfdf5' : '#f8fafc',
+                        color:'#0f766e',
+                        fontSize:12,
+                        fontWeight:700,
+                        cursor: msgText.trim() && !translateLoading ? 'pointer' : 'not-allowed',
+                        whiteSpace:'nowrap',
+                      }}
+                    >
+                      {translateLoading ? t('chatTranslateLoading') : t('chatTranslateAction')}
+                    </button>
+                  </div>
+                ) : null}
 
                 {/* Send */}
                 <button

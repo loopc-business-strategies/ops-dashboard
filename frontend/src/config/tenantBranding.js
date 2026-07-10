@@ -36,6 +36,7 @@ const defaultBranding = {
     reportPdfDownload: true,
     masterDocumentSettings: true,
     erpAdvancedListFilters: true,
+    chatTranslate: true,
   },
 }
 
@@ -105,6 +106,7 @@ const tenantBranding = {
       reportPdfDownload: true,
       masterDocumentSettings: true,
       erpAdvancedListFilters: true,
+      chatTranslate: true,
     },
   },
 }
@@ -124,6 +126,10 @@ export function isMasterDocumentSettingsEnabled(tenant) {
 
 export function isErpAdvancedListFiltersEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.erpAdvancedListFilters === true
+}
+
+export function isChatTranslateEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.chatTranslate === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

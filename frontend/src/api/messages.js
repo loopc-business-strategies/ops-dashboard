@@ -29,6 +29,9 @@ const createMessageWithAttachment = async (_token, formData) =>
 
 const attachmentUrl = (fileName) => `${BASE}/attachments/${encodeURIComponent(fileName)}`
 
+const translateMessage = async (_token, { text, targetLang, sourceLang = 'auto' }) =>
+  (await axios.post(`${BASE}/translate`, { text, targetLang, sourceLang })).data
+
 const messagesAPI = {
   getLatestMessages,
   getParticipants,
@@ -39,6 +42,7 @@ const messagesAPI = {
   createMessage,
   createMessageWithAttachment,
   attachmentUrl,
+  translateMessage,
 }
 
 export default messagesAPI

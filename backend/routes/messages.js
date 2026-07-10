@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const express = require('express')
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const { protect } = require('../middleware/auth')
 const Message = require('../models/Message')
 const ChatGroup = require('../models/ChatGroup')
@@ -17,8 +18,27 @@ const {
   isDepartmentHead,
 } = require('../services/permissions/moduleAccessPolicy')
 const { chatUpload, chatUploadDir, buildAttachmentPayload } = require('../services/chat/uploadMiddleware')
+const { assertChatTranslationAccess } = require('../services/chatTranslationAccess')
+const { translateChatMessage } = require('../services/chatTranslation')
+const { createSharedRateLimitStore } = require('../utils/sharedRateLimitStore')
 
 const router = express.Router()
+
+const isProduction = process.env.NODE_ENV === 'production'
+const chatTranslateLimiter = rateLimit({
+  windowMs: Number(process.env.CHAT_TRANSLATION_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+  max: Number(process.env.CHAT_TRANSLATION_RATE_LIMIT_MAX || 25),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createSharedRateLimitStore('chat-translate'),
+  skip: () => !isProduction,
+  keyGenerator: (req) => {
+    const tenant = resolveRequestTenantKey(req)
+    const userKey = String(req.user?._id || req.user?.id || req.user?.email || '').trim().toLowerCase()
+    return `${tenant}:${userKey || ipKeyGenerator(req)}`
+  },
+  message: { success: false, message: 'Too many translation requests. Please wait and try again.' },
+})
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -71,6 +91,12 @@ const updateGroupSchema = Joi.object({
   description: Joi.string().allow('').max(250).optional(),
   memberIds: Joi.array().items(Joi.string().hex().length(24)).max(200).optional(),
   isActive: Joi.boolean().optional(),
+})
+
+const translateMessageSchema = Joi.object({
+  text: Joi.string().trim().min(1).max(4000).required(),
+  targetLang: Joi.string().valid('en', 'ar', 'uz', 'ru').required(),
+  sourceLang: Joi.string().valid('auto', 'en', 'ar', 'uz', 'ru').optional(),
 })
 
 const extractMentionNames = (text) => Array.from(new Set(
@@ -467,6 +493,24 @@ router.post('/', protect, maybeUpload, validateBody(createMessageSchema), async 
     return await createMessageRecord(req, res)
   } catch {
     res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/translate', protect, chatTranslateLimiter, validateBody(translateMessageSchema), async (req, res) => {
+  try {
+    assertChatTranslationAccess(req)
+    const { text, targetLang, sourceLang = 'auto' } = req.body
+    const result = await translateChatMessage({ text, targetLang, sourceLang })
+    return res.json({
+      success: true,
+      translatedText: result.translatedText,
+      detectedSourceLang: result.detectedSourceLang,
+      targetLang,
+      provider: result.provider,
+    })
+  } catch (err) {
+    const status = err.statusCode || 500
+    return res.status(status).json({ success: false, message: err.message || 'Translation failed.' })
   }
 })
 
