@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
+import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
 import {
   ERPAccountsTabContainer,
   ERPVouchersTabContainer,
