@@ -87,4 +87,12 @@ describe('statementPrintHtml', () => {
     expect(result?.html).toContain('Internal copy')
     expect(result?.html).toContain('Prepared By')
   })
+
+  test('MG tenant uses master header-loopc layout', async () => {
+    const result = await generateStatementHtml(baseCtx)
+    expect(result?.html).toContain('header-loopc')
+    expect(result?.html).toContain('brand-copy-loopc')
+    expect(result?.html).toContain('MODERN GOLD JEWELRY MANUFACTURING')
+    expect(result?.html).toContain('.brand-copy-loopc .company { font-size: 15px')
+  })
 })

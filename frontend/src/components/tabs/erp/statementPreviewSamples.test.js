@@ -57,6 +57,23 @@ describe('statementPreviewSamples', () => {
     expect(result.accountCode).toBe('CUST-001')
   })
 
+  test('MG sample preview uses master header-loopc layout', async () => {
+    const result = await buildStatementPreviewHtml({
+      mode: 'sample',
+      branding: {
+        companyName: 'MODERN GOLD JEWELRY MANUFACTURING FE LLC',
+        address: 'Dubai, UAE',
+        statementPrint: { title: 'Statement of Account' },
+      },
+      user: { company: 'mg', name: 'Tester' },
+    })
+    expect(result.html).toContain('header-loopc')
+    expect(result.html).toContain('brand-copy-loopc')
+    expect(result.html).toContain('MODERN GOLD JEWELRY MANUFACTURING FE LLC')
+    expect(result.html).toContain('.brand-copy-loopc .company { font-size: 15px')
+    expect(result.html).toContain('class="brand-copy brand-copy-loopc"')
+  })
+
   test('empty preview HTML still renders carry-forward rows', async () => {
     const result = await buildStatementPreviewHtml({
       mode: 'empty',

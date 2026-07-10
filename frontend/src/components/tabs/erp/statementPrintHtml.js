@@ -127,7 +127,7 @@ export async function generateStatementHtml(ctx) {
   ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
   const isModernGoldStatement = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
   const tenantKey = String(tenantBranding?.key || user?.company || user?.tenant?.key || '').trim().toLowerCase()
-  const useMasterStatementLayout = isMasterDocumentSettingsEnabled(tenantKey) && !isModernGoldStatement
+  const useMasterStatementLayout = isMasterDocumentSettingsEnabled(tenantKey)
   const statementPrint = branding?.statementPrint || {}
   const statementTitle = String(statementPrint.title || 'Statement of Account').trim() || 'Statement of Account'
   const statementSubtitle = String(statementPrint.subtitle || '').trim()
@@ -140,7 +140,7 @@ export async function generateStatementHtml(ctx) {
   const logoTransparent = statementPrint.logoTransparent !== false
   const brandingProfile = {
     ...branding,
-    companyName: isModernGoldStatement && (!branding.companyName || branding.companyName === DEFAULT_BRANDING.companyName)
+    companyName: !useMasterStatementLayout && isModernGoldStatement && (!branding.companyName || branding.companyName === DEFAULT_BRANDING.companyName)
       ? 'MODERN GOLD JEWELRY MANUFACTURING'
       : branding.companyName,
   }
@@ -150,10 +150,10 @@ export async function generateStatementHtml(ctx) {
   const accountAddress = String(accountEnquiryData?.account?.address || accountEnquiryData?.account?.description || '').trim()
   const headerStartDate = statementFilters.startDate || exportEntries[0]?.date || ''
   const headerEndDate = statementFilters.endDate || exportEntries[exportEntries.length - 1]?.date || ''
-  const statementLogoWidth = isModernGoldStatement && brandingProfile.logoUrl
+  const statementLogoWidth = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
     ? Math.max(110, clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260))
     : clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
-  const statementLogoHeight = isModernGoldStatement && brandingProfile.logoUrl
+  const statementLogoHeight = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
     ? Math.max(90, clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120))
     : clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
   const processedLogo = await createLogoRenderAsset(
@@ -219,8 +219,9 @@ export async function generateStatementHtml(ctx) {
             .header { display: grid; grid-template-columns: ${Math.max(164, logoWidth + 4)}px minmax(0, 1fr) 330px; align-items: start; gap: 18px; margin-bottom: 12px; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .header-loopc { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 8px; }
             .header-loopc .logo-wrap { min-width: ${Math.max(120, logoWidth)}px; display: flex; justify-content: flex-end; }
-            .brand-copy-loopc { padding-top: 0; font-size: 16px; }
-            .brand-copy-loopc .company { font-size: 22px; margin-bottom: 8px; }
+            .brand-copy-loopc { padding-top: 0; font-size: 10px; line-height: 1.5; max-width: 420px; word-break: normal; }
+            .brand-copy-loopc .company { font-size: 15px; font-weight: 700; margin-bottom: 4px; line-height: 1.3; }
+            .brand-copy-loopc .muted { font-size: 10px; line-height: 1.5; }
             .statement-head-loopc { text-align: center; padding-top: 8px; margin-bottom: 12px; }
             .statement-head-loopc .subtitle { font-size: 14px; color: #4B5563; margin-bottom: 4px; }
             .signatories { margin-top: 18px; display: grid; grid-template-columns: repeat(${Math.max(visibleStatementSignatories.length, 1)}, 1fr); gap: 24px; text-align: center; }

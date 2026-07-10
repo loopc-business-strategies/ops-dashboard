@@ -1,15 +1,23 @@
 import { useCallback, useRef } from 'react'
 import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from '../erp/ERPBrandingUtils'
 
+const parseStatementDateRange = (dateRange = '') => {
+  const [start = '-', end = '-'] = String(dateRange || '').split(/\s+to\s+/i)
+  return { start: start.trim() || '-', end: end.trim() || '-' }
+}
+
 export default function DocumentLayoutPreview({
   branding,
   layoutSettings = {},
   onLayoutChange,
+  layoutVariant = 'voucher',
   title = '',
   subtitle = '',
+  dateRange = '',
   meta = [],
 }) {
   const dragRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 })
+  const isStatementLayout = layoutVariant === 'statement'
 
   const logoOffsetX = Number(layoutSettings.logoOffsetX || 0)
   const logoOffsetY = Number(layoutSettings.logoOffsetY || 0)
@@ -56,6 +64,17 @@ export default function DocumentLayoutPreview({
   const logoHeight = Number(branding.logoHeight || 56)
   const logoFrameWidth = 260
   const logoFrameHeight = 120
+  const { start: dateStart, end: dateEnd } = parseStatementDateRange(dateRange)
+
+  const headerRowStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 16,
+    ...(isStatementLayout
+      ? { marginBottom: 0 }
+      : { borderBottom: `2px solid ${headerDividerColor}`, paddingBottom: 10 }),
+  }
 
   return (
     <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, padding: 14, background: '#fff' }}>
@@ -69,13 +88,13 @@ export default function DocumentLayoutPreview({
         background: '#F8FAFC',
       }}
       >
-        <div data-testid="header-divider" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: `2px solid ${headerDividerColor}`, paddingBottom: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div data-testid="header-divider" style={headerRowStyle}>
+          <div style={{ flex: 1, minWidth: 0, maxWidth: 420 }}>
             {branding.companyName ? (
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{branding.companyName}</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: 1.3 }}>{branding.companyName}</div>
             ) : null}
             {details.map((line, index) => (
-              <div key={`${line}-${index}`} style={{ fontSize: 10, color: '#555', marginTop: index === 0 ? 3 : 2, whiteSpace: 'pre-line' }}>
+              <div key={`${line}-${index}`} style={{ fontSize: 10, color: '#555', marginTop: index === 0 ? 3 : 2, whiteSpace: 'pre-line', lineHeight: 1.5 }}>
                 {line}
               </div>
             ))}
@@ -118,7 +137,19 @@ export default function DocumentLayoutPreview({
           </div>
         </div>
 
-        {title ? (
+        {title && isStatementLayout ? (
+          <div data-testid="statement-head" style={{ textAlign: 'center', paddingTop: 8, marginBottom: 0 }}>
+            <div style={{ fontSize: 20, fontWeight: 400, marginBottom: 2, color: '#111111' }}>{title}</div>
+            {subtitle ? (
+              <div style={{ fontSize: 14, color: '#4B5563', marginBottom: 4 }}>{subtitle}</div>
+            ) : null}
+            <div data-testid="statement-dates" style={{ fontSize: 16, color: '#111111' }}>
+              Doc Date From {dateStart} To {dateEnd}
+            </div>
+          </div>
+        ) : null}
+
+        {title && !isStatementLayout ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
             <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
             <div style={{ fontWeight: 700, fontSize: 14, textTransform: 'uppercase' }}>{title}</div>
@@ -126,11 +157,11 @@ export default function DocumentLayoutPreview({
           </div>
         ) : null}
 
-        {subtitle ? (
+        {subtitle && !isStatementLayout ? (
           <p style={{ margin: '8px 0 0', fontSize: 11, color: '#6B7280', textAlign: 'center' }}>{subtitle}</p>
         ) : null}
 
-        {meta.length ? (
+        {!isStatementLayout && meta.length ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 6, marginTop: 10, fontSize: 10 }}>
             {meta.map((item) => (
               <div key={item.label} style={{ border: '1px solid #D1D5DB', padding: '4px 6px', background: '#fff' }}>

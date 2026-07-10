@@ -48,15 +48,13 @@ export default function StatementSettingsPanel({
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <DocumentLayoutPreview
+        layoutVariant="statement"
         branding={branding}
         layoutSettings={statementPrint}
         onLayoutChange={patchStatementPrint}
         title={statementPrint.title || 'Statement of Account'}
         subtitle={statementPrint.subtitle || ''}
-        meta={[
-          { label: 'Account', value: 'CUST-001' },
-          { label: 'Period', value: '01-Jan-26 to 08-Jul-26' },
-        ]}
+        dateRange="01-Jan-26 to 08-Jul-26"
       />
 
       <div style={{ display: 'grid', gap: 10 }}>

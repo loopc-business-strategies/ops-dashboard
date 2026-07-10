@@ -56,3 +56,44 @@ describe('DocumentLayoutPreview title accent color', () => {
     expect(screen.getByTestId('header-divider').style.borderBottomColor).toBe('rgb(17, 24, 39)')
   })
 })
+
+describe('DocumentLayoutPreview statement variant', () => {
+  it('renders centered title and dates without accent lines or header divider', () => {
+    render(
+      <DocumentLayoutPreview
+        layoutVariant="statement"
+        branding={{ companyName: 'MODERN GOLD JEWELRY MANUFACTURING FE LLC', address: 'Dubai, UAE' }}
+        layoutSettings={{}}
+        title="Statement of Account"
+        subtitle="Internal copy"
+        dateRange="01-Jan-26 to 08-Jul-26"
+      />,
+    )
+
+    expect(screen.queryAllByTestId('title-accent-line')).toHaveLength(0)
+    expect(screen.getByTestId('header-divider').style.borderBottom).toBe('')
+    expect(screen.getByTestId('statement-head')).toBeTruthy()
+    expect(screen.getByText('Statement of Account')).toBeTruthy()
+    expect(screen.getByText('Internal copy')).toBeTruthy()
+    expect(screen.getByTestId('statement-dates').textContent).toBe('Doc Date From 01-Jan-26 To 08-Jul-26')
+  })
+
+  it('does not render meta boxes in statement variant', () => {
+    render(
+      <DocumentLayoutPreview
+        layoutVariant="statement"
+        branding={{ companyName: 'LoopC' }}
+        layoutSettings={{}}
+        title="Statement of Account"
+        dateRange="01-Jan-26 to 08-Jul-26"
+        meta={[
+          { label: 'Account', value: 'CUST-001' },
+          { label: 'Period', value: '01-Jan-26 to 08-Jul-26' },
+        ]}
+      />,
+    )
+
+    expect(screen.queryByText(/Account:/)).toBeNull()
+    expect(screen.queryByText(/Period:/)).toBeNull()
+  })
+})
