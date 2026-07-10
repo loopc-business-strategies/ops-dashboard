@@ -9,6 +9,7 @@ const { Joi, validateBody, validateQuery } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const { resolveRequestTenantKey } = require('../config/tenants')
 const { notifyUsers } = require('../services/notificationDispatch')
+const { isUserOnline } = require('../services/userPresence')
 const {
   normalize,
   buildMessageScopeForUser,
@@ -302,14 +303,19 @@ async function createMessageRecord(req, res) {
   })
 }
 
-router.get('/participants', protect, async (_req, res) => {
+router.get('/participants', protect, async (req, res) => {
   try {
+    const tenant = resolveRequestTenantKey(req)
     const users = await User.find({ isDeleted: { $ne: true }, isActive: { $ne: false } })
       .select('_id name fullName email role department title employeeCode')
       .sort({ name: 1 })
       .limit(500)
       .lean()
-    res.json({ success: true, users })
+    const usersWithPresence = await Promise.all(users.map(async (user) => ({
+      ...user,
+      isOnline: await isUserOnline(tenant, user._id),
+    })))
+    res.json({ success: true, users: usersWithPresence })
   } catch {
     res.status(500).json({ success: false, message: 'Server error.' })
   }

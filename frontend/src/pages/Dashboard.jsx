@@ -318,6 +318,7 @@ function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab,
           openChatId={chatTabProps.openChatId}
           onOpenChatIdConsumed={chatTabProps.onOpenChatIdConsumed}
           focusComposerNonce={chatTabProps.focusComposerNonce || 0}
+          onlineUserIds={chatTabProps.onlineUserIds || []}
         />
       )
 
@@ -407,6 +408,7 @@ function Dashboard() {
   const [notifOpen, setNotifOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
+  const [onlineUserIds, setOnlineUserIds] = useState([])
   const [pendingChatOpenId, setPendingChatOpenId] = useState(null)
   /** Bumped when opening Chat from the bell so the message composer receives focus. */
   const [chatComposerFocusNonce, setChatComposerFocusNonce] = useState(0)
@@ -540,8 +542,9 @@ function Dashboard() {
       openChatId: pendingChatOpenId,
       onOpenChatIdConsumed: consumeOpenChatId,
       focusComposerNonce: chatComposerFocusNonce,
+      onlineUserIds,
     }),
-    [pendingChatOpenId, consumeOpenChatId, chatComposerFocusNonce],
+    [pendingChatOpenId, consumeOpenChatId, chatComposerFocusNonce, onlineUserIds],
   )
   const erpTabRealtimeProps = useMemo(
     () => ({
@@ -722,6 +725,19 @@ function Dashboard() {
           },
           ...prev,
         ])
+      },
+      onPresenceSnapshot: (ids) => {
+        setOnlineUserIds(Array.isArray(ids) ? ids.map(String) : [])
+      },
+      onPresenceUpdate: ({ userId, online }) => {
+        const normalizedId = String(userId || '')
+        if (!normalizedId) return
+        setOnlineUserIds((prev) => {
+          const next = new Set(prev.map(String))
+          if (online) next.add(normalizedId)
+          else next.delete(normalizedId)
+          return Array.from(next)
+        })
       },
     })
   }, [token, user])

@@ -1,12 +1,13 @@
 // FILE: src/components/tabs/ChatTab.jsx
 // Redesigned Chat — matching refined prototype style
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import messagesAPI from '../../api/messages'
 import { buildRealtimeEventsUrl } from '../../utils/realtimeSocket'
+import { countOnlineMembers as countOnlineMemberIds, createOnlineLookup } from '../../utils/chatPresence'
 
 /** Demo chats / roster only when explicitly enabled in local dev (never in production builds). */
 const USE_SEED_DATA =
@@ -323,7 +324,7 @@ function IBtn({ onClick, title, children, style = {} }) {
 // ─────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────
-function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed, focusComposerNonce = 0 }) {
+function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed, focusComposerNonce = 0, onlineUserIds = [] }) {
   const { user, token }  = useAuth()
   const perms     = usePermissions()
   const { t } = useLanguage()
@@ -342,6 +343,13 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const [groupForm,     setGroupForm]     = useState(defaultGroupForm)
   const [groupMemberSearch, setGroupMemberSearch] = useState('')
   const [participants,  setParticipants]  = useState([])
+
+  const isUserOnline = useMemo(
+    () => createOnlineLookup(onlineUserIds, participants),
+    [onlineUserIds, participants],
+  )
+
+  const countOnlineMembers = (memberIds = []) => countOnlineMemberIds(memberIds, isUserOnline)
 
   const messagesEndRef   = useRef(null)
   const inputRef         = useRef(null)
@@ -670,6 +678,8 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
   const canCreateGroup = perms.isSuperAdmin || perms.isDepartmentHead
   const activeChat     = chats.find(c => c.id === activeChatId)
+  const activeDmOnline = activeChat?.type === 'direct' ? isUserOnline(activeChat.otherId) : false
+  const activeGroupOnlineCount = activeChat?.type === 'group' ? countOnlineMembers(activeChat.members) : 0
 
   function openChat(id) {
     setActiveChatId(id)
@@ -1042,6 +1052,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
                 const other  = displayUser(chat.otherId)
                 const last   = chat.messages[chat.messages.length - 1]
                 const active = activeChatId === chat.id
+                const otherOnline = isUserOnline(chat.otherId)
                 return (
                   <div
                     key={chat.id}
@@ -1054,7 +1065,9 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
                       <div style={{ width:42, height:42, borderRadius:'50%', background:(other?.color || '#334155') + '20', color: other?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700 }}>
                         {other?.initials || '?'}
                       </div>
-                      <div style={{ position:'absolute', bottom:1, right:1, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid #ffffff` }} />
+                      {otherOnline ? (
+                        <div style={{ position:'absolute', bottom:1, right:1, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:'2.5px solid #ffffff' }} />
+                      ) : null}
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
@@ -1104,15 +1117,21 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
                   <div style={{ width:40, height:40, borderRadius:'50%', background:(displayUser(activeChat.otherId)?.color || '#334155') + '20', color: displayUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>
                     {displayUser(activeChat.otherId)?.initials || '?'}
                   </div>
-                  <div style={{ position:'absolute', bottom:0, right:0, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid #ffffff` }} />
+                  {activeDmOnline ? (
+                    <div style={{ position:'absolute', bottom:0, right:0, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:'2.5px solid #ffffff' }} />
+                  ) : null}
                 </div>
               )}
 
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:15, fontWeight:700, color:'#1c2a33' }}>{activeChat.name}</div>
-                <div style={{ fontSize:11, color:'#22c55e', marginTop:2, display:'flex', alignItems:'center', gap:5 }}>
-                  <div style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
-                  {activeChat.type === 'group' ? `${activeChat.members.length} members · Active` : 'Online now'}
+                <div style={{ fontSize:11, color: activeChat.type === 'group' ? '#64748B' : (activeDmOnline ? '#22c55e' : '#94a3b8'), marginTop:2, display:'flex', alignItems:'center', gap:5 }}>
+                  {activeChat.type === 'group' ? null : (
+                    <div style={{ width:6, height:6, borderRadius:'50%', background: activeDmOnline ? '#22c55e' : '#94a3b8', display:'inline-block' }} />
+                  )}
+                  {activeChat.type === 'group'
+                    ? `${activeChat.members.length} members · ${activeGroupOnlineCount} online`
+                    : (activeDmOnline ? 'Online now' : 'Offline')}
                 </div>
               </div>
 

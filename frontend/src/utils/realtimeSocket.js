@@ -128,14 +128,49 @@ export const startProjectsSse = ({ tenant, onReminderDue }) => {
   }
 }
 
-export const startUserNotifications = ({ token, tenant, onNotification }) => {
-  if (typeof onNotification !== 'function') return () => {}
+export const startUserNotifications = ({
+  token,
+  tenant,
+  onNotification,
+  onPresenceSnapshot,
+  onPresenceUpdate,
+}) => {
+  if (typeof onNotification !== 'function' && typeof onPresenceSnapshot !== 'function' && typeof onPresenceUpdate !== 'function') {
+    return () => {}
+  }
 
   const notificationSocket = createSocket('/notifications', token, tenant)
-  notificationSocket.on('notification', onNotification)
+
+  if (typeof onNotification === 'function') {
+    notificationSocket.on('notification', onNotification)
+  }
+
+  if (typeof onPresenceSnapshot === 'function') {
+    notificationSocket.on('presence:snapshot', (payload) => {
+      const onlineUserIds = Array.isArray(payload?.onlineUserIds) ? payload.onlineUserIds.map(String) : []
+      onPresenceSnapshot(onlineUserIds)
+    })
+  }
+
+  if (typeof onPresenceUpdate === 'function') {
+    notificationSocket.on('presence:update', (payload) => {
+      onPresenceUpdate({
+        userId: String(payload?.userId || ''),
+        online: Boolean(payload?.online),
+      })
+    })
+  }
 
   return () => {
-    notificationSocket.off('notification', onNotification)
+    if (typeof onNotification === 'function') {
+      notificationSocket.off('notification', onNotification)
+    }
+    if (typeof onPresenceSnapshot === 'function') {
+      notificationSocket.off('presence:snapshot')
+    }
+    if (typeof onPresenceUpdate === 'function') {
+      notificationSocket.off('presence:update')
+    }
     notificationSocket.disconnect()
   }
 }

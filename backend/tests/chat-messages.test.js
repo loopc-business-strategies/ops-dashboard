@@ -230,4 +230,16 @@ describe('chat messages API', () => {
     expect(eveLatest.status).toBe(200)
     expect(eveLatest.body.messages.some((m) => m.text === 'Secret handshake')).toBe(false)
   })
+
+  test('participants include isOnline flag', async () => {
+    const user = await createUser({ name: 'Presence User' })
+    const res = await request(app)
+      .get('/api/messages/participants')
+      .set('Authorization', `Bearer ${tokenFor(user)}`)
+
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body.users)).toBe(true)
+    expect(res.body.users.length).toBeGreaterThan(0)
+    expect(res.body.users.every((row) => typeof row.isOnline === 'boolean')).toBe(true)
+  })
 })

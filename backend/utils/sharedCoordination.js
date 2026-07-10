@@ -195,6 +195,18 @@ function resetLocalCoordinationForTests() {
   localStore.clear()
 }
 
+async function getCounter(key) {
+  const namespacedKey = `ops:${key}`
+  const client = await getRedisClient()
+  if (client) {
+    const raw = await client.get(namespacedKey)
+    return Math.max(0, Number(raw || 0))
+  }
+  const row = localStore.get(namespacedKey)
+  if (!row || row.expiresAt <= Date.now()) return 0
+  return Math.max(0, Number(row.value || 0))
+}
+
 async function pingRedis() {
   if (!isRedisConfigured()) {
     return { configured: false, ready: null }
@@ -221,6 +233,7 @@ module.exports = {
   setOnce,
   incrementCounter,
   decrementCounter,
+  getCounter,
   resetCounter,
   publish,
   subscribe,

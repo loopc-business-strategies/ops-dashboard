@@ -10,6 +10,11 @@ const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
 const { sendExpoPushToUser } = require('../services/expoPushNotifications')
 const { sendWebPushToUser } = require('../services/webPushNotifications')
 const { readSessionTokenFromCookieMap } = require('../utils/tenantSessionCookies')
+const {
+  registerConnection,
+  unregisterConnection,
+  getOnlineUserIds,
+} = require('../services/userPresence')
 
 function resolveSocketTenantSubscription(socket, requestedTenant) {
   const authenticatedTenant = normalizeTenant(socket?.tenant)
@@ -254,8 +259,40 @@ class RealtimeServer {
      */
     const notificationsNamespace = this.io.of('/notifications')
     notificationsNamespace.use(this.authMiddleware)
-    notificationsNamespace.on('connection', (socket) => {
-      socket.join(`user:${socket.userId}`)
+    notificationsNamespace.on('connection', async (socket) => {
+      const tenant = socket.tenant
+      const userId = socket.userId
+      socket.join(`user:${userId}`)
+      socket.join(`tenant:${tenant}`)
+
+      try {
+        const { becameOnline } = await registerConnection(tenant, userId)
+        const onlineUserIds = await getOnlineUserIds(tenant)
+        socket.emit('presence:snapshot', { onlineUserIds })
+        if (becameOnline) {
+          this.broadcastPresenceUpdate(tenant, { userId, online: true })
+        }
+      } catch (err) {
+        console.warn('[presence] connect error', err?.message || err)
+      }
+
+      socket.on('disconnect', async () => {
+        try {
+          const { becameOffline } = await unregisterConnection(tenant, userId)
+          if (becameOffline) {
+            this.broadcastPresenceUpdate(tenant, { userId, online: false })
+          }
+        } catch (err) {
+          console.warn('[presence] disconnect error', err?.message || err)
+        }
+      })
+    })
+  }
+
+  broadcastPresenceUpdate(tenant, payload = {}) {
+    this.io.of('/notifications').to(`tenant:${tenant}`).emit('presence:update', {
+      timestamp: new Date(),
+      ...payload,
     })
   }
 
