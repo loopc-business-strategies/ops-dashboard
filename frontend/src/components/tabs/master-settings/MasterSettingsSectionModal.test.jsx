@@ -58,6 +58,53 @@ describe('MasterSettingsSectionModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('calls onClose when backdrop is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <MasterSettingsSectionModal open onClose={onClose} title="Voucher Settings">
+        <div>Settings body</div>
+      </MasterSettingsSectionModal>,
+    )
+    const backdrop = container.firstChild
+    fireEvent.click(backdrop)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not close when backdrop is clicked immediately after resize ends', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <MasterSettingsSectionModal open onClose={onClose} title="Voucher Settings">
+        <div>Settings body</div>
+      </MasterSettingsSectionModal>,
+    )
+    const backdrop = container.firstChild
+    const resizeHandle = screen.getByLabelText('Resize')
+    fireEvent.mouseDown(resizeHandle, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 150, clientY: 150 })
+    fireEvent.mouseUp(window)
+    fireEvent.click(backdrop)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Voucher Settings' })).toBeTruthy()
+  })
+
+  it('does not close when backdrop is clicked immediately after drag ends', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <MasterSettingsSectionModal open onClose={onClose} title="Voucher Settings">
+        <div>Settings body</div>
+      </MasterSettingsSectionModal>,
+    )
+    const backdrop = container.firstChild
+    const dialog = screen.getByRole('dialog', { name: 'Voucher Settings' })
+    const header = dialog.firstElementChild
+    fireEvent.mouseDown(header, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 160, clientY: 140 })
+    fireEvent.mouseUp(window)
+    fireEvent.click(backdrop)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Voucher Settings' })).toBeTruthy()
+  })
+
   it('resets panel transform after close and reopen', () => {
     const { rerender } = render(
       <MasterSettingsSectionModal open onClose={vi.fn()} title="Voucher Settings">

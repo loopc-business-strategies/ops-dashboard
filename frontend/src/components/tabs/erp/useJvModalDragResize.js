@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 /** JV modal drag + resize while the ledger voucher form is open. */
 export function useJvModalDragResize({
@@ -13,9 +13,24 @@ export function useJvModalDragResize({
   setJvModalSize,
   jvModalDefaultSize,
 }) {
+  const suppressBackdropCloseRef = useRef(false)
+
+  const finishInteraction = useCallback((setActive) => {
+    suppressBackdropCloseRef.current = true
+    setActive()
+    setTimeout(() => {
+      suppressBackdropCloseRef.current = false
+    }, 0)
+  }, [])
+
+  const canCloseOnBackdropClick = useCallback(() => (
+    !suppressBackdropCloseRef.current && !jvModalDrag.active && !jvModalResize.active
+  ), [jvModalDrag.active, jvModalResize.active])
+
   const beginJvModalDrag = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
+    suppressBackdropCloseRef.current = true
     setJvModalDrag({
       active: true,
       pointerX: event.clientX,
@@ -29,6 +44,7 @@ export function useJvModalDragResize({
     if (event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
+    suppressBackdropCloseRef.current = true
     setJvModalResize({
       active: true,
       pointerX: event.clientX,
@@ -40,6 +56,7 @@ export function useJvModalDragResize({
 
   useEffect(() => {
     if (!showLedgerForm) {
+      suppressBackdropCloseRef.current = false
       setJvModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
       setJvModalDrag((prev) => {
         if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
@@ -60,7 +77,9 @@ export function useJvModalDragResize({
       })
     }
     const onMouseUp = () => {
-      setJvModalDrag((prev) => ({ ...prev, active: false }))
+      finishInteraction(() => {
+        setJvModalDrag((prev) => ({ ...prev, active: false }))
+      })
     }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
@@ -68,7 +87,7 @@ export function useJvModalDragResize({
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [showLedgerForm, jvModalDrag, jvModalDefaultSize, setJvModalDrag, setJvModalOffset, setJvModalResize, setJvModalSize])
+  }, [showLedgerForm, jvModalDrag, jvModalDefaultSize, setJvModalDrag, setJvModalOffset, setJvModalResize, setJvModalSize, finishInteraction])
 
   useEffect(() => {
     if (!showLedgerForm || !jvModalResize.active) return undefined
@@ -78,7 +97,9 @@ export function useJvModalDragResize({
       setJvModalSize({ width: nextWidth, height: nextHeight })
     }
     const onMouseUp = () => {
-      setJvModalResize((prev) => ({ ...prev, active: false }))
+      finishInteraction(() => {
+        setJvModalResize((prev) => ({ ...prev, active: false }))
+      })
     }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
@@ -86,7 +107,7 @@ export function useJvModalDragResize({
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [showLedgerForm, jvModalResize, setJvModalResize, setJvModalSize])
+  }, [showLedgerForm, jvModalResize, setJvModalResize, setJvModalSize, finishInteraction])
 
-  return { beginJvModalDrag, beginJvModalResize }
+  return { beginJvModalDrag, beginJvModalResize, canCloseOnBackdropClick }
 }

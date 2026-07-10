@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 function StatementPreviewModal({
   open,
@@ -14,6 +14,7 @@ function StatementPreviewModal({
   const dragSessionRef = useRef(null)
   const moveHandlerRef = useRef(null)
   const upHandlerRef = useRef(null)
+  const suppressBackdropCloseRef = useRef(false)
   const [isDragging, setIsDragging] = useState(false)
 
   const applyPanelTransform = () => {
@@ -41,10 +42,23 @@ function StatementPreviewModal({
     setIsDragging(false)
   }
 
+  const finishDrag = () => {
+    suppressBackdropCloseRef.current = true
+    stopDrag()
+    setTimeout(() => {
+      suppressBackdropCloseRef.current = false
+    }, 0)
+  }
+
+  const canCloseOnBackdropClick = useCallback(() => (
+    !suppressBackdropCloseRef.current && !isDragging
+  ), [isDragging])
+
   const beginModalDrag = (event) => {
     if (event.button !== 0) return
     if (event.target.closest('button')) return
     event.preventDefault()
+    suppressBackdropCloseRef.current = true
     cleanupDragListeners()
     dragSessionRef.current = {
       pointerX: event.clientX,
@@ -62,7 +76,7 @@ function StatementPreviewModal({
       applyPanelTransform()
     }
     const onDragEnd = () => {
-      stopDrag()
+      finishDrag()
     }
     moveHandlerRef.current = onDragMove
     upHandlerRef.current = onDragEnd
@@ -75,6 +89,7 @@ function StatementPreviewModal({
   useEffect(() => {
     if (open) return undefined
     offsetRef.current = { x: 0, y: 0 }
+    suppressBackdropCloseRef.current = false
     if (panelRef.current) {
       panelRef.current.style.transform = ''
       panelRef.current.style.willChange = ''
@@ -110,7 +125,7 @@ function StatementPreviewModal({
 
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget && !isDragging) onClose() }}
+      onClick={(e) => { if (e.target === e.currentTarget && canCloseOnBackdropClick()) onClose() }}
       style={{
         position: 'fixed',
         inset: 0,

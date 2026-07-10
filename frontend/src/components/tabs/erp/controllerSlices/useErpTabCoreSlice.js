@@ -133,6 +133,7 @@ export function useErpTabCoreSlice(props) {
     setJvModalResize,
     beginJvModalDrag,
     beginJvModalResize,
+    canCloseOnBackdropClick,
     jvModalDefaultSize,
   } = useJvModalChrome(showLedgerForm)
   const [mappings, setMappings] = useState([])
@@ -487,6 +488,7 @@ export function useErpTabCoreSlice(props) {
     activeTabRef,
     beginJvModalDrag,
     beginJvModalResize,
+    canCloseOnBackdropClick,
     brandingForm,
     brandingPreviewLogo,
     brandingProfiles,

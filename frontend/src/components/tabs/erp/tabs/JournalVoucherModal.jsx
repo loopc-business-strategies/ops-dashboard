@@ -33,6 +33,7 @@ export default function JournalVoucherModal({
   saving,
   jvError,
   beginJvModalResize,
+  canCloseOnBackdropClick,
   jvReadOnly,
 }) {
   const jvModeMeta = resolveJvModeMeta(jvMode)
@@ -51,7 +52,11 @@ export default function JournalVoucherModal({
   return (
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.62)', zIndex: 1700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-      onClick={closeJvModal}
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (!canCloseOnBackdropClick()) return
+        closeJvModal()
+      }}
     >
       <div
         style={{ width: `min(${jvModalSize.width}px, 92vw)`, height: `min(${jvModalSize.height}px, 90vh)`, transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: (jvModalDrag.active || jvModalResize.active) ? 'none' : 'auto', boxShadow: '0 28px 55px rgba(2, 6, 23, 0.45)', borderRadius: '0.6rem', position: 'relative', display: 'flex', flexDirection: 'column' }}

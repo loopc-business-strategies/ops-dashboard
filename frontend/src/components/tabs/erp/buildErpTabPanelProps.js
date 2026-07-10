@@ -25,6 +25,7 @@ export function buildErpTabPanelProps(scope) {
     beginFixingRegPanelDrag: scope.beginFixingRegPanelDrag,
     beginJvModalDrag: scope.beginJvModalDrag,
     beginJvModalResize: scope.beginJvModalResize,
+    canCloseOnBackdropClick: scope.canCloseOnBackdropClick,
     branding: scope.branding,
     brandingForm: scope.brandingForm,
     brandingPreview: scope.brandingPreview,

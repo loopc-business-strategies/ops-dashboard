@@ -58,6 +58,7 @@ export default function ERPTabPanels({
   beginFixingRegPanelDrag,
   beginJvModalDrag,
   beginJvModalResize,
+  canCloseOnBackdropClick,
   branding,
   brandingForm,
   brandingPreview,
@@ -555,6 +556,7 @@ export default function ERPTabPanels({
         jvModalDrag={jvModalDrag}
         jvModalResize={jvModalResize}
         beginJvModalDrag={beginJvModalDrag}
+        canCloseOnBackdropClick={canCloseOnBackdropClick}
         switchJvMode={switchJvMode}
         jvEditEntryIds={jvEditEntryIds}
         currencies={currencies}

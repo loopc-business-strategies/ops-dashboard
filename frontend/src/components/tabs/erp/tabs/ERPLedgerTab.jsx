@@ -48,6 +48,7 @@ export default function ERPLedgerTab({
   saving,
   jvError,
   beginJvModalResize,
+  canCloseOnBackdropClick,
   ledgerFilters,
   setLedgerFilters,
   modalInputStyle,
@@ -214,6 +215,7 @@ export default function ERPLedgerTab({
               saving={saving}
               jvError={jvError}
               beginJvModalResize={beginJvModalResize}
+              canCloseOnBackdropClick={canCloseOnBackdropClick}
               jvReadOnly={jvReadOnly}
             />
           )}

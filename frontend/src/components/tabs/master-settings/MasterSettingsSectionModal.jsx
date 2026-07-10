@@ -16,6 +16,7 @@ function MasterSettingsSectionModal({
     isResizing,
     beginDrag,
     beginResize,
+    canCloseOnBackdropClick,
   } = useMasterSettingsModalChrome({ open, wide })
 
   useEffect(() => {
@@ -35,7 +36,7 @@ function MasterSettingsSectionModal({
   return (
     <div
       onClick={(event) => {
-        if (event.target === event.currentTarget && !isInteracting) onClose()
+        if (event.target === event.currentTarget && canCloseOnBackdropClick()) onClose()
       }}
       style={{
         position: 'fixed',

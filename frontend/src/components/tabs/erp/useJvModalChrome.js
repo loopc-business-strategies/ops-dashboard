@@ -17,7 +17,7 @@ export function useJvModalChrome(showLedgerForm) {
     startH: JV_MODAL_DEFAULT_SIZE.height,
   })
 
-  const { beginJvModalDrag, beginJvModalResize } = useJvModalDragResize({
+  const { beginJvModalDrag, beginJvModalResize, canCloseOnBackdropClick } = useJvModalDragResize({
     showLedgerForm,
     jvModalDrag,
     setJvModalDrag,
@@ -41,6 +41,7 @@ export function useJvModalChrome(showLedgerForm) {
     setJvModalResize,
     beginJvModalDrag,
     beginJvModalResize,
+    canCloseOnBackdropClick,
     jvModalDefaultSize: JV_MODAL_DEFAULT_SIZE,
   }
 }

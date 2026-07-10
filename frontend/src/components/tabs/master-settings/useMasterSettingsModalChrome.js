@@ -36,6 +36,7 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
   const resizeSessionRef = useRef(null)
   const moveHandlerRef = useRef(null)
   const upHandlerRef = useRef(null)
+  const suppressBackdropCloseRef = useRef(false)
   const [offset, setOffset] = useState(ZERO_OFFSET)
   const [size, setSize] = useState(() => getDefaultModalSize(wide))
   const [isDragging, setIsDragging] = useState(false)
@@ -61,10 +62,23 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
     setIsResizing(false)
   }, [cleanupListeners])
 
+  const finishInteraction = useCallback(() => {
+    suppressBackdropCloseRef.current = true
+    stopInteraction()
+    setTimeout(() => {
+      suppressBackdropCloseRef.current = false
+    }, 0)
+  }, [stopInteraction])
+
+  const canCloseOnBackdropClick = useCallback(() => (
+    !suppressBackdropCloseRef.current && !isDragging && !isResizing
+  ), [isDragging, isResizing])
+
   useEffect(() => {
     if (open) return undefined
     setOffset(ZERO_OFFSET)
     setSize(getDefaultModalSize(wide))
+    suppressBackdropCloseRef.current = false
     stopInteraction()
     if (panelRef.current) {
       panelRef.current.style.transform = ''
@@ -84,6 +98,7 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
     if (event.button !== 0) return
     if (event.target.closest('button')) return
     event.preventDefault()
+    suppressBackdropCloseRef.current = true
     cleanupListeners()
     dragSessionRef.current = createDragState(event, offset)
     const onMove = (moveEvent) => {
@@ -91,19 +106,20 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
       if (!session) return
       setOffset(projectDragOffset(session, moveEvent))
     }
-    const onUp = () => stopInteraction()
+    const onUp = () => finishInteraction()
     moveHandlerRef.current = onMove
     upHandlerRef.current = onUp
     setIsDragging(true)
     document.body.style.userSelect = 'none'
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-  }, [offset, cleanupListeners, stopInteraction])
+  }, [offset, cleanupListeners, finishInteraction])
 
   const beginResize = useCallback((event) => {
     if (event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
+    suppressBackdropCloseRef.current = true
     cleanupListeners()
     resizeSessionRef.current = createResizeState(event, size)
     const bounds = getModalResizeBounds(wide)
@@ -112,14 +128,14 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
       if (!session) return
       setSize(projectResizeSize(session, moveEvent, bounds))
     }
-    const onUp = () => stopInteraction()
+    const onUp = () => finishInteraction()
     moveHandlerRef.current = onMove
     upHandlerRef.current = onUp
     setIsResizing(true)
     document.body.style.userSelect = 'none'
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-  }, [size, wide, cleanupListeners, stopInteraction])
+  }, [size, wide, cleanupListeners, finishInteraction])
 
   useEffect(() => () => cleanupListeners(), [cleanupListeners])
 
@@ -131,5 +147,6 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
     isResizing,
     beginDrag,
     beginResize,
+    canCloseOnBackdropClick,
   }
 }
