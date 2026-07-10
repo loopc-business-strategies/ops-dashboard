@@ -19,14 +19,25 @@ describe('documentBranding resolvers', () => {
     },
   }
 
-  test('resolveVoucherPrintSettings is disabled outside LOOPC', () => {
+  test('resolveVoucherPrintSettings enables MG voucher print settings', () => {
     const result = resolveVoucherPrintSettings({
       reportBranding: baseBranding,
       user: { company: 'mg' },
       tenantBranding: { key: 'mg' },
     })
-    expect(result.enabled).toBe(false)
+    expect(result.enabled).toBe(true)
     expect(result.companyName).toBe('LoopC Metals')
+    expect(result.voucherPrint.tableHeaders.no).toBe('S.No')
+  })
+
+  test('resolveVoucherPrintSettings enables CG voucher print settings', () => {
+    const result = resolveVoucherPrintSettings({
+      reportBranding: baseBranding,
+      user: { company: 'cg' },
+      tenantBranding: { key: 'cg' },
+    })
+    expect(result.enabled).toBe(true)
+    expect(result.voucherPrint.tableHeaders.no).toBe('S.No')
   })
 
   test('resolveVoucherPrintSettings enables LOOPC voucher print settings', () => {
