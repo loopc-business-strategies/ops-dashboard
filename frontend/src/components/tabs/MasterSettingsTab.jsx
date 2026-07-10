@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import { isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
 import { useReportBrandingSettings } from './master-settings/useReportBrandingSettings'
+import MasterSettingsSectionModal from './master-settings/MasterSettingsSectionModal'
 import VoucherSettingsPanel from './master-settings/VoucherSettingsPanel'
 import StatementSettingsPanel from './master-settings/StatementSettingsPanel'
 import ReportSettingsPanel from './master-settings/ReportSettingsPanel'
@@ -98,10 +99,7 @@ export default function MasterSettingsTab() {
   const [preview, setPreview] = useState('')
   const [webPushMsg, setWebPushMsg] = useState('')
   const [webPushAvailable, setWebPushAvailable] = useState(false)
-  const [notificationOpen, setNotificationOpen] = useState(false)
-  const [voucherOpen, setVoucherOpen] = useState(false)
-  const [statementOpen, setStatementOpen] = useState(false)
-  const [reportOpen, setReportOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState(null)
 
   const {
     branding,
@@ -225,12 +223,13 @@ export default function MasterSettingsTab() {
     )
   }
 
-  const renderCollapsibleHeader = (title, open, setOpen, description) => (
+  const closeSection = () => setActiveSection(null)
+
+  const renderSettingsLauncher = (title, sectionId, description) => (
     <section style={UI.card}>
       <button
         type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setActiveSection(sectionId)}
         style={{
           width: '100%',
           border: 'none',
@@ -245,91 +244,15 @@ export default function MasterSettingsTab() {
         }}
       >
         <span style={{ fontSize: 16, fontWeight: 700 }}>{title}</span>
-        <span style={{ fontSize: 16, color: UI.muted }}>{open ? '▴' : '▾'}</span>
+        <span style={{ fontSize: 18, color: UI.muted, lineHeight: 1 }} aria-hidden>›</span>
       </button>
       <p style={{ margin: '8px 0 0', color: UI.muted, fontSize: 13 }}>{description}</p>
     </section>
   )
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
-      <div>
-        <h2 style={{ margin: 0, color: UI.ink, fontSize: 22, fontWeight: 800 }}>Master Settings</h2>
-        <p style={{ margin: '6px 0 0', color: UI.muted, fontSize: 14 }}>
-          Notification topics, voucher, statement, and financial report branding, digest schedule, and browser push preferences.
-        </p>
-      </div>
-
-      {documentSettingsEnabled && renderCollapsibleHeader(
-        'Voucher Settings',
-        voucherOpen,
-        setVoucherOpen,
-        'Logo, company details, table headers, and signatories for all voucher prints.',
-      )}
-
-      {documentSettingsEnabled && voucherOpen && (
-        <section style={UI.card}>
-          <VoucherSettingsPanel
-            branding={branding}
-            onChange={setBranding}
-            onSave={saveBranding}
-            saving={brandingSaving}
-            error={brandingError}
-            status={brandingStatus}
-            user={user}
-          />
-        </section>
-      )}
-
-      {documentSettingsEnabled && renderCollapsibleHeader(
-        'Statement Settings',
-        statementOpen,
-        setStatementOpen,
-        'Logo, company details, and signatories for Account Summary statement print and preview.',
-      )}
-
-      {documentSettingsEnabled && statementOpen && (
-        <section style={UI.card}>
-          <StatementSettingsPanel
-            branding={branding}
-            onChange={setBranding}
-            onSave={saveBranding}
-            saving={brandingSaving}
-            error={brandingError}
-            status={brandingStatus}
-            user={user}
-          />
-        </section>
-      )}
-
-      {documentSettingsEnabled && renderCollapsibleHeader(
-        'Report Settings',
-        reportOpen,
-        setReportOpen,
-        'Entity details, report subtitle/footer, and signatories for P&L and financial report exports.',
-      )}
-
-      {documentSettingsEnabled && reportOpen && (
-        <section style={UI.card}>
-          <ReportSettingsPanel
-            branding={branding}
-            onChange={setBranding}
-            onSave={saveBranding}
-            saving={brandingSaving}
-            error={brandingError}
-            status={brandingStatus}
-          />
-        </section>
-      )}
-
-      {renderCollapsibleHeader(
-        'Notification Settings',
-        notificationOpen,
-        setNotificationOpen,
-        'Open to view all notification topics, digest schedule, and web push options.',
-      )}
-
-      {notificationOpen && TOPIC_GROUPS.map((group) => (
+  const renderNotificationSettings = () => (
+    <div style={{ display: 'grid', gap: 16 }}>
+      {TOPIC_GROUPS.map((group) => (
         <section key={group.title} style={UI.card}>
           <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>{group.title}</h3>
           {group.topics.map((topic) => (
@@ -344,7 +267,7 @@ export default function MasterSettingsTab() {
         </section>
       ))}
 
-      {notificationOpen && <section style={UI.card}>
+      <section style={UI.card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>Report digest schedule</h3>
         <SwitchToggle
           checked={prefs.reportDigest.enabled !== false}
@@ -365,9 +288,9 @@ export default function MasterSettingsTab() {
         <SwitchToggle checked={prefs.reportDigest.includeSalesToday !== false} onChange={() => toggleDigestFlag('includeSalesToday')} label="Sales / receipts today" />
         <SwitchToggle checked={prefs.reportDigest.includeBankCashBalance !== false} onChange={() => toggleDigestFlag('includeBankCashBalance')} label="Bank & cash balance" />
         <SwitchToggle checked={prefs.reportDigest.includeGoldPrice !== false} onChange={() => toggleDigestFlag('includeGoldPrice')} label="Gold price" />
-      </section>}
+      </section>
 
-      {notificationOpen && <section style={UI.card}>
+      <section style={UI.card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>Send report now</h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: UI.muted }}>Preview or push the digest to your bell and mobile/browser.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -383,9 +306,9 @@ export default function MasterSettingsTab() {
             {preview}
           </pre>
         )}
-      </section>}
+      </section>
 
-      {notificationOpen && <section style={UI.card}>
+      <section style={UI.card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>Web push (browser)</h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: UI.muted }}>
           {webPushAvailable
@@ -398,11 +321,103 @@ export default function MasterSettingsTab() {
           </button>
         )}
         {webPushMsg && <p style={{ marginTop: 8, fontSize: 13, color: UI.ink }}>{webPushMsg}</p>}
-      </section>}
+      </section>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
+      <div>
+        <h2 style={{ margin: 0, color: UI.ink, fontSize: 22, fontWeight: 800 }}>Master Settings</h2>
+        <p style={{ margin: '6px 0 0', color: UI.muted, fontSize: 14 }}>
+          Notification topics, voucher, statement, and financial report branding, digest schedule, and browser push preferences.
+        </p>
+      </div>
+
+      {documentSettingsEnabled && renderSettingsLauncher(
+        'Voucher Settings',
+        'voucher',
+        'Logo, company details, table headers, and signatories for all voucher prints.',
+      )}
+
+      {documentSettingsEnabled && renderSettingsLauncher(
+        'Statement Settings',
+        'statement',
+        'Logo, company details, and signatories for Account Summary statement print and preview.',
+      )}
+
+      {documentSettingsEnabled && renderSettingsLauncher(
+        'Report Settings',
+        'report',
+        'Entity details, report subtitle/footer, and signatories for P&L and financial report exports.',
+      )}
+
+      {renderSettingsLauncher(
+        'Notification Settings',
+        'notification',
+        'Open to view all notification topics, digest schedule, and web push options.',
+      )}
 
       {(status || saving) && (
         <p style={{ fontSize: 13, color: saving ? UI.muted : UI.ink }}>{saving ? 'Saving…' : status}</p>
       )}
+
+      <MasterSettingsSectionModal
+        open={activeSection === 'voucher'}
+        onClose={closeSection}
+        title="Voucher Settings"
+        wide
+      >
+        <VoucherSettingsPanel
+          branding={branding}
+          onChange={setBranding}
+          onSave={saveBranding}
+          saving={brandingSaving}
+          error={brandingError}
+          status={brandingStatus}
+          user={user}
+        />
+      </MasterSettingsSectionModal>
+
+      <MasterSettingsSectionModal
+        open={activeSection === 'statement'}
+        onClose={closeSection}
+        title="Statement Settings"
+        wide
+      >
+        <StatementSettingsPanel
+          branding={branding}
+          onChange={setBranding}
+          onSave={saveBranding}
+          saving={brandingSaving}
+          error={brandingError}
+          status={brandingStatus}
+          user={user}
+        />
+      </MasterSettingsSectionModal>
+
+      <MasterSettingsSectionModal
+        open={activeSection === 'report'}
+        onClose={closeSection}
+        title="Report Settings"
+      >
+        <ReportSettingsPanel
+          branding={branding}
+          onChange={setBranding}
+          onSave={saveBranding}
+          saving={brandingSaving}
+          error={brandingError}
+          status={brandingStatus}
+        />
+      </MasterSettingsSectionModal>
+
+      <MasterSettingsSectionModal
+        open={activeSection === 'notification'}
+        onClose={closeSection}
+        title="Notification Settings"
+      >
+        {renderNotificationSettings()}
+      </MasterSettingsSectionModal>
     </div>
   )
 }
