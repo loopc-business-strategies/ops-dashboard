@@ -45,4 +45,28 @@ describe('DocumentPrintHeader logo sizing', () => {
     )
     expect(screen.getAllByTestId('title-accent-line')[0].style.borderTopColor).toBe('rgb(127, 29, 29)')
   })
+
+  it('uses layoutSettings headerDividerColor for the header divider', () => {
+    render(
+      <DocumentPrintHeader
+        branding={{ companyName: 'LoopC' }}
+        title="Payment Voucher"
+        layoutSettings={{ headerDividerColor: '#005B96' }}
+      />,
+    )
+
+    expect(screen.getByTestId('header-divider').style.borderBottomColor).toBe('rgb(0, 91, 150)')
+    expect(screen.getByTestId('header-divider').style.borderBottomWidth).toBe('2px')
+  })
+
+  it('falls back to default black when headerDividerColor is missing', () => {
+    render(
+      <DocumentPrintHeader
+        branding={{ companyName: 'LoopC' }}
+        title="Payment Voucher"
+      />,
+    )
+
+    expect(screen.getByTestId('header-divider').style.borderBottomColor).toBe('rgb(17, 24, 39)')
+  })
 })

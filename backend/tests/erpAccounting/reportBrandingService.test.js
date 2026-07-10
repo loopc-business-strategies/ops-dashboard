@@ -18,6 +18,7 @@ describe('reportBrandingService', () => {
   test('DEFAULT_REPORT_BRANDING includes voucher and statement print defaults', () => {
     expect(DEFAULT_REPORT_BRANDING.voucherPrint.tableHeaders.no).toBe('No.')
     expect(DEFAULT_REPORT_BRANDING.voucherPrint.titleAccentColor).toBe('#7F1D1D')
+    expect(DEFAULT_REPORT_BRANDING.voucherPrint.headerDividerColor).toBe('#111827')
     expect(DEFAULT_REPORT_BRANDING.statementPrint.title).toBe('Statement of Account')
   })
 
@@ -41,6 +42,13 @@ describe('reportBrandingService', () => {
     expect(normalizeVoucherPrint({ titleAccentColor: '#abc' }).titleAccentColor).toBe('#AABBCC')
     expect(normalizeVoucherPrint({ titleAccentColor: 'red' }).titleAccentColor).toBe('#7F1D1D')
     expect(normalizeVoucherPrint({}).titleAccentColor).toBe('#7F1D1D')
+  })
+
+  test('normalizeVoucherPrint keeps valid headerDividerColor and falls back for invalid', () => {
+    expect(normalizeVoucherPrint({ headerDividerColor: '#0a5b96' }).headerDividerColor).toBe('#0A5B96')
+    expect(normalizeVoucherPrint({ headerDividerColor: '#abc' }).headerDividerColor).toBe('#AABBCC')
+    expect(normalizeVoucherPrint({ headerDividerColor: 'red' }).headerDividerColor).toBe('#111827')
+    expect(normalizeVoucherPrint({}).headerDividerColor).toBe('#111827')
   })
 
   test('normalizeStatementPrint applies title and showPrintNote defaults', () => {

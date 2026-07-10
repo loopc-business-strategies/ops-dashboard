@@ -75,8 +75,12 @@ export function buildVoucherPrintModel({
     branding?.displayName,
   ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
   const isModernGoldTenant = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
-  const isMgCurrencyVoucher = isModernGoldTenant && ['payment', 'receipt'].includes(voucherType)
-  const isMgMetalVoucher = isModernGoldTenant && isMetalStockVoucherType(voucherType)
+  const isMgCurrencyVoucher = isModernGoldTenant
+    && ['payment', 'receipt'].includes(voucherType)
+    && !voucherPrintSettings.enabled
+  const isMgMetalVoucher = isModernGoldTenant
+    && isMetalStockVoucherType(voucherType)
+    && !voucherPrintSettings.enabled
   const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
   const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
   const mgLogoImage = documentBranding.logoUrl || ''

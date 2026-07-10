@@ -1,4 +1,4 @@
-import { DEFAULT_TITLE_ACCENT_COLOR, normalizeTitleAccentColor } from './ERPBrandingUtils'
+import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from './ERPBrandingUtils'
 
 export default function DocumentPrintHeader({ branding, title, meta = [], layoutSettings = null }) {
   const companyName = branding?.companyName || ''
@@ -13,6 +13,10 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
     layoutSettings?.titleAccentColor,
     DEFAULT_TITLE_ACCENT_COLOR,
   )
+  const headerDividerColor = normalizeHeaderDividerColor(
+    layoutSettings?.headerDividerColor,
+    DEFAULT_HEADER_DIVIDER_COLOR,
+  )
   const logoFrameWidth = 260
   const logoFrameHeight = 120
   const details = [
@@ -23,12 +27,12 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
 
   return (
     <>
-      <div style={{
+      <div data-testid="header-divider" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         gap: '18px',
-        borderBottom: '2px solid #111827',
+        borderBottom: `2px solid ${headerDividerColor}`,
         paddingBottom: '10px',
         marginBottom: '10px',
       }}>

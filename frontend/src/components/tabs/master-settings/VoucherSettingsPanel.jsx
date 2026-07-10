@@ -12,7 +12,7 @@ import {
 } from '../voucher/voucherPreviewSamples'
 import { applyDocumentLogoPatch } from './documentLogoChange'
 import { resolveErpUserTenantKey } from '../erp/resolveErpUserTenant'
-import { DEFAULT_TITLE_ACCENT_COLOR, normalizeTitleAccentColor } from '../erp/ERPBrandingUtils'
+import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from '../erp/ERPBrandingUtils'
 
 const inputStyle = {
   width: '100%',
@@ -40,6 +40,10 @@ export default function VoucherSettingsPanel({
   const titleAccentColor = normalizeTitleAccentColor(
     voucherPrint.titleAccentColor,
     DEFAULT_TITLE_ACCENT_COLOR,
+  )
+  const headerDividerColor = normalizeHeaderDividerColor(
+    voucherPrint.headerDividerColor,
+    DEFAULT_HEADER_DIVIDER_COLOR,
   )
 
   const patchBranding = (patch) => onChange((prev) => ({ ...prev, ...patch }))
@@ -83,6 +87,7 @@ export default function VoucherSettingsPanel({
           <button
             type="button"
             onClick={() => patchVoucherPrint({ titleAccentColor: DEFAULT_TITLE_ACCENT_COLOR })}
+            aria-label="Reset title line to default"
             style={{
               padding: '4px 10px',
               borderRadius: 6,
@@ -108,6 +113,44 @@ export default function VoucherSettingsPanel({
           />
           <span style={{ fontSize: 12, color: '#6B7280', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
             {titleAccentColor}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <label htmlFor="voucher-header-line-color" style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
+            Header line color
+          </label>
+          <button
+            type="button"
+            onClick={() => patchVoucherPrint({ headerDividerColor: DEFAULT_HEADER_DIVIDER_COLOR })}
+            aria-label="Reset header line to default"
+            style={{
+              padding: '4px 10px',
+              borderRadius: 6,
+              border: '1px solid #D1D5DB',
+              background: '#FFFFFF',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Reset to default
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            id="voucher-header-line-color"
+            type="color"
+            value={headerDividerColor}
+            onChange={(e) => patchVoucherPrint({ headerDividerColor: normalizeHeaderDividerColor(e.target.value) })}
+            aria-label="Header line color"
+            style={{ width: 44, height: 32, padding: 0, border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', background: 'transparent' }}
+          />
+          <span style={{ fontSize: 12, color: '#6B7280', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+            {headerDividerColor}
           </span>
         </div>
       </div>

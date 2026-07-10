@@ -8,6 +8,7 @@ vi.mock('./DocumentLayoutPreview', () => ({
     <div>
       Layout preview
       <span data-testid="preview-accent-color">{layoutSettings?.titleAccentColor || ''}</span>
+      <span data-testid="preview-header-divider-color">{layoutSettings?.headerDividerColor || ''}</span>
     </div>
   ),
 }))
@@ -127,7 +128,40 @@ describe('VoucherSettingsPanel logo upload', () => {
     expect(screen.getByTestId('accent-color').textContent).toBe('#005B96')
     expect(screen.getByTestId('preview-accent-color').textContent).toBe('#005B96')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset title line to default' }))
     expect(screen.getByTestId('accent-color').textContent).toBe('#7F1D1D')
+  })
+
+  it('updates headerDividerColor from the color picker and resets to default', () => {
+    function Harness() {
+      const [branding, setBranding] = useState({
+        companyName: 'LoopC',
+        logoUrl: '',
+        voucherPrint: { headerDividerColor: '#111827' },
+      })
+      return (
+        <div>
+          <span data-testid="divider-color">{branding.voucherPrint.headerDividerColor}</span>
+          <VoucherSettingsPanel
+            branding={branding}
+            onChange={setBranding}
+            onSave={vi.fn()}
+            saving={false}
+            error=""
+            status=""
+            user={{ company: 'loopc' }}
+          />
+        </div>
+      )
+    }
+
+    render(<Harness />)
+    const colorInput = screen.getByLabelText('Header line color')
+    fireEvent.change(colorInput, { target: { value: '#005b96' } })
+    expect(screen.getByTestId('divider-color').textContent).toBe('#005B96')
+    expect(screen.getByTestId('preview-header-divider-color').textContent).toBe('#005B96')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset header line to default' }))
+    expect(screen.getByTestId('divider-color').textContent).toBe('#111827')
   })
 })

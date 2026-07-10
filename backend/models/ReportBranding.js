@@ -27,6 +27,7 @@ const voucherPrintSchema = new mongoose.Schema(
     logoOffsetY: { type: Number, default: 0 },
     logoTransparent: { type: Boolean, default: true },
     titleAccentColor: { type: String, trim: true, default: '#7F1D1D' },
+    headerDividerColor: { type: String, trim: true, default: '#111827' },
     tableHeaders: { type: voucherTableHeadersSchema, default: () => ({}) },
     signatories: { type: [signatoryBlockSchema], default: undefined },
     confirmedForLabel: { type: String, trim: true, default: 'Confirmed for & on behalf of' },

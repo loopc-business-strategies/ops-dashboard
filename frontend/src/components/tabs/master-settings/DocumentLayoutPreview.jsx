@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { DEFAULT_TITLE_ACCENT_COLOR, normalizeTitleAccentColor } from '../erp/ERPBrandingUtils'
+import { DEFAULT_TITLE_ACCENT_COLOR, DEFAULT_HEADER_DIVIDER_COLOR, normalizeTitleAccentColor, normalizeHeaderDividerColor } from '../erp/ERPBrandingUtils'
 
 export default function DocumentLayoutPreview({
   branding,
@@ -17,6 +17,10 @@ export default function DocumentLayoutPreview({
   const titleAccentColor = normalizeTitleAccentColor(
     layoutSettings.titleAccentColor,
     DEFAULT_TITLE_ACCENT_COLOR,
+  )
+  const headerDividerColor = normalizeHeaderDividerColor(
+    layoutSettings.headerDividerColor,
+    DEFAULT_HEADER_DIVIDER_COLOR,
   )
 
   const onPointerDown = useCallback((event) => {
@@ -65,7 +69,7 @@ export default function DocumentLayoutPreview({
         background: '#F8FAFC',
       }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: '2px solid #111827', paddingBottom: 10 }}>
+        <div data-testid="header-divider" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: `2px solid ${headerDividerColor}`, paddingBottom: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {branding.companyName ? (
               <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{branding.companyName}</div>

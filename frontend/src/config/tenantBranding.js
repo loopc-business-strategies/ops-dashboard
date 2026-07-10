@@ -62,6 +62,7 @@ const tenantBranding = {
     featureFlags: {
       procurementPlus: true,
       erpAdvancedListFilters: true,
+      masterDocumentSettings: true,
     },
   },
   cg: {
@@ -85,6 +86,7 @@ const tenantBranding = {
     featureFlags: {
       procurementPlus: true,
       erpAdvancedListFilters: true,
+      masterDocumentSettings: true,
     },
   },
   loopc: {

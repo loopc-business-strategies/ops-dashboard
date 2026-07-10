@@ -30,4 +30,29 @@ describe('DocumentLayoutPreview title accent color', () => {
 
     expect(screen.getAllByTestId('title-accent-line')[0].style.borderTopColor).toBe('rgb(127, 29, 29)')
   })
+
+  it('uses layoutSettings headerDividerColor for the header divider', () => {
+    render(
+      <DocumentLayoutPreview
+        branding={{ companyName: 'LoopC' }}
+        layoutSettings={{ headerDividerColor: '#0A5B96' }}
+        title="Payment Voucher"
+      />,
+    )
+
+    expect(screen.getByTestId('header-divider').style.borderBottomColor).toBe('rgb(10, 91, 150)')
+    expect(screen.getByTestId('header-divider').style.borderBottomWidth).toBe('2px')
+  })
+
+  it('falls back to default black when headerDividerColor is missing', () => {
+    render(
+      <DocumentLayoutPreview
+        branding={{ companyName: 'LoopC' }}
+        layoutSettings={{}}
+        title="Payment Voucher"
+      />,
+    )
+
+    expect(screen.getByTestId('header-divider').style.borderBottomColor).toBe('rgb(17, 24, 39)')
+  })
 })
