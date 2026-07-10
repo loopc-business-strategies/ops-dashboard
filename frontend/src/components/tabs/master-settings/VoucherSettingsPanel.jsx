@@ -6,6 +6,7 @@ import SignatoryEditor from './SignatoryEditor'
 import VoucherTableHeaderEditor from './VoucherTableHeaderEditor'
 import VoucherPreviewModal from '../voucher/VoucherPreviewModal'
 import VoucherPrintPanel from '../voucher/VoucherPrintPanel'
+import { VOUCHER_PRINT_MEDIA_CSS } from '../voucher/voucherPrintStyles'
 import {
   VOUCHER_PREVIEW_TYPES,
   buildVoucherPreviewPrintModel,
@@ -70,6 +71,7 @@ export default function VoucherSettingsPanel({
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      <style>{VOUCHER_PRINT_MEDIA_CSS}</style>
       <DocumentLayoutPreview
         branding={branding}
         layoutSettings={voucherPrint}
@@ -310,13 +312,17 @@ export default function VoucherSettingsPanel({
           borderRadius: 10,
           background: '#F8FAFC',
           padding: 12,
-          maxHeight: 420,
+          maxHeight: 480,
           overflow: 'auto',
         }}
         >
           <VoucherPrintPanel printModel={previewPrintModel} renderMode="preview" />
         </div>
       </section>
+
+      {previewModalOpen ? (
+        <VoucherPrintPanel printModel={previewPrintModel} />
+      ) : null}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
@@ -341,6 +347,7 @@ export default function VoucherSettingsPanel({
         printModel={previewPrintModel}
         onVoucherTypeChange={setPreviewVoucherType}
         onPreviewModeChange={setPreviewDataMode}
+        onPrint={() => window.print()}
       />
     </div>
   )

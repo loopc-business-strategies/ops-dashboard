@@ -124,6 +124,54 @@ describe('ERPBrandingUtils – createLogoRenderAsset', () => {
     expect(result).toBe('')
     Object.defineProperty(globalThis, 'document', { value: origDocument, configurable: true, writable: true })
   })
+
+  test('scales canvas dimensions by renderScale', async () => {
+    class MockImage {
+      constructor() {
+        this.width = 200
+        this.height = 100
+        this.crossOrigin = ''
+      }
+
+      set src(_value) {
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    vi.stubGlobal('Image', MockImage)
+
+    const canvasWidths = []
+    const canvasHeights = []
+    const origCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
+      const el = origCreateElement(tagName)
+      if (tagName === 'canvas') {
+        Object.defineProperty(el, 'width', {
+          set(value) { canvasWidths.push(value) },
+          get() { return canvasWidths[canvasWidths.length - 1] || 0 },
+          configurable: true,
+        })
+        Object.defineProperty(el, 'height', {
+          set(value) { canvasHeights.push(value) },
+          get() { return canvasHeights[canvasHeights.length - 1] || 0 },
+          configurable: true,
+        })
+      }
+      return el
+    })
+
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+    })
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,scaled')
+
+    await createLogoRenderAsset('data:image/png;base64,logo', 120, 90, 'contain', { renderScale: 2 })
+
+    expect(canvasWidths[0]).toBe(240)
+    expect(canvasHeights[0]).toBe(180)
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
 })
 
 describe('ERPBrandingUtils – logo uploads', () => {

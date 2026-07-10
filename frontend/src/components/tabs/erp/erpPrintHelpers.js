@@ -11,6 +11,7 @@ export async function buildBrandingLogoTag(brandingConfig, extraStyle = '') {
     brandingConfig.logoWidth,
     brandingConfig.logoHeight,
     brandingConfig.logoFit,
+    { renderScale: 2 },
   )
   if (!logoAsset) return ''
   const width = clampBrandingDimension(brandingConfig.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
@@ -29,8 +30,8 @@ export function openPrintWindow(title, bodyHtml, setError) {
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
-          body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px; }
-          .sheet { max-width: 980px; margin: 0 auto; }
+          body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px 32px 24px; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+          .sheet { max-width: 980px; min-width: 1050px; margin: 0 auto; }
           .brandbar { height: 10px; background: var(--grad-brand); border-radius: 999px; margin-bottom: 14px; }
           .head { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 20px; }
           .doc-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 14px; }
@@ -43,10 +44,10 @@ export function openPrintWindow(title, bodyHtml, setError) {
           .meta { color: #4B5563; font-size: 12px; margin: 2px 0; }
           .section { margin-bottom: 20px; }
           .section-title { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { border: 1px solid #D1D5DB; padding: 7px 8px; text-align: left; }
+          table { width: 100%; border-collapse: collapse; font-size: 14px; }
+          th, td { border: 1px solid #D1D5DB; padding: 8px 10px; text-align: left; }
           th { background: #F3F4F6; }
-          .num { text-align: right; }
+          .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 10px; }
           .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
           .card { border: 1px solid #D1D5DB; padding: 10px; }
           .card-label { color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }

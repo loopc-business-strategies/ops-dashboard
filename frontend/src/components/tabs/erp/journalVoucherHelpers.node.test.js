@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import {
   applyBankJvExchangeBalancing,
   buildJvPostingPayloads,
+  buildJvPrintHtml,
   reconstructJvEditLines,
 } from './journalVoucherHelpers.js'
 
@@ -84,5 +85,18 @@ describe('journalVoucherHelpers (node)', () => {
     })
     expect(r.lines.filter((l) => l.accountId === 'acc1' && l.debit)).toHaveLength(1)
     expect(r.lines.find((l) => l.accountId === 'acc1').debit).toBe(15)
+  })
+
+  test('buildJvPrintHtml includes colgroup for balanced debit and credit columns', () => {
+    const html = buildJvPrintHtml({
+      validation: { activeLines: [{ accountId: 'a1', debit: '1,250.75', credit: '' }], totalDebit: 1250.75, totalCredit: 0 },
+      jvLines: [],
+      jvHeader: { docNo: 'Jv/2026/0001', date: '2026-05-26', currency: 'USD' },
+      branding: { companyName: 'LoopC' },
+      getJvAccountById: () => ({ accountCode: '1000', accountName: 'Cash' }),
+    })
+    expect(html).toContain('<colgroup>')
+    expect(html).toContain('width:18%')
+    expect(html).toContain('class="num">Debit</th>')
   })
 })

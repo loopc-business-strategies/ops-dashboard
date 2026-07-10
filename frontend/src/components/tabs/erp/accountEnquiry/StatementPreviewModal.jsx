@@ -170,7 +170,7 @@ function StatementPreviewModal({
             ✕
           </button>
         </div>
-        <div style={{ flex: 1, overflow: 'hidden', background: '#F9FAFB' }}>
+        <div style={{ flex: 1, overflow: 'auto', background: '#F9FAFB' }}>
           {loading ? (
             <div style={{
               display: 'flex',

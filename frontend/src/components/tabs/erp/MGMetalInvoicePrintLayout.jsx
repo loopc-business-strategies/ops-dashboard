@@ -22,7 +22,7 @@ export default function MGMetalInvoicePrintLayout({
   fmt,
 }) {
   const rows = Array.isArray(lineItems) && lineItems.length ? lineItems : [{}]
-  const border = '1.25px solid #111827'
+  const border = '1px solid #111827'
   const gold = '#D99A12'
   const logoSize = '136px'
   const totalGross = rows.reduce((sum, line) => sum + Number(line?.grossWeight || 0), 0)
@@ -31,6 +31,12 @@ export default function MGMetalInvoicePrintLayout({
   const totalVat = rows.reduce((sum, line) => sum + Number(line?.vatAmountLC || line?.vatAmountFC || 0), 0)
   const totalGrossAmount = rows.reduce((sum, line) => sum + Number(line?.amountWithVAT || line?.totalAmount || line?.amountLC || line?.metalAmount || 0), 0)
   const partyLine = `${partyName || ''}${partyCode ? ` ${partyCode}` : ''}`.trim()
+  const numCell = {
+    textAlign: 'right',
+    whiteSpace: 'nowrap',
+    fontVariantNumeric: 'tabular-nums',
+    paddingRight: 10,
+  }
 
   const stockDescription = (line) => {
     const code = String(line?.stockCode || '').trim()
@@ -101,24 +107,38 @@ export default function MGMetalInvoicePrintLayout({
 
       <div style={{ textAlign: 'right', fontStyle: 'italic', margin: '0 0 5px' }}>Page 1 of 1</div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '8.7px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '14px' }}>
+        <colgroup>
+          <col style={{ width: '28px' }} />
+          <col style={{ width: '118px' }} />
+          <col style={{ width: '64px' }} />
+          <col style={{ width: '50px' }} />
+          <col style={{ width: '60px' }} />
+          <col style={{ width: '52px' }} />
+          <col style={{ width: '52px' }} />
+          <col style={{ width: '68px' }} />
+          <col style={{ width: '76px' }} />
+          <col style={{ width: '38px' }} />
+          <col style={{ width: '60px' }} />
+          <col style={{ width: '74px' }} />
+        </colgroup>
         <thead>
           <tr style={{ background: '#F3F4F6' }}>
-            <th rowSpan={2} style={{ border, padding: '3px 2px', width: '24px' }}>No.</th>
-            <th rowSpan={2} style={{ border, padding: '3px 3px', width: '116px' }}>Stock Description</th>
-            <th rowSpan={2} style={{ border, padding: '3px 3px', width: '61px' }}>Gross Wt.</th>
-            <th rowSpan={2} style={{ border, padding: '3px 3px', width: '48px' }}>Purity</th>
-            <th rowSpan={2} style={{ border, padding: '3px 3px', width: '58px' }}>Pure Wt.</th>
-            <th colSpan={2} style={{ border, padding: '3px 2px', width: '110px' }}>Making ({currencyLabel})</th>
-            <th rowSpan={2} style={{ border, padding: '3px 2px', width: '63px' }}>Metal<br />Amount</th>
-            <th rowSpan={2} style={{ border, padding: '3px 2px', width: '72px' }}>Net Amt (Excl VAT)<br />({currencyLabel})</th>
-            <th rowSpan={2} style={{ border, padding: '3px 2px', width: '35px' }}>VAT<br />%</th>
-            <th rowSpan={2} style={{ border, padding: '3px 2px', width: '56px' }}>VAT Amt<br />({currencyLabel})</th>
-            <th rowSpan={2} style={{ border, padding: '3px 2px', width: '70px' }}>Gross Amt<br />(Incl VAT)<br />({currencyLabel})</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>No.</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>Stock Description</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>Gross Wt.</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>Purity</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>Pure Wt.</th>
+            <th colSpan={2} style={{ border, padding: '8px 4px' }}>Making ({currencyLabel})</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>Metal<br />Amount</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>Net Amt (Excl VAT)<br />({currencyLabel})</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>VAT<br />%</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>VAT Amt<br />({currencyLabel})</th>
+            <th rowSpan={2} style={{ border, padding: '8px 4px' }}>Gross Amt<br />(Incl VAT)<br />({currencyLabel})</th>
           </tr>
           <tr style={{ background: '#F3F4F6' }}>
-            <th style={{ border, padding: '3px 2px' }}>Rate</th>
-            <th style={{ border, padding: '3px 2px' }}>Amount</th>
+            <th style={{ border, padding: '8px 4px' }}>Rate</th>
+            <th style={{ border, padding: '8px 4px' }}>Amount</th>
           </tr>
         </thead>
         <tbody>
@@ -129,33 +149,33 @@ export default function MGMetalInvoicePrintLayout({
             const grossAmount = Number(line?.amountWithVAT || netAmount + vatAmount)
             return (
               <tr key={`mg-metal-print-${idx}`} style={{ height: rows.length === 1 ? '250px' : '38px' }}>
-                <td style={{ border, padding: '5px 3px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
-                <td style={{ border, padding: '5px 4px', verticalAlign: 'top' }}>{stockDescription(line)}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.grossWeight || 0)}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{line?.purity || ''}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.pureWeight || 0)}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{line?.makingRate ? fmt(line.makingRate) : ''}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{line?.makingCharges ? fmt(line.makingCharges) : ''}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(metalAmount)}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(netAmount)}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.vatPer || 0)}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(vatAmount)}</td>
-                <td style={{ border, padding: '5px 3px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(grossAmount)}</td>
+                <td style={{ border, padding: '8px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top' }}>{stockDescription(line)}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{fmt(line?.grossWeight || 0)}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{line?.purity || ''}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{fmt(line?.pureWeight || 0)}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{line?.makingRate ? fmt(line.makingRate) : ''}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{line?.makingCharges ? fmt(line.makingCharges) : ''}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{fmt(metalAmount)}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{fmt(netAmount)}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{fmt(line?.vatPer || 0)}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{fmt(vatAmount)}</td>
+                <td style={{ border, padding: '8px 4px', verticalAlign: 'top', ...numCell }}>{fmt(grossAmount)}</td>
               </tr>
             )
           })}
           <tr>
-            <td colSpan={2} style={{ border, padding: '4px 3px', fontWeight: '900' }}>({rows.length} Item{rows.length === 1 ? '' : 's'})</td>
-            <td style={{ border, padding: '4px 3px', textAlign: 'right', fontWeight: '900' }}>{fmt(totalGross)}</td>
-            <td style={{ border, padding: '4px 3px' }} />
-            <td style={{ border, padding: '4px 3px', textAlign: 'right', fontWeight: '900' }}>{fmt(totalPure)}</td>
-            <td style={{ border, padding: '4px 3px' }} />
-            <td style={{ border, padding: '4px 3px' }} />
-            <td style={{ border, padding: '4px 3px', textAlign: 'right', fontWeight: '900' }}>{fmt(totalMetal)}</td>
-            <td style={{ border, padding: '4px 3px', textAlign: 'right', fontWeight: '900' }}>{fmt(totalMetal)}</td>
-            <td style={{ border, padding: '4px 3px' }} />
-            <td style={{ border, padding: '4px 3px', textAlign: 'right', fontWeight: '900' }}>{fmt(totalVat)}</td>
-            <td style={{ border, padding: '4px 3px', textAlign: 'right', fontWeight: '900' }}>{fmt(totalGrossAmount)}</td>
+            <td colSpan={2} style={{ border, padding: '8px 4px', fontWeight: '900' }}>({rows.length} Item{rows.length === 1 ? '' : 's'})</td>
+            <td style={{ border, padding: '8px 4px', fontWeight: '900', ...numCell }}>{fmt(totalGross)}</td>
+            <td style={{ border, padding: '8px 4px' }} />
+            <td style={{ border, padding: '8px 4px', fontWeight: '900', ...numCell }}>{fmt(totalPure)}</td>
+            <td style={{ border, padding: '8px 4px' }} />
+            <td style={{ border, padding: '8px 4px' }} />
+            <td style={{ border, padding: '8px 4px', fontWeight: '900', ...numCell }}>{fmt(totalMetal)}</td>
+            <td style={{ border, padding: '8px 4px', fontWeight: '900', ...numCell }}>{fmt(totalMetal)}</td>
+            <td style={{ border, padding: '8px 4px' }} />
+            <td style={{ border, padding: '8px 4px', fontWeight: '900', ...numCell }}>{fmt(totalVat)}</td>
+            <td style={{ border, padding: '8px 4px', fontWeight: '900', ...numCell }}>{fmt(totalGrossAmount)}</td>
           </tr>
           {[
             [`${fixingLabel} @ ${metalRateLabel || '-'}`, totalGrossAmount],
@@ -165,8 +185,8 @@ export default function MGMetalInvoicePrintLayout({
             [`Total Party Amount (${currencyLabel})`, totalGrossAmount],
           ].map(([label, amount]) => (
             <tr key={label}>
-              <td colSpan={11} style={{ border, padding: '5px 5px', textAlign: 'right', fontWeight: '900', fontSize: '10px' }}>{label}</td>
-              <td style={{ border, padding: '5px 5px', textAlign: 'right', fontWeight: '900' }}>{fmt(amount)}</td>
+              <td colSpan={11} style={{ border, padding: '8px 6px', textAlign: 'right', fontWeight: '900', fontSize: '12px' }}>{label}</td>
+              <td style={{ border, padding: '8px 6px', fontWeight: '900', ...numCell }}>{fmt(amount)}</td>
             </tr>
           ))}
         </tbody>

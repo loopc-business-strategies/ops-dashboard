@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import DocumentPrintHeader from '../erp/DocumentPrintHeader'
 import { DEFAULT_VOUCHER_PRINT } from '../erp/ERPBrandingUtils'
+
+const useDocumentPrintLogo = vi.fn((logoUrl) => logoUrl || '')
+
+vi.mock('../voucher/useDocumentPrintLogo', () => ({
+  useDocumentPrintLogo: (...args) => useDocumentPrintLogo(...args),
+}))
 
 describe('DocumentPrintHeader logo sizing', () => {
   it('uses branding logo dimensions without a 96px height cap', () => {
@@ -101,5 +107,23 @@ describe('DocumentPrintHeader logo sizing', () => {
 
     expect(screen.getByText('LoopC Trading').style.fontSize).toBe(`${DEFAULT_VOUCHER_PRINT.companyNameFontSize}px`)
     expect(screen.getByText('Dubai, UAE').style.fontSize).toBe(`${DEFAULT_VOUCHER_PRINT.addressFontSize}px`)
+  })
+
+  it('passes screenPreview flag to useDocumentPrintLogo', () => {
+    useDocumentPrintLogo.mockClear()
+    const logoUrl = 'data:image/png;base64,abc'
+    render(
+      <DocumentPrintHeader
+        branding={{
+          companyName: 'LoopC',
+          logoUrl,
+          logoWidth: 120,
+          logoHeight: 56,
+        }}
+        title="Payment Voucher"
+        screenPreview={false}
+      />,
+    )
+    expect(useDocumentPrintLogo).toHaveBeenCalledWith(logoUrl, 120, 56, 'contain', false)
   })
 })

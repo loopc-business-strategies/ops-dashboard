@@ -32,4 +32,18 @@ describe('StatementPreviewModal', () => {
     expect(screen.getByRole('button', { name: 'Print' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
   })
+
+  it('allows scrolling in the iframe wrapper for tall statements', () => {
+    render(
+      <StatementPreviewModal
+        open
+        onClose={vi.fn()}
+        title="Statement of Account"
+        html="<html><body>Preview</body></html>"
+        loading={false}
+      />,
+    )
+    const iframe = screen.getByTitle('Statement preview')
+    expect(iframe.parentElement?.style.overflow).toBe('auto')
+  })
 })

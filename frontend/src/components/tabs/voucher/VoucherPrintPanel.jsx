@@ -1,6 +1,23 @@
 import DocumentPrintHeader from '../erp/DocumentPrintHeader'
 import MGMetalInvoicePrintLayout from '../erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from '../erp/MGVoucherPrintLayout'
+import { useDocumentPrintLogo } from './useDocumentPrintLogo'
+import {
+  VOUCHER_BORDER,
+  VOUCHER_CELL_PADDING,
+  VOUCHER_COL_AMOUNT,
+  VOUCHER_COL_NO,
+  VOUCHER_COL_TYPE,
+  VOUCHER_HEADER_ROW_STYLE,
+  VOUCHER_NUMERIC_CELL_STYLE,
+  VOUCHER_TABLE_BASE_STYLE,
+  VOUCHER_TH_TD_BASE,
+  getVoucherSheetStyle,
+} from './voucherPrintStyles'
+
+const thStyle = (extra = {}) => ({ ...VOUCHER_TH_TD_BASE, ...extra })
+const tdStyle = (extra = {}) => ({ ...VOUCHER_TH_TD_BASE, ...extra })
+const numTdStyle = { ...tdStyle(), ...VOUCHER_NUMERIC_CELL_STYLE }
 
 export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) {
   const {
@@ -61,22 +78,25 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
   const headerAmountLcLabel = tableHeaders.amountLc || (isMetalVoucher ? 'Total' : printAmountLabel)
 
   const isPreview = renderMode === 'preview'
+  const isMgLayout = isMgCurrencyVoucher || isMgMetalVoucher
   const rootClassName = isPreview ? 'voucher-preview-panel' : 'voucher-print-only'
+  const sheetStyle = getVoucherSheetStyle(isPreview)
   const rootStyle = {
-    display: isPreview ? 'block' : 'none',
-    padding: isMgCurrencyVoucher || isMgMetalVoucher ? '0 10px' : '18px 24px',
-    color: '#111827',
-    fontFamily: 'Arial, sans-serif',
-    fontSize: '12px',
-    ...(isPreview ? {
-      background: '#FFFFFF',
-      border: '1px solid #E5E7EB',
-      borderRadius: '8px',
-      maxWidth: '820px',
-      margin: '0 auto',
-      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
-    } : {}),
+    ...sheetStyle,
+    ...(isMgLayout ? { minWidth: undefined, padding: '0 10px' } : {}),
   }
+
+  const mgLogoWidth = Number(documentBranding?.logoWidth || 136)
+  const mgLogoHeight = Number(documentBranding?.logoHeight || 136)
+  const mgLogoSrc = useDocumentPrintLogo(
+    mgLogoImage,
+    mgLogoWidth,
+    mgLogoHeight,
+    documentBranding?.logoFit || 'contain',
+    isPreview,
+  )
+
+  const lineTableStyle = { ...VOUCHER_TABLE_BASE_STYLE, marginBottom: '8px' }
 
   return (
     <div className={rootClassName} style={rootStyle}>
@@ -86,7 +106,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           companyAddress={mgCompanyAddress}
           documentEmail={documentBranding?.email}
           phoneValue={phoneValue}
-          logoImage={mgLogoImage}
+          logoImage={mgLogoSrc}
           printTitle={mgPrintTitle}
           accountDescription={mgAccountDescription}
           trnValue={trnValue}
@@ -110,7 +130,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         <MGMetalInvoicePrintLayout
           companyName={mgCompanyName}
           companyAddress={mgCompanyAddress}
-          logoImage={mgLogoImage}
+          logoImage={mgLogoSrc}
           invoiceTitle={mgMetalInvoiceTitle}
           copyLabel={mgMetalCopyLabel}
           partyName={mgPartyAccountName}
@@ -137,6 +157,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         title={printTitle}
         meta={printMeta}
         layoutSettings={useCustomVoucherLayout ? voucherPrint : null}
+        screenPreview={isPreview}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px', marginBottom: '10px' }}>
@@ -153,14 +174,14 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
       </div>
 
       {voucherType === 'payment' ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
+        <table style={lineTableStyle}>
           <thead>
-            <tr style={{ background: '#E5E7EB' }}>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>{headerNoLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>{headerDescriptionLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>{headerTypeLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{headerAmountFcLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{headerAmountLcLabel}</th>
+            <tr style={VOUCHER_HEADER_ROW_STYLE}>
+              <th style={thStyle({ width: VOUCHER_COL_NO })}>{headerNoLabel}</th>
+              <th style={thStyle()}>{headerDescriptionLabel}</th>
+              <th style={thStyle({ width: VOUCHER_COL_TYPE })}>{headerTypeLabel}</th>
+              <th style={thStyle({ width: VOUCHER_COL_AMOUNT, ...VOUCHER_NUMERIC_CELL_STYLE })}>{headerAmountFcLabel}</th>
+              <th style={thStyle({ width: VOUCHER_COL_AMOUNT, ...VOUCHER_NUMERIC_CELL_STYLE })}>{headerAmountLcLabel}</th>
             </tr>
           </thead>
           <tbody>
@@ -169,35 +190,35 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
               const paymentType = normalizeLineType(line?.type) || ''
               return (
                 <tr key={`print-line-${idx}`}>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>
+                  <td style={tdStyle({ textAlign: 'center' })}>{idx + 1}</td>
+                  <td style={tdStyle()}>
                     <div>{accountCode || ''}</div>
-                    <div style={{ fontSize: '9px', color: '#555' }}>
+                    <div style={{ fontSize: '11px', color: '#555' }}>
                       {paymentType || ''}
                     </div>
                   </td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{paymentType || ''}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || 0)}</td>
+                  <td style={tdStyle()}>{paymentType || ''}</td>
+                  <td style={numTdStyle}>{fmt(line?.amountFC || 0)}</td>
+                  <td style={numTdStyle}>{fmt(line?.amountLC || 0)}</td>
                 </tr>
               )
             })}
             {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).length === 0 && (
               <tr>
-                <td colSpan={5} style={{ border: '1px solid #111827', padding: '8px', textAlign: 'center' }}>No line items</td>
+                <td colSpan={5} style={tdStyle({ textAlign: 'center' })}>No line items</td>
               </tr>
             )}
           </tbody>
         </table>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
+        <table style={lineTableStyle}>
           <thead>
-            <tr style={{ background: '#E5E7EB' }}>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>{headerNoLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>{headerDescriptionLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>{headerTypeLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{headerAmountFcLabel}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{useCustomVoucherLayout ? headerAmountLcLabel : `Amount (${currencyLabel || 'USD'})`}</th>
+            <tr style={VOUCHER_HEADER_ROW_STYLE}>
+              <th style={thStyle({ width: VOUCHER_COL_NO })}>{headerNoLabel}</th>
+              <th style={thStyle()}>{headerDescriptionLabel}</th>
+              <th style={thStyle({ width: VOUCHER_COL_TYPE })}>{headerTypeLabel}</th>
+              <th style={thStyle({ width: VOUCHER_COL_AMOUNT, ...VOUCHER_NUMERIC_CELL_STYLE })}>{headerAmountFcLabel}</th>
+              <th style={thStyle({ width: VOUCHER_COL_AMOUNT, ...VOUCHER_NUMERIC_CELL_STYLE })}>{useCustomVoucherLayout ? headerAmountLcLabel : `Amount (${currencyLabel || 'USD'})`}</th>
             </tr>
           </thead>
           <tbody>
@@ -210,12 +231,12 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
               const lineTotal = Number(line?.totalAmount || line?.amountWithVAT || line?.amountLC || line?.amountFC || 0)
               return (
                 <tr key={`print-line-${idx}`}>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>
+                  <td style={tdStyle({ textAlign: 'center' })}>{idx + 1}</td>
+                  <td style={tdStyle()}>
                     {isMetalVoucher ? (
                       <>
                         <div>{`${line?.stockCode || accountCode || ''}${line?.productType ? ` - ${line.productType}` : accountName ? ` - ${accountName}` : ''}`}</div>
-                        <div style={{ fontSize: '9px', color: '#555' }}>{line?.remarks || line?.narration || customerAccountNo || ''}</div>
+                        <div style={{ fontSize: '11px', color: '#555' }}>{line?.remarks || line?.narration || customerAccountNo || ''}</div>
                       </>
                     ) : (
                       <>
@@ -225,47 +246,47 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
                       </>
                     )}
                   </td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{isMetalVoucher ? metalLabel : paymentType}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{isMetalVoucher ? fmt(line?.pureWeight || 0) : fmt(line?.amountFC || 0)}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(isMetalVoucher ? lineTotal : line?.amountLC || 0)}</td>
+                  <td style={tdStyle()}>{isMetalVoucher ? metalLabel : paymentType}</td>
+                  <td style={numTdStyle}>{isMetalVoucher ? fmt(line?.pureWeight || 0) : fmt(line?.amountFC || 0)}</td>
+                  <td style={numTdStyle}>{fmt(isMetalVoucher ? lineTotal : line?.amountLC || 0)}</td>
                 </tr>
               )
             })}
             {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).length === 0 && (
               <tr>
-                <td colSpan={5} style={{ border: '1px solid #111827', padding: '8px', textAlign: 'center' }}>No line items</td>
+                <td colSpan={5} style={tdStyle({ textAlign: 'center' })}>No line items</td>
               </tr>
             )}
           </tbody>
         </table>
       )}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
+      <table style={{ ...VOUCHER_TABLE_BASE_STYLE, marginBottom: '8px' }}>
         <tbody>
           <tr>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', width: '110px', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+            <td style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{`Total (${currencyLabel || 'USD'})`}</td>
+            <td style={{ ...numTdStyle, width: VOUCHER_COL_AMOUNT, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
           </tr>
           <tr>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+            <td style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{`Total Value (${currencyLabel || 'USD'})`}</td>
+            <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
           </tr>
           <tr>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+            <td style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
+            <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
           </tr>
         </tbody>
       </table>
 
       <div style={{
-        border: '1px solid #111827',
-        padding: '6px 10px',
-        fontSize: '10px',
+        border: VOUCHER_BORDER,
+        padding: VOUCHER_CELL_PADDING,
+        fontSize: '12px',
         lineHeight: '1.75',
         marginTop: '4px',
       }}
       >
-        <div style={{ marginBottom: '3px', color: '#555', fontSize: '9px' }}>
+        <div style={{ marginBottom: '3px', color: '#555', fontSize: '11px' }}>
           Your account has been updated with :
         </div>
         <div style={{
@@ -276,12 +297,12 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           flexWrap: 'wrap',
         }}
         >
-          <div style={{ fontWeight: '700', fontSize: '11px', color: '#111827', flexShrink: 0 }}>
+          <div style={{ fontWeight: '700', fontSize: '12px', color: '#111827', flexShrink: 0 }}>
             {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0)} {printPostingDirection}
           </div>
           <div style={{
             fontStyle: 'italic',
-            fontSize: '9px',
+            fontSize: '11px',
             color: '#333333',
             flex: 1,
             textAlign: 'right',
@@ -295,10 +316,9 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
       </div>
 
       <div style={{
-        border: '1px solid #111827',
-        borderTop: '1px solid #111827',
-        padding: '5px 10px',
-        fontSize: '9px',
+        border: VOUCHER_BORDER,
+        padding: VOUCHER_CELL_PADDING,
+        fontSize: '11px',
         color: '#151111',
         minHeight: '22px',
       }}
@@ -306,13 +326,13 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         {lineItems?.[0]?.narration || ''}
       </div>
 
-      <div style={{ marginTop: '10px', fontSize: '11px' }}>{confirmedForLabel}</div>
+      <div style={{ marginTop: '10px', fontSize: '12px' }}>{confirmedForLabel}</div>
       {voucherType === 'payment' ? (
         <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '20px' }}>
-          <div style={{ fontWeight: '600', fontSize: '11px', color: '#111' }}>
+          <div style={{ fontWeight: '600', fontSize: '12px', color: '#111' }}>
             {voucher?.partyName || ''}
           </div>
-          <div style={{ fontWeight: '600', fontSize: '11px', color: '#111' }}>
+          <div style={{ fontWeight: '600', fontSize: '12px', color: '#111' }}>
             {voucher?.partyAccount || ''}
           </div>
         </div>
@@ -326,14 +346,14 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
       <div style={{ marginTop: '88px', display: 'grid', gridTemplateColumns: `repeat(${Math.max(visibleSignatories.length, 1)}, 1fr)`, gap: '36px', textAlign: 'center', fontWeight: '700' }}>
         {(visibleSignatories.length ? visibleSignatories : [{ title: "RECEIVER'S SIGNATURE" }, { title: 'CHECKED BY' }, { title: 'AUTHORISED SIGNATORY' }]).map((item, index) => (
           <div key={`${item.title}-${index}`}>
-            {item.name ? <div style={{ fontSize: '10px', marginBottom: '28px' }}>{item.name}</div> : <div style={{ minHeight: '28px' }} />}
-            <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>{item.title}</div>
+            {item.name ? <div style={{ fontSize: '11px', marginBottom: '28px' }}>{item.name}</div> : <div style={{ minHeight: '28px' }} />}
+            <div style={{ borderTop: VOUCHER_BORDER, paddingTop: '4px' }}>{item.title}</div>
           </div>
         ))}
       </div>
 
       {footerNote ? (
-        <div style={{ marginTop: '12px', fontSize: '9px', color: '#555555' }}>{footerNote}</div>
+        <div style={{ marginTop: '12px', fontSize: '11px', color: '#555555' }}>{footerNote}</div>
       ) : null}
       </>
       )}

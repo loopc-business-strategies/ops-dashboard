@@ -152,7 +152,36 @@ describe('statementPrintHtml', () => {
         logoHeight: 56,
       },
     })
-    expect(createLogoRenderAsset).toHaveBeenCalled()
+    expect(createLogoRenderAsset).toHaveBeenCalledWith(
+      'data:image/png;base64,sharp-logo',
+      120,
+      90,
+      undefined,
+      { renderScale: 2 },
+    )
     expect(result?.html).toContain('data:image/png;base64,rasterized')
+  })
+
+  test('formats Dr/Cr balances with a space before the suffix', async () => {
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      accountEnquiryData: {
+        ...baseCtx.accountEnquiryData,
+        balances: { netBalance: 1250.75 },
+      },
+    })
+    expect(result?.html).toContain('1,250.75 Dr')
+    expect(result?.html).not.toMatch(/1,250\.75Dr/)
+  })
+
+  test('uses wider balance columns, 14px table type, and stable sheet width', async () => {
+    const result = await generateStatementHtml(baseCtx)
+    expect(result?.html).toContain('min-width: 1050px')
+    expect(result?.html).toContain('font-size: 14px; margin-top: 0; table-layout: fixed')
+    expect(result?.html).toContain('border: 1px solid var(--soa-border); padding: 8px 10px')
+    expect(result?.html).toContain('<col style="width:10.5%;" />')
+    expect(result?.html).toContain('<col style="width:11%;" />')
+    expect(result?.html).toContain('padding: 16px 18px 24px')
+    expect(result?.html).toContain('-webkit-font-smoothing: antialiased')
   })
 })

@@ -91,4 +91,18 @@ describe('VoucherPreviewModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Print' }))
     expect(onPrint).toHaveBeenCalled()
   })
+
+  it('allows scrolling in the preview body for tall vouchers', () => {
+    const { container } = render(
+      <VoucherPreviewModal
+        open
+        onClose={() => {}}
+        mode="live"
+        title="Payment Voucher"
+        printModel={basePrintModel}
+      />,
+    )
+    const scrollArea = container.querySelector('div[style*="overflow: auto"]')
+    expect(scrollArea).toBeTruthy()
+  })
 })

@@ -25,8 +25,8 @@ export default function MGVoucherPrintLayout({
 }) {
   const rows = lineItems.length ? lineItems : [primaryLine]
   const recordCount = lineItems.length || 1
-  const border = '1.3px solid #111827'
-  const dashedBorder = '1.2px dashed #111827'
+  const border = '1px solid #111827'
+  const dashedBorder = '1px dashed #111827'
   const gold = '#F19900'
   const logoSize = '136px'
 
@@ -106,15 +106,15 @@ export default function MGVoucherPrintLayout({
 
       <div style={{ textAlign: 'right', fontSize: '11px', fontStyle: 'italic', marginBottom: '8px' }}>Page 1 of 1</div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '11px', marginBottom: '9px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '14px', marginBottom: '9px' }}>
         <thead>
           <tr style={{ background: '#F3F4F6' }}>
-            <th style={{ border, padding: '7px 4px', width: '30px' }}>No.</th>
-            <th style={{ border, padding: '7px 4px', width: '60px' }}>Branch</th>
-            <th style={{ border, padding: '7px 4px' }}>Account Description</th>
-            <th style={{ border, padding: '7px 4px', width: '54px' }}>Type</th>
-            <th style={{ border, padding: '7px 4px', width: '108px' }}>Amount FC</th>
-            <th style={{ border, padding: '7px 4px', width: '116px' }}>{amountLabel}</th>
+            <th style={{ border, padding: '8px 6px', width: '34px' }}>No.</th>
+            <th style={{ border, padding: '8px 6px', width: '64px' }}>Branch</th>
+            <th style={{ border, padding: '8px 6px' }}>Account Description</th>
+            <th style={{ border, padding: '8px 6px', width: '58px' }}>Type</th>
+            <th style={{ border, padding: '8px 6px', width: '116px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>Amount FC</th>
+            <th style={{ border, padding: '8px 6px', width: '124px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{amountLabel}</th>
           </tr>
         </thead>
         <tbody>
@@ -122,32 +122,32 @@ export default function MGVoucherPrintLayout({
             const lineNarration = String(line?.narration || line?.remarks || line?.exp || '').trim()
             return (
               <tr key={`mg-print-line-${idx}`} style={{ height: lineItems.length <= 1 ? '148px' : '42px' }}>
-              <td style={{ border, padding: '9px 5px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
-              <td style={{ border, padding: '9px 5px', verticalAlign: 'top' }}>{line?.branch || branch}</td>
-              <td style={{ border, padding: '9px 10px', verticalAlign: 'top' }}>
+              <td style={{ border, padding: '8px 6px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
+              <td style={{ border, padding: '8px 6px', verticalAlign: 'top' }}>{line?.branch || branch}</td>
+              <td style={{ border, padding: '8px 10px', verticalAlign: 'top' }}>
                 <div>{accountDescription()}</div>
                 {lineNarration ? (
-                  <div style={{ fontSize: '9px', marginTop: '6px', fontWeight: '700', lineHeight: 1.35, whiteSpace: 'pre-wrap' }}>{lineNarration}</div>
+                  <div style={{ fontSize: '11px', marginTop: '6px', fontWeight: '700', lineHeight: 1.35, whiteSpace: 'pre-wrap' }}>{lineNarration}</div>
                 ) : null}
               </td>
-              <td style={{ border, padding: '9px 7px', verticalAlign: 'top' }}>{normalizeLineType(line?.type) || ''}</td>
-              <td style={{ border, padding: '9px 7px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
-              <td style={{ border, padding: '9px 7px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || line?.amountFC || 0)}</td>
+              <td style={{ border, padding: '8px 6px', verticalAlign: 'top' }}>{normalizeLineType(line?.type) || ''}</td>
+              <td style={{ border, padding: '8px 6px', textAlign: 'right', verticalAlign: 'top', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{fmt(line?.amountFC || 0)}</td>
+              <td style={{ border, padding: '8px 6px', textAlign: 'right', verticalAlign: 'top', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{fmt(line?.amountLC || line?.amountFC || 0)}</td>
             </tr>
             )
           })}
           <tr>
-            <td colSpan={3} style={{ border, padding: '7px 6px' }}>({recordCount} Record)</td>
-            <td colSpan={2} style={{ border, padding: '7px 6px', textAlign: 'right', fontWeight: '900' }}>{`Total (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border, padding: '7px 8px', textAlign: 'right', fontWeight: '900' }}>{fmt(totals.grandTotal || 0)}</td>
+            <td colSpan={3} style={{ border, padding: '8px 6px' }}>({recordCount} Record)</td>
+            <td colSpan={2} style={{ border, padding: '8px 6px', textAlign: 'right', fontWeight: '900' }}>{`Total (${currencyLabel || 'USD'})`}</td>
+            <td style={{ border, padding: '8px 8px', textAlign: 'right', fontWeight: '900', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{fmt(totals.grandTotal || 0)}</td>
           </tr>
           <tr>
-            <td colSpan={5} style={{ border, padding: '7px 6px', textAlign: 'right', fontWeight: '900' }}>{`Total Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border, padding: '7px 8px', textAlign: 'right', fontWeight: '900' }}>{fmt(totals.grandTotal || 0)}</td>
+            <td colSpan={5} style={{ border, padding: '8px 6px', textAlign: 'right', fontWeight: '900' }}>{`Total Value (${currencyLabel || 'USD'})`}</td>
+            <td style={{ border, padding: '8px 8px', textAlign: 'right', fontWeight: '900', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{fmt(totals.grandTotal || 0)}</td>
           </tr>
           <tr>
-            <td colSpan={5} style={{ border, padding: '7px 6px', textAlign: 'right', fontWeight: '900' }}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border, padding: '7px 8px', textAlign: 'right', fontWeight: '900' }}>{fmt(totals.grandTotal || 0)}</td>
+            <td colSpan={5} style={{ border, padding: '8px 6px', textAlign: 'right', fontWeight: '900' }}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
+            <td style={{ border, padding: '8px 8px', textAlign: 'right', fontWeight: '900', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{fmt(totals.grandTotal || 0)}</td>
           </tr>
         </tbody>
       </table>

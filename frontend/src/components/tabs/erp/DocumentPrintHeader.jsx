@@ -10,8 +10,9 @@ import {
   normalizeTitleAccentColor,
   normalizeHeaderDividerColor,
 } from './ERPBrandingUtils'
+import { useDocumentPrintLogo } from '../voucher/useDocumentPrintLogo'
 
-export default function DocumentPrintHeader({ branding, title, meta = [], layoutSettings = null }) {
+export default function DocumentPrintHeader({ branding, title, meta = [], layoutSettings = null, screenPreview = true }) {
   const companyName = branding?.companyName || ''
   const logoUrl = branding?.logoUrl || ''
   const logoWidth = Number(branding?.logoWidth || 160)
@@ -42,6 +43,7 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
   )
   const logoFrameWidth = 260
   const logoFrameHeight = 120
+  const logoSrc = useDocumentPrintLogo(logoUrl, logoWidth, logoHeight, logoFit, screenPreview)
   const details = [
     branding?.address,
     branding?.phone,
@@ -75,7 +77,7 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
           justifyContent: 'flex-end',
         }}
         >
-          {logoUrl ? (
+          {logoSrc ? (
             <div style={{
               position: 'relative',
               top: `${logoOffsetY}px`,
@@ -84,7 +86,7 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
             }}
             >
               <img
-                src={logoUrl}
+                src={logoSrc}
                 alt="Company Logo"
                 style={{ width: `${logoWidth}px`, height: `${logoHeight}px`, maxWidth: `${logoWidth}px`, maxHeight: `${logoHeight}px`, objectFit: logoFit, display: 'block' }}
               />

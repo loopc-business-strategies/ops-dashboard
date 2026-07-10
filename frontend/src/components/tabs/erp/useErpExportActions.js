@@ -40,7 +40,7 @@ export function useErpExportActions({
     setStatementPreviewLoading(true)
     setShowStatementPreview(true)
     try {
-      const htmlData = await generateStatementHtml()
+      const htmlData = await generateStatementHtml({ screenPreview: true })
       if (!htmlData) {
         setShowStatementPreview(false)
         return
@@ -70,7 +70,7 @@ export function useErpExportActions({
 
   const handlePrintStatement = useCallback(async () => {
     try {
-      const htmlData = await generateStatementHtml()
+      const htmlData = await generateStatementHtml({ screenPreview: false })
       if (!htmlData) return
       await printStatementHtml(htmlData.html)
       setExportOptionsOpen(false)
@@ -87,7 +87,7 @@ export function useErpExportActions({
 
   const handleDownloadStatementPdf = useCallback(async () => {
     try {
-      const htmlData = await generateStatementHtml()
+      const htmlData = await generateStatementHtml({ screenPreview: false })
       if (!htmlData) return
       await printStatementHtml(htmlData.html)
       setExportOptionsOpen(false)

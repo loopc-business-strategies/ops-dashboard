@@ -36,11 +36,17 @@ vi.mock('./SignatoryEditor', () => ({
 }))
 
 vi.mock('../voucher/VoucherPrintPanel', () => ({
-  default: () => <div>Voucher print panel</div>,
+  default: ({ renderMode = 'print' }) => (
+    <div data-testid={`voucher-print-panel-${renderMode}`}>Voucher print panel</div>
+  ),
 }))
 
 vi.mock('../voucher/VoucherPreviewModal', () => ({
-  default: () => null,
+  default: ({ open, onPrint }) => (open ? (
+    <div>
+      <button type="button" onClick={onPrint}>Print</button>
+    </div>
+  ) : null),
 }))
 
 describe('VoucherSettingsPanel logo upload', () => {
@@ -171,5 +177,27 @@ describe('VoucherSettingsPanel logo upload', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset header line to default' }))
     expect(screen.getByTestId('divider-color').textContent).toBe('#111827')
+  })
+
+  it('uses 480px inline preview height and mounts hidden print panel when modal opens', () => {
+    render(
+      <VoucherSettingsPanel
+        branding={{ companyName: 'LoopC', logoUrl: '', voucherPrint: {} }}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        saving={false}
+        error=""
+        status=""
+        user={{ company: 'loopc' }}
+      />,
+    )
+
+    const inlineWrapper = screen.getByTestId('voucher-print-panel-preview').parentElement
+    expect(inlineWrapper?.style.maxHeight).toBe('480px')
+    expect(screen.queryByTestId('voucher-print-panel-print')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open full preview' }))
+    expect(screen.getByTestId('voucher-print-panel-print')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Print' })).toBeTruthy()
   })
 })

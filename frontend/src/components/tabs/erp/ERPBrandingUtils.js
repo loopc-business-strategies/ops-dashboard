@@ -376,9 +376,12 @@ export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'conta
   const safeUrl = sanitizeLogoUrl(logoUrl)
   if (!safeUrl || typeof document === 'undefined') return ''
   const removeBackground = options?.removeBackground === true
+  const renderScale = Math.min(Math.max(Number(options?.renderScale) || 1, 1), 3)
 
   const boxWidth = clampBrandingDimension(width, DEFAULT_BRANDING.logoWidth, 80, 260)
   const boxHeight = clampBrandingDimension(height, DEFAULT_BRANDING.logoHeight, 32, 120)
+  const canvasWidth = Math.round(boxWidth * renderScale)
+  const canvasHeight = Math.round(boxHeight * renderScale)
 
   return new Promise((resolve) => {
     const image = new Image()
@@ -386,26 +389,26 @@ export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'conta
     image.onload = () => {
       try {
         const canvas = document.createElement('canvas')
-        canvas.width = boxWidth
-        canvas.height = boxHeight
+        canvas.width = canvasWidth
+        canvas.height = canvasHeight
         const ctx = canvas.getContext('2d')
         if (!ctx) return resolve('')
-        ctx.clearRect(0, 0, boxWidth, boxHeight)
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
         if (fit === 'fill') {
-          ctx.drawImage(image, 0, 0, boxWidth, boxHeight)
+          ctx.drawImage(image, 0, 0, canvasWidth, canvasHeight)
         } else {
           const scale = fit === 'cover'
-            ? Math.max(boxWidth / image.width, boxHeight / image.height)
-            : Math.min(boxWidth / image.width, boxHeight / image.height)
+            ? Math.max(canvasWidth / image.width, canvasHeight / image.height)
+            : Math.min(canvasWidth / image.width, canvasHeight / image.height)
           const drawWidth = image.width * scale
           const drawHeight = image.height * scale
-          const dx = (boxWidth - drawWidth) / 2
-          const dy = (boxHeight - drawHeight) / 2
+          const dx = (canvasWidth - drawWidth) / 2
+          const dy = (canvasHeight - drawHeight) / 2
           ctx.drawImage(image, dx, dy, drawWidth, drawHeight)
         }
         if (removeBackground) {
-          removeNearWhiteBackground(ctx, boxWidth, boxHeight)
+          removeNearWhiteBackground(ctx, canvasWidth, canvasHeight)
         }
 
         resolve(canvas.toDataURL('image/png'))

@@ -219,7 +219,7 @@ export default function StatementSettingsPanel({
           background: '#F8FAFC',
           padding: 12,
           minHeight: 200,
-          maxHeight: 420,
+          maxHeight: 480,
           overflow: 'auto',
         }}
         >
@@ -237,7 +237,7 @@ export default function StatementSettingsPanel({
               srcDoc={previewHtml}
               style={{
                 width: '100%',
-                height: 420,
+                height: 480,
                 border: 'none',
                 display: 'block',
                 background: '#FFFFFF',

@@ -846,6 +846,13 @@ const buildJvPrintHtml = ({
         <div><strong>Prepared By:</strong> ${escapeHtml(preparedBy)}</div>
       </div>
       <table>
+        <colgroup>
+          <col style="width:6%;" />
+          <col style="width:28%;" />
+          <col style="width:30%;" />
+          <col style="width:18%;" />
+          <col style="width:18%;" />
+        </colgroup>
         <thead><tr><th>No.</th><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="5">No JV rows</td></tr>'}</tbody>
         <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${Number(validation.displayDebitTotal ?? validation.totalDebit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${Number(validation.displayCreditTotal ?? validation.totalCredit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>

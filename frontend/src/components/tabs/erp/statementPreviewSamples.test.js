@@ -141,4 +141,16 @@ describe('statementPreviewSamples', () => {
     expect(result.html).toContain(logoUrl)
     expect(result.html).not.toContain('data:image/png;base64,rasterized')
   })
+
+  test('preview HTML uses clarified table layout and Dr/Cr spacing', async () => {
+    const result = await buildStatementPreviewHtml({
+      mode: 'sample',
+      branding: { companyName: 'LoopC' },
+      user: { company: 'loopc', name: 'Tester' },
+    })
+    expect(result.html).toContain('min-width: 1050px')
+    expect(result.html).toContain('font-size: 14px; margin-top: 0; table-layout: fixed')
+    expect(result.html).toContain('<col style="width:11%;" />')
+    expect(result.html).toMatch(/\d[\d,]*\.\d{2} Dr/)
+  })
 })
