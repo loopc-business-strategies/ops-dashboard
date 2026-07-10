@@ -1862,7 +1862,6 @@ export default function VoucherTab({
     voucherSearch,
     voucherFilterYear,
     voucherFilterMonths,
-    displayVoucherDocNo,
   ])
   const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
   const currentVoucherStatus = currentVoucher?.status || 'draft'
