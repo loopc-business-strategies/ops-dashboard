@@ -17,10 +17,11 @@ describe('chatTranslationAccess', () => {
     else process.env.CHAT_TRANSLATION_ALLOWED_TENANTS = original
   })
 
-  test('allows loopc by default', () => {
+  test('allows loopc, mg, and cg by default', () => {
     delete process.env.CHAT_TRANSLATION_ALLOWED_TENANTS
     expect(isChatTranslationEnabledForTenant('loopc')).toBe(true)
-    expect(isChatTranslationEnabledForTenant('mg')).toBe(false)
+    expect(isChatTranslationEnabledForTenant('mg')).toBe(true)
+    expect(isChatTranslationEnabledForTenant('cg')).toBe(true)
   })
 
   test('assertChatTranslationAccess rejects disabled tenant', () => {

@@ -1,7 +1,7 @@
 const { normalizeTenant } = require('../config/tenants')
 
 function getAllowedTenants() {
-  const raw = String(process.env.CHAT_TRANSLATION_ALLOWED_TENANTS || 'loopc')
+  const raw = String(process.env.CHAT_TRANSLATION_ALLOWED_TENANTS || 'loopc,mg,cg')
   return raw.split(',').map((t) => normalizeTenant(t.trim())).filter(Boolean)
 }
 

@@ -64,6 +64,7 @@ const tenantBranding = {
       procurementPlus: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
+      chatTranslate: true,
     },
   },
   cg: {
@@ -88,6 +89,7 @@ const tenantBranding = {
       procurementPlus: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
+      chatTranslate: true,
     },
   },
   loopc: {
