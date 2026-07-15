@@ -552,6 +552,7 @@
   "chatTranslatePreview": "Tarjima ko‘rinishi",
   "chatTranslateUse": "Tarjimadan foydalanish",
   "chatTranslateRevert": "Qaytarish",
+  "chatTranslateClose": "Yopish",
   "chatTranslateFailed": "Tarjima amalga oshmadi",
   "chatTranslateSameLanguage": "Xabar allaqachon tanlangan tilda.",
   "chatTranslateOriginal": "Asl matn",

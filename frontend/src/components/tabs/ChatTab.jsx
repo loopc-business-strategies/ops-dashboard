@@ -345,6 +345,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const [translatePreview, setTranslatePreview] = useState('')
   const [translateOriginal, setTranslateOriginal] = useState('')
   const [translateLoading, setTranslateLoading] = useState(false)
+  const [translatePanelOpen, setTranslatePanelOpen] = useState(false)
 
   const composerTextDirection = useMemo(() => detectTextDirection(msgText), [msgText])
   const previewTargetRtl = isRtlChatLang(translateTargetLang)
@@ -693,10 +694,15 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const activeDmOnline = activeChat?.type === 'direct' ? isUserOnline(activeChat.otherId) : false
   const activeGroupOnlineCount = activeChat?.type === 'group' ? countOnlineMembers(activeChat.members) : 0
 
-  function resetTranslateState() {
+  function clearTranslateResult() {
     setTranslatePreview('')
     setTranslateOriginal('')
     setTranslateLoading(false)
+  }
+
+  function resetTranslateState() {
+    clearTranslateResult()
+    setTranslatePanelOpen(false)
   }
 
   function openChat(id) {
@@ -767,7 +773,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
         throw new Error(result?.message || t('chatTranslateFailed'))
       }
       if (result?.sameLanguage || isSameTranslation(text, translated)) {
-        resetTranslateState()
+        clearTranslateResult()
         showToast(t('chatTranslatePreview'), t('chatTranslateSameLanguage'), '#0f766e')
         return
       }
@@ -783,12 +789,12 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
   function handleTranslateTargetChange(nextLang) {
     setTranslateTargetLang(nextLang)
-    resetTranslateState()
+    clearTranslateResult()
   }
 
   function handleTranslateSourceChange(nextLang) {
     setTranslateSourceLang(nextLang)
-    resetTranslateState()
+    clearTranslateResult()
   }
 
   function handleUseTranslation() {
@@ -1301,77 +1307,131 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
             {/* Input bar */}
             <div style={{ padding:'12px 16px', background:C.inputBg, borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
-              {chatTranslateEnabled && translatePreview ? (
+              {chatTranslateEnabled && translatePanelOpen ? (
                 <div style={{ marginBottom:10, padding:'10px 12px', borderRadius:12, background:'#f0faf5', border:'1px solid rgba(0,104,74,0.18)', direction:'ltr', unicodeBidi:'isolate' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:8 }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:10 }}>
                     <span style={{ fontSize:11, fontWeight:700, color:'#0f766e' }}>{t('chatTranslatePreview')}</span>
-                    <span style={{ fontSize:10, color:'#64748b' }}>
-                      {CHAT_TRANSLATE_LANGS.find((lang) => lang.code === translateTargetLang)
-                        ? t(CHAT_TRANSLATE_LANGS.find((lang) => lang.code === translateTargetLang).labelKey)
-                        : translateTargetLang}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={resetTranslateState}
+                      aria-label={t('chatTranslateClose')}
+                      title={t('chatTranslateClose')}
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'#64748b', fontSize:16, lineHeight:1, padding:2 }}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <div style={{ marginBottom:8 }}>
-                    <div style={{ fontSize:10, fontWeight:700, color:'#64748b', marginBottom:4 }}>{t('chatTranslateOriginal')}</div>
-                    <div
-                      dir={originalTextDirection}
+
+                  <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+                    <select
+                      value={translateSourceLang}
+                      onChange={(e) => handleTranslateSourceChange(e.target.value)}
+                      aria-label={t('chatTranslateSourceLang')}
+                      style={{ height:34, borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px', maxWidth:130 }}
+                    >
+                      {CHAT_TRANSLATE_SOURCE_LANGS.map((lang) => (
+                        <option key={lang.code} value={lang.code}>{t(lang.labelKey)}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={translateTargetLang}
+                      onChange={(e) => handleTranslateTargetChange(e.target.value)}
+                      aria-label={t('chatTranslateTargetLang')}
+                      style={{ height:34, borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px' }}
+                    >
+                      {CHAT_TRANSLATE_LANGS.map((lang) => (
+                        <option key={lang.code} value={lang.code}>{t(lang.labelKey)}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleTranslateMessage}
+                      disabled={!msgText.trim() || translateLoading}
+                      title={t('chatTranslateAction')}
                       style={{
-                        padding:'8px 10px',
-                        borderRadius:10,
-                        border:'1px solid rgba(0,104,74,0.12)',
-                        background:'#f8fafc',
+                        height:34,
+                        padding:'0 12px',
+                        borderRadius:999,
+                        border:'1px solid rgba(0,104,74,0.25)',
+                        background: msgText.trim() && !translateLoading ? '#ecfdf5' : '#f8fafc',
+                        color:'#0f766e',
                         fontSize:12,
-                        lineHeight:1.5,
-                        color:'#475569',
-                        textAlign: originalTextDirection === 'rtl' ? 'right' : 'left',
-                        wordBreak:'break-word',
+                        fontWeight:700,
+                        cursor: msgText.trim() && !translateLoading ? 'pointer' : 'not-allowed',
+                        whiteSpace:'nowrap',
                       }}
                     >
-                      {translateOriginal}
-                    </div>
-                  </div>
-                  <div style={{ marginBottom:8 }}>
-                    <div style={{ fontSize:10, fontWeight:700, color:'#0f766e', marginBottom:4 }}>{t('chatTranslateResult')}</div>
-                    <textarea
-                      value={translatePreview}
-                      onChange={(e) => setTranslatePreview(e.target.value.slice(0, 4000))}
-                      dir={previewTargetRtl ? 'rtl' : 'ltr'}
-                      rows={2}
-                      style={{
-                        width:'100%',
-                        boxSizing:'border-box',
-                        resize:'vertical',
-                        minHeight:52,
-                        border:'1px solid rgba(0,104,74,0.2)',
-                        borderRadius:10,
-                        padding:'8px 10px',
-                        fontSize:13,
-                        lineHeight:1.5,
-                        fontFamily:'inherit',
-                        color:'#1c2a33',
-                        background:'#ffffff',
-                        textAlign: previewTargetRtl ? 'right' : 'left',
-                        unicodeBidi:'plaintext',
-                      }}
-                    />
-                  </div>
-                  <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleUseTranslation}
-                      disabled={!translatePreview.trim()}
-                      style={{ padding:'6px 12px', borderRadius:999, border:'none', background:C.accent, color:'#fff', fontSize:12, fontWeight:700, cursor: translatePreview.trim() ? 'pointer' : 'not-allowed' }}
-                    >
-                      {t('chatTranslateUse')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleRevertTranslation}
-                      style={{ padding:'6px 12px', borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, fontWeight:600, cursor:'pointer' }}
-                    >
-                      {t('chatTranslateRevert')}
+                      {translateLoading ? t('chatTranslateLoading') : t('chatTranslateAction')}
                     </button>
                   </div>
+
+                  {translateOriginal || translatePreview ? (
+                    <>
+                      <div style={{ marginBottom:8 }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:'#64748b', marginBottom:4 }}>{t('chatTranslateOriginal')}</div>
+                        <div
+                          dir={originalTextDirection}
+                          style={{
+                            padding:'8px 10px',
+                            borderRadius:10,
+                            border:'1px solid rgba(0,104,74,0.12)',
+                            background:'#f8fafc',
+                            fontSize:12,
+                            lineHeight:1.5,
+                            color:'#475569',
+                            textAlign: originalTextDirection === 'rtl' ? 'right' : 'left',
+                            wordBreak:'break-word',
+                            minHeight:36,
+                          }}
+                        >
+                          {translateOriginal || msgText}
+                        </div>
+                      </div>
+                      <div style={{ marginBottom:8 }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:'#0f766e', marginBottom:4 }}>{t('chatTranslateResult')}</div>
+                        <textarea
+                          value={translatePreview}
+                          onChange={(e) => setTranslatePreview(e.target.value.slice(0, 4000))}
+                          dir={previewTargetRtl ? 'rtl' : 'ltr'}
+                          rows={2}
+                          placeholder={t('chatTranslateResult')}
+                          style={{
+                            width:'100%',
+                            boxSizing:'border-box',
+                            resize:'vertical',
+                            minHeight:52,
+                            border:'1px solid rgba(0,104,74,0.2)',
+                            borderRadius:10,
+                            padding:'8px 10px',
+                            fontSize:13,
+                            lineHeight:1.5,
+                            fontFamily:'inherit',
+                            color:'#1c2a33',
+                            background:'#ffffff',
+                            textAlign: previewTargetRtl ? 'right' : 'left',
+                            unicodeBidi:'plaintext',
+                          }}
+                        />
+                      </div>
+                      <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={handleUseTranslation}
+                          disabled={!translatePreview.trim()}
+                          style={{ padding:'6px 12px', borderRadius:999, border:'none', background:C.accent, color:'#fff', fontSize:12, fontWeight:700, cursor: translatePreview.trim() ? 'pointer' : 'not-allowed' }}
+                        >
+                          {t('chatTranslateUse')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRevertTranslation}
+                          style={{ padding:'6px 12px', borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, fontWeight:600, cursor:'pointer' }}
+                        >
+                          {t('chatTranslateRevert')}
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -1418,48 +1478,26 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
                 </div>
 
                 {chatTranslateEnabled ? (
-                  <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-                    <select
-                      value={translateSourceLang}
-                      onChange={(e) => handleTranslateSourceChange(e.target.value)}
-                      aria-label={t('chatTranslateSourceLang')}
-                      style={{ height:34, borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px', maxWidth:108 }}
-                    >
-                      {CHAT_TRANSLATE_SOURCE_LANGS.map((lang) => (
-                        <option key={lang.code} value={lang.code}>{t(lang.labelKey)}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={translateTargetLang}
-                      onChange={(e) => handleTranslateTargetChange(e.target.value)}
-                      aria-label={t('chatTranslateTargetLang')}
-                      style={{ height:34, borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px' }}
-                    >
-                      {CHAT_TRANSLATE_LANGS.map((lang) => (
-                        <option key={lang.code} value={lang.code}>{t(lang.labelKey)}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleTranslateMessage}
-                      disabled={!msgText.trim() || translateLoading}
-                      title={t('chatTranslateAction')}
-                      style={{
-                        height:34,
-                        padding:'0 12px',
-                        borderRadius:999,
-                        border:'1px solid rgba(0,104,74,0.25)',
-                        background: msgText.trim() && !translateLoading ? '#ecfdf5' : '#f8fafc',
-                        color:'#0f766e',
-                        fontSize:12,
-                        fontWeight:700,
-                        cursor: msgText.trim() && !translateLoading ? 'pointer' : 'not-allowed',
-                        whiteSpace:'nowrap',
-                      }}
-                    >
-                      {translateLoading ? t('chatTranslateLoading') : t('chatTranslateAction')}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTranslatePanelOpen(true)}
+                    title={t('chatTranslateAction')}
+                    style={{
+                      height:34,
+                      padding:'0 12px',
+                      borderRadius:999,
+                      border:'1px solid rgba(0,104,74,0.25)',
+                      background: translatePanelOpen ? '#ecfdf5' : '#fff',
+                      color:'#0f766e',
+                      fontSize:12,
+                      fontWeight:700,
+                      cursor:'pointer',
+                      whiteSpace:'nowrap',
+                      flexShrink:0,
+                    }}
+                  >
+                    {t('chatTranslateAction')}
+                  </button>
                 ) : null}
 
                 {/* Send */}

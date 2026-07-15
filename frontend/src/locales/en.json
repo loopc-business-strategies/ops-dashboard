@@ -552,6 +552,7 @@
   "chatTranslatePreview": "Translation preview",
   "chatTranslateUse": "Use translation",
   "chatTranslateRevert": "Revert",
+  "chatTranslateClose": "Close",
   "chatTranslateFailed": "Translation failed",
   "chatTranslateSameLanguage": "Message is already in the selected language.",
   "chatTranslateOriginal": "Original",

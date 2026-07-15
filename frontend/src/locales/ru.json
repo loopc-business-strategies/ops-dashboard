@@ -552,6 +552,7 @@
   "chatTranslatePreview": "Предпросмотр перевода",
   "chatTranslateUse": "Использовать перевод",
   "chatTranslateRevert": "Вернуть",
+  "chatTranslateClose": "Закрыть",
   "chatTranslateFailed": "Не удалось перевести",
   "chatTranslateSameLanguage": "Сообщение уже на выбранном языке.",
   "chatTranslateOriginal": "Оригинал",
