@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { mountHtmlExportDocument, openStatementHtmlWindow, printStatementHtml } from './exportHelpers'
+import { downloadStatementPdf, mountHtmlExportDocument, openStatementHtmlWindow, printStatementHtml } from './exportHelpers'
+
+vi.mock('./lazyExportLibs', () => ({
+  loadHtmlToPdf: vi.fn(),
+}))
+
+import { loadHtmlToPdf } from './lazyExportLibs'
 
 const sampleHtml = `
   <html>
@@ -88,5 +94,40 @@ describe('exportHelpers – statement window helpers', () => {
 
     await printStatementHtml(sampleHtml)
     expect(mockWin.print).toHaveBeenCalled()
+  })
+})
+
+describe('exportHelpers – downloadStatementPdf', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  test('saves pdf via html2pdf and removes iframe', async () => {
+    const save = vi.fn().mockResolvedValue(undefined)
+    const from = vi.fn().mockReturnValue({ save })
+    const set = vi.fn().mockReturnValue({ from })
+    loadHtmlToPdf.mockResolvedValue(() => ({ set }))
+
+    await downloadStatementPdf(sampleHtml, 'Statement-TEST-2026-07-20.pdf')
+
+    expect(loadHtmlToPdf).toHaveBeenCalled()
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      filename: 'Statement-TEST-2026-07-20.pdf',
+      jsPDF: expect.objectContaining({ orientation: 'landscape' }),
+    }))
+    expect(from).toHaveBeenCalled()
+    expect(save).toHaveBeenCalled()
+    expect(document.querySelector('iframe')).toBeNull()
+  })
+
+  test('cleans up iframe when save fails', async () => {
+    const save = vi.fn().mockRejectedValue(new Error('save failed'))
+    const from = vi.fn().mockReturnValue({ save })
+    const set = vi.fn().mockReturnValue({ from })
+    loadHtmlToPdf.mockResolvedValue(() => ({ set }))
+
+    await expect(downloadStatementPdf(sampleHtml, 'Statement-TEST.pdf')).rejects.toThrow('save failed')
+    expect(document.querySelector('iframe')).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { downloadCsv, downloadXlsxRows, printStatementHtml } from './exportHelpers'
+import { downloadCsv, downloadXlsxRows, downloadStatementPdf, printStatementHtml } from './exportHelpers'
 import { buildReportExportPayload, getReportNotReadyMessage, isReportDataReady } from './reportExportHelpers'
 import { buildTransactionExportPayload } from './transactionExportHelpers'
 import { buildReportPrintHtml, exportReportPdf, exportTransactionsPdf } from './reportPrintExport'
@@ -88,17 +88,19 @@ export function useErpExportActions({
   const handleDownloadStatementPdf = useCallback(async () => {
     try {
       const htmlData = await generateStatementHtml({ screenPreview: false })
-      if (!htmlData) return
-      await printStatementHtml(htmlData.html)
+      if (!htmlData?.html) {
+        setError('Failed to prepare statement for PDF export.')
+        return
+      }
+      const stamp = new Date().toISOString().slice(0, 10)
+      const accountCode = String(htmlData.accountCode || 'Account').replace(/[^\w.-]+/g, '-')
+      const fileName = `Statement-${accountCode}-${stamp}.pdf`
+      await downloadStatementPdf(htmlData.html, fileName)
       setExportOptionsOpen(false)
-      showNotification('Choose Save as PDF in the print dialog to download')
+      showNotification('✅ Statement PDF downloaded')
     } catch (err) {
       console.error('PDF generation error:', err)
-      if (String(err?.message || '').includes('Popup blocked')) {
-        setError('Popup blocked. Please allow popups for statement export.')
-      } else {
-        setError('Failed to open statement for PDF export.')
-      }
+      setError('Failed to generate PDF. Please try again.')
     }
   }, [generateStatementHtml, setExportOptionsOpen, showNotification, setError])
 

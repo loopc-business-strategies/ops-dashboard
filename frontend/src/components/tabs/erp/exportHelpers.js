@@ -150,3 +150,35 @@ export async function mountHtmlExportDocument(html, { width = '1120px' } = {}) {
   }
   return { element: sheet, cleanup }
 }
+
+/**
+ * Download statement HTML as a real PDF file (html2pdf + off-screen iframe capture).
+ */
+export async function downloadStatementPdf(html, fileName) {
+  let cleanup = () => {}
+  try {
+    const { loadHtmlToPdf } = await import('./lazyExportLibs')
+    const html2pdf = await loadHtmlToPdf()
+    const mount = await mountHtmlExportDocument(html)
+    cleanup = mount.cleanup
+
+    await html2pdf().set({
+      margin: 0,
+      filename: fileName,
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 1120,
+      },
+      jsPDF: {
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'landscape',
+      },
+    }).from(mount.element).save()
+  } finally {
+    cleanup()
+  }
+}
