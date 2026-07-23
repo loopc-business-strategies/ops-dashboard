@@ -19,6 +19,12 @@ describe('envValidation', () => {
     else process.env.NODE_ENV = originalNodeEnv
     delete process.env.JWT_SECRET
     delete process.env.METAL_RATES_BRIDGE_TOKEN
+    delete process.env.EMAIL_OAUTH_STATE_SECRET
+    delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
+    delete process.env.REQUIRE_REDIS
+    delete process.env.EXPECTED_REPLICAS
+    delete process.env.REDIS_URL
+    delete process.env.REDIS_PRIVATE_URL
     if (originalServerBase === undefined) delete process.env.SERVER_BASE_URL
     else process.env.SERVER_BASE_URL = originalServerBase
     if (originalUploadRoot === undefined) delete process.env.UPLOAD_STORAGE_ROOT
@@ -83,5 +89,58 @@ describe('envValidation', () => {
     delete process.env.JWT_SECRET
     expect(validateHardenedDeploySecrets()).toEqual([])
     expect(validateProductionSecrets()).toEqual([])
+  })
+
+  test('validateHardenedDeploySecrets requires email OAuth signing secret', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.JWT_SECRET = 'a'.repeat(32)
+    process.env.SERVER_BASE_URL = 'https://api.example.com'
+    process.env.UPLOAD_STORAGE_ROOT = require('os').tmpdir()
+    process.env.MONGO_URI_MG = 'mongodb://localhost/mg'
+    process.env.MONGO_URI_CG = 'mongodb://localhost/cg'
+    process.env.MONGO_URI_LOOPC = 'mongodb://localhost/loopc'
+    delete process.env.EMAIL_OAUTH_STATE_SECRET
+    delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
+    delete process.env.REQUIRE_REDIS
+    delete process.env.EXPECTED_REPLICAS
+
+    const errors = validateHardenedDeploySecrets()
+    expect(errors.some((e) => e.includes('EMAIL_OAUTH_STATE_SECRET'))).toBe(true)
+  })
+
+  test('isRedisRequired when EXPECTED_REPLICAS > 1 or REQUIRE_REDIS', () => {
+    const { isRedisRequired, expectedReplicaCount } = require('../utils/envValidation')
+    delete process.env.REQUIRE_REDIS
+    delete process.env.EXPECTED_REPLICAS
+    expect(isRedisRequired()).toBe(false)
+    expect(expectedReplicaCount()).toBe(1)
+
+    process.env.EXPECTED_REPLICAS = '2'
+    expect(isRedisRequired()).toBe(true)
+    expect(expectedReplicaCount()).toBe(2)
+    delete process.env.EXPECTED_REPLICAS
+
+    process.env.REQUIRE_REDIS = 'true'
+    expect(isRedisRequired()).toBe(true)
+    delete process.env.REQUIRE_REDIS
+  })
+
+  test('validateHardenedDeploySecrets requires REDIS_URL when scaled', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.JWT_SECRET = 'a'.repeat(32)
+    process.env.SERVER_BASE_URL = 'https://api.example.com'
+    process.env.UPLOAD_STORAGE_ROOT = require('os').tmpdir()
+    process.env.MONGO_URI_MG = 'mongodb://localhost/mg'
+    process.env.MONGO_URI_CG = 'mongodb://localhost/cg'
+    process.env.MONGO_URI_LOOPC = 'mongodb://localhost/loopc'
+    process.env.EMAIL_TOKEN_ENCRYPTION_KEY = 'b'.repeat(64)
+    process.env.EXPECTED_REPLICAS = '2'
+    delete process.env.REDIS_URL
+    delete process.env.REDIS_PRIVATE_URL
+
+    const errors = validateHardenedDeploySecrets()
+    expect(errors.some((e) => e.includes('REDIS_URL'))).toBe(true)
+    delete process.env.EXPECTED_REPLICAS
+    delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
   })
 })

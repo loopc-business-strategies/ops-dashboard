@@ -1,4 +1,5 @@
 const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
+const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 
 function envBool(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') return defaultValue
@@ -51,7 +52,7 @@ function requireDestructiveAdminGuard(actionName) {
       ''
     ).trim()
 
-    if (providedToken !== expectedToken) {
+    if (!timingSafeEqualString(providedToken, expectedToken)) {
       return res.status(403).json({
         success: false,
         message: 'Invalid or missing destructive action confirmation token.',

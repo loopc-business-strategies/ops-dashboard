@@ -9,7 +9,6 @@ const express = require('express')
 const path = require('path')
 const fs = require('fs')
 const mongoose = require('mongoose')
-const multer = require('multer')
 const Task    = require('../models/Task')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
@@ -38,8 +37,40 @@ const {
   MAX_TASK_ASSIGNEES,
 } = require('../utils/taskBodyHelpers')
 const { applyAutomationDerivedFields } = require('../utils/taskRulesHelpers')
+const { createDiskUpload, resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
+const { resolveAttachmentContentDisposition } = require('../services/erpAccounting/attachmentDownloadHeaders')
 
 const router = express.Router()
+
+const TASK_ATTACHMENT_MIME_TYPES = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+]
+
+const taskAttachmentsDir = () => resolveUploadDir('TASK_UPLOAD_DIR', 'task-attachments')
+const taskAttachmentUpload = createDiskUpload({
+  dir: taskAttachmentsDir(),
+  prefix: 'task',
+  maxBytes: Number(process.env.TASK_ATTACHMENT_MAX_BYTES || 15 * 1024 * 1024),
+  allowedMimeTypes: TASK_ATTACHMENT_MIME_TYPES,
+  typeError: 'Unsupported task attachment type. Allowed: PDF, images, Word, Excel, plain text.',
+})
+
+function sanitizeOriginalName(name, fallback = 'file') {
+  return String(name || fallback)
+    .replace(/[\x00-\x1f\x7f"]/g, '')
+    .replace(/[/\\]/g, '_')
+    .trim()
+    .slice(0, 200) || fallback
+}
 
 function assigneeIdsSignature(doc) {
   const ids = doc.assignedToIds && doc.assignedToIds.length
@@ -67,28 +98,6 @@ function extractNormalizedAssigneePatchForUpdate(body, existingTask) {
     assignedTo: body.assignedTo !== undefined ? body.assignedTo : existingTask.assignedTo,
   })
 }
-
-function uploadRoot() {
-  return process.env.UPLOAD_STORAGE_ROOT || path.join(__dirname, '..', 'uploads')
-}
-
-function taskAttachmentsDir() {
-  const dir = path.join(uploadRoot(), 'task-attachments')
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
-const taskAttachStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, taskAttachmentsDir()),
-  filename: (req, file, cb) => {
-    const base = `${req.params.id}-${Date.now()}-${String(file.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)}`
-    cb(null, base)
-  },
-})
-const taskAttachmentUpload = multer({
-  storage: taskAttachStorage,
-  limits: { fileSize: 15 * 1024 * 1024 },
-})
 
 const taskIdParamSchema = Joi.object({
   id: Joi.string().hex().length(24).required(),
@@ -532,7 +541,12 @@ router.post(
   '/:id/attachments',
   protect,
   validateParams(taskIdParamSchema),
-  taskAttachmentUpload.single('file'),
+  (req, res, next) => {
+    taskAttachmentUpload.single('file')(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed.' })
+      return next()
+    })
+  },
   async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded.' })
@@ -542,10 +556,11 @@ router.post(
         return res.status(403).json({ success: false, message: 'You do not have permission to attach files.' })
       }
       const rel = `/api/projects/${req.params.id}/attachments/download/${encodeURIComponent(req.file.filename)}`
+      const originalName = sanitizeOriginalName(req.file.originalname, req.file.filename)
       task.attachments = task.attachments || []
       task.attachments.push({
         fileName: req.file.filename,
-        originalName: req.file.originalname || req.file.filename,
+        originalName,
         mimeType: req.file.mimetype || 'application/octet-stream',
         size: req.file.size || 0,
         url: rel,
@@ -579,10 +594,15 @@ router.get(
       if (!entry) return res.status(404).json({ success: false, message: 'Attachment not found.' })
       const diskPath = path.join(taskAttachmentsDir(), entry.fileName)
       if (!fs.existsSync(diskPath)) return res.status(404).json({ success: false, message: 'File missing.' })
+      const downloadName = sanitizeOriginalName(entry.originalName || entry.fileName, 'download')
       res.setHeader('Content-Type', entry.mimeType || 'application/octet-stream')
-      if (entry.originalName) {
-        res.setHeader('Content-Disposition', `inline; filename="${String(entry.originalName).replace(/"/g, '')}"`)
-      }
+      res.setHeader(
+        'Content-Disposition',
+        resolveAttachmentContentDisposition(req, {
+          mimeType: entry.mimeType,
+          filename: downloadName,
+        }),
+      )
       return res.sendFile(path.resolve(diskPath))
     } catch (err) {
       console.error('Task attachment download error:', err)

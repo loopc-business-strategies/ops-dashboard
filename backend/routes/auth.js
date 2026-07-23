@@ -23,6 +23,7 @@ const jwt     = require('jsonwebtoken')
 const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
 const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
+const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('../config/tenants')
 const { getTenantKeys } = require('../config/tenantRegistry')
@@ -53,7 +54,7 @@ function resolveRequestTenant(req, requestedCompany) {
 }
 
 // Helper: create a JWT token for a user
-const createToken = (id, company, expiresIn = process.env.JWT_EXPIRES_IN || '7d') =>
+const createToken = (id, company, expiresIn = process.env.JWT_EXPIRES_IN || '8h') =>
   jwt.sign({ id, company }, process.env.JWT_SECRET, { expiresIn })
 
 // Helper: send user data + token as response
@@ -202,7 +203,7 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
         || ''
       ).trim()
 
-      if (!expectedToken || providedToken !== expectedToken) {
+      if (!expectedToken || !timingSafeEqualString(providedToken, expectedToken)) {
         return res.status(403).json({ success: false, message: 'Invalid or missing setup token.' })
       }
     } else if (String(process.env.ENABLE_SETUP || '').trim().toLowerCase() !== 'true') {

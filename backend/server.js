@@ -155,12 +155,17 @@ async function startServer() {
     console.warn('[startup] notification dispatch not wired:', e.message)
   }
 
+  // Prefer Redis adapter before listen so the first cross-replica broadcast works.
+  await realtimeServer.attachRedisAdapter()
+
   httpServer.listen(PORT, () => {
     console.log(`✅ Server running at http://localhost:${PORT}`)
     console.log(`   Liveness:  http://localhost:${PORT}/api/health`)
     console.log(`   Readiness: http://localhost:${PORT}/api/ready`)
     console.log('✅ Realtime Socket.IO enabled')
-    if (process.env.NODE_ENV === 'production' && !String(process.env.REDIS_URL || '').trim()) {
+    if (realtimeServer.redisAdapterAttached) {
+      console.log('✅ Socket.IO Redis adapter attached (multi-instance fan-out)')
+    } else if (process.env.NODE_ENV === 'production' && !String(process.env.REDIS_URL || '').trim()) {
       console.warn('[startup] WARNING — REDIS_URL is not set. Set Redis before scaling Railway to multiple instances.')
     }
   })

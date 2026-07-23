@@ -1,10 +1,11 @@
 const mongoose = require('mongoose')
-const { isWeakJwtSecret } = require('../utils/envValidation')
+const { isWeakJwtSecret, isRedisRequired, expectedReplicaCount } = require('../utils/envValidation')
 const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
 const { connectTenant } = require('../db/tenantConnections')
 const { getBackendBuildMeta } = require('./buildMeta')
 const { getUploadStorageStatus } = require('./uploadStorage')
 const { pingRedis } = require('../utils/sharedCoordination')
+const { getSocketIoRedisAdapterAttached } = require('../realtime/RealtimeServer')
 
 let primaryMongoReady = false
 
@@ -50,7 +51,11 @@ async function getReadinessStatus() {
   const redisStatus = await pingRedis()
   const redisConfigured = redisStatus.configured
   const redisReady = redisStatus.ready
-  const ready = jwtSecret && mongoConnected && allTenantsReady
+  const socketIoRedisAdapter = getSocketIoRedisAdapterAttached()
+  const redisRequired = isRedisRequired()
+  const redisOkWhenRequired = !redisRequired
+    || (redisConfigured && redisReady !== false && socketIoRedisAdapter)
+  const ready = jwtSecret && mongoConnected && allTenantsReady && redisOkWhenRequired
 
   const expoPushAccessTokenSet = Boolean(String(process.env.EXPO_ACCESS_TOKEN || '').trim())
   const webPushVapidKeysSet = Boolean(
@@ -62,11 +67,17 @@ async function getReadinessStatus() {
   const build = getBackendBuildMeta()
 
   const warnings = []
-  if (isProduction && !redisConfigured) {
+  if (isProduction && !redisConfigured && !redisRequired) {
     warnings.push('REDIS_URL is not set — multi-instance deploys need Redis for rate limits and realtime fan-out.')
   }
-  if (isProduction && redisConfigured && redisReady === false) {
+  if (redisRequired && !redisConfigured) {
+    warnings.push('Redis is required (EXPECTED_REPLICAS > 1 or REQUIRE_REDIS=true) but REDIS_URL is not set.')
+  }
+  if (redisConfigured && redisReady === false) {
     warnings.push('REDIS_URL is set but Redis ping failed — rate limits and realtime fan-out may be inconsistent.')
+  }
+  if (redisConfigured && !socketIoRedisAdapter) {
+    warnings.push('REDIS_URL is set but Socket.IO Redis adapter is not attached — Socket broadcasts may stay on one replica.')
   }
   if (isProduction && !sentryConfigured) {
     warnings.push('SENTRY_DSN is not set — production errors will not be reported to Sentry.')
@@ -94,7 +105,10 @@ async function getReadinessStatus() {
       tenants,
       redisConfigured,
       redisReady,
-      redisRecommended: isProduction,
+      redisRequired,
+      expectedReplicas: expectedReplicaCount(),
+      redisRecommended: isProduction || redisRequired,
+      socketIoRedisAdapter,
       sentryConfigured,
       uploadStorageRootSet: uploadStorage.uploadStorageRootSet,
       uploadStorageWritable: uploadStorage.uploadStorageWritable,

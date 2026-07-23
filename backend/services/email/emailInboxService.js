@@ -5,6 +5,8 @@ const { encryptToken, decryptToken, isTokenEncryptionConfigured } = require('../
 const { normalizeEmailMessage } = require('./emailProviderTypes')
 const { getExpectedSharedInboxEmail, isTenantSharedInboxEnabled } = require('./tenantEmailConfig')
 const { normalizeTenant } = require('../../config/tenants')
+const { isHardenedDeployEnv } = require('../../utils/envValidation')
+const { timingSafeEqualString } = require('../../utils/timingSafeEqualString')
 const {
   isGmailConfigured,
   buildGmailAuthUrl,
@@ -22,12 +24,26 @@ const fetchRateMap = new Map()
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000
 
 function getOAuthStateSecret() {
-  return String(
-    process.env.EMAIL_OAUTH_STATE_SECRET
-    || process.env.EMAIL_TOKEN_ENCRYPTION_KEY
-    || process.env.JWT_SECRET
-    || 'dev-email-oauth-state',
-  )
+  const dedicated = String(process.env.EMAIL_OAUTH_STATE_SECRET || '').trim()
+  const encryptionKey = String(process.env.EMAIL_TOKEN_ENCRYPTION_KEY || '').trim()
+  if (dedicated) return dedicated
+  if (encryptionKey) return encryptionKey
+
+  if (isHardenedDeployEnv()) {
+    throw new Error(
+      'EMAIL_OAUTH_STATE_SECRET or EMAIL_TOKEN_ENCRYPTION_KEY is required in production/staging.',
+    )
+  }
+
+  const jwtSecret = String(process.env.JWT_SECRET || '').trim()
+  if (jwtSecret) return jwtSecret
+
+  const nodeEnv = String(process.env.NODE_ENV || '').trim().toLowerCase()
+  if (nodeEnv === 'development' || nodeEnv === 'test' || !nodeEnv) {
+    return 'dev-email-oauth-state'
+  }
+
+  throw new Error('EMAIL_OAUTH_STATE_SECRET is not configured.')
 }
 
 function buildOAuthState(userId, tenant, scope = 'user') {
@@ -48,7 +64,7 @@ function parseOAuthState(state) {
   const [body, sig] = raw.split('.')
   if (!body || !sig) throw new Error('Invalid OAuth state.')
   const expected = crypto.createHmac('sha256', getOAuthStateSecret()).update(body).digest('base64url')
-  if (sig !== expected) throw new Error('Invalid OAuth state signature.')
+  if (!timingSafeEqualString(sig, expected)) throw new Error('Invalid OAuth state signature.')
   const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
   if (Date.now() - Number(payload.ts) > OAUTH_STATE_TTL_MS) throw new Error('OAuth state expired.')
   return payload

@@ -31,6 +31,33 @@ function resolveSocketTenantSubscription(socket, requestedTenant) {
   return authenticatedTenant
 }
 
+/**
+ * Resolve dashboard metrics room for an authenticated socket.
+ * Returns { ok, tenant, room } or { ok: false, error }.
+ */
+function handleDashboardMetricsSubscribe(socket, requestedTenant) {
+  try {
+    const tenant = resolveSocketTenantSubscription(socket, requestedTenant)
+    return { ok: true, tenant, room: `dashboard:metrics:${tenant}` }
+  } catch (err) {
+    return { ok: false, error: err }
+  }
+}
+
+let socketIoRedisAdapterAttached = false
+
+function getSocketIoRedisAdapterAttached() {
+  return socketIoRedisAdapterAttached
+}
+
+function redisUrlForSocketAdapter() {
+  return String(process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || '').trim()
+}
+
+function notificationUserRoom(tenant, userId) {
+  return `notifications:user:${String(tenant || '').trim()}:${String(userId || '').trim()}`
+}
+
 function parseCookies(cookieHeader = '') {
   return String(cookieHeader || '')
     .split(';')
@@ -144,9 +171,55 @@ class RealtimeServer {
       },
       transports: ['websocket', 'polling'],
     })
+    this.redisAdapterAttached = false
+    this._redisPubClient = null
+    this._redisSubClient = null
 
     this.setupMiddleware()
     this.setupNamespaces()
+  }
+
+  /**
+   * Attach @socket.io/redis-adapter when REDIS_URL is set so broadcasts
+   * reach sockets on other Railway replicas. Soft-fails to in-memory adapter.
+   * @returns {Promise<boolean>} true when adapter is attached
+   */
+  async attachRedisAdapter() {
+    const url = redisUrlForSocketAdapter()
+    if (!url) {
+      this.redisAdapterAttached = false
+      socketIoRedisAdapterAttached = false
+      return false
+    }
+
+    try {
+      const { createClient } = require('redis')
+      const { createAdapter } = require('@socket.io/redis-adapter')
+      const pubClient = createClient({ url })
+      const subClient = pubClient.duplicate()
+      pubClient.on('error', (err) => {
+        console.warn('[realtime] redis pub error', err?.message || err)
+      })
+      subClient.on('error', (err) => {
+        console.warn('[realtime] redis sub error', err?.message || err)
+      })
+      await Promise.all([pubClient.connect(), subClient.connect()])
+      this.io.adapter(createAdapter(pubClient, subClient))
+      this._redisPubClient = pubClient
+      this._redisSubClient = subClient
+      this.redisAdapterAttached = true
+      socketIoRedisAdapterAttached = true
+      console.log('[realtime] Socket.IO Redis adapter attached')
+      return true
+    } catch (err) {
+      this.redisAdapterAttached = false
+      socketIoRedisAdapterAttached = false
+      console.warn(
+        '[realtime] Socket.IO Redis adapter unavailable; using in-memory adapter',
+        err?.message || err,
+      )
+      return false
+    }
   }
 
   setupMiddleware() {
@@ -169,15 +242,33 @@ class RealtimeServer {
     const dashboardNamespace = this.io.of('/dashboard')
     dashboardNamespace.use(this.authMiddleware)
     dashboardNamespace.on('connection', (socket) => {
-      // Subscribe to dashboard metrics updates
       socket.on('subscribe:metrics', (tenant) => {
-        socket.join(`dashboard:metrics:${tenant}`)
-        socket.emit('subscribed', { namespace: '/dashboard', metric: 'metrics', tenant })
+        const result = handleDashboardMetricsSubscribe(socket, tenant)
+        if (!result.ok) {
+          socket.emit('subscription:error', {
+            namespace: '/dashboard',
+            message: 'Tenant subscription denied',
+          })
+          return
+        }
+        socket.join(result.room)
+        socket.emit('subscribed', {
+          namespace: '/dashboard',
+          metric: 'metrics',
+          tenant: result.tenant,
+        })
       })
 
-      // Unsubscribe from dashboard metrics
       socket.on('unsubscribe:metrics', (tenant) => {
-        socket.leave(`dashboard:metrics:${tenant}`)
+        const result = handleDashboardMetricsSubscribe(socket, tenant)
+        if (!result.ok) {
+          socket.emit('subscription:error', {
+            namespace: '/dashboard',
+            message: 'Tenant subscription denied',
+          })
+          return
+        }
+        socket.leave(result.room)
       })
     })
 
@@ -262,7 +353,7 @@ class RealtimeServer {
     notificationsNamespace.on('connection', async (socket) => {
       const tenant = socket.tenant
       const userId = socket.userId
-      socket.join(`user:${userId}`)
+      socket.join(notificationUserRoom(tenant, userId))
       socket.join(`tenant:${tenant}`)
 
       try {
@@ -379,11 +470,16 @@ class RealtimeServer {
    * @param {String} [tenantKey] - mg/cg/loopc for Expo push (optional)
    */
   sendUserNotification(userId, type, data, tenantKey) {
-    this.io.of('/notifications').to(`user:${userId}`).emit('notification', {
-      type,
-      timestamp: new Date(),
-      data,
-    })
+    const tenant = String(tenantKey || '').trim()
+    if (!tenant) {
+      console.warn('[realtime] sendUserNotification skipped socket emit — tenantKey required')
+    } else {
+      this.io.of('/notifications').to(notificationUserRoom(tenant, userId)).emit('notification', {
+        type,
+        timestamp: new Date(),
+        data,
+      })
+    }
     if (tenantKey) {
       sendExpoPushToUser(tenantKey, userId, type, data).catch((err) => {
         console.warn('[expo-push] async error:', err?.message || err)
@@ -415,3 +511,6 @@ module.exports = RealtimeServer
 module.exports.authenticateSocket = authenticateSocket
 module.exports.getSocketToken = getSocketToken
 module.exports.resolveSocketTenantSubscription = resolveSocketTenantSubscription
+module.exports.handleDashboardMetricsSubscribe = handleDashboardMetricsSubscribe
+module.exports.getSocketIoRedisAdapterAttached = getSocketIoRedisAdapterAttached
+module.exports.notificationUserRoom = notificationUserRoom

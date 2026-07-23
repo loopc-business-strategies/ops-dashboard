@@ -9,6 +9,7 @@ const {
   authenticateSocket,
   getSocketToken,
   resolveSocketTenantSubscription,
+  handleDashboardMetricsSubscribe,
 } = require('../realtime/RealtimeServer')
 
 const buildSocket = ({ token, cookie, host = 'api.loopcstrategies.com', tenant = 'loopc' } = {}) => ({
@@ -91,6 +92,20 @@ describe('realtime socket authentication', () => {
   test('uses authenticated tenant for realtime room subscriptions', () => {
     expect(resolveSocketTenantSubscription({ tenant: 'mg' }, 'mg')).toBe('mg')
     expect(resolveSocketTenantSubscription({ tenant: 'mg' }, '')).toBe('mg')
+    expect(resolveSocketTenantSubscription({ tenant: 'mg' }, undefined)).toBe('mg')
     expect(() => resolveSocketTenantSubscription({ tenant: 'mg' }, 'cg')).toThrow(/does not match/i)
+    expect(() => resolveSocketTenantSubscription({}, 'mg')).toThrow(/Authenticated tenant is missing/i)
+  })
+
+  test('dashboard metrics subscribe resolves room from authenticated tenant only', () => {
+    const ok = handleDashboardMetricsSubscribe({ tenant: 'loopc' }, 'loopc')
+    expect(ok).toEqual({ ok: true, tenant: 'loopc', room: 'dashboard:metrics:loopc' })
+
+    const omitted = handleDashboardMetricsSubscribe({ tenant: 'mg' }, '')
+    expect(omitted).toEqual({ ok: true, tenant: 'mg', room: 'dashboard:metrics:mg' })
+
+    const denied = handleDashboardMetricsSubscribe({ tenant: 'mg' }, 'cg')
+    expect(denied.ok).toBe(false)
+    expect(denied.error).toBeInstanceOf(Error)
   })
 })

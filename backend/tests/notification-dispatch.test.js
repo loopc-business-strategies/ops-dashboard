@@ -83,3 +83,14 @@ describe('notificationDispatch', () => {
     expect(data.message).toContain('posted by Jane')
   })
 })
+
+const { notificationUserRoom } = require('../realtime/RealtimeServer')
+
+describe('notification socket rooms', () => {
+  test('notificationUserRoom is tenant-prefixed', () => {
+    expect(notificationUserRoom('mg', 'u1')).toBe('notifications:user:mg:u1')
+    expect(notificationUserRoom('cg', '507f1f77bcf86cd799439011')).toBe(
+      'notifications:user:cg:507f1f77bcf86cd799439011',
+    )
+  })
+})

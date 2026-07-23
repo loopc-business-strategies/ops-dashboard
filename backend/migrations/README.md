@@ -29,7 +29,7 @@ module.exports = {
 }
 ```
 
-2. Registered migrations: `001-baseline`, `002-backfill-mapping-departments`, `003-backfill-jv-ledger-base-to-fc` (apply 003 only after review — updates JV FX rows).
+2. Registered migrations: `001-baseline`, `002-backfill-mapping-departments`, `003-backfill-jv-ledger-base-to-fc`, `004-sync-mongoose-indexes` (apply 003 only after review — updates JV FX rows; apply 004 after backup so hardened envs get schema indexes without `autoIndex`).
 
 ```js
 module.exports = {
@@ -42,6 +42,20 @@ module.exports = {
   },
 }
 ```
+
+### `004-sync-mongoose-indexes`
+
+Hardened deploys set `autoIndex: false`. Run this after deploying new index definitions:
+
+```bash
+# Dry-run (lists pending)
+npm --prefix backend run migrate
+
+# Apply (after backup + tokens)
+MIGRATION_I_HAVE_BACKUP=true MIGRATION_CONFIRM_TOKEN=... npm --prefix backend run migrate:apply -- --confirm=<token>
+```
+
+If `syncIndexes` fails on a unique index, clean duplicate documents first, then re-run. Do **not** re-enable `autoIndex: true` in production/staging.
 
 2. Migrations run in filename order once per tenant (`mg`, `cg`, `loopc`).
 3. Applied IDs are stored in each tenant DB collection `_migrations`.

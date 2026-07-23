@@ -20,13 +20,37 @@ SERVER_BASE_URL=https://api.loopcstrategies.com
 
 `SERVER_BASE_URL` — absolute base for ERP attachment download URLs (no trailing slash). Warned in production if missing.
 
+### Email OAuth (production/staging required)
+
+```
+EMAIL_TOKEN_ENCRYPTION_KEY=<64-char-hex>
+# or dedicated:
+EMAIL_OAUTH_STATE_SECRET=<random-secret>
+```
+
+Hardened deploys require **one** of these for OAuth state HMAC (do not fall back to `JWT_SECRET`). Prefer a dedicated `EMAIL_OAUTH_STATE_SECRET` when Gmail connect is enabled.
+
 ### Shared coordination (recommended for multi-instance Railway)
 
 ```
 REDIS_URL=<railway-redis-private-url>
 ```
 
-When set, report caches, report rate limits, notification digest dedupe, and realtime SSE fan-out use Redis instead of process-local memory. Without `REDIS_URL`, the backend falls back to local in-process coordination for single-instance deployments.
+When set, report caches, report rate limits, notification digest dedupe, realtime SSE fan-out, and **Socket.IO multi-replica broadcasts** (`@socket.io/redis-adapter`) use Redis instead of process-local memory. Without `REDIS_URL`, the backend falls back to local in-process coordination for single-instance deployments. `/api/ready` reports `checks.socketIoRedisAdapter` when the adapter attached successfully.
+
+Before scaling Railway to multiple replicas, set either:
+
+```
+REQUIRE_REDIS=true
+```
+
+or
+
+```
+EXPECTED_REPLICAS=2
+```
+
+When Redis is required and `REDIS_URL` is missing (or Redis/Socket adapter unhealthy), hardened startup validation fails and `/api/ready` returns `ready: false`.
 
 ### CORS (frontend origins)
 

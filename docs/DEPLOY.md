@@ -96,14 +96,16 @@ Smoke secrets and variables: [SMOKE-SECRETS-CHECKLIST.md](./SMOKE-SECRETS-CHECKL
 
 ### Production: Redis (`REDIS_URL`)
 
-Set **`REDIS_URL`** on Railway production (and staging if you run multiple API instances or want parity with prod). Without it, the API uses in-process memory for report caches, rate limits, notification digest dedupe, and realtime SSE fan-out — fine for a single instance, but unsafe when Railway scales horizontally or restarts split traffic across pods.
+Set **`REDIS_URL`** on Railway production (and staging if you run multiple API instances or want parity with prod). Without it, the API uses in-process memory for report caches, rate limits, notification digest dedupe, realtime SSE fan-out, and **Socket.IO broadcasts** — fine for a single instance, but unsafe when Railway scales horizontally or restarts split traffic across pods.
 
-After deploy, `/api/ready` reports `checks.redisConfigured` — post-deploy smoke does not fail when Redis is unset, but you should treat `redisConfigured: false` in production as a deployment gap.
+After deploy, `/api/ready` reports `checks.redisConfigured` and `checks.socketIoRedisAdapter` — post-deploy smoke does not fail when Redis is unset, but you should treat `redisConfigured: false` (or Redis set but `socketIoRedisAdapter: false`) in production as a deployment gap.
 
 1. Railway → project → **Add Redis** (or attach an existing Redis service).
 2. Copy the **private** Redis URL into the API service variables as `REDIS_URL` (see [ENV-VARS-QUICK-REFERENCE.md](../ENV-VARS-QUICK-REFERENCE.md)).
 3. Redeploy the API; confirm `/api/ready` and post-deploy smoke pass.
-4. Optional: verify Redis-backed paths in logs (cache/rate-limit init) after deploy.
+4. Confirm `checks.socketIoRedisAdapter: true` when Redis is configured (Socket.IO uses `@socket.io/redis-adapter` for cross-replica fan-out).
+5. Before horizontal scale, set `REQUIRE_REDIS=true` or `EXPECTED_REPLICAS=2` so missing Redis fails startup/`/api/ready` instead of silent single-instance fan-out.
+6. Optional: verify Redis-backed paths in logs (cache/rate-limit init, `[realtime] Socket.IO Redis adapter attached`) after deploy.
 
 Do not set stale `BACKEND_BUILD_COMMIT` on Railway; build metadata comes from [`backend/build-meta.json`](../backend/build-meta.json) at deploy time.
 

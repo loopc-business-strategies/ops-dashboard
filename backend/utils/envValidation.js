@@ -89,7 +89,34 @@ function validateHardenedDeploySecrets() {
     errors.push('METAL_RATES_BRIDGE_TOKEN uses a placeholder value — generate a unique secret.')
   }
 
+  const oauthStateSecret = String(process.env.EMAIL_OAUTH_STATE_SECRET || '').trim()
+  const emailTokenKey = String(process.env.EMAIL_TOKEN_ENCRYPTION_KEY || '').trim()
+  if (!oauthStateSecret && !emailTokenKey) {
+    errors.push(
+      'EMAIL_OAUTH_STATE_SECRET or EMAIL_TOKEN_ENCRYPTION_KEY is required in production and staging '
+      + '(email OAuth state signing; do not reuse JWT_SECRET).',
+    )
+  }
+
+  if (isRedisRequired() && !String(process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || '').trim()) {
+    errors.push(
+      'REDIS_URL is required when EXPECTED_REPLICAS > 1 or REQUIRE_REDIS=true '
+      + '(multi-instance rate limits and Socket.IO fan-out).',
+    )
+  }
+
   return errors
+}
+
+function expectedReplicaCount() {
+  const raw = Number(process.env.EXPECTED_REPLICAS || process.env.RAILWAY_REPLICA_COUNT || 1)
+  if (!Number.isFinite(raw) || raw < 1) return 1
+  return Math.floor(raw)
+}
+
+function isRedisRequired() {
+  if (String(process.env.REQUIRE_REDIS || '').trim().toLowerCase() === 'true') return true
+  return expectedReplicaCount() > 1
 }
 
 /** @deprecated use validateHardenedDeploySecrets */
@@ -105,5 +132,7 @@ module.exports = {
   isWeakBridgeToken,
   validateHardenedDeploySecrets,
   validateProductionSecrets,
+  expectedReplicaCount,
+  isRedisRequired,
   MIN_PRODUCTION_JWT_LENGTH,
 }

@@ -5,6 +5,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { timingSafeEqualString } = require('./timingSafeEqualString')
 
 const AUDIT_LOG_DIR = path.resolve(__dirname, '../logs/cleanup-audit')
 const VALID_TENANTS = new Set(['mg', 'cg', 'loopc'])
@@ -92,7 +93,7 @@ function validateExecutionRequest({ tenant, apply, confirmationToken, providedTo
     return { ok: false, reason: 'CLEANUP_CONFIRM_TOKEN or DESTRUCTIVE_ADMIN_CONFIRM_TOKEN is required.' }
   }
 
-  if (String(providedToken || '').trim() !== expectedToken) {
+  if (!timingSafeEqualString(String(providedToken || '').trim(), expectedToken)) {
     return { ok: false, reason: 'Invalid confirmation token' }
   }
 

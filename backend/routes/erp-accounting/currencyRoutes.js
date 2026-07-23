@@ -15,6 +15,7 @@ const {
 } = require('../../services/erpAccounting/metalRateBridgeService')
 const { createMetalPricingHelpers } = require('./reportRoutesMetalPricing')
 const { notifyErpUsers } = require('../../services/notificationDispatch')
+const { timingSafeEqualString } = require('../../utils/timingSafeEqualString')
 const { computeMarginMetricsRaw } = require('../../services/erpAccounting/metalMarginPolicy')
 const {
   fetchFredPreciousMetalSpotBundle,
@@ -480,7 +481,7 @@ function registerCurrencyRoutes(deps) {
       }
 
       const token = getBridgeTokenFromRequest(req)
-      if (!token || token !== expectedToken) {
+      if (!token || !timingSafeEqualString(token, expectedToken)) {
         console.warn('[metal-rates bridge] rejected POST: invalid bridge token')
         return res.status(401).json({ success: false, message: 'Invalid metal rates bridge token.' })
       }

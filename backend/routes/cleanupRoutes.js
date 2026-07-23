@@ -7,6 +7,7 @@ const express = require('express')
 const { protect, restrictTo } = require('../middleware/auth')
 const { connectTenant } = require('../db/tenantConnections')
 const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
+const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 const {
   planVendorRegistryMaintenance,
   applyVendorRegistryMaintenance,
@@ -42,7 +43,7 @@ function requireCleanupConfirmationToken(req, res, next) {
   }
 
   const providedToken = String(req.headers['x-cleanup-token'] || req.body?.confirmToken || '').trim()
-  if (!providedToken || providedToken !== expectedToken) {
+  if (!providedToken || !timingSafeEqualString(providedToken, expectedToken)) {
     return res.status(403).json({
       ok: false,
       error: 'Invalid or missing cleanup confirmation token.',

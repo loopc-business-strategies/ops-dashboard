@@ -13,7 +13,8 @@ const CrmCompany  = require('../models/CrmCompany')
 const CrmLead     = require('../models/CrmLead')
 const CrmDeal     = require('../models/CrmDeal')
 const CrmActivity = require('../models/CrmActivity')
-const { resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
+const { createDiskUpload, resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
+const { resolveAttachmentContentDisposition } = require('../services/erpAccounting/attachmentDownloadHeaders')
 
 const {
   canViewCrm,
@@ -262,28 +263,20 @@ const csvUpload = multer({
 })
 
 const contactDocDir = resolveUploadDir('CRM_CONTACT_UPLOAD_DIR', 'crm-contacts')
-const ALLOWED_DOC_MIME_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+const CRM_DOC_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
   'application/pdf',
-])
-const docFileFilter = (req, file, cb) => {
-  if (ALLOWED_DOC_MIME_TYPES.has(file.mimetype)) {
-    cb(null, true)
-  } else {
-    cb(new Error('Only images (JPEG, PNG, GIF, WebP, SVG) and PDF files are allowed.'), false)
-  }
-}
-const docStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(contactDocDir)) fs.mkdirSync(contactDocDir, { recursive: true })
-    cb(null, contactDocDir)
-  },
-  filename: (req, file, cb) => {
-    const safe = String(file.originalname || 'document').replace(/[^a-zA-Z0-9._-]/g, '_')
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safe}`)
-  },
+]
+const docUpload = createDiskUpload({
+  dir: contactDocDir,
+  prefix: 'crm-doc',
+  maxBytes: 10 * 1024 * 1024,
+  allowedMimeTypes: CRM_DOC_MIME_TYPES,
+  typeError: 'Only images (JPEG, PNG, GIF, WebP) and PDF files are allowed.',
 })
-const docUpload = multer({ storage: docStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: docFileFilter })
 
 const csvEscape = (value) => {
   const text = value == null ? '' : String(value)
@@ -836,15 +829,25 @@ router.post('/contacts/:id/notes', salesEditOnly, validateParams(idParam), valid
   }
 })
 
-router.post('/contacts/:id/documents', salesEditOnly, docUpload.single('file'), async (req, res) => {
+router.post('/contacts/:id/documents', salesEditOnly, (req, res, next) => {
+  docUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed.' })
+    return next()
+  })
+}, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'File is required.' })
     const contact = await CrmContact.findOne({ _id: req.params.id, isDeleted: false })
     if (!contact) return res.status(404).json({ success: false, message: 'Contact not found.' })
 
     const relativePath = `/uploads/crm-contacts/${req.file.filename}`
+    const safeName = String(req.file.originalname || 'document')
+      .replace(/[\x00-\x1f\x7f"]/g, '')
+      .replace(/[/\\]/g, '_')
+      .trim()
+      .slice(0, 200) || 'document'
     const newDoc = {
-      name: req.file.originalname,
+      name: safeName,
       status: req.body.status || 'Pending',
       verifiedDate: req.body.verifiedDate || '',
       relativePath,
@@ -903,9 +906,18 @@ router.get('/contacts/:id/documents/:docId/download', salesOnly, validateParams(
       return res.status(404).json({ success: false, message: 'File not found.' })
     }
 
-    if (doc.mimeType) res.setHeader('Content-Type', doc.mimeType)
-    const downloadName = String(doc.name || 'document').replace(/"/g, '')
-    res.setHeader('Content-Disposition', `inline; filename="${downloadName}"`)
+    const mime = String(doc.mimeType || '').trim().toLowerCase()
+    const downloadName = String(doc.name || 'document').replace(/[\x00-\x1f\x7f"]/g, '') || 'document'
+    if (mime === 'image/svg+xml') {
+      res.setHeader('Content-Type', 'application/octet-stream')
+      res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)
+    } else {
+      res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream')
+      res.setHeader(
+        'Content-Disposition',
+        resolveAttachmentContentDisposition(req, { mimeType: doc.mimeType, filename: downloadName }),
+      )
+    }
     return res.sendFile(filePath)
   } catch (e) {
     res.status(500).json({ success: false, message: 'Internal server error' })
