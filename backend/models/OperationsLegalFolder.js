@@ -11,6 +11,6 @@ const OperationsLegalFolderSchema = new mongoose.Schema(
   { timestamps: true },
 )
 
-OperationsLegalFolderSchema.index({ name: 1 }, { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } })
+OperationsLegalFolderSchema.index({ name: 1 }, { unique: true, partialFilterExpression: { isDeleted: false } })
 
 module.exports = createTenantModel('OperationsLegalFolder', OperationsLegalFolderSchema)
