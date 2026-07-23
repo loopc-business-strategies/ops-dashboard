@@ -1,7 +1,5 @@
 /**
- * Local-only helper: some Windows resolvers refuse MongoDB SRV lookups.
- * Force public DNS before connecting (used by migrate when querySrv fails).
+ * Thin --require alias for Atlas DNS (Windows SRV / local resolver issues).
+ * Prefer require('../utils/configureAtlasDns') in long-lived entrypoints.
  */
-const dns = require('node:dns')
-dns.setServers(['8.8.8.8', '1.1.1.1'])
-dns.setDefaultResultOrder('ipv4first')
+require('../utils/configureAtlasDns')

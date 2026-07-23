@@ -62,14 +62,8 @@ const { isWeakJwtSecret, isHardenedDeployEnv, validateHardenedDeploySecrets } = 
 
 // ── DNS fix ──────────────────────────────────────────────────────────────────
 // Some local DNS stubs (VPN clients, Docker, routers) cannot resolve MongoDB
-// Atlas SRV records even though nslookup/OS DNS works fine.  Force Node to use
-// a reliable public resolver before any Mongoose connection is attempted.
-// Override via DNS_SERVERS env var, e.g. "1.1.1.1,1.0.0.1" for Cloudflare.
-const dns = require('dns')
-const dnsServers = (process.env.DNS_SERVERS || process.env.ATLAS_DNS_SERVERS)
-  ? (process.env.DNS_SERVERS || process.env.ATLAS_DNS_SERVERS).split(',').map(s => s.trim()).filter(Boolean)
-  : ['8.8.8.8', '8.8.4.4']
-dns.setServers(dnsServers)
+// Atlas SRV records even though nslookup/OS DNS works fine.
+require('./utils/configureAtlasDns')
 // ─────────────────────────────────────────────────────────────────────────────
 
 const http = require('http')

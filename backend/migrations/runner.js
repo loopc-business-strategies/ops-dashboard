@@ -9,6 +9,7 @@
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') })
+require('../utils/configureAtlasDns')
 
 const fs = require('fs')
 const path = require('path')
