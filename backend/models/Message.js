@@ -64,5 +64,7 @@ messageSchema.index({ createdAt: -1 })
 messageSchema.index({ department: 1, createdAt: -1 })
 messageSchema.index({ senderId: 1, createdAt: -1 })
 messageSchema.index({ recipientIds: 1, createdAt: -1 })
+messageSchema.index({ type: 1, groupId: 1, createdAt: -1 })
+messageSchema.index({ groupId: 1, createdAt: -1 })
 
 module.exports = createTenantModel('Message', messageSchema)

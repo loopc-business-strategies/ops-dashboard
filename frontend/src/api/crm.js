@@ -43,7 +43,7 @@ export const importContactsCsv = (file) => {
 }
 
 // Companies
-export const getCompanies     = ()           => axios.get(`${BASE}/companies`, cfg()).then(r => r.data)
+export const getCompanies     = (params = { limit: 200 }) => axios.get(`${BASE}/companies`, cfgP(params)).then(r => r.data)
 export const createCompany    = (data)       => axios.post(`${BASE}/companies`, data, cfg()).then(r => r.data)
 export const updateCompany    = (id, data)   => axios.put(`${BASE}/companies/${id}`, data, cfg()).then(r => r.data)
 export const deleteCompany    = (id)         => axios.delete(`${BASE}/companies/${id}`, cfg()).then(r => r.data)
@@ -58,7 +58,7 @@ export const importCompaniesCsv = (file) => {
 }
 
 // Leads
-export const getLeads         = ()           => axios.get(`${BASE}/leads`, cfg()).then(r => r.data)
+export const getLeads         = (params = { limit: 200 }) => axios.get(`${BASE}/leads`, cfgP(params)).then(r => r.data)
 export const createLead       = (data)       => axios.post(`${BASE}/leads`, data, cfg()).then(r => r.data)
 export const updateLead       = (id, data)   => axios.put(`${BASE}/leads/${id}`, data, cfg()).then(r => r.data)
 export const changeLeadStage  = (id, stage, note) => axios.post(`${BASE}/leads/${id}/stage`, { stage, note }, cfg()).then(r => r.data)

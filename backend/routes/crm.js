@@ -36,6 +36,11 @@ const activitiesListQuerySchema = Joi.object({
   contactId: Joi.string().hex().length(24).optional(),
 })
 
+const listPaginationQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(200).default(50),
+})
+
 const kycPatchSchema = Joi.object({
   status:         Joi.string().valid('Not Started', 'In Progress', 'Verified', 'Expired').optional(),
   riskRating:     Joi.string().valid('Low', 'Medium', 'High').optional(),
@@ -974,19 +979,52 @@ router.post('/companies/import', salesEditOnly, csvUpload.single('file'), async 
   }
 })
 
-router.get('/companies', salesOnly, async (req, res) => {
+router.get('/companies', salesOnly, validateQuery(listPaginationQuerySchema), async (req, res) => {
   try {
-    const companies = await CrmCompany.find({ isDeleted: false }).sort({ name: 1 })
-    // Enrich with contact/deal counts
-    const enriched = await Promise.all(companies.map(async (co) => {
-      const [contacts, deals] = await Promise.all([
-        CrmContact.countDocuments({ isDeleted: false, companyId: co._id }),
-        CrmDeal.find({ isDeleted: false, companyId: co._id }, 'valueUSD stage'),
+    const page = Number(req.query.page) || 1
+    const limit = Number(req.query.limit) || 50
+    const filter = { isDeleted: false }
+    const total = await CrmCompany.countDocuments(filter)
+    const companies = await CrmCompany.find(filter)
+      .sort({ name: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+
+    const companyIds = companies.map((co) => co._id)
+    const [contactCounts, dealStats] = companyIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+        CrmContact.aggregate([
+          { $match: { isDeleted: false, companyId: { $in: companyIds } } },
+          { $group: { _id: '$companyId', count: { $sum: 1 } } },
+        ]),
+        CrmDeal.aggregate([
+          { $match: { isDeleted: false, companyId: { $in: companyIds } } },
+          {
+            $group: {
+              _id: '$companyId',
+              dealCount: { $sum: 1 },
+              totalValue: { $sum: { $ifNull: ['$valueUSD', 0] } },
+            },
+          },
+        ]),
       ])
-      const totalValue = deals.reduce((s, d) => s + (d.valueUSD || 0), 0)
-      return { ...co.toObject(), contactCount: contacts, dealCount: deals.length, totalValue }
-    }))
-    res.json({ success: true, data: enriched })
+
+    const contactCountById = new Map(contactCounts.map((row) => [String(row._id), row.count]))
+    const dealStatsById = new Map(dealStats.map((row) => [String(row._id), row]))
+
+    const enriched = companies.map((co) => {
+      const id = String(co._id)
+      const deals = dealStatsById.get(id)
+      return {
+        ...co.toObject(),
+        contactCount: contactCountById.get(id) || 0,
+        dealCount: deals?.dealCount || 0,
+        totalValue: deals?.totalValue || 0,
+      }
+    })
+
+    res.json({ success: true, data: enriched, page, limit, total })
   } catch (e) {
     res.status(500).json({ success: false, message: e.message })
   }
@@ -1026,12 +1064,18 @@ router.delete('/companies/:id', salesOnly, async (req, res) => {
 })
 
 // ─── LEADS ──────────────────────────────────────────────────────────────────
-router.get('/leads', salesOnly, async (req, res) => {
+router.get('/leads', salesOnly, validateQuery(listPaginationQuerySchema), async (req, res) => {
   try {
+    const page = Number(req.query.page) || 1
+    const limit = Number(req.query.limit) || 50
     const filter = { isDeleted: false }
     if (isSalesRep(req.user) && !isSalesHead(req.user)) filter.assignedRep = req.user.name
-    const leads = await CrmLead.find(filter).sort({ createdAt: -1 })
-    res.json({ success: true, data: leads })
+    const total = await CrmLead.countDocuments(filter)
+    const leads = await CrmLead.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+    res.json({ success: true, data: leads, page, limit, total })
   } catch (e) {
     res.status(500).json({ success: false, message: e.message })
   }

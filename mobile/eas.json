@@ -9,7 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.loopcstrategies.com",
+        "EXPO_PUBLIC_API_URL": "https://ops-dashboard-staging-e6c6.up.railway.app",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD": "true"
       }
@@ -24,7 +24,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.loopcstrategies.com",
+        "EXPO_PUBLIC_API_URL": "https://ops-dashboard-staging-e6c6.up.railway.app",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD": "true"
       }
@@ -36,7 +36,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.loopcstrategies.com",
+        "EXPO_PUBLIC_API_URL": "https://ops-dashboard-staging-e6c6.up.railway.app",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD": "true"
       }

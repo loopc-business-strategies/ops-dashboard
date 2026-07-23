@@ -12,6 +12,20 @@ const NATIVE_SHELL_ACCENT = '#374151'
 
 const PORTAL_HOSTS = ['mg.loopcstrategies.com', 'cg.loopcstrategies.com', 'loopc.loopcstrategies.com']
 
+const PROD_API_URL = 'https://api.loopcstrategies.com'
+const easProfile = process.env.EAS_BUILD_PROFILE || ''
+const isProductionProfile = easProfile === 'production'
+const apiUrlFromEnv = process.env.EXPO_PUBLIC_API_URL?.trim() || ''
+
+if (!isProductionProfile && !apiUrlFromEnv) {
+  throw new Error(
+    `EXPO_PUBLIC_API_URL is required for non-production builds` +
+      (easProfile ? ` (EAS profile "${easProfile}")` : ' (set it in .env or eas.json env)'),
+  )
+}
+
+const apiUrl = apiUrlFromEnv || PROD_API_URL
+
 const config: ExpoConfig = {
   name: APP_NAME,
   slug: 'nexa',
@@ -84,7 +98,8 @@ const config: ExpoConfig = {
   },
   extra: {
     tenant: 'loopc',
-    apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://api.loopcstrategies.com',
+    apiUrl,
+    easBuildProfile: easProfile || undefined,
     eas: {
       projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || EAS_PROJECT_ID,
     },

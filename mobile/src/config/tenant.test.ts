@@ -49,9 +49,16 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
     secureStore.sessionToken = null
     secureStore.legacySessionToken = null
     delete process.env.EXPO_PUBLIC_API_URL
+    delete process.env.EAS_BUILD_PROFILE
   })
 
-  it('defaults tenant to loopc and API to production when extra is unset', async () => {
+  it('throws when API URL is missing outside production', async () => {
+    mockState.extra = { tenant: 'loopc' }
+    await expect(import('./tenant')).rejects.toThrow(/Missing API URL/)
+  })
+
+  it('allows production profile fallback to prod API when extra/env unset', async () => {
+    mockState.extra = { tenant: 'loopc', easBuildProfile: 'production' }
     const { getTenant, API_URL } = await import('./tenant')
     expect(getTenant()).toBe('loopc')
     expect(API_URL).toBe('https://api.loopcstrategies.com')
@@ -65,6 +72,7 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
   })
 
   it('setTenant normalizes and validates company codes', async () => {
+    mockState.extra = { apiUrl: 'https://api.example.test' }
     const { setTenant, getTenant } = await import('./tenant')
     expect(setTenant('LOOPC')).toBe('loopc')
     expect(getTenant()).toBe('loopc')
@@ -79,6 +87,7 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
   })
 
   it('decodeTenantFromJwt reads company from JWT payload', async () => {
+    mockState.extra = { apiUrl: 'https://api.example.test' }
     const { decodeTenantFromJwt } = await import('./tenant')
     expect(decodeTenantFromJwt(jwtWithCompany('cg'))).toBe('cg')
     expect(decodeTenantFromJwt(jwtWithCompany('LOOPC'))).toBe('loopc')
@@ -87,6 +96,7 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
   })
 
   it('bootstrapTenantFromStorage prefers JWT company over stored company code', async () => {
+    mockState.extra = { apiUrl: 'https://api.example.test' }
     secureStore.companyCode = 'mg'
     secureStore.sessionToken = jwtWithCompany('cg')
     const { bootstrapTenantFromStorage, getTenant } = await import('./tenant')
@@ -95,6 +105,7 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
   })
 
   it('bootstrapTenantFromStorage falls back to stored company code when JWT has no company', async () => {
+    mockState.extra = { apiUrl: 'https://api.example.test' }
     secureStore.companyCode = 'loopc'
     secureStore.sessionToken = jwtWithCompany('')
     const { bootstrapTenantFromStorage, getTenant } = await import('./tenant')
@@ -103,6 +114,7 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
   })
 
   it('readSessionTokenFromSecureStore migrates legacy session key', async () => {
+    mockState.extra = { apiUrl: 'https://api.example.test' }
     secureStore.legacySessionToken = 'legacy-jwt'
     const { readSessionTokenFromSecureStore } = await import('./tenant')
     await expect(readSessionTokenFromSecureStore()).resolves.toBe('legacy-jwt')
@@ -111,12 +123,14 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
   })
 
   it('syncTenantFromJwt updates active tenant from JWT company', async () => {
+    mockState.extra = { apiUrl: 'https://api.example.test' }
     const { syncTenantFromJwt, getTenant } = await import('./tenant')
     expect(syncTenantFromJwt(jwtWithCompany('cg'))).toBe('cg')
     expect(getTenant()).toBe('cg')
   })
 
   it('resetTenantSession clears stored company code and resets default tenant', async () => {
+    mockState.extra = { apiUrl: 'https://api.example.test' }
     secureStore.companyCode = 'cg'
     const { setTenant, resetTenantSession, getTenant } = await import('./tenant')
     setTenant('cg')

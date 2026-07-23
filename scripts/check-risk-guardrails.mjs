@@ -3,13 +3,23 @@ import fs from 'node:fs'
 const budgets = [
   {
     file: 'frontend/src/components/tabs/ERPTab.jsx',
-    maxLines: 8400,
+    maxLines: 120,
     message: 'ERPTab is already a high-risk component. Extract helpers/hooks instead of adding more bulk.',
   },
   {
     file: 'frontend/src/components/tabs/VoucherTab.jsx',
-    maxLines: 3500,
+    maxLines: 2800,
     message: 'VoucherTab is high-risk. Extract panels/hooks instead of growing the shell.',
+  },
+  {
+    file: 'frontend/src/components/tabs/OperationsTab.jsx',
+    maxLines: 2800,
+    message: 'OperationsTab is high-risk. Extract panels/hooks instead of growing the shell.',
+  },
+  {
+    file: 'frontend/src/components/tabs/ProductionTab.jsx',
+    maxLines: 500,
+    message: 'ProductionTab is high-risk. Keep the shell thin; put panels in production/.',
   },
   {
     file: 'backend/routes/erp-accountingContext.js',

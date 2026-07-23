@@ -30,10 +30,10 @@ Ordered production-safety and maintainability work.
 
 | # | Item | Status |
 |---|------|--------|
-| 7 | **ERPTab.jsx headroom** | **On track** — ~4,282 lines; `DEFAULT_METAL_RATES` extracted |
+| 7 | **ERPTab.jsx headroom** | **Done** — thin shell (~48 lines); CI budget **120** |
 | 8 | **erp-accountingContext.js** | **Done** — ~665 lines; routes in `erp-accounting/*` |
-| 9 | **E2E money paths** | **Partial** — JV E2E stubbed; staging live auth E2E in `staging-e2e.yml` (needs secrets) |
-| 10 | **VoucherTab guardrail** | **Done** — `voucherTabConstants.js` extraction; CI budget 3,500 lines |
+| 9 | **E2E money paths** | **Partial** — JV stub covers balanced POST + unbalanced no-POST; staging live auth E2E still needs secrets |
+| 10 | **VoucherTab guardrail** | **Done** — CI budget ratcheted **3500 → 2800** |
 
 ---
 

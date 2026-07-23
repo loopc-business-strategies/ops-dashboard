@@ -26,6 +26,7 @@ const validateQuery = (schema) => (req, res, next) => {
   const { error, value } = schema.validate(req.query, {
     abortEarly: false,
     stripUnknown: true,
+    convert: true,
   })
 
   if (error) {

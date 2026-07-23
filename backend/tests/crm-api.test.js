@@ -13,6 +13,9 @@ const {
 const createApp = require('../app')
 const User = require('../models/User')
 const CrmContact = require('../models/CrmContact')
+const CrmCompany = require('../models/CrmCompany')
+const CrmDeal = require('../models/CrmDeal')
+const CrmLead = require('../models/CrmLead')
 
 jest.setTimeout(120000)
 
@@ -54,6 +57,9 @@ afterEach(async () => {
   if (!isMongooseConnected(mongoose)) return
   await User.deleteMany({})
   await CrmContact.deleteMany({})
+  await CrmCompany.deleteMany({})
+  await CrmDeal.deleteMany({})
+  await CrmLead.deleteMany({})
 })
 
 afterAll(async () => {
@@ -169,5 +175,78 @@ describe('CRM API access', () => {
 
     expect(authed.status).toBe(200)
     expect(authed.headers['content-type']).toMatch(/pdf/i)
+  })
+
+  test('companies list enriches contact/deal counts with bounded aggregates and pagination', async () => {
+    const head = await createUser({ role: 'department_head', department: 'sales', name: 'Sales Head 5' })
+    const [alpha, beta] = await CrmCompany.create([
+      { name: 'Alpha Co', createdBy: head._id },
+      { name: 'Beta Co', createdBy: head._id },
+    ])
+    await CrmContact.create([
+      { firstName: 'A1', lastName: 'C', companyId: alpha._id, createdBy: head._id },
+      { firstName: 'A2', lastName: 'C', companyId: alpha._id, createdBy: head._id },
+      { firstName: 'B1', lastName: 'C', companyId: beta._id, createdBy: head._id },
+    ])
+    await CrmDeal.create([
+      { name: 'Deal A', companyId: alpha._id, valueUSD: 100, createdBy: head._id },
+      { name: 'Deal B1', companyId: beta._id, valueUSD: 40, createdBy: head._id },
+      { name: 'Deal B2', companyId: beta._id, valueUSD: 60, createdBy: head._id },
+    ])
+
+    const res = await request(app)
+      .get('/api/crm/companies')
+      .query({ page: 1, limit: 50 })
+      .set('Authorization', `Bearer ${tokenFor(head)}`)
+      .set('x-tenant', TEST_TENANT)
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.page).toBe(1)
+    expect(res.body.limit).toBe(50)
+    expect(res.body.total).toBe(2)
+    expect(res.body.data).toHaveLength(2)
+
+    const byName = Object.fromEntries(res.body.data.map((c) => [c.name, c]))
+    expect(byName['Alpha Co'].contactCount).toBe(2)
+    expect(byName['Alpha Co'].dealCount).toBe(1)
+    expect(byName['Alpha Co'].totalValue).toBe(100)
+    expect(byName['Beta Co'].contactCount).toBe(1)
+    expect(byName['Beta Co'].dealCount).toBe(2)
+    expect(byName['Beta Co'].totalValue).toBe(100)
+  })
+
+  test('companies list rejects oversize limit', async () => {
+    const head = await createUser({ role: 'department_head', department: 'sales', name: 'Sales Head 6' })
+    const res = await request(app)
+      .get('/api/crm/companies')
+      .query({ limit: 201 })
+      .set('Authorization', `Bearer ${tokenFor(head)}`)
+      .set('x-tenant', TEST_TENANT)
+
+    expect(res.status).toBe(400)
+    expect(res.body.success).toBe(false)
+  })
+
+  test('leads list supports pagination metadata', async () => {
+    const head = await createUser({ role: 'department_head', department: 'sales', name: 'Sales Head 7' })
+    await CrmLead.create([
+      { name: 'Lead 1', createdBy: head._id },
+      { name: 'Lead 2', createdBy: head._id },
+      { name: 'Lead 3', createdBy: head._id },
+    ])
+
+    const res = await request(app)
+      .get('/api/crm/leads')
+      .query({ page: 1, limit: 2 })
+      .set('Authorization', `Bearer ${tokenFor(head)}`)
+      .set('x-tenant', TEST_TENANT)
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.page).toBe(1)
+    expect(res.body.limit).toBe(2)
+    expect(res.body.total).toBe(3)
+    expect(res.body.data).toHaveLength(2)
   })
 })

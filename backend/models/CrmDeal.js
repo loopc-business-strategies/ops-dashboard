@@ -42,5 +42,6 @@ const crmDealSchema = new mongoose.Schema({
 
 crmDealSchema.index({ stage: 1 })
 crmDealSchema.index({ assignedRep: 1 })
+crmDealSchema.index({ isDeleted: 1, companyId: 1 })
 
 module.exports = createTenantModel('CrmDeal', crmDealSchema)

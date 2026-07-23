@@ -56,5 +56,6 @@ const crmContactSchema = new mongoose.Schema({
 crmContactSchema.index({ email: 1 })
 crmContactSchema.index({ contactType: 1, status: 1 })
 crmContactSchema.index({ assignedRep: 1 })
+crmContactSchema.index({ isDeleted: 1, companyId: 1 })
 
 module.exports = createTenantModel('CrmContact', crmContactSchema)

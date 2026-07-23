@@ -6,10 +6,27 @@ export const COMPANY_CODE_STORAGE_KEY = 'nexa_company_code'
 export const SESSION_TOKEN_KEY = 'nexa_session_token'
 export const LEGACY_SESSION_TOKEN_KEY = 'mg_ops_session_token'
 
-export const API_URL =
-  (Constants.expoConfig?.extra?.apiUrl as string) ||
-  process.env.EXPO_PUBLIC_API_URL ||
-  'https://api.loopcstrategies.com'
+const PROD_API_URL = 'https://api.loopcstrategies.com'
+
+function resolveApiUrl(): string {
+  const fromExtra = String(Constants.expoConfig?.extra?.apiUrl || '').trim()
+  if (fromExtra) return fromExtra
+
+  const fromEnv = String(process.env.EXPO_PUBLIC_API_URL || '').trim()
+  if (fromEnv) return fromEnv
+
+  const easProfile = String(Constants.expoConfig?.extra?.easBuildProfile || process.env.EAS_BUILD_PROFILE || '').trim()
+  const isProductionProfile = easProfile === 'production'
+  // Fail closed outside production: never silently talk to prod API.
+  if (!isProductionProfile) {
+    throw new Error(
+      'Missing API URL: set expo.extra.apiUrl or EXPO_PUBLIC_API_URL for non-production builds',
+    )
+  }
+  return PROD_API_URL
+}
+
+export const API_URL = resolveApiUrl()
 
 const buildDefaultTenant = () =>
   normalizeTenantKey((Constants.expoConfig?.extra?.tenant as string) || '') || 'loopc'

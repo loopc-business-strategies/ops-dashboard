@@ -15,4 +15,6 @@ const crmCompanySchema = new mongoose.Schema({
   isDeleted:  { type: Boolean, default: false },
 }, { timestamps: true })
 
+crmCompanySchema.index({ isDeleted: 1, name: 1 })
+
 module.exports = createTenantModel('CrmCompany', crmCompanySchema)

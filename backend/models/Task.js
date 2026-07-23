@@ -172,4 +172,11 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+taskSchema.index({ createdAt: -1 })
+taskSchema.index({ reminderAt: 1, archivedAt: 1 })
+taskSchema.index({ autoArchiveAt: 1, archivedAt: 1 })
+taskSchema.index({ dueDate: 1, archivedAt: 1, status: 1 })
+taskSchema.index({ assignedToIds: 1, createdAt: -1 })
+taskSchema.index({ assignedToId: 1, createdAt: -1 })
+
 module.exports = createTenantModel('Task', taskSchema)
