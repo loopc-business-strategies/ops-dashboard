@@ -11,7 +11,7 @@ Ordered production-safety and maintainability work.
 | # | Item | Status |
 |---|------|--------|
 | 1 | **Live metal fan-out all tenants** | **Done** — code, HTTP test, prod `verify:live-metal-movement:all` 3/3 |
-| 2 | **Redis multi-instance** | **Done** — shared coordination + Socket.IO Redis adapter (code); Railway prod+staging have `REDIS_URL` + **`REQUIRE_REDIS=true`** (2026-07-23). Staging also has `EMAIL_TOKEN_ENCRYPTION_KEY` for hardened boot. After P1 deploy, `/api/ready` should report `redisRequired` + `socketIoRedisAdapter`. |
+| 2 | **Redis multi-instance** | **Done** — live prod+staging `/api/ready` (commit `9adcb10`): `redisConfigured`, `redisReady`, **`redisRequired`**, **`socketIoRedisAdapter`** all true; Railway `REQUIRE_REDIS=true` + `REDIS_URL`. |
 | 3 | **Mongo backup verification** | **Blocked for strict (2026-07-23)** — `ATLAS_BACKUP_PHASE` remains `deferred` (correct; do not flip). Deferred connectivity drill **green** today (mg/cg/loopc Mongo OK). **Missing everywhere** (GitHub secrets, Railway vars, local `.env`): `ATLAS_PUBLIC_KEY`, `ATLAS_PRIVATE_KEY`, `ATLAS_GROUP_ID_MG`, `ATLAS_GROUP_ID_CG`, `ATLAS_GROUP_ID_LOOPC`. **Operator next:** (1) Atlas Org → Access Manager → create API key; (2) each project MG/CG/LoopC → Settings → copy Project ID; (3) each cluster → Backup → enable M10+ Cloud Backup, retention ≥7d; (4) paste five values to agent or `gh secret set` each; (5) `ATLAS_BACKUP_PHASE=strict npm run check:atlas-strict-readiness` + `npm run drill:atlas-backup-plan -- --strict-backup`; (6) only if green: `gh variable set ATLAS_BACKUP_PHASE --body strict`. Interim: `MONGO_BACKUP_ENABLED=true` weekly mongodump. |
 
 ---
