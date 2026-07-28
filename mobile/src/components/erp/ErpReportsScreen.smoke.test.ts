@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('expo-constants', () => ({
   default: {
-    expoConfig: { extra: {} },
+    expoConfig: { extra: { apiUrl: 'https://example.test' } },
     manifest2: null,
   },
 }))

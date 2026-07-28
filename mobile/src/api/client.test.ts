@@ -6,7 +6,7 @@ vi.mock('expo-constants', () => ({
   default: {
     expoConfig: {
       get extra() {
-        return { ...mockState.extra }
+        return { apiUrl: 'https://example.test', ...mockState.extra }
       },
     },
   },

@@ -15,6 +15,7 @@ const CrmDeal     = require('../models/CrmDeal')
 const CrmActivity = require('../models/CrmActivity')
 const { createDiskUpload, resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
 const { resolveAttachmentContentDisposition } = require('../services/erpAccounting/attachmentDownloadHeaders')
+const { sanitizeFileName } = require('../utils/sanitizeFileName')
 
 const {
   canViewCrm,
@@ -846,11 +847,7 @@ router.post('/contacts/:id/documents', salesEditOnly, (req, res, next) => {
     if (!contact) return res.status(404).json({ success: false, message: 'Contact not found.' })
 
     const relativePath = `/uploads/crm-contacts/${req.file.filename}`
-    const safeName = String(req.file.originalname || 'document')
-      .replace(/[\x00-\x1f\x7f"]/g, '')
-      .replace(/[/\\]/g, '_')
-      .trim()
-      .slice(0, 200) || 'document'
+    const safeName = sanitizeFileName(req.file.originalname, 'document')
     const newDoc = {
       name: safeName,
       status: req.body.status || 'Pending',
@@ -912,7 +909,7 @@ router.get('/contacts/:id/documents/:docId/download', salesOnly, validateParams(
     }
 
     const mime = String(doc.mimeType || '').trim().toLowerCase()
-    const downloadName = String(doc.name || 'document').replace(/[\x00-\x1f\x7f"]/g, '') || 'document'
+    const downloadName = sanitizeFileName(doc.name, 'document')
     if (mime === 'image/svg+xml') {
       res.setHeader('Content-Type', 'application/octet-stream')
       res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)

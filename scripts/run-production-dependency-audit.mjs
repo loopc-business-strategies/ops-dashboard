@@ -12,13 +12,64 @@ const workspaces = [
   { label: 'mobile', cwd: path.join(rootDir, 'mobile') },
 ]
 
+/**
+ * High/critical advisories that do not apply to this codebase.
+ * GHSA-qwww-vcr4-c8h2: RSC Mode CSRF — SPA uses react-router-dom client APIs only, not unstable RSC.
+ * Allowlist until react-router-dom publishes a line that depends on react-router >= 8.3.0.
+ */
+const ALLOWLISTED_ADVISORY_IDS = new Set([
+  'GHSA-qwww-vcr4-c8h2',
+])
+
+function extractAdvisoryId(entry) {
+  if (!entry || typeof entry === 'string') return ''
+  if (typeof entry.url === 'string') {
+    const match = entry.url.match(/GHSA-[\w-]+/i)
+    if (match) return match[0]
+  }
+  if (typeof entry.source === 'string' && /^GHSA-/i.test(entry.source)) return entry.source
+  return ''
+}
+
+function hasBlockingVulnerability(auditJson) {
+  const vulnerabilities = auditJson?.vulnerabilities || {}
+  const blocking = []
+
+  for (const [name, meta] of Object.entries(vulnerabilities)) {
+    const severity = String(meta?.severity || '').toLowerCase()
+    if (severity !== 'high' && severity !== 'critical') continue
+
+    const via = Array.isArray(meta?.via) ? meta.via : []
+    const directAdvisories = via
+      .map((entry) => extractAdvisoryId(entry))
+      .filter(Boolean)
+
+    // Package-only via entries are transitive effects of another advisory.
+    if (!directAdvisories.length) continue
+
+    const nonAllowlisted = directAdvisories.filter((id) => !ALLOWLISTED_ADVISORY_IDS.has(id))
+    if (!nonAllowlisted.length) continue
+
+    blocking.push({
+      name,
+      severity,
+      advisories: [...new Set(nonAllowlisted)],
+    })
+  }
+
+  return blocking
+}
+
 function runAudit({ cwd, advisory = false }) {
-  const args = advisory ? ['audit'] : ['audit', '--omit=dev', '--audit-level=high']
+  const args = advisory
+    ? ['audit', '--json']
+    : ['audit', '--omit=dev', '--json']
 
   return spawnSync('npm', args, {
     cwd,
     encoding: 'utf8',
     shell: process.platform === 'win32',
+    maxBuffer: 20 * 1024 * 1024,
   })
 }
 
@@ -32,12 +83,46 @@ const failures = []
 for (const workspace of workspaces) {
   printSection(`${workspace.label} (${workspace.cwd})`)
   const result = runAudit({ cwd: workspace.cwd, advisory })
+  const stdout = String(result.stdout || '').trim()
+  const stderr = String(result.stderr || '').trim()
 
-  if (result.stdout?.trim()) console.log(result.stdout.trim())
-  if (result.stderr?.trim()) console.error(result.stderr.trim())
+  let auditJson = null
+  if (stdout) {
+    try {
+      auditJson = JSON.parse(stdout)
+    } catch {
+      console.log(stdout)
+    }
+  }
+  if (stderr) console.error(stderr)
 
-  if (result.status !== 0) {
+  if (advisory) {
+    if (auditJson) {
+      const highCritical = Object.entries(auditJson.vulnerabilities || {})
+        .filter(([, meta]) => ['high', 'critical'].includes(String(meta?.severity || '').toLowerCase()))
+      console.log(`Advisory findings (high/critical): ${highCritical.length}`)
+      highCritical.slice(0, 20).forEach(([name, meta]) => {
+        console.log(`- ${name}: ${meta.severity}`)
+      })
+    }
+    continue
+  }
+
+  if (!auditJson) {
+    if (result.status !== 0) failures.push(workspace.label)
+    continue
+  }
+
+  const blocking = hasBlockingVulnerability(auditJson)
+  if (blocking.length) {
+    console.error(`Blocking production vulnerabilities (${blocking.length}):`)
+    blocking.forEach((item) => {
+      const advisoryText = item.advisories.length ? ` [${item.advisories.join(', ')}]` : ''
+      console.error(`- ${item.name}: ${item.severity}${advisoryText}`)
+    })
     failures.push(workspace.label)
+  } else {
+    console.log('No blocking high/critical production vulnerabilities.')
   }
 }
 

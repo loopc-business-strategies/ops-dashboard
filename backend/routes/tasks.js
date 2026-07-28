@@ -38,6 +38,7 @@ const {
 } = require('../utils/taskBodyHelpers')
 const { applyAutomationDerivedFields } = require('../utils/taskRulesHelpers')
 const { createDiskUpload, resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
+const { sanitizeFileName } = require('../utils/sanitizeFileName')
 const { resolveAttachmentContentDisposition } = require('../services/erpAccounting/attachmentDownloadHeaders')
 
 const router = express.Router()
@@ -65,11 +66,7 @@ const taskAttachmentUpload = createDiskUpload({
 })
 
 function sanitizeOriginalName(name, fallback = 'file') {
-  return String(name || fallback)
-    .replace(/[\x00-\x1f\x7f"]/g, '')
-    .replace(/[/\\]/g, '_')
-    .trim()
-    .slice(0, 200) || fallback
+  return sanitizeFileName(name, fallback)
 }
 
 function assigneeIdsSignature(doc) {
