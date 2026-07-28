@@ -259,6 +259,7 @@ router.get('/transactions', protect, validateQuery(transactionListQuerySchema), 
           { 'voucherMeta.vocNo': regex },
           { 'voucherMeta.refNo': regex },
           { 'voucherMeta.lineItems.narration': regex },
+          { 'voucherMeta.lineItems.acCode': regex },
         ]
         const [matchingCustomers, matchingVendors] = await Promise.all([
           Customer ? Customer.find({ name: regex, isActive: { $ne: false } }).select('_id').limit(100).lean() : Promise.resolve([]),

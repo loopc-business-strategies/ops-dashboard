@@ -36,4 +36,30 @@ describe('erpListFilters utilities', () => {
     expect(includesSearchTerm(['REC/2026/0001', 'Shareholder'], 'holder')).toBe(true)
     expect(includesSearchTerm(['REC/2026/0001', 'Shareholder'], 'voucher')).toBe(false)
   })
+
+  test('matches voucher and JV search fields for account, party, and narration', () => {
+    const voucherFields = [
+      'PAY/2026/0012',
+      'VEND-01',
+      'Acme Traders',
+      'Monthly rent',
+      '6100',
+      'INV-XAU',
+    ]
+    expect(includesSearchTerm(voucherFields, 'Acme')).toBe(true)
+    expect(includesSearchTerm(voucherFields, '6100')).toBe(true)
+    expect(includesSearchTerm(voucherFields, 'rent')).toBe(true)
+    expect(includesSearchTerm(voucherFields, 'PAY/2026/0012')).toBe(true)
+    expect(includesSearchTerm(voucherFields, 'missing')).toBe(false)
+
+    const jvFields = [
+      'Jv/2026/0008',
+      'Bank transfer',
+      '101001, 5190',
+      'Bank USD, FX Gain',
+    ]
+    expect(includesSearchTerm(jvFields, 'Bank USD')).toBe(true)
+    expect(includesSearchTerm(jvFields, '5190')).toBe(true)
+    expect(includesSearchTerm(jvFields, 'transfer')).toBe(true)
+  })
 })

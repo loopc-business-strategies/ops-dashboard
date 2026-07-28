@@ -24,7 +24,7 @@ import {
   filterPartyAccounts,
 } from './erp/accountDropdownHelpers'
 import { useVoucherTabAccess } from './voucher/useVoucherTabAccess'
-import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from './erp/erpListFilters'
+import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from './erp/erpListFilters'
 
 export default function VoucherTab({
   token,
@@ -1851,7 +1851,9 @@ export default function VoucherTab({
       meta.partyName,
       meta.narration,
       voucher.description,
-      ...(Array.isArray(meta.lineItems) ? meta.lineItems.flatMap((line) => [line?.narration, line?.exp]) : []),
+      ...(Array.isArray(meta.lineItems)
+        ? meta.lineItems.flatMap((line) => [line?.narration, line?.exp, line?.acCode, line?.stockCode])
+        : []),
     ], voucherSearch)
     if (!searchMatched) return false
     const dateValue = meta.docDate || meta.valueDate || voucher.date
@@ -2050,7 +2052,7 @@ export default function VoucherTab({
           selectedStatus={selectedStatus}
           onSelectedStatusChange={setSelectedStatus}
           voucherSearch={voucherSearch}
-          onVoucherSearchChange={(value) => setVoucherSearch(normalizeFilterSearchTerm(value))}
+          onVoucherSearchChange={setVoucherSearch}
           voucherFilterYear={voucherFilterYear}
           onVoucherFilterYearChange={(value) => setVoucherFilterYear(normalizeFilterYear(value))}
           voucherFilterMonths={voucherFilterMonths}

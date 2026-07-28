@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { canViewErpSubTab } from '../../../utils/erpSubTabPermissions'
 import { startERPRealtimeFeeds } from '../../../utils/realtimeSocket'
 
@@ -114,6 +114,8 @@ export function useErpTabRouter({
   }, [activeTab, token])
 
   const ledgerMonthsKey = Array.isArray(ledgerFilters.months) ? ledgerFilters.months.join(',') : ''
+  const ledgerSearchTerm = String(ledgerFilters.search || '').trim()
+  const ledgerSearchHydratedRef = useRef(false)
 
   useEffect(() => {
     if (!canAccessERP || !token || activeTab !== 'ledger') return
@@ -128,11 +130,26 @@ export function useErpTabRouter({
     ledgerFilters.department,
     ledgerFilters.referenceType,
     ledgerFilters.accountId,
-    ledgerFilters.search,
     ledgerFilters.year,
     ledgerMonthsKey,
     ledgerVoucherTab,
   ])
+
+  useEffect(() => {
+    if (!canAccessERP || !token || activeTab !== 'ledger') {
+      ledgerSearchHydratedRef.current = false
+      return undefined
+    }
+    if (!ledgerSearchHydratedRef.current) {
+      ledgerSearchHydratedRef.current = true
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      loadLedger({ cursor: null, cursorHistory: [] })
+    }, 300)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledgerSearchTerm, activeTab, canAccessERP, token])
 
   useEffect(() => {
     if (!canAccessERP || !token || activeTab !== 'mappings') return

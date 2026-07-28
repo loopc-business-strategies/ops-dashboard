@@ -176,6 +176,16 @@ const summarizeJvLedgerAccountCodes = (entries, side) => {
   return [...codes].sort((a, b) => a.localeCompare(b)).join(', ') || '—'
 }
 
+const summarizeJvLedgerAccountNames = (entries, side) => {
+  const names = new Set()
+  for (const entry of entries || []) {
+    const account = side === 'debit' ? entry?.debitAccountId : entry?.creditAccountId
+    const name = String(account?.accountName || '').trim()
+    if (name) names.add(name)
+  }
+  return [...names].sort((a, b) => a.localeCompare(b)).join(', ') || ''
+}
+
 const sumJvLedgerBaseAmount = (entries = []) =>
   entries.reduce((sum, entry) => sum + Number(entry?.amount || 0) * Number(entry?.exchangeRate ?? 1), 0)
 
@@ -225,6 +235,8 @@ const groupJvLedgerEntries = (entries = [], opts = {}) => {
       narration,
       debitAccounts: summarizeJvLedgerAccountCodes(sorted, 'debit'),
       creditAccounts: summarizeJvLedgerAccountCodes(sorted, 'credit'),
+      debitAccountNames: summarizeJvLedgerAccountNames(sorted, 'debit'),
+      creditAccountNames: summarizeJvLedgerAccountNames(sorted, 'credit'),
       totalBaseAmount: sumJvLedgerBaseAmount(sorted),
       documentCurrencyCode: documentFaceAmount != null ? repCur : '',
       documentFaceAmount,

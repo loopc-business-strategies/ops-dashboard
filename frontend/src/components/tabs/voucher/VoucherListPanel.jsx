@@ -59,15 +59,13 @@ export default function VoucherListPanel({
           <option value="returned">{t('statusReturned')}</option>
           <option value="rejected">{t('statusRejected')}</option>
         </select>
-        {erpAdvancedListFiltersEnabled ? (
-          <input
-            type="text"
-            value={voucherSearch}
-            onChange={(event) => onVoucherSearchChange(event.target.value)}
-            placeholder="Search voucher no, account, party, narration"
-            style={{ ...inputStyle, width: '280px' }}
-          />
-        ) : null}
+        <input
+          type="text"
+          value={voucherSearch}
+          onChange={(event) => onVoucherSearchChange(event.target.value)}
+          placeholder="Search voucher no, account, party, narration"
+          style={{ ...inputStyle, width: '280px' }}
+        />
         <button type="button" style={btn('gray')} onClick={loadVouchers}>↺ Refresh</button>
         {canCreate && (
           <button type="button" style={{ ...btn('primary'), marginLeft: 'auto' }} onClick={() => openCreate()}>+ New</button>

@@ -8,7 +8,7 @@ import {
 } from '../journalVoucherHelpers'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
 import ErpMonthYearFilter from '../ErpMonthYearFilter'
-import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from '../erpListFilters'
+import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from '../erpListFilters'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -84,6 +84,8 @@ export default function ERPLedgerTab({
       voucher.narration,
       voucher.debitAccounts,
       voucher.creditAccounts,
+      voucher.debitAccountNames,
+      voucher.creditAccountNames,
       voucher.autoTxNo,
       voucher.chequeNo,
     ], ledgerFilters.search)
@@ -98,7 +100,7 @@ export default function ERPLedgerTab({
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Voucher</h3>
-            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 280px' }}>
               {Object.entries(JV_MODE_META).map(([mode, meta]) => {
                 const active = ledgerVoucherTab === mode
                 return (
@@ -121,6 +123,20 @@ export default function ERPLedgerTab({
                   </button>
                 )
               })}
+              <input
+                type="text"
+                value={ledgerFilters.search || ''}
+                onChange={(event) => setLedgerFilters((prev) => ({ ...prev, search: event.target.value }))}
+                placeholder="Search voucher no, account, party, narration"
+                style={{ ...modalInputStyle, width: '280px', marginBottom: 0 }}
+              />
+              <button
+                type="button"
+                onClick={() => loadLedger({ cursor: null, cursorHistory: [] })}
+                style={{ padding: '0.45rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem' }}
+              >
+                ↺ Refresh
+              </button>
             </div>
             {isFinance && (
               <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -262,15 +278,6 @@ export default function ERPLedgerTab({
                 <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
               ))}
             </select>
-            {erpAdvancedListFiltersEnabled ? (
-              <input
-                type="text"
-                value={ledgerFilters.search || ''}
-                onChange={(event) => setLedgerFilters((prev) => ({ ...prev, search: normalizeFilterSearchTerm(event.target.value) }))}
-                placeholder="Search voucher no, account, narration"
-                style={modalInputStyle}
-              />
-            ) : null}
             <button
               onClick={() => setLedgerFilters({
                 startDate: '',

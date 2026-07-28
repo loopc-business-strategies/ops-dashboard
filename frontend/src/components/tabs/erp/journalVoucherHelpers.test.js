@@ -113,8 +113,8 @@ describe('journal voucher helpers', () => {
         amount: 91.74,
         exchangeRate: 1,
         currency: 'USD',
-        debitAccountId: { accountCode: '5190' },
-        creditAccountId: { accountCode: '101001' },
+        debitAccountId: { accountCode: '5190', accountName: 'FX Gain' },
+        creditAccountId: { accountCode: '101001', accountName: 'Bank USD' },
       },
       {
         _id: 'a2',
@@ -125,8 +125,8 @@ describe('journal voucher helpers', () => {
         amount: 71488946,
         exchangeRate: 0.000078,
         currency: 'UZS',
-        debitAccountId: { accountCode: '101002' },
-        creditAccountId: { accountCode: '101001' },
+        debitAccountId: { accountCode: '101002', accountName: 'Bank UZS' },
+        creditAccountId: { accountCode: '101001', accountName: 'Bank USD' },
       },
       {
         _id: 'b1',
@@ -137,8 +137,8 @@ describe('journal voucher helpers', () => {
         amount: 10,
         exchangeRate: 1,
         currency: 'USD',
-        debitAccountId: { accountCode: '1000' },
-        creditAccountId: { accountCode: '101001' },
+        debitAccountId: { accountCode: '1000', accountName: 'Cash' },
+        creditAccountId: { accountCode: '101001', accountName: 'Bank USD' },
       },
     ]
 
@@ -148,6 +148,8 @@ describe('journal voucher helpers', () => {
     expect(grouped[0].lineCount).toBe(2)
     expect(grouped[0].debitAccounts).toBe('101002, 5190')
     expect(grouped[0].creditAccounts).toBe('101001')
+    expect(grouped[0].debitAccountNames).toBe('Bank UZS, FX Gain')
+    expect(grouped[0].creditAccountNames).toBe('Bank USD')
     expect(grouped[0].entryIds).toEqual(['a1', 'a2'])
   })
 
