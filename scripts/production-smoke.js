@@ -19,6 +19,8 @@ const SMOKE_VERCEL_PROTECTION_BYPASS = String(
 ).trim()
 const smokeAuthExplicit = String(process.env.SMOKE_REQUIRE_AUTH || '').trim().toLowerCase()
 const SMOKE_REQUIRE_AUTH = smokeAuthExplicit !== 'false'
+const SMOKE_REQUIRE_REPORTS = String(process.env.SMOKE_REQUIRE_REPORTS || '').trim().toLowerCase() === 'true'
+const SMOKE_REQUIRE_REDIS = String(process.env.SMOKE_REQUIRE_REDIS || 'true').trim().toLowerCase() !== 'false'
 
 function vercelProtectionHeaders() {
   if (!SMOKE_VERCEL_PROTECTION_BYPASS) return {}
@@ -96,8 +98,34 @@ async function verifyRailwayReadiness(tenant) {
   if (!response.ok || body.ready !== true) {
     throw new Error(`${RAILWAY_READINESS_URL} returned ${response.status}`)
   }
+
+  const checks = body.checks || {}
+  if (SMOKE_REQUIRE_REDIS) {
+    if (checks.redisRequired !== true) {
+      throw new Error(
+        `${RAILWAY_READINESS_URL} redisRequired=${checks.redisRequired} `
+        + '(expected true — set REQUIRE_REDIS=true or EXPECTED_REPLICAS>1 on the API)',
+      )
+    }
+    if (checks.redisReady !== true) {
+      throw new Error(
+        `${RAILWAY_READINESS_URL} redisReady=${checks.redisReady} `
+        + '(expected true when Redis is required)',
+      )
+    }
+    if (checks.socketIoRedisAdapter !== true) {
+      throw new Error(
+        `${RAILWAY_READINESS_URL} socketIoRedisAdapter=${checks.socketIoRedisAdapter} `
+        + '(expected true for multi-replica Socket.IO fan-out)',
+      )
+    }
+  }
+
   const sha = String(body?.build?.sha || body?.backend?.sha || body?.commit || 'unknown').slice(0, 7)
-  return `${response.status} build=${sha}`
+  const redisDetail = SMOKE_REQUIRE_REDIS
+    ? ` redis=required+ready+adapter`
+    : ''
+  return `${response.status} build=${sha}${redisDetail}`
 }
 
 async function verifyTenantAuthPath(tenant) {
@@ -275,6 +303,13 @@ async function verifyTenantExpenseRegister(tenant) {
 
   const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/reports/expense-register?limit=5`, { headers })
   const body = await response.json().catch(() => ({}))
+
+  // Operational smoke users often lack finance/super_admin reports access.
+  // Soft-skip 403 unless SMOKE_REQUIRE_REPORTS=true (finance/super_admin accounts).
+  if (response.status === 403 && !SMOKE_REQUIRE_REPORTS) {
+    return 'skipped: smoke user lacks reports/accounts (set SMOKE_REQUIRE_REPORTS=true to hard-fail)'
+  }
+
   if (!response.ok || body.success !== true) {
     throw new Error(`expense-register returned ${response.status}: ${body.message || 'unexpected response'}`)
   }
@@ -293,6 +328,8 @@ async function run() {
     console.log(`Vercel preview bypass: ${SMOKE_VERCEL_PROTECTION_BYPASS ? 'configured' : 'missing'}`)
   }
   console.log(`ERP auth required: ${SMOKE_REQUIRE_AUTH ? 'yes' : 'no'}`)
+  console.log(`Redis required on /api/ready: ${SMOKE_REQUIRE_REDIS ? 'yes' : 'no'}`)
+  console.log(`Reports probe hard-fail: ${SMOKE_REQUIRE_REPORTS ? 'yes' : 'no (403 soft-skip)'}`)
 
   assertSmokeAuthConfigured()
 

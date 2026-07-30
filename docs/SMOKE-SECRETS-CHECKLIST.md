@@ -14,9 +14,11 @@ Configure under **Settings → Secrets and variables → Actions**:
 | `SMOKE_AUTH_PASSWORD` | Shared login password |
 | `SMOKE_AUTH_NAME_MG` / `SMOKE_AUTH_PASSWORD_MG` | Per-tenant overrides (optional) |
 | `SMOKE_AUTH_NAME_CG` / `SMOKE_AUTH_PASSWORD_CG` | Per-tenant overrides (optional) |
-| `SMOKE_AUTH_NAME_LOOPC` / `SMOKE_AUTH_PASSWORD_LOOPC` | Per-tenant overrides (optional) |
+| `SMOKE_AUTH_NAME_LOOPC` / `SMOKE_AUTH_PASSWORD_LOOPC` | Per-tenant overrides (optional; must be a valid LoopC login) |
 | `SMOKE_AUTH_TOKEN` | Bearer token alternative to password login |
 | `SMOKE_SESSION_COOKIE` | Session cookie alternative |
+
+Authenticated probes use transactions + metal-rates (operational access). The expense-register probe needs **finance department head** or **`super_admin`**; without that, leave `SMOKE_REQUIRE_REPORTS` unset so 403 soft-skips.
 
 ## GitHub repository variables (optional)
 
@@ -26,6 +28,8 @@ Configure under **Settings → Secrets and variables → Actions**:
 | `SMOKE_API_BASE` | `https://api.loopcstrategies.com` | API origin |
 | `SMOKE_WAIT_SECONDS` | `180` | Delay before smoke after CI |
 | `SMOKE_REQUIRE_AUTH` | `true` | Set `false` to skip authenticated ERP probe |
+| `SMOKE_REQUIRE_REDIS` | `true` | Assert `/api/ready` has `redisRequired`, `redisReady`, and `socketIoRedisAdapter` |
+| `SMOKE_REQUIRE_REPORTS` | `false` | When `true`, expense-register must succeed (needs finance/`super_admin` smoke users). When unset/false, **403** is a soft skip |
 
 ## Verification steps
 
