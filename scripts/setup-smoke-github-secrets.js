@@ -110,6 +110,19 @@ function runGh(args, input) {
   return result.stdout.trim()
 }
 
+function applySmokeUserAccess(user) {
+  user.role = 'management'
+  user.department = 'management'
+  // Frontend ERP tabs require module access; matrix alone is not enough for the UI.
+  const modules = Array.isArray(user.allowedModules) ? user.allowedModules.map(String) : []
+  if (!modules.includes('erp')) modules.push('erp')
+  user.allowedModules = modules
+  user.modulePermissions = {
+    ...(user.modulePermissions && typeof user.modulePermissions === 'object' ? user.modulePermissions : {}),
+    erp: { on: true, subs: {} },
+  }
+}
+
 async function reactivateSmokeUser(tenant) {
   const userName = smokeAuthNameForTenant(tenant)
   await connectTenant(tenant)
@@ -124,8 +137,7 @@ async function reactivateSmokeUser(tenant) {
   user.deletedBy = null
   user.deletedByName = ''
   user.deletionReason = ''
-  user.role = 'management'
-  user.department = 'management'
+  applySmokeUserAccess(user)
   await user.save()
   return { tenant, userName, action: 'reactivated', id: String(user._id) }
 }
@@ -144,6 +156,8 @@ async function upsertSmokeUser(tenant, password) {
       password,
       role: 'management',
       department: 'management',
+      allowedModules: ['erp'],
+      modulePermissions: { erp: { on: true, subs: {} } },
       isActive: true,
       notes: isStaging
         ? 'Automated staging smoke probe (read-only ERP access).'
@@ -153,8 +167,7 @@ async function upsertSmokeUser(tenant, password) {
   }
 
   user.password = password
-  user.role = 'management'
-  user.department = 'management'
+  applySmokeUserAccess(user)
   user.isActive = true
   user.isDeleted = false
   user.deletedAt = null
