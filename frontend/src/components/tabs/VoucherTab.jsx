@@ -1333,8 +1333,6 @@ export default function VoucherTab({
 
   const {
     openAddLine,
-    openEditLine,
-    deleteLine,
     handleAddLineClick,
     handleEditLineClick,
     handleDeleteLineClick,
