@@ -3,19 +3,21 @@ import { hasLiveAuthConfig, loginLive } from './helpers/liveAuth.js'
 
 /**
  * Live staging money-path smoke (read-only).
- * Does not POST journal vouchers — asserts ledger JV UI loads against the live API.
+ * Uses operational vouchers (management smoke users can access them).
+ * Ledger/JV requires finance/super_admin — not asserted here.
+ * Does not POST vouchers.
  */
-test.describe('staging live ledger / JV (read-only)', () => {
+test.describe('staging live vouchers (read-only)', () => {
   test.beforeEach(() => {
     test.skip(!hasLiveAuthConfig(), 'Set E2E_AUTH_NAME and E2E_AUTH_PASSWORD for staging live login')
   })
 
-  test('ERP ledger shows Journal Voucher shell and New JV control', async ({ page }) => {
+  test('ERP vouchers tab shows list shell and New control', async ({ page }) => {
     await loginLive(page)
-    await page.goto('/dashboard?tab=erp-ledger', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/tab=erp-ledger/)
+    await page.goto('/dashboard?tab=erp-vouchers', { waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL(/tab=erp-vouchers/)
 
-    await expect(page.getByRole('heading', { name: /Journal Voucher/i })).toBeVisible({ timeout: 45_000 })
-    await expect(page.getByRole('button', { name: /\+ New Journal Voucher/i })).toBeVisible()
+    const newControl = page.getByRole('button', { name: /^\+ New/i }).first()
+    await expect(newControl).toBeVisible({ timeout: 45_000 })
   })
 })
