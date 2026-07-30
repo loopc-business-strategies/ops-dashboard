@@ -9,6 +9,9 @@ import { fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHead
 import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
 import { useVoucherLineAutoCalc } from './voucher/useVoucherLineAutoCalc'
 import { useVoucherLineForm } from './voucher/useVoucherLineForm'
+import { useVoucherOpenEdit } from './voucher/useVoucherOpenEdit'
+import { useVoucherToolbarNav } from './voucher/useVoucherToolbarNav'
+import { useVoucherSave } from './voucher/useVoucherSave'
 import { runVoucherWorkflowAction } from './voucher/voucherErpApi'
 import { BASE } from '../../api/erp-accounting/client'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
@@ -619,71 +622,6 @@ export default function VoucherTab({
     return ''
   }
 
-  // ─── open create ────────────────────────────────────────────────────────────
-  const openCreate = async (freshList, forcedType = voucherType) => {
-    // If already filling a new form, ask before discarding
-    if (mode === 'create' && !editingId) {
-      const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
-      if (hasData && !window.confirm('Discard current unsaved form and open a new one?')) return
-      // Don’t overwrite lastViewedIdRef — it already points to the voucher before the first New
-    } else {
-      // Only update the back-reference when coming from a real saved voucher
-      if (editingId) lastViewedIdRef.current = editingId
-    }
-    const baseHeader = emptyHeader()
-    const serverVocNo = await fetchServerNextVocNo(forcedType, baseHeader.docDate)
-    const nextHeader = {
-      ...baseHeader,
-      vocNo: serverVocNo || resolveNextVocNo(freshList, forcedType, baseHeader.docDate),
-    }
-    setEditingId(null)
-    setHeader(nextHeader)
-    setSelectedPartyId('')
-    setRecentPartyVouchers([])
-    setLineItems([])
-    setShowLineForm(false)
-    setMenuTab('header')
-    setWorkflowNote('')
-    setModalOffset({ x: 0, y: 0 })
-    setModalDrag(null)
-    setError('')
-    setMode('create')
-    initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, [], '')
-  }
-
-  // ─── open last voucher for a type, or blank form if none exist ───────────────
-  const openLastOrCreate = async (type) => {
-    try {
-      const res = await voucherErpApi.getTransactions(token, { type, limit: 200 })
-      const txs = sortVouchers(
-        (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
-        type
-      )
-      setVouchers(txs)
-      if (txs.length > 0) {
-        openVoucher(txs[txs.length - 1])
-      } else {
-        openCreate(txs, type)
-      }
-    } catch {
-      openCreate(undefined, type)
-    }
-  }
-
-  const switchVoucherTab = async (type) => {
-    if (!isVoucherTypeEnabled(tenantKey, type)) return
-    if (type === voucherType && mode === 'list') {
-      await loadVouchers()
-      return
-    }
-    if (mode === 'create' && !editingId) {
-      const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
-      if (hasData && !window.confirm('Discard current unsaved form and switch voucher type?')) return
-    }
-    setVoucherType(type)
-    await openLastOrCreate(type)
-  }
-
   const handleModalHeaderMouseDown = (e) => {
     if ((mode !== 'create' && mode !== 'view') || e.button !== 0) return
     if (e.target instanceof Element && e.target.closest('button')) return
@@ -709,267 +647,92 @@ export default function VoucherTab({
     setMode('list')
   }
 
-  // ─── ERP toolbar navigation & delete ─────────────────────────────────────────
-  const navFirst = () => {
-    if (!vouchers.length) {
-      setError('No vouchers available for this voucher type')
-      return
-    }
-    openVoucher(vouchers[0])
-  }
-  const navPrev = () => {
-    if (!vouchers.length) {
-      setError('No vouchers available for this voucher type')
-      return
-    }
-    const idx = vouchers.findIndex(v => v._id === editingId)
-    if (idx === -1) {
-      openVoucher(vouchers[vouchers.length - 1])
-      return
-    }
-    if (idx > 0) {
-      openVoucher(vouchers[idx - 1])
-      return
-    }
-    showMsg('Already at first voucher')
-  }
-  const navNext = () => {
-    if (!vouchers.length) {
-      setError('No vouchers available for this voucher type')
-      return
-    }
-    const idx = vouchers.findIndex(v => v._id === editingId)
-    if (idx === -1) {
-      openVoucher(vouchers[0])
-      return
-    }
-    if (idx >= 0 && idx < vouchers.length - 1) {
-      openVoucher(vouchers[idx + 1])
-      return
-    }
-    showMsg('Already at last voucher')
-  }
-  const navLast = () => {
-    if (!vouchers.length) {
-      setError('No vouchers available for this voucher type')
-      return
-    }
-    openVoucher(vouchers[vouchers.length - 1])
-  }
+  const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
+  const currentVoucherStatus = currentVoucher?.status || 'draft'
 
-  const handleEditUnlock = () => {
-    if (isReadOnly) {
-      setError('You have read-only access')
-      return
-    }
-    if (!editingId) {
-      if (mode !== 'create') {
-        setError('Open a voucher first, then click Edit')
-      } else {
-        showMsg('Already in EDIT mode')
-      }
-      return
-    }
-    if (currentVoucherStatus === 'posted') {
-      if (!window.confirm('Editing a posted voucher will reverse its ledger entries and reset it to Draft status. Proceed?')) return
-    }
-    setMode('create')
-    clearError()
-    showMsg('Mode: EDIT')
-  }
+  const {
+    openVoucher,
+    openCreate,
+    switchVoucherTab,
+  } = useVoucherOpenEdit({
+    mode,
+    editingId,
+    header,
+    lineItems,
+    voucherType,
+    tenantKey,
+    lastViewedIdRef,
+    buildFormSnapshot,
+    fetchServerNextVocNo,
+    resolveNextVocNo,
+    sortVouchers,
+    voucherErpApi,
+    token,
+    setEditingId,
+    setHeader,
+    setSelectedPartyId,
+    setRecentPartyVouchers,
+    setLineItems,
+    setShowLineForm,
+    setMenuTab,
+    setWorkflowNote,
+    setModalOffset,
+    setModalDrag,
+    setError,
+    setMode,
+    setVouchers,
+    setVoucherType,
+    loadVouchers,
+    resolveVoucherParty,
+    findPartyOptionByCode,
+    initialFormSnapshotRef,
+  })
 
-  const handleCancelChanges = () => {
-    if (mode === 'create') {
-      if (window.confirm('Discard unsaved changes?')) {
-        // If editing an existing voucher, revert to it
-        if (editingId) {
-          const existing = vouchers.find((v) => v._id === editingId)
-          if (existing) {
-            openVoucher(existing)
-            showMsg('Changes discarded')
-            return
-          }
-        }
-        // New blank form — go back to last viewed voucher if available
-        const prev = lastViewedIdRef.current
-          ? vouchers.find(v => v._id === lastViewedIdRef.current)
-          : null
-        if (prev) {
-          openVoucher(prev)
-          showMsg('Cancelled — returned to last entry')
-        } else if (vouchers.length > 0) {
-          openVoucher(vouchers[vouchers.length - 1])
-          showMsg('Cancelled — returned to last entry')
-        } else {
-          setMode('list')
-        }
-      }
-      return
-    }
-    setMode('list')
-  }
-
-  const handleSearchFind = () => {
-    const term = window.prompt('Search vouchers by voucher number, party code/name, or date (YYYY-MM-DD):', '')
-    if (term === null) return
-    const q = String(term || '').trim().toLowerCase()
-    if (!q) {
-      showMsg('Search cleared')
-      return
-    }
-
-    const match = vouchers.find((v) => {
-      const m = v.voucherMeta || {}
-      const vocNo = String(m.vocNo || '').toLowerCase()
-      const partyCode = String(m.partyCode || '').toLowerCase()
-      const partyName = String(m.partyName || '').toLowerCase()
-      const dt = String(v.date || '').slice(0, 10).toLowerCase()
-      return vocNo.includes(q) || partyCode.includes(q) || partyName.includes(q) || dt.includes(q)
-    })
-
-    if (match) {
-      openVoucher(match)
-      showMsg(`Found voucher #${match.voucherMeta?.vocNo || '-'}`)
-      return
-    }
-
-    setError('No voucher matched your search')
-  }
-
-  const handleBarcodeAction = () => {
-    const activeLine = lineItems.find((line) => String(line.stockCode || '').trim())
-    const stockCode = activeLine?.stockCode || 'N/A'
-    const voucherNo = header.vocNo || 'NEW'
-    alert(`Voucher: ${voucherNo}\nStock Barcode Ref: ${stockCode}`)
-  }
-
-  const handleExitVoucherForm = () => {
-    setMode('list')
-    showMsg('Closed voucher form')
-  }
-
-  const handleDeleteVoucher = async () => {
-    if (isReadOnly) {
-      setError('You have read-only access')
-      return
-    }
-
-    if (!editingId && mode === 'create') {
-      const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
-      if (!hasData) {
-        showMsg('Nothing to delete')
-        return
-      }
-      if (!window.confirm('Clear this unsaved voucher entry?')) return
-      const cleared = emptyHeader()
-      const serverVocNo = await fetchServerNextVocNo(voucherType, cleared.docDate)
-      setHeader({ ...cleared, vocNo: serverVocNo || resolveNextVocNo(undefined, voucherType, cleared.docDate) })
-      setSelectedPartyId('')
-      setRecentPartyVouchers([])
-      setLineItems([])
-      setShowLineForm(false)
-      setEditingLineIdx(null)
-      setWorkflowNote('')
-      clearError()
-      showMsg('Unsaved voucher cleared')
-      return
-    }
-
-    if (!editingId) {
-      setError('No saved voucher selected to delete')
-      return
-    }
-
-    if (currentVoucherStatus === 'posted') {
-      setError('Posted vouchers cannot be deleted because they already affect ledger and stock')
-      return
-    }
-
-    if (!window.confirm(`Delete voucher #${header.vocNo}? This cannot be undone.`)) return
-    try {
-      const deletedId = editingId
-      const deletedIdx = vouchers.findIndex(v => v._id === deletedId)
-      await voucherErpApi.deleteTransaction(token, deletedId)
-      showMsg('Voucher deleted')
-      await loadVouchers()
-      const res = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
-      const remaining = sortVouchers(
-        (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
-        voucherType
-      )
-      setVouchers(remaining)
-      if (remaining.length === 0) {
-        // No vouchers left — open a blank new form
-        openCreate()
-      } else {
-        // Try to open the next record (same index), else the one before it
-        const nextIdx = Math.min(deletedIdx, remaining.length - 1)
-        openVoucher(remaining[Math.max(nextIdx, 0)])
-      }
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete voucher')
-    }
-  }
-
-  // ─── open view/edit ──────────────────────────────────────────────────────────
-  const openVoucher = (v) => {
-    const m = v.voucherMeta || {}
-    const resolvedParty = resolveVoucherParty(m.partyCode || '')
-    const voucherCurrency = String(v.currency || 'USD').trim().toUpperCase()
-    const isAedVoucher = voucherCurrency === 'AED'
-    const voucherKind = String(v?.type || voucherType || '').trim().toLowerCase()
-    const isReceiptPaymentVoucher = voucherKind === 'receipt' || voucherKind === 'payment'
-    const headerRateSource = m.currRateSource || m.rateMeta?.headerRateSource || 'manual'
-    const loadedRate = parseFloat(v.exchangeRate)
-    const normalizedHeaderRate = backendRateToDisplayRate(loadedRate, voucherCurrency, isReceiptPaymentVoucher)
-    const nextHeader = {
-      branch: m.branch || '',
-      partyCode: m.partyCode || '',
-      partyName: m.partyName || '',
-      currCode: voucherCurrency,
-      currRate: normalizedHeaderRate.toFixed(6),
-      currRateSource: isAedVoucher ? 'fixed_aed' : headerRateSource,
-      vocDate: v.date ? v.date.slice(0, 10) : today(),
-      vocNo: coerceVoucherDocNo(voucherKind, m.vocNo, m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today())),
-      salesman: m.salesman || '',
-      docDate: m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
-      valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
-      fixingType: normalizeVoucherFixingType(m.fixingType),
-    }
-    let nextPartyId = m.partyAccountId
-      ? `account:${String(m.partyAccountId)}`
-      : ''
-    const cid = v.customerId && (typeof v.customerId === 'object' && v.customerId._id ? v.customerId._id : v.customerId)
-    const vid = v.vendorId && (typeof v.vendorId === 'object' && v.vendorId._id ? v.vendorId._id : v.vendorId)
-    if (!nextPartyId && cid) nextPartyId = `customer:${String(cid)}`
-    if (!nextPartyId && vid) nextPartyId = `vendor:${String(vid)}`
-    if (!nextPartyId) nextPartyId = resolvedParty?.partyId || findPartyOptionByCode(m.partyCode || '')?.id || ''
-    const nextLineItems = (m.lineItems || []).map((line) => {
-      const lineCurrency = String(line?.currCode || voucherCurrency || 'USD').trim().toUpperCase()
-      const lineRateSource = line?.currRateSource || 'manual'
-      const lineRate = parseFloat(line?.currRate)
-      const normalizedLineRate = backendRateToDisplayRate(lineRate, lineCurrency, isReceiptPaymentVoucher)
-      return {
-        ...line,
-        inventoryItemId: line.inventoryItemId ? String(line.inventoryItemId._id || line.inventoryItemId) : '',
-        type: normalizeLineType(line.type),
-        currCode: lineCurrency,
-        currRate: normalizedLineRate.toFixed(6),
-        currRateSource: (lineCurrency === 'AED' && isReceiptPaymentVoucher) ? 'fixed_aed' : lineRateSource,
-      }
-    })
-    setEditingId(v._id)
-    setHeader(nextHeader)
-    setSelectedPartyId(nextPartyId)
-    setLineItems(nextLineItems)
-    setShowLineForm(false)
-    setMenuTab('header')
-    setWorkflowNote('')
-    setError('')
-    setMode('view')
-    initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, nextLineItems, nextPartyId)
-  }
   openVoucherRef.current = openVoucher
+
+  const {
+    navFirst,
+    navPrev,
+    navNext,
+    navLast,
+    handleEditUnlock,
+    handleCancelChanges,
+    handleSearchFind,
+    handleBarcodeAction,
+    handleExitVoucherForm,
+    handleDeleteVoucher,
+  } = useVoucherToolbarNav({
+    vouchers,
+    editingId,
+    mode,
+    header,
+    lineItems,
+    voucherType,
+    isReadOnly,
+    currentVoucherStatus,
+    lastViewedIdRef,
+    openVoucher,
+    openCreate,
+    fetchServerNextVocNo,
+    resolveNextVocNo,
+    sortVouchers,
+    voucherErpApi,
+    token,
+    loadVouchers,
+    setError,
+    clearError,
+    showMsg,
+    setMode,
+    setHeader,
+    setSelectedPartyId,
+    setRecentPartyVouchers,
+    setLineItems,
+    setShowLineForm,
+    setEditingLineIdx,
+    setWorkflowNote,
+    setVouchers,
+  })
+
 
   useVoucherPendingOpen({
     pendingOpenTransactionId,
@@ -1167,169 +930,38 @@ export default function VoucherTab({
     }
   }
 
-  // ─── save voucher ────────────────────────────────────────────────────────────
-  const saveVoucher = async () => {
-    clearError()
-
-    if (formReadOnly) {
-      setError('Click Edit to unlock the voucher before saving changes')
-      return
-    }
-
-    let effectiveLineItems = [...lineItems]
-    if (showLineForm) {
-      const hasLineAmount = isSimpleMetalSave
-        ? hasMetalTransferLineQuantity(lineForm)
-        : Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
-      if ((!isMetalVoucher && !lineForm.acCode.trim()) || !hasLineAmount) {
-        setError(isSimpleMetalSave
-          ? 'Complete stock/weight details and click Save Line, or cancel the open line before saving voucher'
-          : 'Complete line details and click Save Line, or cancel the open line before saving voucher')
-        return
-      }
-      const draftLine = {
-        ...lineForm,
-        type: normalizeLineType(lineForm.type),
-        amountLC: isSimpleMetalSave ? '' : (lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || ''),
-        amountWithVAT: isSimpleMetalSave ? '' : (lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC),
-      }
-      if (editingLineIdx !== null) {
-        effectiveLineItems = effectiveLineItems.map((l, i) => (i === editingLineIdx ? draftLine : l))
-      } else {
-        effectiveLineItems.push(draftLine)
-      }
-      setLineItems(effectiveLineItems)
-      setShowLineForm(false)
-      setEditingLineIdx(null)
-    }
-
-    if (!header.partyCode.trim()) { setError('Party Code is required'); return }
-    if (!effectiveLineItems.length) { setError('Add at least one line item'); return }
-    const resolvedParty = resolveVoucherParty(header.partyCode)
-    const selectedAccount = findPartyOptionByCode(header.partyCode)
-    if (!resolvedParty && !selectedAccount) {
-      setError('Party must match a customer, vendor, or chart account')
-      return
-    }
-
-    const partyLedgerIdFromResolved = () => {
-      if (!resolvedParty) return ''
-      if (resolvedParty.partyType === 'customer' && resolvedParty.customerId) {
-        const c = customers.find((x) => String(x._id) === String(resolvedParty.customerId))
-        return c?.ledgerAccountId?._id ? String(c.ledgerAccountId._id) : ''
-      }
-      if (resolvedParty.partyType === 'vendor' && resolvedParty.vendorId) {
-        const vRow = vendors.find((x) => String(x._id) === String(resolvedParty.vendorId))
-        return vRow?.ledgerAccountId?._id ? String(vRow.ledgerAccountId._id) : ''
-      }
-      return ''
-    }
-    const normalizedVoucherType = String(voucherType || '').toLowerCase()
-    const resolvedDocNo = coerceVoucherDocNo(normalizedVoucherType, header.vocNo, header.docDate)
-    const isSimpleMetalSave = isMetalTransferVoucherType(normalizedVoucherType)
-    const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode || 'USD').trim().toUpperCase()
-    const isReceiptPayment = ['receipt', 'payment'].includes(normalizedVoucherType)
-    const backendHeaderRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency, isReceiptPayment)
-    const requiresReferenceRate = isReceiptPayment && normalizedHeaderCurrency !== String(baseCurrencyCode || 'USD').trim().toUpperCase()
-    if (requiresReferenceRate && (!Number.isFinite(backendHeaderRate) || backendHeaderRate <= 0)) {
-      setError(`Reference exchange rate is required for ${normalizedVoucherType} transactions in ${normalizedHeaderCurrency}`)
-      return
-    }
-
-    const receiptPaymentDocTotal = isReceiptPayment
-      ? effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountFC) || 0), 0)
-      : 0
-    const resolvedDocAmount = isSimpleMetalSave
-      ? 0.01
-      : isReceiptPayment && receiptPaymentDocTotal > 0
-        ? receiptPaymentDocTotal
-        : (totals.grandTotal || 0.01)
-
-    const payload = {
-      type: voucherType,
-      amount: resolvedDocAmount,
-      date: isSimpleMetalSave ? (header.docDate || header.valueDate || header.vocDate) : (header.valueDate || header.vocDate),
-      description: `${voucherType} voucher ${resolvedDocNo || ''}`.trim(),
-      currency: isReceiptPayment ? normalizedHeaderCurrency : baseCurrencyCode,
-      exchangeRate: isReceiptPayment ? backendHeaderRate : 1,
-      customerId: resolvedParty?.customerId || undefined,
-      vendorId: resolvedParty?.vendorId || undefined,
-      voucherMeta: {
-        partyCode: header.partyCode,
-        partyName: header.partyName || resolvedParty?.partyName || '',
-        partyAccountId: selectedAccount?.accountId || partyLedgerIdFromResolved() || '',
-        salesman: header.salesman,
-        vocNo: resolvedDocNo,
-        docDate: header.docDate || null,
-        valueDate: isSimpleMetalSave ? (header.docDate || header.valueDate || null) : (header.valueDate || null),
-        currRateSource: header.currRateSource || 'manual',
-        rateMeta: {
-          headerRateSource: header.currRateSource || 'manual',
-          goldPrice: Number(latestMetalRates.goldPrice || 0),
-          goldPriceCurrency: String(latestMetalRates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
-          goldPriceUpdatedAt: latestMetalRates.updatedAt || null,
-        },
-        ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
-        ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
-        lineItems: effectiveLineItems.map((l) => ({
-          ...l,
-          inventoryItemId: normalizeMongoIdField(l.inventoryItemId),
-          currRateSource: l.currRateSource || 'manual',
-          amountFC: parseFloat(l.amountFC) || 0,
-          amountLC: parseFloat(l.amountLC) || 0,
-          headerAmt: parseFloat(l.headerAmt) || 0,
-          currRate: displayRateToBackendRate(l.currRate, l.currCode || header.currCode, isReceiptPayment),
-          ...(l.referenceRate ? { referenceRate: displayRateToBackendRate(l.referenceRate, l.currCode || header.currCode, isReceiptPayment) } : {}),
-          vatPer: parseFloat(l.vatPer) || 0,
-          vatAmountFC: parseFloat(l.vatAmountFC) || 0,
-          vatAmountLC: parseFloat(l.vatAmountLC) || 0,
-          amountWithVAT: parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0,
-          headerAmountWithVAT: parseFloat(l.headerAmountWithVAT) || 0,
-        })),
-      },
-      ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave
-        ? { metalFixStatus: normalizeVoucherFixingType(header.fixingType) === 'non-fixing' ? 'unfixed' : 'fixed' }
-        : {}),
-    }
-    const payloadLineTotal = isReceiptPayment && receiptPaymentDocTotal > 0
-      ? receiptPaymentDocTotal
-      : effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0)
-    payload.amount = isSimpleMetalSave ? 0.01 : (payloadLineTotal || 0.01)
-    setSaving(true)
-    try {
-      let savedId = editingId
-      if (editingId) {
-        await voucherErpApi.updateTransaction(token, editingId, payload)
-        showMsg('Voucher updated successfully')
-      } else {
-        const res = await voucherErpApi.createTransaction(token, payload)
-        savedId = res?.transaction?._id || null
-        showMsg('Voucher saved successfully')
-      }
-      await loadVouchers()
-      const res2 = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
-      const refreshed = sortVouchers(
-        (res2.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
-        voucherType
-      )
-      setVouchers(refreshed)
-      // Open the voucher that was just saved/updated
-      const toOpen = savedId
-        ? refreshed.find(t => t._id === savedId)
-        : refreshed[refreshed.length - 1]
-      if (toOpen) {
-        openVoucher(toOpen)
-      } else if (refreshed.length > 0) {
-        openVoucher(refreshed[refreshed.length - 1])
-      } else {
-        setMode('list')
-      }
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save voucher')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const { saveVoucher } = useVoucherSave({
+    formReadOnly,
+    lineItems,
+    showLineForm,
+    lineForm,
+    editingLineIdx,
+    header,
+    voucherType,
+    isMetalVoucher,
+    baseCurrencyCode,
+    customers,
+    vendors,
+    latestMetalRates,
+    totals,
+    editingId,
+    token,
+    voucherErpApi,
+    sortVouchers,
+    loadVouchers,
+    openVoucher,
+    resolveVoucherParty,
+    findPartyOptionByCode,
+    setError,
+    clearError,
+    showMsg,
+    setLineItems,
+    setShowLineForm,
+    setEditingLineIdx,
+    setSaving,
+    setVouchers,
+    setMode,
+  })
 
   const {
     openAddLine,
@@ -1482,8 +1114,6 @@ export default function VoucherTab({
     voucherFilterYear,
     voucherFilterMonths,
   ])
-  const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
-  const currentVoucherStatus = currentVoucher?.status || 'draft'
   const canDeleteCurrentVoucher = Boolean(editingId) && !isReadOnly && currentVoucherStatus !== 'posted'
   const canSubmitWorkflow = Boolean(editingId) && !isReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
   const canApproveWorkflow = Boolean(editingId) && canManageWorkflow && currentVoucherStatus === 'submitted'
