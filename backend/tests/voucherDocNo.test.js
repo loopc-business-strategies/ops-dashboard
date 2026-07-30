@@ -38,4 +38,34 @@ describe('voucherDocNo', () => {
       docDate: '2026-05-26T00:00:00.000Z',
     })
   })
+
+  test('allocateNextVoucherDocNo picks max seq + 1 for type/year', async () => {
+    const { allocateNextVoucherDocNo } = require('../utils/voucherDocNo')
+    const TransactionModel = {
+      find: () => ({
+        select: () => ({
+          limit: () => ({
+            lean: async () => ([
+              { voucherMeta: { vocNo: 'Pay/2026/0003' } },
+              { voucherMeta: { vocNo: 'Pay/2026/0010' } },
+              { voucherMeta: { vocNo: 'Pay/2025/0099' } },
+            ]),
+          }),
+        }),
+      }),
+    }
+    await expect(allocateNextVoucherDocNo(TransactionModel, 'payment', '2026-07-30')).resolves.toBe('Pay/2026/0011')
+  })
+
+  test('voucherDocNoExists returns true when an active row matches', async () => {
+    const { voucherDocNoExists } = require('../utils/voucherDocNo')
+    const TransactionModel = {
+      findOne: () => ({
+        select: () => ({
+          lean: async () => ({ _id: 'abc' }),
+        }),
+      }),
+    }
+    await expect(voucherDocNoExists(TransactionModel, 'Pay/2026/0011')).resolves.toBe(true)
+  })
 })

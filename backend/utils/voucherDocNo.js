@@ -9,6 +9,8 @@ const DOC_PREFIX_BY_TYPE = {
 
 const VOUCHER_DOC_TYPES = Object.keys(DOC_PREFIX_BY_TYPE)
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 const getDocYear = (dateValue) => {
   const dt = new Date(dateValue || Date.now())
   const year = Number.isFinite(dt.getTime()) ? dt.getFullYear() : new Date().getFullYear()
@@ -102,6 +104,49 @@ const normalizeVoucherMetaDocNo = (voucherType, voucherMeta) => {
   return { ...voucherMeta, vocNo }
 }
 
+/**
+ * Allocate the next voucher doc number for a type/year from active Transaction rows.
+ * @param {import('mongoose').Model} TransactionModel
+ * @param {string} voucherType
+ * @param {string|Date|null} docDate
+ */
+async function allocateNextVoucherDocNo(TransactionModel, voucherType, docDate = null) {
+  const type = String(voucherType || '').toLowerCase()
+  const prefix = DOC_PREFIX_BY_TYPE[type]
+  if (!prefix || !TransactionModel) {
+    return buildVoucherDocNo(type || 'payment', docDate, 1)
+  }
+  const year = getDocYear(docDate)
+  const prefixRe = new RegExp(`^${escapeRegex(prefix)}/${year}/(\\d+)$`, 'i')
+  const rows = await TransactionModel.find({
+    isDeleted: { $ne: true },
+    type,
+    'voucherMeta.vocNo': new RegExp(`^${escapeRegex(prefix)}/${year}/`, 'i'),
+  })
+    .select('voucherMeta.vocNo')
+    .limit(8000)
+    .lean()
+
+  let maxSeq = 0
+  for (const row of rows || []) {
+    const match = String(row?.voucherMeta?.vocNo || '').match(prefixRe)
+    if (!match) continue
+    const seq = Number(match[1])
+    if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq
+  }
+  return buildVoucherDocNo(type, `${year}-01-01`, maxSeq + 1)
+}
+
+async function voucherDocNoExists(TransactionModel, vocNo) {
+  const normalized = String(vocNo || '').trim()
+  if (!normalized || !TransactionModel) return false
+  const row = await TransactionModel.findOne({
+    isDeleted: { $ne: true },
+    'voucherMeta.vocNo': normalized,
+  }).select('_id').lean()
+  return Boolean(row)
+}
+
 module.exports = {
   DOC_PREFIX_BY_TYPE,
   VOUCHER_DOC_TYPES,
@@ -111,4 +156,6 @@ module.exports = {
   buildVoucherDocNo,
   coerceVoucherDocNo,
   normalizeVoucherMetaDocNo,
+  allocateNextVoucherDocNo,
+  voucherDocNoExists,
 }

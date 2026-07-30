@@ -24,7 +24,7 @@ import {
   filterPartyAccounts,
 } from './erp/accountDropdownHelpers'
 import { useVoucherTabAccess } from './voucher/useVoucherTabAccess'
-import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from './erp/erpListFilters'
+import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear, toMonthCsv } from './erp/erpListFilters'
 
 export default function VoucherTab({
   token,
@@ -692,7 +692,14 @@ export default function VoucherTab({
     if (!canView) return
     setLoadingList(true)
     try {
-      const res = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
+      const year = normalizeFilterYear(voucherFilterYear)
+      const months = normalizeFilterMonths(voucherFilterMonths)
+      const res = await voucherErpApi.getTransactions(token, {
+        type: voucherType,
+        limit: 200,
+        ...(year ? { year } : {}),
+        ...(months.length ? { months: toMonthCsv(months) } : {}),
+      })
       const txs = sortVouchers(
         (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
@@ -703,7 +710,7 @@ export default function VoucherTab({
     } finally {
       setLoadingList(false)
     }
-  }, [voucherType, canView, sortVouchers, token, voucherErpApi])
+  }, [voucherType, canView, sortVouchers, token, voucherErpApi, voucherFilterYear, voucherFilterMonths])
 
   useEffect(() => { loadVouchers() }, [loadVouchers])
 
@@ -746,8 +753,21 @@ export default function VoucherTab({
     nextVocNo(list, voucherTypeOverride, docDateOverride, vouchers)
   )
 
+  const fetchServerNextVocNo = async (voucherTypeOverride = voucherType, docDateOverride = header.docDate) => {
+    try {
+      const res = await voucherErpApi.getNextVocNo(token, {
+        type: voucherTypeOverride,
+        docDate: docDateOverride || undefined,
+      })
+      if (res?.docNo) return String(res.docNo)
+    } catch {
+      // Fall back to local max+1 if the allocator is unreachable.
+    }
+    return ''
+  }
+
   // ─── open create ────────────────────────────────────────────────────────────
-  const openCreate = (freshList, forcedType = voucherType) => {
+  const openCreate = async (freshList, forcedType = voucherType) => {
     // If already filling a new form, ask before discarding
     if (mode === 'create' && !editingId) {
       const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
@@ -758,9 +778,10 @@ export default function VoucherTab({
       if (editingId) lastViewedIdRef.current = editingId
     }
     const baseHeader = emptyHeader()
+    const serverVocNo = await fetchServerNextVocNo(forcedType, baseHeader.docDate)
     const nextHeader = {
       ...baseHeader,
-      vocNo: resolveNextVocNo(freshList, forcedType, baseHeader.docDate),
+      vocNo: serverVocNo || resolveNextVocNo(freshList, forcedType, baseHeader.docDate),
     }
     setEditingId(null)
     setHeader(nextHeader)
@@ -987,7 +1008,9 @@ export default function VoucherTab({
         return
       }
       if (!window.confirm('Clear this unsaved voucher entry?')) return
-      setHeader({ ...emptyHeader(), vocNo: resolveNextVocNo() })
+      const cleared = emptyHeader()
+      const serverVocNo = await fetchServerNextVocNo(voucherType, cleared.docDate)
+      setHeader({ ...cleared, vocNo: serverVocNo || resolveNextVocNo(undefined, voucherType, cleared.docDate) })
       setSelectedPartyId('')
       setRecentPartyVouchers([])
       setLineItems([])
@@ -1873,7 +1896,7 @@ export default function VoucherTab({
   const canApproveWorkflow = Boolean(editingId) && canManageWorkflow && currentVoucherStatus === 'submitted'
   const canReturnWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved'].includes(currentVoucherStatus)
   const canRejectWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
-  const canPostWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved'].includes(currentVoucherStatus)
+  const canPostWorkflow = Boolean(editingId) && canManageWorkflow && currentVoucherStatus === 'approved'
   const canRevalueCurrentVoucher = Boolean(editingId) && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
   const currentAttachments = Array.isArray(currentVoucher?.attachments) ? currentVoucher.attachments : []
   const previewableAttachmentMimeTypes = new Set([

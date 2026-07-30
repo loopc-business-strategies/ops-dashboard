@@ -184,7 +184,7 @@ export default function VoucherListPanel({
                             {t('reject')}
                           </button>
                         )}
-                        {canManageWorkflow && ['submitted', 'approved'].includes(voucher.status) && (
+                        {canManageWorkflow && voucher.status === 'approved' && (
                           <button
                             type="button"
                             disabled={saving}

@@ -8,7 +8,8 @@ function registerTransactionRoutes(deps) {
   const { Joi, validateQuery } = require('../../middleware/validate')
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
-  const { normalizeVoucherMetaDocNo } = require('../../utils/voucherDocNo')
+  const { normalizeVoucherMetaDocNo, allocateNextVoucherDocNo, voucherDocNoExists, VOUCHER_DOC_TYPES, getDocYear } = require('../../utils/voucherDocNo')
+  const { applyYearMonthsDateFilter } = require('../../utils/yearMonthsDateFilter')
   const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
   const User = require('../../models/User')
   const Message = require('../../models/Message')
@@ -164,6 +165,8 @@ const transactionListQuerySchema = Joi.object({
   startDate: Joi.string().trim().allow('').optional(),
   endDate: Joi.string().trim().allow('').optional(),
   search: Joi.string().trim().max(200).allow('').optional(),
+  year: Joi.string().trim().pattern(/^\d{4}$/).allow('').optional(),
+  months: Joi.string().trim().max(40).allow('').optional(),
 })
 
 const transactionCommentSchema = Joi.object({
@@ -208,6 +211,33 @@ const resolveMentionedUsers = async (message, payload = {}) => {
     .limit(20)
 }
 
+router.get('/transactions/next-voc-no', protect, async (req, res) => {
+  try {
+    const type = String(req.query.type || '').trim().toLowerCase()
+    if (!VOUCHER_DOC_TYPES.includes(type)) {
+      return res.status(400).json({ success: false, message: 'Valid voucher type is required' })
+    }
+    if (!canCreateTransactionFor(req.user, type)) {
+      return res.status(403).json({ success: false, message: 'You are not allowed to create this transaction type' })
+    }
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), type)
+    if (disabledTypeMessage) {
+      return res.status(403).json({ success: false, message: disabledTypeMessage })
+    }
+
+    const docDate = String(req.query.docDate || '').trim() || null
+    const docNo = await allocateNextVoucherDocNo(Transaction, type, docDate)
+    return res.json({
+      success: true,
+      docNo,
+      type,
+      year: Number(getDocYear(docDate)),
+    })
+  } catch (e) {
+    return respondRouteError(res, e, { tag: 'erp-accounting/transactions/next-voc-no' })
+  }
+})
+
 router.get('/transactions', protect, validateQuery(transactionListQuerySchema), async (req, res) => {
   try {
     if (!canAccessOperationalTransactions(req.user)) {
@@ -245,6 +275,8 @@ router.get('/transactions', protect, validateQuery(transactionListQuerySchema), 
       if (endDate) query.date.$lte = endDate
       if (!Object.keys(query.date).length) delete query.date
     }
+
+    applyYearMonthsDateFilter(query, req.query.year, req.query.months)
 
     if (req.query.search) {
       const search = String(req.query.search).trim()
@@ -391,14 +423,21 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     }
 
     const normalizedMetalFixStatus = normalizeMetalFixStatus(metalFixStatus)
-    const voucherMetaPayload = (['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
+    let voucherMetaPayload = (['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
       ? normalizeVoucherMetaDocNo(type, {
           ...(voucherMeta || {}),
           fixingType: normalizedMetalFixStatus === 'unfixed' ? 'non-fixing' : 'fixing',
         })
       : normalizeVoucherMetaDocNo(type, voucherMeta || undefined)
 
-    const tx = await Transaction.create({
+    const requestedVocNo = String(voucherMetaPayload?.vocNo || '').trim()
+    const docDateForVoc = voucherMetaPayload?.docDate || date || null
+    if (!requestedVocNo || await voucherDocNoExists(Transaction, requestedVocNo)) {
+      const allocated = await allocateNextVoucherDocNo(Transaction, type, docDateForVoc)
+      voucherMetaPayload = { ...(voucherMetaPayload || {}), vocNo: allocated }
+    }
+
+    const createPayload = {
       type,
       amount: normalizedAmount,
       date: date ? new Date(date) : new Date(),
@@ -415,7 +454,21 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
       status: 'draft',
       createdBy: req.user._id,
       updatedBy: req.user._id,
-    })
+    }
+
+    let tx
+    try {
+      tx = await Transaction.create(createPayload)
+    } catch (createErr) {
+      // Race: another create took the same vocNo — allocate again once.
+      if (createErr?.code === 11000) {
+        const allocated = await allocateNextVoucherDocNo(Transaction, type, docDateForVoc)
+        createPayload.voucherMeta = { ...(createPayload.voucherMeta || {}), vocNo: allocated }
+        tx = await Transaction.create(createPayload)
+      } else {
+        throw createErr
+      }
+    }
 
     appendTransactionAudit(tx, req.user, 'create', { fromStatus: '', toStatus: 'draft', comment: description })
     await tx.save()

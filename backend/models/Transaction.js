@@ -152,7 +152,17 @@ transactionSchema.index({ date: -1 })
 transactionSchema.index({ status: 1, date: -1 })
 transactionSchema.index({ customerId: 1, date: -1 })
 transactionSchema.index({ vendorId: 1, date: -1 })
-transactionSchema.index({ 'voucherMeta.vocNo': 1 })
+transactionSchema.index(
+  { 'voucherMeta.vocNo': 1 },
+  {
+    unique: true,
+    name: 'uniq_active_voucher_vocNo',
+    partialFilterExpression: {
+      isDeleted: { $ne: true },
+      'voucherMeta.vocNo': { $type: 'string', $gt: '' },
+    },
+  },
+)
 transactionSchema.index({ createdBy: 1, date: -1 })
 transactionSchema.index({ isDeleted: 1, date: -1 })
 transactionSchema.index({ journalEntryId: 1 })

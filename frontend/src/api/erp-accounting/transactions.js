@@ -1,6 +1,7 @@
 import { BASE, axios, getAuthConfig } from './client'
 
 const getTransactions = async (token, params) => (await axios.get(`${BASE}/transactions`, getAuthConfig(token, params))).data
+const getNextVocNo = async (token, params) => (await axios.get(`${BASE}/transactions/next-voc-no`, getAuthConfig(token, params))).data
 const createTransaction = async (token, payload) => (await axios.post(`${BASE}/transactions`, payload, getAuthConfig(token))).data
 const updateTransaction = async (token, id, payload) => (await axios.put(`${BASE}/transactions/${id}`, payload, getAuthConfig(token))).data
 const deleteTransaction = async (token, id) => (await axios.delete(`${BASE}/transactions/${id}`, getAuthConfig(token))).data
@@ -26,6 +27,7 @@ const revalueFxJournal = async (token, id, payload = {}) => (await axios.post(`$
 
 export const transactionsApi = {
   getTransactions,
+  getNextVocNo,
   createTransaction,
   updateTransaction,
   deleteTransaction,

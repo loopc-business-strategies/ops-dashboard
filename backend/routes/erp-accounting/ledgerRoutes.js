@@ -13,6 +13,7 @@ const {
 const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
 const { escapeRegex } = require('../../utils/escapeRegex')
 const { buildLedgerListSearchOr } = require('../../utils/ledgerListSearch')
+const { applyYearMonthsDateFilter } = require('../../utils/yearMonthsDateFilter')
 const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
 
 const objectId = Joi.string().hex().length(24)
@@ -262,7 +263,7 @@ router.get('/ledger', protect, async (req, res) => {
   try {
     if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
-    const { startDate, endDate, accountId, department, referenceType, limit = 100, page, docNoPrefix, referenceId, search } = req.query
+    const { startDate, endDate, accountId, department, referenceType, limit = 100, page, docNoPrefix, referenceId, search, year, months } = req.query
     const safeLimit = Math.min(500, Math.max(1, Number(limit) || 100))
     const query = { isDeleted: { $ne: true } }
     const andClauses = []
@@ -309,6 +310,7 @@ router.get('/ledger', protect, async (req, res) => {
     if (andClauses.length) {
       query.$and = [...(query.$and || []), ...andClauses]
     }
+    applyYearMonthsDateFilter(query, year, months)
 
     const useOffset = page && !req.query.cursor
     if (useOffset) {
