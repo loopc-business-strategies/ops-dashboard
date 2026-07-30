@@ -2,7 +2,7 @@
 
 Ordered production-safety and maintainability work.
 
-**Last reviewed:** 2026-07-23 · **HEAD:** see `git log -1`
+**Last reviewed:** 2026-07-30 · **HEAD:** see `git log -1`
 
 ---
 
