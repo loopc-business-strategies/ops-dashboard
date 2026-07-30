@@ -7,10 +7,10 @@ import {
   MAX_OPS_ASSIGNEES,
   OPS_LINKED_SECTION_OPTS,
   OPS_LINKED_LABEL_KEY,
-  fmtShortDt,
   projectDocFromApiResponse,
   normalizeOpsProjectForm,
   syncAssignFieldsFromAssignees,
+  mapApiTaskToOpsRow,
 } from './opsProjectsMapping'
 import { OPS_C as C } from './operationsTabTokens'
 import {
@@ -20,6 +20,7 @@ import {
   MS,
   MTA,
   Modal,
+  IS,
 } from './operationsTabUI'
 
 function ModalProject({
