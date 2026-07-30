@@ -32,7 +32,7 @@ Ordered production-safety and maintainability work.
 |---|------|--------|
 | 7 | **ERPTab.jsx headroom** | **Done** — thin shell (~48 lines); CI budget **120** |
 | 8 | **erp-accountingContext.js** | **Done** — ~665 lines; routes in `erp-accounting/*` |
-| 9 | **E2E money paths** | **Done** — CI stub JV (`journal-voucher.spec.js`); staging live auth + read-only vouchers (`staging-auth` + `staging-jv`); workflow passes `PLAYWRIGHT_VERCEL_BYPASS` |
+| 9 | **E2E money paths** | **Done** — CI stub JV (`journal-voucher.spec.js`); staging live auth + read-only transactions (`staging-auth` + `staging-jv`); workflow passes `PLAYWRIGHT_VERCEL_BYPASS` |
 | 10 | **VoucherTab guardrail** | **Done** — line auto-calc + line-form hooks extracted; CI budget **2800 → 2200** |
 
 ---
