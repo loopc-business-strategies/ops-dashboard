@@ -4,9 +4,11 @@ import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { isVoucherTypeEnabled, isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
 import { resolveErpUserTenantKey } from './erp/resolveErpUserTenant'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
-import { buildMetalRatesFromApiPayload, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
-import { fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { buildMetalRatesFromApiPayload } from '../../utils/liveMetalRates'
+import { fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, toTitle, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
 import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
+import { useVoucherLineAutoCalc } from './voucher/useVoucherLineAutoCalc'
+import { useVoucherLineForm } from './voucher/useVoucherLineForm'
 import { runVoucherWorkflowAction } from './voucher/voucherErpApi'
 import { BASE } from '../../api/erp-accounting/client'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
@@ -61,6 +63,8 @@ export default function VoucherTab({
 
   // ─── top-level state ────────────────────────────────────────────────────────
   const [voucherType, setVoucherType] = useState(() => enabledVoucherTypes[0] || 'payment')
+  const isMetalVoucher = isMetalStockVoucherType(voucherType)
+  const isSimpleMetalVoucher = isMetalTransferVoucherType(voucherType)
   const [showVoucherPreview, setShowVoucherPreview] = useState(false)
   const voucherPreviewEnabled = isMasterDocumentSettingsEnabled(tenantKey)
 
@@ -330,8 +334,6 @@ export default function VoucherTab({
   const [showLineForm, setShowLineForm] = useState(false)
   const [editingLineIdx, setEditingLineIdx] = useState(null)
   const [lineForm, setLineForm] = useState(emptyLine())
-  const [inventoryProducts, setInventoryProducts] = useState([])
-  const [loadingInventoryProducts, setLoadingInventoryProducts] = useState(false)
   const setLF = (k, v) => setLineForm(prev => ({ ...prev, [k]: k === 'rateType' ? normalizeRateType(v) : v }))
 
   const resolvePaymentRate = useCallback((currencyCode) => {
@@ -396,177 +398,28 @@ export default function VoucherTab({
     return window.confirm('Close voucher form and discard unsaved changes?')
   }, [hasUnsavedVoucherChanges])
 
-  const applyLineAutoCalc = useCallback((line) => {
-    const next = { ...line }
-    const grossWeight = parseFloat(next.grossWeight) || 0
-    const purityValue = parseFloat(next.purity)
-    const purityRatio = !Number.isFinite(purityValue) || purityValue <= 0
-      ? 0
-      : (purityValue > 1.2 ? purityValue / 1000 : purityValue)
-
-    const pureWeight = grossWeight > 0 && purityRatio > 0
-      ? Number((grossWeight * purityRatio).toFixed(3))
-      : 0
-
-    const weightInOz = pureWeight > 0
-      ? Number((pureWeight / 31.1034768).toFixed(3))
-      : 0
-
-    const rateType = normalizeRateType(next.rateType)
-    const metalRate = parseFloat(next.metalRate) || 0
-    const rateQty = rateType === 'GRAM'
-      ? pureWeight
-      : rateType === 'KG'
-        ? pureWeight / 1000
-        : weightInOz
-
-    const computedMetalAmount = rateQty > 0 && metalRate > 0
-      ? Number((rateQty * metalRate).toFixed(2))
-      : 0
-    const existingMetalAmount = parseFloat(next.metalAmount) || 0
-    const effectiveMetalAmount = computedMetalAmount > 0 ? computedMetalAmount : existingMetalAmount
-
-    const premiumRate = parseFloat(next.premiumValue) || 0
-    const computedPremiumAmount = rateQty > 0 && premiumRate !== 0
-      ? Number((rateQty * premiumRate).toFixed(2))
-      : 0
-    const makingChargesAmt = parseFloat(next.makingCharges) || 0
-
-    const baseTotal = Number((effectiveMetalAmount + computedPremiumAmount + makingChargesAmt).toFixed(2))
-    const vatPer = parseFloat(next.vatPer) || 0
-    const vatAmount = Number(((baseTotal * vatPer) / 100).toFixed(2))
-    const amountWithVAT = Number((baseTotal + vatAmount).toFixed(2))
-    const derivedMetalRate = rateQty > 0 && effectiveMetalAmount > 0
-      ? Number((effectiveMetalAmount / rateQty).toFixed(2))
-      : 0
-    const effectiveMetalRate = metalRate > 0 ? metalRate : derivedMetalRate
-
-    return {
-      ...next,
-      pureWeight: pureWeight > 0 ? pureWeight.toFixed(3) : '',
-      weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
-      metalRate: effectiveMetalRate > 0 ? effectiveMetalRate.toFixed(2) : (next.metalRate || ''),
-      metalAmount: effectiveMetalAmount > 0 ? effectiveMetalAmount.toFixed(2) : '',
-      premiumAmount: computedPremiumAmount !== 0 ? computedPremiumAmount.toFixed(2) : '',
-      totalAmount: baseTotal > 0 ? baseTotal.toFixed(2) : '',
-      amountLC: baseTotal > 0 ? baseTotal.toFixed(2) : '',
-      vatAmountLC: vatPer > 0 ? vatAmount.toFixed(2) : '',
-      vatAmountFC: vatPer > 0 ? vatAmount.toFixed(2) : '',
-      amountWithVAT: baseTotal > 0 ? amountWithVAT.toFixed(2) : '',
-    }
-  }, [])
-
-  const applyProductTypeAutoFill = useCallback((line, productNameOverride) => {
-    const productName = String(productNameOverride ?? (line.productType || '')).trim()
-    if (!productName) return line
-
-    const product = inventoryProducts.find(
-      (item) => item.name === productName && String(item.category || '').includes('recordType=product')
-    )
-    if (!product) {
-      return { ...line, productType: productName, inventoryItemId: '' }
-    }
-
-    const meta = decodeFullMeta(product.category)
-    const simMeta = decodeInventoryCategoryMeta(product.category)
-    const unitWeight = parseFloat(meta.weight || product.weight || '') || 0
-    const pcs = Math.max(0, parseFloat(line.pcs) || 0)
-    const grossWeight = unitWeight > 0
-      ? (pcs > 0 ? unitWeight * pcs : unitWeight)
-      : (parseFloat(line.grossWeight) || 0)
-    const rawPurity = parseFloat(meta.productPurity || simMeta.purity || '') || 0
-    const productVatPer = parseFloat(meta.vatPercent || '') || 0
-    const productTaxType = String(meta.taxType || 'VAT').trim()
-
-    return applyLineAutoCalc({
-      ...line,
-      inventoryItemId: String(product._id),
-      productType: productName,
-      grossWeight: grossWeight > 0 ? String(Number(grossWeight.toFixed(3))) : line.grossWeight,
-      purity: rawPurity > 0 ? String(rawPurity) : line.purity,
-      vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || line.vatType || 'VAT'),
-      vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : line.vatPer),
-    })
-  }, [applyLineAutoCalc, inventoryProducts, voucherType])
-
-  const handleStockSelection = useCallback((selectedStockCode) => {
-    const normalizedStockCode = String(selectedStockCode || '').trim()
-    if (!normalizedStockCode) {
-      setLineForm((prev) => ({ ...prev, stockCode: '', inventoryItemId: '' }))
-      return
-    }
-
-    const product = inventoryProducts.find((item) => String(item.sku || '').trim().toLowerCase() === normalizedStockCode.toLowerCase())
-
-    if (!product) {
-      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode, inventoryItemId: '' }))
-      return
-    }
-
-    const fullMeta = decodeFullMeta(product.category)
-    const meta = decodeInventoryCategoryMeta(product.category)
-    const mainStock = meta.mainStock || meta.metalType || ''
-    const symbol = normalizeMetalSymbol(mainStock, meta.metalType)
-    const stockGroup = normalizeStockGroup(mainStock, meta.metalType)
-    const storedPriceUnit = String(fullMeta.priceUnit || '').trim().toUpperCase()
-    const resolvedRateType = normalizeRateType(storedPriceUnit || 'OZ')
-    const storedCurrency = String(fullMeta.priceCurrency || product.currency || 'USD').toUpperCase()
-    const productVatPer = parseFloat(fullMeta.vatPercent || '') || 0
-    const productTaxType = String(fullMeta.taxType || 'VAT').trim()
-    const liveRate = resolveLiveVoucherMetalRate(symbol, mainStock, latestMetalRates, resolvedRateType)
-    const storedRate = (voucherType === 'sale' || voucherType === 'metal_payment')
-      ? Number(product.sellingPrice || 0)
-      : Number(product.unitCost || 0)
-    const defaultRate = liveRate > 0 ? liveRate : storedRate
-
-    setLineForm((prev) => applyLineAutoCalc({
-      ...prev,
-      inventoryItemId: String(product._id),
-      stockCode: String(product.sku || normalizedStockCode),
-      stockGroup,
-      metalSymbol: symbol,
-      metalName: toTitle(mainStock || meta.metalType || product.name || 'Metal'),
-      location: String(product.wipStage || prev.location || ''),
-      availStock: `${Number(product.quantity || 0).toLocaleString()} ${String(product.unit || '').trim()}`.trim(),
-      purity: String(meta.purity || prev.purity || ''),
-      metalRate: defaultRate > 0 ? defaultRate.toFixed(2) : prev.metalRate,
-      rateType: resolvedRateType,
-      currCode: storedCurrency,
-      vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || prev.vatType || 'VAT'),
-      vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : prev.vatPer),
-    }))
-  }, [applyLineAutoCalc, inventoryProducts, latestMetalRates, voucherType])
-
-  useEffect(() => {
-    if (!canView) return
-    let mounted = true
-
-    const loadInventoryProducts = async () => {
-      setLoadingInventoryProducts(true)
-      try {
-        const res = await voucherErpApi.getInventoryProducts(token)
-        if (!mounted) return
-        setInventoryProducts(res.products || [])
-      } catch {
-        if (mounted) setInventoryProducts([])
-      } finally {
-        if (mounted) setLoadingInventoryProducts(false)
-      }
-    }
-
-    loadInventoryProducts()
-    return () => { mounted = false }
-  }, [canView, token, voucherErpApi])
-
-  useEffect(() => {
-    if (!showLineForm || !isMetalStockVoucherType(voucherType)) return
-    setLineForm((prev) => {
-      const calculated = applyLineAutoCalc(prev)
-      const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'vatAmountLC', 'vatAmountFC', 'amountWithVAT']
-      const hasChanges = keys.some((key) => String(prev[key] || '') !== String(calculated[key] || ''))
-      return hasChanges ? calculated : prev
-    })
-  }, [showLineForm, voucherType, lineForm.grossWeight, lineForm.purity, lineForm.metalRate, lineForm.rateType, lineForm.vatPer, lineForm.premiumValue, lineForm.makingCharges, applyLineAutoCalc])
+  const {
+    inventoryProducts,
+    loadingInventoryProducts,
+    applyLineAutoCalc,
+    applyProductTypeAutoFill,
+    handleStockSelection,
+  } = useVoucherLineAutoCalc({
+    token,
+    canView,
+    voucherType,
+    voucherErpApi,
+    latestMetalRates,
+    showLineForm,
+    setLineForm,
+    lineFormGrossWeight: lineForm.grossWeight,
+    lineFormPurity: lineForm.purity,
+    lineFormMetalRate: lineForm.metalRate,
+    lineFormRateType: lineForm.rateType,
+    lineFormVatPer: lineForm.vatPer,
+    lineFormPremiumValue: lineForm.premiumValue,
+    lineFormMakingCharges: lineForm.makingCharges,
+  })
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
   const showMsg = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 4000) }
@@ -1478,309 +1331,51 @@ export default function VoucherTab({
     }
   }
 
-  const buildReceiptPaymentDefaultLine = (baseLine) => {
-    const rate = parseFloat(header.currRate) || 1
-    return {
-      ...baseLine,
-      currCode: header.currCode || 'USD',
-      currRate: String(rate.toFixed(6)),
-      currRateSource: header.currRateSource || 'currency_table',
-      vatType: baseLine.vatType || 'VAT',
-      narration: header.narration || '',
-      amountFC: '',
-      amountLC: '',
-      amountWithVAT: '',
-    }
-  }
-
-  // ─── line form actions ───────────────────────────────────────────────────────
-  const openAddLine = () => {
-    setEditingLineIdx(null)
-    const defaultType = 'Cash'
-    const defaultAccountCode = pickDefaultAccountCodeByType(activeAccounts, defaultType)
-    const baseLine = {
-      ...emptyLine(),
-      currCode: header.currCode || 'USD',
-      currRate: header.currRate || '1.000000',
-      currRateSource: header.currRateSource || 'currency_table',
-      type: defaultType,
-      typeCode: defaultType.toUpperCase(),
-      acCode: defaultAccountCode || '',
-    }
-
-    setLineForm(isMetalVoucher ? baseLine : buildReceiptPaymentDefaultLine(baseLine))
-    setShowLineForm(true)
-  }
-
-  const openEditLine = (idx) => {
-    setEditingLineIdx(idx)
-    const row = lineItems[idx] || {}
-    const normalizedType = normalizeLineType(row?.type)
-    setLineForm({
-      ...row,
-      inventoryItemId: String(row?.inventoryItemId?._id || row?.inventoryItemId || ''),
-      type: normalizedType,
-      typeCode: normalizedType.toUpperCase(),
-      rateType: normalizeRateType(row?.rateType),
-      currRateSource: row?.currRateSource || 'manual',
-      vatType: row?.vatType || 'VAT',
-    })
-    setShowLineForm(true)
-  }
-
-  const deleteLine = (idx) => setLineItems(prev => prev.filter((_, i) => i !== idx))
-
-  const ensureEditableForLineActions = () => {
-    if (isReadOnly) {
-      setError('You have read-only access')
-      return false
-    }
-    if (mode === 'view') {
-      setMode('create')
-      clearError()
-      showMsg('Mode: EDIT')
-    }
-    return true
-  }
-
-  const handleAddLineClick = () => {
-    if (!ensureEditableForLineActions()) return
-    openAddLine()
-  }
-
-  const handleEditLineClick = (idx) => {
-    if (!ensureEditableForLineActions()) return
-    openEditLine(idx)
-  }
-
-  const handleDeleteLineClick = (idx) => {
-    if (!ensureEditableForLineActions()) return
-    deleteLine(idx)
-  }
-
-  const cancelLine = () => { setShowLineForm(false); setEditingLineIdx(null); clearError() }
-
-  const saveLine = () => {
-    if (!isMetalVoucher && !lineForm.acCode.trim()) { setError('A/C Code is required'); return }
-    if (isMetalVoucher && !lineForm.stockCode.trim()) { setError('Stock Code is required for metal vouchers'); return }
-    if (isSimpleMetalVoucher) {
-      if (!hasMetalTransferLineQuantity(lineForm)) {
-        setError('Gross weight, pure weight, or PCS is required')
-        return
-      }
-    } else if (!lineForm.amountLC && !lineForm.amountFC && !lineForm.totalAmount && !lineForm.metalAmount) {
-      setError('Amount is required')
-      return
-    }
-    const computedLineForm = isMetalVoucher && !isSimpleMetalVoucher ? applyLineAutoCalc(lineForm) : lineForm
-    const line = {
-      ...computedLineForm,
-      type: normalizeLineType(computedLineForm.type),
-      amountLC: isSimpleMetalVoucher ? '' : (computedLineForm.amountLC || computedLineForm.totalAmount || computedLineForm.metalAmount || ''),
-      amountWithVAT: isSimpleMetalVoucher ? '' : (computedLineForm.amountWithVAT || computedLineForm.amountLC || computedLineForm.amountFC),
-    }
-    if (editingLineIdx !== null) {
-      setLineItems(prev => prev.map((l, i) => i === editingLineIdx ? line : l))
-    } else {
-      setLineItems(prev => [...prev, line])
-    }
-    setShowLineForm(false)
-    setEditingLineIdx(null)
-    clearError()
-  }
-
-  // When type changes to Cash, clear cheque fields
-  const handleLineTypeChange = (val) => {
-    const normalized = normalizeLineType(val)
-    setLF('type', normalized)
-    setLF('typeCode', normalized.toUpperCase())
-
-    const suggestedAccountCode = pickDefaultAccountCodeByType(activeAccounts, normalized)
-    if (suggestedAccountCode) {
-      setLF('acCode', suggestedAccountCode)
-      applySettlementAccountCurrency(suggestedAccountCode)
-    }
-
-    if (normalized === 'Cash') {
-      setLF('chqNo', '')
-      setLF('chqDate', '')
-      setLF('chqBank', '')
-    }
-  }
-
-  // Payment/Receipt: simple FC ↔ LC conversion via exchange rate — no VAT/tax.
-  // UI convention is "1 USD = FC" for non-USD currencies (e.g. UZS 12048.1928).
-  //   → LC = FC / rate, and FC = LC * rate
-  const normalizeSettlementCurrencyCode = (value = '') => {
-    const code = String(value || '').trim().toUpperCase()
-    if (['SOM', 'SOMS', 'SUM'].includes(code)) return 'UZS'
-    return code || 'USD'
-  }
-
-  const applySettlementAccountCurrency = (accountCode) => {
-    if (!['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())) return
-    const code = String(accountCode || '').trim()
-    if (!code) return
-
-    const account = activeAccounts.find((a) => getAccountCodeValue(a) === code)
-    if (!account) return
-
-    const settlementCurrency = normalizeSettlementCurrencyCode(account.currency)
-    const hasCurrency = settlementCurrency === 'USD'
-      || currencyOptions.some((item) => item.code === settlementCurrency)
-    if (!hasCurrency) return
-    if (String(header.currCode || '').trim().toUpperCase() === settlementCurrency) return
-
-    const resolved = resolvePaymentRate(settlementCurrency)
-    setHeader((prev) => ({
-      ...prev,
-      currCode: settlementCurrency,
-      currRate: resolved.rate.toFixed(6),
-      currRateSource: resolved.source,
-    }))
-    setLineForm((prev) => recalcReceiptPaymentLine({
-      ...prev,
-      currCode: settlementCurrency,
-      currRate: resolved.rate.toFixed(6),
-      currRateSource: resolved.source,
-    }, 'rate'))
-  }
-
-  const handleLineAcCodeChange = (val) => {
-    setLF('acCode', val)
-    applySettlementAccountCurrency(val)
-  }
-
-  const recalcReceiptPaymentLine = (baseLine, source) => {
-    const next = { ...baseLine }
-    const parseEditableNumber = (value) => {
-      const raw = String(value ?? '').trim()
-      if (!raw || raw === '.' || raw === '-' || raw === '-.') return null
-      const num = Number.parseFloat(raw)
-      return Number.isFinite(num) ? num : null
-    }
-
-    const rawRate = String(next.currRate ?? '')
-    const rawAmountFC = String(next.amountFC ?? '')
-    const rawAmountLC = String(next.amountLC ?? '')
-
-    const parsedRate = parseEditableNumber(rawRate)
-    const headerRate = parseEditableNumber(header.currRate)
-    const rate = parsedRate ?? headerRate ?? 1
-
-    const parsedAmountFC = parseEditableNumber(rawAmountFC)
-    const parsedAmountLC = parseEditableNumber(rawAmountLC)
-
-    let nextAmountFC = rawAmountFC
-    let nextAmountLC = rawAmountLC
-
-    if ((source === 'amountFC' || source === 'rate') && parsedAmountFC !== null) {
-      const computedLC = rate > 0 ? parsedAmountFC / rate : 0
-      nextAmountLC = Number.isFinite(computedLC) ? computedLC.toFixed(2) : nextAmountLC
-    } else if (source === 'amountLC' && parsedAmountLC !== null) {
-      const computedFC = parsedAmountLC * rate
-      nextAmountFC = Number.isFinite(computedFC) ? computedFC.toFixed(2) : nextAmountFC
-    }
-
-    const amountLCForTotal = parseEditableNumber(nextAmountLC)
-
-    return {
-      ...next,
-      amountFC: nextAmountFC,
-      amountLC: nextAmountLC,
-      vatPer: '',
-      vatAmountFC: '',
-      vatAmountLC: '',
-      amountWithVAT: amountLCForTotal !== null ? amountLCForTotal.toFixed(2) : '',
-    }
-  }
-
-  const handleAmountFC = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, amountFC: val }, 'amountFC'))
-  }
-
-  const handleAmountLC = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, amountLC: val }, 'amountLC'))
-  }
-
-  const handleCurrRateChange = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, currRate: val, currRateSource: 'manual' }, 'rate'))
-  }
-
-  const handleHeaderCurrRateChange = (val) => {
-    const normalizedHeaderCurrency = String(header.currCode || 'USD').trim().toUpperCase()
-    if (normalizedHeaderCurrency === 'USD') {
-      setHeader((prev) => ({
-        ...prev,
-        currRate: '1.000000',
-        currRateSource: 'base_currency',
-      }))
-      return
-    }
-    setHeader((prev) => ({
-      ...prev,
-      currRate: val,
-      currRateSource: 'manual',
-    }))
-  }
-
-  const handleHeaderCurrencyChange = (nextCode) => {
-    const normalized = String(nextCode || 'USD').trim().toUpperCase()
-    const resolved = resolvePaymentRate(normalized)
-    setHeader((prev) => ({
-      ...prev,
-      currCode: normalized,
-      currRate: resolved.rate.toFixed(6),
-      currRateSource: resolved.source,
-    }))
-
-    // Keep payment/receipt line entry aligned with header currency unless user changes line currency again.
-    if (!isMetalVoucher && ['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())) {
-      setLineForm((prev) => recalcReceiptPaymentLine({
-        ...prev,
-        currCode: normalized,
-        currRate: resolved.rate.toFixed(6),
-        currRateSource: resolved.source,
-      }, 'rate'))
-    }
-  }
-
-  const applyPartyCurrency = useCallback((resolvedParty) => {
-    if (!resolvedParty) return
-    if (!['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())) return
-
-    const preferredCode = String(resolvedParty.accountCurrency || '').trim().toUpperCase()
-    if (!preferredCode) return
-
-    const hasCurrency = currencyOptions.some((item) => item.code === preferredCode)
-    if (!hasCurrency) return
-    if (String(header.currCode || '').trim().toUpperCase() === preferredCode) return
-
-    const resolved = resolvePaymentRate(preferredCode)
-    setHeader((prev) => ({
-      ...prev,
-      currCode: preferredCode,
-      currRate: resolved.rate.toFixed(6),
-      currRateSource: resolved.source,
-    }))
-  }, [voucherType, currencyOptions, header.currCode, resolvePaymentRate])
-
-  const handleLineCurrencyChange = (nextCode) => {
-    const normalized = String(nextCode || 'USD').trim().toUpperCase()
-    const resolved = resolvePaymentRate(normalized)
-    if (isMetalVoucher) {
-      setLF('currCode', normalized)
-      return
-    }
-    setLineForm((prev) => recalcReceiptPaymentLine({ ...prev, currCode: normalized, currRate: resolved.rate.toFixed(6), currRateSource: resolved.source }, 'rate'))
-  }
-
-  const handleLineAmountEnter = (e) => {
-    if (e.key !== 'Enter') return
-    e.preventDefault()
-    if (!showLineForm) return
-    saveLine()
-  }
+  const {
+    openAddLine,
+    openEditLine,
+    deleteLine,
+    handleAddLineClick,
+    handleEditLineClick,
+    handleDeleteLineClick,
+    cancelLine,
+    saveLine,
+    handleLineTypeChange,
+    handleLineAcCodeChange,
+    handleAmountFC,
+    handleAmountLC,
+    handleCurrRateChange,
+    handleHeaderCurrRateChange,
+    handleHeaderCurrencyChange,
+    applyPartyCurrency,
+    handleLineCurrencyChange,
+    handleLineAmountEnter,
+  } = useVoucherLineForm({
+    header,
+    setHeader,
+    lineForm,
+    setLineForm,
+    setLF,
+    lineItems,
+    setLineItems,
+    showLineForm,
+    setShowLineForm,
+    editingLineIdx,
+    setEditingLineIdx,
+    activeAccounts,
+    currencyOptions,
+    voucherType,
+    isMetalVoucher,
+    isSimpleMetalVoucher,
+    isReadOnly,
+    mode,
+    setMode,
+    setError,
+    clearError,
+    showMsg,
+    applyLineAutoCalc,
+    resolvePaymentRate,
+  })
 
   // Lookup party name from the relevant customer/vendor master record.
   const lookupParty = (code) => {
@@ -1988,8 +1583,6 @@ export default function VoucherTab({
   }
 
   const voucherConfig = voucherConfigs[voucherType] || voucherConfigs.payment
-  const isMetalVoucher = isMetalStockVoucherType(voucherType)
-  const isSimpleMetalVoucher = isMetalTransferVoucherType(voucherType)
   const voucherLabel = voucherConfig.label
   const voucherCode = voucherConfig.code
   const voucherLabelT = voucherConfig.short

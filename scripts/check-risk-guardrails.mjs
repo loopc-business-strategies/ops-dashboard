@@ -8,7 +8,7 @@ const budgets = [
   },
   {
     file: 'frontend/src/components/tabs/VoucherTab.jsx',
-    maxLines: 2800,
+    maxLines: 2200,
     message: 'VoucherTab is high-risk. Extract panels/hooks instead of growing the shell.',
   },
   {

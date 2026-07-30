@@ -1,6 +1,6 @@
-# ERP dual API — Phase 1 audit
+# ERP dual API — audit
 
-**Date:** 2026-06-25 · **Status:** Complete (inventory frozen)
+**Last reviewed:** 2026-07-30 · **Status:** Phases 1–3 complete
 
 Companion: [ERP-DUAL-API-DEPRECATION.md](./ERP-DUAL-API-DEPRECATION.md)
 
@@ -11,38 +11,42 @@ Companion: [ERP-DUAL-API-DEPRECATION.md](./ERP-DUAL-API-DEPRECATION.md)
 | File | Purpose | Keep? |
 |------|---------|-------|
 | `frontend/src/api/erp.js` | Legacy client module | Yes — definition |
-| `frontend/src/components/tabs/OperationsTab.jsx` | Ops inventory, procurement UI | Yes — intentional |
+| `frontend/src/api/erpUnified.js` | Bridge (allowlisted) | Yes |
+| `frontend/src/components/tabs/OperationsTab.jsx` | Ops inventory / procurement UI | Yes — intentional |
 | `frontend/src/components/tabs/ProductionTab.jsx` | Work orders | Yes — intentional |
-| `frontend/src/api/erpUnified.js` | Routes procurement to legacy or accounting | Yes — bridge |
-| `frontend/src/components/tabs/ProcurementPlusTab.jsx` | Uses `erpUnified` only | Yes |
+| `frontend/src/components/tabs/ProcurementPlusTab.jsx` | Ops procurement via `erpUnified` | Yes — reads only for suppliers |
 
-**CI guard:** `npm run check:erp-legacy-imports` — blocks any new `api/erp` imports outside the allowlist above.
+**CI guard:** `npm run check:erp-legacy-imports` — blocks new `api/erp` imports outside the allowlist.
 
 All financial tabs (`ERPTab`, `VoucherTab`, `FinanceTab`, `DirectDealsTab`) use **`erp-accounting` only**.
 
 ---
 
-## Backend `/api/erp` write routes (legacy)
+## Backend `/api/erp` write status
 
-| Domain | Routes | Overlap with accounting |
-|--------|--------|-------------------------|
-| Ops inventory | `POST/PUT/DELETE /inventory` | Accounting has valuation inventory — **do not duplicate** |
-| Suppliers | `POST/PUT/DELETE /procurement/suppliers` | **High risk** — use `Vendor` on `/api/erp-accounting` for AR/AP |
-| Purchase orders | `POST/PUT/DELETE /procurement/purchase-orders` | Ops procurement only |
-| Work orders | `POST/PUT/DELETE /production/work-orders` | Production only |
-| Finance records | `POST/PUT/DELETE /finance/records` | Legacy ops finance — not GL |
-| Procurement docs | `POST/DELETE /procurement/documents` | File uploads |
-| Expiry alerts | `PUT /alerts/expiry/:id/resolve` | Ops alerts |
+| Domain | Status |
+|--------|--------|
+| Ops inventory | Kept for ops stock movements |
+| Suppliers writes | **410 Gone** — use `/api/erp-accounting/vendors` |
+| Purchase orders | Ops procurement only |
+| Work orders | Production only |
+| Finance records | **410 Gone** |
+| Procurement docs / expiry alerts | Ops only |
+| Legacy response header | `X-Legacy-Erp-Api: true` on remaining routes |
 
 **Rule:** No new `POST/PUT/DELETE` on `/api/erp` for ledger, vouchers, customers, vendors, or metal trading.
 
 ---
 
-## Phase 2 (next)
+## Phases
 
-1. Add read-only warning header on legacy supplier writes pointing to accounting `Vendor` API.
-2. Grep CI for new `/api/erp` routes in `backend/routes/erp.js` on PR (optional).
-3. Migrate `OperationsTab` supplier create flows to accounting vendors where parties need ledger links.
+| Phase | Status |
+|-------|--------|
+| **1** — Inventory + CI import guard | **Done** |
+| **2** — Supplier writes 410; accounting vendors for parties | **Done** |
+| **3** — Finance records 410; legacy header | **Done** |
+
+**Frontend follow-up (2026-07-30):** Procurement Plus no longer offers “Add supplier”; UI points to ERP Vendors.
 
 ---
 
@@ -50,5 +54,4 @@ All financial tabs (`ERPTab`, `VoucherTab`, `FinanceTab`, `DirectDealsTab`) use 
 
 ```bash
 npm run check:erp-legacy-imports
-npm run sync:erp-access
 ```

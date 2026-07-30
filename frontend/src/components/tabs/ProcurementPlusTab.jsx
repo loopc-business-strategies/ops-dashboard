@@ -65,7 +65,6 @@ export default function ProcurementPlusTab() {
   const [alerts, setAlerts] = useState([])
   const [query, setQuery] = useState('')
 
-  const [supplierForm, setSupplierForm] = useState({ name: '', country: '', contact: '', productType: '', paymentTerms: '' })
   const [poForm, setPoForm] = useState({ poNumber: '', supplierId: '', itemName: '', quantity: '', unitPrice: '', expectedDeliveryDate: '' })
 
   const loadData = useCallback(async () => {
@@ -100,17 +99,6 @@ export default function ProcurementPlusTab() {
     if (!q) return orders
     return orders.filter((o) => [o.poNumber, o.status, o.supplierName].some((v) => String(v || '').toLowerCase().includes(q)))
   }, [orders, query])
-
-  const handleCreateSupplier = async () => {
-    if (isReadOnly || !supplierForm.name.trim()) return
-    try {
-      await erpOps.createSupplier(token, supplierForm)
-      setSupplierForm({ name: '', country: '', contact: '', productType: '', paymentTerms: '' })
-      await loadData()
-    } catch (e) {
-      setError(e?.response?.data?.message || 'Failed to create supplier')
-    }
-  }
 
   const handleCreatePo = async () => {
     if (isReadOnly || !poForm.poNumber.trim() || !poForm.supplierId) return
@@ -174,19 +162,19 @@ export default function ProcurementPlusTab() {
 
       {activeTab === 'suppliers' && (
         <div style={{ display: 'grid', gap: 12 }}>
-          {!isReadOnly && (
-            <Card>
-              <p style={{ margin: '0 0 10px', fontWeight: 700, color: C.ink }}>Add supplier</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
-                <Input value={supplierForm.name} onChange={(e) => setSupplierForm((s) => ({ ...s, name: e.target.value }))} placeholder="Name *" />
-                <Input value={supplierForm.country} onChange={(e) => setSupplierForm((s) => ({ ...s, country: e.target.value }))} placeholder="Country" />
-                <Input value={supplierForm.contact} onChange={(e) => setSupplierForm((s) => ({ ...s, contact: e.target.value }))} placeholder="Contact" />
-                <Input value={supplierForm.productType} onChange={(e) => setSupplierForm((s) => ({ ...s, productType: e.target.value }))} placeholder="Product type" />
-                <Input value={supplierForm.paymentTerms} onChange={(e) => setSupplierForm((s) => ({ ...s, paymentTerms: e.target.value }))} placeholder="Payment terms" />
-              </div>
-              <div style={{ marginTop: 10 }}><Btn onClick={handleCreateSupplier}>Save supplier</Btn></div>
-            </Card>
-          )}
+          <Card style={{ borderColor: '#FDE68A', background: '#FFFBEB' }}>
+            <p style={{ margin: '0 0 6px', fontWeight: 700, color: C.ink }}>Supplier creates moved to Accounting Vendors</p>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: C.inkSoft, lineHeight: 1.45 }}>
+              Legacy ops supplier writes return 410 Gone. Create and maintain AR/AP parties under ERP → Vendors
+              (<code>/api/erp-accounting/vendors</code>). This list remains a read-only ops view.
+            </p>
+            <a
+              href="/dashboard?tab=erp-vendors"
+              style={{ fontSize: 13, fontWeight: 700, color: C.primary, textDecoration: 'none' }}
+            >
+              Open ERP Vendors →
+            </a>
+          </Card>
           <Card>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
