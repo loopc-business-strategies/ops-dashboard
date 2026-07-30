@@ -79,11 +79,13 @@ function smokePasswordForTenant(tenant, fallbackPassword = '') {
   ).trim()
 }
 
-async function findSmokeUser(TenantUser, userName) {
+async function findSmokeUser(TenantUser, userName, { includePassword = false } = {}) {
   const safe = escapeRegex(userName)
-  return TenantUser.findOne({
+  const query = TenantUser.findOne({
     name: { $regex: new RegExp(`^${safe}$`, 'i') },
   })
+  if (includePassword) query.select('+password')
+  return query
 }
 
 const { connectTenant, closeAllTenantConnections } = require(path.join(backendDir, 'db', 'tenantConnections'))
@@ -148,7 +150,7 @@ async function upsertSmokeUser(tenant, password) {
   const TenantUser = await User.getTenantModel(tenant)
   const email = `${userName}.${tenant}@system.local`
 
-  let user = await findSmokeUser(TenantUser, userName)
+  let user = await findSmokeUser(TenantUser, userName, { includePassword: true })
   if (!user) {
     user = await TenantUser.create({
       name: userName,
@@ -166,7 +168,11 @@ async function upsertSmokeUser(tenant, password) {
     return { tenant, userName, action: 'created', id: String(user._id) }
   }
 
-  user.password = password
+  // Avoid rewriting an identical password — User pre-save would set sessionInvalidatedAt and revoke live JWTs.
+  const passwordMatches = Boolean(user.password) && (await user.comparePassword(password))
+  if (!passwordMatches) {
+    user.password = password
+  }
   applySmokeUserAccess(user)
   user.isActive = true
   user.isDeleted = false
@@ -176,7 +182,12 @@ async function upsertSmokeUser(tenant, password) {
   user.deletionReason = ''
   if (!user.email) user.email = email
   await user.save()
-  return { tenant, userName, action: 'updated', id: String(user._id) }
+  return {
+    tenant,
+    userName,
+    action: passwordMatches ? 'updated' : 'updated-password',
+    id: String(user._id),
+  }
 }
 
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)

@@ -77,22 +77,54 @@ async function readJson(res) {
   }
 }
 
+function isSessionRevokedError(status, message) {
+  return Number(status) === 401 && /session revoked/i.test(String(message || ''))
+}
+
+async function loginForToken() {
+  const loginRes = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: mobileHeaders(),
+    body: JSON.stringify({ name, password, company }),
+  })
+  const loginData = await expectOk(loginRes, 'POST /api/auth/login')
+  const token = loginData?.token
+  if (!token || typeof token !== 'string') {
+    throw new Error('Login response missing token')
+  }
+  return token
+}
+
 async function expectOk(res, label) {
   const data = await readJson(res)
   if (!res.ok) {
     const msg = typeof data?.message === 'string' ? data.message : `HTTP ${res.status}`
-    throw new Error(`${label}: ${msg}`)
+    const err = new Error(`${label}: ${msg}`)
+    err.status = res.status
+    err.apiMessage = msg
+    throw err
   }
   return data
 }
 
-async function getExpect(token, url, label) {
-  const res = await fetch(url, { headers: mobileHeaders(token) })
-  return expectOk(res, label)
+/** Auth bag so ERP helpers can refresh JWT after concurrent session invalidation. */
+const auth = { token: null }
+
+async function getExpect(url, label) {
+  const res = await fetch(url, { headers: mobileHeaders(auth.token) })
+  try {
+    return await expectOk(res, label)
+  } catch (err) {
+    if (!isSessionRevokedError(err.status, err.apiMessage || err.message)) throw err
+    console.log(`Note: ${label} got session revoked — re-login once and retry`)
+    auth.token = await loginForToken()
+    const retryRes = await fetch(url, { headers: mobileHeaders(auth.token) })
+    return expectOk(retryRes, label)
+  }
 }
 
 /** Same report GETs as backend/scripts/smoke-erp-api.js smokeMobileErpReportEndpoints + metal rates (mobile home). */
-async function smokeErpReportsMobile(token) {
+async function smokeErpReportsMobile() {
   const end = new Date()
   const start = new Date()
   start.setMonth(start.getMonth() - 3)
@@ -107,7 +139,6 @@ async function smokeErpReportsMobile(token) {
     sortDir: 'asc',
   })
   await getExpect(
-    token,
     `${base}/api/erp-accounting/reports/trial-balance?${trialQs}`,
     'GET trial-balance',
   )
@@ -118,22 +149,21 @@ async function smokeErpReportsMobile(token) {
     includeZero: 'false',
     comparePrevious: 'true',
   })
-  await getExpect(token, `${base}/api/erp-accounting/reports/profit-loss?${plQs}`, 'GET profit-loss')
+  await getExpect(`${base}/api/erp-accounting/reports/profit-loss?${plQs}`, 'GET profit-loss')
 
   const bsQs = new URLSearchParams({ endDate })
-  await getExpect(token, `${base}/api/erp-accounting/reports/balance-sheet?${bsQs}`, 'GET balance-sheet')
+  await getExpect(`${base}/api/erp-accounting/reports/balance-sheet?${bsQs}`, 'GET balance-sheet')
 
   const dayQs = new URLSearchParams({ startDate, endDate })
-  await getExpect(token, `${base}/api/erp-accounting/reports/day-book?${dayQs}`, 'GET day-book')
+  await getExpect(`${base}/api/erp-accounting/reports/day-book?${dayQs}`, 'GET day-book')
 
-  await getExpect(token, `${base}/api/erp-accounting/reports/customer-outstanding`, 'GET customer-outstanding')
-  await getExpect(token, `${base}/api/erp-accounting/reports/vendor-outstanding`, 'GET vendor-outstanding')
+  await getExpect(`${base}/api/erp-accounting/reports/customer-outstanding`, 'GET customer-outstanding')
+  await getExpect(`${base}/api/erp-accounting/reports/vendor-outstanding`, 'GET vendor-outstanding')
 
   const forexQs = new URLSearchParams({ startDate, endDate })
-  await getExpect(token, `${base}/api/erp-accounting/reports/forex-gain-loss?${forexQs}`, 'GET forex-gain-loss')
+  await getExpect(`${base}/api/erp-accounting/reports/forex-gain-loss?${forexQs}`, 'GET forex-gain-loss')
 
   const accountsData = await getExpect(
-    token,
     `${base}/api/erp-accounting/accounts?page=1&limit=5`,
     'GET accounts (ledger prerequisite)',
   )
@@ -144,32 +174,31 @@ async function smokeErpReportsMobile(token) {
       startDate,
       endDate,
     })
-    await getExpect(token, `${base}/api/erp-accounting/reports/ledger?${ledgerQs}`, 'GET ledger')
+    await getExpect(`${base}/api/erp-accounting/reports/ledger?${ledgerQs}`, 'GET ledger')
   } else {
     console.log('Step: GET ledger — SKIP (no accounts)')
   }
 
   const jvQs = new URLSearchParams({ referenceType: 'journal', limit: '1', startDate, endDate })
   try {
-    await getExpect(token, `${base}/api/erp-accounting/ledger?${jvQs}`, 'GET ledger journal (operations JV)')
+    await getExpect(`${base}/api/erp-accounting/ledger?${jvQs}`, 'GET ledger journal (operations JV)')
   } catch (e) {
     console.log(`Step: GET ledger journal — SKIP (${e instanceof Error ? e.message : e})`)
   }
 
-  await getExpect(token, `${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
+  await getExpect(`${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
 }
 
 /** Smoke-probe users (management role) can read transactions but not full report suite. */
-async function smokeErpLite(token) {
+async function smokeErpLite() {
   const txData = await getExpect(
-    token,
     `${base}/api/erp-accounting/transactions?limit=50`,
     'GET transactions',
   )
   const txTotal = Number(txData?.summary?.totalCount ?? txData?.total ?? 0)
   console.log(`Step: transactions summary.totalCount — ${txTotal}`)
 
-  await getExpect(token, `${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
+  await getExpect(`${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
 
   const end = new Date()
   const start = new Date()
@@ -181,7 +210,7 @@ async function smokeErpLite(token) {
     endDate: end.toISOString().slice(0, 10),
   })
   try {
-    await getExpect(token, `${base}/api/erp-accounting/ledger?${jvQs}`, 'GET ledger journal (operations JV)')
+    await getExpect(`${base}/api/erp-accounting/ledger?${jvQs}`, 'GET ledger journal (operations JV)')
   } catch (e) {
     console.log(`Step: GET ledger journal — SKIP (${e instanceof Error ? e.message : e})`)
   }
@@ -262,64 +291,54 @@ async function main() {
   if (skipSocket) console.log('Note: SMOKE_MOBILE_SKIP_SOCKET=1 — skipping Socket.IO')
   if (skipPush) console.log('Note: SMOKE_MOBILE_SKIP_PUSH=1 — skipping push-token POST/DELETE')
 
-  const loginRes = await fetch(`${base}/api/auth/login`, {
-    method: 'POST',
-    headers: mobileHeaders(),
-    body: JSON.stringify({ name, password, company }),
-  })
-  const loginData = await expectOk(loginRes, 'POST /api/auth/login')
-  const token = loginData?.token
-  if (!token || typeof token !== 'string') {
-    throw new Error('Login response missing token')
-  }
+  auth.token = await loginForToken()
   console.log('Step: login — OK')
 
-  const meRes = await fetch(`${base}/api/auth/me`, { headers: mobileHeaders(token) })
+  const meRes = await fetch(`${base}/api/auth/me`, { headers: mobileHeaders(auth.token) })
   await expectOk(meRes, 'GET /api/auth/me')
   console.log('Step: me — OK')
 
   const latestUrl = new URL(`${base}/api/messages/latest`)
   latestUrl.searchParams.set('type', 'all')
   latestUrl.searchParams.set('limit', '10')
-  const latestRes = await fetch(latestUrl, { headers: mobileHeaders(token) })
+  const latestRes = await fetch(latestUrl, { headers: mobileHeaders(auth.token) })
   await expectOk(latestRes, 'GET /api/messages/latest')
   console.log('Step: messages/latest — OK')
 
   const partRes = await fetch(`${base}/api/messages/participants`, {
-    headers: mobileHeaders(token),
+    headers: mobileHeaders(auth.token),
   })
   await expectOk(partRes, 'GET /api/messages/participants')
   console.log('Step: messages/participants — OK')
 
-  const groupsRes = await fetch(`${base}/api/messages/groups`, { headers: mobileHeaders(token) })
+  const groupsRes = await fetch(`${base}/api/messages/groups`, { headers: mobileHeaders(auth.token) })
   await expectOk(groupsRes, 'GET /api/messages/groups')
   console.log('Step: messages/groups — OK')
 
   if (!skipErp) {
     if (erpFull) {
-      await smokeErpReportsMobile(token)
+      await smokeErpReportsMobile()
       console.log('Step: ERP reports + metal-rates (mobile JWT) — OK')
 
       const txData = await getExpect(
-        token,
         `${base}/api/erp-accounting/transactions?limit=50`,
         'GET transactions',
       )
       const txTotal = Number(txData?.summary?.totalCount ?? txData?.total ?? 0)
       console.log(`Step: transactions summary.totalCount — ${txTotal}`)
     } else {
-      await smokeErpLite(token)
+      await smokeErpLite()
       console.log('Step: ERP lite (transactions + metal-rates) — OK')
     }
   }
 
   if (!skipSocket) {
-    await smokeNotificationsSocket(token)
+    await smokeNotificationsSocket(auth.token)
     console.log('Step: socket /notifications — OK')
   }
 
   if (!skipPush) {
-    await smokePushTokenRoundTrip(token)
+    await smokePushTokenRoundTrip(auth.token)
     console.log('Step: push-token POST+DELETE (API only, not OS push) — OK')
   }
 
