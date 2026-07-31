@@ -210,6 +210,7 @@ export function buildErpTabPanelProps(scope) {
     loadInventory: scope.loadInventory,
     loadLedger: scope.loadLedger,
     loadMappings: scope.loadMappings,
+    loadReportBranding: scope.loadReportBranding,
     loadStockLedger: scope.loadStockLedger,
     loadTransactions: scope.loadTransactions,
     loadVendorOverdueQueue: scope.loadVendorOverdueQueue,

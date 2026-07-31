@@ -118,6 +118,14 @@ export const DEFAULT_BRANDING_PROFILES = [{
   isDefault: DEFAULT_BRANDING.isDefault,
 }]
 
+/** True when branding still looks like the pre-fetch shell (print should refresh first). */
+export function isLikelyUnloadedReportBranding(reportBranding) {
+  if (!reportBranding || typeof reportBranding !== 'object') return true
+  const companyName = String(reportBranding.companyName || '').trim()
+  const logoUrl = String(reportBranding.logoUrl || '').trim()
+  return (!companyName || companyName === DEFAULT_BRANDING.companyName) && !logoUrl
+}
+
 export const LOGO_UPLOAD_ACCEPT = 'image/png,image/svg+xml,image/jpeg,image/webp,.png,.svg,.jpg,.jpeg,.webp'
 export const LOGO_UPLOAD_MAX_BYTES = 3 * 1024 * 1024
 export const LOGO_UPLOAD_MAX_DIMENSION = 1024

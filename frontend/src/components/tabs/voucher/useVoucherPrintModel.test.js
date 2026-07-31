@@ -95,4 +95,40 @@ describe('buildVoucherPrintModel tenant layout routing', () => {
     expect(model.voucherPrintSettings.enabled).toBe(false)
     expect(model.isMgMetalVoucher).toBe(true)
   })
+
+  it('exposes Master Voucher Settings table headers and signatories for LOOPC', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'payment',
+      user: { company: 'loopc', name: 'LoopC User' },
+      reportBranding: {
+        companyName: 'LoopC Trading LLC',
+        logoUrl: 'data:image/png;base64,abc',
+        voucherPrint: {
+          tableHeaders: {
+            no: 'S.No',
+            description: 'Particulars',
+            type: 'Kind',
+            amountFc: 'FC Amt',
+            amountLc: 'LC Amt',
+          },
+          signatories: [
+            { title: 'Prepared By', name: 'Ops Desk', visible: true },
+            { title: 'Hidden', name: 'X', visible: false },
+          ],
+          confirmedForLabel: 'For and on behalf of',
+          footerNote: 'Internal copy only',
+        },
+      },
+    })
+
+    expect(model.voucherPrintSettings.enabled).toBe(true)
+    expect(model.documentBranding.companyName).toBe('LoopC Trading LLC')
+    expect(model.voucherPrint.tableHeaders.no).toBe('S.No')
+    expect(model.voucherPrint.tableHeaders.description).toBe('Particulars')
+    expect(model.voucherPrint.signatories[0].name).toBe('Ops Desk')
+    expect(model.voucherPrint.confirmedForLabel).toBe('For and on behalf of')
+    expect(model.voucherPrint.footerNote).toBe('Internal copy only')
+    expect(model.isMgCurrencyVoucher).toBe(false)
+  })
 })

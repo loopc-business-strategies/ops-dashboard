@@ -59,7 +59,7 @@ export default function ERPTabPanels({
   beginJvModalDrag,
   beginJvModalResize,
   canCloseOnBackdropClick,
-  branding,
+  branding: _branding,
   brandingForm,
   brandingPreview,
   brandingPreviewLogo,
@@ -256,6 +256,7 @@ export default function ERPTabPanels({
   pagination,
   populateTransactionForm,
   removeJvLine,
+  loadReportBranding,
   reportBranding,
   reportFilters,
   reportView,
@@ -961,7 +962,8 @@ export default function ERPTabPanels({
             customers={customers}
             vendors={vendors}
             currencies={currencies}
-            reportBranding={branding}
+            reportBranding={reportBranding}
+            loadReportBranding={loadReportBranding}
             erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
             pendingOpenTransactionId={jumpToVoucher?.id || null}
             pendingOpenTransactionType={jumpToVoucher?.type || null}

@@ -22,6 +22,7 @@ import { VOUCHER_PRINT_MEDIA_CSS } from './voucher/voucherPrintStyles'
 import VoucherPreviewModal from './voucher/VoucherPreviewModal'
 import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { useVoucherPendingOpen } from './voucher/useVoucherPendingOpen'
+import { isLikelyUnloadedReportBranding } from './erp/ERPBrandingUtils'
 import {
   filterActiveAccounts,
   filterActiveCustomers,
@@ -39,6 +40,7 @@ export default function VoucherTab({
   vendors: propVendors = [],
   currencies = [],
   reportBranding = null,
+  loadReportBranding = null,
   pendingOpenTransactionId = null,
   pendingOpenTransactionType = null,
   onPendingOpenTransactionConsumed = null,
@@ -69,6 +71,7 @@ export default function VoucherTab({
   const isMetalVoucher = isMetalStockVoucherType(voucherType)
   const isSimpleMetalVoucher = isMetalTransferVoucherType(voucherType)
   const [showVoucherPreview, setShowVoucherPreview] = useState(false)
+  const pendingPrintActionRef = useRef(null)
   const voucherPreviewEnabled = isMasterDocumentSettingsEnabled(tenantKey)
 
   // ─── own customers/vendors state (always fresh, not stale props) ─────────────
@@ -516,13 +519,41 @@ export default function VoucherTab({
     lineItems,
   })
 
-  const handlePrintPreview = useCallback(() => {
-    if (voucherPreviewEnabled) {
+  const runPrintAction = useCallback((action) => {
+    if (action === 'preview') {
       setShowVoucherPreview(true)
       return
     }
     window.print()
-  }, [voucherPreviewEnabled])
+  }, [])
+
+  useEffect(() => {
+    const action = pendingPrintActionRef.current
+    if (!action) return undefined
+    pendingPrintActionRef.current = null
+    runPrintAction(action)
+    return undefined
+  }, [reportBranding, runPrintAction])
+
+  const handlePrintPreview = useCallback(async () => {
+    const action = voucherPreviewEnabled ? 'preview' : 'print'
+    if (typeof loadReportBranding === 'function' && isLikelyUnloadedReportBranding(reportBranding)) {
+      pendingPrintActionRef.current = action
+      try {
+        await loadReportBranding()
+      } catch {
+        // Fall through — timeout below still opens print/preview.
+      }
+      // If parent branding state did not change, still proceed shortly.
+      window.setTimeout(() => {
+        if (pendingPrintActionRef.current !== action) return
+        pendingPrintActionRef.current = null
+        runPrintAction(action)
+      }, 50)
+      return
+    }
+    runPrintAction(action)
+  }, [loadReportBranding, reportBranding, runPrintAction, voucherPreviewEnabled])
 
   const canCreate = voucherType === 'payment'
     ? canCreatePayment

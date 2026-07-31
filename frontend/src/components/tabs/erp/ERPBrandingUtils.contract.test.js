@@ -22,6 +22,7 @@ const {
   normalizeLogoUploadToDataUrl,
   normalizeTitleAccentColor,
   normalizeVoucherPrint,
+  isLikelyUnloadedReportBranding,
 } = ERPBrandingUtils
 
 describe('ERPBrandingUtils – DEFAULT_BRANDING', () => {
@@ -34,6 +35,19 @@ describe('ERPBrandingUtils – DEFAULT_BRANDING', () => {
     expect(DEFAULT_BRANDING.logoHeight).toBeGreaterThan(0)
     expect(DEFAULT_VOUCHER_PRINT.titleAccentColor).toBe(DEFAULT_TITLE_ACCENT_COLOR)
     expect(DEFAULT_TITLE_ACCENT_COLOR).toBe('#7F1D1D')
+  })
+
+  test('isLikelyUnloadedReportBranding detects pre-fetch shell branding', () => {
+    expect(isLikelyUnloadedReportBranding(null)).toBe(true)
+    expect(isLikelyUnloadedReportBranding(DEFAULT_BRANDING)).toBe(true)
+    expect(isLikelyUnloadedReportBranding({
+      companyName: 'LoopC Trading',
+      logoUrl: '',
+    })).toBe(false)
+    expect(isLikelyUnloadedReportBranding({
+      companyName: DEFAULT_BRANDING.companyName,
+      logoUrl: 'data:image/png;base64,abc',
+    })).toBe(false)
   })
 
   test('normalizeTitleAccentColor and normalizeVoucherPrint handle accent color', () => {
