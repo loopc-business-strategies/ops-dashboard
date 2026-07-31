@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { downloadStatementPdf, mountHtmlExportDocument, openStatementHtmlWindow, printStatementHtml } from './exportHelpers'
+import {
+  downloadStatementPdf,
+  mountHtmlExportDocument,
+  openStatementHtmlWindow,
+  printStatementHtml,
+  STATEMENT_PDF_CAPTURE_WIDTH_PX,
+} from './exportHelpers'
 
 vi.mock('./lazyExportLibs', () => ({
   loadHtmlToPdf: vi.fn(),
@@ -114,11 +120,26 @@ describe('exportHelpers – downloadStatementPdf', () => {
     expect(loadHtmlToPdf).toHaveBeenCalled()
     expect(set).toHaveBeenCalledWith(expect.objectContaining({
       filename: 'Statement-TEST-2026-07-20.pdf',
-      jsPDF: expect.objectContaining({ orientation: 'landscape' }),
+      margin: [7, 7, 7, 7],
+      pagebreak: expect.objectContaining({ avoid: ['tr'] }),
+      html2canvas: expect.objectContaining({
+        windowWidth: expect.any(Number),
+      }),
+      jsPDF: expect.objectContaining({ orientation: 'landscape', format: 'a4' }),
     }))
+    const opts = set.mock.calls[0][0]
+    expect(opts.html2canvas.windowWidth).toBeLessThanOrEqual(STATEMENT_PDF_CAPTURE_WIDTH_PX)
     expect(from).toHaveBeenCalled()
     expect(save).toHaveBeenCalled()
     expect(document.querySelector('iframe')).toBeNull()
+  })
+
+  test('mounts statement capture at A4-landscape content width', async () => {
+    const { cleanup, contentWidth } = await mountHtmlExportDocument(sampleHtml)
+    const iframe = document.querySelector('iframe')
+    expect(iframe.style.width).toBe(`${STATEMENT_PDF_CAPTURE_WIDTH_PX}px`)
+    expect(contentWidth).toBeLessThanOrEqual(STATEMENT_PDF_CAPTURE_WIDTH_PX)
+    cleanup()
   })
 
   test('cleans up iframe when save fails', async () => {

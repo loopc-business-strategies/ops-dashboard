@@ -189,14 +189,41 @@ describe('statementPrintHtml', () => {
     expect(result?.html).not.toMatch(/1,250\.75Dr/)
   })
 
-  test('uses wider balance columns, 14px table type, and stable sheet width', async () => {
+  test('uses A4-landscape fit layout with wrap rules and wider Doc No column', async () => {
     const result = await generateStatementHtml(baseCtx)
-    expect(result?.html).toContain('min-width: 1050px')
-    expect(result?.html).toContain('font-size: 14px; margin-top: 0; table-layout: fixed')
-    expect(result?.html).toContain('border: 1px solid var(--soa-border); padding: 8px 10px')
-    expect(result?.html).toContain('<col style="width:10.5%;" />')
+    expect(result?.html).toContain('.sheet { width: 100%; max-width: 100%')
+    expect(result?.html).not.toContain('min-width: 1050px')
+    expect(result?.html).toContain('font-size: 11px; margin-top: 0; table-layout: fixed')
+    expect(result?.html).toContain('border: 1px solid var(--soa-border); padding: 4px 5px')
+    expect(result?.html).toContain('<col style="width:13%;" />')
     expect(result?.html).toContain('<col style="width:11%;" />')
-    expect(result?.html).toContain('padding: 16px 18px 24px')
+    expect(result?.html).toContain('<col style="width:9.5%;" />')
+    expect(result?.html).toContain('.col-doc { text-align: left; overflow-wrap: anywhere; word-break: break-word; }')
+    expect(result?.html).toContain('.col-date { text-align: center; white-space: nowrap; }')
+    expect(result?.html).toContain('.narration { text-align: left; overflow-wrap: anywhere')
+    expect(result?.html).toContain('@page { size: A4 landscape; margin: 8mm; }')
     expect(result?.html).toContain('-webkit-font-smoothing: antialiased')
+  })
+
+  test('keeps long Doc No and Cyrillic narration in separate cells', async () => {
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      filteredStatementEntries: [
+        {
+          _id: 'e-long',
+          date: '2026-03-24T12:00:00',
+          description: 'Перевод средств на расчётный счёт поставщика по договору поставки металла',
+          debitAmount: 0,
+          creditAmount: 1200,
+          metalSignedWeight: 0,
+          referenceType: 'bank_jv',
+        },
+      ],
+      resolveStatementReceiptNo: () => 'BnkJV/2026/0002',
+    })
+    expect(result?.html).toContain('class="col-doc">BnkJV/2026/0002</td>')
+    expect(result?.html).toMatch(/class="col-date">24-Mar-26<\/td>/)
+    expect(result?.html).toContain('class="narration">Перевод средств на расчётный счёт поставщика по договору поставки металла</td>')
+    expect(result?.html).not.toContain('BnkJV/2026/000224-Mar-26')
   })
 })

@@ -109,10 +109,13 @@ export async function downloadXlsxSheets(sheets = [], fileName) {
   downloadBlob(blob, fileName)
 }
 
+/** A4 landscape content width (~277mm printable @ ~96dpi with ~7mm margins). */
+export const STATEMENT_PDF_CAPTURE_WIDTH_PX = 1020
+
 /**
  * Mount full HTML in an off-screen iframe for html2pdf capture (matches View Statement layout).
  */
-export async function mountHtmlExportDocument(html, { width = '1120px' } = {}) {
+export async function mountHtmlExportDocument(html, { width = `${STATEMENT_PDF_CAPTURE_WIDTH_PX}px` } = {}) {
   const iframe = document.createElement('iframe')
   iframe.setAttribute('aria-hidden', 'true')
   Object.assign(iframe.style, {
@@ -134,12 +137,17 @@ export async function mountHtmlExportDocument(html, { width = '1120px' } = {}) {
   await waitForDocumentReady(doc)
 
   const sheet = doc.querySelector('.sheet') || doc.body
-  const contentWidth = Math.ceil(sheet.scrollWidth || parseInt(width, 10) || 1120)
+  const requestedWidth = parseInt(width, 10) || STATEMENT_PDF_CAPTURE_WIDTH_PX
+  // Cap capture width so forced min-widths cannot push content past A4 landscape.
+  const contentWidth = Math.min(
+    STATEMENT_PDF_CAPTURE_WIDTH_PX,
+    Math.ceil(sheet.scrollWidth || requestedWidth),
+  )
   const contentHeight = Math.ceil(Math.max(
     sheet.scrollHeight,
     sheet.getBoundingClientRect().height,
     doc.body.scrollHeight,
-    794,
+    720,
   ))
   iframe.style.width = `${contentWidth}px`
   iframe.style.height = `${contentHeight}px`
@@ -148,7 +156,7 @@ export async function mountHtmlExportDocument(html, { width = '1120px' } = {}) {
   const cleanup = () => {
     iframe.remove()
   }
-  return { element: sheet, cleanup }
+  return { element: sheet, cleanup, contentWidth }
 }
 
 /**
@@ -161,16 +169,18 @@ export async function downloadStatementPdf(html, fileName) {
     const html2pdf = await loadHtmlToPdf()
     const mount = await mountHtmlExportDocument(html)
     cleanup = mount.cleanup
+    const windowWidth = mount.contentWidth || STATEMENT_PDF_CAPTURE_WIDTH_PX
 
     await html2pdf().set({
-      margin: 0,
+      margin: [7, 7, 7, 7],
       filename: fileName,
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr'] },
       html2canvas: {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
-        windowWidth: 1120,
+        windowWidth,
       },
       jsPDF: {
         unit: 'mm',

@@ -235,14 +235,14 @@ export async function generateStatementHtml(ctx) {
         <head>
           <title>Statement of Account ${escapeHtml(accountEnquiryData.account.accountCode)}</title>
           <style>
-            @page { size: A4 landscape; margin: 10mm; }
+            @page { size: A4 landscape; margin: 8mm; }
             :root {
               --soa-header-bg: #E8ECF1;
               --soa-border: #374151;
               --soa-ink: #111827;
             }
-            body { font-family: Arial, Helvetica, sans-serif; color: var(--soa-ink); margin: 0; padding: 16px 18px 24px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-            .sheet { width: 100%; min-width: 1050px; }
+            body { font-family: Arial, Helvetica, sans-serif; color: var(--soa-ink); margin: 0; padding: 10px 12px 16px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; box-sizing: border-box; }
+            .sheet { width: 100%; max-width: 100%; box-sizing: border-box; }
             .header { display: grid; grid-template-columns: ${Math.max(164, logoWidth + 4)}px minmax(0, 1fr) 330px; align-items: start; gap: 18px; margin-bottom: 12px; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .header-loopc { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 8px; }
             .header-loopc .logo-wrap { min-width: ${Math.max(120, logoWidth)}px; display: flex; justify-content: flex-end; }
@@ -265,15 +265,15 @@ export async function generateStatementHtml(ctx) {
             .party-code { font-size: 17px; margin-bottom: 10px; }
             .party-name { font-size: 16px; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; }
             .party-address { font-size: 13px; line-height: 1.25; white-space: pre-line; }
-            table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 0; table-layout: fixed; }
-            th, td { border: 1px solid var(--soa-border); padding: 8px 10px; vertical-align: middle; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            thead th { background: var(--soa-header-bg); color: #1F2937; font-weight: 800; text-align: center; border-color: var(--soa-border); color-adjust: exact; -webkit-print-color-adjust: exact; font-size: 14px; }
-            .subhead th { background: var(--soa-header-bg); font-size: 14px; color: #1F2937; border-color: var(--soa-border); color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .subhead th.num-head { text-align: right; padding-right: 10px; }
-            .col-doc { text-align: left; }
-            .col-date { text-align: center; }
-            .narration { text-align: left; }
-            .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 10px; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 0; table-layout: fixed; }
+            th, td { border: 1px solid var(--soa-border); padding: 4px 5px; vertical-align: middle; overflow: hidden; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            thead th { background: var(--soa-header-bg); color: #1F2937; font-weight: 800; text-align: center; border-color: var(--soa-border); color-adjust: exact; -webkit-print-color-adjust: exact; font-size: 11px; }
+            .subhead th { background: var(--soa-header-bg); font-size: 11px; color: #1F2937; border-color: var(--soa-border); color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .subhead th.num-head { text-align: right; padding-right: 5px; }
+            .col-doc { text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+            .col-date { text-align: center; white-space: nowrap; }
+            .narration { text-align: left; overflow-wrap: anywhere; word-break: normal; line-height: 1.25; }
+            .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 5px; }
             .opening td { font-weight: 800; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .carry-label { text-align: left; font-weight: 800; }
             .footer { margin-top: 12px; display: flex; justify-content: space-between; font-size: 15px; font-style: italic; color: #111111; }
@@ -295,15 +295,15 @@ export async function generateStatementHtml(ctx) {
             </div>
             <table>
               <colgroup>
-                <col style="width:10%;" />
+                <col style="width:13%;" />
                 <col style="width:8%;" />
-                <col style="width:20%;" />
-                <col style="width:10.5%;" />
-                <col style="width:10.5%;" />
-                <col style="width:11%;" />
+                <col style="width:19%;" />
                 <col style="width:10%;" />
                 <col style="width:10%;" />
                 <col style="width:11%;" />
+                <col style="width:9.5%;" />
+                <col style="width:9.5%;" />
+                <col style="width:10%;" />
               </colgroup>
               <thead>
                 <tr>
