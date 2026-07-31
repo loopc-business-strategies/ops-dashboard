@@ -9,7 +9,7 @@ import { buildErpReportDateRange } from '../useErpReportsController'
 
 import { generateStatementHtml as buildStatementHtml } from '../statementPrintHtml'
 import { DEFAULT_BRANDING } from '../ERPBrandingUtils'
-import { resolveDocumentBranding } from '../documentBranding'
+import { resolveStatementPrintSettings } from '../documentBranding'
 import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from '../erpPrintHelpers'
 import { useErpExportActions } from '../useErpExportActions'
 
@@ -166,7 +166,7 @@ export function useErpTabPresentationSlice(scope) {
     return { background: '#E5E7EB', color: '#374151' }
   }
   const tenantBranding = resolveErpUserTenantBranding(user)
-  const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
+  const branding = resolveStatementPrintSettings({ reportBranding, user, tenantBranding })
   const buildBrandingLogoTag = buildBrandingLogoTagHelper
   const openPrintWindow = (title, bodyHtml) => openPrintWindowHelper(title, bodyHtml, setError)
   const {

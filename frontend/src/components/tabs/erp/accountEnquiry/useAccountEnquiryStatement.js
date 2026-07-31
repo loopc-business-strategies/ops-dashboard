@@ -10,6 +10,7 @@ import {
   normalizeStatementCurrencyCode,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
+  resolveStatementDisplayCurrency,
   resolveStatementMetalCode,
   isMetalStatementEntry,
 } from '../statementHelpers'
@@ -256,12 +257,11 @@ export function useAccountEnquiryStatement({
   const statementSelectedMetalCode = statementFilters.metalCommodity
     ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
     : defaultStatementMetalCode
-  const statementDisplayCurrency = normalizeStatementCurrencyCode(
-    statementFilters.showAmountIn
-    || accountEnquiryData?.balances?.rateCurrency
-    || accountEnquiryData?.account?.currency
-    || modalStatementCurrency,
-  ).trim().toUpperCase()
+  const statementDisplayCurrency = resolveStatementDisplayCurrency({
+    showAmountIn: statementFilters.showAmountIn,
+    accountCurrency: accountEnquiryData?.account?.currency,
+    baseCurrency: modalStatementCurrency,
+  })
   const baseCurrencyCode = erpBaseCurrencyCode
   const statementFilterCurrencyOptions = buildStatementCurrencyOptions({
     includeAll: true,

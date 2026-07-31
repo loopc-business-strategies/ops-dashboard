@@ -10,6 +10,7 @@ import {
   getAccountEnquirySignedMetricColor,
   normalizeAccountEnquiryNetDirection,
   normalizeStatementCurrencyCode,
+  resolveStatementDisplayCurrency,
   resolveExposureDirection,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
@@ -76,6 +77,26 @@ describe('statement helpers', () => {
     expect(options).toContain('UZS')
     expect(options).not.toContain('SOMS')
     expect(normalizeStatementCurrencyCode('SOMS')).toBe('UZS')
+  })
+
+  test('statement display currency prefers account currency over base (SOMS → UZS)', () => {
+    expect(resolveStatementDisplayCurrency({
+      showAmountIn: '',
+      accountCurrency: 'SOMS',
+      baseCurrency: 'USD',
+    })).toBe('UZS')
+
+    expect(resolveStatementDisplayCurrency({
+      showAmountIn: 'USD',
+      accountCurrency: 'SOMS',
+      baseCurrency: 'USD',
+    })).toBe('USD')
+
+    expect(resolveStatementDisplayCurrency({
+      showAmountIn: '',
+      accountCurrency: '',
+      baseCurrency: 'USD',
+    })).toBe('USD')
   })
 
   test('always includes standard and other metal choices', () => {

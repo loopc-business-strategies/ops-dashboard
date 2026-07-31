@@ -60,5 +60,6 @@ describe('documentBranding resolvers', () => {
     expect(result.enabled).toBe(true)
     expect(result.statementPrint.title).toBe('Customer Statement')
     expect(result.statementPrint.subtitle).toBe('Confidential')
+    expect(result.companyName).toBe('LoopC Metals')
   })
 })

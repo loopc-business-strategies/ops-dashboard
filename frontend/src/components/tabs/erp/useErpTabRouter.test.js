@@ -68,6 +68,17 @@ describe('useErpTabRouter currency loading', () => {
 
     expect(props.loadAccounts).toHaveBeenCalledWith({ scope: 'summary' })
     expect(props.loadCurrencies).toHaveBeenCalled()
+    expect(props.loadReportBranding).toHaveBeenCalled()
+  })
+
+  it('loads report branding for Master Statement Settings when enquiry opens', () => {
+    const props = buildRouterProps({
+      activeTab: 'enquiry',
+      currencies: [{ code: 'USD' }],
+    })
+    renderHook(() => useErpTabRouter(props))
+
+    expect(props.loadReportBranding).toHaveBeenCalled()
   })
 
   it('loads currencies when account enquiry modal opens', () => {

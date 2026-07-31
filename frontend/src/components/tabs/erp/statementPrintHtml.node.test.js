@@ -64,6 +64,21 @@ describe('statementPrintHtml', () => {
     expect(result?.html).not.toContain('#FFD56A')
   })
 
+  test('labels Amount column with statement display currency (not forced USD)', async () => {
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      statementDisplayCurrency: 'UZS',
+      branding: {
+        companyName: 'National Bank Statement Co',
+        address: 'Namangan',
+        statementPrint: { title: 'Statement of Account' },
+      },
+    })
+    expect(result?.html).toContain('Amount (UZS)')
+    expect(result?.html).toContain('National Bank Statement Co')
+    expect(result?.html).not.toContain('Amount (USD)')
+  })
+
   test('aligns Balance C/F like Balance B/F in the narration column', async () => {
     const result = await generateStatementHtml(baseCtx)
     expect(result?.html).toContain('<td colspan="2"></td>\n                  <td class="carry-label">Balance B/F</td>')

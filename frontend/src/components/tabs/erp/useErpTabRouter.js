@@ -109,6 +109,7 @@ export function useErpTabRouter({
     } else if (activeTab === 'enquiry') {
       loadAccounts({ scope: 'summary' })
       if (!currencies.length) loadCurrencies()
+      loadReportBranding()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token])

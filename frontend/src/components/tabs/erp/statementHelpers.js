@@ -70,6 +70,21 @@ export function normalizeStatementCurrencyCode(value = '') {
   return code
 }
 
+/**
+ * Resolve Amount column / conversion currency for Statement of Account.
+ * Prefer explicit Show amount in, then account currency, then ERP base.
+ * Do not prefer balances.rateCurrency — API sets that to base and mislabels SOMS accounts as USD.
+ */
+export function resolveStatementDisplayCurrency({
+  showAmountIn = '',
+  accountCurrency = '',
+  baseCurrency = '',
+} = {}) {
+  return normalizeStatementCurrencyCode(
+    showAmountIn || accountCurrency || baseCurrency,
+  ).trim().toUpperCase()
+}
+
 export const DEFAULT_STATEMENT_DISPLAY_CURRENCIES = ['USD', 'EUR', 'AED', 'UZS']
 
 export function buildStatementCurrencyOptions({
