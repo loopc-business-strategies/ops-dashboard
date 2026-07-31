@@ -49,6 +49,26 @@ jobs:
           echo "Waiting ${WAIT_SECONDS}s for production deploy propagation..."
           sleep "${WAIT_SECONDS}"
 
+      - name: Wait until API /api/ready reports ready
+        run: |
+          API_BASE="${SMOKE_API_BASE%/}"
+          DEADLINE=$((SECONDS + 120))
+          echo "Polling ${API_BASE}/api/ready until ready=true (up to 120s)..."
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            BODY="$(curl -sS --max-time 10 "${API_BASE}/api/ready" || true)"
+            READY="$(node -e 'const b=process.argv[1]||""; try { const j=JSON.parse(b); process.stdout.write(j && j.ready===true ? "true" : "false") } catch { process.stdout.write("false") }' "$BODY")"
+            if [ "$READY" = "true" ]; then
+              echo "API ready:"
+              echo "$BODY" | node -e 'let s=""; process.stdin.on("data",d=>s+=d); process.stdin.on("end",()=>{ try { const j=JSON.parse(s); console.log("commit=", String(j.commit||j.build?.sha||"").slice(0,7), "redisReady=", j.checks?.redisReady) } catch { console.log(s.slice(0,200)) } })'
+              exit 0
+            fi
+            echo "Not ready yet; retrying in 5s..."
+            sleep 5
+          done
+          echo "API still not ready after 120s:"
+          curl -sS --max-time 10 "${API_BASE}/api/ready" || true
+          exit 1
+
       - name: Run tenant smoke checks
         run: npm run smoke:tenants
 
@@ -70,6 +90,24 @@ jobs:
       - name: Install mobile dependencies for API smoke
         working-directory: mobile
         run: npm ci
+
+      - name: Re-check API ready before mobile smoke
+        run: |
+          API_BASE="${SMOKE_API_BASE%/}"
+          DEADLINE=$((SECONDS + 60))
+          echo "Re-checking ${API_BASE}/api/ready before mobile smoke..."
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            BODY="$(curl -sS --max-time 10 "${API_BASE}/api/ready" || true)"
+            READY="$(node -e 'const b=process.argv[1]||""; try { const j=JSON.parse(b); process.stdout.write(j && j.ready===true ? "true" : "false") } catch { process.stdout.write("false") }' "$BODY")"
+            if [ "$READY" = "true" ]; then
+              echo "API ready for mobile smoke"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "API not ready before mobile smoke"
+          echo "$BODY"
+          exit 1
 
       - name: Run mobile API smoke (JWT + X-Client mobile) — all tenants
         env:

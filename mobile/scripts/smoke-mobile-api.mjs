@@ -52,6 +52,11 @@ const erpFull = String(process.env.SMOKE_MOBILE_ERP_FULL || '').trim() === '1'
 const skipSocket = String(process.env.SMOKE_MOBILE_SKIP_SOCKET || '').trim() === '1'
 const skipPush = String(process.env.SMOKE_MOBILE_SKIP_PUSH || '').trim() === '1'
 
+const FETCH_TIMEOUT_MS = Math.max(5000, Number(process.env.SMOKE_MOBILE_FETCH_TIMEOUT_MS || 30000) || 30000)
+const READY_WAIT_MS = Math.max(5000, Number(process.env.SMOKE_MOBILE_READY_WAIT_MS || 30000) || 30000)
+const RETRY_ATTEMPTS = Math.max(1, Number(process.env.SMOKE_MOBILE_RETRY_ATTEMPTS || 3) || 3)
+const RETRY_BACKOFF_MS = Math.max(250, Number(process.env.SMOKE_MOBILE_RETRY_BACKOFF_MS || 1500) || 1500)
+
 function mobileHeaders(token = null) {
   const h = {
     Accept: 'application/json',
@@ -69,6 +74,17 @@ const trimApiSuffix = (value) =>
     .replace(/\/+$/, '')
     .replace(/\/api$/i, '')
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function abortSignalTimeout(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms)
+  }
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), ms)
+  return controller.signal
+}
+
 async function readJson(res) {
   try {
     return await res.json()
@@ -81,13 +97,89 @@ function isSessionRevokedError(status, message) {
   return Number(status) === 401 && /session revoked/i.test(String(message || ''))
 }
 
-async function loginForToken() {
-  const loginRes = await fetch(`${base}/api/auth/login`, {
-    method: 'POST',
-    headers: mobileHeaders(),
-    body: JSON.stringify({ name, password, company }),
+function isTransientGatewayError(status, message) {
+  const code = Number(status)
+  if (code === 502 || code === 503 || code === 504) return true
+  return /application failed to respond/i.test(String(message || ''))
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  const { timeoutMs = FETCH_TIMEOUT_MS, ...rest } = options
+  return fetch(url, {
+    ...rest,
+    signal: rest.signal || abortSignalTimeout(timeoutMs),
   })
-  const loginData = await expectOk(loginRes, 'POST /api/auth/login')
+}
+
+async function fetchWithRetry(url, options = {}, label = 'request') {
+  let lastErr
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await fetchWithTimeout(url, options)
+      const data = await readJson(res)
+      if (!res.ok) {
+        const msg = typeof data?.message === 'string' ? data.message : `HTTP ${res.status}`
+        if (attempt < RETRY_ATTEMPTS && isTransientGatewayError(res.status, msg)) {
+          console.log(`Note: ${label} got transient ${res.status} (${msg}) — retry ${attempt}/${RETRY_ATTEMPTS}`)
+          await sleep(RETRY_BACKOFF_MS * attempt)
+          continue
+        }
+        const err = new Error(`${label}: ${msg}`)
+        err.status = res.status
+        err.apiMessage = msg
+        throw err
+      }
+      return { res, data }
+    } catch (err) {
+      lastErr = err
+      const status = Number(err?.status || 0)
+      const msg = err?.apiMessage || err?.message || String(err)
+      const abortLike = err?.name === 'AbortError' || /aborted|timeout/i.test(String(msg))
+      if (attempt < RETRY_ATTEMPTS && (abortLike || isTransientGatewayError(status, msg))) {
+        console.log(`Note: ${label} failed (${msg}) — retry ${attempt}/${RETRY_ATTEMPTS}`)
+        await sleep(RETRY_BACKOFF_MS * attempt)
+        continue
+      }
+      throw err
+    }
+  }
+  throw lastErr || new Error(`${label}: exhausted retries`)
+}
+
+async function waitForApiReady() {
+  const deadline = Date.now() + READY_WAIT_MS
+  let lastErr = 'not ready'
+  while (Date.now() < deadline) {
+    try {
+      const { data } = await fetchWithRetry(
+        `${base}/api/ready`,
+        { headers: mobileHeaders(), timeoutMs: Math.min(10000, FETCH_TIMEOUT_MS) },
+        'GET /api/ready',
+      )
+      if (data?.ready === true) {
+        const sha = String(data?.build?.sha || data?.backend?.sha || data?.commit || '').slice(0, 7)
+        console.log(`Step: api ready — OK${sha ? ` (build=${sha})` : ''}`)
+        return data
+      }
+      lastErr = 'ready=false'
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err)
+    }
+    await sleep(1500)
+  }
+  throw new Error(`API not ready within ${READY_WAIT_MS}ms (${lastErr})`)
+}
+
+async function loginForToken() {
+  const { data: loginData } = await fetchWithRetry(
+    `${base}/api/auth/login`,
+    {
+      method: 'POST',
+      headers: mobileHeaders(),
+      body: JSON.stringify({ name, password, company }),
+    },
+    'POST /api/auth/login',
+  )
   const token = loginData?.token
   if (!token || typeof token !== 'string') {
     throw new Error('Login response missing token')
@@ -95,31 +187,19 @@ async function loginForToken() {
   return token
 }
 
-async function expectOk(res, label) {
-  const data = await readJson(res)
-  if (!res.ok) {
-    const msg = typeof data?.message === 'string' ? data.message : `HTTP ${res.status}`
-    const err = new Error(`${label}: ${msg}`)
-    err.status = res.status
-    err.apiMessage = msg
-    throw err
-  }
-  return data
-}
-
 /** Auth bag so ERP helpers can refresh JWT after concurrent session invalidation. */
 const auth = { token: null }
 
 async function getExpect(url, label) {
-  const res = await fetch(url, { headers: mobileHeaders(auth.token) })
   try {
-    return await expectOk(res, label)
+    const { data } = await fetchWithRetry(url, { headers: mobileHeaders(auth.token) }, label)
+    return data
   } catch (err) {
     if (!isSessionRevokedError(err.status, err.apiMessage || err.message)) throw err
     console.log(`Note: ${label} got session revoked — re-login once and retry`)
     auth.token = await loginForToken()
-    const retryRes = await fetch(url, { headers: mobileHeaders(auth.token) })
-    return expectOk(retryRes, label)
+    const { data } = await fetchWithRetry(url, { headers: mobileHeaders(auth.token) }, label)
+    return data
   }
 }
 
@@ -259,19 +339,25 @@ async function smokeNotificationsSocket(token) {
 /** Expo-shaped token (min length per Joi); POST then DELETE so DB is not left with junk long-term. */
 async function smokePushTokenRoundTrip(token) {
   const expoToken = `ExponentPushToken[smoke-mobile-${Date.now()}]`
-  const postRes = await fetch(`${base}/api/auth/me/push-token`, {
-    method: 'POST',
-    headers: mobileHeaders(token),
-    body: JSON.stringify({ token: expoToken }),
-  })
-  await expectOk(postRes, 'POST /api/auth/me/push-token')
+  await fetchWithRetry(
+    `${base}/api/auth/me/push-token`,
+    {
+      method: 'POST',
+      headers: mobileHeaders(token),
+      body: JSON.stringify({ token: expoToken }),
+    },
+    'POST /api/auth/me/push-token',
+  )
 
-  const delRes = await fetch(`${base}/api/auth/me/push-token`, {
-    method: 'DELETE',
-    headers: mobileHeaders(token),
-    body: JSON.stringify({ token: expoToken }),
-  })
-  await expectOk(delRes, 'DELETE /api/auth/me/push-token')
+  await fetchWithRetry(
+    `${base}/api/auth/me/push-token`,
+    {
+      method: 'DELETE',
+      headers: mobileHeaders(token),
+      body: JSON.stringify({ token: expoToken }),
+    },
+    'DELETE /api/auth/me/push-token',
+  )
 }
 
 async function main() {
@@ -291,28 +377,24 @@ async function main() {
   if (skipSocket) console.log('Note: SMOKE_MOBILE_SKIP_SOCKET=1 — skipping Socket.IO')
   if (skipPush) console.log('Note: SMOKE_MOBILE_SKIP_PUSH=1 — skipping push-token POST/DELETE')
 
+  await waitForApiReady()
+
   auth.token = await loginForToken()
   console.log('Step: login — OK')
 
-  const meRes = await fetch(`${base}/api/auth/me`, { headers: mobileHeaders(auth.token) })
-  await expectOk(meRes, 'GET /api/auth/me')
+  await getExpect(`${base}/api/auth/me`, 'GET /api/auth/me')
   console.log('Step: me — OK')
 
   const latestUrl = new URL(`${base}/api/messages/latest`)
   latestUrl.searchParams.set('type', 'all')
   latestUrl.searchParams.set('limit', '10')
-  const latestRes = await fetch(latestUrl, { headers: mobileHeaders(auth.token) })
-  await expectOk(latestRes, 'GET /api/messages/latest')
+  await getExpect(latestUrl.toString(), 'GET /api/messages/latest')
   console.log('Step: messages/latest — OK')
 
-  const partRes = await fetch(`${base}/api/messages/participants`, {
-    headers: mobileHeaders(auth.token),
-  })
-  await expectOk(partRes, 'GET /api/messages/participants')
+  await getExpect(`${base}/api/messages/participants`, 'GET /api/messages/participants')
   console.log('Step: messages/participants — OK')
 
-  const groupsRes = await fetch(`${base}/api/messages/groups`, { headers: mobileHeaders(auth.token) })
-  await expectOk(groupsRes, 'GET /api/messages/groups')
+  await getExpect(`${base}/api/messages/groups`, 'GET /api/messages/groups')
   console.log('Step: messages/groups — OK')
 
   if (!skipErp) {
