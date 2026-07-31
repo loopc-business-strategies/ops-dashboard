@@ -171,7 +171,7 @@ describe('statementPrintHtml', () => {
       'data:image/png;base64,sharp-logo',
       120,
       90,
-      undefined,
+      'contain',
       { renderScale: 2 },
     )
     expect(result?.html).toContain('data:image/png;base64,rasterized')

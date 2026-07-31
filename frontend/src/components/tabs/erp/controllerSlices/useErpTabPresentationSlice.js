@@ -237,7 +237,7 @@ export function useErpTabPresentationSlice(scope) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-  const generateStatementHtml = (options = {}) => buildStatementHtml({
+  const getStatementExportCtx = (options = {}) => ({
     accountEnquiryData,
     filteredStatementEntries,
     resolveStatementReceiptNo,
@@ -254,6 +254,7 @@ export function useErpTabPresentationSlice(scope) {
     statementFilters,
     screenPreview: options.screenPreview === true,
   })
+  const generateStatementHtml = (options = {}) => buildStatementHtml(getStatementExportCtx(options))
   const {
     handleViewStatement,
     handlePrintStatement,
@@ -271,6 +272,7 @@ export function useErpTabPresentationSlice(scope) {
     accountEnquiryCode,
     syncEnquiryUrl,
     generateStatementHtml,
+    getStatementExportCtx,
     setStatementPreviewHtml,
     setStatementPreviewTitle,
     setStatementPreviewLoading,

@@ -1,22 +1,6 @@
-import {
-  DEFAULT_STATEMENT_PRINT,
-  STATEMENT_ADDRESS_FONT_MAX,
-  STATEMENT_ADDRESS_FONT_MIN,
-  STATEMENT_COMPANY_NAME_FONT_MAX,
-  STATEMENT_COMPANY_NAME_FONT_MIN,
-  clampBrandingDimension,
-  clampStatementFontSize,
-  createLogoRenderAsset,
-} from './ERPBrandingUtils'
-import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
+import { createLogoRenderAsset } from './ERPBrandingUtils'
 import { sanitizeLogoUrl } from '../../../utils/safeHtml'
-import {
-  computeStatementExportOpeningBalances,
-  matchesStatementMetal,
-  resolveStatementMetalBalance,
-  resolveStatementSignedAmount,
-  sortStatementEntriesForExport,
-} from './statementHelpers'
+import { buildStatementExportModel } from './statementExportModel'
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -30,181 +14,65 @@ const escapeHtml = (value) => String(value ?? '')
  * @param {object} ctx — runtime values from ERPTab (account enquiry UI state).
  */
 export async function generateStatementHtml(ctx) {
-  const {
-    accountEnquiryData,
-    filteredStatementEntries,
-    resolveStatementReceiptNo,
-    statementSelectedMetalCode,
-    resolvePreferredStatementMetalCode,
-    statementDisplayCurrency,
-    rawStatementEntries,
-    formatStatementDate,
-    convertStatementDisplayAmount,
-    tenantBranding,
-    user,
-    branding,
-    defaultBranding: DEFAULT_BRANDING,
-    statementFilters,
-    screenPreview = false,
-  } = ctx
+  const { screenPreview = false } = ctx
+  const model = buildStatementExportModel(ctx)
+  if (!model) return null
 
-  if (!accountEnquiryData) return null
-  const exportEntries = sortStatementEntriesForExport(filteredStatementEntries, resolveStatementReceiptNo)
-  const statementMetalCode = statementSelectedMetalCode || resolvePreferredStatementMetalCode(exportEntries)
-  const exportDisplayCurrency = statementDisplayCurrency
-  const endingPureWeight = resolveStatementMetalBalance(accountEnquiryData?.metals, statementMetalCode, rawStatementEntries)
-  const matchesExportMetalEntry = (entry) => matchesStatementMetal(entry, statementMetalCode)
   const {
-    openingUsdBalance,
-    openingPureWeight,
-    closingUsdBalance,
-    closingPureWeight,
-  } = computeStatementExportOpeningBalances({
-    exportEntries,
-    closingNetBalance: accountEnquiryData?.balances?.netBalance,
-    closingPureWeight: endingPureWeight,
-    matchesMetalEntry: matchesExportMetalEntry,
-  })
-  let runningUsdBalance = openingUsdBalance
-  let runningPureWeight = openingPureWeight
-  const formatDateForHeader = (value) => {
-    if (!value) return ''
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return ''
-    const day = String(date.getDate()).padStart(2, '0')
-    const month = date.toLocaleString('en-US', { month: 'short' })
-    const year = String(date.getFullYear()).slice(-2)
-    return `${day}-${month}-${year}`
-  }
-  const formatNumber = (value, decimals = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-  const formatDrCr = (value, decimals = 2) => {
-    const numeric = Number(value || 0)
-    return `${formatNumber(Math.abs(numeric), decimals)} ${numeric >= 0 ? 'Dr' : 'Cr'}`
-  }
-  const formatBlankable = (value, decimals = 2) => {
-    const numeric = Number(value || 0)
-    if (!numeric) return ''
-    return formatNumber(numeric, decimals)
-  }
-  const buildNarration = (entry) => {
-    const primary = String(entry?.description || '').trim()
-    if (primary) return primary
-    const reference = String(entry?.referenceType || '').trim().toUpperCase()
-    const offset = entry?.offsetAccountCode
-      ? `${String(entry.offsetAccountCode).trim()}${entry?.offsetAccountName ? ` ${String(entry.offsetAccountName).trim()}` : ''}`
-      : ''
-    return [reference, offset].filter(Boolean).join(' - ') || 'Statement entry'
-  }
-  const bodyRows = exportEntries.map((entry) => {
-    const debitUsd = Number(entry?.debitAmount || 0)
-    const creditUsd = Number(entry?.creditAmount || 0)
-    const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-    const isSelectedMetalEntry = matchesStatementMetal(entry, statementMetalCode)
-    const debitPure = isSelectedMetalEntry && signedPureWeight > 0 ? signedPureWeight : 0
-    const creditPure = isSelectedMetalEntry && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
-    runningUsdBalance += resolveStatementSignedAmount(entry)
-    if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
-    return `
-        <tr>
-          <td class="col-doc">${escapeHtml(resolveStatementReceiptNo(entry) || '-')}</td>
-          <td class="col-date">${escapeHtml(formatDateForHeader(entry.date) || formatStatementDate(entry.date) || '-')}</td>
-          <td class="narration">${escapeHtml(buildNarration(entry))}</td>
-          <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(debitUsd), 2))}</td>
-          <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(creditUsd), 2))}</td>
-          <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(runningUsdBalance), 2))}</td>
-          <td class="num">${escapeHtml(formatBlankable(debitPure, 3))}</td>
-          <td class="num">${escapeHtml(formatBlankable(creditPure, 3))}</td>
-          <td class="num">${escapeHtml(formatDrCr(runningPureWeight, 3))}</td>
-        </tr>
-      `
-  }).join('')
-  const totalDebitUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.debitAmount || 0), 0)
-  const totalCreditUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.creditAmount || 0), 0)
-  const totalDebitPure = exportEntries.reduce((sum, entry) => {
-    const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-    return sum + (matchesExportMetalEntry(entry) && signedPureWeight > 0 ? signedPureWeight : 0)
-  }, 0)
-  const totalCreditPure = exportEntries.reduce((sum, entry) => {
-    const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-    return sum + (matchesExportMetalEntry(entry) && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0)
-  }, 0)
-  const tenantIdentity = [
-    tenantBranding?.key,
-    tenantBranding?.displayName,
-    user?.tenant?.key,
-    user?.tenant?.name,
-    user?.company,
-    branding?.companyName,
-  ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
-  const isModernGoldStatement = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
-  const tenantKey = String(tenantBranding?.key || user?.company || user?.tenant?.key || '').trim().toLowerCase()
-  const useMasterStatementLayout = isMasterDocumentSettingsEnabled(tenantKey)
-  const statementPrint = branding?.statementPrint || {}
-  const statementTitle = String(statementPrint.title || 'Statement of Account').trim() || 'Statement of Account'
-  const statementSubtitle = String(statementPrint.subtitle || '').trim()
-  const statementFooterNote = String(statementPrint.footerNote || '').trim()
-  const visibleStatementSignatories = (Array.isArray(statementPrint.signatories) ? statementPrint.signatories : [])
-    .filter((item) => item?.visible !== false)
-  const showPrintNote = statementPrint.showPrintNote !== false
-  const logoOffsetX = Number(statementPrint.logoOffsetX || 0)
-  const logoOffsetY = Number(statementPrint.logoOffsetY || 0)
-  const logoTransparent = statementPrint.logoTransparent !== false
-  const companyNameFontSize = clampStatementFontSize(
-    statementPrint.companyNameFontSize,
-    DEFAULT_STATEMENT_PRINT.companyNameFontSize,
-    STATEMENT_COMPANY_NAME_FONT_MIN,
-    STATEMENT_COMPANY_NAME_FONT_MAX,
-  )
-  const addressFontSize = clampStatementFontSize(
-    statementPrint.addressFontSize,
-    DEFAULT_STATEMENT_PRINT.addressFontSize,
-    STATEMENT_ADDRESS_FONT_MIN,
-    STATEMENT_ADDRESS_FONT_MAX,
-  )
-  const brandCopyClass = useMasterStatementLayout ? 'brand-copy-loopc' : 'brand-copy'
-  const brandingProfile = {
-    ...branding,
-    companyName: !useMasterStatementLayout && isModernGoldStatement && (!branding.companyName || branding.companyName === DEFAULT_BRANDING.companyName)
-      ? 'MODERN GOLD JEWELRY MANUFACTURING'
-      : branding.companyName,
-  }
-  const companyAddress = String(brandingProfile.address || '').trim()
-  const companyPhone = String(brandingProfile.phone || '').trim()
-  const companyTrn = String(brandingProfile.trn || '').trim()
-  const accountAddress = String(accountEnquiryData?.account?.address || accountEnquiryData?.account?.description || '').trim()
-  const headerStartDate = statementFilters.startDate || exportEntries[0]?.date || ''
-  const headerEndDate = statementFilters.endDate || exportEntries[exportEntries.length - 1]?.date || ''
-  const statementLogoWidth = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
-    ? Math.max(110, clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260))
-    : clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
-  const statementLogoHeight = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
-    ? Math.max(90, clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120))
-    : clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
-  const logoWidth = statementLogoWidth
-  const logoHeight = statementLogoHeight
+    accountCode,
+    accountName,
+    accountAddress,
+    currency,
+    metalCode,
+    title,
+    subtitle,
+    footerNote,
+    showPrintNote,
+    companyName,
+    companyAddress,
+    companyPhone,
+    companyTrn,
+    dateFromLabel,
+    dateToLabel,
+    printedByName,
+    logoUrl,
+    logoFit,
+    logoWidth,
+    logoHeight,
+    logoOffsetX,
+    logoOffsetY,
+    logoTransparent,
+    companyNameFontSize,
+    addressFontSize,
+    useMasterStatementLayout,
+    signatories,
+    tableRows,
+  } = model
+
   const logoSrc = screenPreview
-    ? sanitizeLogoUrl(brandingProfile.logoUrl)
+    ? sanitizeLogoUrl(logoUrl)
     : await createLogoRenderAsset(
-      brandingProfile.logoUrl,
-      statementLogoWidth,
-      statementLogoHeight,
-      brandingProfile.logoFit,
+      logoUrl,
+      logoWidth,
+      logoHeight,
+      logoFit,
       { renderScale: 2 },
     )
   const logoMarkup = logoSrc
-    ? `<img src="${escapeHtml(logoSrc)}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:${escapeHtml(brandingProfile.logoFit || 'contain')};display:block;background:${logoTransparent ? 'transparent' : '#FFFFFF'};position:relative;top:${logoOffsetY}px;right:${-logoOffsetX}px;" />`
+    ? `<img src="${escapeHtml(logoSrc)}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:${escapeHtml(logoFit || 'contain')};display:block;background:${logoTransparent ? 'transparent' : '#FFFFFF'};position:relative;top:${logoOffsetY}px;right:${-logoOffsetX}px;" />`
     : ''
+  const brandCopyClass = useMasterStatementLayout ? 'brand-copy-loopc' : 'brand-copy'
   const companyBlock = `
               <div class="${brandCopyClass}">
-                <div class="company" style="font-size:${companyNameFontSize}px">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
+                <div class="company" style="font-size:${companyNameFontSize}px">${escapeHtml(companyName)}</div>
                 ${companyAddress ? `<div class="muted" style="font-size:${addressFontSize}px">${escapeHtml(companyAddress).replace(/\n/g, '<br />')}</div>` : ''}
                 ${companyPhone ? `<div class="muted" style="font-size:${addressFontSize}px">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted" style="font-size:${addressFontSize}px">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
               </div>`
   const statementHeadBlock = `
               <div class="statement-head${useMasterStatementLayout ? ' statement-head-loopc' : ''}">
-                <div class="title">${escapeHtml(statementTitle)}</div>
-                ${statementSubtitle ? `<div class="subtitle">${escapeHtml(statementSubtitle)}</div>` : ''}
-                <div class="dates">Doc Date From ${escapeHtml(formatDateForHeader(headerStartDate) || '-')} To ${escapeHtml(formatDateForHeader(headerEndDate) || '-')}</div>
+                <div class="title">${escapeHtml(title)}</div>
+                ${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ''}
+                <div class="dates">Doc Date From ${escapeHtml(dateFromLabel)} To ${escapeHtml(dateToLabel)}</div>
               </div>`
   const headerMarkup = useMasterStatementLayout
     ? `
@@ -219,10 +87,10 @@ export async function generateStatementHtml(ctx) {
               ${companyBlock}
               ${statementHeadBlock}
             </div>`
-  const signatoryMarkup = visibleStatementSignatories.length
+  const signatoryMarkup = signatories.length
     ? `
             <div class="signatories">
-              ${visibleStatementSignatories.map((item) => `
+              ${signatories.map((item) => `
                 <div class="signatory">
                   ${item.name ? `<div class="signatory-name">${escapeHtml(item.name)}</div>` : '<div class="signatory-name">&nbsp;</div>'}
                   <div class="signatory-line">${escapeHtml(item.title || '')}</div>
@@ -230,10 +98,39 @@ export async function generateStatementHtml(ctx) {
               `).join('')}
             </div>`
     : ''
+
+  const bodyRows = tableRows.map((row) => {
+    if (row.kind === 'opening' || row.kind === 'closing') {
+      return `
+                <tr class="opening">
+                  <td colspan="2"></td>
+                  <td class="carry-label">${escapeHtml(row.cells[2])}</td>
+                  <td class="num">${escapeHtml(row.cells[3])}</td>
+                  <td class="num">${escapeHtml(row.cells[4])}</td>
+                  <td class="num">${escapeHtml(row.cells[5])}</td>
+                  <td class="num">${escapeHtml(row.cells[6])}</td>
+                  <td class="num">${escapeHtml(row.cells[7])}</td>
+                  <td class="num">${escapeHtml(row.cells[8])}</td>
+                </tr>`
+    }
+    return `
+        <tr>
+          <td class="col-doc">${escapeHtml(row.cells[0])}</td>
+          <td class="col-date">${escapeHtml(row.cells[1])}</td>
+          <td class="narration">${escapeHtml(row.cells[2])}</td>
+          <td class="num">${escapeHtml(row.cells[3])}</td>
+          <td class="num">${escapeHtml(row.cells[4])}</td>
+          <td class="num">${escapeHtml(row.cells[5])}</td>
+          <td class="num">${escapeHtml(row.cells[6])}</td>
+          <td class="num">${escapeHtml(row.cells[7])}</td>
+          <td class="num">${escapeHtml(row.cells[8])}</td>
+        </tr>`
+  }).join('')
+
   const html = `
       <html>
         <head>
-          <title>Statement of Account ${escapeHtml(accountEnquiryData.account.accountCode)}</title>
+          <title>Statement of Account ${escapeHtml(accountCode)}</title>
           <style>
             @page { size: A4 landscape; margin: 8mm; }
             :root {
@@ -251,7 +148,7 @@ export async function generateStatementHtml(ctx) {
             .brand-copy-loopc .muted { font-size: 10px; line-height: 1.5; }
             .statement-head-loopc { text-align: center; padding-top: 8px; margin-bottom: 12px; }
             .statement-head-loopc .subtitle { font-size: 14px; color: #4B5563; margin-bottom: 4px; }
-            .signatories { margin-top: 18px; display: grid; grid-template-columns: repeat(${Math.max(visibleStatementSignatories.length, 1)}, 1fr); gap: 24px; text-align: center; }
+            .signatories { margin-top: 18px; display: grid; grid-template-columns: repeat(${Math.max(signatories.length, 1)}, 1fr); gap: 24px; text-align: center; }
             .signatory-name { min-height: 24px; font-size: 12px; margin-bottom: 36px; }
             .signatory-line { border-top: 1px solid var(--soa-border); padding-top: 6px; font-weight: 700; font-size: 13px; }
             .statement-footer-note { margin-top: 10px; font-size: 12px; color: #4B5563; }
@@ -289,8 +186,8 @@ export async function generateStatementHtml(ctx) {
           <div class="sheet">
             ${headerMarkup}
             <div class="party-box">
-              <div class="party-code">${escapeHtml(accountEnquiryData.account.accountCode || '')}</div>
-              <div class="party-name">${escapeHtml(accountEnquiryData.account.accountName || 'Account')}</div>
+              <div class="party-code">${escapeHtml(accountCode || '')}</div>
+              <div class="party-name">${escapeHtml(accountName)}</div>
               <div class="party-address">${escapeHtml(accountAddress)}</div>
             </div>
             <table>
@@ -310,8 +207,8 @@ export async function generateStatementHtml(ctx) {
                   <th rowspan="2">Doc No</th>
                   <th rowspan="2">Doc Date</th>
                   <th rowspan="2">Narration</th>
-                  <th colspan="3">Amount (${escapeHtml(exportDisplayCurrency)})</th>
-                  <th colspan="3">${escapeHtml(statementMetalCode)}(GMS)</th>
+                  <th colspan="3">Amount (${escapeHtml(currency)})</th>
+                  <th colspan="3">${escapeHtml(metalCode)}(GMS)</th>
                 </tr>
                 <tr class="subhead">
                   <th class="num-head">Debit</th>
@@ -323,39 +220,19 @@ export async function generateStatementHtml(ctx) {
                 </tr>
               </thead>
               <tbody>
-                <tr class="opening">
-                  <td colspan="2"></td>
-                  <td class="carry-label">Balance B/F</td>
-                  <td class="num"></td>
-                  <td class="num"></td>
-                  <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(openingUsdBalance), 2))}</td>
-                  <td class="num"></td>
-                  <td class="num"></td>
-                  <td class="num">${escapeHtml(formatDrCr(openingPureWeight, 3))}</td>
-                </tr>
                 ${bodyRows}
-                <tr class="opening">
-                  <td colspan="2"></td>
-                  <td class="carry-label">Balance C/F</td>
-                  <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalDebitUsd), 2))}</td>
-                  <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalCreditUsd), 2))}</td>
-                  <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(closingUsdBalance), 2))}</td>
-                  <td class="num">${escapeHtml(formatBlankable(totalDebitPure, 3))}</td>
-                  <td class="num">${escapeHtml(formatBlankable(totalCreditPure, 3))}</td>
-                  <td class="num">${escapeHtml(formatDrCr(closingPureWeight, 3))}</td>
-                </tr>
               </tbody>
             </table>
             <div class="footer">
-              <span>Printed By: ${escapeHtml(user?.name || 'User')} On ${escapeHtml(new Date().toLocaleString())}</span>
+              <span>Printed By: ${escapeHtml(printedByName)} On ${escapeHtml(new Date().toLocaleString())}</span>
               <span>Page 1 of 1</span>
             </div>
             ${signatoryMarkup}
-            ${statementFooterNote ? `<div class="statement-footer-note">${escapeHtml(statementFooterNote)}</div>` : ''}
+            ${footerNote ? `<div class="statement-footer-note">${escapeHtml(footerNote)}</div>` : ''}
             ${showPrintNote ? '<div class="print-note">Generated from Account Summary</div>' : ''}
           </div>
         </body>
       </html>
     `
-  return { html, accountCode: accountEnquiryData.account.accountCode }
+  return { html, accountCode, model }
 }
