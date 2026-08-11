@@ -1,13 +1,24 @@
 const CACHE_TTL_MS = 3 * 60 * 1000
 
-function cacheKey(tenant, accountCode) {
-  const code = String(accountCode || '').trim().toUpperCase()
-  return `erp-account-enquiry:${String(tenant || 'default').toLowerCase()}:${code}`
+function normalizeWindowPart(value) {
+  return String(value || '').trim()
 }
 
-export function readAccountEnquiryCache(tenant, accountCode) {
+export function buildAccountEnquiryCacheKey(tenant, accountCode, window = {}) {
+  const code = String(accountCode || '').trim().toUpperCase()
+  const startDate = normalizeWindowPart(window.startDate)
+  const endDate = normalizeWindowPart(window.endDate)
+  const statementLimit = Number(window.statementLimit) || 500
+  return `erp-account-enquiry:${String(tenant || 'default').toLowerCase()}:${code}:${startDate}:${endDate}:${statementLimit}`
+}
+
+function cacheKey(tenant, accountCode, window) {
+  return buildAccountEnquiryCacheKey(tenant, accountCode, window)
+}
+
+export function readAccountEnquiryCache(tenant, accountCode, window = {}) {
   try {
-    const raw = sessionStorage.getItem(cacheKey(tenant, accountCode))
+    const raw = sessionStorage.getItem(cacheKey(tenant, accountCode, window))
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!parsed?.data || !parsed?.savedAt) return null
@@ -18,9 +29,9 @@ export function readAccountEnquiryCache(tenant, accountCode) {
   }
 }
 
-export function writeAccountEnquiryCache(tenant, accountCode, data) {
+export function writeAccountEnquiryCache(tenant, accountCode, data, window = {}) {
   try {
-    sessionStorage.setItem(cacheKey(tenant, accountCode), JSON.stringify({
+    sessionStorage.setItem(cacheKey(tenant, accountCode, window), JSON.stringify({
       data,
       savedAt: Date.now(),
     }))

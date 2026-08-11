@@ -36,6 +36,7 @@ describe('erpTabScopeStatics (node)', () => {
       filteredGroupedSummaryAccounts: [],
       setEnquiryStatus: () => {},
       fetchAccountEnquiryByCode: async () => {},
+      refetchEnquiryForDateRange: async () => {},
       enquiryStatus: { type: '', message: '' },
       accountEnquiryData: null,
       modalPositionRows: [],

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES } from '../statementHelpers'
@@ -22,6 +23,7 @@ export default function AccountEnquiryModal({
   filteredGroupedSummaryAccounts,
   setEnquiryStatus,
   fetchAccountEnquiryByCode,
+  refetchEnquiryForDateRange,
   enquiryStatus,
   accountEnquiryData,
   modalPositionRows,
@@ -75,6 +77,46 @@ export default function AccountEnquiryModal({
   resolveExposureDirection,
   isMetalStatementEntry,
 }) {
+  const dateRangeRefetchTimerRef = useRef(null)
+  const dateRangeInFlightKeyRef = useRef('')
+  const statementMeta = accountEnquiryData?.statement?.meta || null
+  const statementTruncated = Boolean(statementMeta?.truncated)
+  const statementLimit = Number(statementMeta?.limit || 0)
+
+  useEffect(() => {
+    if (!open || !accountEnquiryData?.account?.accountCode || typeof refetchEnquiryForDateRange !== 'function') {
+      return undefined
+    }
+    const startDate = String(statementFilters?.startDate || '').trim()
+    const endDate = String(statementFilters?.endDate || '').trim()
+    const serverStart = String(statementMeta?.startDate || '').trim()
+    const serverEnd = String(statementMeta?.endDate || '').trim()
+    const rangeKey = `${startDate}|${endDate}`
+    if (startDate === serverStart && endDate === serverEnd) {
+      dateRangeInFlightKeyRef.current = ''
+      return undefined
+    }
+    if (dateRangeInFlightKeyRef.current === rangeKey) return undefined
+
+    if (dateRangeRefetchTimerRef.current) clearTimeout(dateRangeRefetchTimerRef.current)
+    dateRangeRefetchTimerRef.current = setTimeout(() => {
+      dateRangeInFlightKeyRef.current = rangeKey
+      Promise.resolve(refetchEnquiryForDateRange(startDate, endDate)).catch(() => {})
+    }, 400)
+
+    return () => {
+      if (dateRangeRefetchTimerRef.current) clearTimeout(dateRangeRefetchTimerRef.current)
+    }
+  }, [
+    open,
+    accountEnquiryData?.account?.accountCode,
+    refetchEnquiryForDateRange,
+    statementFilters?.startDate,
+    statementFilters?.endDate,
+    statementMeta?.startDate,
+    statementMeta?.endDate,
+  ])
+
   if (!open) return null
   return (
         <div
@@ -382,6 +424,11 @@ export default function AccountEnquiryModal({
                       <div>
                         <p style={{ margin: 0, fontSize: '0.95rem', color: '#111827', fontWeight: '800' }}>Full Statement of Account</p>
                         <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#6B7280' }}>{filteredStatementEntries.length} entries shown</p>
+                        {statementTruncated && (
+                          <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: '#B45309', fontWeight: '600' }}>
+                            Showing newest {statementLimit || filteredStatementEntries.length} lines. Set Date From to load older months (e.g. February).
+                          </p>
+                        )}
                       </div>
                       {recentPaymentReceiptEntry && (
                         <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '0.45rem', padding: '0.45rem 0.6rem' }}>

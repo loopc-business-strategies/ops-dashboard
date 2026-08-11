@@ -21,6 +21,27 @@ const enquiryCache = createReportResponseCache(180000)
 const summaryAccountsCache = createReportResponseCache(120000)
 const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
 
+function parseEnquiryStartDate(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const parsed = new Date(raw)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function parseEnquiryEndDate(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  parsed.setHours(23, 59, 59, 999)
+  return parsed
+}
+
+function statementEntryDate(value) {
+  const parsed = value ? new Date(value) : null
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null
+}
+
 function registerAccountsRoutes(deps) {
   const {
     router,
@@ -111,6 +132,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     }
     const rawStatementLimit = Number(req.query.statementLimit || 150)
     const statementLimit = Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 150, 1), 500)
+    const statementStartDate = parseEnquiryStartDate(req.query.startDate)
+    const statementEndDate = parseEnquiryEndDate(req.query.endDate)
 
     const cacheKey = enquiryCache.buildKey([
       req.user?.tenant || req.user?.company || 'default',
@@ -118,6 +141,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       'account-enquiry',
       accountCode,
       statementLimit,
+      statementStartDate ? statementStartDate.toISOString() : '',
+      statementEndDate ? statementEndDate.toISOString() : '',
     ])
     const skipEnquiryCache = String(req.query.refresh || req.query.nocache || '').trim() === '1'
     const cached = skipEnquiryCache ? null : enquiryCache.get(cacheKey)
@@ -257,16 +282,32 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     goldBalance += unfixedCustomerMetal.gold + unfixedVendorMetal.gold
     silverBalance += unfixedCustomerMetal.silver + unfixedVendorMetal.silver
 
-    const ledgerEntries = await Ledger.find({
+    const ledgerStatementMatch = {
       isDeleted: { $ne: true },
       $or: [{ debitAccountId: { $in: targetAccountIds } }, { creditAccountId: { $in: targetAccountIds } }],
-    })
+    }
+    if (statementStartDate || statementEndDate) {
+      ledgerStatementMatch.date = {}
+      if (statementStartDate) ledgerStatementMatch.date.$gte = statementStartDate
+      if (statementEndDate) ledgerStatementMatch.date.$lte = statementEndDate
+    }
+
+    const matchingLedgerCount = await Ledger.countDocuments(ledgerStatementMatch)
+    const ledgerEntries = await Ledger.find(ledgerStatementMatch)
       .select('date referenceType referenceId description amount exchangeRate currency debitAccountId creditAccountId createdAt notes department')
       .populate('debitAccountId', 'accountCode accountName')
       .populate('creditAccountId', 'accountCode accountName')
       .sort({ date: -1, createdAt: -1 })
       .limit(statementLimit)
       .lean()
+
+    const transferMetalTxsForStatement = transferMetalTxs.filter((tx) => {
+      const entryDate = statementEntryDate(tx.voucherMeta?.valueDate || tx.date)
+      if (!entryDate) return !(statementStartDate || statementEndDate)
+      if (statementStartDate && entryDate < statementStartDate) return false
+      if (statementEndDate && entryDate > statementEndDate) return false
+      return true
+    })
 
     const ledgerIds = ledgerEntries.map((entry) => entry._id)
     const referenceIds = ledgerEntries.map((entry) => entry.referenceId).filter(Boolean)
@@ -774,7 +815,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
     }
 
-    const transferStatementEntries = transferMetalTxs.map((tx) => {
+    const transferStatementEntries = transferMetalTxsForStatement.map((tx) => {
       const txType = String(tx.type || '').toLowerCase()
       const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
       const metalCode = resolveMetalCodeFromLines(lines)
@@ -818,8 +859,30 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       return String(right._id).localeCompare(String(left._id))
     })
 
+    const matchingStatementCount = matchingLedgerCount + transferMetalTxsForStatement.length
+    const truncated = matchingStatementCount > statementLimit
+    const limitedStatementRows = combinedStatementRows.slice(0, statementLimit)
+
     let runningBalance = netBalance
-    const statementEntries = combinedStatementRows.map((row) => {
+    if (statementEndDate) {
+      const asOfMatch = {
+        ...ledgerExclusionMatch,
+        date: { ...(ledgerExclusionMatch.date || {}), $lte: statementEndDate },
+      }
+      const [debitAsOfAgg, creditAsOfAgg] = await Promise.all([
+        Ledger.aggregate([
+          { $match: { debitAccountId: { $in: targetAccountIds }, ...asOfMatch } },
+          { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
+        ]),
+        Ledger.aggregate([
+          { $match: { creditAccountId: { $in: targetAccountIds }, ...asOfMatch } },
+          { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
+        ]),
+      ])
+      runningBalance = openingBalance + Number(debitAsOfAgg[0]?.total || 0) - Number(creditAsOfAgg[0]?.total || 0)
+    }
+
+    const statementEntries = limitedStatementRows.map((row) => {
       const signedAmount = Number(row.signedAmount || 0)
       const nextRow = {
         ...row,
@@ -831,7 +894,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     })
 
     const bookedUnfixedRevaluation = suppressMetalSpotMtm
-      ? computeBookedUnfixedRevaluationFromStatementRows(combinedStatementRows)
+      ? computeBookedUnfixedRevaluationFromStatementRows(limitedStatementRows)
       : { gold: 0, silver: 0, total: 0 }
 
     const positions = [
@@ -903,6 +966,17 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         limitValue: Number(account.openingBalance || 0),
         entryCount: statementEntries.length,
         entries: statementEntries,
+        meta: {
+          returned: statementEntries.length,
+          limit: statementLimit,
+          truncated,
+          matchingCount: matchingStatementCount,
+          oldestDate: statementEntries.length
+            ? statementEntries[statementEntries.length - 1]?.date || null
+            : null,
+          startDate: String(req.query.startDate || '').trim().slice(0, 10),
+          endDate: String(req.query.endDate || '').trim().slice(0, 10),
+        },
       },
       positions,
     }

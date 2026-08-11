@@ -4,6 +4,8 @@ import { enquiryDeepLinkKey } from '../../../utils/dashboardNavigation'
 import { readAccountEnquiryCache, writeAccountEnquiryCache } from '../../../utils/erpAccountEnquiryCache'
 import { ENQUIRY_HISTORY_STORAGE_KEY } from '../erpTabConstants'
 
+export const ACCOUNT_ENQUIRY_STATEMENT_LIMIT = 500
+
 export function useErpAccountEnquiryController({
   user,
   token,
@@ -82,6 +84,11 @@ export function useErpAccountEnquiryController({
     const cleanCode = resolveAccountEnquiryCodeInput(accountCode)
     const shouldOpenModal = Boolean(options.openModal)
     const forceRefresh = Boolean(options.forceRefresh)
+    const preserveFilters = Boolean(options.preserveFilters)
+    const startDate = String(options.startDate || '').trim()
+    const endDate = String(options.endDate || '').trim()
+    const statementLimit = Number(options.statementLimit) || ACCOUNT_ENQUIRY_STATEMENT_LIMIT
+    const cacheWindow = { startDate, endDate, statementLimit }
     if (!cleanCode) {
       setError('Please enter account number')
       setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
@@ -92,7 +99,7 @@ export function useErpAccountEnquiryController({
       account: cleanCode,
       view: options.openStatementPreview ? 'statement' : null,
     })
-    const cached = !forceRefresh ? readAccountEnquiryCache(tenantKey, cleanCode) : null
+    const cached = !forceRefresh ? readAccountEnquiryCache(tenantKey, cleanCode, cacheWindow) : null
     if (cached) {
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(cached)
@@ -112,23 +119,27 @@ export function useErpAccountEnquiryController({
       setEnquiryLoading(true)
       setShowEnquiryLookupMenu(false)
       setEnquiryStatus({ type: '', message: '' })
-      const enquiryParams = { statementLimit: 80 }
+      const enquiryParams = { statementLimit }
+      if (startDate) enquiryParams.startDate = startDate
+      if (endDate) enquiryParams.endDate = endDate
       if (forceRefresh) enquiryParams.refresh = '1'
       const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, enquiryParams)
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
-      writeAccountEnquiryCache(tenantKey, cleanCode, data)
-      setStatementFilters({
-        startDate: '',
-        endDate: '',
-        referenceType: '',
-        department: '',
-        fixStatus: '',
-        foreignCurrency: '',
-        metalCommodity: '',
-        showAmountIn: '',
-      })
-      setStatementMetalCommodityEnabled(false)
+      writeAccountEnquiryCache(tenantKey, cleanCode, data, cacheWindow)
+      if (!preserveFilters) {
+        setStatementFilters({
+          startDate: '',
+          endDate: '',
+          referenceType: '',
+          department: '',
+          fixStatus: '',
+          foreignCurrency: '',
+          metalCommodity: '',
+          showAmountIn: '',
+        })
+        setStatementMetalCommodityEnabled(false)
+      }
       pushEnquiryHistory(data.account)
       setError('')
       setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
@@ -138,12 +149,12 @@ export function useErpAccountEnquiryController({
         view: options.openStatementPreview ? 'statement' : null,
       })
       if (options.openStatementPreview) setPendingStatementPreview(true)
-      showNotification('✅ Account summary loaded')
+      if (!preserveFilters) showNotification('✅ Account summary loaded')
     } catch (e) {
       if (lastEnquiryDeepLinkKeyRef.current === deepLinkKey) {
         lastEnquiryDeepLinkKeyRef.current = ''
       }
-      setAccountEnquiryData(null)
+      if (!preserveFilters) setAccountEnquiryData(null)
       const msg = e.response?.data?.message || 'Failed to fetch account summary'
       setError(msg)
       setEnquiryStatus({ type: 'error', message: msg })
@@ -171,6 +182,18 @@ export function useErpAccountEnquiryController({
     user?.tenant,
   ])
 
+  const refetchEnquiryForDateRange = useCallback(async (startDate, endDate) => {
+    const cleanCode = String(accountEnquiryData?.account?.accountCode || accountEnquiryCode || '').trim()
+    if (!cleanCode) return
+    await fetchAccountEnquiryByCode(cleanCode, {
+      forceRefresh: true,
+      preserveFilters: true,
+      startDate: String(startDate || '').trim(),
+      endDate: String(endDate || '').trim(),
+      statementLimit: ACCOUNT_ENQUIRY_STATEMENT_LIMIT,
+    })
+  }, [accountEnquiryCode, accountEnquiryData?.account?.accountCode, fetchAccountEnquiryByCode])
+
   const handleOpenAccountSummaryFromTree = useCallback(async (account) => {
     if (!account?.accountCode) return
     setActiveTabGuarded('enquiry')
@@ -190,6 +213,7 @@ export function useErpAccountEnquiryController({
     resolveAccountEnquiryCodeInput,
     loadEnquiryHistory,
     fetchAccountEnquiryByCode,
+    refetchEnquiryForDateRange,
     handleOpenAccountSummaryFromTree,
     handleAccountEnquiry,
   }

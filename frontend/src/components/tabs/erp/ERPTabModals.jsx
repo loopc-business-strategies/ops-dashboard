@@ -22,6 +22,7 @@ export default function ERPTabModals({
   filteredGroupedSummaryAccounts,
   setEnquiryStatus,
   fetchAccountEnquiryByCode,
+  refetchEnquiryForDateRange,
   enquiryStatus,
   accountEnquiryData,
   modalPositionRows,
@@ -107,6 +108,7 @@ export default function ERPTabModals({
         filteredGroupedSummaryAccounts={filteredGroupedSummaryAccounts}
         setEnquiryStatus={setEnquiryStatus}
         fetchAccountEnquiryByCode={fetchAccountEnquiryByCode}
+        refetchEnquiryForDateRange={refetchEnquiryForDateRange}
         enquiryStatus={enquiryStatus}
         accountEnquiryData={accountEnquiryData}
         modalPositionRows={modalPositionRows}

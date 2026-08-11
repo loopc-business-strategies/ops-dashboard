@@ -2027,6 +2027,7 @@ describe('ERP accounting transactions workflow', () => {
 
     expect(defaultRes.status).toBe(200)
     expect(defaultRes.body?.statement?.entries || []).toHaveLength(15)
+    expect(defaultRes.body?.statement?.meta?.truncated).toBe(false)
 
     const limitedRes = await request(app)
       .get('/api/erp-accounting/accounts/enquiry')
@@ -2035,6 +2036,84 @@ describe('ERP accounting transactions workflow', () => {
 
     expect(limitedRes.status).toBe(200)
     expect(limitedRes.body?.statement?.entries || []).toHaveLength(5)
+    expect(limitedRes.body?.statement?.meta?.truncated).toBe(true)
+    expect(limitedRes.body?.statement?.meta?.limit).toBe(5)
+    expect(limitedRes.body?.statement?.meta?.matchingCount).toBe(15)
+  })
+
+  test('account enquiry statement respects startDate/endDate and endDate running balance', async () => {
+    const financeUser = await createUser({ name: 'Account Statement Date Range Tester' })
+
+    const targetAccount = await ChartOfAccount.create({
+      accountName: 'Statement Date Target',
+      accountCode: '1503',
+      accountType: 'Asset',
+      openingBalance: 100,
+      createdBy: financeUser._id,
+    })
+    const offsetAccount = await ChartOfAccount.create({
+      accountName: 'Statement Date Offset',
+      accountCode: '2503',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+
+    await Ledger.insertMany([
+      {
+        date: new Date('2026-01-15T00:00:00.000Z'),
+        debitAccountId: targetAccount._id,
+        creditAccountId: offsetAccount._id,
+        amount: 40,
+        description: 'January movement',
+        referenceType: 'journal',
+        createdBy: financeUser._id,
+        currency: 'USD',
+        exchangeRate: 1,
+      },
+      {
+        date: new Date('2026-02-10T00:00:00.000Z'),
+        debitAccountId: targetAccount._id,
+        creditAccountId: offsetAccount._id,
+        amount: 25,
+        description: 'February movement',
+        referenceType: 'journal',
+        createdBy: financeUser._id,
+        currency: 'USD',
+        exchangeRate: 1,
+      },
+      {
+        date: new Date('2026-03-05T00:00:00.000Z'),
+        debitAccountId: targetAccount._id,
+        creditAccountId: offsetAccount._id,
+        amount: 10,
+        description: 'March movement',
+        referenceType: 'journal',
+        createdBy: financeUser._id,
+        currency: 'USD',
+        exchangeRate: 1,
+      },
+    ])
+
+    const febRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({
+        accountCode: '1503',
+        startDate: '2026-02-01',
+        endDate: '2026-02-28',
+        refresh: '1',
+      })
+      .set(authHeader(financeUser))
+
+    expect(febRes.status).toBe(200)
+    const febEntries = febRes.body?.statement?.entries || []
+    expect(febEntries).toHaveLength(1)
+    expect(String(febEntries[0]?.description || '')).toContain('February')
+    expect(febRes.body?.statement?.meta?.startDate).toBe('2026-02-01')
+    expect(febRes.body?.statement?.meta?.endDate).toBe('2026-02-28')
+    // As of end of February: opening 100 + Jan 40 + Feb 25 = 165
+    expect(Number(febEntries[0]?.runningBalance || 0)).toBeCloseTo(165, 2)
+    // Full-history balances still reflect all months
+    expect(Number(febRes.body?.balances?.netBalance || 0)).toBeCloseTo(175, 2)
   })
 
   test('balance sheet reclassifies credit-balance debtors as liabilities', async () => {
