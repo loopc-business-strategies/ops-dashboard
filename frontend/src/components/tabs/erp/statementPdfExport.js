@@ -1,5 +1,6 @@
 import { createLogoRenderAsset } from './ERPBrandingUtils'
 import { loadPdfTools } from './lazyExportLibs'
+import { ensurePdfUnicodeFonts, PDF_FALLBACK_FONT_FAMILY } from './pdfUnicodeFont'
 import { buildStatementExportModel } from './statementExportModel'
 
 const MARGIN = 24
@@ -25,6 +26,7 @@ export async function exportStatementPdf(ctx, fileName) {
 
   const { jsPDF, autoTable } = await loadPdfTools()
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+  const fontFamily = await ensurePdfUnicodeFonts(doc) || PDF_FALLBACK_FONT_FAMILY
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const contentWidth = pageWidth - MARGIN * 2
@@ -41,11 +43,11 @@ export async function exportStatementPdf(ctx, fileName) {
   )
 
   if (model.useMasterStatementLayout) {
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(fontFamily, 'bold')
     doc.setFontSize(12)
     doc.setTextColor(...INK)
     doc.text(model.companyName, MARGIN, cursorY + 12)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(fontFamily, 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...MUTED)
     let metaY = cursorY + 26
@@ -77,19 +79,19 @@ export async function exportStatementPdf(ctx, fileName) {
       }
     }
     cursorY = Math.max(metaY, cursorY + logoPdfHeight) + 10
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(fontFamily, 'bold')
     doc.setFontSize(13)
     doc.setTextColor(...INK)
     doc.text(model.title, pageWidth / 2, cursorY, { align: 'center' })
     cursorY += 14
     if (model.subtitle) {
-      doc.setFont('helvetica', 'normal')
+      doc.setFont(fontFamily, 'normal')
       doc.setFontSize(9)
       doc.setTextColor(...MUTED)
       doc.text(model.subtitle, pageWidth / 2, cursorY, { align: 'center' })
       cursorY += 12
     }
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(fontFamily, 'normal')
     doc.setFontSize(9)
     doc.setTextColor(...INK)
     doc.text(`Doc Date From ${model.dateFromLabel} To ${model.dateToLabel}`, pageWidth / 2, cursorY, { align: 'center' })
@@ -103,11 +105,11 @@ export async function exportStatementPdf(ctx, fileName) {
       }
     }
     const textLeft = MARGIN + logoPdfWidth + 14
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(fontFamily, 'bold')
     doc.setFontSize(14)
     doc.setTextColor(...INK)
     doc.text(model.companyName, textLeft, cursorY + 14)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(fontFamily, 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...MUTED)
     let metaY = cursorY + 28
@@ -122,7 +124,7 @@ export async function exportStatementPdf(ctx, fileName) {
       doc.text(line, textLeft, metaY + 2)
       metaY += 12
     }
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(fontFamily, 'normal')
     doc.setFontSize(12)
     doc.setTextColor(...INK)
     doc.text(model.title, pageWidth - MARGIN, cursorY + 18, { align: 'right' })
@@ -139,15 +141,15 @@ export async function exportStatementPdf(ctx, fileName) {
   doc.setDrawColor(55, 65, 81)
   doc.setLineWidth(1)
   doc.rect(MARGIN, cursorY, contentWidth, 48)
-  doc.setFont('helvetica', 'normal')
+  doc.setFont(fontFamily, 'normal')
   doc.setFontSize(11)
   doc.setTextColor(...INK)
   doc.text(String(model.accountCode || ''), MARGIN + 10, cursorY + 16)
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(fontFamily, 'bold')
   doc.setFontSize(10)
   doc.text(String(model.accountName || 'Account').toUpperCase(), MARGIN + 10, cursorY + 30)
   if (model.accountAddress) {
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(fontFamily, 'normal')
     doc.setFontSize(8)
     doc.text(model.accountAddress, MARGIN + 10, cursorY + 42)
   }
@@ -180,17 +182,18 @@ export async function exportStatementPdf(ctx, fileName) {
       lineColor: [55, 65, 81],
       lineWidth: 0.4,
       valign: 'middle',
-      font: 'helvetica',
+      font: fontFamily,
     },
     headStyles: {
       fillColor: HEADER_BG,
       textColor: INK,
       fontStyle: 'bold',
+      font: fontFamily,
       halign: 'center',
       valign: 'middle',
       fontSize: 7.5,
     },
-    bodyStyles: { valign: 'top' },
+    bodyStyles: { valign: 'top', font: fontFamily },
     columnStyles: {
       0: { cellWidth: colWidths[0], halign: 'left' },
       1: { cellWidth: colWidths[1], halign: 'center' },
@@ -213,7 +216,7 @@ export async function exportStatementPdf(ctx, fileName) {
     didDrawPage: (data) => {
       const pageCount = doc.getNumberOfPages()
       const pageNo = data.pageNumber
-      doc.setFont('helvetica', 'italic')
+      doc.setFont(fontFamily, 'italic')
       doc.setFontSize(8)
       doc.setTextColor(...INK)
       doc.text(
@@ -230,20 +233,20 @@ export async function exportStatementPdf(ctx, fileName) {
     const colW = contentWidth / model.signatories.length
     model.signatories.forEach((item, index) => {
       const x = MARGIN + index * colW + colW / 2
-      doc.setFont('helvetica', 'normal')
+      doc.setFont(fontFamily, 'normal')
       doc.setFontSize(8)
       doc.setTextColor(...INK)
       if (item.name) doc.text(String(item.name), x, afterTableY, { align: 'center' })
       doc.setDrawColor(55, 65, 81)
       doc.line(x - 50, afterTableY + 28, x + 50, afterTableY + 28)
-      doc.setFont('helvetica', 'bold')
+      doc.setFont(fontFamily, 'bold')
       doc.setFontSize(9)
       doc.text(String(item.title || ''), x, afterTableY + 40, { align: 'center' })
     })
     afterTableY += 52
   }
   if (model.footerNote) {
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(fontFamily, 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...MUTED)
     doc.text(model.footerNote, MARGIN, afterTableY)
@@ -253,7 +256,7 @@ export async function exportStatementPdf(ctx, fileName) {
   const totalPages = doc.getNumberOfPages()
   for (let i = 1; i <= totalPages; i += 1) {
     doc.setPage(i)
-    doc.setFont('helvetica', 'italic')
+    doc.setFont(fontFamily, 'italic')
     doc.setFontSize(8)
     doc.setTextColor(...INK)
     doc.setFillColor(255, 255, 255)

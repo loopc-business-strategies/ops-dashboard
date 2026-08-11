@@ -6,6 +6,7 @@ const {
   autoTable,
   jsPDF,
   docApi,
+  ensurePdfUnicodeFonts,
 } = vi.hoisted(() => {
   const saveFn = vi.fn()
   const doc = {
@@ -20,6 +21,8 @@ const {
     rect: vi.fn(),
     line: vi.fn(),
     addImage: vi.fn(),
+    addFileToVFS: vi.fn(),
+    addFont: vi.fn(),
     splitTextToSize: vi.fn((text) => [String(text)]),
     getNumberOfPages: vi.fn(() => 1),
     setPage: vi.fn(),
@@ -36,6 +39,7 @@ const {
       return doc
     }),
     docApi: doc,
+    ensurePdfUnicodeFonts: vi.fn(async () => 'NotoSans'),
   }
 })
 
@@ -59,6 +63,13 @@ vi.mock('./lazyExportLibs', () => ({
     jsPDF,
     autoTable,
   })),
+}))
+
+vi.mock('./pdfUnicodeFont', () => ({
+  PDF_UNICODE_FONT_FAMILY: 'NotoSans',
+  PDF_FALLBACK_FONT_FAMILY: 'helvetica',
+  ensurePdfUnicodeFonts: (...args) => ensurePdfUnicodeFonts(...args),
+  resetPdfUnicodeFontCache: vi.fn(),
 }))
 
 import { exportStatementPdf } from './statementPdfExport'
@@ -106,15 +117,20 @@ describe('exportStatementPdf', () => {
     autoTable.mockClear()
     jsPDF.mockClear()
     createLogoRenderAsset.mockClear()
+    ensurePdfUnicodeFonts.mockClear()
     docApi.lastAutoTable = null
+    docApi.setFont.mockClear()
   })
 
   test('builds landscape autoTable PDF and saves file', async () => {
     await exportStatementPdf(baseCtx, 'Statement-101001-2026-07-31.pdf')
 
     expect(jsPDF).toHaveBeenCalledWith({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+    expect(ensurePdfUnicodeFonts).toHaveBeenCalledWith(docApi)
     expect(autoTable).toHaveBeenCalledWith(docApi, expect.objectContaining({
       showHead: 'everyPage',
+      styles: expect.objectContaining({ font: 'NotoSans' }),
+      headStyles: expect.objectContaining({ font: 'NotoSans' }),
       head: expect.arrayContaining([
         expect.arrayContaining([
           expect.objectContaining({ content: 'Doc No', rowSpan: 2 }),
@@ -129,6 +145,7 @@ describe('exportStatementPdf', () => {
         expect.arrayContaining(['', '', 'Balance C/F']),
       ]),
     }))
+    expect(docApi.setFont).toHaveBeenCalledWith('NotoSans', expect.any(String))
     expect(save).toHaveBeenCalledWith('Statement-101001-2026-07-31.pdf')
   })
 
