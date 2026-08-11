@@ -13,12 +13,16 @@ const workspaces = [
 ]
 
 /**
- * High/critical advisories that do not apply to this codebase.
+ * High/critical advisories that do not apply to this codebase / have no published patch.
  * GHSA-qwww-vcr4-c8h2: RSC Mode CSRF — SPA uses react-router-dom client APIs only, not unstable RSC.
  * Allowlist until react-router-dom publishes a line that depends on react-router >= 8.3.0.
+ * GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: image-size ICNS/JXL/HEIF DoS — latest npm is 2.0.2
+ * (still flagged). Allowlist until a patched release > 2.0.2 is published.
  */
 const ALLOWLISTED_ADVISORY_IDS = new Set([
   'GHSA-qwww-vcr4-c8h2',
+  'GHSA-w3rx-r6r6-pgpr',
+  'GHSA-5p2g-fcmc-qvqq',
 ])
 
 function extractAdvisoryId(entry) {

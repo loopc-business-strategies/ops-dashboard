@@ -66,7 +66,7 @@ const tenantBranding = {
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
-      voucherKeyboardNav: false,
+      voucherKeyboardNav: true,
     },
   },
   cg: {
@@ -92,7 +92,7 @@ const tenantBranding = {
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
-      voucherKeyboardNav: false,
+      voucherKeyboardNav: true,
     },
   },
   loopc: {

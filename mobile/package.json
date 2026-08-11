@@ -40,6 +40,12 @@
     "typescript": "~6.0.3",
     "vitest": "^4.1.6"
   },
+  "overrides": {
+    "socket.io-parser": "^4.2.7",
+    "brace-expansion": "^5.0.9",
+    "nanoid": "^3.3.17",
+    "js-yaml": "^4.3.1"
+  },
   "scripts": {
     "check": "npm run typecheck && npm run test",
     "check:release": "node ./scripts/check-release-readiness.mjs",

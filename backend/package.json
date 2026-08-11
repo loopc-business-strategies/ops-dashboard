@@ -61,5 +61,9 @@
     "mongodb-memory-server": "^11.1.0",
     "nodemon": "^3.0.2",
     "supertest": "^7.1.4"
+  },
+  "overrides": {
+    "socket.io-parser": "^4.2.7",
+    "ip-address": "^10.3.1"
   }
 }

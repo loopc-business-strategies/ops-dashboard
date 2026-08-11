@@ -42,9 +42,9 @@ describe('tenant branding integration', () => {
     expect(isErpAdvancedListFiltersEnabled('cg')).toBe(true)
   })
 
-  test('enables voucher keyboard nav for LoopC first (MG/CG off until verified)', () => {
+  test('enables voucher keyboard nav for LoopC, MG, and CG', () => {
     expect(isVoucherKeyboardNavEnabled('loopc')).toBe(true)
-    expect(isVoucherKeyboardNavEnabled('mg')).toBe(false)
-    expect(isVoucherKeyboardNavEnabled('cg')).toBe(false)
+    expect(isVoucherKeyboardNavEnabled('mg')).toBe(true)
+    expect(isVoucherKeyboardNavEnabled('cg')).toBe(true)
   })
 })
