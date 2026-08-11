@@ -10,6 +10,9 @@ describe('ensurePdfUnicodeFonts', () => {
   beforeEach(() => {
     resetPdfUnicodeFontCache()
     vi.unstubAllGlobals()
+    if (typeof globalThis.btoa !== 'function') {
+      vi.stubGlobal('btoa', (value) => Buffer.from(String(value), 'binary').toString('base64'))
+    }
   })
 
   test('registers NotoSans regular and bold on jsPDF doc', async () => {

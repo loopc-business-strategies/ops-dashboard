@@ -20,16 +20,16 @@ const fontBase64Cache = {
 }
 
 async function arrayBufferToBase64(buffer) {
-  if (typeof Buffer !== 'undefined') {
-    return Buffer.from(buffer).toString('base64')
-  }
   const bytes = new Uint8Array(buffer)
   let binary = ''
   const chunk = 0x8000
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
-  return btoa(binary)
+  if (typeof globalThis.btoa === 'function') {
+    return globalThis.btoa(binary)
+  }
+  throw new Error('btoa is unavailable for PDF font encoding')
 }
 
 async function loadFontBase64(styleKey) {
