@@ -37,6 +37,7 @@ const defaultBranding = {
     masterDocumentSettings: true,
     erpAdvancedListFilters: true,
     chatTranslate: true,
+    voucherKeyboardNav: true,
   },
 }
 
@@ -65,6 +66,7 @@ const tenantBranding = {
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
+      voucherKeyboardNav: false,
     },
   },
   cg: {
@@ -90,6 +92,7 @@ const tenantBranding = {
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
+      voucherKeyboardNav: false,
     },
   },
   loopc: {
@@ -109,6 +112,7 @@ const tenantBranding = {
       masterDocumentSettings: true,
       erpAdvancedListFilters: true,
       chatTranslate: true,
+      voucherKeyboardNav: true,
     },
   },
 }
@@ -132,6 +136,10 @@ export function isErpAdvancedListFiltersEnabled(tenant) {
 
 export function isChatTranslateEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.chatTranslate === true
+}
+
+export function isVoucherKeyboardNavEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.voucherKeyboardNav === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

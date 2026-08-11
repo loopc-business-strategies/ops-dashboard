@@ -1,3 +1,4 @@
+import React, { useCallback, useEffect, useRef } from 'react'
 import AccountCombobox from '../../AccountCombobox'
 import VoucherAttachmentsPanel from '../erp/VoucherAttachmentsPanel'
 import {
@@ -9,6 +10,11 @@ import {
   classicRightGrid, classicLabel, classicInput, classicReadInput, metalWin, metalTopInlineRow,
   metalTopField, normalizeLineType, isMetalStockVoucherType,
 } from './voucherTabShared'
+import {
+  focusElement,
+  handleRecommendedTab,
+  shouldSkipAutofilledAmountLc,
+} from './voucherKeyboardNav'
 
 export default function VoucherEditorPanel({
   applyLineAutoCalc,
@@ -65,6 +71,7 @@ export default function VoucherEditorPanel({
   isMetalVoucher,
   isReadOnly,
   isSimpleMetalVoucher,
+  keyboardNavEnabled = false,
   lineAccountComboGroups,
   lineForm,
   lineItems,
@@ -112,6 +119,119 @@ export default function VoucherEditorPanel({
   vouchers,
   workflowNote,
 }) {
+  const partyAccountRef = useRef(null)
+  const partyCodeRef = useRef(null)
+  const docDateRef = useRef(null)
+  const valueDateRef = useRef(null)
+  const headerCurrRef = useRef(null)
+  const headerRateRef = useRef(null)
+  const addLineBtnRef = useRef(null)
+  const lineTypeRef = useRef(null)
+  const lineAcCodeRef = useRef(null)
+  const lineCurrRef = useRef(null)
+  const lineRateRef = useRef(null)
+  const lineRefRateRef = useRef(null)
+  const lineAmtFcRef = useRef(null)
+  const lineAmtLcRef = useRef(null)
+  const lineNarrationRef = useRef(null)
+  const lineSaveBtnRef = useRef(null)
+  const metalStockRef = useRef(null)
+  const metalGrossRef = useRef(null)
+  const metalPurityRef = useRef(null)
+  const metalNarrationRef = useRef(null)
+  const metalSaveBtnRef = useRef(null)
+  const pendingFocusLineFieldRef = useRef(false)
+
+  const showRefRate = ['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())
+    && String(lineForm.currCode || 'USD').toUpperCase() !== baseCurrencyCode
+
+  const getHeaderNavOrder = useCallback(() => {
+    if (isSimpleMetalVoucher) {
+      return [partyAccountRef, partyCodeRef, docDateRef, addLineBtnRef]
+    }
+    return [
+      partyAccountRef,
+      partyCodeRef,
+      docDateRef,
+      valueDateRef,
+      headerCurrRef,
+      headerRateRef,
+      addLineBtnRef,
+    ]
+  }, [isSimpleMetalVoucher])
+
+  const getCashLineNavOrder = useCallback(() => ([
+    lineTypeRef,
+    lineAcCodeRef,
+    lineCurrRef,
+    lineRateRef,
+    ...(showRefRate ? [lineRefRateRef] : []),
+    lineAmtFcRef,
+    lineAmtLcRef,
+    lineNarrationRef,
+    lineSaveBtnRef,
+  ]), [showRefRate])
+
+  const getMetalLineNavOrder = useCallback(() => ([
+    metalStockRef,
+    metalGrossRef,
+    metalPurityRef,
+    metalNarrationRef,
+    metalSaveBtnRef,
+  ]), [])
+
+  const handleHeaderNavKeyDown = useCallback((e) => {
+    if (!keyboardNavEnabled || formReadOnly) return
+    handleRecommendedTab(e, {
+      enabled: true,
+      order: getHeaderNavOrder,
+      onBeforeMove: (_evt, { nextIndex, wrapForward }) => {
+        const order = getHeaderNavOrder()
+        const movingToAdd = wrapForward || order[nextIndex] === addLineBtnRef
+        if (movingToAdd && !showLineForm) {
+          pendingFocusLineFieldRef.current = true
+          handleAddLineClick()
+        }
+      },
+    })
+  }, [keyboardNavEnabled, formReadOnly, getHeaderNavOrder, handleAddLineClick, showLineForm])
+
+  const handleCashLineNavKeyDown = useCallback((e) => {
+    if (!keyboardNavEnabled || formReadOnly) return
+    // Keep Enter → save on amount fields
+    if (e.key === 'Enter') {
+      handleLineAmountEnter(e)
+      return
+    }
+    handleRecommendedTab(e, {
+      enabled: true,
+      order: getCashLineNavOrder,
+      skipPred: (el) => {
+        const lcEl = lineAmtLcRef.current
+        if (el !== lcEl) return false
+        return shouldSkipAutofilledAmountLc(lineForm.amountLC, lineForm.amountFC)
+      },
+    })
+  }, [keyboardNavEnabled, formReadOnly, getCashLineNavOrder, handleLineAmountEnter, lineForm.amountFC, lineForm.amountLC])
+
+  const handleMetalLineNavKeyDown = useCallback((e) => {
+    if (!keyboardNavEnabled || formReadOnly) return
+    handleRecommendedTab(e, {
+      enabled: true,
+      order: getMetalLineNavOrder,
+    })
+  }, [keyboardNavEnabled, formReadOnly, getMetalLineNavOrder])
+
+  useEffect(() => {
+    if (!keyboardNavEnabled || !showLineForm || !pendingFocusLineFieldRef.current) return
+    pendingFocusLineFieldRef.current = false
+    const timer = setTimeout(() => {
+      if (isMetalVoucher) focusElement(metalStockRef)
+      else focusElement(lineTypeRef)
+    }, 40)
+    return () => clearTimeout(timer)
+  }, [keyboardNavEnabled, showLineForm, isMetalVoucher])
+
   return (
     <>
       {/* ═══════════════════════════════════════════════════════ CREATE / VIEW MODE */}
@@ -298,9 +418,11 @@ export default function VoucherEditorPanel({
                     <div style={metalTopField}>
                       <label style={classicLabel}>Party Account</label>
                       <AccountCombobox
+                        ref={partyAccountRef}
                         groups={metalPartyComboGroups}
                         value={selectedPartyId}
                         onChange={(val) => handlePartySelect(val)}
+                        onKeyDown={handleHeaderNavKeyDown}
                         placeholder="Type account name or code…"
                         style={formReadOnly ? classicReadInput : classicInput}
                         disabled={formReadOnly}
@@ -317,9 +439,11 @@ export default function VoucherEditorPanel({
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                             <label style={classicLabel}>Party Account</label>
                             <AccountCombobox
+                              ref={partyAccountRef}
                               groups={partyComboGroups}
                               value={selectedPartyId}
                               onChange={(val) => handlePartySelect(val)}
+                              onKeyDown={handleHeaderNavKeyDown}
                               placeholder="Type account name or code…"
                               style={formReadOnly ? classicReadInput : classicInput}
                               disabled={formReadOnly}
@@ -329,10 +453,14 @@ export default function VoucherEditorPanel({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                           <label style={classicLabel}>Party Code</label>
                           <input
+                            ref={partyCodeRef}
                             style={formReadOnly ? classicReadInput : classicInput}
                             value={header.partyCode}
                             onChange={e => setHdr('partyCode', e.target.value)}
-                            onKeyDown={handlePartyCodeEnter}
+                            onKeyDown={(e) => {
+                              handlePartyCodeEnter(e)
+                              handleHeaderNavKeyDown(e)
+                            }}
                             placeholder={voucherConfig.partyPlaceholder}
                             readOnly={formReadOnly}
                           />
@@ -427,10 +555,12 @@ export default function VoucherEditorPanel({
 
                         <label style={classicLabel}>Doc Date :</label>
                         <input
+                          ref={docDateRef}
                           style={formReadOnly ? classicReadInput : classicInput}
                           type="date"
                           value={header.docDate}
                           onChange={e => setHdr('docDate', e.target.value)}
+                          onKeyDown={handleHeaderNavKeyDown}
                           readOnly={formReadOnly}
                         />
 
@@ -438,18 +568,22 @@ export default function VoucherEditorPanel({
                           <>
                             <label style={classicLabel}>Value Date :</label>
                             <input
+                              ref={valueDateRef}
                               style={formReadOnly ? classicReadInput : classicInput}
                               type="date"
                               value={header.valueDate}
                               onChange={e => setHdr('valueDate', e.target.value)}
+                              onKeyDown={handleHeaderNavKeyDown}
                               readOnly={formReadOnly}
                             />
 
                             <label style={classicLabel}>Curr. Code :</label>
                             <select
+                              ref={headerCurrRef}
                               style={formReadOnly ? classicReadInput : classicInput}
                               value={header.currCode}
                               onChange={e => handleHeaderCurrencyChange(e.target.value)}
+                              onKeyDown={handleHeaderNavKeyDown}
                               disabled={formReadOnly}
                             >
                               {currencyOptions.length === 0 ? (
@@ -463,9 +597,11 @@ export default function VoucherEditorPanel({
 
                             <label style={classicLabel}>Curr. Rate :</label>
                             <input
+                              ref={headerRateRef}
                               style={formReadOnly ? classicReadInput : classicInput}
                               value={header.currRate}
                               onChange={e => handleHeaderCurrRateChange(e.target.value)}
+                              onKeyDown={handleHeaderNavKeyDown}
                               type="number"
                               step="0.000001"
                               title="AED auto-default: 3.674 (you can edit manually)"
@@ -668,9 +804,11 @@ export default function VoucherEditorPanel({
                           <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(180px, 1fr)' : '110px minmax(180px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Stock *</div>
                             <select
+                              ref={metalStockRef}
                               style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
                               value={lineForm.stockCode}
                               onChange={(e) => handleStockSelection(e.target.value)}
+                              onKeyDown={handleMetalLineNavKeyDown}
                             >
                               <option value="">{loadingInventoryProducts ? 'Loading stock...' : 'Select stock'}</option>
                               {inventoryStockOptions.map((option) => (
@@ -709,11 +847,11 @@ export default function VoucherEditorPanel({
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(90px, 1fr)' : '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Gross Weight</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} />
+                            <input ref={metalGrossRef} style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Purity</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} />
+                            <input ref={metalPurityRef} style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Pure Weight</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} />
                           </div>
@@ -867,7 +1005,7 @@ export default function VoucherEditorPanel({
                             }}>
                               Continue
                             </button>
-                            <button style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine}>Save</button>
+                            <button ref={metalSaveBtnRef} style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine} onKeyDown={handleMetalLineNavKeyDown}>Save</button>
                             <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
                           </div>
                         </div>
@@ -883,7 +1021,7 @@ export default function VoucherEditorPanel({
                           }}>
                             Continue
                           </button>
-                          <button style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine}>Save</button>
+                          <button ref={metalSaveBtnRef} style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine} onKeyDown={handleMetalLineNavKeyDown}>Save</button>
                           <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
                         </div>
                       )}
@@ -891,7 +1029,7 @@ export default function VoucherEditorPanel({
                       <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : '1fr 180px', gap: '0.55rem', marginBottom: '0.2rem' }}>
                         <div>
                           <label style={labelStyle}>Narration</label>
-                          <input style={inputStyle} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
+                          <input ref={metalNarrationRef} style={inputStyle} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
                         </div>
                         {!isSimpleMetalVoucher && (
                           <div>
@@ -906,22 +1044,24 @@ export default function VoucherEditorPanel({
                       {/* Row 1: Type | A/C Code | Curr | Rate */}
                       <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 96px 1.6fr 58px 1fr 60px 1fr', borderBottom: '1px solid #E5E7EB' }}>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Type</div>
-                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>
+                        <select ref={lineTypeRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)} onKeyDown={handleCashLineNavKeyDown}>
                           <option value="Cash">Cash</option>
                           <option value="TT">TT</option>
                           <option value="Card">Card</option>
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>A/C Code *</div>
                         <AccountCombobox
+                          ref={lineAcCodeRef}
                           groups={lineAccountComboGroups}
                           value={lineForm.acCode || ''}
                           onChange={(val) => handleLineAcCodeChange(val)}
+                          onKeyDown={handleCashLineNavKeyDown}
                           placeholder="— Select Account —"
                           style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }}
                           disabled={formReadOnly}
                         />
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Curr</div>
-                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)}>
+                        <select ref={lineCurrRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)} onKeyDown={handleCashLineNavKeyDown}>
                           {currencyOptions.length === 0 ? (
                             <option value="USD">USD</option>
                           ) : currencyOptions.map((item) => (
@@ -929,14 +1069,13 @@ export default function VoucherEditorPanel({
                           ))}
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Rate</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="text" inputMode="decimal" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} placeholder={header.currRate} />
+                        <input ref={lineRateRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="text" inputMode="decimal" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} onKeyDown={handleCashLineNavKeyDown} placeholder={header.currRate} />
                         </div>
                       {/* Ref Rate row - shows for payment/receipt with non-base foreign currency */}
-                      {['payment', 'receipt'].includes(String(voucherType || '').toLowerCase()) &&
-                        String(lineForm.currCode || 'USD').toUpperCase() !== baseCurrencyCode && (
+                      {showRefRate && (
                         <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB', background: '#FFFBEB' }}>
                           <div style={{ padding: '0.26rem 0.45rem', background: '#FEF3C7', fontWeight: '700', fontSize: '0.7rem', color: '#92400E', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Ref Rate</div>
-                          <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFFBEB', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.referenceRate || ''} onChange={e => setLF('referenceRate', e.target.value)} placeholder="Original invoice rate" />
+                          <input ref={lineRefRateRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFFBEB', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.referenceRate || ''} onChange={e => setLF('referenceRate', e.target.value)} onKeyDown={handleCashLineNavKeyDown} placeholder="Original invoice rate" />
                           <div style={{ padding: '0.26rem 0.45rem', background: '#FEF3C7', fontSize: '0.68rem', color: '#92400E', borderRight: '1px solid #DDE1E8', display: 'flex', alignItems: 'center' }}></div>
                           <div style={{ padding: '0.26rem 0.45rem', fontSize: '0.68rem', color: '#92400E', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>Rate when obligation was created (for FX gain/loss)</div>
                         </div>
@@ -944,20 +1083,20 @@ export default function VoucherEditorPanel({
                       {/* Amount row */}
                       <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB' }}>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt FC</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleLineAmountEnter} />
+                        <input ref={lineAmtFcRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt LC *</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleLineAmountEnter} />
+                        <input ref={lineAmtLcRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
                       </div>
 
                       {/* Narration row */}
                       <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', borderBottom: '1px solid #E5E7EB' }}>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Narration</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', width: '100%', boxSizing: 'border-box' }} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
+                        <input ref={lineNarrationRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', width: '100%', boxSizing: 'border-box' }} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
                       </div>
                       {/* Action buttons */}
                       <div style={{ display: 'flex', gap: '0.4rem', padding: '0.32rem 0.55rem', background: 'linear-gradient(180deg, #F3F4F6 0%, #E8EAED 100%)', borderTop: '1px solid #D4D8DE' }}>
                         <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={() => { saveLine(); if (!lineForm.acCode.trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #16A34A 0%, #059669 100%)', border: '1px solid #047857', borderRadius: '0.15rem', cursor: 'pointer', color: '#FFF', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }} onClick={saveLine}>Save</button>
+                        <button ref={lineSaveBtnRef} style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #16A34A 0%, #059669 100%)', border: '1px solid #047857', borderRadius: '0.15rem', cursor: 'pointer', color: '#FFF', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }} onClick={saveLine} onKeyDown={handleCashLineNavKeyDown}>Save</button>
                         <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={cancelLine}>Cancel</button>
                       </div>
                     </div>
@@ -974,8 +1113,10 @@ export default function VoucherEditorPanel({
                     {!isReadOnly && (
                       <div style={{ display: 'flex', gap: '0.3rem' }}>
                         <button
+                          ref={addLineBtnRef}
                           style={{ padding: '0.2rem 0.72rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92), 0 1px 1px rgba(0,0,0,0.06)' }}
                           onClick={handleAddLineClick}
+                          onKeyDown={handleHeaderNavKeyDown}
                         >Add</button>
                       </div>
                     )}

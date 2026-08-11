@@ -540,6 +540,7 @@ export default function ERPTabPanels({
           <ERPLedgerTab
         activeTab={activeTab}
         C={C}
+        inventoryTenantKey={inventoryTenantKey}
         canManageAccounts={canManageAccounts}
         showLedgerForm={showLedgerForm}
         openJvModal={openJvModal}

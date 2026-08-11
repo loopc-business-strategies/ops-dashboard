@@ -9,10 +9,12 @@ import {
 import { filterActiveAccounts } from '../accountDropdownHelpers'
 import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from '../erpListFilters'
+import { isVoucherKeyboardNavEnabled } from '../../../../config/tenantBranding'
 
 export default function ERPLedgerTab({
   activeTab,
   C,
+  inventoryTenantKey = '',
   canManageAccounts,
   showLedgerForm,
   openJvModal,
@@ -70,6 +72,7 @@ export default function ERPLedgerTab({
   handleRepairJvFxApply,
   erpAdvancedListFiltersEnabled = false,
 }) {
+  const keyboardNavEnabled = isVoucherKeyboardNavEnabled(inventoryTenantKey)
   const activeAccounts = filterActiveAccounts(accounts)
   const visibleJvLedgerEntries = activeTab === 'ledger'
     ? ledger.filter((entry) => (
@@ -233,6 +236,7 @@ export default function ERPLedgerTab({
               beginJvModalResize={beginJvModalResize}
               canCloseOnBackdropClick={canCloseOnBackdropClick}
               jvReadOnly={jvReadOnly}
+              keyboardNavEnabled={keyboardNavEnabled}
             />
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>

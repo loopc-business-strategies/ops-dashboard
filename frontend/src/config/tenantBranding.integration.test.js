@@ -3,6 +3,7 @@ import tenantRoutingCases from '../../../shared/tenant-routing-cases.json'
 import {
   getTenantBranding,
   isErpAdvancedListFiltersEnabled,
+  isVoucherKeyboardNavEnabled,
   resolveTenantFromHostname,
   resolveTenantFromSearch,
 } from './tenantBranding'
@@ -39,5 +40,11 @@ describe('tenant branding integration', () => {
     expect(isErpAdvancedListFiltersEnabled('loopc')).toBe(true)
     expect(isErpAdvancedListFiltersEnabled('mg')).toBe(true)
     expect(isErpAdvancedListFiltersEnabled('cg')).toBe(true)
+  })
+
+  test('enables voucher keyboard nav for LoopC first (MG/CG off until verified)', () => {
+    expect(isVoucherKeyboardNavEnabled('loopc')).toBe(true)
+    expect(isVoucherKeyboardNavEnabled('mg')).toBe(false)
+    expect(isVoucherKeyboardNavEnabled('cg')).toBe(false)
   })
 })

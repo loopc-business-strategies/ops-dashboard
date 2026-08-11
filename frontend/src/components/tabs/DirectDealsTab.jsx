@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { useLanguage } from '../../context/LanguageContext'
-import { getTenantBranding, isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
+import { getTenantBranding, isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
 import { resolveVoucherPrintSettings } from './erp/documentBranding'
 import { createLogoRenderAsset } from './erp/ERPBrandingUtils'
+import { focusElement, handleRecommendedTab } from './voucher/voucherKeyboardNav'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -215,6 +216,9 @@ export default function DirectDealsTab({
   reportBranding = null,
 }) {
   const { t } = useLanguage()
+  const tenantKey = String(user?.company || user?.tenant?.key || '').trim().toLowerCase()
+  const keyboardNavEnabled = isVoucherKeyboardNavEnabled(tenantKey)
+  const dealNavRootRef = useRef(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState('')
@@ -413,6 +417,34 @@ export default function DirectDealsTab({
 
   const addLine = () => setForm((prev) => ({ ...prev, lineItems: [...prev.lineItems, makeLine()] }))
   const removeLine = (idx) => setForm((prev) => ({ ...prev, lineItems: prev.lineItems.filter((_, i) => i !== idx) || [makeLine()] }))
+
+  const getDealNavOrder = useCallback(() => {
+    const root = dealNavRootRef.current
+    if (!root) return []
+    return Array.from(root.querySelectorAll('[data-dd-nav]')).sort((a, b) => (
+      String(a.getAttribute('data-dd-nav') || '').localeCompare(
+        String(b.getAttribute('data-dd-nav') || ''),
+        undefined,
+        { numeric: true },
+      )
+    ))
+  }, [])
+
+  const handleDealNavKeyDown = useCallback((e) => {
+    if (!keyboardNavEnabled || viewMode !== 'EDIT' || !hasManage || saving) return
+    handleRecommendedTab(e, {
+      enabled: true,
+      order: getDealNavOrder,
+      onWrapForward: () => {
+        addLine()
+        setTimeout(() => {
+          const order = getDealNavOrder()
+          const customers = order.filter((el) => String(el.getAttribute('data-dd-nav') || '').endsWith('-customer'))
+          focusElement(customers[customers.length - 1])
+        }, 40)
+      },
+    })
+  }, [keyboardNavEnabled, viewMode, hasManage, saving, getDealNavOrder])
 
   const resetForm = () => {
     setEditingId('')
@@ -1081,7 +1113,7 @@ export default function DirectDealsTab({
             </div>
 
             {/* ── Body ── */}
-            <div style={{ padding: 12, flex: 1, overflowY: 'auto', background: '#f0f0f0' }}>
+            <div ref={dealNavRootRef} style={{ padding: 12, flex: 1, overflowY: 'auto', background: '#f0f0f0' }}>
 
               {/* Inline errors */}
               {error && (
@@ -1110,14 +1142,17 @@ export default function DirectDealsTab({
                     style={{ ...erpInpSt, width: 155 }}
                     disabled={viewMode !== 'EDIT' || !hasManage || saving}
                     readOnly
+                    tabIndex={-1}
                   />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, color: '#222', fontWeight: 500, whiteSpace: 'nowrap' }}>Doc Date :</label>
                   <input
+                    data-dd-nav="00-docDate"
                     type="date"
                     value={form.docDate}
                     onChange={(e) => setForm((prev) => ({ ...prev, docDate: e.target.value }))}
+                    onKeyDown={handleDealNavKeyDown}
                     style={{ ...erpInpSt, width: 120 }}
                     disabled={viewMode !== 'EDIT' || !hasManage || saving}
                   />
@@ -1126,9 +1161,11 @@ export default function DirectDealsTab({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, color: '#222', fontWeight: 500, whiteSpace: 'nowrap' }}>Value Date :</label>
                   <input
+                    data-dd-nav="01-valueDate"
                     type="date"
                     value={form.valueDate}
                     onChange={(e) => setForm((prev) => ({ ...prev, valueDate: e.target.value }))}
+                    onKeyDown={handleDealNavKeyDown}
                     style={{ ...erpInpSt, width: 120 }}
                     disabled={viewMode !== 'EDIT' || !hasManage || saving}
                   />
@@ -1171,8 +1208,10 @@ export default function DirectDealsTab({
                           {/* Customer */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
                             <select
+                              data-dd-nav={`${10 + idx}-0-customer`}
                               value={line.customerId}
                               onChange={(e) => updateLine(idx, 'customerId', e.target.value)}
+                              onKeyDown={handleDealNavKeyDown}
                               style={{ ...erpSelSt, width: '100%', border: '1px solid #bbb', padding: '3px 4px' }}
                               disabled={viewMode !== 'EDIT' || !hasManage || saving}
                             >
@@ -1184,25 +1223,25 @@ export default function DirectDealsTab({
                           </td>
                           {/* Direction */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <select value={line.direction} onChange={(e) => updateLine(idx, 'direction', e.target.value)} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
+                            <select data-dd-nav={`${10 + idx}-1-direction`} value={line.direction} onChange={(e) => updateLine(idx, 'direction', e.target.value)} onKeyDown={handleDealNavKeyDown} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
                               <option value="buy">Buy</option>
                               <option value="sell">Sell</option>
                             </select>
                           </td>
                           {/* Metal */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <select value={line.metal} onChange={(e) => updateLine(idx, 'metal', e.target.value)} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
+                            <select data-dd-nav={`${10 + idx}-2-metal`} value={line.metal} onChange={(e) => updateLine(idx, 'metal', e.target.value)} onKeyDown={handleDealNavKeyDown} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
                               <option value="XAU">XAU</option>
                               <option value="XAG">XAG</option>
                             </select>
                           </td>
                           {/* Qty */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <input value={line.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} onBlur={() => formatLineNumber(idx, 'qty', 3)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={viewMode !== 'EDIT' || !hasManage || saving} placeholder="0.000" />
+                            <input data-dd-nav={`${10 + idx}-3-qty`} value={line.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} onBlur={() => formatLineNumber(idx, 'qty', 3)} onKeyDown={handleDealNavKeyDown} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={viewMode !== 'EDIT' || !hasManage || saving} placeholder="0.000" />
                           </td>
                           {/* Stock Code */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <select value={line.stockCode} onChange={(e) => updateLine(idx, 'stockCode', e.target.value)} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
+                            <select data-dd-nav={`${10 + idx}-4-stock`} value={line.stockCode} onChange={(e) => updateLine(idx, 'stockCode', e.target.value)} onKeyDown={handleDealNavKeyDown} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
                               <option value="OZ">OZ</option>
                               <option value="GRAM">Gram</option>
                               <option value="KG">KG</option>
@@ -1210,7 +1249,7 @@ export default function DirectDealsTab({
                           </td>
                           {/* Price */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <input value={line.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} onBlur={() => formatLineNumber(idx, 'price', 4)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={viewMode !== 'EDIT' || !hasManage || saving} placeholder="0.0000" />
+                            <input data-dd-nav={`${10 + idx}-5-price`} value={line.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} onBlur={() => formatLineNumber(idx, 'price', 4)} onKeyDown={handleDealNavKeyDown} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={viewMode !== 'EDIT' || !hasManage || saving} placeholder="0.0000" />
                           </td>
                           {/* EQ.OZ */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>

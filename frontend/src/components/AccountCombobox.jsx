@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 
 /**
  * AccountCombobox – type-to-filter + grouped dropdown picker.
@@ -12,7 +12,15 @@ import React, { useState, useEffect, useRef } from 'react'
  *   disabled  : bool
  *   onKeyDown : (event) => void
  */
-export default function AccountCombobox({ groups = [], value = '', onChange, placeholder = 'Type or select account…', style = {}, disabled = false, onKeyDown = null }) {
+const AccountCombobox = forwardRef(function AccountCombobox({
+  groups = [],
+  value = '',
+  onChange,
+  placeholder = 'Type or select account…',
+  style = {},
+  disabled = false,
+  onKeyDown = null,
+}, ref) {
   const allOptions = groups.flatMap((g) => g.options)
   const labelFor = (val) => allOptions.find((o) => o.value === val)?.label || ''
 
@@ -20,6 +28,15 @@ export default function AccountCombobox({ groups = [], value = '', onChange, pla
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const containerRef = useRef(null)
+  const inputRef = useRef(null)
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+    select: () => inputRef.current?.select?.(),
+    blur: () => inputRef.current?.blur?.(),
+    get input() { return inputRef.current },
+    contains: (node) => containerRef.current?.contains(node) || false,
+  }), [])
 
   // Keep input text in sync if value changes externally
   useEffect(() => {
@@ -143,7 +160,9 @@ export default function AccountCombobox({ groups = [], value = '', onChange, pla
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <input
+        ref={inputRef}
         type="text"
+        data-vk-focus-target="true"
         value={inputVal}
         onChange={handleInput}
         onFocus={handleFocus}
@@ -173,7 +192,9 @@ export default function AccountCombobox({ groups = [], value = '', onChange, pla
       )}
     </div>
   )
-}
+})
+
+export default AccountCombobox
 
 function HoverOption({ opt, onSelect, optionStyle }) {
   const [hovered, setHovered] = useState(false)

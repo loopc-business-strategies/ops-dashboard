@@ -1,5 +1,6 @@
-import { Fragment } from 'react'
+import { Fragment, useCallback, useRef } from 'react'
 import AccountCombobox from '../../../AccountCombobox'
+import { focusElement, handleRecommendedTab } from '../../voucher/voucherKeyboardNav'
 
 export default function JournalVoucherModal({
   C,
@@ -35,7 +36,56 @@ export default function JournalVoucherModal({
   beginJvModalResize,
   canCloseOnBackdropClick,
   jvReadOnly,
+  keyboardNavEnabled = false,
 }) {
+  const navRootRef = useRef(null)
+  const pendingFocusNewRowRef = useRef(false)
+
+  const getJvNavOrder = useCallback(() => {
+    const root = navRootRef.current
+    if (!root) return []
+    return Array.from(root.querySelectorAll('[data-jv-nav]')).sort((a, b) => (
+      String(a.getAttribute('data-jv-nav') || '').localeCompare(
+        String(b.getAttribute('data-jv-nav') || ''),
+        undefined,
+        { numeric: true },
+      )
+    ))
+  }, [])
+
+  const handleJvNavKeyDown = useCallback((e, idx) => {
+    if (e.key === 'Enter') {
+      handleJvLineKeyDown(e, idx)
+      return
+    }
+    if (!keyboardNavEnabled || jvReadOnly) return
+    handleRecommendedTab(e, {
+      enabled: true,
+      order: getJvNavOrder,
+      onWrapForward: () => {
+        pendingFocusNewRowRef.current = true
+        addJvLine()
+        setTimeout(() => {
+          if (!pendingFocusNewRowRef.current) return
+          pendingFocusNewRowRef.current = false
+          const order = getJvNavOrder()
+          const nextAccount = order.find((el) => String(el.getAttribute('data-jv-nav') || '').endsWith('-account'))
+          // Focus the last account field (new row)
+          const accounts = order.filter((el) => String(el.getAttribute('data-jv-nav') || '').endsWith('-account'))
+          focusElement(accounts[accounts.length - 1] || nextAccount)
+        }, 40)
+      },
+    })
+  }, [keyboardNavEnabled, jvReadOnly, getJvNavOrder, handleJvLineKeyDown, addJvLine])
+
+  const handleJvAccountNavKeyDown = useCallback((e, idx) => {
+    if (e.key === 'Enter') {
+      handleJvAccountKeyDown(e, idx)
+      return
+    }
+    handleJvNavKeyDown(e, idx)
+  }, [handleJvAccountKeyDown, handleJvNavKeyDown])
+
   const jvModeMeta = resolveJvModeMeta(jvMode)
   const jvValidation = getJvValidation(jvLines)
   const jvTotalDebit = jvValidation.totalDebit
@@ -77,7 +127,7 @@ export default function JournalVoucherModal({
             X Close
           </button>
         </div>
-          <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
+          <div ref={navRootRef} style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
             {jvError ? (
               <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.65rem 0.9rem', fontSize: '0.85rem', fontWeight: 600 }}>
                 {jvError}
@@ -126,19 +176,19 @@ export default function JournalVoucherModal({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem', padding: '0.65rem 1rem 0.5rem', alignItems: 'end', background: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
             <div>
               <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Doc No</div>
-              <input value={jvHeader.docNo} onChange={(e) => setJvHeader((p) => ({ ...p, docNo: e.target.value }))} placeholder={jvMode === 'bank_jv' ? 'BnkJV/2026/0001' : 'Jv/2026/0001'} style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
+              <input data-jv-nav="00-docNo" value={jvHeader.docNo} onChange={(e) => setJvHeader((p) => ({ ...p, docNo: e.target.value }))} onKeyDown={(e) => handleJvNavKeyDown(e, 0)} placeholder={jvMode === 'bank_jv' ? 'BnkJV/2026/0001' : 'Jv/2026/0001'} style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
             </div>
             <div>
               <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Date</div>
-              <input type="date" value={jvHeader.date} onChange={(e) => setJvHeader((p) => ({ ...p, date: e.target.value }))} style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
+              <input data-jv-nav="01-date" type="date" value={jvHeader.date} onChange={(e) => setJvHeader((p) => ({ ...p, date: e.target.value }))} onKeyDown={(e) => handleJvNavKeyDown(e, 0)} style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
             </div>
             <div style={{ gridColumn: 'span 2' }}>
               <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Narration</div>
-              <input value={jvHeader.narration} onChange={(e) => setJvHeader((p) => ({ ...p, narration: e.target.value }))} placeholder="Narration / description..." style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
+              <input data-jv-nav="02-narration" value={jvHeader.narration} onChange={(e) => setJvHeader((p) => ({ ...p, narration: e.target.value }))} onKeyDown={(e) => handleJvNavKeyDown(e, 0)} placeholder="Narration / description..." style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
             </div>
             <div>
               <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Currency</div>
-              <select value={jvHeader.currency || baseCurrencyCode} onChange={(e) => setJvHeader((p) => ({ ...p, currency: e.target.value }))} style={cellSt} disabled={jvReadOnly}>
+              <select data-jv-nav="03-currency" value={jvHeader.currency || baseCurrencyCode} onChange={(e) => setJvHeader((p) => ({ ...p, currency: e.target.value }))} onKeyDown={(e) => handleJvNavKeyDown(e, 0)} style={cellSt} disabled={jvReadOnly}>
                 {currencies.map((currency) => (
                   <option key={currency._id || currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
                 ))}
@@ -166,21 +216,24 @@ export default function JournalVoucherModal({
                       <tr key={`line-${line.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: lineIssue ? 'none' : '1px solid #E5E7EB' }}>
                         <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
                         <td style={{ padding: '0.25rem 0.4rem', position: 'relative', zIndex: 20 }}>
-                          <AccountCombobox
-                            groups={jvMode === 'bank_jv' ? bankJvComboGroups : jvComboGroups}
-                            value={line.accountId || ''}
-                            onChange={(val, lbl) => resolveJvLineAccount(line.id, val, lbl)}
-                            onKeyDown={(e) => handleJvAccountKeyDown(e, idx)}
-                            placeholder="Type account code or name..."
-                            disabled={jvReadOnly}
-                            style={{ ...cellSt, minWidth: '220px', borderColor: lineIssue && !line.accountId ? '#FCA5A5' : '#D1D5DB' }}
-                          />
+                          <div data-jv-nav={`${10 + idx}-0-account`}>
+                            <AccountCombobox
+                              groups={jvMode === 'bank_jv' ? bankJvComboGroups : jvComboGroups}
+                              value={line.accountId || ''}
+                              onChange={(val, lbl) => resolveJvLineAccount(line.id, val, lbl)}
+                              onKeyDown={(e) => handleJvAccountNavKeyDown(e, idx)}
+                              placeholder="Type account code or name..."
+                              disabled={jvReadOnly}
+                              style={{ ...cellSt, minWidth: '220px', borderColor: lineIssue && !line.accountId ? '#FCA5A5' : '#D1D5DB' }}
+                            />
+                          </div>
                         </td>
                         <td style={{ padding: '0.25rem 0.4rem' }}>
                           <input
+                            data-jv-nav={`${10 + idx}-1-desc`}
                             value={line.description}
                             onChange={(e) => updateJvLine(line.id, 'description', e.target.value)}
-                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                            onKeyDown={(e) => handleJvNavKeyDown(e, idx)}
                             placeholder="Line description..."
                             style={{ ...cellSt, minWidth: '180px' }}
                             readOnly={jvReadOnly}
@@ -189,12 +242,13 @@ export default function JournalVoucherModal({
                         </td>
                         <td style={{ padding: '0.25rem 0.4rem' }}>
                           <input
+                            data-jv-nav={`${10 + idx}-2-debit`}
                             type="number"
                             step="0.01"
                             min="0"
                             value={line.debit}
                             onChange={(e) => updateJvLine(line.id, 'debit', e.target.value)}
-                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                            onKeyDown={(e) => handleJvNavKeyDown(e, idx)}
                             placeholder="0.00"
                             style={{ ...numCellSt, color: '#1D4ED8', fontWeight: line.debit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
                             readOnly={jvReadOnly}
@@ -203,12 +257,13 @@ export default function JournalVoucherModal({
                         </td>
                         <td style={{ padding: '0.25rem 0.4rem' }}>
                           <input
+                            data-jv-nav={`${10 + idx}-3-credit`}
                             type="number"
                             step="0.01"
                             min="0"
                             value={line.credit}
                             onChange={(e) => updateJvLine(line.id, 'credit', e.target.value)}
-                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                            onKeyDown={(e) => handleJvNavKeyDown(e, idx)}
                             placeholder="0.00"
                             style={{ ...numCellSt, color: '#DC2626', fontWeight: line.credit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
                             readOnly={jvReadOnly}
@@ -286,7 +341,11 @@ export default function JournalVoucherModal({
             <button type="button" onClick={handlePrintJvVoucher} style={{ padding: '0.38rem 0.8rem', background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>Print JV</button>
             <button type="button" onClick={closeJvModal} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>{jvReadOnly ? 'Close' : 'Cancel'}</button>
             {!jvReadOnly && (
-              <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
+              <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>
+                {keyboardNavEnabled
+                  ? <>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Tab</kbd> across fields; Tab on last credit adds a row</>
+                  : <>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</>}
+              </span>
             )}
           </div>
         </div>

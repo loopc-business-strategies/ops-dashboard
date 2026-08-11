@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
-import { isMasterDocumentSettingsEnabled } from '../../config/tenantBranding'
+import { isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
 import { resolveErpUserTenantKey } from './erp/resolveErpUserTenant'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload } from '../../utils/liveMetalRates'
@@ -73,6 +73,7 @@ export default function VoucherTab({
   const [showVoucherPreview, setShowVoucherPreview] = useState(false)
   const pendingPrintActionRef = useRef(null)
   const voucherPreviewEnabled = isMasterDocumentSettingsEnabled(tenantKey)
+  const keyboardNavEnabled = isVoucherKeyboardNavEnabled(tenantKey)
 
   // ─── own customers/vendors state (always fresh, not stale props) ─────────────
   const [localCustomers, setLocalCustomers] = useState(propCustomers)
@@ -1357,6 +1358,7 @@ export default function VoucherTab({
         applyProductTypeAutoFill={applyProductTypeAutoFill}
         attachmentInputKey={attachmentInputKey}
         baseCurrencyCode={baseCurrencyCode}
+        keyboardNavEnabled={keyboardNavEnabled}
         canApproveWorkflow={canApproveWorkflow}
         canCreate={canCreate}
         canDeleteCurrentVoucher={canDeleteCurrentVoucher}
