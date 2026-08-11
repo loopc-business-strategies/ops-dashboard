@@ -44,7 +44,8 @@ function httpRequest(method, requestPath, body, headers = {}) {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'x-tenant-id': TENANT,
+        'x-tenant': TENANT,
+        'x-company': TENANT,
         ...headers,
       },
     }
@@ -67,8 +68,20 @@ function httpRequest(method, requestPath, body, headers = {}) {
 }
 
 function extractCookie(setCookies) {
-  if (!Array.isArray(setCookies)) return ''
+  if (!Array.isArray(setCookies)) {
+    const single = String(setCookies || '').trim()
+    return single ? single.split(';')[0] : ''
+  }
   return setCookies.map((cookie) => String(cookie).split(';')[0]).join('; ')
+}
+
+function authHeaders(session) {
+  const headers = {
+    Cookie: session.cookie,
+  }
+  if (session.csrfToken) headers['x-csrf-token'] = session.csrfToken
+  if (session.token) headers.Authorization = `Bearer ${session.token}`
+  return headers
 }
 
 function summarizeEnquiry(payload) {
@@ -102,7 +115,7 @@ async function mapPool(items, concurrency, worker) {
   return results
 }
 
-async function fetchAllSummaryAccounts(cookie) {
+async function fetchAllSummaryAccounts(session) {
   const accounts = []
   let page = 1
   for (;;) {
@@ -110,7 +123,7 @@ async function fetchAllSummaryAccounts(cookie) {
       'GET',
       `/api/erp-accounting/accounts?scope=summary&isActive=true&limit=500&page=${page}`,
       null,
-      { Cookie: cookie },
+      authHeaders(session),
     )
     if (res.status !== 200) {
       throw new Error(`Failed to list summary accounts (page ${page}, status ${res.status})`)
@@ -130,7 +143,7 @@ async function fetchAllSummaryAccounts(cookie) {
   return [...byCode.values()]
 }
 
-async function enquire(cookie, accountCode, extraQuery = '') {
+async function enquire(session, accountCode, extraQuery = '') {
   const qs = new URLSearchParams({
     accountCode,
     statementLimit: String(STATEMENT_LIMIT),
@@ -144,7 +157,7 @@ async function enquire(cookie, accountCode, extraQuery = '') {
     'GET',
     `/api/erp-accounting/accounts/enquiry?${qs.toString()}`,
     null,
-    { Cookie: cookie },
+    authHeaders(session),
   )
   return res
 }
@@ -156,16 +169,19 @@ async function main() {
     company: TENANT,
   })
   const cookie = extractCookie(loginRes.headers['set-cookie'])
-  if (loginRes.status !== 200 || !cookie) {
+  const token = String(loginRes.data?.token || loginRes.data?.accessToken || '').trim()
+  const csrfToken = String(loginRes.data?.csrfToken || loginRes.headers['x-csrf-token'] || '').trim()
+  if (loginRes.status !== 200 || loginRes.data?.success !== true || !cookie) {
     throw new Error(`Login failed (${loginRes.status})`)
   }
+  const session = { cookie, token, csrfToken }
 
-  const accounts = await fetchAllSummaryAccounts(cookie)
+  const accounts = await fetchAllSummaryAccounts(session)
   console.log(`Auditing ${accounts.length} MG summary accounts (limit=${STATEMENT_LIMIT})…`)
 
   const rows = await mapPool(accounts, CONCURRENCY, async (account) => {
     const code = String(account.accountCode || '').trim()
-    const res = await enquire(cookie, code)
+    const res = await enquire(session, code)
     if (res.status !== 200 || !res.data?.success) {
       return {
         accountCode: code,
@@ -182,7 +198,7 @@ async function main() {
   const failed = rows.filter((row) => !row.ok)
 
   const ytdPass = await mapPool(flagged, CONCURRENCY, async (row) => {
-    const res = await enquire(cookie, row.accountCode, `startDate=${YTD_START}`)
+    const res = await enquire(session, row.accountCode, `startDate=${YTD_START}`)
     if (res.status !== 200 || !res.data?.success) {
       return {
         accountCode: row.accountCode,
