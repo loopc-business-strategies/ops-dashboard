@@ -83,6 +83,20 @@ export function buildStatementExportModel(ctx) {
   const exportDisplayCurrency = statementDisplayCurrency
   const endingPureWeight = resolveStatementMetalBalance(accountEnquiryData?.metals, statementMetalCode, rawStatementEntries)
   const matchesExportMetalEntry = (entry) => matchesStatementMetal(entry, statementMetalCode)
+
+  // Prefer server runningBalance from the newest visible row so dated/truncated windows
+  // match the on-screen table instead of full-history netBalance.
+  const newestVisibleEntry = [...exportEntries].sort((left, right) => {
+    const leftTime = new Date(left?.date || 0).getTime()
+    const rightTime = new Date(right?.date || 0).getTime()
+    if (rightTime !== leftTime) return rightTime - leftTime
+    return String(right?._id || '').localeCompare(String(left?._id || ''))
+  })[0]
+  const serverClosingBalance = Number(newestVisibleEntry?.runningBalance)
+  const closingNetBalance = Number.isFinite(serverClosingBalance)
+    ? serverClosingBalance
+    : accountEnquiryData?.balances?.netBalance
+
   const {
     openingUsdBalance,
     openingPureWeight,
@@ -90,7 +104,7 @@ export function buildStatementExportModel(ctx) {
     closingPureWeight,
   } = computeStatementExportOpeningBalances({
     exportEntries,
-    closingNetBalance: accountEnquiryData?.balances?.netBalance,
+    closingNetBalance,
     closingPureWeight: endingPureWeight,
     matchesMetalEntry: matchesExportMetalEntry,
   })

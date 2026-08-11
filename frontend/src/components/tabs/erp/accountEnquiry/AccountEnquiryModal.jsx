@@ -101,7 +101,13 @@ export default function AccountEnquiryModal({
     if (dateRangeRefetchTimerRef.current) clearTimeout(dateRangeRefetchTimerRef.current)
     dateRangeRefetchTimerRef.current = setTimeout(() => {
       dateRangeInFlightKeyRef.current = rangeKey
-      Promise.resolve(refetchEnquiryForDateRange(startDate, endDate)).catch(() => {})
+      Promise.resolve(refetchEnquiryForDateRange(startDate, endDate))
+        .catch(() => {})
+        .finally(() => {
+          if (dateRangeInFlightKeyRef.current === rangeKey) {
+            dateRangeInFlightKeyRef.current = ''
+          }
+        })
     }, 400)
 
     return () => {

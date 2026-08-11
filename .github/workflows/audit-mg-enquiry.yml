@@ -1,0 +1,33 @@
+name: Audit MG Account Enquiry
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run MG enquiry audit
+        env:
+          SMOKE_API_BASE: https://api.loopcstrategies.com
+          SMOKE_AUTH_NAME_MG: ${{ secrets.SMOKE_AUTH_NAME_MG }}
+          SMOKE_AUTH_PASSWORD_MG: ${{ secrets.SMOKE_AUTH_PASSWORD_MG }}
+          SMOKE_AUTH_NAME: ${{ secrets.SMOKE_AUTH_NAME }}
+          SMOKE_AUTH_PASSWORD: ${{ secrets.SMOKE_AUTH_PASSWORD }}
+          MG_ENQUIRY_AUDIT_OUT: ${{ runner.temp }}/audit-mg-enquiry-report.json
+        run: |
+          if [ -z "${SMOKE_AUTH_NAME_MG}" ]; then export SMOKE_AUTH_NAME_MG="${SMOKE_AUTH_NAME}"; fi
+          if [ -z "${SMOKE_AUTH_PASSWORD_MG}" ]; then export SMOKE_AUTH_PASSWORD_MG="${SMOKE_AUTH_PASSWORD}"; fi
+          node backend/scripts/audit-mg-account-enquiry-statements.js
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-mg-enquiry-report
+          path: ${{ runner.temp }}/audit-mg-enquiry-report.json
+          if-no-files-found: warn

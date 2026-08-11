@@ -61,6 +61,44 @@ describe('buildStatementExportModel', () => {
     expect(closing.cells[5]).toContain('1,250.75 Dr')
   })
 
+  test('uses newest entry runningBalance as closing when present', () => {
+    const model = buildStatementExportModel({
+      ...baseCtx,
+      accountEnquiryData: {
+        ...baseCtx.accountEnquiryData,
+        balances: { netBalance: 9999 },
+      },
+      filteredStatementEntries: [
+        {
+          _id: 'e-old',
+          date: '2026-02-01T12:00:00',
+          description: 'Older',
+          debitAmount: 100,
+          creditAmount: 0,
+          metalSignedWeight: 0,
+          referenceType: 'payment',
+          runningBalance: 900,
+        },
+        {
+          _id: 'e-new',
+          date: '2026-07-01T12:00:00',
+          description: 'Newer',
+          debitAmount: 0,
+          creditAmount: 50,
+          metalSignedWeight: 0,
+          referenceType: 'payment',
+          runningBalance: 850,
+        },
+      ],
+      statementFilters: { startDate: '2026-02-01', endDate: '2026-07-31' },
+    })
+    const closing = model.tableRows.find((row) => row.kind === 'closing')
+    expect(closing.cells[5]).toContain('850.00 Dr')
+    const opening = model.tableRows.find((row) => row.kind === 'opening')
+    // closing 850 - (-50 + 100) signed = 850 - 50 = 800
+    expect(opening.cells[5]).toContain('800.00 Dr')
+  })
+
   test('builds autoTable head with currency and metal group labels', () => {
     const model = buildStatementExportModel({
       ...baseCtx,

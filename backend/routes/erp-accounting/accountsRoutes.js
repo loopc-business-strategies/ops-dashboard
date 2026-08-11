@@ -285,6 +285,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const ledgerStatementMatch = {
       isDeleted: { $ne: true },
       $or: [{ debitAccountId: { $in: targetAccountIds } }, { creditAccountId: { $in: targetAccountIds } }],
+      referenceType: { $nin: METAL_TRANSFER_LEDGER_TYPES },
+      ...(transferTxIds.length ? { referenceId: { $nin: transferTxIds } } : {}),
     }
     if (statementStartDate || statementEndDate) {
       ledgerStatementMatch.date = {}

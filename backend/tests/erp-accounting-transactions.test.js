@@ -2116,6 +2116,90 @@ describe('ERP accounting transactions workflow', () => {
     expect(Number(febRes.body?.balances?.netBalance || 0)).toBeCloseTo(175, 2)
   })
 
+  test('account enquiry excludes metal-transfer ledgers from statement limit count', async () => {
+    const financeUser = await createUser({ name: 'Metal Transfer Limit Tester' })
+
+    const partyAccount = await ChartOfAccount.create({
+      accountName: 'Metal Transfer Party',
+      accountCode: '1601',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const stockAccount = await ChartOfAccount.create({
+      accountName: 'Metal Transfer Stock',
+      accountCode: '1602',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+
+    const transferTx = await Transaction.create({
+      type: 'metal_receipt',
+      status: 'posted',
+      amount: 0,
+      date: new Date('2026-06-01T00:00:00.000Z'),
+      createdBy: financeUser._id,
+      voucherMeta: {
+        vocNo: 'MRec/2026/0199',
+        partyAccountId: partyAccount._id,
+        partyCode: '1601',
+        valueDate: new Date('2026-06-01T00:00:00.000Z'),
+        lineItems: [{ stockCode: 'XAU', pureWeight: 1.5 }],
+      },
+    })
+
+    await Ledger.insertMany([
+      {
+        date: new Date('2026-06-02T00:00:00.000Z'),
+        debitAccountId: partyAccount._id,
+        creditAccountId: stockAccount._id,
+        amount: 10,
+        description: 'Cash movement 1',
+        referenceType: 'journal',
+        createdBy: financeUser._id,
+        currency: 'USD',
+        exchangeRate: 1,
+      },
+      {
+        date: new Date('2026-06-03T00:00:00.000Z'),
+        debitAccountId: partyAccount._id,
+        creditAccountId: stockAccount._id,
+        amount: 20,
+        description: 'Cash movement 2',
+        referenceType: 'journal',
+        createdBy: financeUser._id,
+        currency: 'USD',
+        exchangeRate: 1,
+      },
+      {
+        date: new Date('2026-06-01T00:00:00.000Z'),
+        debitAccountId: partyAccount._id,
+        creditAccountId: stockAccount._id,
+        amount: 0,
+        description: 'Metal transfer ledger',
+        referenceType: 'metal_receipt',
+        referenceId: transferTx._id,
+        createdBy: financeUser._id,
+        currency: 'USD',
+        exchangeRate: 1,
+      },
+    ])
+
+    const res = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '1601', statementLimit: 2, refresh: '1' })
+      .set(authHeader(financeUser))
+
+    expect(res.status).toBe(200)
+    const meta = res.body?.statement?.meta || {}
+    // matchingCount = 2 cash ledgers + 1 synthetic transfer (metal ledger excluded from count)
+    expect(Number(meta.matchingCount || 0)).toBe(3)
+    expect(meta.truncated).toBe(true)
+    const entries = res.body?.statement?.entries || []
+    expect(entries).toHaveLength(2)
+    const descriptions = entries.map((entry) => String(entry.description || ''))
+    expect(descriptions.some((text) => text.includes('Cash movement'))).toBe(true)
+  })
+
   test('balance sheet reclassifies credit-balance debtors as liabilities', async () => {
     const financeUser = await createUser({ name: 'Balance Sheet Reclass Tester' })
     const debtorAccount = await ChartOfAccount.create({
