@@ -153,13 +153,14 @@ async function enquire(session, accountCode, extraQuery = '') {
     const extra = new URLSearchParams(extraQuery)
     extra.forEach((value, key) => qs.set(key, value))
   }
-  const res = await httpRequest(
-    'GET',
-    `/api/erp-accounting/accounts/enquiry?${qs.toString()}`,
-    null,
-    authHeaders(session),
-  )
-  return res
+  const path = `/api/erp-accounting/accounts/enquiry?${qs.toString()}`
+  let last = null
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    last = await httpRequest('GET', path, null, authHeaders(session))
+    if (last.status !== 502 && last.status !== 503) return last
+    await new Promise((resolve) => setTimeout(resolve, 750 * attempt))
+  }
+  return last
 }
 
 async function main() {
@@ -231,6 +232,15 @@ async function main() {
     failed,
     flagged,
     ytdPass,
+    accounts: rows.filter((row) => row.ok).map((row) => ({
+      accountCode: row.accountCode,
+      accountName: row.accountName,
+      entryCount: row.entryCount,
+      matchingCount: row.matchingCount,
+      truncated: row.truncated,
+      oldestDate: row.oldestDate,
+      netBalance: row.netBalance,
+    })),
   }
 
   const outPath = process.env.MG_ENQUIRY_AUDIT_OUT
