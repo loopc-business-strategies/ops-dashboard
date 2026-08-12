@@ -18,7 +18,7 @@ import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import VoucherListPanel from './voucher/VoucherListPanel'
 import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
 import VoucherPrintPanel from './voucher/VoucherPrintPanel'
-import { VOUCHER_PRINT_MEDIA_CSS } from './voucher/voucherPrintStyles'
+import { getVoucherPrintMediaCss } from './voucher/voucherPrintStyles'
 import VoucherPreviewModal from './voucher/VoucherPreviewModal'
 import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { useVoucherPendingOpen } from './voucher/useVoucherPendingOpen'
@@ -1275,7 +1275,7 @@ export default function VoucherTab({
   // ────────────────────────────────────────────────────────────────────────────
   return (
     <>
-    <style>{VOUCHER_PRINT_MEDIA_CSS}</style>
+    <style>{getVoucherPrintMediaCss(printModel.voucherPrint?.pageSize)}</style>
     <div className="voucher-screen-only" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Notifications */}
       {error && (

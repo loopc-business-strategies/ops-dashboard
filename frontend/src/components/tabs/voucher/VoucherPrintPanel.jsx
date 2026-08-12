@@ -346,7 +346,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
       <div
         className={isPreview ? undefined : 'voucher-print-signatures'}
         style={{
-          ...(isPreview ? { marginTop: '48px' } : {}),
+          marginTop: '28px',
           display: 'grid',
           gridTemplateColumns: `repeat(${Math.max(visibleSignatories.length, 1)}, 1fr)`,
           gap: '36px',

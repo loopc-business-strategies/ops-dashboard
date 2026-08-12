@@ -179,6 +179,38 @@ describe('VoucherSettingsPanel logo upload', () => {
     expect(screen.getByTestId('divider-color').textContent).toBe('#111827')
   })
 
+  it('patches voucherPrint.pageSize from the page size select', () => {
+    function Harness() {
+      const [branding, setBranding] = useState({
+        companyName: 'LoopC',
+        logoUrl: '',
+        voucherPrint: { pageSize: 'A4' },
+      })
+      return (
+        <div>
+          <span data-testid="page-size">{branding.voucherPrint.pageSize}</span>
+          <VoucherSettingsPanel
+            branding={branding}
+            onChange={setBranding}
+            onSave={vi.fn()}
+            saving={false}
+            error=""
+            status=""
+            user={{ company: 'loopc' }}
+          />
+        </div>
+      )
+    }
+
+    render(<Harness />)
+    const select = screen.getByLabelText('Page size')
+    expect(select.value).toBe('A4')
+    fireEvent.change(select, { target: { value: 'A5' } })
+    expect(screen.getByTestId('page-size').textContent).toBe('A5')
+    fireEvent.change(select, { target: { value: 'Letter' } })
+    expect(screen.getByTestId('page-size').textContent).toBe('Letter')
+  })
+
   it('uses 480px inline preview height and mounts hidden print panel when modal opens', () => {
     render(
       <VoucherSettingsPanel

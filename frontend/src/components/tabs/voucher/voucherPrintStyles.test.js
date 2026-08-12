@@ -4,6 +4,7 @@ import {
   VOUCHER_COL_NO,
   VOUCHER_PRINT_MEDIA_CSS,
   VOUCHER_TABLE_FONT_SIZE,
+  getVoucherPrintMediaCss,
   getVoucherSheetStyle,
 } from './voucherPrintStyles'
 
@@ -23,13 +24,15 @@ describe('voucherPrintStyles', () => {
   test('print media CSS targets voucher-print-only layer', () => {
     expect(VOUCHER_PRINT_MEDIA_CSS).toContain('.voucher-print-only')
     expect(VOUCHER_PRINT_MEDIA_CSS).toContain('@media print')
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('@page { size: A4 portrait')
   })
 
-  test('print media CSS pins signatures to the bottom of the A4 sheet', () => {
-    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('display: flex !important')
-    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('flex-direction: column')
-    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('min-height: calc(297mm - 10mm)')
-    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('.voucher-print-signatures')
-    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('margin-top: auto !important')
+  test('print media CSS stays compact and does not pin signatures to the page bottom', () => {
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('display: block !important')
+    expect(VOUCHER_PRINT_MEDIA_CSS).not.toContain('min-height: calc(297mm')
+    expect(VOUCHER_PRINT_MEDIA_CSS).not.toContain('margin-top: auto')
+    expect(getVoucherPrintMediaCss('A5')).toContain('@page { size: A5 portrait')
+    expect(getVoucherPrintMediaCss('Letter')).toContain('@page { size: Letter portrait')
+    expect(getVoucherPrintMediaCss('legal')).toContain('@page { size: A4 portrait')
   })
 })

@@ -1,3 +1,5 @@
+import { DEFAULT_VOUCHER_PRINT, normalizeVoucherPageSize } from '../erp/ERPBrandingUtils'
+
 export const VOUCHER_TABLE_FONT_SIZE = 14
 
 export const VOUCHER_CELL_PADDING = '8px 10px'
@@ -7,6 +9,9 @@ export const VOUCHER_BORDER = '1px solid #111827'
 export const VOUCHER_COL_NO = '48px'
 export const VOUCHER_COL_TYPE = '96px'
 export const VOUCHER_COL_AMOUNT = '124px'
+
+export { VOUCHER_PAGE_SIZES, normalizeVoucherPageSize } from '../erp/ERPBrandingUtils'
+export const DEFAULT_VOUCHER_PAGE_SIZE = DEFAULT_VOUCHER_PRINT.pageSize
 
 export const VOUCHER_NUMERIC_CELL_STYLE = {
   textAlign: 'right',
@@ -32,11 +37,13 @@ export const VOUCHER_HEADER_ROW_STYLE = {
   background: '#E5E7EB',
 }
 
-export const VOUCHER_PRINT_MEDIA_CSS = `
+export function getVoucherPrintMediaCss(pageSize = DEFAULT_VOUCHER_PAGE_SIZE) {
+  const size = normalizeVoucherPageSize(pageSize, DEFAULT_VOUCHER_PAGE_SIZE)
+  return `
   @media print {
-    @page { size: A4 portrait; margin: 5mm; }
+    @page { size: ${size} portrait; margin: 5mm; }
     .voucher-screen-only { display: none !important; }
-    .voucher-print-only { display: flex !important; }
+    .voucher-print-only { display: block !important; }
     body * { visibility: hidden; }
     .voucher-print-only, .voucher-print-only * { visibility: visible; }
     .voucher-print-only {
@@ -45,24 +52,9 @@ export const VOUCHER_PRINT_MEDIA_CSS = `
       left: 0;
       width: 100%;
       box-sizing: border-box;
-      flex-direction: column;
-      min-height: calc(297mm - 10mm);
-      padding-bottom: 8px;
       color-adjust: exact;
       print-color-adjust: exact;
       -webkit-print-color-adjust: exact;
-    }
-    .voucher-print-only > .voucher-print-sheet {
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 100%;
-      box-sizing: border-box;
-    }
-    .voucher-print-signatures {
-      margin-top: auto !important;
-      padding-top: 28px;
-      padding-bottom: 4px;
     }
     .voucher-print-only img {
       filter: none !important;
@@ -73,6 +65,9 @@ export const VOUCHER_PRINT_MEDIA_CSS = `
     }
   }
 `
+}
+
+export const VOUCHER_PRINT_MEDIA_CSS = getVoucherPrintMediaCss(DEFAULT_VOUCHER_PAGE_SIZE)
 
 export function getVoucherSheetStyle(isPreview) {
   const base = {

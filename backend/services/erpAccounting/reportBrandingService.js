@@ -22,6 +22,12 @@ const DEFAULT_STATEMENT_SIGNATORIES = [
 
 const DEFAULT_TITLE_ACCENT_COLOR = '#7F1D1D'
 const DEFAULT_HEADER_DIVIDER_COLOR = '#111827'
+const VOUCHER_PAGE_SIZES = ['A4', 'A5', 'Letter']
+
+const normalizeVoucherPageSize = (value, fallback = 'A4') => {
+  const size = String(value || '').trim()
+  return VOUCHER_PAGE_SIZES.includes(size) ? size : fallback
+}
 
 const DEFAULT_VOUCHER_PRINT = {
   logoOffsetX: 0,
@@ -41,6 +47,7 @@ const DEFAULT_VOUCHER_PRINT = {
   footerNote: '',
   companyNameFontSize: 15,
   addressFontSize: 9,
+  pageSize: 'A4',
 }
 
 const HEX_COLOR_RE = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/
@@ -163,6 +170,7 @@ const normalizeVoucherPrint = (value = {}) => ({
     STATEMENT_ADDRESS_FONT_MIN,
     STATEMENT_ADDRESS_FONT_MAX,
   ),
+  pageSize: normalizeVoucherPageSize(value.pageSize, DEFAULT_VOUCHER_PRINT.pageSize),
 })
 
 const normalizeStatementPrint = (value = {}) => ({

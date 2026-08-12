@@ -165,7 +165,7 @@ export default function MGVoucherPrintLayout({
         <div>{partyName || accountDescription()}</div>
         <div style={{ textAlign: 'right' }}>{companyName}</div>
       </div>
-      <div className="voucher-print-signatures" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '230px', textAlign: 'center', fontSize: '9px' }}>
+      <div className="voucher-print-signatures" style={{ marginTop: '28px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '230px', textAlign: 'center', fontSize: '9px' }}>
         <div>
           <div style={{ borderTop: border, paddingTop: '6px' }}>CUSTOMER'S SIGNATURE</div>
         </div>

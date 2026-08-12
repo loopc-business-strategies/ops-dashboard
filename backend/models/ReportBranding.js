@@ -34,6 +34,7 @@ const voucherPrintSchema = new mongoose.Schema(
     footerNote: { type: String, trim: true, default: '' },
     companyNameFontSize: { type: Number, default: 15 },
     addressFontSize: { type: Number, default: 9 },
+    pageSize: { type: String, enum: ['A4', 'A5', 'Letter'], default: 'A4' },
   },
   { _id: false }
 )

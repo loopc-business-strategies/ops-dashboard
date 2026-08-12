@@ -6,7 +6,7 @@ import SignatoryEditor from './SignatoryEditor'
 import VoucherTableHeaderEditor from './VoucherTableHeaderEditor'
 import VoucherPreviewModal from '../voucher/VoucherPreviewModal'
 import VoucherPrintPanel from '../voucher/VoucherPrintPanel'
-import { VOUCHER_PRINT_MEDIA_CSS } from '../voucher/voucherPrintStyles'
+import { getVoucherPrintMediaCss } from '../voucher/voucherPrintStyles'
 import {
   VOUCHER_PREVIEW_TYPES,
   buildVoucherPreviewPrintModel,
@@ -17,6 +17,7 @@ import {
   DEFAULT_TITLE_ACCENT_COLOR,
   DEFAULT_HEADER_DIVIDER_COLOR,
   DEFAULT_VOUCHER_PRINT,
+  VOUCHER_PAGE_SIZES,
   STATEMENT_ADDRESS_FONT_MAX,
   STATEMENT_ADDRESS_FONT_MIN,
   STATEMENT_COMPANY_NAME_FONT_MAX,
@@ -71,7 +72,7 @@ export default function VoucherSettingsPanel({
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <style>{VOUCHER_PRINT_MEDIA_CSS}</style>
+      <style>{getVoucherPrintMediaCss(voucherPrint.pageSize)}</style>
       <DocumentLayoutPreview
         branding={branding}
         layoutSettings={voucherPrint}
@@ -196,6 +197,20 @@ export default function VoucherSettingsPanel({
           </label>
         </div>
       </div>
+
+      <label htmlFor="voucher-page-size" style={{ fontSize: 12, color: '#6B7280' }}>
+        Page size
+        <select
+          id="voucher-page-size"
+          value={voucherPrint.pageSize || DEFAULT_VOUCHER_PRINT.pageSize}
+          onChange={(e) => patchVoucherPrint({ pageSize: e.target.value })}
+          style={{ ...inputStyle, marginTop: 4 }}
+        >
+          {VOUCHER_PAGE_SIZES.map((size) => (
+            <option key={size} value={size}>{size}</option>
+          ))}
+        </select>
+      </label>
 
       <div style={{ display: 'grid', gap: 12 }}>
         <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Header typography</h4>

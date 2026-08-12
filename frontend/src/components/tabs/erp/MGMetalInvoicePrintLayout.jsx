@@ -204,7 +204,7 @@ export default function MGMetalInvoicePrintLayout({
       <div style={{ marginTop: '6px', fontStyle: 'italic' }}>Confirmed for &amp; on behalf of</div>
       <div style={{ marginTop: '4px', fontSize: '12px', fontWeight: '900' }}>{partyName || partyLine || '-'}</div>
 
-      <div className="voucher-print-signatures" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '98px', textAlign: 'center', fontSize: '10px', fontWeight: '900' }}>
+      <div className="voucher-print-signatures" style={{ marginTop: '28px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '98px', textAlign: 'center', fontSize: '10px', fontWeight: '900' }}>
         <div><div style={{ borderTop: border, paddingTop: '5px' }}>CUSTOMER'S SIGNATURE</div></div>
         <div><div style={{ borderTop: border, paddingTop: '5px' }}>CHECKED BY</div></div>
         <div><div style={{ borderTop: border, paddingTop: '5px' }}>AUTHORISED SIGNATORY</div></div>

@@ -58,6 +58,15 @@ describe('ERPBrandingUtils – DEFAULT_BRANDING', () => {
     expect(normalizeVoucherPrint({ titleAccentColor: '' }).titleAccentColor).toBe('#7F1D1D')
   })
 
+  test('normalizeVoucherPrint accepts A4 A5 Letter page sizes and falls back to A4', () => {
+    expect(DEFAULT_VOUCHER_PRINT.pageSize).toBe('A4')
+    expect(normalizeVoucherPrint({}).pageSize).toBe('A4')
+    expect(normalizeVoucherPrint({ pageSize: 'A5' }).pageSize).toBe('A5')
+    expect(normalizeVoucherPrint({ pageSize: 'Letter' }).pageSize).toBe('Letter')
+    expect(normalizeVoucherPrint({ pageSize: 'legal' }).pageSize).toBe('A4')
+    expect(normalizeVoucherPrint({ pageSize: '' }).pageSize).toBe('A4')
+  })
+
   test('DEFAULT_BRANDING_PROFILES contains one entry mirroring DEFAULT_BRANDING', () => {
     expect(DEFAULT_BRANDING_PROFILES).toHaveLength(1)
     const [profile] = DEFAULT_BRANDING_PROFILES

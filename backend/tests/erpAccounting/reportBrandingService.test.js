@@ -62,6 +62,14 @@ describe('reportBrandingService', () => {
     expect(normalizeVoucherPrint({}).addressFontSize).toBe(9)
   })
 
+  test('normalizeVoucherPrint accepts A4 A5 Letter page sizes and falls back to A4', () => {
+    expect(DEFAULT_VOUCHER_PRINT.pageSize).toBe('A4')
+    expect(normalizeVoucherPrint({}).pageSize).toBe('A4')
+    expect(normalizeVoucherPrint({ pageSize: 'A5' }).pageSize).toBe('A5')
+    expect(normalizeVoucherPrint({ pageSize: 'Letter' }).pageSize).toBe('Letter')
+    expect(normalizeVoucherPrint({ pageSize: 'legal' }).pageSize).toBe('A4')
+  })
+
   test('normalizeStatementPrint applies title and showPrintNote defaults', () => {
     const result = normalizeStatementPrint({
       title: 'Account Statement',
