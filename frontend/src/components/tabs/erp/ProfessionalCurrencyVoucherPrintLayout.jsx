@@ -83,9 +83,9 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
         color: '#111111',
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 154px', gap: '24px', alignItems: 'start', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: '24px', alignItems: 'start', marginBottom: '10px' }}>
         <div>
-          <div style={{ fontSize: '18px', lineHeight: '1.06', fontWeight: '900', letterSpacing: 0, marginBottom: '14px' }}>
+          <div style={{ fontSize: '18px', lineHeight: '1.06', fontWeight: '900', letterSpacing: 0, marginBottom: '12px' }}>
             {companyName}
           </div>
           <div style={{ fontSize: '12px', lineHeight: '1.65', fontWeight: '800', whiteSpace: 'pre-line' }}>
@@ -96,7 +96,7 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
             <div>Email</div><div>: {documentEmail || ''}</div>
           </div>
         </div>
-        <div style={{ textAlign: 'center', display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', paddingRight: '2px', marginTop: '-8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', minHeight: `${logoHeight}px` }}>
           {logoImage ? (
             <img
               src={logoImage}
@@ -118,9 +118,9 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
 
       <ProfessionalGoldTitleBar variant="currency" title={printTitle} goldColor={gold} />
 
-      <div style={{ textAlign: 'right', fontSize: '16px', lineHeight: 1, fontWeight: '900', color: '#6B7280', marginBottom: '12px' }}>{copyLabel}</div>
+      <div style={{ textAlign: 'center', fontSize: '14px', lineHeight: 1, fontWeight: '900', color: '#6B7280', margin: '2px 0 10px' }}>{copyLabel}</div>
 
-      <div className="voucher-pro-party-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(200px, 1fr)', gap: '20px', marginBottom: '13px' }}>
+      <div className="voucher-pro-party-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(200px, 1fr)', gap: '16px', marginBottom: '13px', alignItems: 'start' }}>
         <div style={{ border, borderRadius: '4px', overflow: 'hidden', minHeight: '104px' }}>
           <div style={{ minHeight: '29px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '13px' }}>
             {accountDescription()}
@@ -136,7 +136,7 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
           </div>
         </div>
 
-        <div style={{ border, borderRadius: '4px', overflow: 'hidden', alignSelf: 'start' }}>
+        <div style={{ border, borderRadius: '4px', overflow: 'hidden', alignSelf: 'start', marginTop: '1px' }}>
           {[
             [docNoLabel, docNoValue ? `${branch} - ${docNoValue}` : branch],
             ['Date', dateValue],

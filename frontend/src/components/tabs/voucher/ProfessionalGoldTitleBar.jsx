@@ -6,7 +6,7 @@ export function ProfessionalGoldTitleBar({
   const commonOuter =
     variant === 'metal'
       ? { height: '28px', marginBottom: '7px' }
-      : { height: '31px', margin: '4px 0 13px' }
+      : { height: '31px', margin: '2px 0 10px' }
 
   const goldLineTop = variant === 'metal' ? '13px' : '12px'
   const titleTop = variant === 'metal' ? '13px' : '12px'
@@ -23,8 +23,8 @@ export function ProfessionalGoldTitleBar({
       : {
           border: `1.2px solid ${goldColor}`,
           minHeight: '29px',
-          fontSize: '17px',
-          width: 'min(286px, 70%)',
+          fontSize: '16px',
+          width: 'min(320px, 78%)',
         }
 
   return (
