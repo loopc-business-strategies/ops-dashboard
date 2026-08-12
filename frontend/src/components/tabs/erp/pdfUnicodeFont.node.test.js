@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { Buffer } from 'node:buffer'
 import {
   ensurePdfUnicodeFonts,
   PDF_FALLBACK_FONT_FAMILY,

@@ -89,7 +89,7 @@ describe('MasterSettingsTab', () => {
     expect(screen.getByText('Table headers')).toBeTruthy()
     expect(screen.getByText('Full voucher preview')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open full preview' })).toBeTruthy()
-    expect(screen.getByText('No line items')).toBeTruthy()
+    expect(screen.getAllByText('PAYMENT VOUCHER').length).toBeGreaterThan(0)
   })
 
   it('closes voucher settings modal from the header close button', async () => {
