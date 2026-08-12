@@ -444,6 +444,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         : (isMetalTrade && fixingStatus === 'unfixed')
           ? resolveSignedPureWeight(txType, tx.voucherMeta?.lineItems, metalCode)
           : 0
+      const lineNarration = hasVoucherLines
+        ? String(tx.voucherMeta.lineItems.find((line) => String(line?.narration || '').trim())?.narration || '').trim()
+        : ''
       const txRef = {
         id: String(tx._id),
         number: txNumber,
@@ -454,6 +457,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         isMetalTransfer,
         metalSignedWeight,
         unfixedVoucherAmount: isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed' ? Number(voucherAmount.toFixed(2)) : 0,
+        lineNarration,
       }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
       transactionById.set(String(tx._id), txRef)
@@ -791,7 +795,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       return {
         _id: entry._id,
         date: entry.date,
-        description: entry.description || entry.notes || '',
+        description: entry.description || entry.notes || linkedTx?.lineNarration || '',
+        notes: String(entry.notes || '').trim(),
+        lineNarration: String(linkedTx?.lineNarration || '').trim(),
         referenceType: entry.referenceType || 'journal',
         department: entry.department || '',
         currency: entry.currency || accountCurrencyCode,
@@ -822,10 +828,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
       const metalCode = resolveMetalCodeFromLines(lines)
       const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || '').trim()
+      const lineNarration = String(lines.find((line) => String(line?.narration || '').trim())?.narration || '').trim()
       return {
         _id: `transfer:${tx._id}`,
         date: tx.voucherMeta?.valueDate || tx.date || new Date(),
-        description: `${txType.replace('_', ' ')} transfer`,
+        description: lineNarration || `${txType.replace('_', ' ')} transfer`,
+        notes: '',
+        lineNarration,
         referenceType: txType,
         department: '',
         currency: accountCurrencyCode,

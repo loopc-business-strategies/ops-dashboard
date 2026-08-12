@@ -97,6 +97,8 @@ function combineVoucherStatementRows(entries = []) {
       row.offsetAccountName = entry?.offsetAccountName || row.offsetAccountName
     }
     if (!row.sourceTransactionNumber && entry?.sourceTransactionNumber) row.sourceTransactionNumber = entry.sourceTransactionNumber
+    if (!row.notes && entry?.notes) row.notes = entry.notes
+    if (!row.lineNarration && entry?.lineNarration) row.lineNarration = entry.lineNarration
     if (!row.metalFixStatus && entry?.metalFixStatus) row.metalFixStatus = entry.metalFixStatus
     if (!row.metalCode && entry?.metalCode) row.metalCode = entry.metalCode
     if (!row.isMetalTrade && entry?.isMetalTrade) row.isMetalTrade = entry.isMetalTrade

@@ -121,11 +121,15 @@ export function useVoucherSave({
       ? receiptPaymentDocTotal
       : (totals.grandTotal || 0.01)
 
+  const firstLineNarration = effectiveLineItems
+    .map((line) => String(line?.narration || line?.remarks || '').trim())
+    .find(Boolean) || ''
+
   const payload = {
     type: voucherType,
     amount: resolvedDocAmount,
     date: isSimpleMetalSave ? (header.docDate || header.valueDate || header.vocDate) : (header.valueDate || header.vocDate),
-    description: `${voucherType} voucher ${resolvedDocNo || ''}`.trim(),
+    description: firstLineNarration || `${voucherType} voucher`,
     currency: isReceiptPayment ? normalizedHeaderCurrency : baseCurrencyCode,
     exchangeRate: isReceiptPayment ? backendHeaderRate : 1,
     customerId: resolvedParty?.customerId || undefined,

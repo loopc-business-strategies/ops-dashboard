@@ -44,14 +44,54 @@ export function formatStatementBlankable(value, decimals = 2) {
   return formatStatementNumber(numeric, decimals)
 }
 
+const STATEMENT_DOC_NO_RE = /^(?:Pay|Rec|Pur|Sal|MRec|MPay|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6}$/i
+const STATEMENT_DOC_NO_IN_TEXT_RE = /\b((?:Pay|Rec|Pur|Sal|MRec|MPay|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i
+const STATEMENT_VOUCHER_TYPE_PREFIX_RE = /^(?:payment|receipt|purchase|sale|metal receipt|metal payment)\s+voucher\s+(?=(?:Pay|Rec|Pur|Sal|MRec|MPay|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6}\b)/i
+
+function escapeStatementRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function extractStatementDocNo(value) {
+  const match = String(value || '').match(STATEMENT_DOC_NO_IN_TEXT_RE)
+  return String(match?.[1] || '').trim()
+}
+
+export function sanitizeStatementNarrationText(value, docNo = '') {
+  let text = String(value || '').trim()
+  if (!text) return ''
+
+  const knownDocNo = String(docNo || '').trim() || extractStatementDocNo(text)
+  const splitter = text.includes(' — ') ? ' — ' : (text.includes(' - ') ? ' - ' : '')
+  if (splitter) {
+    const parts = text.split(splitter)
+    const head = String(parts[0] || '').trim()
+    if (STATEMENT_DOC_NO_RE.test(head) || (knownDocNo && head.toLowerCase() === knownDocNo.toLowerCase())) {
+      text = parts.slice(1).join(splitter).trim()
+    }
+  }
+
+  text = text.replace(STATEMENT_VOUCHER_TYPE_PREFIX_RE, '').trim()
+  if (knownDocNo) {
+    text = text.replace(new RegExp(`^${escapeStatementRegExp(knownDocNo)}\\s*`, 'i'), '').trim()
+    if (text.toLowerCase() === knownDocNo.toLowerCase()) return ''
+  }
+  if (STATEMENT_DOC_NO_RE.test(text)) return ''
+  return text
+}
+
 export function buildStatementNarration(entry) {
-  const primary = String(entry?.description || '').trim()
-  if (primary) return primary
-  const reference = String(entry?.referenceType || '').trim().toUpperCase()
+  const docNo = String(entry?.sourceTransactionNumber || extractStatementDocNo(entry?.description) || '').trim()
+  const candidates = [entry?.description, entry?.notes, entry?.lineNarration]
+  for (const candidate of candidates) {
+    const cleaned = sanitizeStatementNarrationText(candidate, docNo)
+    if (cleaned) return cleaned
+  }
   const offset = entry?.offsetAccountCode
     ? `${String(entry.offsetAccountCode).trim()}${entry?.offsetAccountName ? ` ${String(entry.offsetAccountName).trim()}` : ''}`
     : ''
-  return [reference, offset].filter(Boolean).join(' - ') || 'Statement entry'
+  if (offset) return offset
+  return 'Statement entry'
 }
 
 /**
