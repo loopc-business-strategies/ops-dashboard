@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import DocumentLayoutPreview from './DocumentLayoutPreview'
 import DocumentLogoEditor from './DocumentLogoEditor'
 import LogoSizeSlider from './LogoSizeSlider'
@@ -26,6 +26,33 @@ import {
   normalizeHeaderDividerColor,
 } from '../erp/ERPBrandingUtils'
 
+const PAPER_SIZES_PX = {
+  A4:     { w: 794,  h: 1123 },
+  A5:     { w: 559,  h: 794  },
+  Letter: { w: 816,  h: 1056 },
+}
+
+function useScaledPreview(pageSize) {
+  const containerRef = useRef(null)
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return undefined
+    const paper = PAPER_SIZES_PX[pageSize] || PAPER_SIZES_PX.A4
+    const measure = () => {
+      const available = el.offsetWidth
+      if (available > 0) setScale(available / paper.w)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [pageSize])
+
+  return { containerRef, scale }
+}
+
 const inputStyle = {
   width: '100%',
   padding: '8px 10px',
@@ -48,6 +75,9 @@ export default function VoucherSettingsPanel({
   const [previewDataMode, setPreviewDataMode] = useState('empty')
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const voucherPrint = branding.voucherPrint || {}
+  const currentPageSize = voucherPrint.pageSize || DEFAULT_VOUCHER_PRINT.pageSize
+  const { containerRef: previewContainerRef, scale: previewScale } = useScaledPreview(currentPageSize)
+  const paper = PAPER_SIZES_PX[currentPageSize] || PAPER_SIZES_PX.A4
   const titleAccentColor = normalizeTitleAccentColor(
     voucherPrint.titleAccentColor,
     DEFAULT_TITLE_ACCENT_COLOR,
@@ -198,20 +228,6 @@ export default function VoucherSettingsPanel({
         </div>
       </div>
 
-      <label htmlFor="voucher-page-size" style={{ fontSize: 12, color: '#6B7280' }}>
-        Page size
-        <select
-          id="voucher-page-size"
-          value={voucherPrint.pageSize || DEFAULT_VOUCHER_PRINT.pageSize}
-          onChange={(e) => patchVoucherPrint({ pageSize: e.target.value })}
-          style={{ ...inputStyle, marginTop: 4 }}
-        >
-          {VOUCHER_PAGE_SIZES.map((size) => (
-            <option key={size} value={size}>{size}</option>
-          ))}
-        </select>
-      </label>
-
       <div style={{ display: 'grid', gap: 12 }}>
         <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Header typography</h4>
         <StatementTypographyControl
@@ -277,36 +293,56 @@ export default function VoucherSettingsPanel({
       </label>
 
       <section style={{ borderTop: '1px solid #E5E7EB', paddingTop: 14 }}>
-        <h4 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700 }}>Full voucher preview</h4>
-        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6B7280' }}>
-          Preview the complete voucher layout with empty or sample data. Changes update live before saving.
+        <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700 }}>Voucher preview</h4>
+        <p style={{ margin: '0 0 10px', fontSize: 12, color: '#6B7280' }}>
+          Live preview — changes update instantly before saving.
         </p>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151' }}>
+
+        {/* Toolbar row */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+          {/* Voucher type */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', fontWeight: 600 }}>
             Type
             <select
               value={previewVoucherType}
               onChange={(e) => setPreviewVoucherType(e.target.value)}
-              style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid #D1D5DB' }}
+              style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid #D1D5DB', fontSize: 12 }}
             >
               {VOUCHER_PREVIEW_TYPES.map((item) => (
                 <option key={item.key} value={item.key}>{item.label}</option>
               ))}
             </select>
           </label>
-          <div style={{ display: 'inline-flex', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden' }}>
+
+          {/* Page size — moved here from mid-form */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', fontWeight: 600 }}>
+            Page
+            <select
+              id="voucher-page-size"
+              value={currentPageSize}
+              onChange={(e) => patchVoucherPrint({ pageSize: e.target.value })}
+              style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid #D1D5DB', fontSize: 12 }}
+            >
+              {VOUCHER_PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
+
+          {/* Empty / Sample toggle */}
+          <div style={{ display: 'inline-flex', border: '1px solid #D1D5DB', borderRadius: 7, overflow: 'hidden' }}>
             {['empty', 'sample'].map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setPreviewDataMode(value)}
                 style={{
-                  padding: '6px 12px',
+                  padding: '5px 11px',
                   border: 'none',
                   background: previewDataMode === value ? '#005B96' : '#FFFFFF',
                   color: previewDataMode === value ? '#FFFFFF' : '#374151',
                   fontWeight: 600,
-                  fontSize: 13,
+                  fontSize: 12,
                   cursor: 'pointer',
                 }}
               >
@@ -314,24 +350,54 @@ export default function VoucherSettingsPanel({
               </button>
             ))}
           </div>
+
+          {/* Open full modal */}
           <button
             type="button"
             onClick={() => setPreviewModalOpen(true)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #005B96', background: '#EFF6FF', color: '#005B96', fontWeight: 700, cursor: 'pointer' }}
+            style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, border: '1px solid #005B96', background: '#EFF6FF', color: '#005B96', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
           >
-            Open full preview
+            Full preview ↗
           </button>
         </div>
-        <div style={{
-          border: '1px solid #E5E7EB',
-          borderRadius: 10,
-          background: '#F8FAFC',
-          padding: 12,
-          maxHeight: 480,
-          overflow: 'auto',
-        }}
+
+        {/* Scaled page preview */}
+        <div
+          ref={previewContainerRef}
+          style={{
+            width: '100%',
+            background: '#D1D5DB',
+            borderRadius: 10,
+            padding: '16px 8px',
+            boxSizing: 'border-box',
+            overflow: 'hidden',
+          }}
         >
-          <VoucherPrintPanel printModel={previewPrintModel} renderMode="preview" />
+          {/* Outer wrapper holds the scaled height so it doesn't collapse */}
+          <div style={{
+            position: 'relative',
+            width: paper.w * previewScale,
+            height: paper.h * previewScale,
+            margin: '0 auto',
+            overflow: 'hidden',
+          }}>
+            {/* Inner paper card at full size, scaled down via transform */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: paper.w,
+              height: paper.h,
+              transformOrigin: 'top left',
+              transform: `scale(${previewScale})`,
+              background: '#ffffff',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+              borderRadius: Math.round(8 / previewScale),
+              overflow: 'hidden',
+            }}>
+              <VoucherPrintPanel printModel={previewPrintModel} renderMode="preview" />
+            </div>
+          </div>
         </div>
       </section>
 
