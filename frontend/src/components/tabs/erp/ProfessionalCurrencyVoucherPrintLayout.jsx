@@ -1,4 +1,4 @@
-import { PROFESSIONAL_SHEET_STYLE, buildProfessionalCurrencyDocLabel } from '../voucher/professionalVoucherPrint'
+import { PROFESSIONAL_SHEET_STYLE, ProfessionalGoldTitleBar, buildProfessionalCurrencyDocLabel } from '../voucher/professionalVoucherPrint'
 
 const DEFAULT_CURRENCY_SIGNATORIES = [
   { title: "CUSTOMER'S SIGNATURE" },
@@ -17,7 +17,7 @@ function renderSignatories(signatories, border) {
         marginTop: '28px',
         display: 'grid',
         gridTemplateColumns: `repeat(${columns}, 1fr)`,
-        gap: '36px',
+        gap: '24px',
         textAlign: 'center',
         fontSize: '9px',
         fontWeight: '900',
@@ -116,16 +116,11 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
         </div>
       </div>
 
-      <div style={{ position: 'relative', height: '31px', margin: '4px 0 13px' }}>
-        <div style={{ position: 'absolute', top: '12px', left: 0, right: 0, borderTop: `7px solid ${gold}`, height: 0 }} />
-        <div style={{ position: 'relative', zIndex: 1, marginLeft: '96px', width: 'min(286px, calc(100% - 96px))', minHeight: '29px', border: `1.2px solid ${gold}`, background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', fontWeight: '900', letterSpacing: 0, whiteSpace: 'nowrap', padding: '0 8px' }}>
-          {printTitle}
-        </div>
-      </div>
+      <ProfessionalGoldTitleBar variant="currency" title={printTitle} goldColor={gold} />
 
       <div style={{ textAlign: 'right', fontSize: '16px', lineHeight: 1, fontWeight: '900', color: '#6B7280', marginBottom: '12px' }}>{copyLabel}</div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(200px, 264px)', gap: '20px', marginBottom: '13px' }}>
+      <div className="voucher-pro-party-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(200px, 1fr)', gap: '20px', marginBottom: '13px' }}>
         <div style={{ border, borderRadius: '4px', overflow: 'hidden', minHeight: '104px' }}>
           <div style={{ minHeight: '29px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '13px' }}>
             {accountDescription()}
@@ -160,12 +155,12 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '14px', marginBottom: '9px' }}>
         <thead>
           <tr style={{ background: '#F3F4F6' }}>
-            <th style={{ border, padding: '8px 6px', width: '34px' }}>No.</th>
-            <th style={{ border, padding: '8px 6px', width: '64px' }}>Branch</th>
-            <th style={{ border, padding: '8px 6px' }}>Account Description</th>
-            <th style={{ border, padding: '8px 6px', width: '58px' }}>Type</th>
-            <th style={{ border, padding: '8px 6px', width: '116px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>Amount FC</th>
-            <th style={{ border, padding: '8px 6px', width: '124px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{amountLabel}</th>
+            <th style={{ border, padding: '8px 6px', width: '4%' }}>No.</th>
+            <th style={{ border, padding: '8px 6px', width: '10%' }}>Branch</th>
+            <th style={{ border, padding: '8px 6px', width: '38%' }}>Account Description</th>
+            <th style={{ border, padding: '8px 6px', width: '10%' }}>Type</th>
+            <th style={{ border, padding: '8px 6px', width: '19%', textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>Amount FC</th>
+            <th style={{ border, padding: '8px 6px', width: '19%', textAlign: 'right', fontVariantNumeric: 'tabular-nums', paddingRight: 10 }}>{amountLabel}</th>
           </tr>
         </thead>
         <tbody>
@@ -212,7 +207,7 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
       </div>
 
       <div style={{ margin: '0 0 16px 6px', fontSize: '11px', fontStyle: 'italic' }}>{confirmedForLabel}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '112px', margin: '0 8px 16px', fontWeight: '900', fontSize: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', margin: '0 8px 16px', fontWeight: '900', fontSize: '12px' }}>
         <div>{partyName || accountDescription()}</div>
         <div style={{ textAlign: 'right' }}>{companyName}</div>
       </div>

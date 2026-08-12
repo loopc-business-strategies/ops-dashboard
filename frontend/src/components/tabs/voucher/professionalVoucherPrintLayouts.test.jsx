@@ -43,7 +43,9 @@ describe('Professional voucher print layouts', () => {
       />,
     )
 
-    expect(screen.getByText('TAX INVOICE (FIXED)')).toBeTruthy()
+    const metalTitleBox = screen.getByText('TAX INVOICE (FIXED)').closest('.voucher-pro-title-box')
+    expect(metalTitleBox).toBeTruthy()
+    expect(metalTitleBox.getAttribute('style') || '').toContain('translateX(-50%)')
     expect(screen.getByText('Gross Wt.')).toBeTruthy()
     expect(screen.getByText(/VAT Amt/i)).toBeTruthy()
     expect(screen.getByText(/Gross Amt/i)).toBeTruthy()
@@ -85,7 +87,9 @@ describe('Professional voucher print layouts', () => {
       />,
     )
 
-    expect(screen.getByText('PAYMENT VOUCHER')).toBeTruthy()
+    const currencyTitleBox = screen.getByText('PAYMENT VOUCHER').closest('.voucher-pro-title-box')
+    expect(currencyTitleBox).toBeTruthy()
+    expect(currencyTitleBox.getAttribute('style') || '').toContain('translateX(-50%)')
     expect(screen.getByText('ACCOUNTS COPY')).toBeTruthy()
     expect(screen.getAllByText('Sample Vendor LLC VEND-001').length).toBeGreaterThan(0)
     expect(screen.getByText('Vendor Street')).toBeTruthy()

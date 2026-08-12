@@ -53,3 +53,5 @@ export const PROFESSIONAL_SHEET_STYLE = {
   printColorAdjust: 'exact',
   WebkitPrintColorAdjust: 'exact',
 }
+
+export { ProfessionalGoldTitleBar } from './ProfessionalGoldTitleBar'

@@ -1,4 +1,4 @@
-import { PROFESSIONAL_SHEET_STYLE } from '../voucher/professionalVoucherPrint'
+import { PROFESSIONAL_SHEET_STYLE, ProfessionalGoldTitleBar } from '../voucher/professionalVoucherPrint'
 
 const DEFAULT_METAL_SIGNATORIES = [
   { title: "CUSTOMER'S SIGNATURE" },
@@ -16,7 +16,7 @@ function renderSignatories(signatories, border, columns = 3) {
         marginTop: '28px',
         display: 'grid',
         gridTemplateColumns: `repeat(${columns}, 1fr)`,
-        gap: columns === 3 ? '98px' : '230px',
+        gap: '24px',
         textAlign: 'center',
         fontSize: '10px',
         fontWeight: '900',
@@ -123,14 +123,9 @@ export default function ProfessionalMetalInvoicePrintLayout({
         </div>
       </div>
 
-      <div style={{ position: 'relative', height: '28px', marginBottom: '7px' }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '13px', borderTop: `7px solid ${gold}` }} />
-        <div style={{ position: 'relative', zIndex: 1, marginLeft: '70px', width: 'min(318px, calc(100% - 70px))', minHeight: '27px', borderTop: `2px solid ${gold}`, borderBottom: `2px solid ${gold}`, background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '900', whiteSpace: 'nowrap', padding: '0 8px' }}>
-          {invoiceTitle}
-        </div>
-      </div>
+      <ProfessionalGoldTitleBar variant="metal" title={invoiceTitle} goldColor={gold} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(200px, 258px)', gap: '20px', alignItems: 'start', marginBottom: '6px' }}>
+      <div className="voucher-pro-party-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(200px, 1fr)', gap: '20px', alignItems: 'start', marginBottom: '6px' }}>
         <div style={{ border, borderRadius: '3px', minHeight: '86px', padding: '8px 8px 5px' }}>
           <div style={{ fontSize: '13px', fontWeight: '900', marginBottom: '6px' }}>{partyLine || '-'}</div>
           {partyAddress ? (
@@ -165,18 +160,18 @@ export default function ProfessionalMetalInvoicePrintLayout({
 
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '14px' }}>
         <colgroup>
-          <col style={{ width: '28px' }} />
-          <col style={{ width: '118px' }} />
-          <col style={{ width: '64px' }} />
-          <col style={{ width: '50px' }} />
-          <col style={{ width: '60px' }} />
-          <col style={{ width: '52px' }} />
-          <col style={{ width: '52px' }} />
-          <col style={{ width: '68px' }} />
-          <col style={{ width: '76px' }} />
-          <col style={{ width: '38px' }} />
-          <col style={{ width: '60px' }} />
-          <col style={{ width: '74px' }} />
+          <col style={{ width: '3%' }} />
+          <col style={{ width: '20%' }} />
+          <col style={{ width: '8%' }} />
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '8%' }} />
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '10%' }} />
+          <col style={{ width: '6%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '8%' }} />
         </colgroup>
         <thead>
           <tr style={{ background: '#F3F4F6' }}>

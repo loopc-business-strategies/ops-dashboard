@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import DocumentPrintHeader from '../erp/DocumentPrintHeader'
 import MGMetalInvoicePrintLayout from '../erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from '../erp/MGVoucherPrintLayout'
@@ -137,7 +138,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
     </tfoot>
   )
 
-  return (
+  const panel = (
     <div className={rootClassName} style={rootStyle}>
       {useProfessionalMetalLayout ? (
         <ProfessionalMetalInvoicePrintLayout
@@ -458,4 +459,8 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
       )}
     </div>
   )
+
+  if (isPreview) return panel
+  if (typeof document === 'undefined' || !document.body) return panel
+  return createPortal(panel, document.body)
 }

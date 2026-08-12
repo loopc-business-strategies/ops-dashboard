@@ -47,17 +47,26 @@ export function getVoucherPrintMediaCss(pageSize = DEFAULT_VOUCHER_PAGE_SIZE) {
     body * { visibility: hidden; }
     .voucher-print-only, .voucher-print-only * { visibility: visible; }
     .voucher-print-only {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      max-width: 100%;
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #FFFFFF;
+      z-index: 2147483647;
       overflow: hidden;
       box-sizing: border-box;
       color-adjust: exact;
       print-color-adjust: exact;
       -webkit-print-color-adjust: exact;
     }
+    .voucher-print-sheet {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box;
+    }
+    .voucher-print-signatures { gap: 24px !important; }
     .voucher-print-only img {
       filter: none !important;
       mix-blend-mode: normal !important;
