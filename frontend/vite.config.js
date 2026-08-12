@@ -75,6 +75,7 @@ export default defineConfig({
     include: ['@sentry/react'],
   },
   test: {
+    setupFiles: ['./src/test-setup.js'],
     environment: 'jsdom',
     globals: true,
     pool: 'threads',

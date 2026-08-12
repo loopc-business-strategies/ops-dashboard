@@ -87,8 +87,8 @@ describe('MasterSettingsTab', () => {
     expect(await screen.findByRole('dialog', { name: 'Voucher Settings' })).toBeTruthy()
     expect(screen.getByText('Save voucher settings')).toBeTruthy()
     expect(screen.getByText('Table headers')).toBeTruthy()
-    expect(screen.getByText('Full voucher preview')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Open full preview' })).toBeTruthy()
+    expect(screen.getByText('Voucher preview')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Full preview ↗' })).toBeTruthy()
     expect(screen.getAllByText('PAYMENT VOUCHER').length).toBeGreaterThan(0)
   })
 
