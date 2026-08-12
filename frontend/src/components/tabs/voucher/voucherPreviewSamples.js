@@ -1,4 +1,4 @@
-import { isMetalStockVoucherType, isMetalTransferVoucherType } from './voucherTabShared'
+import { isMetalTransferVoucherType } from './voucherTabShared'
 import { isProfessionalMetalVoucherType } from './professionalVoucherPrint'
 import { buildVoucherPrintModel } from './useVoucherPrintModel'
 
