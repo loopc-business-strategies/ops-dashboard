@@ -203,7 +203,7 @@ describe('VoucherSettingsPanel logo upload', () => {
     }
 
     render(<Harness />)
-    const select = screen.getByLabelText('Page')
+    const select = screen.getByLabelText('Page size')
     expect(select.value).toBe('A4')
     fireEvent.change(select, { target: { value: 'A5' } })
     expect(screen.getByTestId('page-size').textContent).toBe('A5')
@@ -211,7 +211,7 @@ describe('VoucherSettingsPanel logo upload', () => {
     expect(screen.getByTestId('page-size').textContent).toBe('Letter')
   })
 
-  it('renders scaled inline preview and keeps a hidden print panel mounted', () => {
+  it('uses 480px inline preview height and keeps a hidden print panel mounted', () => {
     render(
       <VoucherSettingsPanel
         branding={{ companyName: 'LoopC', logoUrl: '', voucherPrint: {} }}
@@ -224,10 +224,11 @@ describe('VoucherSettingsPanel logo upload', () => {
       />,
     )
 
-    expect(screen.getByTestId('voucher-print-panel-preview')).toBeTruthy()
+    const inlineWrapper = screen.getByTestId('voucher-print-panel-preview').parentElement
+    expect(inlineWrapper?.style.maxHeight).toBe('480px')
     expect(screen.getByTestId('voucher-print-panel-print')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Full preview ↗' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open full preview' }))
     expect(screen.getAllByTestId('voucher-print-panel-print').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: 'Print' })).toBeTruthy()
   })
