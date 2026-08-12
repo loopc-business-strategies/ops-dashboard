@@ -211,7 +211,7 @@ describe('VoucherSettingsPanel logo upload', () => {
     expect(screen.getByTestId('page-size').textContent).toBe('Letter')
   })
 
-  it('uses 480px inline preview height and mounts hidden print panel when modal opens', () => {
+  it('uses 480px inline preview height and keeps a hidden print panel mounted', () => {
     render(
       <VoucherSettingsPanel
         branding={{ companyName: 'LoopC', logoUrl: '', voucherPrint: {} }}
@@ -226,10 +226,10 @@ describe('VoucherSettingsPanel logo upload', () => {
 
     const inlineWrapper = screen.getByTestId('voucher-print-panel-preview').parentElement
     expect(inlineWrapper?.style.maxHeight).toBe('480px')
-    expect(screen.queryByTestId('voucher-print-panel-print')).toBeNull()
+    expect(screen.getByTestId('voucher-print-panel-print')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open full preview' }))
-    expect(screen.getByTestId('voucher-print-panel-print')).toBeTruthy()
+    expect(screen.getAllByTestId('voucher-print-panel-print').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: 'Print' })).toBeTruthy()
   })
 })

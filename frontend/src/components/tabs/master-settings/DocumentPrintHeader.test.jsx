@@ -109,6 +109,27 @@ describe('DocumentPrintHeader logo sizing', () => {
     expect(screen.getByText('Dubai, UAE').style.fontSize).toBe(`${DEFAULT_VOUCHER_PRINT.addressFontSize}px`)
   })
 
+  it('does not reserve a 260px logo frame when printing', () => {
+    const { container } = render(
+      <DocumentPrintHeader
+        branding={{
+          companyName: 'LoopC',
+          logoUrl: 'data:image/png;base64,abc',
+          logoWidth: 120,
+          logoHeight: 56,
+        }}
+        title="Payment Voucher"
+        screenPreview={false}
+      />,
+    )
+    const logoFrame = container.querySelector('[data-testid="header-divider"] > div:last-child')
+    expect(logoFrame.style.minWidth).toBe('120px')
+    expect(logoFrame.style.minHeight).toBe('56px')
+    const title = screen.getByText('Payment Voucher')
+    expect(title.style.whiteSpace).toBe('nowrap')
+    expect(title.style.flexShrink).toBe('0')
+  })
+
   it('passes screenPreview flag to useDocumentPrintLogo', () => {
     useDocumentPrintLogo.mockClear()
     const logoUrl = 'data:image/png;base64,abc'

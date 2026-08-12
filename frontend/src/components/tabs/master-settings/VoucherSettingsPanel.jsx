@@ -335,9 +335,7 @@ export default function VoucherSettingsPanel({
         </div>
       </section>
 
-      {previewModalOpen ? (
-        <VoucherPrintPanel printModel={previewPrintModel} />
-      ) : null}
+      <VoucherPrintPanel printModel={previewPrintModel} />
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button

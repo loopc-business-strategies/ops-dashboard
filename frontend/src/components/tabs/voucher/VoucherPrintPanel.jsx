@@ -97,6 +97,20 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
   )
 
   const lineTableStyle = { ...VOUCHER_TABLE_BASE_STYLE, marginBottom: '8px' }
+  const totalsFooter = (
+    <tfoot>
+      {[
+        `Total (${currencyLabel || 'USD'})`,
+        `Total Value (${currencyLabel || 'USD'})`,
+        `Total Party Value (${currencyLabel || 'USD'})`,
+      ].map((label) => (
+        <tr key={label}>
+          <td colSpan={4} style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{label}</td>
+          <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+        </tr>
+      ))}
+    </tfoot>
+  )
 
   return (
     <div className={rootClassName} style={rootStyle}>
@@ -160,11 +174,11 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         screenPreview={isPreview}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px', marginBottom: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(180px, 240px)', gap: '12px', marginBottom: '10px', alignItems: 'start' }}>
         <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
+          {voucher?.partyName ? <div style={{ fontWeight: '600' }}>{voucher.partyName}</div> : null}
           <div>{voucher?.partyAccount || ''}</div>
-          <div style={{ marginTop: '6px' }} />
-          <div style={{ textAlign: 'center' }}>{trnValue ? `TRN - ${trnValue}` : ''}</div>
+          {trnValue ? <div style={{ marginTop: '4px', textAlign: 'center' }}>{`TRN - ${trnValue}`}</div> : null}
         </div>
         <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
           <div><strong>PAY NO</strong> : {payNoValue || ''}</div>
@@ -209,6 +223,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
               </tr>
             )}
           </tbody>
+          {totalsFooter}
         </table>
       ) : (
         <table style={lineTableStyle}>
@@ -258,25 +273,9 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
               </tr>
             )}
           </tbody>
+          {totalsFooter}
         </table>
       )}
-
-      <table style={{ ...VOUCHER_TABLE_BASE_STYLE, marginBottom: '8px' }}>
-        <tbody>
-          <tr>
-            <td style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{`Total (${currencyLabel || 'USD'})`}</td>
-            <td style={{ ...numTdStyle, width: VOUCHER_COL_AMOUNT, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
-          </tr>
-          <tr>
-            <td style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{`Total Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
-          </tr>
-          <tr>
-            <td style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
-          </tr>
-        </tbody>
-      </table>
 
       <div style={{
         border: VOUCHER_BORDER,

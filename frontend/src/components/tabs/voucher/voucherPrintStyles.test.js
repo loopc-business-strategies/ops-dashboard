@@ -15,9 +15,11 @@ describe('voucherPrintStyles', () => {
     expect(VOUCHER_COL_AMOUNT).toBe('124px')
   })
 
-  test('preview sheet caps width and print sheet enforces min-width', () => {
+  test('preview sheet caps width and print sheet fits the page', () => {
     expect(getVoucherSheetStyle(true).maxWidth).toBe('820px')
-    expect(getVoucherSheetStyle(false).minWidth).toBe('1050px')
+    expect(getVoucherSheetStyle(false).minWidth).toBeUndefined()
+    expect(getVoucherSheetStyle(false).width).toBe('100%')
+    expect(getVoucherSheetStyle(false).maxWidth).toBe('100%')
     expect(getVoucherSheetStyle(false).padding).toBe('18px 24px 24px')
   })
 
@@ -25,6 +27,7 @@ describe('voucherPrintStyles', () => {
     expect(VOUCHER_PRINT_MEDIA_CSS).toContain('.voucher-print-only')
     expect(VOUCHER_PRINT_MEDIA_CSS).toContain('@media print')
     expect(VOUCHER_PRINT_MEDIA_CSS).toContain('@page { size: A4 portrait')
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('max-width: 100%')
   })
 
   test('print media CSS stays compact and does not pin signatures to the page bottom', () => {

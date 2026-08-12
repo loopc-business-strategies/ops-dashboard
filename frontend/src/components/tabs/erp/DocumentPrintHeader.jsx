@@ -41,9 +41,9 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
     STATEMENT_ADDRESS_FONT_MIN,
     STATEMENT_ADDRESS_FONT_MAX,
   )
-  const logoFrameWidth = 260
-  const logoFrameHeight = 120
   const logoSrc = useDocumentPrintLogo(logoUrl, logoWidth, logoHeight, logoFit, screenPreview)
+  const logoFrameWidth = screenPreview ? 260 : (logoSrc ? logoWidth : 0)
+  const logoFrameHeight = screenPreview ? 120 : (logoSrc ? logoHeight : 0)
   const details = [
     branding?.address,
     branding?.phone,
@@ -71,9 +71,10 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
         </div>
         <div style={{
           position: 'relative',
-          minWidth: `${logoFrameWidth}px`,
-          minHeight: `${logoFrameHeight}px`,
-          display: 'flex',
+          minWidth: logoFrameWidth ? `${logoFrameWidth}px` : undefined,
+          minHeight: logoFrameHeight ? `${logoFrameHeight}px` : undefined,
+          flexShrink: 0,
+          display: logoFrameWidth ? 'flex' : 'none',
           justifyContent: 'flex-end',
         }}
         >
@@ -96,7 +97,7 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
         <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
-        <div style={{ fontWeight: '700', fontSize: '16px', letterSpacing: '0.02em', textAlign: 'center', textTransform: 'uppercase' }}>{title}</div>
+        <div style={{ fontWeight: '700', fontSize: '16px', letterSpacing: '0.02em', textAlign: 'center', textTransform: 'uppercase', flexShrink: 0, whiteSpace: 'nowrap' }}>{title}</div>
         <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
       </div>
       {meta.length ? (

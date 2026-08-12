@@ -51,6 +51,8 @@ export function getVoucherPrintMediaCss(pageSize = DEFAULT_VOUCHER_PAGE_SIZE) {
       top: 0;
       left: 0;
       width: 100%;
+      max-width: 100%;
+      overflow: hidden;
       box-sizing: border-box;
       color-adjust: exact;
       print-color-adjust: exact;
@@ -95,8 +97,10 @@ export function getVoucherSheetStyle(isPreview) {
   return {
     ...base,
     display: 'none',
+    width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
     padding: '18px 24px 24px',
-    minWidth: '1050px',
     background: '#FFFFFF',
   }
 }

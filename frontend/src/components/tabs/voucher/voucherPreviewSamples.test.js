@@ -25,7 +25,9 @@ describe('voucherPreviewSamples', () => {
       user: { company: 'loopc', name: 'Tester' },
     })
     expect(ctx.header.vocNo).toBe('PAY-0001')
+    expect(ctx.header.partyName).toBe('Sample Vendor LLC')
     expect(ctx.effectiveLineItems.length).toBe(2)
+    expect(ctx.effectiveLineItems.map((line) => line.acCode)).toEqual(['6100', '6200'])
     expect(ctx.totals.grandTotal).toBe(1500)
   })
 
