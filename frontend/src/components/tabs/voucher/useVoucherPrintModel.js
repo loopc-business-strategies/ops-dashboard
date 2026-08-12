@@ -1,6 +1,15 @@
 import { useMemo } from 'react'
+import { isProfessionalVoucherPrintEnabled } from '../../../config/tenantBranding'
 import { resolveErpUserTenantBranding } from '../erp/resolveErpUserTenant'
 import { resolveVoucherPrintSettings } from '../erp/documentBranding'
+import {
+  buildProfessionalCurrencyCopyLabel,
+  buildProfessionalCurrencyTitle,
+  buildProfessionalMetalCopyLabel,
+  buildProfessionalMetalInvoiceTitle,
+  isProfessionalCurrencyVoucherType,
+  isProfessionalMetalVoucherType,
+} from './professionalVoucherPrint'
 import {
   fmt,
   getAccountCodeValue,
@@ -81,6 +90,28 @@ export function buildVoucherPrintModel({
   const isMgMetalVoucher = isModernGoldTenant
     && isMetalStockVoucherType(voucherType)
     && !voucherPrintSettings.enabled
+  const tenantKey = activeTenantBranding?.key || String(user?.company || '').trim().toLowerCase()
+  const professionalPrintEnabled = isProfessionalVoucherPrintEnabled(tenantKey)
+  const useProfessionalMetalLayout = professionalPrintEnabled
+    && voucherPrintSettings.enabled
+    && isProfessionalMetalVoucherType(voucherType)
+  const useProfessionalCurrencyLayout = professionalPrintEnabled
+    && voucherPrintSettings.enabled
+    && isProfessionalCurrencyVoucherType(voucherType)
+  const proCompanyName = documentBranding.companyName
+    || activeTenantBranding?.companyName
+    || activeTenantBranding?.displayName
+    || ''
+  const proCompanyAddress = documentBranding.address || activeTenantBranding?.address || ''
+  const proLogoImage = documentBranding.logoUrl || activeTenantBranding?.logoUrl || activeTenantBranding?.logoImage || ''
+  const proTitleAccentColor = voucherPrintSettings.voucherPrint?.titleAccentColor || '#D99A12'
+  const proSignatories = (voucherPrintSettings.voucherPrint?.signatories || [])
+    .filter((item) => item.visible !== false)
+  const proConfirmedForLabel = voucherPrintSettings.voucherPrint?.confirmedForLabel || 'Confirmed for & on behalf of'
+  const proMetalCopyLabel = buildProfessionalMetalCopyLabel(voucherType)
+  const proCurrencyTitle = buildProfessionalCurrencyTitle(voucherType)
+  const proCurrencyCopyLabel = buildProfessionalCurrencyCopyLabel(voucherType)
+  const proMetalPostingDirection = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'DEBITED' : 'CREDITED'
   const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
   const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
   const mgLogoImage = documentBranding.logoUrl || ''
@@ -109,6 +140,7 @@ export function buildVoucherPrintModel({
     ? `${numberToWords(totals.grandTotal)} ${mgAmountCurrencyName} Only`
     : ''
   const mgFixingDisplay = normalizeVoucherFixingType(header?.fixingType) === 'non-fixing' ? 'UNFIXED' : 'FIXED'
+  const proMetalInvoiceTitle = buildProfessionalMetalInvoiceTitle(voucherType, mgFixingDisplay)
   const mgMetalInvoiceTitle = `${
     voucherType === 'purchase'
       ? 'PURCHASE INVOICE'
@@ -142,6 +174,19 @@ export function buildVoucherPrintModel({
     accountNameByCode,
     isMgCurrencyVoucher,
     isMgMetalVoucher,
+    useProfessionalMetalLayout,
+    useProfessionalCurrencyLayout,
+    proCompanyName,
+    proCompanyAddress,
+    proLogoImage,
+    proTitleAccentColor,
+    proSignatories,
+    proConfirmedForLabel,
+    proMetalInvoiceTitle,
+    proMetalCopyLabel,
+    proCurrencyTitle,
+    proCurrencyCopyLabel,
+    proMetalPostingDirection,
     mgPrintTitle,
     mgBranch,
     mgLogoImage,

@@ -31,7 +31,7 @@ describe('voucherPreviewSamples', () => {
     expect(ctx.totals.grandTotal).toBe(1500)
   })
 
-  test('sample metal preview uses metal line shape', () => {
+  test('sample metal preview uses metal line shape with weight and VAT fields', () => {
     const ctx = buildVoucherPreviewContext({
       mode: 'sample',
       voucherType: 'purchase',
@@ -40,7 +40,23 @@ describe('voucherPreviewSamples', () => {
     })
     expect(ctx.isMetalVoucher).toBe(true)
     expect(ctx.effectiveLineItems[0].metalSymbol).toBe('XAU')
+    expect(ctx.effectiveLineItems[0].grossWeight).toBe(12.5)
+    expect(ctx.effectiveLineItems[0].purity).toBe(0.999)
+    expect(ctx.effectiveLineItems[0].makingRate).toBe(15)
+    expect(ctx.effectiveLineItems[0].vatAmountLC).toBe(1486.06)
     expect(ctx.totals.grandTotal).toBeGreaterThan(0)
+  })
+
+  test('sample sale preview uses professional metal lines', () => {
+    const ctx = buildVoucherPreviewContext({
+      mode: 'sample',
+      voucherType: 'sale',
+      branding: { companyName: 'LoopC' },
+      user: { company: 'loopc', name: 'Tester' },
+    })
+    expect(ctx.isMetalVoucher).toBe(true)
+    expect(ctx.header.vocNo).toBe('47')
+    expect(ctx.effectiveLineItems[0].amountWithVAT).toBe(31207.31)
   })
 
   test('buildVoucherPreviewPrintModel includes LOOPC voucher print settings', () => {

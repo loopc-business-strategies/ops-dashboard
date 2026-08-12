@@ -1,6 +1,8 @@
 import DocumentPrintHeader from '../erp/DocumentPrintHeader'
 import MGMetalInvoicePrintLayout from '../erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from '../erp/MGVoucherPrintLayout'
+import ProfessionalCurrencyVoucherPrintLayout from '../erp/ProfessionalCurrencyVoucherPrintLayout'
+import ProfessionalMetalInvoicePrintLayout from '../erp/ProfessionalMetalInvoicePrintLayout'
 import { useDocumentPrintLogo } from './useDocumentPrintLogo'
 import {
   VOUCHER_BORDER,
@@ -23,6 +25,19 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
   const {
     isMgCurrencyVoucher,
     isMgMetalVoucher,
+    useProfessionalMetalLayout,
+    useProfessionalCurrencyLayout,
+    proCompanyName,
+    proCompanyAddress,
+    proLogoImage,
+    proTitleAccentColor,
+    proSignatories,
+    proConfirmedForLabel,
+    proMetalInvoiceTitle,
+    proMetalCopyLabel,
+    proCurrencyTitle,
+    proCurrencyCopyLabel,
+    proMetalPostingDirection,
     mgCompanyName,
     mgCompanyAddress,
     documentBranding,
@@ -79,15 +94,25 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
 
   const isPreview = renderMode === 'preview'
   const isMgLayout = isMgCurrencyVoucher || isMgMetalVoucher
+  const isProfessionalLayout = useProfessionalMetalLayout || useProfessionalCurrencyLayout
   const rootClassName = isPreview ? 'voucher-preview-panel' : 'voucher-print-only'
   const sheetStyle = getVoucherSheetStyle(isPreview)
   const rootStyle = {
     ...sheetStyle,
-    ...(isMgLayout ? { minWidth: undefined, padding: '0 10px' } : {}),
+    ...((isMgLayout || isProfessionalLayout) ? { minWidth: undefined, padding: '0 10px' } : {}),
   }
 
-  const mgLogoWidth = Number(documentBranding?.logoWidth || 136)
-  const mgLogoHeight = Number(documentBranding?.logoHeight || 136)
+  const logoWidth = Number(documentBranding?.logoWidth || 136)
+  const logoHeight = Number(documentBranding?.logoHeight || 136)
+  const proLogoSrc = useDocumentPrintLogo(
+    proLogoImage || mgLogoImage,
+    logoWidth,
+    logoHeight,
+    documentBranding?.logoFit || 'contain',
+    isPreview,
+  )
+  const mgLogoWidth = logoWidth
+  const mgLogoHeight = logoHeight
   const mgLogoSrc = useDocumentPrintLogo(
     mgLogoImage,
     mgLogoWidth,
@@ -114,7 +139,72 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
 
   return (
     <div className={rootClassName} style={rootStyle}>
-      {isMgCurrencyVoucher ? (
+      {useProfessionalMetalLayout ? (
+        <ProfessionalMetalInvoicePrintLayout
+          companyName={proCompanyName}
+          companyAddress={proCompanyAddress}
+          logoImage={proLogoSrc}
+          logoWidth={logoWidth}
+          logoHeight={logoHeight}
+          titleAccentColor={proTitleAccentColor}
+          invoiceTitle={proMetalInvoiceTitle}
+          copyLabel={proMetalCopyLabel}
+          partyName={mgPartyAccountName}
+          partyCode={mgPartyAccountCode}
+          partyAddress={mgPartyPrintAddress}
+          partyPhone={mgPartyPrintPhone}
+          trnValue={trnValue}
+          docNoValue={payNoValue}
+          branch={mgBranch}
+          dateValue={payDateValue}
+          paymentTerms={printModel.header?.paymentTerms || ''}
+          salesman={preparedByValue}
+          fixingLabel={mgFixingDisplay}
+          metalRateLabel={mgMetalRateLabel}
+          currencyLabel={currencyLabel || 'USD'}
+          lineItems={mgLineItems}
+          totals={totals}
+          amountWords={mgAmountWords}
+          postingDirection={proMetalPostingDirection}
+          confirmedForLabel={proConfirmedForLabel}
+          signatories={proSignatories}
+          fmt={fmt}
+        />
+      ) : useProfessionalCurrencyLayout ? (
+        <ProfessionalCurrencyVoucherPrintLayout
+          companyName={proCompanyName}
+          companyAddress={proCompanyAddress}
+          documentEmail={documentBranding?.email}
+          phoneValue={phoneValue}
+          logoImage={proLogoSrc}
+          logoWidth={logoWidth}
+          logoHeight={logoHeight}
+          titleAccentColor={proTitleAccentColor}
+          printTitle={proCurrencyTitle}
+          copyLabel={proCurrencyCopyLabel}
+          voucherType={voucherType}
+          accountDescription={mgAccountDescription}
+          trnValue={trnValue}
+          docNoValue={payNoValue}
+          branch={mgBranch}
+          dateValue={payDateValue}
+          preparedByValue={preparedByValue}
+          amountLabel={printAmountLabel}
+          currencyLabel={currencyLabel}
+          lineItems={mgLineItems}
+          primaryLine={mgPrimaryLine}
+          totals={totals}
+          amountWords={mgAmountWords}
+          partyName={voucher?.partyName}
+          partyAddress={mgPartyPrintAddress}
+          partyPhone={mgPartyPrintPhone}
+          postingDirection={printPostingDirection}
+          confirmedForLabel={proConfirmedForLabel}
+          signatories={proSignatories}
+          normalizeLineType={normalizeLineType}
+          fmt={fmt}
+        />
+      ) : isMgCurrencyVoucher ? (
         <MGVoucherPrintLayout
           companyName={mgCompanyName}
           companyAddress={mgCompanyAddress}

@@ -38,6 +38,7 @@ const defaultBranding = {
     erpAdvancedListFilters: true,
     chatTranslate: true,
     voucherKeyboardNav: true,
+    professionalVoucherPrint: true,
   },
 }
 
@@ -67,6 +68,7 @@ const tenantBranding = {
       masterDocumentSettings: true,
       chatTranslate: true,
       voucherKeyboardNav: true,
+      professionalVoucherPrint: true,
     },
   },
   cg: {
@@ -93,6 +95,7 @@ const tenantBranding = {
       masterDocumentSettings: true,
       chatTranslate: true,
       voucherKeyboardNav: true,
+      professionalVoucherPrint: true,
     },
   },
   loopc: {
@@ -113,6 +116,7 @@ const tenantBranding = {
       erpAdvancedListFilters: true,
       chatTranslate: true,
       voucherKeyboardNav: true,
+      professionalVoucherPrint: true,
     },
   },
 }
@@ -140,6 +144,10 @@ export function isChatTranslateEnabled(tenant) {
 
 export function isVoucherKeyboardNavEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.voucherKeyboardNav === true
+}
+
+export function isProfessionalVoucherPrintEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.professionalVoucherPrint === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

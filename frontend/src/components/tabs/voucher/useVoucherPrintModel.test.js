@@ -131,4 +131,90 @@ describe('buildVoucherPrintModel tenant layout routing', () => {
     expect(model.voucherPrint.footerNote).toBe('Internal copy only')
     expect(model.isMgCurrencyVoucher).toBe(false)
   })
+
+  it('routes LoopC payment vouchers to professional currency layout', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'payment',
+      user: { company: 'loopc', name: 'LoopC User' },
+    })
+
+    expect(model.useProfessionalCurrencyLayout).toBe(true)
+    expect(model.useProfessionalMetalLayout).toBe(false)
+    expect(model.proCurrencyTitle).toBe('PAYMENT VOUCHER')
+  })
+
+  it('routes LoopC metal sale vouchers to professional metal layout', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'sale',
+      voucherLabel: 'Metal Sale Voucher',
+      isMetalVoucher: true,
+      header: { vocNo: '47', docDate: '2026-07-08', currCode: 'USD', fixingType: 'fixing' },
+      user: { company: 'loopc', name: 'LoopC User' },
+      reportBranding: { companyName: 'LoopC Trading LLC' },
+    })
+
+    expect(model.useProfessionalMetalLayout).toBe(true)
+    expect(model.proMetalInvoiceTitle).toBe('TAX INVOICE (FIXED)')
+    expect(model.proCompanyName).toBe('LoopC Trading LLC')
+  })
+
+  it('routes LoopC purchase vouchers to professional metal layout with purchase title', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'purchase',
+      voucherLabel: 'Metal Purchase Voucher',
+      isMetalVoucher: true,
+      user: { company: 'loopc', name: 'LoopC User' },
+    })
+
+    expect(model.useProfessionalMetalLayout).toBe(true)
+    expect(model.proMetalInvoiceTitle).toBe('PURCHASE INVOICE (FIXED)')
+    expect(model.proMetalCopyLabel).toBe('ACCOUNTS COPY')
+  })
+
+  it('does not route to professional layout when tenant flag is disabled', () => {
+    vi.spyOn(tenantBranding, 'isProfessionalVoucherPrintEnabled').mockReturnValue(false)
+
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'payment',
+      user: { company: 'loopc', name: 'LoopC User' },
+    })
+
+    expect(model.useProfessionalCurrencyLayout).toBe(false)
+    expect(model.useProfessionalMetalLayout).toBe(false)
+  })
+
+  it('routes MG and CG payment to professional layout when flag is enabled', () => {
+    const mgModel = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'payment',
+      user: { company: 'mg', name: 'MG User' },
+    })
+    const cgModel = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'receipt',
+      user: { company: 'cg', name: 'CG User' },
+    })
+
+    expect(mgModel.useProfessionalCurrencyLayout).toBe(true)
+    expect(cgModel.useProfessionalCurrencyLayout).toBe(true)
+    expect(cgModel.proCurrencyTitle).toBe('RECEIPT VOUCHER')
+  })
+
+  it('uses legacy MG currency layout when master document settings are disabled even with professional flag', () => {
+    vi.spyOn(tenantBranding, 'isMasterDocumentSettingsEnabled').mockReturnValue(false)
+
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'payment',
+      user: { company: 'mg', name: 'MG User' },
+    })
+
+    expect(model.voucherPrintSettings.enabled).toBe(false)
+    expect(model.isMgCurrencyVoucher).toBe(true)
+    expect(model.useProfessionalCurrencyLayout).toBe(false)
+  })
 })

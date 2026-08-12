@@ -1,4 +1,5 @@
 import { isMetalStockVoucherType, isMetalTransferVoucherType } from './voucherTabShared'
+import { isProfessionalMetalVoucherType } from './professionalVoucherPrint'
 import { buildVoucherPrintModel } from './useVoucherPrintModel'
 
 export const VOUCHER_PREVIEW_TYPES = [
@@ -30,13 +31,16 @@ const buildEmptyHeader = (voucherType) => ({
   partyName: '',
   currCode: 'USD',
   branch: 'HO',
-  fixingType: isMetalStockVoucherType(voucherType) ? 'fixing' : '',
+  fixingType: isProfessionalMetalVoucherType(voucherType) ? 'fixing' : '',
 })
 
 const buildSampleHeader = (voucherType) => {
-  const isMetal = isMetalStockVoucherType(voucherType)
+  const isMetal = isProfessionalMetalVoucherType(voucherType)
+  const type = String(voucherType || '').trim().toLowerCase()
   return {
-    vocNo: isMetal ? 'MRec-0001' : 'PAY-0001',
+    vocNo: isMetal
+      ? (type === 'sale' ? '47' : 'MRec-0001')
+      : 'PAY-0001',
     docDate: '2026-07-08',
     valueDate: '2026-07-08',
     partyCode: isMetal ? 'CUST-001' : 'VEND-001',
@@ -71,10 +75,18 @@ const buildSampleMetalLines = () => ([
     stockCode: 'XAU-24K',
     productType: 'Gold 24K',
     metalSymbol: 'XAU',
-    pureWeight: 10.5,
-    amountFC: 25000,
-    amountLC: 25000,
-    totalAmount: 25000,
+    grossWeight: 12.5,
+    purity: 0.999,
+    pureWeight: 12.4875,
+    makingRate: 15,
+    makingCharges: 187.31,
+    metalAmount: 29721.25,
+    amountFC: 29721.25,
+    amountLC: 29721.25,
+    totalAmount: 29721.25,
+    vatPer: 5,
+    vatAmountLC: 1486.06,
+    amountWithVAT: 31207.31,
     metalRate: 2380,
     remarks: 'Sample metal line',
   },
@@ -83,22 +95,30 @@ const buildSampleMetalLines = () => ([
     stockCode: 'XAG-999',
     productType: 'Silver 999',
     metalSymbol: 'XAG',
-    pureWeight: 50,
-    amountFC: 1200,
-    amountLC: 1200,
-    totalAmount: 1200,
+    grossWeight: 50,
+    purity: 0.999,
+    pureWeight: 49.95,
+    makingRate: 2,
+    makingCharges: 99.9,
+    metalAmount: 1198.8,
+    amountFC: 1198.8,
+    amountLC: 1198.8,
+    totalAmount: 1198.8,
+    vatPer: 5,
+    vatAmountLC: 59.94,
+    amountWithVAT: 1258.74,
     metalRate: 24,
     remarks: 'Second sample line',
   },
 ])
 
 const buildSampleLines = (voucherType) => (
-  isMetalStockVoucherType(voucherType) ? buildSampleMetalLines() : buildSampleCurrencyLines()
+  isProfessionalMetalVoucherType(voucherType) ? buildSampleMetalLines() : buildSampleCurrencyLines()
 )
 
 const buildSampleTotals = (lines) => {
   const grandTotal = lines.reduce((sum, line) => {
-    const value = Number(line.totalAmount || line.amountLC || line.amountFC || 0)
+    const value = Number(line.amountWithVAT || line.totalAmount || line.amountLC || line.amountFC || 0)
     return sum + value
   }, 0)
   return {
@@ -106,6 +126,7 @@ const buildSampleTotals = (lines) => {
     total: grandTotal,
     grandTotal,
     pureWeightTotal: lines.reduce((sum, line) => sum + Number(line.pureWeight || 0), 0),
+    vatAmount: lines.reduce((sum, line) => sum + Number(line.vatAmountLC || line.vatAmountFC || 0), 0),
   }
 }
 
@@ -124,7 +145,7 @@ export function buildVoucherPreviewContext({
   live = null,
 }) {
   const normalizedType = String(voucherType || 'payment').trim().toLowerCase()
-  const isMetalVoucher = isMetalStockVoucherType(normalizedType)
+  const isMetalVoucher = isProfessionalMetalVoucherType(normalizedType)
   const isSimpleMetalVoucher = isMetalTransferVoucherType(normalizedType)
 
   if (mode === 'live' && live) {
