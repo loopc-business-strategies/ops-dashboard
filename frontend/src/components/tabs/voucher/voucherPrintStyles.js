@@ -37,33 +37,50 @@ export const VOUCHER_HEADER_ROW_STYLE = {
   background: '#E5E7EB',
 }
 
+export function getVoucherPrintableWidthMm(pageSize = DEFAULT_VOUCHER_PAGE_SIZE) {
+  const size = normalizeVoucherPageSize(pageSize, DEFAULT_VOUCHER_PAGE_SIZE)
+  switch (size) {
+    case 'A5':
+      return '138mm'
+    case 'Letter':
+      return '205.9mm'
+    case 'A4':
+    default:
+      return '200mm'
+  }
+}
+
 export function getVoucherPrintMediaCss(pageSize = DEFAULT_VOUCHER_PAGE_SIZE) {
   const size = normalizeVoucherPageSize(pageSize, DEFAULT_VOUCHER_PAGE_SIZE)
+  const printableWidth = getVoucherPrintableWidthMm(size)
   return `
   @media print {
     @page { size: ${size} portrait; margin: 5mm; }
     .voucher-screen-only { display: none !important; }
-    .voucher-print-only { display: block !important; }
+    .voucher-print-only { display: flex !important; }
     body * { visibility: hidden; }
     .voucher-print-only, .voucher-print-only * { visibility: visible; }
     .voucher-print-only {
       position: fixed !important;
       inset: 0 !important;
-      width: 100% !important;
+      width: auto !important;
       max-width: none !important;
       margin: 0 !important;
       padding: 0 !important;
       background: #FFFFFF;
       z-index: 2147483647;
-      overflow: hidden;
+      overflow: visible !important;
       box-sizing: border-box;
+      justify-content: center;
+      align-items: flex-start;
       color-adjust: exact;
       print-color-adjust: exact;
       -webkit-print-color-adjust: exact;
     }
     .voucher-print-sheet {
-      width: 100% !important;
-      max-width: 100% !important;
+      width: ${printableWidth} !important;
+      max-width: ${printableWidth} !important;
+      margin: 0 auto !important;
       box-sizing: border-box;
     }
     .voucher-print-signatures { gap: 24px !important; }
