@@ -45,7 +45,7 @@ export default function MGMetalInvoicePrintLayout({
   }
 
   return (
-    <div style={{ maxWidth: '735px', margin: '0 auto', padding: '10px 8px 6px', color: '#111111', fontFamily: 'Arial, sans-serif', fontSize: '9.5px', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+    <div className="voucher-print-sheet" style={{ maxWidth: '735px', margin: '0 auto', padding: '10px 8px 6px', color: '#111111', fontFamily: 'Arial, sans-serif', fontSize: '9.5px', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 154px', gap: '18px', alignItems: 'start', marginBottom: '8px' }}>
         <div>
           <div style={{ fontSize: '16px', fontWeight: '900', lineHeight: 1.05, marginBottom: '3px' }}>{companyName}</div>
@@ -204,7 +204,7 @@ export default function MGMetalInvoicePrintLayout({
       <div style={{ marginTop: '6px', fontStyle: 'italic' }}>Confirmed for &amp; on behalf of</div>
       <div style={{ marginTop: '4px', fontSize: '12px', fontWeight: '900' }}>{partyName || partyLine || '-'}</div>
 
-      <div style={{ marginTop: '28px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '98px', textAlign: 'center', fontSize: '10px', fontWeight: '900' }}>
+      <div className="voucher-print-signatures" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '98px', textAlign: 'center', fontSize: '10px', fontWeight: '900' }}>
         <div><div style={{ borderTop: border, paddingTop: '5px' }}>CUSTOMER'S SIGNATURE</div></div>
         <div><div style={{ borderTop: border, paddingTop: '5px' }}>CHECKED BY</div></div>
         <div><div style={{ borderTop: border, paddingTop: '5px' }}>AUTHORISED SIGNATORY</div></div>

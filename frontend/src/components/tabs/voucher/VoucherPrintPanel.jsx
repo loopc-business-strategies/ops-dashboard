@@ -343,7 +343,17 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         </div>
       )}
 
-      <div style={{ marginTop: '88px', display: 'grid', gridTemplateColumns: `repeat(${Math.max(visibleSignatories.length, 1)}, 1fr)`, gap: '36px', textAlign: 'center', fontWeight: '700' }}>
+      <div
+        className={isPreview ? undefined : 'voucher-print-signatures'}
+        style={{
+          ...(isPreview ? { marginTop: '48px' } : {}),
+          display: 'grid',
+          gridTemplateColumns: `repeat(${Math.max(visibleSignatories.length, 1)}, 1fr)`,
+          gap: '36px',
+          textAlign: 'center',
+          fontWeight: '700',
+        }}
+      >
         {(visibleSignatories.length ? visibleSignatories : [{ title: "RECEIVER'S SIGNATURE" }, { title: 'CHECKED BY' }, { title: 'AUTHORISED SIGNATORY' }]).map((item, index) => (
           <div key={`${item.title}-${index}`}>
             {item.name ? <div style={{ fontSize: '11px', marginBottom: '28px' }}>{item.name}</div> : <div style={{ minHeight: '28px' }} />}

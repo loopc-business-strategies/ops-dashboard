@@ -36,7 +36,7 @@ export const VOUCHER_PRINT_MEDIA_CSS = `
   @media print {
     @page { size: A4 portrait; margin: 5mm; }
     .voucher-screen-only { display: none !important; }
-    .voucher-print-only { display: block !important; }
+    .voucher-print-only { display: flex !important; }
     body * { visibility: hidden; }
     .voucher-print-only, .voucher-print-only * { visibility: visible; }
     .voucher-print-only {
@@ -44,9 +44,25 @@ export const VOUCHER_PRINT_MEDIA_CSS = `
       top: 0;
       left: 0;
       width: 100%;
+      box-sizing: border-box;
+      flex-direction: column;
+      min-height: calc(297mm - 10mm);
+      padding-bottom: 8px;
       color-adjust: exact;
       print-color-adjust: exact;
       -webkit-print-color-adjust: exact;
+    }
+    .voucher-print-only > .voucher-print-sheet {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 100%;
+      box-sizing: border-box;
+    }
+    .voucher-print-signatures {
+      margin-top: auto !important;
+      padding-top: 28px;
+      padding-bottom: 4px;
     }
     .voucher-print-only img {
       filter: none !important;

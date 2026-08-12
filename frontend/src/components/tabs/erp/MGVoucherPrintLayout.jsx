@@ -31,7 +31,7 @@ export default function MGVoucherPrintLayout({
   const logoSize = '136px'
 
   return (
-    <div style={{ maxWidth: '735px', margin: '0 auto', padding: '14px 6px 10px', fontSize: '11px', color: '#111111', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
+    <div className="voucher-print-sheet" style={{ maxWidth: '735px', margin: '0 auto', padding: '14px 6px 10px', fontSize: '11px', color: '#111111', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 154px', gap: '24px', alignItems: 'start', marginBottom: '12px' }}>
         <div>
           <div style={{ fontSize: '18px', lineHeight: '1.06', fontWeight: '900', letterSpacing: 0, marginBottom: '14px' }}>
@@ -161,11 +161,11 @@ export default function MGVoucherPrintLayout({
       </div>
 
       <div style={{ margin: '0 0 16px 6px', fontSize: '11px', fontStyle: 'italic' }}>Confirmed for &amp; on behalf of</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '112px', margin: '0 8px 72px', fontWeight: '900', fontSize: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '112px', margin: '0 8px 16px', fontWeight: '900', fontSize: '12px' }}>
         <div>{partyName || accountDescription()}</div>
         <div style={{ textAlign: 'right' }}>{companyName}</div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '230px', textAlign: 'center', fontSize: '9px' }}>
+      <div className="voucher-print-signatures" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '230px', textAlign: 'center', fontSize: '9px' }}>
         <div>
           <div style={{ borderTop: border, paddingTop: '6px' }}>CUSTOMER'S SIGNATURE</div>
         </div>

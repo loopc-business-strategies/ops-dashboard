@@ -24,4 +24,12 @@ describe('voucherPrintStyles', () => {
     expect(VOUCHER_PRINT_MEDIA_CSS).toContain('.voucher-print-only')
     expect(VOUCHER_PRINT_MEDIA_CSS).toContain('@media print')
   })
+
+  test('print media CSS pins signatures to the bottom of the A4 sheet', () => {
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('display: flex !important')
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('flex-direction: column')
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('min-height: calc(297mm - 10mm)')
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('.voucher-print-signatures')
+    expect(VOUCHER_PRINT_MEDIA_CSS).toContain('margin-top: auto !important')
+  })
 })
