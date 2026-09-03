@@ -906,8 +906,10 @@ function Dashboard() {
               <img
                 src={branding.logoImage}
                 alt={`${branding.displayName} logo`}
-                className="h-8 rounded-lg flex-shrink-0"
-                style={{ width: 52, objectFit: 'contain', background: '#FFFFFF' }}
+                className="rounded-lg flex-shrink-0"
+                style={branding.key === 'mg'
+                  ? { height: 36, width: 'auto', maxWidth: 140, objectFit: 'contain', background: 'transparent' }
+                  : { height: 32, width: 52, objectFit: 'contain', background: '#FFFFFF' }}
               />
             ) : (
               <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"

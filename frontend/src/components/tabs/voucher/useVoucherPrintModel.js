@@ -114,7 +114,7 @@ export function buildVoucherPrintModel({
   const proMetalPostingDirection = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'DEBITED' : 'CREDITED'
   const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
   const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
-  const mgLogoImage = documentBranding.logoUrl || ''
+  const mgLogoImage = documentBranding.logoUrl || activeTenantBranding?.logoUrl || activeTenantBranding?.logoImage || ''
   const mgCompanyName = 'MODERN GOLD JEWELRY MANUFACTURING'
   const mgCompanyAddress = '242, Girvonbulok Street, Davlatabad District,\nNamangan City, Namangan Region,\nRepublic of Uzbekistan.'
   const mgLineItems = Array.isArray(effectiveLineItems) ? effectiveLineItems : []

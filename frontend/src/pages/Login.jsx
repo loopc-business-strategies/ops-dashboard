@@ -94,6 +94,35 @@ function MgLoginShell({
         }}
       >
         <form onSubmit={handleSubmit} style={{ position: 'absolute', inset: 0 }}>
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: sx(36),
+              top: sy(48),
+              width: sx(560),
+              height: sy(390),
+              background:
+                'radial-gradient(circle at 28% 38%, rgba(31, 54, 77, 0.92), rgba(7, 20, 34, 0.98) 58%, #06101c 100%)',
+              pointerEvents: 'none',
+              zIndex: 3,
+            }}
+          />
+          <img
+            src="/logos/mg-logo.png"
+            alt="Modern Gold"
+            style={{
+              position: 'absolute',
+              left: sx(48),
+              top: sy(88),
+              width: sx(480),
+              height: sy(160),
+              objectFit: 'contain',
+              objectPosition: 'left center',
+              pointerEvents: 'none',
+              zIndex: 4,
+            }}
+          />
           {idleNotice && (
             <div
               style={{

@@ -41,6 +41,7 @@ describe('buildVoucherPrintModel tenant layout routing', () => {
 
     expect(model.voucherPrintSettings.enabled).toBe(false)
     expect(model.isMgCurrencyVoucher).toBe(true)
+    expect(model.mgLogoImage).toBe('/logos/mg-logo.png')
   })
 
   it('does not route LoopC payment vouchers to legacy MG layout', () => {
