@@ -41,21 +41,21 @@ function MgLoginShell({
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
-  // Design coordinates measured from the light Modern Gold mockup (1024x819).
+  // Full-bleed mockup (1024x819) stretched to viewport; overlays use independent X/Y scale.
   const designWidth = 1024
   const designHeight = 819
-  const scale = Math.min(viewport.width / designWidth, viewport.height / designHeight)
-  const offsetX = (viewport.width - designWidth * scale) / 2
-  const offsetY = (viewport.height - designHeight * scale) / 2
-  const sx = (value) => offsetX + value * scale
-  const sy = (value) => offsetY + value * scale
-  const ss = (value) => value * scale
+  const scaleX = viewport.width / designWidth
+  const scaleY = viewport.height / designHeight
+  const sx = (value) => value * scaleX
+  const sy = (value) => value * scaleY
 
-  const fieldLeft = 572
-  const fieldWidth = 330
-  const fieldHeight = 40
-  const userTop = 258
-  const passTop = 362
+  // Measured field boxes on the mockup (inner white inputs on the right card).
+  const fieldLeft = 563
+  const fieldWidth = 352
+  const fieldHeight = 44
+  const userTop = 256
+  const passTop = 360
+  const iconGutter = 42
   const eyeLeft = 880
   const eyeWidth = 36
   const submitLeft = 558
@@ -67,15 +67,15 @@ function MgLoginShell({
 
   const inputStyle = {
     position: 'absolute',
-    border: 0,
-    borderRadius: ss(10),
-    background: 'transparent',
+    border: '1px solid #E5E7EB',
+    borderRadius: Math.max(8, 10 * Math.min(scaleX, scaleY)),
+    background: '#FFFFFF',
     color: '#111827',
     outline: 'none',
-    padding: `0 ${ss(12)}px`,
     boxShadow: 'none',
     zIndex: 2,
     caretColor: '#111827',
+    boxSizing: 'border-box',
   }
 
   return (
@@ -101,7 +101,7 @@ function MgLoginShell({
           height: '100%',
           overflow: 'hidden',
           backgroundImage: 'url(/images/mg-login-reference.png)',
-          backgroundSize: 'contain',
+          backgroundSize: '100% 100%',
           backgroundPosition: 'center center',
           backgroundRepeat: 'no-repeat',
         }}
@@ -113,14 +113,14 @@ function MgLoginShell({
                 position: 'absolute',
                 left: sx(noticeLeft),
                 top: sy(205),
-                width: ss(noticeWidth),
-                minHeight: ss(28),
+                width: sx(noticeWidth),
+                minHeight: sy(28),
                 border: '1px solid #F0D58A',
                 background: '#FFFBEB',
                 color: '#92400E',
-                borderRadius: ss(8),
-                padding: `${ss(8)}px ${ss(10)}px`,
-                fontSize: ss(12),
+                borderRadius: 8,
+                padding: '8px 10px',
+                fontSize: Math.max(12, 12 * Math.min(scaleX, scaleY)),
                 zIndex: 4,
               }}
             >
@@ -133,14 +133,14 @@ function MgLoginShell({
                 position: 'absolute',
                 left: sx(noticeLeft),
                 top: sy(idleNotice ? 238 : 205),
-                width: ss(noticeWidth),
-                minHeight: ss(28),
+                width: sx(noticeWidth),
+                minHeight: sy(28),
                 border: '1px solid #F0C9C9',
                 background: '#FFF5F5',
                 color: '#B91C1C',
-                borderRadius: ss(8),
-                padding: `${ss(8)}px ${ss(10)}px`,
-                fontSize: ss(12),
+                borderRadius: 8,
+                padding: '8px 10px',
+                fontSize: Math.max(12, 12 * Math.min(scaleX, scaleY)),
                 zIndex: 4,
               }}
             >
@@ -151,15 +151,17 @@ function MgLoginShell({
             type="text"
             value={name}
             onChange={(e) => { setName(e.target.value); setError('') }}
-            placeholder=""
+            placeholder="Enter your username"
             style={{
               ...inputStyle,
-              width: ss(fieldWidth),
-              height: ss(fieldHeight),
+              width: sx(fieldWidth),
+              height: sy(fieldHeight),
               left: sx(fieldLeft),
               top: sy(userTop),
-              fontSize: ss(14),
-              lineHeight: `${ss(fieldHeight)}px`,
+              fontSize: Math.max(13, 14 * Math.min(scaleX, scaleY)),
+              lineHeight: `${sy(fieldHeight)}px`,
+              paddingLeft: sx(iconGutter),
+              paddingRight: sx(12),
             }}
             autoFocus
             autoComplete="username"
@@ -170,16 +172,17 @@ function MgLoginShell({
             type={showPass ? 'text' : 'password'}
             value={password}
             onChange={(e) => { setPassword(e.target.value); setError('') }}
-            placeholder=""
+            placeholder="Enter your password"
             style={{
               ...inputStyle,
-              width: ss(fieldWidth),
-              height: ss(fieldHeight),
+              width: sx(fieldWidth),
+              height: sy(fieldHeight),
               left: sx(fieldLeft),
               top: sy(passTop),
-              fontSize: ss(14),
-              lineHeight: `${ss(fieldHeight)}px`,
-              paddingRight: ss(40),
+              fontSize: Math.max(13, 14 * Math.min(scaleX, scaleY)),
+              lineHeight: `${sy(fieldHeight)}px`,
+              paddingLeft: sx(iconGutter),
+              paddingRight: sx(44),
             }}
             autoComplete="current-password"
             disabled={loading}
@@ -193,8 +196,8 @@ function MgLoginShell({
               position: 'absolute',
               left: sx(eyeLeft),
               top: sy(passTop),
-              width: ss(eyeWidth),
-              height: ss(fieldHeight),
+              width: sx(eyeWidth),
+              height: sy(fieldHeight),
               border: 0,
               background: 'transparent',
               color: 'transparent',
@@ -210,9 +213,9 @@ function MgLoginShell({
                 position: 'absolute',
                 left: sx(submitLeft),
                 top: sy(submitTop),
-                width: ss(submitWidth),
-                height: ss(submitHeight),
-                borderRadius: ss(10),
+                width: sx(submitWidth),
+                height: sy(submitHeight),
+                borderRadius: 10,
                 background: '#F97316',
                 zIndex: 2,
                 pointerEvents: 'none',
@@ -227,28 +230,28 @@ function MgLoginShell({
               position: 'absolute',
               left: sx(submitLeft),
               top: sy(submitTop),
-              width: ss(submitWidth),
-              height: ss(submitHeight),
+              width: sx(submitWidth),
+              height: sy(submitHeight),
               border: 0,
-              borderRadius: ss(10),
+              borderRadius: 10,
               background: 'transparent',
               color: loading ? '#FFFFFF' : 'transparent',
-              fontSize: ss(15),
+              fontSize: Math.max(14, 15 * Math.min(scaleX, scaleY)),
               fontWeight: 800,
               cursor: loading ? 'wait' : 'pointer',
               zIndex: 3,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: ss(8),
+              gap: 8,
             }}
           >
             {loading ? (
               <>
                 <svg
                   aria-hidden="true"
-                  width={ss(18)}
-                  height={ss(18)}
+                  width={18}
+                  height={18}
                   viewBox="0 0 24 24"
                   fill="none"
                   style={{ flexShrink: 0, animation: 'mg-login-spin 0.8s linear infinite' }}
@@ -269,6 +272,10 @@ function MgLoginShell({
         .mg-login-shell,
         .mg-login-shell * {
           box-sizing: border-box;
+        }
+        .mg-login-shell input::placeholder {
+          color: #9CA3AF;
+          opacity: 1;
         }
         .mg-login-shell input:-webkit-autofill,
         .mg-login-shell input:-webkit-autofill:hover,
@@ -295,6 +302,7 @@ function MgLoginShell({
     </div>
   )
 }
+
 function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
