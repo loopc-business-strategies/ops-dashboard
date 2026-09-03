@@ -2,7 +2,7 @@ const User = require('../../models/User')
 const AccountingPeriod = require('../../models/AccountingPeriod')
 const { auditLog } = require('../../middleware/audit')
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
-const { isAccountingPeriodClosingEnabled } = require('../../../shared/accountingPeriodClosing')
+const { isAccountingPeriodClosingEnabled } = require('../../shared/accountingPeriodClosing')
 
 function registerAccountingPeriodRoutes(deps) {
   const {

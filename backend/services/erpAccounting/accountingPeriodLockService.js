@@ -1,4 +1,4 @@
-const { isAccountingPeriodClosingEnabled } = require('../../../shared/accountingPeriodClosing')
+const { isAccountingPeriodClosingEnabled } = require('../../shared/accountingPeriodClosing')
 const { getActiveTenantKey } = require('../../db/tenantModelProxy')
 
 const MONTH_NAMES = [
