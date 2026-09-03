@@ -267,12 +267,36 @@ function createAccountingPeriodLockService(deps = {}) {
     return cascaded
   }
 
+  async function cascadeReopenMonthlyPeriodsForYear({ financialYear, reopenedAt, reopenedBy, reopenReason }) {
+    const year = Number(financialYear)
+    if (!Number.isFinite(year)) return []
+
+    const cascaded = []
+    for (let month = 1; month <= 12; month += 1) {
+      const monthly = await ensureMonthlyPeriod(year, month)
+      if (!monthly || String(monthly.status || '').toUpperCase() !== 'CLOSED') continue
+      const previousStatus = monthly.status
+      monthly.status = 'OPEN'
+      monthly.reopenedAt = reopenedAt
+      monthly.reopenedBy = reopenedBy
+      monthly.reopenReason = reopenReason
+      await monthly.save()
+      cascaded.push({
+        period: monthly,
+        previousStatus,
+        label: periodLabel('MONTHLY', year, month),
+      })
+    }
+    return cascaded
+  }
+
   return {
     isAccountingPeriodClosingEnabled,
     ensurePeriodsForDate,
     ensureMonthlyPeriod,
     ensureYearlyPeriod,
     cascadeCloseMonthlyPeriodsForYear,
+    cascadeReopenMonthlyPeriodsForYear,
     assertAccountingPeriodOpen,
     effectiveTransactionDate,
     listPeriodsForYear,

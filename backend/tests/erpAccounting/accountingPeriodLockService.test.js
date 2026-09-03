@@ -236,6 +236,44 @@ describe('accountingPeriodLockService', () => {
     })).rejects.toMatchObject({ code: 'ACCOUNTING_PERIOD_CLOSED', status: 409 })
   })
 
+  test('cascadeClose then cascadeReopen restores all 12 months to OPEN', async () => {
+    process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = 'loopc'
+    const store = makeStore()
+    const svc = createAccountingPeriodLockService(store)
+    const closedAt = new Date(Date.UTC(2026, 11, 31))
+    await svc.cascadeCloseMonthlyPeriodsForYear({
+      financialYear: 2026,
+      closedAt,
+      closedBy: 'admin-1',
+      closeReason: 'Year close',
+    })
+    for (let month = 1; month <= 12; month += 1) {
+      expect(store.periods.get(`MONTHLY:2026:${month}`).status).toBe('CLOSED')
+    }
+
+    const reopenedAt = new Date(Date.UTC(2027, 0, 2))
+    const cascaded = await svc.cascadeReopenMonthlyPeriodsForYear({
+      financialYear: 2026,
+      reopenedAt,
+      reopenedBy: 'admin-1',
+      reopenReason: 'Year reopen',
+    })
+    expect(cascaded).toHaveLength(12)
+    for (let month = 1; month <= 12; month += 1) {
+      const row = store.periods.get(`MONTHLY:2026:${month}`)
+      expect(row.status).toBe('OPEN')
+      expect(row.reopenReason).toBe('Year reopen')
+    }
+
+    const again = await svc.cascadeReopenMonthlyPeriodsForYear({
+      financialYear: 2026,
+      reopenedAt,
+      reopenedBy: 'admin-1',
+      reopenReason: 'Year reopen again',
+    })
+    expect(again).toHaveLength(0)
+  })
+
   test('periodLabel helpers', () => {
     expect(periodLabel('MONTHLY', 2026, 1)).toBe('January 2026')
     expect(periodLabel('YEARLY', 2026, null)).toBe('FY 2026')

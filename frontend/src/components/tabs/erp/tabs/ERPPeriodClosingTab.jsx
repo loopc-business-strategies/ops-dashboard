@@ -221,6 +221,11 @@ export default function ERPPeriodClosingTab({ C }) {
                 Closing the financial year will also close all 12 months. Accounting entries become view-only until Super Admin reopens periods.
               </p>
             ) : null}
+            {modal.mode === 'reopen' && modal.period.periodType === 'YEARLY' ? (
+              <p style={{ marginTop: 0, color: soft, fontSize: '0.85rem' }}>
+                Reopening the financial year will also reopen all 12 months so accounting entries can be edited again.
+              </p>
+            ) : null}
 
             {modal.mode === 'close' && checklist ? (
               <div style={{ marginBottom: '1rem', maxHeight: 220, overflowY: 'auto', border: `1px solid ${border}`, borderRadius: 8, padding: '0.75rem' }}>

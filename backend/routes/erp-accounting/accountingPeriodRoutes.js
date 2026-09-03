@@ -21,6 +21,7 @@ function registerAccountingPeriodRoutes(deps) {
     ensureMonthlyPeriod,
     ensureYearlyPeriod,
     cascadeCloseMonthlyPeriodsForYear,
+    cascadeReopenMonthlyPeriodsForYear,
   } = accountingPeriodLockService
 
   function requireFeature(req, res) {
@@ -197,7 +198,8 @@ function registerAccountingPeriodRoutes(deps) {
         return res.status(400).json({ success: false, message: 'Period is not closed.' })
       }
 
-      // Yearly reopen does not auto-reopen months; monthly reopen still blocked if year closed
+      // Monthly reopen remains blocked while the year is CLOSED.
+      // Yearly reopen cascades all CLOSED months back to OPEN.
       if (period.periodType === 'MONTHLY') {
         await ensureYearlyPeriod(period.financialYear)
         const yearly = await AccountingPeriod.findOne({
@@ -215,8 +217,9 @@ function registerAccountingPeriodRoutes(deps) {
       }
 
       const previousStatus = period.status
+      const reopenedAt = new Date()
       period.status = 'OPEN'
-      period.reopenedAt = new Date()
+      period.reopenedAt = reopenedAt
       period.reopenedBy = req.user._id
       period.reopenReason = reason
       await period.save()
@@ -238,7 +241,42 @@ function registerAccountingPeriodRoutes(deps) {
         changes: { previousStatus, newStatus: 'OPEN', reason },
       })
 
-      return res.json({ success: true, period, label })
+      let cascadedMonths = []
+      if (period.periodType === 'YEARLY' && typeof cascadeReopenMonthlyPeriodsForYear === 'function') {
+        const cascadeReason = `${reason} (cascaded from FY ${period.financialYear} reopen)`
+        cascadedMonths = await cascadeReopenMonthlyPeriodsForYear({
+          financialYear: period.financialYear,
+          reopenedAt,
+          reopenedBy: req.user._id,
+          reopenReason: cascadeReason,
+        })
+        for (const row of cascadedMonths) {
+          await auditLog(req, {
+            resource: 'AccountingPeriod',
+            resourceId: row.period._id,
+            action: 'PERIOD_REOPENED',
+            detail: `${row.label} reopened (cascaded from year reopen): ${cascadeReason}`,
+            changes: {
+              previousStatus: row.previousStatus,
+              newStatus: 'OPEN',
+              reason: cascadeReason,
+              cascadedFromYear: period.financialYear,
+            },
+          })
+        }
+      }
+
+      return res.json({
+        success: true,
+        period,
+        label,
+        cascadedMonths: cascadedMonths.map((row) => ({
+          id: row.period._id,
+          month: row.period.month,
+          label: row.label,
+          status: row.period.status,
+        })),
+      })
     } catch (err) {
       return respondRouteError(res, err, { tag: 'accounting-periods.reopen' })
     }
