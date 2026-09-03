@@ -13,11 +13,11 @@ describe('accountingPeriodClosing feature flag', () => {
     else process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = original
   })
 
-  test('defaults enable loopc and cg, not mg', () => {
+  test('defaults enable loopc, cg, and mg', () => {
     delete process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS
     expect(isAccountingPeriodClosingEnabled('loopc')).toBe(true)
     expect(isAccountingPeriodClosingEnabled('cg')).toBe(true)
-    expect(isAccountingPeriodClosingEnabled('mg')).toBe(false)
+    expect(isAccountingPeriodClosingEnabled('mg')).toBe(true)
   })
 
   test('env override can disable all tenants (MG rollout simulation)', () => {

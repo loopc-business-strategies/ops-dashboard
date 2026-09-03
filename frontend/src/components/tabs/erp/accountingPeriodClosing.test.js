@@ -11,9 +11,9 @@ describe('accounting period permissions', () => {
 })
 
 describe('accountingPeriodClosing tenant flag', () => {
-  it('is enabled for loopc and cg, disabled for mg', () => {
+  it('is enabled for loopc, cg, and mg', () => {
     expect(isAccountingPeriodClosingEnabled('loopc')).toBe(true)
     expect(isAccountingPeriodClosingEnabled('cg')).toBe(true)
-    expect(isAccountingPeriodClosingEnabled('mg')).toBe(false)
+    expect(isAccountingPeriodClosingEnabled('mg')).toBe(true)
   })
 })

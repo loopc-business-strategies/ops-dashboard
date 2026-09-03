@@ -1,12 +1,12 @@
 /**
  * Tenant rollout for Accounting Period Closing / Book Locking.
- * LOOPC + CG first; MG stays off until explicitly enabled.
+ * Enabled for LOOPC, CG, and MG by default.
  *
- * Override with env ACCOUNTING_PERIOD_CLOSING_TENANTS=loopc,cg
- * (comma-separated). Empty env falls back to defaults below.
+ * Override with env ACCOUNTING_PERIOD_CLOSING_TENANTS=loopc,cg,mg
+ * (comma-separated). Empty string disables all; unset uses defaults below.
  */
 
-const DEFAULT_ENABLED_TENANTS = ['loopc', 'cg']
+const DEFAULT_ENABLED_TENANTS = ['loopc', 'cg', 'mg']
 
 function parseEnabledTenants() {
   const raw = process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS

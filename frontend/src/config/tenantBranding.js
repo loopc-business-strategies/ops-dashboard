@@ -62,7 +62,7 @@ const tenantBranding = {
       gradBar: 'linear-gradient(90deg, #005B96, #00A6FB)',
     },
     enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
-    enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
+    enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,
       erpAdvancedListFilters: true,
@@ -70,7 +70,7 @@ const tenantBranding = {
       chatTranslate: true,
       voucherKeyboardNav: true,
       professionalVoucherPrint: true,
-      accountingPeriodClosing: false,
+      accountingPeriodClosing: true,
     },
   },
   cg: {
