@@ -89,6 +89,9 @@ const { createFxRevaluationService } = require('../services/erpAccounting/fxReva
 const { createTransactionPostingService } = require('../services/erpAccounting/transactionPostingService')
 const { createLedgerBalanceService } = require('../services/erpAccounting/ledgerBalanceService')
 const { createErpAccountingDirectDealAndExchangeService } = require('../services/erpAccounting/erpAccountingDirectDealAndExchangeService')
+const { createAccountingPeriodLockService } = require('../services/erpAccounting/accountingPeriodLockService')
+const AccountingPeriod = require('../models/AccountingPeriod')
+const { registerAccountingPeriodRoutes } = require('./erp-accounting/accountingPeriodRoutes')
 const {
   populateTransactionListQuery,
   populateTransactionQuery,
@@ -150,6 +153,7 @@ const {
   canWriteInventory,
   canManageInventorySettings,
   canCloseLedgerPeriod,
+  canManageAccountingPeriods,
   canEditLedgerEntry,
 } = require('../services/erpAccounting/accessPolicy')
 
@@ -160,6 +164,14 @@ const {
 
 const FX_REVALUATION_EPSILON = 0.01
 
+const accountingPeriodLockService = createAccountingPeriodLockService({
+  AccountingPeriod,
+  Transaction,
+  Ledger,
+  ChartOfAccount,
+})
+const { assertAccountingPeriodOpen, effectiveTransactionDate } = accountingPeriodLockService
+
 const fxRevaluationService = createFxRevaluationService({
   parseNumber,
   toMoney,
@@ -168,6 +180,7 @@ const fxRevaluationService = createFxRevaluationService({
   appendTransactionAudit,
   Currency,
   BASE_CURRENCY_CODE,
+  assertAccountingPeriodOpen,
 })
 
 const resolveReferenceExchangeRate = fxRevaluationService.resolveReferenceExchangeRate
@@ -264,6 +277,7 @@ const {
   isDepartmentHead,
   canViewAccountSummary,
   hasExplicitErpPermissions,
+  assertAccountingPeriodOpen,
 })
 
 const {
@@ -306,6 +320,7 @@ const transactionAccountResolutionService = createTransactionAccountResolutionSe
   resolveVoucherFxMetrics,
   resolveExchangeAdjustmentAccounts,
   FX_REVALUATION_EPSILON,
+  assertAccountingPeriodOpen,
 })
 
 const {
@@ -370,6 +385,8 @@ transactionPostingService = createTransactionPostingService({
   isMetalTransferType,
   appendTransactionComment,
   appendTransactionAudit,
+  assertAccountingPeriodOpen,
+  effectiveTransactionDate,
 })
 
 
@@ -398,6 +415,7 @@ function registerErpAccountingRoutes(router) {
     nextCustomerAccountCode,
     toMoney,
     getTransactionWorkflowErrorStatus,
+    assertAccountingPeriodOpen,
   })
   
   // ==========================================
@@ -454,6 +472,16 @@ function registerErpAccountingRoutes(router) {
     Currency,
     ChartOfAccount,
     BASE_CURRENCY_CODE,
+    assertAccountingPeriodOpen,
+  })
+
+  registerAccountingPeriodRoutes({
+    router,
+    protect,
+    canManageAccountingPeriods,
+    canViewLedger,
+    canAccessReports,
+    accountingPeriodLockService,
   })
   
   // ==========================================
@@ -539,6 +567,7 @@ function registerErpAccountingRoutes(router) {
     sendStoredAttachment,
     validateAttachmentContent,
     toMoney,
+    assertAccountingPeriodOpen,
   })
   
   registerInventoryRoutes({
@@ -556,6 +585,7 @@ function registerErpAccountingRoutes(router) {
     parsePagination,
     nextInventoryAccountCode,
     toMoney,
+    assertAccountingPeriodOpen,
   })
   
   registerDirectDealsRoutes({
@@ -573,6 +603,7 @@ function registerErpAccountingRoutes(router) {
     isSuperAdmin,
     toQty,
     toMoney,
+    assertAccountingPeriodOpen,
   })
   
   // ==========================================
@@ -627,6 +658,8 @@ function registerErpAccountingRoutes(router) {
     StockMovement,
     InventoryItem,
     toQty,
+    assertAccountingPeriodOpen,
+    effectiveTransactionDate,
   })
   
   registerAttachmentRoutes({

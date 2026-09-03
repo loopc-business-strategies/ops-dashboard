@@ -32,8 +32,12 @@ function registerCustomerRoutes(deps) {
     nextCustomerAccountCode,
     toMoney,
     getTransactionWorkflowErrorStatus,
+    assertAccountingPeriodOpen,
   } = deps
 
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
   const strictBody = validateBodyStrict || validateBody
   const roundPosition = roundMetalPosition
   const calculateCustomerMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice, suppressMetalSpotMtm = false }) => {
@@ -271,6 +275,7 @@ function registerCustomerRoutes(deps) {
 
       const opening = Number(openingBalance || 0)
       if (opening > 0) {
+        await assertPeriod({ tenant: req.tenant, date: new Date() })
         let equityAccount = await ChartOfAccount.findOne({ accountType: 'Equity', isActive: true }).sort({ accountCode: 1 })
 
         if (!equityAccount) {

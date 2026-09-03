@@ -63,7 +63,16 @@ function registerTransactionRoutes(deps) {
     StockMovement,
     InventoryItem,
     toQty,
+    assertAccountingPeriodOpen,
+    effectiveTransactionDate,
   } = deps
+
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
+  const resolveTxDate = typeof effectiveTransactionDate === 'function'
+    ? effectiveTransactionDate
+    : (tx) => (tx?.voucherMeta?.valueDate || tx?.date || new Date())
 
 const strictBody = validateBodyStrict || validateBody
 
@@ -125,6 +134,8 @@ function queueOwnerVoucherNotify(req, ownerId, type, tx, action, extra = {}) {
 }
 
 const reversePostedTransactionEffects = async ({ tx, user, session, deleteReason }) => {
+  await assertPeriod({ date: resolveTxDate(tx), existingDate: resolveTxDate(tx) })
+
   const now = new Date()
 
   await Ledger.updateMany(
@@ -505,6 +516,19 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
 
     const wasPosted = tx.status === 'posted'
+    const existingDate = resolveTxDate(tx)
+    const nextDateCandidate = (() => {
+      const nextMeta = req.body.voucherMeta !== undefined ? req.body.voucherMeta : tx.voucherMeta
+      const nextHeaderDate = req.body.date !== undefined
+        ? (req.body.date ? new Date(req.body.date) : tx.date)
+        : tx.date
+      return nextMeta?.valueDate || nextHeaderDate || existingDate
+    })()
+    await assertPeriod({
+      tenant: req.tenant,
+      existingDate: wasPosted ? existingDate : null,
+      date: nextDateCandidate,
+    })
 
     // If editing a posted transaction, reverse its ledger entries and reset to draft
     if (wasPosted) {
@@ -599,6 +623,9 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
 
     res.json({ success: true, transaction: tx })
   } catch (e) {
+    if (e?.code === 'ACCOUNTING_PERIOD_CLOSED') {
+      return respondRouteError(res, e, { tag: 'erp-accounting/transactions' })
+    }
     if (/Invalid|exceeds allowed maximum/i.test(e?.message || '')) {
       return res.status(400).json({ success: false, message: e.message })
     }

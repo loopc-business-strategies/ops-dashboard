@@ -51,8 +51,14 @@ function getActiveTenantConnection() {
   return store?.connection || null
 }
 
+function getActiveTenantKey() {
+  const store = tenantModelStorage.getStore()
+  return store?.tenant ? String(store.tenant).toLowerCase() : ''
+}
+
 module.exports = {
   createTenantModel,
   runWithTenantConnection,
   getActiveTenantConnection,
+  getActiveTenantKey,
 }

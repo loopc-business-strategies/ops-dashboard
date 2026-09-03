@@ -27,7 +27,11 @@ function createTransactionAccountResolutionService({
   resolveVoucherFxMetrics,
   resolveExchangeAdjustmentAccounts,
   FX_REVALUATION_EPSILON,
+  assertAccountingPeriodOpen,
 }) {
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
 
   const normalizeCurrencyCode = (value, fallback = BASE_CURRENCY_CODE) => {
     const code = String(value || fallback || 'USD').trim().toUpperCase()
@@ -370,8 +374,11 @@ function createTransactionAccountResolutionService({
     const postingAmount = shouldPostNetMainAmount ? voucherNetAmount : transactionAmount
     const amountInBase = postingAmount * exchangeRate
 
+    const ledgerDate = transaction.voucherMeta?.valueDate || transaction.date || new Date()
+    await assertPeriod({ date: ledgerDate })
+
     const entry = await Ledger.create([{
-      date: transaction.voucherMeta?.valueDate || transaction.date || new Date(),
+      date: ledgerDate,
       debitAccountId: transaction.debitAccountId,
       creditAccountId: transaction.creditAccountId,
       amount: toMoney(amountInBase),

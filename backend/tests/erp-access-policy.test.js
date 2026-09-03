@@ -14,6 +14,7 @@ const {
   canCreateTransactionFor,
   canManageTransactionWorkflow,
   canCloseLedgerPeriod,
+  canManageAccountingPeriods,
   canWriteInventory,
   canManageInventorySettings,
   canViewAccounts,
@@ -284,7 +285,15 @@ describe('ERP accounting access policy', () => {
     expect(canCreateTransaction(user)).toBe(true)
     expect(canManageTransactionWorkflow(user)).toBe(true)
     expect(canCloseLedgerPeriod(user)).toBe(false)
+    expect(canManageAccountingPeriods(user)).toBe(false)
     expect(canWriteInventory(user)).toBe(false)
+  })
+
+  test('only super_admin can manage accounting periods', () => {
+    expect(canManageAccountingPeriods({ role: 'super_admin' })).toBe(true)
+    expect(canManageAccountingPeriods({ role: 'department_head', department: 'finance' })).toBe(false)
+    expect(canManageAccountingPeriods({ role: 'management' })).toBe(false)
+    expect(deriveErpAccessPolicy({ role: 'super_admin' }).canManageAccountingPeriods).toBe(true)
   })
 
   test('inventory permission grants write access without finance role', () => {

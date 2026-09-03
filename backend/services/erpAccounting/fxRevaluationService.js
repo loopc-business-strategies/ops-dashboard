@@ -7,8 +7,12 @@ function createFxRevaluationService(deps) {
     appendTransactionAudit,
     Currency,
     BASE_CURRENCY_CODE,
+    assertAccountingPeriodOpen,
   } = deps
   const { withSession, writeOpts } = require('../../utils/mongoTransaction')
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
 
   const resolveReferenceExchangeRate = (voucherMeta) => {
     const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
@@ -285,6 +289,9 @@ function createFxRevaluationService(deps) {
   }
 
   const applyFxJournalRevaluation = async ({ transaction, user, preview, session = null }) => {
+    const periodDate = transaction?.voucherMeta?.valueDate || transaction?.date || new Date()
+    await assertPeriod({ date: periodDate })
+
     let updatedCount = 0
     let removedCount = 0
 

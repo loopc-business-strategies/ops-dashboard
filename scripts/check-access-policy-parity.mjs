@@ -148,6 +148,7 @@ function deriveFrontendPolicy(user) {
   const canCloseLedgerPeriod = applyManagementReadOnly(user, false)
     ? false
     : (evaluatePredicate(user, 'isSuperAdmin') || evaluatePredicate(user, 'isFinance') || (evaluateErpPermission(user, 'canViewLedger') && canCreateTransaction))
+  const canManageAccountingPeriods = evaluatePredicate(user, 'isSuperAdmin')
   return {
     isSuperAdmin: evaluatePredicate(user, 'isSuperAdmin'),
     isDepartmentHead: evaluatePredicate(user, 'isDepartmentHead'),
@@ -179,6 +180,7 @@ function deriveFrontendPolicy(user) {
     canCreateTransaction,
     canManageTransactionWorkflow,
     canCloseLedgerPeriod,
+    canManageAccountingPeriods,
     canAccessERP: hasGranularModulePermissions(user)
       ? getAllowedErpSubTabs(user).length > 0
       : (canViewERPModule(user) && (canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers)),
@@ -228,6 +230,7 @@ const parityKeys = [
   'canCreateTransaction',
   'canManageTransactionWorkflow',
   'canCloseLedgerPeriod',
+  'canManageAccountingPeriods',
   'canAccessERP',
 ]
 

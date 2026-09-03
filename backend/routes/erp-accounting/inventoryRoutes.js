@@ -50,7 +50,12 @@ function registerInventoryRoutes(deps) {
     parsePagination,
     nextInventoryAccountCode,
     toMoney,
+    assertAccountingPeriodOpen,
   } = deps
+
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
 
   router.get('/inventory/products', protect, async (req, res) => {
     try {
@@ -158,8 +163,10 @@ function registerInventoryRoutes(deps) {
       }
 
       const amount = toMoney(qty * (cost || Number(item.unitCost || 0)))
+      const stockDate = new Date()
+      await assertPeriod({ tenant: req.tenant, date: stockDate })
       const ledgerEntry = await Ledger.create({
-        date: new Date(),
+        date: stockDate,
         debitAccountId: item.ledgerAccountId,
         creditAccountId: payableAccountId,
         amount,
@@ -173,8 +180,7 @@ function registerInventoryRoutes(deps) {
 
       res.json({ success: true, product: item, ledgerEntry })
     } catch (error) {
-      console.error('[inventory] error:', error)
-      res.status(500).json({ success: false, message: 'Internal server error' })
+      respondRouteError(res, error, { tag: 'erp-accounting/inventory/stock-in' })
     }
   })
 
@@ -211,8 +217,10 @@ function registerInventoryRoutes(deps) {
       }
 
       const amount = toMoney(qty * Number(item.unitCost || 0))
+      const stockDate = new Date()
+      await assertPeriod({ tenant: req.tenant, date: stockDate })
       const ledgerEntry = await Ledger.create({
-        date: new Date(),
+        date: stockDate,
         debitAccountId: cogsAccount._id,
         creditAccountId: item.ledgerAccountId,
         amount,
@@ -226,8 +234,7 @@ function registerInventoryRoutes(deps) {
 
       res.json({ success: true, product: item, ledgerEntry })
     } catch (error) {
-      console.error('[inventory] error:', error)
-      res.status(500).json({ success: false, message: 'Internal server error' })
+      respondRouteError(res, error, { tag: 'erp-accounting/inventory/stock-out' })
     }
   })
 

@@ -47,7 +47,12 @@ function registerLedgerRoutes(deps) {
     Currency,
     ChartOfAccount,
     BASE_CURRENCY_CODE,
+    assertAccountingPeriodOpen,
   } = deps
+
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
 
 async function loadAccountLabelMap(tenant, accountIds = []) {
   const uniqueIds = [...new Set(accountIds.map((id) => String(id || '').trim()).filter(Boolean))]
@@ -433,6 +438,8 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
       attachmentName = req.file.originalname || req.file.filename
     }
 
+    await assertPeriod({ tenant: req.tenant, date: new Date(date) })
+
     const entry = await TenantLedger.create({
       date: new Date(date),
       debitAccountId,
@@ -580,6 +587,16 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
       }
     }
 
+    for (const { row } of resolvedPostings) {
+      await assertPeriod({ tenant: req.tenant, date: new Date(row.date) })
+    }
+    if (replaceEntryIds.length) {
+      const replaced = await TenantLedger.find({ _id: { $in: replaceEntryIds } }).select('date').lean()
+      for (const row of replaced) {
+        await assertPeriod({ tenant: req.tenant, existingDate: row.date })
+      }
+    }
+
     const createdEntries = await runInTransaction(async (session) => {
       if (replaceEntryIds.length) {
         await TenantLedger.updateMany(
@@ -686,6 +703,11 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
       return res.status(403).json({ success: false, message: 'Can only edit your own entries' })
     }
     const { date, debitAccountId, creditAccountId, _amount, description, referenceType } = req.body
+    await assertPeriod({
+      tenant: req.tenant,
+      existingDate: entry.date,
+      date: date !== undefined ? new Date(date) : entry.date,
+    })
     if (debitAccountId && creditAccountId && debitAccountId === creditAccountId) {
       return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
     }
@@ -744,6 +766,7 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
     if (!canEditLedgerEntry(req.user, entry)) {
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
+    await assertPeriod({ tenant: req.tenant, existingDate: entry.date, date: new Date() })
     const refType = String(entry.referenceType || '').toLowerCase()
     const isManualJv = refType === 'journal' || refType === 'bank_jv'
 
@@ -811,6 +834,8 @@ router.delete('/ledger/:id/permanent', protect, validateParams(idParamSchema), r
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
 
+    await assertPeriod({ tenant: req.tenant, existingDate: entry.date })
+
     const linkedTx = await TenantTransaction.findOne({ journalEntryId: entry._id }).select('_id')
     if (linkedTx) {
       return res.status(400).json({
@@ -850,6 +875,9 @@ router.put('/ledger/:id/reconcile', protect, validateParams(idParamSchema), asyn
     const entry = await TenantLedger.findById(req.params.id).select('referenceType bankReconciled')
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
     if (entry.referenceType !== 'bank_jv') return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
+
+    const fullEntry = await TenantLedger.findById(req.params.id).select('date referenceType bankReconciled')
+    await assertPeriod({ tenant: req.tenant, existingDate: fullEntry?.date || entry.date })
 
     const nextReconciled = !entry.bankReconciled
     await TenantLedger.updateOne(
@@ -910,6 +938,19 @@ router.post('/ledger/repair-jv-fx/apply', protect, requireDestructiveAdminGuard(
   try {
     if (!canCloseLedgerPeriod(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const jvDates = await TenantLedger.find({
+      referenceType: { $in: ['journal', 'bank_jv'] },
+      isDeleted: { $ne: true },
+    }).select('date').lean()
+    const seenMonths = new Set()
+    for (const row of jvDates) {
+      const d = row.date instanceof Date ? row.date : new Date(row.date)
+      if (Number.isNaN(d.getTime())) continue
+      const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`
+      if (seenMonths.has(key)) continue
+      seenMonths.add(key)
+      await assertPeriod({ tenant: req.tenant, existingDate: d })
+    }
     const db = TenantLedger.db
     const mode = String(req.body?.mode || 'coa').toLowerCase()
     const forceCurrency = String(req.body?.forceCurrency || '').trim().toUpperCase()

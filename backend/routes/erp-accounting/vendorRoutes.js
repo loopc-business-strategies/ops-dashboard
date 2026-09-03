@@ -67,8 +67,12 @@ function registerVendorRoutes(deps) {
     sendStoredAttachment,
     validateAttachmentContent,
     toMoney,
+    assertAccountingPeriodOpen,
   } = deps
 
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
   const strictBody = validateBodyStrict || validateBody
   const isUnfixedFixingType = (value) => {
     const normalized = String(value || '').trim().toLowerCase()
@@ -501,6 +505,7 @@ function registerVendorRoutes(deps) {
 
       const opening = Number(openingBalance || 0)
       if (opening > 0) {
+        await assertPeriod({ tenant: req.tenant, date: new Date() })
         const inventoryAccount = await ChartOfAccount.findOne({ accountType: 'Asset', isActive: true }).sort({ accountCode: 1 })
         if (inventoryAccount) {
           await Ledger.create({

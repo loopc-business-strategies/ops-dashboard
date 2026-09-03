@@ -12,6 +12,7 @@ const DirectDealsTab = lazy(() => import('../DirectDealsTab'))
 const ERPInventoryTab = lazy(() => import('./tabs/ERPInventoryTab'))
 const ERPVendorsTab = lazy(() => import('./tabs/ERPVendorsTab'))
 const ERPLedgerTab = lazy(() => import('./tabs/ERPLedgerTab'))
+const ERPPeriodClosingTab = lazy(() => import('./tabs/ERPPeriodClosingTab'))
 const ERPTransactionsTab = lazy(() => import('./tabs/ERPTransactionsTab'))
 const ERPReportsTab = lazy(() => import('./tabs/ERPReportsTab'))
 const ERPFixingRegisterTab = lazy(() => import('./tabs/ERPFixingRegisterTab'))
@@ -602,6 +603,11 @@ export default function ERPTabPanels({
         handleRepairJvFxPreview={handleRepairJvFxPreview}
         handleRepairJvFxApply={handleRepairJvFxApply}
           />
+        </Suspense>
+      )}
+      {activeTab === 'period-closing' && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPPeriodClosingTab C={C} />
         </Suspense>
       )}
       {/* ACCOUNT MAPPINGS TAB */}

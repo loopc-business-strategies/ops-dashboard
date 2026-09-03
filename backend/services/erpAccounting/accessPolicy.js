@@ -56,9 +56,9 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canViewAccountSummary: ['enquiry'],
   canUpdateMetalRates: ['dashboard'],
   canExportAccountSummary: ['enquiry'],
-  canViewLedger: ['ledger'],
+  canViewLedger: ['ledger', 'period-closing'],
   canCreateTransaction: ['transactions', 'vouchers'],
-  canAccessReports: ['reports'],
+  canAccessReports: ['reports', 'period-closing'],
   canAccessVendors: ['vendors', 'supplier-margin'],
   canManageVendors: ['vendors'],
   canUpdateVendorOperational: ['vendors'],
@@ -323,6 +323,11 @@ function canCloseLedgerPeriod(user) {
   return canViewLedger(user) && canCreateTransaction(user)
 }
 
+/** Super Admin only — close/reopen accounting periods and financial years. */
+function canManageAccountingPeriods(user) {
+  return isSuperAdmin(user)
+}
+
 function canEditLedgerEntry(user, entry) {
   if (blocksManagementWrite(user)) return false
   if (isSuperAdmin(user) || isFinance(user)) return true
@@ -378,6 +383,7 @@ function deriveErpAccessPolicy(user) {
     canManageDirectDeals: canManageDirectDeals(user),
     canManageTransactionWorkflow: canManageTransactionWorkflow(user),
     canCloseLedgerPeriod: canCloseLedgerPeriod(user),
+    canManageAccountingPeriods: canManageAccountingPeriods(user),
     canAccessERP: hasGranularPermissions(user)
       ? getAllowedErpSubTabs(user).length > 0
       : (canViewERPModule(user) && (
@@ -429,6 +435,7 @@ module.exports = {
   canWriteInventory,
   canManageInventorySettings,
   canCloseLedgerPeriod,
+  canManageAccountingPeriods,
   canEditLedgerEntry,
   deriveErpAccessPolicy,
 }

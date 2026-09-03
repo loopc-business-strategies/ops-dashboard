@@ -45,7 +45,12 @@ function registerDirectDealsRoutes(deps) {
     isSuperAdmin,
     toQty,
     toMoney,
+    assertAccountingPeriodOpen,
   } = deps
+
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
 
   router.get('/direct-deals', protect, async (req, res) => {
     try {
@@ -218,6 +223,11 @@ function registerDirectDealsRoutes(deps) {
       if (deal.status === 'confirmed' && !isSuperAdmin(req.user)) {
         return res.status(403).json({ success: false, message: 'Confirmed direct deals are locked. Only Admin can delete.' })
       }
+
+      await assertPeriod({
+        tenant: req.tenant,
+        existingDate: deal.valueDate || deal.docDate || new Date(),
+      })
 
       deal.isDeleted = true
       deal.deletedAt = new Date()

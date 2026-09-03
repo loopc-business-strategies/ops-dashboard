@@ -283,6 +283,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'erp-customer-margin',  label: 'Customer Margin', group: 'erp', erpSub: 'customer-margin', show: canShowErpSubTab('customer-margin') },
     { id: 'erp-supplier-margin',  label: 'Supplier Margin', group: 'erp', erpSub: 'supplier-margin', show: canShowErpSubTab('supplier-margin') },
     { id: 'erp-ledger',           label: 'Ledger',          group: 'erp', erpSub: 'ledger',          show: canShowErpSubTab('ledger') },
+    { id: 'erp-period-closing',   label: 'Period Closing',  group: 'erp', erpSub: 'period-closing', show: Boolean(branding?.featureFlags?.accountingPeriodClosing) && canShowErpSubTab('period-closing') },
     { id: 'erp-transactions', label: 'Transactions',   group: 'erp', erpSub: 'transactions', show: canShowErpSubTab('transactions') },
     { id: 'erp-reports',      label: 'Reports',        group: 'erp', erpSub: 'reports',      show: canShowErpSubTab('reports') },
     { id: 'erp-vendors',      label: 'Vendors',        group: 'erp', erpSub: 'vendors',      show: canShowErpSubTab('vendors') },

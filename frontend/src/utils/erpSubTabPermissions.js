@@ -9,6 +9,7 @@ export const ERP_SUB_TABS = [
   'customer-margin',
   'supplier-margin',
   'ledger',
+  'period-closing',
   'transactions',
   'reports',
   'vendors',

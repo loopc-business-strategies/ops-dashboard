@@ -27,7 +27,11 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
     isDepartmentHead,
     canViewAccountSummary,
     hasExplicitErpPermissions,
+    assertAccountingPeriodOpen,
   } = deps
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
+    ? assertAccountingPeriodOpen
+    : async () => {}
 
   const ensureExchangeDifferenceAccounts = async (user, session = null) => {
     const gain = await ensureAccountByCode({
@@ -156,6 +160,9 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
   }
 
   const syncDirectDealLedger = async ({ deal, user }) => {
+    const normalizedDate = deal.valueDate || deal.docDate || new Date()
+    await assertPeriod({ date: normalizedDate })
+
     await Ledger.updateMany(
       { referenceType: 'direct_deal', referenceId: deal._id, isDeleted: { $ne: true } },
       { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } },
@@ -179,7 +186,6 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
     })
 
     const subAccountCache = new Map()
-    const normalizedDate = deal.valueDate || deal.docDate || new Date()
     const lines = Array.isArray(deal.lineItems) ? deal.lineItems : []
 
     for (let idx = 0; idx < lines.length; idx += 1) {

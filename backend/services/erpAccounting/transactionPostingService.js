@@ -19,8 +19,16 @@ function createTransactionPostingService(deps) {
     isMetalTransferType,
     appendTransactionComment,
     appendTransactionAudit,
+    assertAccountingPeriodOpen,
+    effectiveTransactionDate,
   } = deps
   const { withSession, writeOpts } = require('../../utils/mongoTransaction')
+
+  const noopAssert = async () => {}
+  const assertPeriod = typeof assertAccountingPeriodOpen === 'function' ? assertAccountingPeriodOpen : noopAssert
+  const resolveTxDate = typeof effectiveTransactionDate === 'function'
+    ? effectiveTransactionDate
+    : (tx) => (tx?.voucherMeta?.valueDate || tx?.date || new Date())
 
   const addMongoId = (set, id) => {
     if (id == null || id === '') return
@@ -48,6 +56,8 @@ function createTransactionPostingService(deps) {
   const executePostWorkflowAction = async ({ tx, user, note, fromStatus, options = {}, session = null }) => {
     if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can post transactions')
     if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
+
+    await assertPeriod({ date: resolveTxDate(tx) })
 
     const baseCurrency = await withSession(
       Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(),

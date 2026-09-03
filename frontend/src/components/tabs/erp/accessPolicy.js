@@ -48,7 +48,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canManageAccounts: ['accounts', 'mappings'],
   canViewMappings: ['mappings'],
   canManageMappings: ['mappings'],
-  canViewLedger: ['ledger'],
+  canViewLedger: ['ledger', 'period-closing'],
   canViewCustomers: ['customers', 'customer-margin'],
   canManageCustomers: ['customers'],
   canViewAccountSummary: ['enquiry'],
@@ -56,7 +56,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canExportAccountSummary: ['enquiry'],
   canCreateTransaction: ['transactions', 'vouchers'],
   canAccessTransactions: ['transactions'],
-  canAccessReports: ['reports'],
+  canAccessReports: ['reports', 'period-closing'],
   canAccessVendors: ['vendors', 'supplier-margin'],
   canManageVendors: ['vendors'],
   canUpdateVendorOperational: ['vendors'],
@@ -124,6 +124,11 @@ export function canCloseLedgerPeriod(user) {
   if (applyManagementReadOnly(user, false)) return false
   if (evaluatePredicate(user, 'isSuperAdmin') || evaluatePredicate(user, 'isFinance')) return true
   return evaluateErpPermission(user, 'canViewLedger') && canCreateTransaction(user)
+}
+
+/** Super Admin only — close/reopen accounting periods and financial years. */
+export function canManageAccountingPeriods(user) {
+  return evaluatePredicate(user, 'isSuperAdmin')
 }
 
 export function getAvailableTransactionTypes(user, tenant) {
@@ -216,6 +221,7 @@ export function deriveErpAccessPolicy(user) {
     canCreateTransaction: canCreateTransactionValue,
     canManageTransactionWorkflow: canManageTransactionWorkflowValue,
     canCloseLedgerPeriod: canCloseLedgerPeriod(user),
+    canManageAccountingPeriods: canManageAccountingPeriods(user),
     canAccessERP,
   }
 }
