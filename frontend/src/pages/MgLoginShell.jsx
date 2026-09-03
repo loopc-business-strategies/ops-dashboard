@@ -231,7 +231,7 @@ export default function MgLoginShell({
                   Email Address
                 </label>
                 <div className="mg-login__field">
-                  <span className="mg-login__field-icon"><IconUser /></span>
+                  <span className="mg-login__field-icon" aria-hidden="true"><IconUser /></span>
                   <input
                     id="mg-login-user"
                     className="mg-login__field-input"
@@ -252,10 +252,10 @@ export default function MgLoginShell({
                   Password
                 </label>
                 <div className="mg-login__field">
-                  <span className="mg-login__field-icon"><IconLock /></span>
+                  <span className="mg-login__field-icon" aria-hidden="true"><IconLock /></span>
                   <input
                     id="mg-login-password"
-                    className="mg-login__field-input mg-login__field-input--password"
+                    className="mg-login__field-input"
                     type={showPass ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(''); setForgotNotice('') }}

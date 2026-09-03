@@ -268,17 +268,26 @@
 }
 
 .mg-login__field {
-  position: relative;
   display: flex;
   align-items: center;
+  gap: 10px;
   width: 100%;
+  height: 54px;
+  padding: 0 12px;
+  border: 1px solid var(--mg-border);
+  border-radius: 12px;
+  background: var(--mg-white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mg-login__field:focus-within {
+  border-color: var(--mg-orange);
+  box-shadow: 0 0 0 3px rgba(255, 106, 0, 0.15);
 }
 
 .mg-login__field-icon {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  flex-shrink: 0;
   width: 20px;
   height: 20px;
   color: var(--mg-orange);
@@ -286,35 +295,28 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 1;
 }
 
 .mg-login__field-input {
-  width: 100%;
-  height: 54px;
-  border: 1px solid var(--mg-border);
-  border-radius: 12px;
-  background: var(--mg-white);
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  height: 100%;
+  border: none !important;
+  border-radius: 0;
+  background: transparent !important;
   color: var(--mg-text);
   font-size: 0.95rem;
   line-height: 1.25;
-  padding: 0 14px 0 44px;
+  padding: 0 !important;
+  margin: 0;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.mg-login__field-input--password {
-  padding-right: 48px;
+  box-shadow: none !important;
 }
 
 .mg-login__field-input::placeholder {
   color: #9ca3af;
   opacity: 1;
-}
-
-.mg-login__field-input:focus {
-  border-color: var(--mg-orange);
-  box-shadow: 0 0 0 3px rgba(255, 106, 0, 0.15);
 }
 
 .mg-login__field-input:disabled {
@@ -332,10 +334,8 @@
 }
 
 .mg-login__eye {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  flex-shrink: 0;
   width: 36px;
   height: 36px;
   border: 0;
@@ -347,6 +347,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
+  transform: none;
 }
 
 .mg-login__eye:hover:not(:disabled) {
