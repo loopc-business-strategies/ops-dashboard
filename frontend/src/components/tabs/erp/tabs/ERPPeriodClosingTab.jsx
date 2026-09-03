@@ -177,15 +177,18 @@ export default function ERPPeriodClosingTab({ C }) {
             ) : months.length === 0 ? (
               <tr><td colSpan={4} style={td}>No periods found for this year.</td></tr>
             ) : months.map((row) => {
-              const closed = String(row.status).toUpperCase() === 'CLOSED'
+              const yearClosed = String(yearly?.status || '').toUpperCase() === 'CLOSED'
+              const closed = yearClosed || String(row.status).toUpperCase() === 'CLOSED'
               return (
                 <tr key={row._id || row.month} style={{ borderTop: `1px solid ${border}` }}>
                   <td style={td}>{MONTH_NAMES[(row.month || 1) - 1]}</td>
                   <td style={td}>{formatRange(row.startDate, row.endDate)}</td>
-                  <td style={td}><StatusBadge status={row.status} /></td>
+                  <td style={td}><StatusBadge status={closed ? 'CLOSED' : 'OPEN'} /></td>
                   <td style={td}>
                     {canManage ? (
-                      closed ? (
+                      yearClosed ? (
+                        <span style={{ color: soft, fontSize: '0.82rem' }}>View only — reopen year first</span>
+                      ) : closed ? (
                         <button type="button" onClick={() => openModal('reopen', row)} style={btnSecondary}>Reopen</button>
                       ) : (
                         <button type="button" onClick={() => openModal('close', row)} style={btnPrimary}>Close</button>
@@ -213,6 +216,11 @@ export default function ERPPeriodClosingTab({ C }) {
                 ? `FY ${modal.period.financialYear}`
                 : `${MONTH_NAMES[(modal.period.month || 1) - 1]} ${modal.period.financialYear}`}
             </h4>
+            {modal.mode === 'close' && modal.period.periodType === 'YEARLY' ? (
+              <p style={{ marginTop: 0, color: soft, fontSize: '0.85rem' }}>
+                Closing the financial year will also close all 12 months. Accounting entries become view-only until Super Admin reopens periods.
+              </p>
+            ) : null}
 
             {modal.mode === 'close' && checklist ? (
               <div style={{ marginBottom: '1rem', maxHeight: 220, overflowY: 'auto', border: `1px solid ${border}`, borderRadius: 8, padding: '0.75rem' }}>

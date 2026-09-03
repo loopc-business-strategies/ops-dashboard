@@ -20,6 +20,7 @@ function registerAccountingPeriodRoutes(deps) {
     periodLabel,
     ensureMonthlyPeriod,
     ensureYearlyPeriod,
+    cascadeCloseMonthlyPeriodsForYear,
   } = accountingPeriodLockService
 
   function requireFeature(req, res) {
@@ -119,8 +120,9 @@ function registerAccountingPeriodRoutes(deps) {
       }
 
       const previousStatus = period.status
+      const closedAt = new Date()
       period.status = 'CLOSED'
-      period.closedAt = new Date()
+      period.closedAt = closedAt
       period.closedBy = req.user._id
       period.closeReason = reason
       await period.save()
@@ -135,7 +137,45 @@ function registerAccountingPeriodRoutes(deps) {
         changes: { previousStatus, newStatus: 'CLOSED', reason },
       })
 
-      return res.json({ success: true, period, label, checklist })
+      let cascadedMonths = []
+      if (period.periodType === 'YEARLY' && typeof cascadeCloseMonthlyPeriodsForYear === 'function') {
+        const cascadeReason = reason
+          ? `${reason} (cascaded from FY ${period.financialYear} close)`
+          : `Cascaded from FY ${period.financialYear} close`
+        cascadedMonths = await cascadeCloseMonthlyPeriodsForYear({
+          financialYear: period.financialYear,
+          closedAt,
+          closedBy: req.user._id,
+          closeReason: cascadeReason,
+        })
+        for (const row of cascadedMonths) {
+          await auditLog(req, {
+            resource: 'AccountingPeriod',
+            resourceId: row.period._id,
+            action: 'PERIOD_CLOSED',
+            detail: `${row.label} closed (cascaded from year close)`,
+            changes: {
+              previousStatus: row.previousStatus,
+              newStatus: 'CLOSED',
+              reason: cascadeReason,
+              cascadedFromYear: period.financialYear,
+            },
+          })
+        }
+      }
+
+      return res.json({
+        success: true,
+        period,
+        label,
+        checklist,
+        cascadedMonths: cascadedMonths.map((row) => ({
+          id: row.period._id,
+          month: row.period.month,
+          label: row.label,
+          status: row.period.status,
+        })),
+      })
     } catch (err) {
       return respondRouteError(res, err, { tag: 'accounting-periods.close' })
     }

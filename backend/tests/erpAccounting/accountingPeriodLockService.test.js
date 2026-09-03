@@ -187,6 +187,55 @@ describe('accountingPeriodLockService', () => {
     })).resolves.toBeUndefined()
   })
 
+  test('cascadeCloseMonthlyPeriodsForYear closes all 12 months', async () => {
+    process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = 'loopc'
+    const store = makeStore()
+    const svc = createAccountingPeriodLockService(store)
+    await svc.ensureMonthlyPeriod(2026, 1)
+    await svc.ensureMonthlyPeriod(2026, 6)
+
+    const closedAt = new Date(Date.UTC(2026, 11, 31))
+    const cascaded = await svc.cascadeCloseMonthlyPeriodsForYear({
+      financialYear: 2026,
+      closedAt,
+      closedBy: 'admin-1',
+      closeReason: 'Year close',
+    })
+
+    expect(cascaded).toHaveLength(12)
+    for (let month = 1; month <= 12; month += 1) {
+      const row = store.periods.get(`MONTHLY:2026:${month}`)
+      expect(row).toBeTruthy()
+      expect(row.status).toBe('CLOSED')
+      expect(row.closeReason).toBe('Year close')
+      expect(String(row.closedBy)).toBe('admin-1')
+    }
+
+    const again = await svc.cascadeCloseMonthlyPeriodsForYear({
+      financialYear: 2026,
+      closedAt,
+      closedBy: 'admin-1',
+      closeReason: 'Year close again',
+    })
+    expect(again).toHaveLength(0)
+  })
+
+  test('year CLOSED blocks writes even when monthly still OPEN (legacy)', async () => {
+    process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = 'loopc'
+    const store = makeStore()
+    const svc = createAccountingPeriodLockService(store)
+    const monthly = await svc.ensureMonthlyPeriod(2026, 4)
+    expect(monthly.status).toBe('OPEN')
+    const yearly = await svc.ensureYearlyPeriod(2026)
+    yearly.status = 'CLOSED'
+    store.periods.set('YEARLY:2026:null', { ...yearly })
+
+    await expect(svc.assertAccountingPeriodOpen({
+      tenant: 'loopc',
+      date: new Date(Date.UTC(2026, 3, 20)),
+    })).rejects.toMatchObject({ code: 'ACCOUNTING_PERIOD_CLOSED', status: 409 })
+  })
+
   test('periodLabel helpers', () => {
     expect(periodLabel('MONTHLY', 2026, 1)).toBe('January 2026')
     expect(periodLabel('YEARLY', 2026, null)).toBe('FY 2026')

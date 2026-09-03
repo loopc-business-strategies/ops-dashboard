@@ -244,11 +244,35 @@ function createAccountingPeriodLockService(deps = {}) {
     return { canClose, blocking, informational }
   }
 
+  async function cascadeCloseMonthlyPeriodsForYear({ financialYear, closedAt, closedBy, closeReason }) {
+    const year = Number(financialYear)
+    if (!Number.isFinite(year)) return []
+
+    const cascaded = []
+    for (let month = 1; month <= 12; month += 1) {
+      const monthly = await ensureMonthlyPeriod(year, month)
+      if (!monthly || String(monthly.status || '').toUpperCase() === 'CLOSED') continue
+      const previousStatus = monthly.status
+      monthly.status = 'CLOSED'
+      monthly.closedAt = closedAt
+      monthly.closedBy = closedBy
+      monthly.closeReason = closeReason
+      await monthly.save()
+      cascaded.push({
+        period: monthly,
+        previousStatus,
+        label: periodLabel('MONTHLY', year, month),
+      })
+    }
+    return cascaded
+  }
+
   return {
     isAccountingPeriodClosingEnabled,
     ensurePeriodsForDate,
     ensureMonthlyPeriod,
     ensureYearlyPeriod,
+    cascadeCloseMonthlyPeriodsForYear,
     assertAccountingPeriodOpen,
     effectiveTransactionDate,
     listPeriodsForYear,

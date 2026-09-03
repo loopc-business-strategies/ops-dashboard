@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import JournalVoucherModal from './JournalVoucherModal'
 import {
   groupJvLedgerEntries,
@@ -10,6 +10,7 @@ import { filterActiveAccounts } from '../accountDropdownHelpers'
 import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from '../erpListFilters'
 import { isVoucherKeyboardNavEnabled } from '../../../../config/tenantBranding'
+import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -73,6 +74,7 @@ export default function ERPLedgerTab({
   erpAdvancedListFiltersEnabled = false,
 }) {
   const keyboardNavEnabled = isVoucherKeyboardNavEnabled(inventoryTenantKey)
+  const { isEntryLocked, prefetchDates } = useAccountingPeriodLocks()
   const activeAccounts = filterActiveAccounts(accounts)
   const visibleJvLedgerEntries = activeTab === 'ledger'
     ? ledger.filter((entry) => (
@@ -95,6 +97,10 @@ export default function ERPLedgerTab({
     if (!searchMatched) return false
     return matchesYearMonths(voucher.date, ledgerFilters.year, ledgerFilters.months)
   }), [groupedJvVouchers, ledgerFilters.search, ledgerFilters.year, ledgerFilters.months])
+
+  useEffect(() => {
+    prefetchDates(filteredGroupedJvVouchers.map((voucher) => voucher.date).filter(Boolean))
+  }, [filteredGroupedJvVouchers, prefetchDates])
 
   return (
     <>
@@ -343,6 +349,7 @@ export default function ERPLedgerTab({
                     const voucherNo = voucher.voucherNo
                     const narrDetail = voucher.narration
                     const isBankJv = String(voucher.referenceType || '').toLowerCase() === 'bank_jv'
+                    const periodLocked = isEntryLocked(voucher.date || entry)
                     return (
                     <tr key={voucher.key} style={{ borderBottom: `1px solid ${C.p2}`, background: isBankJv ? '#F0F9FF' : 'transparent' }}>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(voucher.date).toLocaleDateString()}</td>
@@ -449,19 +456,27 @@ export default function ERPLedgerTab({
                           >
                             Open
                           </button>
-                          <button
-                            onClick={() => {
-                              void handleEditJv(entry)
-                            }}
-                            title="Edit voucher"
-                            style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}
-                          >
-                            Edit
-                          </button>
+                          {periodLocked ? (
+                            <span title="Accounting period closed" style={{ padding: '0.35rem 0.5rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '0.35rem', fontSize: '0.75rem', fontWeight: 700 }}>
+                              🔒 CLOSED
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  void handleEditJv(entry)
+                                }}
+                                title="Edit voucher"
+                                style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}
+                              >
+                                Edit
+                              </button>
+                              <button onClick={() => handleReverseLedger(voucher)} title="Remove this voucher from the ledger" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Remove</button>
+                            </>
+                          )}
                           {voucher.attachmentUrl && (
                             <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${voucher.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
                           )}
-                          <button onClick={() => handleReverseLedger(voucher)} title="Remove this voucher from the ledger" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Remove</button>
                         </div>
                       </td>
                     </tr>

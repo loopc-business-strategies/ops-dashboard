@@ -30,6 +30,7 @@ export default function VoucherListPanel({
   openCreate,
   openVoucher,
   isReadOnly,
+  isEntryLocked = () => false,
   saving,
   handleListWorkflowAction,
   canManageWorkflow,
@@ -114,6 +115,7 @@ export default function VoucherListPanel({
                 const grand = computeVoucherGrandTotal(voucher, voucherType)
                 const statusStyle = STATUS_COLORS[voucher.status] || { bg: '#F3F4F6', color: '#374151' }
                 const fixingDisplay = meta.fixingType === 'non-fixing' ? 'Unfixed' : 'Fixed'
+                const periodLocked = Boolean(isEntryLocked(voucher))
                 return (
                   <tr key={voucher._id} style={{ background: index % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
                     <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', color: S.green }}>{displayVoucherDocNo(voucher)}</td>
@@ -138,13 +140,18 @@ export default function VoucherListPanel({
                       <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: statusStyle.bg, color: statusStyle.color }}>
                         {voucher.status}
                       </span>
+                      {periodLocked ? (
+                        <span style={{ marginLeft: '0.35rem', padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: '#FEE2E2', color: '#991B1B' }}>
+                          CLOSED
+                        </span>
+                      ) : null}
                     </td>
                     <td style={{ padding: '0.55rem 0.75rem' }}>
                       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         <button type="button" style={{ ...btn('secondary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }} onClick={() => openVoucher(voucher)}>
-                          {isReadOnly ? 'View' : 'Open'}
+                          {isReadOnly || periodLocked ? 'View' : 'Open'}
                         </button>
-                        {!isReadOnly && ['draft', 'returned', 'rejected'].includes(voucher.status) && (
+                        {!isReadOnly && !periodLocked && ['draft', 'returned', 'rejected'].includes(voucher.status) && (
                           <button
                             type="button"
                             disabled={saving}
@@ -154,7 +161,7 @@ export default function VoucherListPanel({
                             {t('submit')}
                           </button>
                         )}
-                        {canManageWorkflow && voucher.status === 'submitted' && (
+                        {!periodLocked && canManageWorkflow && voucher.status === 'submitted' && (
                           <button
                             type="button"
                             disabled={saving}
@@ -164,7 +171,7 @@ export default function VoucherListPanel({
                             {t('approve')}
                           </button>
                         )}
-                        {canManageWorkflow && ['submitted', 'approved'].includes(voucher.status) && (
+                        {!periodLocked && canManageWorkflow && ['submitted', 'approved'].includes(voucher.status) && (
                           <button
                             type="button"
                             disabled={saving}
@@ -174,7 +181,7 @@ export default function VoucherListPanel({
                             {t('returnForEdit')}
                           </button>
                         )}
-                        {canManageWorkflow && ['submitted', 'approved', 'returned'].includes(voucher.status) && (
+                        {!periodLocked && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(voucher.status) && (
                           <button
                             type="button"
                             disabled={saving}
@@ -184,7 +191,7 @@ export default function VoucherListPanel({
                             {t('reject')}
                           </button>
                         )}
-                        {canManageWorkflow && voucher.status === 'approved' && (
+                        {!periodLocked && canManageWorkflow && voucher.status === 'approved' && (
                           <button
                             type="button"
                             disabled={saving}
@@ -194,7 +201,7 @@ export default function VoucherListPanel({
                             {t('post')}
                           </button>
                         )}
-                        {(isSuperAdmin || isFinance) && voucher.status === 'posted' && (
+                        {!periodLocked && (isSuperAdmin || isFinance) && voucher.status === 'posted' && (
                           <button
                             type="button"
                             disabled={saving}
@@ -204,7 +211,7 @@ export default function VoucherListPanel({
                             Void
                           </button>
                         )}
-                        {isSuperAdmin && ['receipt', 'payment'].includes(String(voucher.type || voucherType).toLowerCase()) && voucher.status === 'posted' && (
+                        {!periodLocked && isSuperAdmin && ['receipt', 'payment'].includes(String(voucher.type || voucherType).toLowerCase()) && voucher.status === 'posted' && (
                           <button
                             type="button"
                             disabled={saving}

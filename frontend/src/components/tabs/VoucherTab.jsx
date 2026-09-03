@@ -31,6 +31,7 @@ import {
 } from './erp/accountDropdownHelpers'
 import { useVoucherTabAccess } from './voucher/useVoucherTabAccess'
 import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear, toMonthCsv } from './erp/erpListFilters'
+import { useAccountingPeriodLocks } from './erp/useAccountingPeriodLocks'
 
 export default function VoucherTab({
   token,
@@ -146,7 +147,6 @@ export default function VoucherTab({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [mode, setMode] = useState('list')            // 'list' | 'create' | 'view'
-  const formReadOnly = isReadOnly || mode === 'view'
   const [editingId, setEditingId] = useState(null)
   const [selectedStatus, setSelectedStatus] = useState('') // workflow filter
   const [voucherSearch, setVoucherSearch] = useState('')
@@ -681,6 +681,23 @@ export default function VoucherTab({
 
   const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
   const currentVoucherStatus = currentVoucher?.status || 'draft'
+  const { isEntryLocked, prefetchDates } = useAccountingPeriodLocks()
+  useEffect(() => {
+    prefetchDates(
+      (vouchers || []).flatMap((v) => [
+        v?.voucherMeta?.valueDate,
+        v?.voucherMeta?.docDate,
+        v?.date,
+      ]).filter(Boolean),
+    )
+  }, [vouchers, prefetchDates])
+  const periodLocked = Boolean(
+    currentVoucher
+      ? isEntryLocked(currentVoucher)
+      : (mode === 'create' && isEntryLocked({ date: header.valueDate || header.docDate })),
+  )
+  const mutateReadOnly = isReadOnly || periodLocked
+  const formReadOnly = mutateReadOnly || mode === 'view'
 
   const {
     openVoucher,
@@ -740,7 +757,7 @@ export default function VoucherTab({
     header,
     lineItems,
     voucherType,
-    isReadOnly,
+    isReadOnly: mutateReadOnly,
     currentVoucherStatus,
     lastViewedIdRef,
     openVoucher,
@@ -1146,13 +1163,13 @@ export default function VoucherTab({
     voucherFilterYear,
     voucherFilterMonths,
   ])
-  const canDeleteCurrentVoucher = Boolean(editingId) && !isReadOnly && currentVoucherStatus !== 'posted'
-  const canSubmitWorkflow = Boolean(editingId) && !isReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
-  const canApproveWorkflow = Boolean(editingId) && canManageWorkflow && currentVoucherStatus === 'submitted'
-  const canReturnWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved'].includes(currentVoucherStatus)
-  const canRejectWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
-  const canPostWorkflow = Boolean(editingId) && canManageWorkflow && currentVoucherStatus === 'approved'
-  const canRevalueCurrentVoucher = Boolean(editingId) && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
+  const canDeleteCurrentVoucher = Boolean(editingId) && !mutateReadOnly && currentVoucherStatus !== 'posted'
+  const canSubmitWorkflow = Boolean(editingId) && !mutateReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
+  const canApproveWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && currentVoucherStatus === 'submitted'
+  const canReturnWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && ['submitted', 'approved'].includes(currentVoucherStatus)
+  const canRejectWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
+  const canPostWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && currentVoucherStatus === 'approved'
+  const canRevalueCurrentVoucher = Boolean(editingId) && !periodLocked && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
   const currentAttachments = Array.isArray(currentVoucher?.attachments) ? currentVoucher.attachments : []
   const previewableAttachmentMimeTypes = new Set([
     'application/pdf',
@@ -1341,6 +1358,7 @@ export default function VoucherTab({
           openCreate={openCreate}
           openVoucher={openVoucher}
           isReadOnly={isReadOnly}
+          isEntryLocked={isEntryLocked}
           saving={saving}
           handleListWorkflowAction={handleListWorkflowAction}
           canManageWorkflow={canManageWorkflow}
@@ -1407,7 +1425,7 @@ export default function VoucherTab({
         inventoryProducts={inventoryProducts}
         inventoryStockOptions={inventoryStockOptions}
         isMetalVoucher={isMetalVoucher}
-        isReadOnly={isReadOnly}
+        isReadOnly={mutateReadOnly}
         isSimpleMetalVoucher={isSimpleMetalVoucher}
         lineAccountComboGroups={lineAccountComboGroups}
         lineForm={lineForm}

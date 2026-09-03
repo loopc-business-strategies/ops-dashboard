@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import TransactionComposerForm from './TransactionComposerForm'
 import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from '../erpListFilters'
+import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
 
 export default function ERPTransactionsTab({
   activeTab,
@@ -63,6 +64,17 @@ export default function ERPTransactionsTab({
   loading,
   erpAdvancedListFiltersEnabled = false,
 }) {
+  const { isEntryLocked, prefetchDates } = useAccountingPeriodLocks()
+  const selectedPeriodLocked = Boolean(selectedTransaction && isEntryLocked(selectedTransaction))
+  const selectedIdsPeriodLocked = (selectedTransactionIds || []).some((id) => {
+    const tx = (transactions || []).find((row) => row._id === id)
+    return tx ? isEntryLocked(tx) : false
+  })
+
+  useEffect(() => {
+    prefetchDates((transactions || []).map((tx) => tx?.voucherMeta?.valueDate || tx?.date).filter(Boolean))
+  }, [transactions, prefetchDates])
+
   const getLineNarration = (tx) => (tx.voucherMeta?.lineItems || [])
     .map((line) => line?.narration || line?.exp || '')
     .find((value) => String(value || '').trim())
@@ -241,9 +253,9 @@ export default function ERPTransactionsTab({
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(260px, 2fr)', gap: '0.75rem', alignItems: 'start' }}>
               <textarea value={transactionWorkflowNote} onChange={(e) => setTransactionWorkflowNote(e.target.value)} rows={3} placeholder="Workflow note for submit / approve / post actions" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical' }} />
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('submit')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Bulk Submit</button>
-                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('approve')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Approve</button>}
-                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('post')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Post</button>}
+                <button type="button" disabled={!selectedTransactionIds.length || saving || selectedIdsPeriodLocked} onClick={() => handleBulkTransactionAction('submit')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Bulk Submit</button>
+                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving || selectedIdsPeriodLocked} onClick={() => handleBulkTransactionAction('approve')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Approve</button>}
+                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving || selectedIdsPeriodLocked} onClick={() => handleBulkTransactionAction('post')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Post</button>}
               </div>
             </div>
           </div>
@@ -274,6 +286,9 @@ export default function ERPTransactionsTab({
                   <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.85rem' }}>{getTransactionDescription(selectedTransaction) || 'No description provided'}</p>
                 </div>
                 <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '800', ...(TRANSACTION_STATUS_STYLES[selectedTransaction.status] || { background: '#E5E7EB', color: C.ink }) }}>{selectedTransaction.status}</span>
+                {selectedPeriodLocked ? (
+                  <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '800', background: '#FEE2E2', color: '#991B1B' }}>🔒 CLOSED</span>
+                ) : null}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
                 <div style={emptyCardStyle}><strong>Amount:</strong> {selectedTransaction.currency} {Number(selectedTransaction.amount || 0).toLocaleString()}</div>
@@ -289,12 +304,12 @@ export default function ERPTransactionsTab({
                     <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Attachments</p>
                     <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Upload supporting receipts, invoices, approvals, or backup documents.</p>
                   </div>
-                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1D4ED8', borderRadius: '0.35rem', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: '700' }}>
+                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1D4ED8', borderRadius: '0.35rem', cursor: (saving || selectedPeriodLocked) ? 'not-allowed' : 'pointer', fontWeight: '700', opacity: selectedPeriodLocked ? 0.55 : 1 }}>
                     Upload document
                     <input
                       key={transactionAttachmentInputKey}
                       type="file"
-                      disabled={saving}
+                      disabled={saving || selectedPeriodLocked}
                       onChange={(e) => handleUploadTransactionAttachment(e.target.files?.[0])}
                       style={{ display: 'none' }}
                     />
@@ -309,7 +324,7 @@ export default function ERPTransactionsTab({
                           {(attachment.uploadedBy?.name || 'User')} · {attachment.uploadedAt ? new Date(attachment.uploadedAt).toLocaleString() : ''} · {Number(attachment.size || 0).toLocaleString()} bytes
                         </p>
                       </div>
-                      <button type="button" disabled={saving} onClick={() => handleDeleteTransactionAttachment(attachment._id)} style={{ padding: '0.35rem 0.65rem', border: 'none', borderRadius: '0.35rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Remove</button>
+                      <button type="button" disabled={saving || selectedPeriodLocked} onClick={() => handleDeleteTransactionAttachment(attachment._id)} style={{ padding: '0.35rem 0.65rem', border: 'none', borderRadius: '0.35rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Remove</button>
                     </div>
                   ))}
                   {!(selectedTransaction.attachments || []).length && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>No documents uploaded yet.</p>}
@@ -320,11 +335,19 @@ export default function ERPTransactionsTab({
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(260px, 1.4fr)', gap: '0.75rem', alignItems: 'start' }}>
                   <textarea value={transactionWorkflowNote} onChange={(e) => setTransactionWorkflowNote(e.target.value)} rows={3} placeholder="Workflow note or mandatory return/rejection reason" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical' }} />
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {['draft', 'returned', 'rejected'].includes(selectedTransaction.status) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('submit', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Submit</button>}
-                    {selectedTransaction.status === 'submitted' && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('approve', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Approve</button>}
-                    {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('return', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F472B6', color: '#831843', cursor: 'pointer', fontWeight: '700' }}>Return for Edit</button>}
-                    {['submitted', 'approved', 'returned'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('reject', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Reject</button>}
-                    {selectedTransaction.status === 'approved' && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('post', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Post</button>}
+                    {selectedPeriodLocked ? (
+                      <p style={{ margin: 0, color: '#991B1B', fontWeight: 700, fontSize: '0.85rem' }}>
+                        Accounting period closed — view only. Contact Super Admin to reopen if a correction is required.
+                      </p>
+                    ) : (
+                      <>
+                        {['draft', 'returned', 'rejected'].includes(selectedTransaction.status) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('submit', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Submit</button>}
+                        {selectedTransaction.status === 'submitted' && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('approve', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Approve</button>}
+                        {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('return', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F472B6', color: '#831843', cursor: 'pointer', fontWeight: '700' }}>Return for Edit</button>}
+                        {['submitted', 'approved', 'returned'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('reject', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Reject</button>}
+                        {selectedTransaction.status === 'approved' && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('post', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Post</button>}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
