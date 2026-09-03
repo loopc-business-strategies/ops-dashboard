@@ -41,29 +41,29 @@ function MgLoginShell({
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
-  // Full-bleed mockup (1024x819) stretched to viewport; overlays use independent X/Y scale.
+  // Full-bleed mockup (1024x682) stretched to viewport; overlays use independent X/Y scale.
   const designWidth = 1024
-  const designHeight = 819
+  const designHeight = 682
   const scaleX = viewport.width / designWidth
   const scaleY = viewport.height / designHeight
   const sx = (value) => value * scaleX
   const sy = (value) => value * scaleY
 
   // Measured field boxes on the mockup (inner white inputs on the right card).
-  const fieldLeft = 563
-  const fieldWidth = 352
-  const fieldHeight = 44
-  const userTop = 256
-  const passTop = 360
+  const fieldLeft = 554
+  const fieldWidth = 328
+  const fieldHeight = 38
+  const userTop = 217
+  const passTop = 298
   const iconGutter = 42
-  const eyeLeft = 880
+  const eyeLeft = 848
   const eyeWidth = 36
-  const submitLeft = 558
-  const submitTop = 472
-  const submitWidth = 362
-  const submitHeight = 46
-  const noticeLeft = 558
-  const noticeWidth = 362
+  const submitLeft = 551
+  const submitTop = 393
+  const submitWidth = 335
+  const submitHeight = 37
+  const noticeLeft = 551
+  const noticeWidth = 335
 
   const inputStyle = {
     position: 'absolute',
@@ -112,7 +112,7 @@ function MgLoginShell({
               style={{
                 position: 'absolute',
                 left: sx(noticeLeft),
-                top: sy(205),
+                top: sy(160),
                 width: sx(noticeWidth),
                 minHeight: sy(28),
                 border: '1px solid #F0D58A',
@@ -132,7 +132,7 @@ function MgLoginShell({
               style={{
                 position: 'absolute',
                 left: sx(noticeLeft),
-                top: sy(idleNotice ? 238 : 205),
+                top: sy(idleNotice ? 188 : 160),
                 width: sx(noticeWidth),
                 minHeight: sy(28),
                 border: '1px solid #F0C9C9',
