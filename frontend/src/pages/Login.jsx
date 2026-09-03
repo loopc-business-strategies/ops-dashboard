@@ -41,21 +41,23 @@ function MgLoginShell({
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
-  // Full-bleed mockup (1024x682) stretched to viewport; overlays use independent X/Y scale.
+  // Aspect-preserving contain (1024x682); overlays share the same scale + offsets.
   const designWidth = 1024
   const designHeight = 682
-  const scaleX = viewport.width / designWidth
-  const scaleY = viewport.height / designHeight
-  const sx = (value) => value * scaleX
-  const sy = (value) => value * scaleY
+  const scale = Math.min(viewport.width / designWidth, viewport.height / designHeight)
+  const offsetX = (viewport.width - designWidth * scale) / 2
+  const offsetY = (viewport.height - designHeight * scale) / 2
+  const px = (value) => Math.round(offsetX + value * scale)
+  const py = (value) => Math.round(offsetY + value * scale)
+  const ps = (value) => Math.max(1, Math.round(value * scale))
 
-  // Measured field boxes on the mockup (inner white inputs on the right card).
-  const fieldLeft = 554
-  const fieldWidth = 328
-  const fieldHeight = 38
-  const userTop = 217
-  const passTop = 298
-  const iconGutter = 42
+  // Text wells only (leave mockup icons / borders / eye chrome visible).
+  const fieldLeft = 598
+  const userFieldWidth = 280
+  const passFieldWidth = 248
+  const fieldHeight = 34
+  const userTop = 219
+  const passTop = 300
   const eyeLeft = 848
   const eyeWidth = 36
   const submitLeft = 551
@@ -64,11 +66,14 @@ function MgLoginShell({
   const submitHeight = 37
   const noticeLeft = 551
   const noticeWidth = 335
+  const fontSize = Math.max(13, Math.round(14 * scale))
+  const noticeFontSize = Math.max(12, Math.round(12 * scale))
+  const vPad = Math.max(0, Math.round((ps(fieldHeight) - fontSize) / 2))
 
   const inputStyle = {
     position: 'absolute',
-    border: '1px solid #E5E7EB',
-    borderRadius: Math.max(8, 10 * Math.min(scaleX, scaleY)),
+    border: 'none',
+    borderRadius: 0,
     background: '#FFFFFF',
     color: '#111827',
     outline: 'none',
@@ -76,6 +81,12 @@ function MgLoginShell({
     zIndex: 2,
     caretColor: '#111827',
     boxSizing: 'border-box',
+    fontSize,
+    lineHeight: `${fontSize}px`,
+    paddingTop: vPad,
+    paddingBottom: vPad,
+    paddingLeft: ps(8),
+    paddingRight: ps(8),
   }
 
   return (
@@ -87,7 +98,7 @@ function MgLoginShell({
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        background: '#F3F4F6',
+        background: '#FFFFFF',
         color: '#111827',
         fontFamily: 'Inter, system-ui, sans-serif',
       }}
@@ -101,7 +112,7 @@ function MgLoginShell({
           height: '100%',
           overflow: 'hidden',
           backgroundImage: 'url(/images/mg-login-reference.png)',
-          backgroundSize: '100% 100%',
+          backgroundSize: 'contain',
           backgroundPosition: 'center center',
           backgroundRepeat: 'no-repeat',
         }}
@@ -111,16 +122,16 @@ function MgLoginShell({
             <div
               style={{
                 position: 'absolute',
-                left: sx(noticeLeft),
-                top: sy(160),
-                width: sx(noticeWidth),
-                minHeight: sy(28),
+                left: px(noticeLeft),
+                top: py(160),
+                width: ps(noticeWidth),
+                minHeight: ps(28),
                 border: '1px solid #F0D58A',
                 background: '#FFFBEB',
                 color: '#92400E',
                 borderRadius: 8,
                 padding: '8px 10px',
-                fontSize: Math.max(12, 12 * Math.min(scaleX, scaleY)),
+                fontSize: noticeFontSize,
                 zIndex: 4,
               }}
             >
@@ -131,16 +142,16 @@ function MgLoginShell({
             <div
               style={{
                 position: 'absolute',
-                left: sx(noticeLeft),
-                top: sy(idleNotice ? 188 : 160),
-                width: sx(noticeWidth),
-                minHeight: sy(28),
+                left: px(noticeLeft),
+                top: py(idleNotice ? 188 : 160),
+                width: ps(noticeWidth),
+                minHeight: ps(28),
                 border: '1px solid #F0C9C9',
                 background: '#FFF5F5',
                 color: '#B91C1C',
                 borderRadius: 8,
                 padding: '8px 10px',
-                fontSize: Math.max(12, 12 * Math.min(scaleX, scaleY)),
+                fontSize: noticeFontSize,
                 zIndex: 4,
               }}
             >
@@ -154,14 +165,10 @@ function MgLoginShell({
             placeholder="Enter your username"
             style={{
               ...inputStyle,
-              width: sx(fieldWidth),
-              height: sy(fieldHeight),
-              left: sx(fieldLeft),
-              top: sy(userTop),
-              fontSize: Math.max(13, 14 * Math.min(scaleX, scaleY)),
-              lineHeight: `${sy(fieldHeight)}px`,
-              paddingLeft: sx(iconGutter),
-              paddingRight: sx(12),
+              width: ps(userFieldWidth),
+              height: ps(fieldHeight),
+              left: px(fieldLeft),
+              top: py(userTop),
             }}
             autoFocus
             autoComplete="username"
@@ -175,14 +182,10 @@ function MgLoginShell({
             placeholder="Enter your password"
             style={{
               ...inputStyle,
-              width: sx(fieldWidth),
-              height: sy(fieldHeight),
-              left: sx(fieldLeft),
-              top: sy(passTop),
-              fontSize: Math.max(13, 14 * Math.min(scaleX, scaleY)),
-              lineHeight: `${sy(fieldHeight)}px`,
-              paddingLeft: sx(iconGutter),
-              paddingRight: sx(44),
+              width: ps(passFieldWidth),
+              height: ps(fieldHeight),
+              left: px(fieldLeft),
+              top: py(passTop),
             }}
             autoComplete="current-password"
             disabled={loading}
@@ -194,10 +197,10 @@ function MgLoginShell({
             disabled={loading}
             style={{
               position: 'absolute',
-              left: sx(eyeLeft),
-              top: sy(passTop),
-              width: sx(eyeWidth),
-              height: sy(fieldHeight),
+              left: px(eyeLeft),
+              top: py(passTop),
+              width: ps(eyeWidth),
+              height: ps(fieldHeight),
               border: 0,
               background: 'transparent',
               color: 'transparent',
@@ -211,10 +214,10 @@ function MgLoginShell({
               aria-hidden="true"
               style={{
                 position: 'absolute',
-                left: sx(submitLeft),
-                top: sy(submitTop),
-                width: sx(submitWidth),
-                height: sy(submitHeight),
+                left: px(submitLeft),
+                top: py(submitTop),
+                width: ps(submitWidth),
+                height: ps(submitHeight),
                 borderRadius: 10,
                 background: '#F97316',
                 zIndex: 2,
@@ -228,15 +231,15 @@ function MgLoginShell({
             aria-busy={loading}
             style={{
               position: 'absolute',
-              left: sx(submitLeft),
-              top: sy(submitTop),
-              width: sx(submitWidth),
-              height: sy(submitHeight),
+              left: px(submitLeft),
+              top: py(submitTop),
+              width: ps(submitWidth),
+              height: ps(submitHeight),
               border: 0,
               borderRadius: 10,
               background: 'transparent',
               color: loading ? '#FFFFFF' : 'transparent',
-              fontSize: Math.max(14, 15 * Math.min(scaleX, scaleY)),
+              fontSize: Math.max(14, Math.round(15 * scale)),
               fontWeight: 800,
               cursor: loading ? 'wait' : 'pointer',
               zIndex: 3,
