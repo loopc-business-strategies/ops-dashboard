@@ -29,22 +29,6 @@ function MgLoginShell({
   handleSubmit,
   t,
 }) {
-  const fieldBg = 'rgba(5, 16, 29, 0.99)'
-  const inputStyle = {
-    position: 'absolute',
-    width: 410,
-    height: 36,
-    borderRadius: 4,
-    border: 0,
-    background: fieldBg,
-    color: '#E8EDF4',
-    fontSize: 16,
-    lineHeight: '36px',
-    outline: 'none',
-    padding: '0 10px',
-    boxShadow: 'none',
-    zIndex: 2,
-  }
   const [viewport, setViewport] = useState(() => ({
     width: typeof window === 'undefined' ? 1600 : window.innerWidth,
     height: typeof window === 'undefined' ? 1000 : window.innerHeight,
@@ -57,12 +41,42 @@ function MgLoginShell({
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
-  const designWidth = 1718
-  const designHeight = 916
-  const scaleX = viewport.width / designWidth
-  const scaleY = viewport.height / designHeight
-  const sx = (value) => value * scaleX
-  const sy = (value) => value * scaleY
+  // Design coordinates measured from the light Modern Gold mockup (1024x819).
+  const designWidth = 1024
+  const designHeight = 819
+  const scale = Math.min(viewport.width / designWidth, viewport.height / designHeight)
+  const offsetX = (viewport.width - designWidth * scale) / 2
+  const offsetY = (viewport.height - designHeight * scale) / 2
+  const sx = (value) => offsetX + value * scale
+  const sy = (value) => offsetY + value * scale
+  const ss = (value) => value * scale
+
+  const fieldLeft = 572
+  const fieldWidth = 330
+  const fieldHeight = 40
+  const userTop = 258
+  const passTop = 362
+  const eyeLeft = 880
+  const eyeWidth = 36
+  const submitLeft = 558
+  const submitTop = 472
+  const submitWidth = 362
+  const submitHeight = 46
+  const noticeLeft = 558
+  const noticeWidth = 362
+
+  const inputStyle = {
+    position: 'absolute',
+    border: 0,
+    borderRadius: ss(10),
+    background: 'transparent',
+    color: '#111827',
+    outline: 'none',
+    padding: `0 ${ss(12)}px`,
+    boxShadow: 'none',
+    zIndex: 2,
+    caretColor: '#111827',
+  }
 
   return (
     <div
@@ -73,10 +87,9 @@ function MgLoginShell({
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        background:
-          'radial-gradient(circle at 22% 42%, rgba(31, 54, 77, 0.62), transparent 26%), radial-gradient(circle at 78% 18%, rgba(25, 55, 86, 0.36), transparent 30%), linear-gradient(135deg, #0b1b2b 0%, #020814 58%, #00040b 100%)',
-        color: '#F8FAFC',
-        fontFamily: 'Inter, sans-serif',
+        background: '#F3F4F6',
+        color: '#111827',
+        fontFamily: 'Inter, system-ui, sans-serif',
       }}
     >
       <div
@@ -88,55 +101,26 @@ function MgLoginShell({
           height: '100%',
           overflow: 'hidden',
           backgroundImage: 'url(/images/mg-login-reference.png)',
-          backgroundSize: '100% 100%',
+          backgroundSize: 'contain',
           backgroundPosition: 'center center',
           backgroundRepeat: 'no-repeat',
         }}
       >
         <form onSubmit={handleSubmit} style={{ position: 'absolute', inset: 0 }}>
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: sx(36),
-              top: sy(48),
-              width: sx(560),
-              height: sy(390),
-              background:
-                'radial-gradient(circle at 28% 38%, rgba(31, 54, 77, 0.92), rgba(7, 20, 34, 0.98) 58%, #06101c 100%)',
-              pointerEvents: 'none',
-              zIndex: 3,
-            }}
-          />
-          <img
-            src="/logos/mg-logo.png"
-            alt="Modern Gold"
-            style={{
-              position: 'absolute',
-              left: sx(48),
-              top: sy(88),
-              width: sx(480),
-              height: sy(160),
-              objectFit: 'contain',
-              objectPosition: 'left center',
-              pointerEvents: 'none',
-              zIndex: 4,
-            }}
-          />
           {idleNotice && (
             <div
               style={{
                 position: 'absolute',
-                left: sx(968),
-                top: sy(278),
-                width: sx(455),
-                minHeight: sy(30),
-                border: '1px solid rgba(234, 179, 8, 0.55)',
-                background: 'rgba(120, 53, 15, 0.72)',
-                color: '#FDE68A',
-                borderRadius: 8,
-                padding: '8px 12px',
-                fontSize: 13,
+                left: sx(noticeLeft),
+                top: sy(205),
+                width: ss(noticeWidth),
+                minHeight: ss(28),
+                border: '1px solid #F0D58A',
+                background: '#FFFBEB',
+                color: '#92400E',
+                borderRadius: ss(8),
+                padding: `${ss(8)}px ${ss(10)}px`,
+                fontSize: ss(12),
                 zIndex: 4,
               }}
             >
@@ -147,16 +131,16 @@ function MgLoginShell({
             <div
               style={{
                 position: 'absolute',
-                left: sx(968),
-                top: sy(318),
-                width: sx(455),
-                minHeight: sy(30),
-                border: '1px solid rgba(248,113,113,0.55)',
-                background: 'rgba(127,29,29,0.72)',
-                color: '#FECACA',
-                borderRadius: 8,
-                padding: '8px 12px',
-                fontSize: 13,
+                left: sx(noticeLeft),
+                top: sy(idleNotice ? 238 : 205),
+                width: ss(noticeWidth),
+                minHeight: ss(28),
+                border: '1px solid #F0C9C9',
+                background: '#FFF5F5',
+                color: '#B91C1C',
+                borderRadius: ss(8),
+                padding: `${ss(8)}px ${ss(10)}px`,
+                fontSize: ss(12),
                 zIndex: 4,
               }}
             >
@@ -170,12 +154,12 @@ function MgLoginShell({
             placeholder=""
             style={{
               ...inputStyle,
-              width: sx(300),
-              height: sy(34),
-              left: sx(1028),
-              top: sy(372),
-              fontSize: sx(16),
-              lineHeight: `${sy(34)}px`,
+              width: ss(fieldWidth),
+              height: ss(fieldHeight),
+              left: sx(fieldLeft),
+              top: sy(userTop),
+              fontSize: ss(14),
+              lineHeight: `${ss(fieldHeight)}px`,
             }}
             autoFocus
             autoComplete="username"
@@ -189,12 +173,13 @@ function MgLoginShell({
             placeholder=""
             style={{
               ...inputStyle,
-              width: sx(300),
-              left: sx(1028),
-              top: sy(484),
-              height: sy(34),
-              fontSize: sx(16),
-              lineHeight: `${sy(34)}px`,
+              width: ss(fieldWidth),
+              height: ss(fieldHeight),
+              left: sx(fieldLeft),
+              top: sy(passTop),
+              fontSize: ss(14),
+              lineHeight: `${ss(fieldHeight)}px`,
+              paddingRight: ss(40),
             }}
             autoComplete="current-password"
             disabled={loading}
@@ -206,10 +191,10 @@ function MgLoginShell({
             disabled={loading}
             style={{
               position: 'absolute',
-              left: sx(1344),
-              top: sy(468),
-              width: sx(82),
-              height: sy(60),
+              left: sx(eyeLeft),
+              top: sy(passTop),
+              width: ss(eyeWidth),
+              height: ss(fieldHeight),
               border: 0,
               background: 'transparent',
               color: 'transparent',
@@ -223,12 +208,12 @@ function MgLoginShell({
               aria-hidden="true"
               style={{
                 position: 'absolute',
-                left: sx(968),
-                top: sy(551),
-                width: sx(455),
-                height: sy(55),
-                borderRadius: 9,
-                background: '#FFD15A',
+                left: sx(submitLeft),
+                top: sy(submitTop),
+                width: ss(submitWidth),
+                height: ss(submitHeight),
+                borderRadius: ss(10),
+                background: '#F97316',
                 zIndex: 2,
                 pointerEvents: 'none',
               }}
@@ -240,31 +225,30 @@ function MgLoginShell({
             aria-busy={loading}
             style={{
               position: 'absolute',
-              left: sx(968),
-              top: sy(551),
-              width: sx(455),
-              height: sy(55),
+              left: sx(submitLeft),
+              top: sy(submitTop),
+              width: ss(submitWidth),
+              height: ss(submitHeight),
               border: 0,
-              borderRadius: 9,
+              borderRadius: ss(10),
               background: 'transparent',
-              color: loading ? '#071422' : 'transparent',
-              fontSize: sx(16),
-              fontWeight: 900,
-              letterSpacing: loading ? '0.02em' : 0,
+              color: loading ? '#FFFFFF' : 'transparent',
+              fontSize: ss(15),
+              fontWeight: 800,
               cursor: loading ? 'wait' : 'pointer',
               zIndex: 3,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: sx(8),
+              gap: ss(8),
             }}
           >
             {loading ? (
               <>
                 <svg
                   aria-hidden="true"
-                  width={sx(18)}
-                  height={sx(18)}
+                  width={ss(18)}
+                  height={ss(18)}
                   viewBox="0 0 24 24"
                   fill="none"
                   style={{ flexShrink: 0, animation: 'mg-login-spin 0.8s linear infinite' }}
@@ -278,41 +262,6 @@ function MgLoginShell({
               <span aria-hidden="true">&nbsp;</span>
             )}
           </button>
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: sx(625),
-              top: sy(596),
-              width: sx(24),
-              height: sy(18),
-              background: 'rgba(5, 17, 30, 0.96)',
-              borderRadius: 3,
-              pointerEvents: 'none',
-              zIndex: 3,
-            }}
-          />
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: sx(610),
-              top: sy(872),
-              width: sx(500),
-              height: sy(32),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(3, 12, 24, 0.94)',
-              color: '#9CA3AF',
-              fontSize: sx(14),
-              letterSpacing: 0,
-              pointerEvents: 'none',
-              zIndex: 3,
-            }}
-          >
-            © 2025 LoopC Business Strategies. All rights reserved.
-          </div>
         </form>
       </div>
 
@@ -321,15 +270,12 @@ function MgLoginShell({
         .mg-login-shell * {
           box-sizing: border-box;
         }
-        .mg-login-shell input::placeholder {
-          color: rgba(226, 232, 240, 0.62);
-        }
         .mg-login-shell input:-webkit-autofill,
         .mg-login-shell input:-webkit-autofill:hover,
         .mg-login-shell input:-webkit-autofill:focus {
-          -webkit-text-fill-color: #e8edf4;
-          caret-color: #e8edf4;
-          box-shadow: 0 0 0 1000px rgba(5, 16, 29, 0.99) inset;
+          -webkit-text-fill-color: #111827;
+          caret-color: #111827;
+          box-shadow: 0 0 0 1000px #ffffff inset;
           transition: background-color 9999s ease-in-out 0s;
         }
         .mg-login-shell button[type="submit"] {
@@ -339,43 +285,16 @@ function MgLoginShell({
           color: transparent !important;
         }
         .mg-login-shell button[type="submit"]:disabled {
-          color: #071422 !important;
+          color: #FFFFFF !important;
         }
         @keyframes mg-login-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        @media (max-width: 980px) {
-          .mg-login-stage {
-            position: relative !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            transform: none !important;
-            min-height: 100vh !important;
-          }
-          .mg-login-shell { height: auto !important; min-height: 100vh !important; overflow-y: auto !important; }
-          .mg-login-shell section {
-            position: relative !important;
-            left: auto !important;
-            top: auto !important;
-            width: 100% !important;
-            height: auto !important;
-          }
-          .mg-login-shell section:first-of-type { padding: 88px 24px 20px !important; }
-          .mg-login-shell section:first-of-type img { width: min(220px, 58vw) !important; }
-          .mg-login-shell section:first-of-type div[style*="font-size: 52px"] { font-size: 40px !important; }
-          .mg-login-shell section:nth-of-type(2) { padding: 24px 22px 88px !important; }
-          .mg-login-shell section:nth-of-type(2) > div { width: 100% !important; min-height: 0 !important; padding: 44px 24px 34px !important; }
-          .mg-login-shell section:nth-of-type(2) h1 { font-size: 38px !important; }
-          .mg-login-shell footer { position: relative !important; }
-        }
       `}</style>
     </div>
   )
 }
-
 function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
