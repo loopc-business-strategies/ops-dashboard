@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { toMoney, formatAmount } from '../../../../utils/money'
 import { resolveEffectiveSpotPrices } from '../../../../utils/liveMetalRates'
 import { erpTabNeedsLiveMetalRates } from '../erpTabUtils'
 import { useErpLiveMetalSpotPrices } from '../useErpLiveMetalSpotPrices'
@@ -118,10 +119,11 @@ function combineVoucherStatementRows(entries = []) {
   })
   return orderedKeys.map((key) => {
     const row = grouped.get(key)
-    row.debitAmount = Number(row.debitAmount.toFixed(2))
-    row.creditAmount = Number(row.creditAmount.toFixed(2))
-    row.signedAmount = Number(row.signedAmount.toFixed(2))
-    row.unfixedVoucherAmount = Number(Number(row.unfixedVoucherAmount || 0).toFixed(2))
+    // Statement rows are base-currency amounts before display conversion.
+    row.debitAmount = toMoney(row.debitAmount)
+    row.creditAmount = toMoney(row.creditAmount)
+    row.signedAmount = toMoney(row.signedAmount)
+    row.unfixedVoucherAmount = toMoney(row.unfixedVoucherAmount || 0)
     return row
   })
 }
@@ -301,8 +303,12 @@ export function useAccountEnquiryStatement({
     return Number.isFinite(converted) ? converted : numeric
   }
 
-  const formatStatementValue = (value, digits = 2) => {
+  const formatStatementValue = (value, digits = 2, options = {}) => {
     const num = Number(value || 0)
+    // Money cells (default digits=2): currency-aware. Pass { fixed: true } for % / non-money.
+    if (digits === 2 && !options.fixed) {
+      return formatAmount(num, { currencyCode: statementDisplayCurrency })
+    }
     return num.toLocaleString(undefined, {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
@@ -311,7 +317,12 @@ export function useAccountEnquiryStatement({
 
   const formatStatementNullableValue = (value, digits = 2) => {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
-    return formatStatementValue(value, digits)
+    // Pure-weight and other nullable non-money cells keep fixed digit display.
+    const num = Number(value || 0)
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })
   }
 
   const getSignedColor = (value) => {

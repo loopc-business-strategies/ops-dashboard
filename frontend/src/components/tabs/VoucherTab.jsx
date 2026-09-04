@@ -520,6 +520,7 @@ export default function VoucherTab({
     findPartyOptionByCode,
     resolveVoucherParty,
     lineItems,
+    baseCurrencyCode,
   })
 
   const runPrintAction = useCallback((action) => {

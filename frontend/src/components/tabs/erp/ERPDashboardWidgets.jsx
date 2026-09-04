@@ -8,10 +8,11 @@ import { useExpensePeriodFilter } from './useExpensePeriodFilter'
 import { useExpenseChartData } from './useExpenseChartData'
 import { useExpenseFooterStats } from './useExpenseFooterStats'
 
+import { formatAmount, formatMoney } from '../../../utils/money'
+
 function fmtMoney(val, currency = '') {
-  const n = Number(val || 0)
-  const formatted = n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return currency ? `${currency} ${formatted}` : formatted
+  if (currency) return formatMoney(val, currency)
+  return formatAmount(val)
 }
 
 function fmtPosition(val) {

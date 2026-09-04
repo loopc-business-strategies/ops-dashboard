@@ -532,6 +532,21 @@ describe('journal voucher helpers', () => {
     ])
   })
 
+  test('allocates raw header amounts with KWD precision (3dp)', () => {
+    const result = allocateJvLedgerEntries([], {
+      useRawJvLineAmountsForSave: true,
+      amountCurrencyCode: 'KWD',
+      jvLines: [
+        { accountId: 'cash', description: 'cash', debit: 10.1234, credit: '' },
+        { accountId: 'sales', description: 'sale', debit: '', credit: 10.1234 },
+      ],
+    })
+
+    expect(result.error).toBe('')
+    expect(result.entries).toHaveLength(1)
+    expect(result.entries[0].amount).toBe(10.123)
+  })
+
   test('allocates split debit and credit rows into balanced pairs', () => {
     const result = allocateJvLedgerEntries([
       { id: 1, accountId: 'bank-a', description: 'bank a', debit: 70, credit: 0 },

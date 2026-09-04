@@ -456,7 +456,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         isMetalTrade,
         isMetalTransfer,
         metalSignedWeight,
-        unfixedVoucherAmount: isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed' ? Number(voucherAmount.toFixed(2)) : 0,
+        unfixedVoucherAmount: isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed' ? _toMoney(voucherAmount) : 0,
         lineNarration,
       }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)

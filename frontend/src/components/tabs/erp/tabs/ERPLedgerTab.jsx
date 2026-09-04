@@ -11,7 +11,7 @@ import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from '../erpListFilters'
 import { isVoucherKeyboardNavEnabled } from '../../../../config/tenantBranding'
 import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
-import { formatAmount, toMoney } from '../../../../utils/money'
+import { formatAmount, formatMoney, roundMoney } from '../../../../utils/money'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -375,11 +375,11 @@ export default function ERPLedgerTab({
                             return (
                               <div title={lineHint || undefined}>
                                 <div style={{ fontWeight: '700' }}>
-                                  <span>{baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span>{formatAmount(baseEq, { currencyCode: baseSym })}</span>
                                   <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{baseSym}</span>
                                 </div>
                                 <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>
-                                  ≈ {Number(voucher.documentFaceAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })} {voucher.documentCurrencyCode}
+                                  ≈ {formatMoney(voucher.documentFaceAmount, voucher.documentCurrencyCode)}
                                 </div>
                                 {lineHint ? (
                                   <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>{lineHint}</div>
@@ -391,7 +391,7 @@ export default function ERPLedgerTab({
                           if (isJournalJv) {
                             return (
                               <div title={lineHint || undefined}>
-                                <span>{baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                <span>{formatAmount(baseEq, { currencyCode: baseSym })}</span>
                                 <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{baseSym}</span>
                                 {lineHint ? (
                                   <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>{lineHint}</div>
@@ -405,8 +405,8 @@ export default function ERPLedgerTab({
                           if (useLegacyFc) {
                             displaySym = normalizeJvCurrencyCode(legacyFc)
                             const rawFc = baseEq / dispRate
-                            // Display only — do not Math.round away fractional FC for tiny rates.
-                            displayAmt = toMoney(rawFc)
+                            // Display only — round to FC precision (not forced base 2dp).
+                            displayAmt = roundMoney(rawFc, displaySym)
                           }
 
                           const isFc = displaySym && normalizeJvCurrencyCode(displaySym) !== baseSym
@@ -418,7 +418,7 @@ export default function ERPLedgerTab({
                               ) : null}
                               {isFc ? (
                                 <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>
-                                  ≈ {baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })} {baseSym}
+                                  ≈ {formatMoney(baseEq, baseSym)}
                                 </div>
                               ) : null}
                               {lineHint ? (

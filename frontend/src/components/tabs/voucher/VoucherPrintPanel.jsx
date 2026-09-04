@@ -53,6 +53,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
     preparedByValue,
     printAmountLabel,
     currencyLabel,
+    baseCurrencyCode,
     mgLineItems,
     mgPrimaryLine,
     totals,
@@ -93,6 +94,11 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
   const headerAmountFcLabel = tableHeaders.amountFc || (isMetalVoucher ? 'Pure Wt.' : 'Amount FC')
   const headerAmountLcLabel = tableHeaders.amountLc || (isMetalVoucher ? 'Total' : printAmountLabel)
 
+  const fcCode = (line) => line?.currCode || currencyLabel || 'USD'
+  const lcCode = baseCurrencyCode || 'USD'
+  const totalCode = currencyLabel || 'USD'
+
+
   const isPreview = renderMode === 'preview'
   const isMgLayout = isMgCurrencyVoucher || isMgMetalVoucher
   const isProfessionalLayout = useProfessionalMetalLayout || useProfessionalCurrencyLayout
@@ -132,7 +138,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
       ].map((label) => (
         <tr key={label}>
           <td colSpan={4} style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{label}</td>
-          <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+          <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0, totalCode)}</td>
         </tr>
       ))}
     </tfoot>
@@ -303,8 +309,8 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
                     </div>
                   </td>
                   <td style={tdStyle()}>{paymentType || ''}</td>
-                  <td style={numTdStyle}>{fmt(line?.amountFC || 0)}</td>
-                  <td style={numTdStyle}>{fmt(line?.amountLC || 0)}</td>
+                  <td style={numTdStyle}>{fmt(line?.amountFC || 0, fcCode(line))}</td>
+                  <td style={numTdStyle}>{fmt(line?.amountLC || 0, lcCode)}</td>
                 </tr>
               )
             })}
@@ -353,8 +359,8 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
                     )}
                   </td>
                   <td style={tdStyle()}>{isMetalVoucher ? metalLabel : paymentType}</td>
-                  <td style={numTdStyle}>{isMetalVoucher ? fmt(line?.pureWeight || 0) : fmt(line?.amountFC || 0)}</td>
-                  <td style={numTdStyle}>{fmt(isMetalVoucher ? lineTotal : line?.amountLC || 0)}</td>
+                  <td style={numTdStyle}>{isMetalVoucher ? fmt(line?.pureWeight || 0) : fmt(line?.amountFC || 0, fcCode(line))}</td>
+                  <td style={numTdStyle}>{fmt(isMetalVoucher ? lineTotal : line?.amountLC || 0, isMetalVoucher ? totalCode : lcCode)}</td>
                 </tr>
               )
             })}
@@ -388,7 +394,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         }}
         >
           <div style={{ fontWeight: '700', fontSize: '12px', color: '#111827', flexShrink: 0 }}>
-            {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0)} {printPostingDirection}
+            {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0, totalCode)} {printPostingDirection}
           </div>
           <div style={{
             fontStyle: 'italic',

@@ -139,7 +139,7 @@ export default function ERPVendorsTab({
             </div>
             <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
               <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.76rem' }}>Total Due Amount</p>
-              <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{Number(vendorPaymentCalendar.alerts?.totalDue || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{formatMoney(vendorPaymentCalendar.alerts?.totalDue || 0)}</p>
             </div>
             <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
               <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.76rem' }}>Doc Warning 30d</p>
@@ -169,7 +169,7 @@ export default function ERPVendorsTab({
               <button onClick={loadVendorOverdueQueue} style={{ padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #7DD3FC', background: '#E0F2FE', color: '#075985', cursor: 'pointer', fontSize: '0.74rem', fontWeight: '600' }}>Refresh Queue</button>
             </div>
             <p style={{ margin: '0 0 0.4rem', color: C.inkSoft, fontSize: '0.78rem' }}>
-              Total: {vendorOverdueQueue.summary?.total || 0} | With Recipient: {vendorOverdueQueue.summary?.withRecipient || 0} | Critical: {vendorOverdueQueue.summary?.critical || 0} | Amount Due: {Number(vendorOverdueQueue.summary?.totalAmountDue || 0).toLocaleString()}
+              Total: {vendorOverdueQueue.summary?.total || 0} | With Recipient: {vendorOverdueQueue.summary?.withRecipient || 0} | Critical: {vendorOverdueQueue.summary?.critical || 0} | Amount Due: {formatMoney(vendorOverdueQueue.summary?.totalAmountDue || 0)}
             </p>
             <div style={{ maxHeight: '130px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
               {(vendorOverdueQueue.queue || []).slice(0, 12).map((row) => (
@@ -415,7 +415,7 @@ export default function ERPVendorsTab({
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
                       <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Outstanding</p>
-                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{Number(selectedVendorDetails.vendor.outstanding || 0).toLocaleString()}</p>
+                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{formatMoney(selectedVendorDetails.vendor.outstanding || 0, selectedVendorDetails.vendor.currency || 'USD')}</p>
                     </div>
                     <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
                       <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Credit Utilization</p>
@@ -438,7 +438,7 @@ export default function ERPVendorsTab({
                         <div key={tx._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
                             <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{tx.type} ({tx.status})</span>
-                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(tx.amount || 0).toLocaleString()} {tx.currency || 'USD'}</span>
+                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{formatMoney(tx.amount || 0, tx.currency || 'USD')}</span>
                           </div>
                           <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(tx.date).toLocaleString()}</div>
                         </div>
@@ -454,7 +454,7 @@ export default function ERPVendorsTab({
                         <div key={entry._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
                             <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{entry.referenceType}</span>
-                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(entry.amount || 0).toLocaleString()} {entry.currency || 'USD'}</span>
+                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{formatMoney(entry.amount || 0, entry.currency || 'USD')}</span>
                           </div>
                           <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(entry.date).toLocaleString()}</div>
                         </div>
@@ -516,7 +516,7 @@ export default function ERPVendorsTab({
                       {(selectedVendorDetails.paymentCalendar || []).map((due) => (
                         <div key={`${due.purchaseTransactionId}-${due.dueDate}`} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem' }}>
-                            <span style={{ fontSize: '0.74rem', fontWeight: '600', color: C.ink }}>{Number(due.remaining || 0).toLocaleString()} {due.currency || 'USD'}</span>
+                            <span style={{ fontSize: '0.74rem', fontWeight: '600', color: C.ink }}>{formatMoney(due.remaining || 0, due.currency || 'USD')}</span>
                             <span style={{ fontSize: '0.71rem', color: due.alertLevel === 'overdue' ? '#991B1B' : due.alertLevel === 'due_soon' ? '#92400E' : C.inkSoft }}>{due.alertLevel} ({due.daysToDue}d)</span>
                           </div>
                           <div style={{ fontSize: '0.71rem', color: C.inkSoft }}>Due {new Date(due.dueDate).toLocaleDateString()}</div>

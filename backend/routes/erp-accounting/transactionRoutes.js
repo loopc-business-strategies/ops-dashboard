@@ -1,4 +1,5 @@
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
+const { formatMoney } = require('../../shared/money')
 
 const { escapeRegex } = require('../../utils/escapeRegex')
 
@@ -869,8 +870,8 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
           const before = Number(flip.beforeBalance || 0)
           const after = Number(flip.afterBalance || 0)
           const msg = name
-            ? `Account ${code} (${name}) crossed zero (was ${before.toFixed(2)}, now ${after.toFixed(2)}).`
-            : `Account ${code} crossed zero (was ${before.toFixed(2)}, now ${after.toFixed(2)}).`
+            ? `Account ${code} (${name}) crossed zero (was ${formatMoney(before, BASE_CURRENCY_CODE)}, now ${formatMoney(after, BASE_CURRENCY_CODE)}).`
+            : `Account ${code} crossed zero (was ${formatMoney(before, BASE_CURRENCY_CODE)}, now ${formatMoney(after, BASE_CURRENCY_CODE)}).`
           void notifyUsers(tenant, [posterId], 'account_balance_sign_changed', {
             accountId: String(flip.accountId || ''),
             accountCode: code,

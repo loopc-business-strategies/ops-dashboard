@@ -403,6 +403,9 @@ export function useJournalVoucher(props) {
     const allocation = allocateJvLedgerEntries(validation.activeLines, {
       jvLines: p.jvLines,
       useRawJvLineAmountsForSave: validation.useRawJvLineAmountsForSave,
+      amountCurrencyCode: validation.useRawJvLineAmountsForSave
+        ? (p.jvHeader?.currency || '')
+        : '',
     })
     if (allocation.error) {
       setJvError(allocation.error)

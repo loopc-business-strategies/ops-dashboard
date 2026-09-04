@@ -135,7 +135,7 @@ export default function VoucherListPanel({
                     {!isSimpleMetalVoucher && (
                       <td style={{ padding: '0.55rem 0.75rem' }}>{voucher.currency}</td>
                     )}
-                    <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand)}</td>
+                    <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand, voucher.currency)}</td>
                     <td style={{ padding: '0.55rem 0.75rem' }}>
                       <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: statusStyle.bg, color: statusStyle.color }}>
                         {voucher.status}

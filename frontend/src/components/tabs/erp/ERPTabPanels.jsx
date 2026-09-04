@@ -470,6 +470,7 @@ export default function ERPTabPanels({
             customers={customers}
             handleEditCustomer={handleEditCustomer}
             handleDeleteCustomer={handleDeleteCustomer}
+            baseCurrencyCode={baseCurrencyCode}
           />
         </Suspense>
       )}
@@ -708,6 +709,7 @@ export default function ERPTabPanels({
         inventoryProducts={inventoryProducts}
         mappings={mappings}
         accounts={accounts}
+        baseCurrencyCode={baseCurrencyCode}
         selectedTransaction={selectedTransaction}
         TRANSACTION_STATUS_STYLES={TRANSACTION_STATUS_STYLES}
         resolveTransactionAttachmentUrl={resolveTransactionAttachmentUrl}

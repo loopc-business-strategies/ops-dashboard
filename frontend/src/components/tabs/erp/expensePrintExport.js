@@ -1,9 +1,9 @@
 import { buildExpensePdfFileName, buildExpensesPdfTableBody } from './expenseExportHelpers'
 import { loadPdfTools } from './lazyExportLibs'
+import { formatMoney } from '../../../utils/money'
 
-function formatPdfAmount(value) {
-  const n = Number(value || 0)
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function formatPdfAmount(value, currencyCode = 'USD') {
+  return formatMoney(value, currencyCode)
 }
 
 export async function exportExpenseRegisterPdf({ items = [], meta = {}, year, monthIndex = '' } = {}) {

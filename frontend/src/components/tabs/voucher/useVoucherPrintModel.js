@@ -36,6 +36,7 @@ export function buildVoucherPrintModel({
   findPartyOptionByCode = () => null,
   resolveVoucherParty = () => ({}),
   lineItems,
+  baseCurrencyCode = 'USD',
 }) {
   const branding = user?.branding || {}
   const tenant = user?.tenant || {}
@@ -153,7 +154,7 @@ export function buildVoucherPrintModel({
   const mgMetalCopyLabel = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'ACCOUNTS COPY' : 'PARTY COPY'
   const mgMetalPostingDirection = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'DEBITED' : 'CREDITED'
   const mgMetalRateValue = mgLineItems.find((line) => Number(line?.metalRate || 0) > 0)?.metalRate || ''
-  const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue)} / SOZ (${currencyLabel || 'USD'})` : ''
+  const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue, currencyLabel || 'USD')} / SOZ (${currencyLabel || 'USD'})` : ''
 
   return {
     documentBranding,
@@ -213,6 +214,7 @@ export function buildVoucherPrintModel({
     totals,
     isMetalVoucher,
     voucherType,
+    baseCurrencyCode,
   }
 }
 
@@ -233,6 +235,7 @@ export function useVoucherPrintModel({
   findPartyOptionByCode,
   resolveVoucherParty,
   lineItems,
+  baseCurrencyCode = 'USD',
 }) {
   return useMemo(
     () => buildVoucherPrintModel({
@@ -249,6 +252,7 @@ export function useVoucherPrintModel({
       findPartyOptionByCode,
       resolveVoucherParty,
       lineItems,
+      baseCurrencyCode,
     }),
     [
       voucherType,
@@ -264,6 +268,7 @@ export function useVoucherPrintModel({
       findPartyOptionByCode,
       resolveVoucherParty,
       lineItems,
+      baseCurrencyCode,
     ],
   )
 }

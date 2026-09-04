@@ -222,7 +222,7 @@ const groupJvLedgerEntries = (entries = [], opts = {}) => {
     const repCur = normalizeJvCurrencyCode(representative?.currency || '')
     const allSameCur = sorted.length > 0 && sorted.every((e) => normalizeJvCurrencyCode(e?.currency || repCur) === repCur)
     const documentFaceAmount = allSameCur && repCur && repCur !== baseNorm
-      ? Number(sorted.reduce((sum, e) => sum + Number(e?.amount || 0), 0).toFixed(2))
+      ? roundMoney(sorted.reduce((sum, e) => sum + Number(e?.amount || 0), 0), repCur)
       : null
 
     return {
@@ -361,7 +361,17 @@ const validateJvLines = ({
   }
 }
 
-const allocateJvLedgerEntries = (activeLines = [], { jvLines = [], useRawJvLineAmountsForSave = false } = {}) => {
+const allocateJvLedgerEntries = (activeLines = [], {
+  jvLines = [],
+  useRawJvLineAmountsForSave = false,
+  amountCurrencyCode = '',
+} = {}) => {
+  const moneyCur = String(amountCurrencyCode || '').trim().toUpperCase()
+  const roundAmt = (value) => (
+    moneyCur && useRawJvLineAmountsForSave
+      ? roundMoney(value, moneyCur)
+      : toMoney(value)
+  )
   let debitQueue
   let creditQueue
   if (useRawJvLineAmountsForSave) {
@@ -370,22 +380,22 @@ const allocateJvLedgerEntries = (activeLines = [], { jvLines = [], useRawJvLineA
       .map((line) => ({
         accountId: line.accountId,
         description: String(line.description || '').trim(),
-        remaining: Number(Number(line.debit || 0).toFixed(2)),
+        remaining: roundAmt(line.debit || 0),
       }))
     creditQueue = jvLines
       .filter((line) => String(line.accountId || '').trim() && Number(line.credit || 0) > 0)
       .map((line) => ({
         accountId: line.accountId,
         description: String(line.description || '').trim(),
-        remaining: Number(Number(line.credit || 0).toFixed(2)),
+        remaining: roundAmt(line.credit || 0),
       }))
   } else {
     debitQueue = activeLines
       .filter((line) => line.debit > 0)
-      .map((line) => ({ ...line, remaining: Number(line.debit.toFixed(2)) }))
+      .map((line) => ({ ...line, remaining: toMoney(line.debit) }))
     creditQueue = activeLines
       .filter((line) => line.credit > 0)
-      .map((line) => ({ ...line, remaining: Number(line.credit.toFixed(2)) }))
+      .map((line) => ({ ...line, remaining: toMoney(line.credit) }))
   }
 
   if (!debitQueue.length || !creditQueue.length) {
@@ -406,12 +416,12 @@ const allocateJvLedgerEntries = (activeLines = [], { jvLines = [], useRawJvLineA
       entries.push({
         debitAccountId: debitLine.accountId,
         creditAccountId: creditLine.accountId,
-        amount: Number(pairAmount.toFixed(2)),
+        amount: roundAmt(pairAmount),
         lineDesc: [debitLine.description, creditLine.description].filter(Boolean).join(' | '),
       })
     }
-    debitLine.remaining = Number((debitLine.remaining - pairAmount).toFixed(2))
-    creditLine.remaining = Number((creditLine.remaining - pairAmount).toFixed(2))
+    debitLine.remaining = roundAmt(debitLine.remaining - pairAmount)
+    creditLine.remaining = roundAmt(creditLine.remaining - pairAmount)
     if (debitLine.remaining <= 0.004) drIndex += 1
     if (creditLine.remaining <= 0.004) crIndex += 1
   }
@@ -482,7 +492,7 @@ function applyBankJvExchangeBalancing(lines, ctx) {
       baseCredit += normalizedCredit
     }
   }
-  const difference = Number((baseDebit - baseCredit).toFixed(2))
+  const difference = toMoney(baseDebit - baseCredit)
   if (Math.abs(difference) < 0.005) return withoutFxAmounts
   const needsDebitFx = difference < 0
   const targetCode = needsDebitFx ? '5190' : '4190'
@@ -573,8 +583,13 @@ function resolveJvHeaderNarrationFromBatch(sorted = [], entry = null) {
  * Merge consecutive JV edit lines that post the same side (debit-only or credit-only) to the
  * same account — typical when several ledger rows share one cash/bank line on edit.
  */
-function mergeConsecutiveJvLinesSameAccountAndSide(lines) {
+function mergeConsecutiveJvLinesSameAccountAndSide(lines, amountCurrencyCode = '') {
   if (!Array.isArray(lines) || lines.length < 2) return lines
+  const roundAmt = (value) => (
+    amountCurrencyCode
+      ? roundMoney(value, amountCurrencyCode)
+      : toMoney(value)
+  )
   const out = []
   let i = 0
   while (i < lines.length) {
@@ -594,7 +609,7 @@ function mergeConsecutiveJvLinesSameAccountAndSide(lines) {
           j += 1
         } else break
       }
-      out.push({ ...line, debit: Number(total.toFixed(2)), credit: '' })
+      out.push({ ...line, debit: roundAmt(total), credit: '' })
       i = j
       continue
     }
@@ -610,7 +625,7 @@ function mergeConsecutiveJvLinesSameAccountAndSide(lines) {
           j += 1
         } else break
       }
-      out.push({ ...line, debit: '', credit: Number(total.toFixed(2)) })
+      out.push({ ...line, debit: '', credit: roundAmt(total) })
       i = j
       continue
     }
@@ -661,23 +676,29 @@ function reconstructJvEditLines(editableEntries, entry, {
     let lineDesc = extractJvPostingLineDescription(e.description, batchNotes || narration)
     if (dedupeLineDescFromHeader && lineDesc === narration) lineDesc = ''
     if (drId && e.debitAccountId) {
+      const displayCur = showAsBatchCur
+        ? firstEntryCur
+        : inferJvAccountCurrency(drId)
       const displayDebit = showAsBatchCur
         ? Number(e.amount || 0)
-        : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
+        : convertJvAmount(e.amount, entryCur, displayCur)
       const debitAmount = Number.isFinite(Number(displayDebit)) ? Number(displayDebit) : Number(e.amount || 0)
       lines.push({
         id: id++,
         accountId: drId,
         accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`,
         description: lineDesc,
-        debit: Number(debitAmount.toFixed(2)),
+        debit: roundMoney(debitAmount, displayCur || baseCurrencyCode),
         credit: '',
       })
     }
     if (crId && e.creditAccountId) {
+      const displayCur = showAsBatchCur
+        ? firstEntryCur
+        : inferJvAccountCurrency(crId)
       const displayCredit = showAsBatchCur
         ? Number(e.amount || 0)
-        : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
+        : convertJvAmount(e.amount, entryCur, displayCur)
       const creditAmount = Number.isFinite(Number(displayCredit)) ? Number(displayCredit) : Number(e.amount || 0)
       lines.push({
         id: id++,
@@ -685,12 +706,13 @@ function reconstructJvEditLines(editableEntries, entry, {
         accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`,
         description: lineDesc,
         debit: '',
-        credit: Number(creditAmount.toFixed(2)),
+        credit: roundMoney(creditAmount, displayCur || baseCurrencyCode),
       })
     }
   }
 
-  const mergedLines = mergeConsecutiveJvLinesSameAccountAndSide(lines)
+  const mergeCurrency = showAsBatchCur ? firstEntryCur : ''
+  const mergedLines = mergeConsecutiveJvLinesSameAccountAndSide(lines, mergeCurrency)
 
   const rawDesc = String(entry.description || '')
   const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''

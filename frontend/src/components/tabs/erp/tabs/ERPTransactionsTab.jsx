@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatMoney as formatMoneyShared } from '../../../../utils/money'
 import TransactionComposerForm from './TransactionComposerForm'
 import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from '../erpListFilters'
@@ -63,7 +64,9 @@ export default function ERPTransactionsTab({
   transactionMeta,
   loading,
   erpAdvancedListFiltersEnabled = false,
+  baseCurrencyCode = 'USD',
 }) {
+  const formatMoney = (value, currency = baseCurrencyCode) => formatMoneyShared(value, currency)
   const { isEntryLocked, prefetchDates } = useAccountingPeriodLocks()
   const selectedPeriodLocked = Boolean(selectedTransaction && isEntryLocked(selectedTransaction))
   const selectedIdsPeriodLocked = (selectedTransactionIds || []).some((id) => {
@@ -170,7 +173,7 @@ export default function ERPTransactionsTab({
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem', fontWeight: '700' }}>TOTAL</p>
               <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.totalCount || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Amount {Number(transactionSummary.totalAmount || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Amount {formatMoney(transactionSummary.totalAmount || 0)}</p>
             </div>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, color: '#92400E', fontSize: '0.78rem', fontWeight: '700' }}>DRAFT</p>
@@ -291,7 +294,7 @@ export default function ERPTransactionsTab({
                 ) : null}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
-                <div style={emptyCardStyle}><strong>Amount:</strong> {selectedTransaction.currency} {Number(selectedTransaction.amount || 0).toLocaleString()}</div>
+                <div style={emptyCardStyle}><strong>Amount:</strong> {formatMoney(selectedTransaction.amount || 0, selectedTransaction.currency || baseCurrencyCode)}</div>
                 <div style={emptyCardStyle}><strong>Date:</strong> {selectedTransaction.date ? new Date(selectedTransaction.date).toLocaleDateString() : '-'}</div>
                 <div style={emptyCardStyle}><strong>Party:</strong> {getTransactionPartyLabel(selectedTransaction)}</div>
                 <div style={emptyCardStyle}><strong>Narration:</strong> {getLineNarration(selectedTransaction) || selectedTransaction.description || '-'}</div>
@@ -452,7 +455,7 @@ export default function ERPTransactionsTab({
                     <td style={{ padding: '0.65rem' }}>{new Date(tx.date).toLocaleDateString()}</td>
                     <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '700' }}>{TRANSACTION_TYPE_LABELS[tx.type] || tx.type}</td>
                     <td style={{ padding: '0.65rem' }}>{getTransactionPartyLabel(tx)}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{tx.currency} {Number(tx.amount || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{formatMoney(tx.amount || 0, tx.currency || baseCurrencyCode)}</td>
                     <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '600' }}><span style={{ padding: '0.25rem 0.5rem', borderRadius: '999px', ...(TRANSACTION_STATUS_STYLES[tx.status] || { background: '#E5E7EB', color: C.ink }) }}>{tx.status}</span></td>
                     <td style={{ padding: '0.65rem', maxWidth: '260px', color: C.inkSoft }}>{getTransactionDescription(tx)}</td>
                     <td style={{ padding: '0.65rem' }}>

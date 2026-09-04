@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { toMoney } from '../../../utils/money'
 
 /** Paginate vendors until all rows are merged (used by transactions + vendor tab). */
 export async function fetchAllVendorsAggregated(token, baseFilters = {}) {
@@ -36,7 +37,7 @@ export async function fetchAllVendorsAggregated(token, baseFilters = {}) {
     permissions,
     summary: {
       totalVendors: summaryTotals.count,
-      totalOutstanding: Number(summaryTotals.outstanding.toFixed(2)),
+      totalOutstanding: toMoney(summaryTotals.outstanding),
       overLimit: summaryTotals.overLimit,
       blacklisted: summaryTotals.blacklisted,
       onHold: summaryTotals.onHold,

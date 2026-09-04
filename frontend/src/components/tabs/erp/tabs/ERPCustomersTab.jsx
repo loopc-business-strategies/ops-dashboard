@@ -1,3 +1,5 @@
+import { formatMoney as formatMoneyShared } from '../../../../utils/money'
+
 export default function ERPCustomersTab({
   C,
   canManageCustomers,
@@ -10,7 +12,9 @@ export default function ERPCustomersTab({
   customers,
   handleEditCustomer,
   handleDeleteCustomer,
+  baseCurrencyCode = 'USD',
 }) {
+  const formatMoney = (value, currency = baseCurrencyCode) => formatMoneyShared(value, currency)
   return (
     <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
@@ -71,18 +75,20 @@ export default function ERPCustomersTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {customers.map((customer) => (
+                    {customers.map((customer) => {
+                      const cur = customer.currency || baseCurrencyCode
+                      return (
                       <tr key={customer._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
                         <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{customer.name}</td>
                         <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.phone || '-'}</td>
                         <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.email || '-'}</td>
                         <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.gstVat || '-'}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.openingBalance || 0).toLocaleString()}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.outstandingBalance || 0) > 0 ? C.s1 : Number(customer.outstandingBalance || 0) < 0 ? '#DC2626' : C.t2, fontWeight: '600' }}>{Number(customer.outstandingBalance || 0).toLocaleString()}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket0to30 || 0).toLocaleString()}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket31to60 || 0).toLocaleString()}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket61to90 || 0).toLocaleString()}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.aging?.bucket90Plus || 0) > 0 ? '#F59E0B' : C.t2, fontWeight: Number(customer.aging?.bucket90Plus || 0) > 0 ? '700' : '400' }}>{Number(customer.aging?.bucket90Plus || 0).toLocaleString()}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{formatMoney(customer.openingBalance || 0, cur)}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.outstandingBalance || 0) > 0 ? C.s1 : Number(customer.outstandingBalance || 0) < 0 ? '#DC2626' : C.t2, fontWeight: '600' }}>{formatMoney(customer.outstandingBalance || 0, cur)}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{formatMoney(customer.aging?.bucket0to30 || 0, cur)}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{formatMoney(customer.aging?.bucket31to60 || 0, cur)}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{formatMoney(customer.aging?.bucket61to90 || 0, cur)}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.aging?.bucket90Plus || 0) > 0 ? '#F59E0B' : C.t2, fontWeight: Number(customer.aging?.bucket90Plus || 0) > 0 ? '700' : '400' }}>{formatMoney(customer.aging?.bucket90Plus || 0, cur)}</td>
                         <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.ledgerAccountId?.accountCode || '-'}{customer.ledgerAccountId?.accountName ? ` - ${customer.ledgerAccountId.accountName}` : ''}</td>
                         <td style={{ padding: '0.75rem', color: C.t2 }}>
                           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -91,7 +97,8 @@ export default function ERPCustomersTab({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

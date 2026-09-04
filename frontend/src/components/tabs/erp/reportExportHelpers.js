@@ -227,6 +227,10 @@ export function buildReportPdfMeta({
   reportView = 'summary',
   reports = {},
   selectedReportAccountCode = '',
+  formatMoney = (value) => Number(value || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
 } = {}) {
   const titleBase = REPORT_PDF_TITLES[reportView] || 'ERP Report'
   const title = reportView === 'ledger' && selectedReportAccountCode
@@ -238,24 +242,24 @@ export function buildReportPdfMeta({
   if (reportView === 'trial' || reportView === 'summary') {
     const tb = reports.trialBalance || {}
     summaryLines.push(
-      `Total Debit: ${Number(tb.totalDebit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Total Credit: ${Number(tb.totalCredit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Difference: ${Number(tb.difference || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Total Debit: ${formatMoney(tb.totalDebit || 0)}`,
+      `Total Credit: ${formatMoney(tb.totalCredit || 0)}`,
+      `Difference: ${formatMoney(tb.difference || 0)}`,
       `Status: ${tb.balanced ? 'Balanced' : 'Out of balance'}`,
     )
   } else if (reportView === 'pnl') {
     const pnl = reports.profitLoss || {}
     summaryLines.push(
-      `Total Income: ${Number(pnl.totalIncome || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Total Expense: ${Number(pnl.totalExpense || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Net Profit: ${Number(pnl.netProfit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Total Income: ${formatMoney(pnl.totalIncome || 0)}`,
+      `Total Expense: ${formatMoney(pnl.totalExpense || 0)}`,
+      `Net Profit: ${formatMoney(pnl.netProfit || 0)}`,
     )
   } else if (reportView === 'balanceSheet') {
     const bs = reports.balanceSheet || {}
     summaryLines.push(
-      `Total Assets: ${Number(bs.totalAssets || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Liabilities + Equity: ${Number(bs.liabilitiesPlusEquity || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Working Capital: ${Number(bs.workingCapital || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Total Assets: ${formatMoney(bs.totalAssets || 0)}`,
+      `Liabilities + Equity: ${formatMoney(bs.liabilitiesPlusEquity || 0)}`,
+      `Working Capital: ${formatMoney(bs.workingCapital || 0)}`,
     )
   }
 

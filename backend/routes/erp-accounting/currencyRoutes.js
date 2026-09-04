@@ -23,9 +23,8 @@ const {
   fetchSilvDataPreciousMetalSpotBundle,
 } = require('../../services/metalSpotFeeds')
 
+const { toMoney } = require('../../shared/money')
 const TROY_OUNCE_GRAMS = 31.1034768
-const toMoney = (value) => Number(Number(value || 0).toFixed(2))
-
 function marketSpotToLiveRates(market = {}) {
   const unit = String(market.unit || 'toz').toLowerCase()
   const perToz = unit === 'toz' || unit === 'oz'

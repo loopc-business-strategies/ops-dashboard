@@ -207,20 +207,20 @@ export default function ERPReportsTab({
             </div>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, fontWeight: '700' }}>Profit & Loss</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Income: {Number(reports.profitLoss?.totalIncome || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Expense: {Number(reports.profitLoss?.totalExpense || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontWeight: '700', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger, fontSize: '0.82rem' }}>Net: {Number(reports.profitLoss?.netProfit || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Income: {formatMoney(reports.profitLoss?.totalIncome || 0)}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Expense: {formatMoney(reports.profitLoss?.totalExpense || 0)}</p>
+              <p style={{ margin: '0.2rem 0 0', fontWeight: '700', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger, fontSize: '0.82rem' }}>Net: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
             </div>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, fontWeight: '700' }}>Balance Sheet</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Assets: {Math.abs(Number(reports.balanceSheet?.totalAssets || 0)).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>L+E: {Math.abs(Number(reports.balanceSheet?.liabilitiesPlusEquity || 0)).toLocaleString()}</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Assets: {formatMoneyAbs(reports.balanceSheet?.totalAssets || 0)}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>L+E: {formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity || 0)}</p>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
             </div>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, fontWeight: '700' }}>Forex Impact</p>
               <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Entries: {Number(reports.forex?.entriesCount || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Impact: {Number(reports.forex?.forexImpact || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Impact: {formatMoney(reports.forex?.forexImpact || 0)}</p>
             </div>
           </div>
 
@@ -294,8 +294,8 @@ export default function ERPReportsTab({
                           <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
                           <td style={{ padding: '0.6rem' }}>{row.accountName}</td>
                           <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.debit || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.credit || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.debit || 0)}</td>
+                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.credit || 0)}</td>
                           <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
                             {formatDirectionalBalance(row.net)}
                           </td>
@@ -324,7 +324,7 @@ export default function ERPReportsTab({
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
                     <tbody>
                       {(reports.profitLoss?.incomeBreakdown || []).map((row) => (
-                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -337,16 +337,16 @@ export default function ERPReportsTab({
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
                     <tbody>
                       {(reports.profitLoss?.expenseBreakdown || []).map((row) => (
-                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem' }}>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Income: {Number(reports.profitLoss?.totalIncome || 0).toLocaleString()}</p>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Expense: {Number(reports.profitLoss?.totalExpense || 0).toLocaleString()}</p>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net Profit: {Number(reports.profitLoss?.netProfit || 0).toLocaleString()}</p>
-                  {reports.profitLoss?.previousPeriod && <p style={{ margin: '0.2rem 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {Number(reports.profitLoss?.varianceVsPrevious || 0).toLocaleString()}</p>}
+                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Income: {formatMoney(reports.profitLoss?.totalIncome || 0)}</p>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Expense: {formatMoney(reports.profitLoss?.totalExpense || 0)}</p>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net Profit: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
+                  {reports.profitLoss?.previousPeriod && <p style={{ margin: '0.2rem 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {formatMoney(reports.profitLoss?.varianceVsPrevious || 0)}</p>}
                 </div>
               </div>
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
@@ -389,10 +389,10 @@ export default function ERPReportsTab({
                 </div>
               ))}
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {Math.abs(Number(reports.balanceSheet?.totalAssets || 0)).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {Math.abs(Number(reports.balanceSheet?.liabilitiesPlusEquity || 0)).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0', color: Math.abs(Number(reports.balanceSheet?.difference || 0)) < 0.01 ? C.s1 : C.danger, fontWeight: '800' }}>Difference: {Number(reports.balanceSheet?.difference || 0).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0' }}>Working Capital: {Number(reports.balanceSheet?.workingCapital || 0).toLocaleString()}</p>
+                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {formatMoneyAbs(reports.balanceSheet?.totalAssets || 0)}</p>
+                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity || 0)}</p>
+                <p style={{ margin: '0.15rem 0', color: Math.abs(Number(reports.balanceSheet?.difference || 0)) < 0.01 ? C.s1 : C.danger, fontWeight: '800' }}>Difference: {formatMoney(reports.balanceSheet?.difference || 0)}</p>
+                <p style={{ margin: '0.15rem 0' }}>Working Capital: {formatMoney(reports.balanceSheet?.workingCapital || 0)}</p>
                 <p style={{ margin: '0.15rem 0' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
               </div>
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
@@ -419,7 +419,7 @@ export default function ERPReportsTab({
               {renderActivePeriodBadge('0.5rem')}
               <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Day Book Entries</p>
               <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.84rem' }}>
-                Total Entries: {reports.dayBook?.totals?.count || 0} | Debit: {Number(reports.dayBook?.totals?.debit || 0).toLocaleString()} | Credit: {Number(reports.dayBook?.totals?.credit || 0).toLocaleString()}
+                Total Entries: {reports.dayBook?.totals?.count || 0} | Debit: {formatMoney(reports.dayBook?.totals?.debit || 0)} | Credit: {formatMoney(reports.dayBook?.totals?.credit || 0)}
               </p>
               {dayBookEntries.length > DAY_BOOK_UI_ROW_CAP && (
                 <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.82rem' }}>
@@ -446,7 +446,7 @@ export default function ERPReportsTab({
                         <td style={{ padding: '0.5rem' }}>{entry.description || '-'}</td>
                         <td style={{ padding: '0.5rem' }}>{entry.debitAccountId?.accountCode} - {entry.debitAccountId?.accountName}</td>
                         <td style={{ padding: '0.5rem' }}>{entry.creditAccountId?.accountCode} - {entry.creditAccountId?.accountName}</td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(entry.amount || 0).toLocaleString()}</td>
+                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(entry.amount || 0)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -462,7 +462,7 @@ export default function ERPReportsTab({
               </p>
               <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.45rem' }}>Customer Outstanding</p>
-                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {Number(reports.customerOutstanding?.totals?.outstanding || 0).toLocaleString()} | Limit Exceeded: {reports.customerOutstanding?.totals?.limitExceededCount || 0}</p>
+                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {formatMoney(reports.customerOutstanding?.totals?.outstanding || 0)} | Limit Exceeded: {reports.customerOutstanding?.totals?.limitExceededCount || 0}</p>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Customer</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Ledger</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Outstanding</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>0-30</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>31-60</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>61-90</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>90+</th><th style={{ padding: '0.5rem', textAlign: 'center' }}>Limit</th></tr></thead>
@@ -471,11 +471,11 @@ export default function ERPReportsTab({
                         <tr key={row.customerId} style={{ borderBottom: `1px solid ${C.p2}` }}>
                           <td style={{ padding: '0.5rem' }}>{row.customerName}</td>
                           <td style={{ padding: '0.5rem' }}>{row.ledgerAccount?.accountCode || '-'}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.outstanding || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket0to30 || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket31to60 || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket61to90 || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket90Plus || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.outstanding || 0)}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.aging?.bucket0to30 || 0)}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.aging?.bucket31to60 || 0)}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.aging?.bucket61to90 || 0)}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.aging?.bucket90Plus || 0)}</td>
                           <td style={{ padding: '0.5rem', textAlign: 'center', color: row.limitExceeded ? C.danger : C.s1, fontWeight: '700' }}>{row.limitExceeded ? 'Exceeded' : 'OK'}</td>
                         </tr>
                       ))}
@@ -486,7 +486,7 @@ export default function ERPReportsTab({
 
               <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.45rem' }}>Vendor Outstanding</p>
-                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {Number(reports.vendorOutstanding?.totals?.outstanding || 0).toLocaleString()} | Credit: {Number(reports.vendorOutstanding?.totals?.credit || 0).toLocaleString()}</p>
+                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {formatMoney(reports.vendorOutstanding?.totals?.outstanding || 0)} | Credit: {formatMoney(reports.vendorOutstanding?.totals?.credit || 0)}</p>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Vendor</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Ledger</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Outstanding</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th></tr></thead>
@@ -495,7 +495,7 @@ export default function ERPReportsTab({
                         <tr key={row.vendorId} style={{ borderBottom: `1px solid ${C.p2}` }}>
                           <td style={{ padding: '0.5rem' }}>{row.vendorName}</td>
                           <td style={{ padding: '0.5rem' }}>{row.ledgerAccount?.accountCode || '-'}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.outstanding || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.outstanding || 0)}</td>
                           <td style={{ padding: '0.5rem' }}>{row.outstandingType || '-'}</td>
                         </tr>
                       ))}
@@ -510,13 +510,13 @@ export default function ERPReportsTab({
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
               {renderActivePeriodBadge('0.5rem')}
               <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Forex Gain/Loss Analysis</p>
-              <p style={{ margin: '0 0 0.6rem', color: C.inkSoft, fontSize: '0.84rem' }}>Entries: {reports.forex?.entriesCount || 0} | Total Impact: {Number(reports.forex?.forexImpact || 0).toLocaleString()}</p>
+              <p style={{ margin: '0 0 0.6rem', color: C.inkSoft, fontSize: '0.84rem' }}>Entries: {reports.forex?.entriesCount || 0} | Total Impact: {formatMoney(reports.forex?.forexImpact || 0)}</p>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
                   <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Currency</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Entries</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Impact</th></tr></thead>
                   <tbody>
                     {Object.entries(reports.forex?.byCurrency || {}).map(([currency, row]) => (
-                      <tr key={currency} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{currency}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.count || 0).toLocaleString()}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.impact || 0).toLocaleString()}</td></tr>
+                      <tr key={currency} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{currency}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.count || 0).toLocaleString()}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.impact || 0)}</td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -563,10 +563,10 @@ export default function ERPReportsTab({
                         <td style={{ padding: '0.5rem' }}>{row.description || '-'}</td>
                         <td style={{ padding: '0.5rem' }}>{row.debitAccount?.accountCode || '-'}</td>
                         <td style={{ padding: '0.5rem' }}>{row.creditAccount?.accountCode || '-'}</td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td>
+                        <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td>
                         <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700', color: Number(row.runningBalance || 0) >= 0 ? C.s1 : C.danger }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <span>{Number(row.runningBalance || 0).toLocaleString()}</span>
+                            <span>{formatMoney(row.runningBalance || 0)}</span>
                             <button onClick={() => handleOpenVoucherSource(row.entryId)} style={{ padding: '0.25rem 0.45rem', borderRadius: '0.3rem', border: '1px solid #D1D5DB', background: '#F9FAFB', color: C.ink, cursor: 'pointer', fontSize: '0.74rem', fontWeight: '700' }}>Source</button>
                           </div>
                         </td>

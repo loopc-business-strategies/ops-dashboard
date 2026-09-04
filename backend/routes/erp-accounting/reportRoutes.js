@@ -1465,12 +1465,12 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       supplierMetalPositionMap.set(vendorId, position)
       const voucherAmount = Math.abs(Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1))
       const premiumAmount = Math.abs(calculateUnfixedPremiumAmount(lines) * Number(tx.exchangeRate || 1))
-      const unpricedAmount = Number(Math.max(voucherAmount - premiumAmount, 0).toFixed(2))
+      const unpricedAmount = toMoney(Math.max(voucherAmount - premiumAmount, 0))
       if (unpricedAmount > 0) {
         const signedRevaluation = tx.type === 'purchase' ? -unpricedAmount : unpricedAmount
         supplierUnfixedRevaluationMap.set(
           vendorId,
-          Number(((supplierUnfixedRevaluationMap.get(vendorId) || 0) + signedRevaluation).toFixed(2))
+          toMoney((supplierUnfixedRevaluationMap.get(vendorId) || 0) + signedRevaluation)
         )
       }
     })

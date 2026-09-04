@@ -104,6 +104,7 @@ export async function buildReportPrintHtml({
     reportView,
     reports,
     selectedReportAccountCode,
+    formatMoney,
   })
   const logoMarkup = await buildBrandingLogoTag(branding, 'margin-bottom:10px;')
   const head = buildReportPrintHead({ reportTitle: title, periodText, logoMarkup })
@@ -173,6 +174,7 @@ export async function exportReportPdf({
     reportView,
     reports,
     selectedReportAccountCode,
+    formatMoney,
   })
   const { head, body } = buildReportPdfTable({
     reportView,

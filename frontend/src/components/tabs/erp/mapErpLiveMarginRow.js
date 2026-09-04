@@ -1,16 +1,16 @@
 import { computeMarginMetricsRaw } from './metalMarginPolicy'
+import { formatAmount } from '../../../utils/money'
 
-function fmtSigned(val) {
+function fmtSigned(val, currencyCode) {
   const n = Number(val || 0)
-  const formatted = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const formatted = formatAmount(Math.abs(n), { currencyCode })
   if (n > 0) return `+${formatted}`
   if (n < 0) return `-${formatted}`
   return formatted
 }
 
-function fmtMoney(val) {
-  const n = Number(val || 0)
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function fmtMoney(val, currencyCode) {
+  return formatAmount(val, { currencyCode })
 }
 
 function fmtPosition(val) {
@@ -60,15 +60,16 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
   const rawMargin = marginPercent ?? row?.marginPercent
   marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (Math.abs(net) / marginAmount) * 100 : 0)
 
+  const currencyCode = options.baseCurrencyCode || options.currencyCode || ''
   return {
     name: String(row?.[nameKey] || row?.name || '-'),
     equity: net,
-    equityFmt: fmtSigned(net),
+    equityFmt: fmtSigned(net, currencyCode),
     status,
     marginAmount,
-    marginAmountFmt: fmtMoney(marginAmount),
+    marginAmountFmt: fmtMoney(marginAmount, currencyCode),
     excess,
-    excessFmt: fmtSigned(excess),
+    excessFmt: fmtSigned(excess, currencyCode),
     goldPosition,
     silverPosition,
     marginFmt: Number.isFinite(marginPercent) ? `${Number(marginPercent).toFixed(2)} %` : '—',

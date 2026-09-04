@@ -1,5 +1,5 @@
 import { expenseMonthLabel } from './expenseMonthFilterUtils'
-import { toMoney } from '../../../utils/money'
+import { toMoney, formatMoney } from '../../../utils/money'
 
 function formatExportDate(value) {
   if (!value) return ''
@@ -104,9 +104,8 @@ function truncateText(value, max = 80) {
   return `${text.slice(0, max - 1)}…`
 }
 
-function formatPdfAmount(value) {
-  const n = Number(value || 0)
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function formatPdfAmount(value, currencyCode = 'USD') {
+  return formatMoney(value, currencyCode)
 }
 
 function capitalizeReferenceType(value) {
