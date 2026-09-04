@@ -2,6 +2,13 @@
  * Vendor document compliance, expiry buckets, summaries, and payment calendar helpers.
  */
 
+/** Round utilization % and similar ratios — not money amounts. */
+const roundRatio = (value, digits = 2) => {
+  const n = Number(value || 0)
+  if (!Number.isFinite(n)) return 0
+  return Number(n.toFixed(digits))
+}
+
 const REQUIRED_VENDOR_DOCUMENTS_BY_CATEGORY = {
   general: ['contract', 'trade_license', 'vat_certificate', 'bank_proof'],
   logistics: ['contract', 'trade_license', 'vat_certificate', 'bank_proof'],
@@ -160,7 +167,7 @@ function createVendorComplianceService({
     const purchaseAmount = postedAmountSummary.find((row) => row._id === 'purchase')?.total || 0
     const paymentAmount = postedAmountSummary.find((row) => row._id === 'payment')?.total || 0
     const outstanding = toMoney(Math.abs(outstandingRaw))
-    const utilization = Number(vendor.creditLimit || 0) > 0 ? toMoney((outstanding / Number(vendor.creditLimit || 1)) * 100) : 0
+    const utilization = Number(vendor.creditLimit || 0) > 0 ? roundRatio((outstanding / Number(vendor.creditLimit || 1)) * 100) : 0
     const compliance = evaluateVendorCompliance(vendor)
 
     return {
@@ -247,7 +254,7 @@ function createVendorComplianceService({
       const outstanding = toMoney(Math.abs(outstandingRaw))
       const vid = String(vendor._id)
       const tx = txMap.get(vid) || { purchaseCount: 0, paymentCount: 0, purchaseAmount: 0, paymentAmount: 0 }
-      const utilization = Number(vendor.creditLimit || 0) > 0 ? toMoney((outstanding / Number(vendor.creditLimit || 1)) * 100) : 0
+      const utilization = Number(vendor.creditLimit || 0) > 0 ? roundRatio((outstanding / Number(vendor.creditLimit || 1)) * 100) : 0
       const compliance = evaluateVendorCompliance(vendor)
       return {
         outstanding,

@@ -1,4 +1,14 @@
-const defaultToMoney = (value) => Number(Number(value || 0).toFixed(2))
+const { toMoney: sharedToMoney } = require('../../shared/money')
+
+/** Base money posting/report contract (2dp). Prefer injected `toMoney` from callers. */
+const defaultToMoney = sharedToMoney
+
+/** Round ratios / percents — not money amounts (do not use toMoney for these). */
+const roundRatio = (value, digits = 2) => {
+  const n = Number(value || 0)
+  if (!Number.isFinite(n)) return 0
+  return Number(n.toFixed(digits))
+}
 
 const toStartOfDay = (value) => {
   const date = new Date(value)
@@ -111,7 +121,7 @@ function summarizeProfitLossEntriesFromLedgerRows(
     expenseBreakdown,
     topIncome: incomeBreakdown.slice(0, 10),
     topExpenses: expenseBreakdown.slice(0, 10),
-    grossMarginPct: totalIncome > 0 ? toMoney(((totalIncome - totalExpense) / totalIncome) * 100) : 0,
+    grossMarginPct: totalIncome > 0 ? roundRatio(((totalIncome - totalExpense) / totalIncome) * 100) : 0,
   }
 }
 
@@ -203,7 +213,7 @@ function buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount, includ
   const currentAssets = toMoney(assets.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
   const currentLiabilities = toMoney(liabilities.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
   const workingCapital = toMoney(Number(currentAssets) - Number(currentLiabilities))
-  const currentRatio = Number(currentLiabilities) > 0 ? toMoney(Number(currentAssets) / Number(currentLiabilities)) : null
+  const currentRatio = Number(currentLiabilities) > 0 ? roundRatio(Number(currentAssets) / Number(currentLiabilities)) : null
 
   return {
     assets,
@@ -471,4 +481,6 @@ module.exports = {
   filterTrialBalanceRowsForIncludeZero,
   toEndOfDay,
   toStartOfDay,
+  roundRatio,
+  defaultToMoney,
 }
