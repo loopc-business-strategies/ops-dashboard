@@ -2,7 +2,7 @@
 
 Ordered production-safety and maintainability work.
 
-**Last reviewed:** 2026-07-30 · **HEAD:** see `git log -1`
+**Last reviewed:** 2026-09-04 · **HEAD:** see `git log -1`
 
 ---
 
@@ -11,8 +11,8 @@ Ordered production-safety and maintainability work.
 | # | Item | Status |
 |---|------|--------|
 | 1 | **Live metal fan-out all tenants** | **Done** — code, HTTP test, prod `verify:live-metal-movement:all` 3/3 |
-| 2 | **Redis multi-instance** | **Done** — Railway `REQUIRE_REDIS=true` + `REDIS_URL`; `/api/ready` fail-closed. **Post-deploy smoke** asserts `redisRequired` + `redisReady` + `socketIoRedisAdapter` (`SMOKE_REQUIRE_REDIS`, default on). |
-| 3 | **Mongo backup verification** | **Blocked for strict** — `ATLAS_BACKUP_PHASE` remains `deferred` (do not flip without keys). Missing: `ATLAS_PUBLIC_KEY`, `ATLAS_PRIVATE_KEY`, `ATLAS_GROUP_ID_MG`, `ATLAS_GROUP_ID_CG`, `ATLAS_GROUP_ID_LOOPC`. **Operator next:** (1) Atlas Org → Access Manager → create API key; (2) each project MG/CG/LoopC → Settings → copy Project ID; (3) each cluster → Backup → enable M10+ Cloud Backup, retention ≥7d; (4) `gh secret set` each; (5) `ATLAS_BACKUP_PHASE=strict npm run check:atlas-strict-readiness` + `npm run drill:atlas-backup-plan -- --strict-backup`; (6) only if green: `gh variable set ATLAS_BACKUP_PHASE --body strict`. Interim: `MONGO_BACKUP_ENABLED=true` weekly mongodump. |
+| 2 | **Redis multi-instance** | **Done** — Railway `REQUIRE_REDIS=true` + `REDIS_URL`; `/api/ready` fail-closed. **Verified 2026-09-04:** prod `/api/ready` reports `redisRequired` + `redisReady` + Socket.IO Redis adapter. **Post-deploy smoke** asserts the same (`SMOKE_REQUIRE_REDIS`, default on). |
+| 3 | **Mongo backup verification** | **Blocked for strict** — `ATLAS_BACKUP_PHASE` remains `deferred` (do not flip without keys). Missing: `ATLAS_PUBLIC_KEY`, `ATLAS_PRIVATE_KEY`, `ATLAS_GROUP_ID_MG`, `ATLAS_GROUP_ID_CG`, `ATLAS_GROUP_ID_LOOPC`. **Operator next:** (1) Atlas Org → Access Manager → create API key; (2) each project MG/CG/LoopC → Settings → copy Project ID; (3) each cluster → Backup → enable M10+ Cloud Backup, retention ≥7d; (4) `gh secret set` each; (5) `ATLAS_BACKUP_PHASE=strict npm run check:atlas-strict-readiness` + `npm run drill:atlas-backup-plan -- --strict-backup`; (6) only if green: `gh variable set ATLAS_BACKUP_PHASE --body strict`. Interim: `MONGO_BACKUP_ENABLED=true` weekly mongodump. **Checked 2026-09-04:** `npm run check:atlas-strict-readiness` still skips (phase=deferred). |
 
 ---
 

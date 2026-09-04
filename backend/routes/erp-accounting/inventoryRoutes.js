@@ -51,6 +51,8 @@ function registerInventoryRoutes(deps) {
     nextInventoryAccountCode,
     toMoney,
     assertAccountingPeriodOpen,
+    Currency,
+    BASE_CURRENCY_CODE,
   } = deps
 
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
@@ -85,12 +87,16 @@ function registerInventoryRoutes(deps) {
       const { sku, name, category, unit, unitCost, sellingPrice, quantity, currency, minThreshold, supplierName, weight, wipStage } = req.body
       if (!name) return res.status(400).json({ success: false, message: 'Product name is required' })
 
+      const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+      const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+      const resolvedCurrency = String(currency || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
+
       const accountCode = await nextInventoryAccountCode()
       const stockAccount = await ChartOfAccount.create({
         accountName: `${name} Stock`,
         accountCode,
         accountType: 'Asset',
-        currency: currency || 'USD',
+        currency: resolvedCurrency,
         description: `Auto-created stock account for ${name}`,
         createdBy: req.user._id,
       })

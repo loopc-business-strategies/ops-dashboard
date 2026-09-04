@@ -46,6 +46,8 @@ function registerDirectDealsRoutes(deps) {
     toQty,
     toMoney,
     assertAccountingPeriodOpen,
+    Currency,
+    BASE_CURRENCY_CODE,
   } = deps
 
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
@@ -120,7 +122,7 @@ function registerDirectDealsRoutes(deps) {
         entryType = 'fixing',
         docDate,
         valueDate,
-        currency = 'USD',
+        currency,
         branch = 'HO',
         status = 'draft',
         remarks = '',
@@ -134,6 +136,10 @@ function registerDirectDealsRoutes(deps) {
         return res.status(400).json({ success: false, message: 'At least one line item is required' })
       }
 
+      const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+      const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+      const resolvedCurrency = String(currency || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
+
       const normalizedLines = await Promise.all(lineItems.map((line, index) => normalizeDirectDealLine(line, index)))
 
       const totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
@@ -145,7 +151,7 @@ function registerDirectDealsRoutes(deps) {
         entryType,
         docDate: docDate ? new Date(docDate) : new Date(),
         valueDate: valueDate ? new Date(valueDate) : (docDate ? new Date(docDate) : new Date()),
-        currency: String(currency || 'USD').toUpperCase(),
+        currency: resolvedCurrency,
         branch: String(branch || 'HO').trim(),
         status: ['draft', 'confirmed'].includes(String(status)) ? String(status) : 'draft',
         remarks: String(remarks || '').trim(),

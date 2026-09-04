@@ -19,6 +19,7 @@ vi.mock('../../api/erp-accounting', () => ({
   default: {
     getFinanceSummary: vi.fn(async () => ({ summary: {} })),
     getFinanceRecords: vi.fn(async () => ({ records: [] })),
+    getCurrencies: vi.fn(async () => ({ currencies: [{ code: 'USD', baseCurrency: true }] })),
   },
 }))
 

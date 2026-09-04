@@ -340,6 +340,8 @@ function registerVendorRoutes(deps) {
       ])
 
       const paymentScheduleMap = await batchVendorPaymentCalendars(vendors, { horizonDays })
+      const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+      const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
       const queue = []
       vendors.forEach((vendor) => {
         const schedule = paymentScheduleMap.get(String(vendor._id || '')) || { calendar: [] }
@@ -348,9 +350,10 @@ function registerVendorRoutes(deps) {
           .forEach((entry) => {
             const dueAmount = Number(entry.remaining || 0)
             const overdueDays = Math.abs(Number(entry.daysToDue || 0))
+            const moneyCur = entry.currency || vendor.currency || baseCurrencyCode
             const subject = `Overdue vendor payment: ${vendor.name} (${vendor.vendorCode || 'N/A'})`
             const recipient = vendor.email || ''
-            const preview = `${dueAmount.toLocaleString()} ${entry.currency || vendor.currency || 'USD'} overdue by ${overdueDays} days`
+            const preview = `${dueAmount.toLocaleString()} ${moneyCur} overdue by ${overdueDays} days`
 
             queue.push({
               queueId: `VENDOR-DUE-${vendor._id}-${entry.purchaseTransactionId}`,
@@ -364,7 +367,7 @@ function registerVendorRoutes(deps) {
                 'Dear Vendor Team,',
                 '',
                 `This is a payment reminder for ${vendor.name}.`,
-                `Outstanding amount: ${dueAmount.toLocaleString()} ${entry.currency || vendor.currency || 'USD'}.`,
+                `Outstanding amount: ${dueAmount.toLocaleString()} ${moneyCur}.`,
                 `Invoice due date: ${new Date(entry.dueDate).toLocaleDateString()}.`,
                 `Overdue by: ${overdueDays} days.`,
                 '',
@@ -383,7 +386,7 @@ function registerVendorRoutes(deps) {
                 dueDate: entry.dueDate,
                 overdueDays,
                 purchaseTransactionId: entry.purchaseTransactionId,
-                currency: entry.currency || vendor.currency || 'USD',
+                currency: moneyCur,
                 amountDue: toMoney(dueAmount),
               },
               createdAt: new Date(),

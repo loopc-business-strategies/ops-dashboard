@@ -39,6 +39,7 @@ function createVendorComplianceService({
   toMoney,
   getOutstandingForAccount,
   getAgingForAccount,
+  BASE_CURRENCY_CODE = 'USD',
 }) {
   const evaluateVendorCompliance = (vendor, asOfDate = new Date()) => {
     const category = normalizeVendorCategory(vendor.category)
@@ -308,7 +309,7 @@ function createVendorComplianceService({
       dueDate: new Date((tx.date ? new Date(tx.date) : new Date()).getTime() + Number(vendor.paymentTermsDays || 0) * 86400000),
       amount: Number(tx.amount || 0),
       remaining: Number(tx.amount || 0),
-      currency: tx.currency || vendor.currency || 'USD',
+      currency: tx.currency || vendor.currency || BASE_CURRENCY_CODE || 'USD',
       description: tx.description || '',
     }))
 

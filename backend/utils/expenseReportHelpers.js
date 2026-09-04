@@ -61,12 +61,13 @@ function resolveLedgerRef(entry) {
   return autoTxNo || txRefNo || chequeNo || ''
 }
 
-function mapExpenseLedgerEntry(entry, accountMetaMap, getAccountType, toMoney) {
+function mapExpenseLedgerEntry(entry, accountMetaMap, getAccountType, toMoney, baseCurrencyCode = 'USD') {
   const debitMeta = accountMetaMap.get(String(entry.debitAccountId)) || {}
   const creditMeta = accountMetaMap.get(String(entry.creditAccountId)) || {}
   const debitType = getAccountType(entry.debitAccountId)
   const creditType = getAccountType(entry.creditAccountId)
   const isCreditExpense = creditType === 'Expense' && debitType !== 'Expense'
+  const resolvedCurrency = entry.currency || baseCurrencyCode || 'USD'
 
   if (isCreditExpense) {
     const category = creditMeta.accountName || 'Other'
@@ -76,7 +77,7 @@ function mapExpenseLedgerEntry(entry, accountMetaMap, getAccountType, toMoney) {
       id: String(entry._id),
       date: entry.date,
       amount: toMoney(signedAmount),
-      currency: entry.currency || 'USD',
+      currency: resolvedCurrency,
       category,
       description: entry.description || entry.notes || '-',
       paymentSource,
@@ -107,7 +108,7 @@ function mapExpenseLedgerEntry(entry, accountMetaMap, getAccountType, toMoney) {
     id: String(entry._id),
     date: entry.date,
     amount: toMoney(getLedgerEntryAmount(entry)),
-    currency: entry.currency || 'USD',
+    currency: resolvedCurrency,
     category,
     description: entry.description || entry.notes || '-',
     paymentSource,
@@ -137,6 +138,7 @@ function buildExpenseRegisterFromLedger({
   paymentSourceFilter = 'all',
   limit = 200,
   toMoney,
+  baseCurrencyCode = 'USD',
 }) {
   const getType = (accountId) => accountMetaMap.get(String(accountId))?.accountType || ''
   const normalizedCategory = String(categoryFilter || '').trim()
@@ -160,6 +162,7 @@ function buildExpenseRegisterFromLedger({
     accountMetaMap,
     getType,
     toMoney,
+    baseCurrencyCode,
   ))
 
   const categories = [...new Set(allItems.map((item) => item.category).filter(Boolean))]

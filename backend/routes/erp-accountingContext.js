@@ -345,6 +345,7 @@ const vendorComplianceService = createVendorComplianceService({
   toMoney,
   getOutstandingForAccount,
   getAgingForAccount,
+  BASE_CURRENCY_CODE,
 })
 
 const {
@@ -417,6 +418,8 @@ function registerErpAccountingRoutes(router) {
     toMoney,
     getTransactionWorkflowErrorStatus,
     assertAccountingPeriodOpen,
+    Currency,
+    BASE_CURRENCY_CODE,
   })
   
   // ==========================================
@@ -594,6 +597,8 @@ function registerErpAccountingRoutes(router) {
     nextInventoryAccountCode,
     toMoney,
     assertAccountingPeriodOpen,
+    Currency,
+    BASE_CURRENCY_CODE,
   })
   
   registerDirectDealsRoutes({
@@ -612,6 +617,8 @@ function registerErpAccountingRoutes(router) {
     toQty,
     toMoney,
     assertAccountingPeriodOpen,
+    Currency,
+    BASE_CURRENCY_CODE,
   })
   
   // ==========================================
@@ -725,6 +732,7 @@ function registerErpAccountingRoutes(router) {
     evaluateVendorCompliance,
     canAccessReports,
     canReadErpDashboardReport,
+    BASE_CURRENCY_CODE,
   })
 }
 

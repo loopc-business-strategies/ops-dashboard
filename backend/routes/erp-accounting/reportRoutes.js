@@ -85,6 +85,7 @@ function registerReportRoutes(deps) {
     evaluateVendorCompliance,
     canAccessReports,
     canReadErpDashboardReport,
+    BASE_CURRENCY_CODE,
   } = deps
 
   const {
@@ -1043,7 +1044,7 @@ router.get('/reports/expense-register', protect, reportExportLimiter, async (req
       return res.json(cached)
     }
 
-    const [accountMetaMap, ledgerEntries] = await Promise.all([
+    const [accountMetaMap, ledgerEntries, baseCurrency] = await Promise.all([
       loadAccountMetaMap(ChartOfAccount),
       Ledger.find({
         date: { $gte: periodStart, $lte: periodEnd },
@@ -1051,7 +1052,9 @@ router.get('/reports/expense-register', protect, reportExportLimiter, async (req
       })
         .select('date amount exchangeRate debitAccountId creditAccountId description referenceType currency paymentType notes autoTxNo chequeNo txRefNo')
         .lean(),
+      Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(),
     ])
+    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
 
     const register = buildExpenseRegisterFromLedger({
       ledgerEntries,
@@ -1062,6 +1065,7 @@ router.get('/reports/expense-register', protect, reportExportLimiter, async (req
       paymentSourceFilter: paymentSource,
       limit,
       toMoney,
+      baseCurrencyCode,
     })
 
     const payload = {
@@ -1161,7 +1165,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       .filter((entry) => isDashboardExpenseRegisterEntry(entry, getType))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
     const recentExpenses = expenseEntries.slice(0, 5).map((entry) => {
-      const mapped = mapExpenseLedgerEntry(entry, accountMetaMap, getType, toMoney)
+      const mapped = mapExpenseLedgerEntry(entry, accountMetaMap, getType, toMoney, BASE_CURRENCY_CODE || 'USD')
       return {
         date: mapped.date,
         category: mapped.category,

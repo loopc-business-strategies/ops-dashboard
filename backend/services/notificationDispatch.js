@@ -8,6 +8,7 @@ const {
   resolveVoucherRef,
   buildVoucherWorkflowMessage,
 } = require('./voucherNotificationHelpers')
+const { BASE_CURRENCY_CODE } = require('../routes/erp-accounting/transactionHelpers')
 
 let realtimeServerRef = null
 
@@ -64,7 +65,7 @@ async function notifyErpUsers(tenant, type, data = {}) {
 function buildVoucherNotificationData(tx, extra = {}) {
   const vocNo = resolveVoucherRef(tx)
   const amount = Number(tx?.amount || 0)
-  const currency = String(tx?.currency || 'USD').toUpperCase()
+  const currency = String(tx?.currency || extra.baseCurrencyCode || BASE_CURRENCY_CODE || 'USD').toUpperCase()
   const partyName = String(tx?.voucherMeta?.partyName || '').trim()
   const partyCode = String(tx?.voucherMeta?.partyCode || '').trim()
   const partyLabel = resolveVoucherPartyLabel(tx)

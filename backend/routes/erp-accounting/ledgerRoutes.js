@@ -15,6 +15,7 @@ const { escapeRegex } = require('../../utils/escapeRegex')
 const { buildLedgerListSearchOr } = require('../../utils/ledgerListSearch')
 const { applyYearMonthsDateFilter } = require('../../utils/yearMonthsDateFilter')
 const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
+const { BASE_CURRENCY_CODE: FALLBACK_BASE_CURRENCY_CODE } = require('./transactionHelpers')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -67,7 +68,7 @@ async function loadAccountLabelMap(tenant, accountIds = []) {
 async function queueJvPostedNotify(tenantKey, {
   vocNo,
   amount,
-  currency = 'USD',
+  currency = FALLBACK_BASE_CURRENCY_CODE,
   debitAccountId,
   creditAccountId,
   isBankJv = false,
@@ -75,17 +76,18 @@ async function queueJvPostedNotify(tenantKey, {
   const accountMap = await loadAccountLabelMap(tenantKey, [debitAccountId, creditAccountId])
   const debitLabel = formatNotificationAccountLabel(accountMap.get(String(debitAccountId)))
   const creditLabel = formatNotificationAccountLabel(accountMap.get(String(creditAccountId)))
+  const resolvedCurrency = String(currency || FALLBACK_BASE_CURRENCY_CODE || 'USD').toUpperCase()
   const payload = {
     vocNo,
     amount: Number(amount || 0),
-    currency: String(currency || 'USD').toUpperCase(),
+    currency: resolvedCurrency,
     debitAccountName: debitLabel,
     creditAccountName: creditLabel,
-    formattedAmount: formatNotificationMoney(amount, currency),
+    formattedAmount: formatNotificationMoney(amount, resolvedCurrency),
     message: buildJvPostedMessage({
       vocNo,
       amount,
-      currency,
+      currency: resolvedCurrency,
       debitLabel,
       creditLabel,
       isBankJv,

@@ -33,6 +33,8 @@ function registerCustomerRoutes(deps) {
     toMoney,
     getTransactionWorkflowErrorStatus,
     assertAccountingPeriodOpen,
+    Currency,
+    BASE_CURRENCY_CODE,
   } = deps
 
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
@@ -238,6 +240,10 @@ function registerCustomerRoutes(deps) {
         return res.status(400).json({ success: false, message: 'Customer name is required' })
       }
 
+      const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+      const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+      const resolvedCurrency = String(currency || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
+
       const receivableParent = await ChartOfAccount.findOne({
         accountType: 'Asset',
         isActive: true,
@@ -253,7 +259,7 @@ function registerCustomerRoutes(deps) {
         accountCode,
         accountType: 'Asset',
         parentAccountId: receivableParent?._id || null,
-        currency: currency || 'USD',
+        currency: resolvedCurrency,
         description: `Auto-created receivable account for customer ${name}`,
         createdBy: req.user._id,
       })
@@ -267,7 +273,7 @@ function registerCustomerRoutes(deps) {
         openingBalance: Number(openingBalance || 0),
         creditLimit: Number(creditLimit || 0),
         paymentTermsDays: Number(paymentTermsDays || 0),
-        currency: currency || 'USD',
+        currency: resolvedCurrency,
         notes,
         ledgerAccountId: debtorAccount._id,
         createdBy: req.user._id,
@@ -283,7 +289,7 @@ function registerCustomerRoutes(deps) {
             accountName: 'Owner Equity',
             accountCode: '3000',
             accountType: 'Equity',
-            currency: currency || 'USD',
+            currency: resolvedCurrency,
             description: 'Default equity account for opening balances',
             createdBy: req.user._id,
           })
@@ -298,7 +304,7 @@ function registerCustomerRoutes(deps) {
           referenceType: 'journal',
           createdBy: req.user._id,
           department: req.user.department,
-          currency: currency || 'USD',
+          currency: resolvedCurrency,
         })
       }
 
