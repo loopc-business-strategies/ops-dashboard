@@ -1,4 +1,5 @@
 import type { LedgerEntryRow } from '@/src/api/ledger'
+import { roundMoney } from '@/src/utils/money'
 
 const SYSTEM_FX_ADJUSTMENT_DESC_RE = /Exchange (gain|loss) adjustment for transaction /i
 
@@ -129,7 +130,10 @@ export function groupJvLedgerEntries(
       sorted.every((e) => normalizeJvCurrencyCode(e?.currency || repCur) === repCur)
     const documentFaceAmount =
       allSameCur && repCur && repCur !== baseNorm
-        ? Number(sorted.reduce((sum, e) => sum + Number(e?.amount || 0), 0).toFixed(2))
+        ? roundMoney(
+            sorted.reduce((sum, e) => sum + Number(e?.amount || 0), 0),
+            repCur,
+          )
         : null
 
     return {

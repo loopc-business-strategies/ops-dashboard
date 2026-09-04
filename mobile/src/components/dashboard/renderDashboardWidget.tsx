@@ -15,6 +15,7 @@ type Props = {
   silverPriceUSD?: number
   liveRecalcEnabled?: boolean
   refreshKey?: number | string
+  baseCurrencyCode?: string
 }
 
 export function renderDashboardWidget({
@@ -24,6 +25,7 @@ export function renderDashboardWidget({
   silverPriceUSD = 0,
   liveRecalcEnabled = false,
   refreshKey = 0,
+  baseCurrencyCode = 'USD',
 }: Props) {
   switch (id) {
     case 'margins':
@@ -33,20 +35,21 @@ export function renderDashboardWidget({
           goldPriceUSD={goldPriceUSD}
           silverPriceUSD={silverPriceUSD}
           liveRecalcEnabled={liveRecalcEnabled}
+          baseCurrencyCode={baseCurrencyCode}
         />
       )
     case 'fixing':
       return <FixingWidget dashboard={dashboard} />
     case 'bank':
-      return <BankWidget dashboard={dashboard} />
+      return <BankWidget dashboard={dashboard} baseCurrencyCode={baseCurrencyCode} />
     case 'expenses':
-      return <ExpensesWidget dashboard={dashboard} />
+      return <ExpensesWidget dashboard={dashboard} baseCurrencyCode={baseCurrencyCode} />
     case 'expenseReport':
-      return <ExpenseReportWidget refreshKey={refreshKey} />
+      return <ExpenseReportWidget refreshKey={refreshKey} baseCurrencyCode={baseCurrencyCode} />
     case 'volume':
-      return <VolumeWidget dashboard={dashboard} />
+      return <VolumeWidget dashboard={dashboard} baseCurrencyCode={baseCurrencyCode} />
     case 'apar':
-      return <AparWidget dashboard={dashboard} />
+      return <AparWidget dashboard={dashboard} baseCurrencyCode={baseCurrencyCode} />
     default:
       return null
   }

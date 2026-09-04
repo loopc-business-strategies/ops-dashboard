@@ -1,3 +1,4 @@
+const { toMoney } = require('../shared/money')
 const express = require('express')
 const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
@@ -210,7 +211,7 @@ const toInventoryResponse = (item, includeCostFields) => {
 
   if (includeCostFields) {
     base.unitCost = item.unitCost
-    base.inventoryValue = Number((item.quantity * item.unitCost).toFixed(2))
+    base.inventoryValue = toMoney(item.quantity * item.unitCost)
   }
 
   return base

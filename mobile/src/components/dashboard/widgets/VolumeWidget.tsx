@@ -6,7 +6,13 @@ import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 const VOL_COLORS = ['#F59E0B', '#9CA3AF', '#6366F1', '#EC4899', '#059669']
 
-export function VolumeWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+export function VolumeWidget({
+  dashboard,
+  baseCurrencyCode = 'USD',
+}: {
+  dashboard: DashboardPayload | null
+  baseCurrencyCode?: string
+}) {
   const widgetStyles = useWidgetStyles()
   const { branding } = useTenant()
   const vols = dashboard?.volumeTraded || []
@@ -42,7 +48,7 @@ export function VolumeWidget({ dashboard }: { dashboard: DashboardPayload | null
             <Text style={widgetStyles.rowLabel}>{v.metal || 'Metal'}</Text>
           </View>
           <Text style={[widgetStyles.rowValue, { marginRight: 10 }]}>{Number(v.qty || 0).toLocaleString()} oz</Text>
-          <Text style={widgetStyles.rowValue}>{fmtMoney(v.value)}</Text>
+          <Text style={widgetStyles.rowValue}>{fmtMoney(v.value, baseCurrencyCode)}</Text>
         </View>
       ))}
 

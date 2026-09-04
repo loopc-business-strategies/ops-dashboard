@@ -6,7 +6,13 @@ import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 const COLORS = ['#059669', '#2563EB', '#D97706', '#7C3AED', '#DC2626', '#0891B2']
 
-export function ExpensesWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+export function ExpensesWidget({
+  dashboard,
+  baseCurrencyCode = 'USD',
+}: {
+  dashboard: DashboardPayload | null
+  baseCurrencyCode?: string
+}) {
   const widgetStyles = useWidgetStyles()
   const { branding } = useTenant()
   const exp = dashboard?.expenses || {}
@@ -44,12 +50,12 @@ export function ExpensesWidget({ dashboard }: { dashboard: DashboardPayload | nu
       <View style={[widgetStyles.statGrid, { marginTop: 8 }]}>
         <View style={[widgetStyles.statBox, { borderWidth: 1, borderColor: '#E5E7EB', minWidth: '46%' }]}>
           <Text style={widgetStyles.statLabel}>THIS MONTH</Text>
-          <Text style={[widgetStyles.statValue, { fontSize: 16 }]}>{fmtMoney(currentTotal)}</Text>
+          <Text style={[widgetStyles.statValue, { fontSize: 16 }]}>{fmtMoney(currentTotal, baseCurrencyCode)}</Text>
         </View>
         <View style={[widgetStyles.statBox, { borderWidth: 1, borderColor: '#E5E7EB', minWidth: '46%' }]}>
           <Text style={widgetStyles.statLabel}>THIS YEAR</Text>
           <Text style={[widgetStyles.statValue, { fontSize: 16, color: branding.colors.success }]}>
-            {fmtMoney(ytdTotal)}
+            {fmtMoney(ytdTotal, baseCurrencyCode)}
           </Text>
         </View>
       </View>

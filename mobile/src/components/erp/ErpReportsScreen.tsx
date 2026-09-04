@@ -31,6 +31,8 @@ import {
 } from '@/src/api/erpReports'
 import { AccountEnquirySummaryCard } from '@/src/components/erp/AccountEnquirySummaryCard'
 import { fmtSigned } from '@/src/utils/format'
+import { formatAmount } from '@/src/utils/money'
+import { fetchCurrencies, resolveBaseCurrencyCode } from '@/src/api/currencies'
 import { buildReportDateRange, type ReportPeriod } from '@/src/utils/reportDateRange'
 import { trialBalanceRowsForView, type TrialBalanceRow } from '@/src/utils/trialBalanceReportRows'
 import { canAccessErpReports } from '@/src/utils/erpSubTabPermissions'
@@ -65,10 +67,6 @@ function num(v: unknown) {
   return Number.isFinite(n) ? n : 0
 }
 
-function fmt(v: unknown) {
-  return num(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
 function isRateLimitError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '')
   return /too many report requests|request failed \(429\)/i.test(message)
@@ -97,6 +95,17 @@ export default function ErpReportsScreen({
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [baseCurrencyCode, setBaseCurrencyCode] = useState('USD')
+
+  const fmt = useCallback(
+    (v: unknown) => formatAmount(num(v), { currencyCode: baseCurrencyCode }),
+    [baseCurrencyCode],
+  )
+
+  const fmtSignedMoney = useCallback(
+    (v: unknown) => fmtSignedMoney(v, baseCurrencyCode),
+    [baseCurrencyCode],
+  )
 
   const [trialBalance, setTrialBalance] = useState<unknown>(null)
   const [profitLoss, setProfitLoss] = useState<unknown>(null)
@@ -255,6 +264,22 @@ export default function ErpReportsScreen({
       }
     }
   }, [token, allowed, sessionReady, tenantSessionKey, refresh])
+
+  useEffect(() => {
+    if (!token || !sessionReady) return undefined
+    let cancelled = false
+    void fetchCurrencies(token)
+      .then((res) => {
+        if (cancelled) return
+        setBaseCurrencyCode(resolveBaseCurrencyCode(res?.currencies, 'USD'))
+      })
+      .catch(() => {
+        if (!cancelled) setBaseCurrencyCode('USD')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token, sessionReady, tenantSessionKey])
 
   const onRefresh = useCallback(async () => {
     if (!token || !allowed) return
@@ -478,7 +503,7 @@ export default function ErpReportsScreen({
                   {row.accountName}
                 </Text>
                 <Text style={styles.rowSub}>
-                  Dr {fmt(row.debit)} · Cr {fmt(row.credit)} · Net {fmtSigned(row.net)}
+                  Dr {fmt(row.debit)} · Cr {fmt(row.credit)} · Net {fmtSignedMoney(row.net)}
                 </Text>
               </View>
             </View>
@@ -541,7 +566,7 @@ export default function ErpReportsScreen({
                     <Text style={styles.rowName} numberOfLines={2}>
                       {row.accountName}
                     </Text>
-                    <Text style={styles.rowRight}>{fmtSigned(row.balance)}</Text>
+                    <Text style={styles.rowRight}>{fmtSignedMoney(row.balance)}</Text>
                   </View>
                 ))}
             </View>

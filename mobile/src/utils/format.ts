@@ -1,16 +1,9 @@
+import { formatAmount, formatMoney } from '@/src/utils/money'
+
 export function fmtMoney(value: unknown, currency = 'USD') {
   const num = Number(value || 0)
-  if (!Number.isFinite(num)) return '0.00'
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num)
-  } catch {
-    return num.toFixed(2)
-  }
+  if (!Number.isFinite(num)) return formatMoney(0, currency)
+  return formatMoney(num, currency)
 }
 
 export function fmtCompact(value: unknown) {
@@ -31,13 +24,10 @@ export function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function fmtSigned(value: unknown) {
+export function fmtSigned(value: unknown, currencyCode = 'USD') {
   const n = Number(value || 0)
-  if (!Number.isFinite(n)) return '0.00'
-  const formatted = Math.abs(n).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  if (!Number.isFinite(n)) return formatAmount(0, { currencyCode })
+  const formatted = formatAmount(Math.abs(n), { currencyCode })
   if (n > 0) return `+${formatted}`
   if (n < 0) return `-${formatted}`
   return formatted

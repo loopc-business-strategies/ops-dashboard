@@ -3,7 +3,13 @@ import type { DashboardPayload } from '@/src/api/dashboard'
 import { fmtMoney } from '@/src/utils/format'
 import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
-export function BankWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+export function BankWidget({
+  dashboard,
+  baseCurrencyCode = 'USD',
+}: {
+  dashboard: DashboardPayload | null
+  baseCurrencyCode?: string
+}) {
   const widgetStyles = useWidgetStyles()
   const allRows = [...(dashboard?.bankBalances || []), ...(dashboard?.cashBalances || [])]
   const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
@@ -20,12 +26,12 @@ export function BankWidget({ dashboard }: { dashboard: DashboardPayload | null }
             <Text style={widgetStyles.rowLabel}>{row.accountName || 'Account'}</Text>
             {row.accountCode ? <Text style={widgetStyles.rowSub}>{row.accountCode}</Text> : null}
           </View>
-          <Text style={widgetStyles.rowValue}>{fmtMoney(row.balance)}</Text>
+          <Text style={widgetStyles.rowValue}>{fmtMoney(row.balance, baseCurrencyCode)}</Text>
         </View>
       ))}
       <View style={widgetStyles.footerTotal}>
         <Text style={widgetStyles.footerTotalLabel}>Total</Text>
-        <Text style={widgetStyles.footerTotalValue}>{fmtMoney(total)}</Text>
+        <Text style={widgetStyles.footerTotalValue}>{fmtMoney(total, baseCurrencyCode)}</Text>
       </View>
     </View>
   )

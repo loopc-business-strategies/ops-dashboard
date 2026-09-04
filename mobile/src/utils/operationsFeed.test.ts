@@ -7,6 +7,7 @@ import {
   computeOutcomeIncome,
   filterOperationEntries,
   formatMonthPillLabel,
+  formatMoneyAmount,
   groupEntriesByDate,
   MIN_TRANSACTION_MONTH_YEAR,
   monthPresets,
@@ -179,5 +180,11 @@ describe('operationsFeed', () => {
     expect(new Set(keys).size).toBe(keys.length)
     const now = new Date()
     expect(months).toHaveLength(now.getMonth() + 1)
+  })
+
+  test('formatMoneyAmount uses currency precision', () => {
+    expect(formatMoneyAmount(2000, 'UZS')).toBe('2,000 UZS')
+    expect(formatMoneyAmount(12.5, 'USD')).toBe('12.50 USD')
+    expect(formatMoneyAmount(-100, 'USD', true)).toBe('- 100.00 USD')
   })
 })

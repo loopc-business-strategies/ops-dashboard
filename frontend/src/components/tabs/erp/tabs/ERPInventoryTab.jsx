@@ -1,5 +1,6 @@
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
+import { formatAmount } from '../../../../utils/money'
 
 export default function ERPInventoryTab({
   activeTab,
@@ -28,6 +29,7 @@ export default function ERPInventoryTab({
   sortedInventoryTableRows,
   stockMovements,
   stockMovementsLoading,
+  baseCurrencyCode = 'USD',
   stockMovementsFilter,
   showInventoryProductModal,
   showInventoryMappingModal,
@@ -202,7 +204,7 @@ export default function ERPInventoryTab({
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Gross Stock Left</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p><p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>Live spot where metal stock types apply</p></div>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{formatAmount(inventoryTotalValue, { currencyCode: baseCurrencyCode })}</p><p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>Live spot where metal stock types apply</p></div>
               </div>
               <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
@@ -216,7 +218,7 @@ export default function ERPInventoryTab({
                         <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{row.metal}</div>
                         <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.productCount} product{row.productCount === 1 ? '' : 's'} | Gross Stock Left {row.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })} | Low/Zero Stock {row.lowStockCount}</div>
                       </div>
-                      <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>{row.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                      <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>{formatAmount(row.totalValue, { currencyCode: baseCurrencyCode })}</div>
                     </div>
                   ))}
                   {!inventoryMetalBreakdown.length && <div style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No metal/product breakdown available yet.</div>}
@@ -234,11 +236,11 @@ export default function ERPInventoryTab({
                       <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid #EFF6FF' }}>
                         <div>
                           <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{item.name}</div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.metal} | Category {row.categoryName} | Gross Stock Left {row.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {row.stockUnit} | Stock Value {row.stockValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.metal} | Category {row.categoryName} | Gross Stock Left {row.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {row.stockUnit} | Stock Value {formatAmount(row.stockValue, { currencyCode: baseCurrencyCode })}</div>
                           <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Gross Wt {row.weight.toLocaleString(undefined, { maximumFractionDigits: 4 })} g | Purity {row.purity || '-'} | Tax {productMeta.taxType || '-'} | VAT {formatVatPercent(productMeta.vatPercent)} | Pure Wt {row.purityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 })} | Pure Stock {row.pureStockQty.toLocaleString(undefined, { maximumFractionDigits: 4 })} g</div>
                         </div>
                         <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>
-                          <div>{row.stockValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                          <div>{formatAmount(row.stockValue, { currencyCode: baseCurrencyCode })}</div>
                           <div style={{ color: row.quantity <= 0 ? '#B91C1C' : row.isLowStock ? '#B45309' : C.inkSoft, fontSize: '0.7rem' }}>{row.quantity <= 0 ? 'Zero Stock' : row.isLowStock ? 'Low Stock' : 'In Stock'}</div>
                         </div>
                       </div>
@@ -332,7 +334,7 @@ export default function ERPInventoryTab({
                           <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: usesLivePrice ? '#1D4ED8' : C.ink, fontWeight: usesLivePrice ? '700' : '400' }} title={usesLivePrice ? 'Live spot price' : undefined}>{unitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8' }}>{totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8' }}>{formatAmount(totalValue, { currencyCode: baseCurrencyCode })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(item.minThreshold || 0) || '—'}</td>
                           <td style={{ padding: '0.5rem 0.7rem' }}>
                             {zeroStock

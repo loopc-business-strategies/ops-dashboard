@@ -834,6 +834,7 @@ export default function ERPTabPanels({
         saving={saving}
         token={token}
         tenantKey={inventoryTenantKey}
+        baseCurrencyCode={baseCurrencyCode}
         liveMetalSnapshot={erpLiveMetalSnapshot}
         liveMetalError={liveMetalFetchError}
         loadInventory={loadInventory}

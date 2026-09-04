@@ -64,4 +64,29 @@ describe('groupJvLedgerEntries', () => {
     const grouped = groupJvLedgerEntries(entries)
     expect(grouped[0].voucherNo).toBe('BJV-20260615-001')
   })
+
+  test('documentFaceAmount uses roundMoney for FC currency precision', () => {
+    const refId = '507f1f77bcf86cd799439011'
+    const entries = [
+      line({
+        _id: '1',
+        referenceId: refId,
+        amount: 1000.4,
+        currency: 'UZS',
+        exchangeRate: 0.00008,
+      }),
+      line({
+        _id: '2',
+        referenceId: refId,
+        amount: 999.6,
+        currency: 'UZS',
+        exchangeRate: 0.00008,
+        description: 'Jv/2026/0001 — Line 2',
+      }),
+    ]
+    const grouped = groupJvLedgerEntries(entries, { baseCurrencyCode: 'USD' })
+    expect(grouped).toHaveLength(1)
+    expect(grouped[0].documentCurrencyCode).toBe('UZS')
+    expect(grouped[0].documentFaceAmount).toBe(2000)
+  })
 })

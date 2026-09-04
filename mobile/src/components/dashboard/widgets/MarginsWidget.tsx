@@ -14,6 +14,7 @@ type Props = {
   goldPriceUSD?: number
   silverPriceUSD?: number
   liveRecalcEnabled?: boolean
+  baseCurrencyCode?: string
 }
 
 export function MarginsWidget({
@@ -21,6 +22,7 @@ export function MarginsWidget({
   goldPriceUSD: goldPriceProp,
   silverPriceUSD: silverPriceProp,
   liveRecalcEnabled: liveRecalcProp,
+  baseCurrencyCode = 'USD',
 }: Props) {
   const [tab, setTab] = useState<'customers' | 'suppliers'>('customers')
   const widgetStyles = useWidgetStyles()
@@ -85,7 +87,7 @@ export function MarginsWidget({
                   },
                 ]}
               >
-                {fmtSigned(row.equity)}
+                {fmtSigned(row.equity, baseCurrencyCode)}
               </Text>
               <Text style={[widgetStyles.rowValue, { flex: 0.7, textAlign: 'right' }]}>
                 {Number.isFinite(row.marginPercent) ? `${row.marginPercent.toFixed(1)}%` : '—'}

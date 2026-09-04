@@ -6,6 +6,7 @@ const { mergeNotificationPreferences } = require('./notificationPreferences')
 const { MOBILE_APP_NAME } = require('../config/mobileApp')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
 const { connectTenant } = require('../db/tenantConnections')
+const { formatMoney } = require('../shared/money')
 
 function startOfToday() {
   const d = new Date()
@@ -20,8 +21,7 @@ function endOfToday() {
 }
 
 function fmtMoney(n, currency = 'USD') {
-  const v = Number(n || 0)
-  return `${currency} ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return formatMoney(n, currency)
 }
 
 async function withTenantModels(tenant, fn) {

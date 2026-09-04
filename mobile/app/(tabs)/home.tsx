@@ -19,6 +19,7 @@ import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { useLiveMetalRates } from '@/src/hooks/useLiveMetalRates'
 import { useErpLiveMetalSpotPrices } from '@/src/hooks/useErpLiveMetalSpotPrices'
 import { fetchDashboard, type DashboardPayload } from '@/src/api/dashboard'
+import { fetchCurrencies, resolveBaseCurrencyCode } from '@/src/api/currencies'
 
 export default function HomeScreen() {
   const { token } = useAuth()
@@ -29,6 +30,7 @@ export default function HomeScreen() {
   tenantSessionKeyRef.current = tenantSessionKey
   const { refresh: refreshLiveMetalRates } = useLiveMetalRates()
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
+  const [baseCurrencyCode, setBaseCurrencyCode] = useState('USD')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -51,12 +53,16 @@ export default function HomeScreen() {
     else setLoading(true)
     setError('')
     try {
-      const [dash] = await Promise.all([
+      const [dash, currenciesRes] = await Promise.all([
         fetchDashboard(token),
+        fetchCurrencies(token).catch(() => null),
         isRefresh ? refreshLiveMetalRates() : Promise.resolve(),
       ])
       if (sessionAtStart !== tenantSessionKeyRef.current) return
       setDashboard(dash)
+      if (currenciesRes) {
+        setBaseCurrencyCode(resolveBaseCurrencyCode(currenciesRes.currencies, 'USD'))
+      }
       setRefreshKey((k) => k + 1)
     } catch (err) {
       if (sessionAtStart !== tenantSessionKeyRef.current) return
@@ -113,6 +119,7 @@ export default function HomeScreen() {
                 silverPriceUSD,
                 liveRecalcEnabled,
                 refreshKey,
+                baseCurrencyCode,
               })}
             </DashboardWidgetCard>
           ))}

@@ -4,6 +4,7 @@ import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import type { AccountEnquiryPayload } from '@/src/api/erpReports'
 import { useErpLiveMetalSpotPrices } from '@/src/hooks/useErpLiveMetalSpotPrices'
 import { fmtPosition, fmtSigned } from '@/src/utils/format'
+import { formatAmount } from '@/src/utils/money'
 import {
   buildAccountEnquiryLiveMetrics,
   calculateAccountSummaryMetrics,
@@ -12,13 +13,6 @@ import {
   resolveAccountEnquiryBookedRevaluation,
 } from '@/src/utils/buildAccountEnquiryLiveMetrics'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '@/src/utils/metalMarginPolicy'
-
-function fmt(n: unknown, digits = 2) {
-  const v = Number(n ?? 0)
-  return Number.isFinite(v)
-    ? v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-    : '0.00'
-}
 
 type Props = {
   accountCode: string
@@ -86,6 +80,7 @@ export function AccountEnquirySummaryCard({
 
     return {
       accountName: account.accountName || 'Account',
+      moneyCurrency: String(account.currency || 'USD').trim().toUpperCase() || 'USD',
       totalFunds,
       netDirection: balances.netDirection,
       revaluation,
@@ -126,6 +121,7 @@ export function AccountEnquirySummaryCard({
 
   const {
     accountName,
+    moneyCurrency,
     totalFunds,
     netDirection,
     revaluation,
@@ -159,22 +155,22 @@ export function AccountEnquirySummaryCard({
       <View style={styles.positionRow}>
         <Text style={styles.posType}>XAU</Text>
         <Text style={styles.posCell}>{fmtPosition(xauBalance)} g</Text>
-        <Text style={styles.posCell}>{fmt(xauPrice)}</Text>
-        <Text style={styles.posCell}>{fmt(xauSpotValue)}</Text>
+        <Text style={styles.posCell}>{formatAmount(xauPrice, { currencyCode: 'USD' })}</Text>
+        <Text style={styles.posCell}>{formatAmount(xauSpotValue, { currencyCode: 'USD' })}</Text>
       </View>
       <View style={styles.positionRow}>
         <Text style={styles.posType}>XAG</Text>
         <Text style={styles.posCell}>{fmtPosition(xagBalance)} g</Text>
-        <Text style={styles.posCell}>{fmt(xagPrice)}</Text>
-        <Text style={styles.posCell}>{fmt(xagSpotValue)}</Text>
+        <Text style={styles.posCell}>{formatAmount(xagPrice, { currencyCode: 'USD' })}</Text>
+        <Text style={styles.posCell}>{formatAmount(xagSpotValue, { currencyCode: 'USD' })}</Text>
       </View>
 
       <Text style={styles.sectionLabel}>Summary</Text>
-      <SummaryRow label="Total Funds" value={fmtSigned(totalFunds)} direction={netDirection} />
-      <SummaryRow label="Revaluation" value={fmt(revaluation)} />
-      <SummaryRow label="Net Equity" value={fmtSigned(netEquity)} />
-      <SummaryRow label="Margin Amt" value={fmt(marginAmount)} />
-      <SummaryRow label="Excess" value={fmtSigned(excess)} />
+      <SummaryRow label="Total Funds" value={fmtSigned(totalFunds, moneyCurrency)} direction={netDirection} />
+      <SummaryRow label="Revaluation" value={formatAmount(revaluation, { currencyCode: moneyCurrency })} />
+      <SummaryRow label="Net Equity" value={fmtSigned(netEquity, moneyCurrency)} />
+      <SummaryRow label="Margin Amt" value={formatAmount(marginAmount, { currencyCode: moneyCurrency })} />
+      <SummaryRow label="Excess" value={fmtSigned(excess, moneyCurrency)} />
       <SummaryRow
         label="Margin %"
         value={Number.isFinite(marginPercent) ? `${marginPercent.toFixed(1)}%` : '—'}

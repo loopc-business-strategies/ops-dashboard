@@ -4,6 +4,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import erpUnified from '../../api/erpUnified'
 import { ErpSubTabButton, ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
+import { formatAmount } from '../../utils/money'
 
 const C = {
   card: '#ffffff',
@@ -239,7 +240,7 @@ export default function ProcurementPlusTab() {
                       <td style={{ padding: '8px' }}>{o.poNumber}</td>
                       <td style={{ padding: '8px' }}>{o.supplierName || o.supplierId?.name || '—'}</td>
                       <td style={{ padding: '8px' }}>{o.status || 'draft'}</td>
-                      <td style={{ padding: '8px' }}>{Number(o.totalAmount || 0).toFixed(2)}</td>
+                      <td style={{ padding: '8px' }}>{formatAmount(o.totalAmount || 0)}</td>
                     </tr>
                   ))}
                   {!filteredOrders.length && <tr><td colSpan={4} style={{ padding: 12, color: C.inkSoft }}>No purchase orders found.</td></tr>}

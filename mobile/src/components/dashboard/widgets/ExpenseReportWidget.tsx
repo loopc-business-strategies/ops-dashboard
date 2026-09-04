@@ -31,6 +31,7 @@ const PAYMENT_FILTERS: { key: PaymentFilter; label: string }[] = [
 
 type Props = {
   refreshKey?: number | string
+  baseCurrencyCode?: string
 }
 
 function formatExpenseDate(value?: string) {
@@ -40,7 +41,7 @@ function formatExpenseDate(value?: string) {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export function ExpenseReportWidget({ refreshKey = 0 }: Props) {
+export function ExpenseReportWidget({ refreshKey = 0, baseCurrencyCode = 'USD' }: Props) {
   const widgetStyles = useWidgetStyles()
   const { branding } = useTenant()
   const { token } = useAuth()
@@ -246,7 +247,7 @@ export function ExpenseReportWidget({ refreshKey = 0 }: Props) {
                   ) : null}
                 </View>
                 <Text style={localStyles.rowAmount}>
-                  {fmtMoney(item.amount, item.currency || 'USD')}
+                  {fmtMoney(item.amount, item.currency || baseCurrencyCode)}
                 </Text>
               </View>
             </View>

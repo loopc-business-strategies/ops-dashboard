@@ -13,6 +13,7 @@ import {
   getTransactionDescription,
   getTransactionPartyLabel,
 } from '@/src/utils/transactionFilters'
+import { formatAmount } from '@/src/utils/money'
 
 export type OperationEntry =
   | {
@@ -387,12 +388,10 @@ export function lastMonthDateRange(): { startDate: string; endDate: string } {
 }
 
 export function formatMoneyAmount(amount: number, currency: string, signed = false): string {
-  const abs = Math.abs(Number(amount || 0))
-  const formatted = abs.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  if (!signed) return `${formatted} ${currency}`
-  const sign = amount < 0 ? '- ' : amount > 0 ? '+ ' : ''
-  return `${sign}${formatted} ${currency}`
+  const n = Number(amount || 0)
+  const code = String(currency || 'USD').trim().toUpperCase() || 'USD'
+  const formatted = formatAmount(Math.abs(n), { currencyCode: code })
+  if (!signed) return `${formatted} ${code}`
+  const sign = n < 0 ? '- ' : n > 0 ? '+ ' : ''
+  return `${sign}${formatted} ${code}`
 }

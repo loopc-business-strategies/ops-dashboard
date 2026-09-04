@@ -5,7 +5,13 @@ import { useTenant } from '@/src/context/TenantContext'
 import { fmtMoney } from '@/src/utils/format'
 import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
-export function AparWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+export function AparWidget({
+  dashboard,
+  baseCurrencyCode = 'USD',
+}: {
+  dashboard: DashboardPayload | null
+  baseCurrencyCode?: string
+}) {
   const [tab, setTab] = useState<'ar' | 'ap'>('ar')
   const widgetStyles = useWidgetStyles()
   const { branding } = useTenant()
@@ -32,7 +38,7 @@ export function AparWidget({ dashboard }: { dashboard: DashboardPayload | null }
         ].map((item) => (
           <View key={item.label} style={[widgetStyles.statBox, { backgroundColor: item.bg, minWidth: '30%' }]}>
             <Text style={widgetStyles.statLabel}>{item.label}</Text>
-            <Text style={[widgetStyles.statValue, { color: item.color }]}>{fmtMoney(item.val)}</Text>
+            <Text style={[widgetStyles.statValue, { color: item.color }]}>{fmtMoney(item.val, baseCurrencyCode)}</Text>
             <Text style={[widgetStyles.statSub, { color: item.color }]}>{item.sub}</Text>
           </View>
         ))}
@@ -66,7 +72,7 @@ export function AparWidget({ dashboard }: { dashboard: DashboardPayload | null }
                 { color: tab === 'ar' ? '#16A34A' : '#DC2626' },
               ]}
             >
-              {fmtMoney(row.outstanding)}
+              {fmtMoney(row.outstanding, baseCurrencyCode)}
             </Text>
           </View>
         ))

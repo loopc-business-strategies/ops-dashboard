@@ -89,11 +89,7 @@ const erpSelSt = {
   width: '100%', boxSizing: 'border-box',
 }
 
-const fmtMoney = (v, currencyCode) => formatAmount(v, {
-  currencyCode,
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+const fmtMoney = (v, currencyCode) => formatAmount(v, { currencyCode })
 const fmtQty = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 6 })
 const fmtFixed = (v, digits) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const today = () => new Date().toISOString().slice(0, 10)
@@ -621,7 +617,7 @@ export default function DirectDealsTab({
     pdf.text(`Currency: ${deal.currency || '-'}`, 220, startY + 36)
     pdf.text(`Status: ${deal.status || '-'}`, 380, startY + 36)
     pdf.text(`Total Qty: ${fmtQty(deal.totalQty)}`, 40, startY + 52)
-    pdf.text(`Total Amount: ${deal.currency || 'USD'} ${fmtMoney(deal.totalAmount)}`, 220, startY + 52)
+    pdf.text(`Total Amount: ${deal.currency || 'USD'} ${fmtMoney(deal.totalAmount, deal.currency)}`, 220, startY + 52)
 
     autoTable(pdf, {
       startY: startY + 68,
@@ -633,9 +629,9 @@ export default function DirectDealsTab({
         line.metal || '',
         fmtQty(line.qty),
         line.stockCode || '',
-        fmtMoney(line.price),
+        fmtMoney(line.price, deal.currency),
         fmtQty(line.eqOz),
-        fmtMoney(line.amount),
+        fmtMoney(line.amount, deal.currency),
       ]),
       styles: { fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [37, 99, 235] },
@@ -971,7 +967,7 @@ export default function DirectDealsTab({
         </div>
         <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '0.5rem', padding: '0.7rem' }}>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: '0.75rem' }}>{t('totalAmount')}</p>
-          <p style={{ margin: '0.25rem 0 0', color: COLORS.ink, fontSize: '1.1rem', fontWeight: 800 }}>{form.currency || 'USD'} {fmtMoney(summary.totalAmount)}</p>
+          <p style={{ margin: '0.25rem 0 0', color: COLORS.ink, fontSize: '1.1rem', fontWeight: 800 }}>{form.currency || 'USD'} {fmtMoney(summary.totalAmount, form.currency)}</p>
         </div>
       </div>
 
@@ -1259,7 +1255,7 @@ export default function DirectDealsTab({
                           </td>
                           {/* Amount */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <input value={line.amount ? fmtMoney(line.amount) : ''} readOnly style={{ ...erpInpSt, textAlign: 'right', width: '100%', background: '#f5f5f5', border: '1px solid #bbb', padding: '4px 5px' }} tabIndex={-1} />
+                            <input value={line.amount ? fmtMoney(line.amount, form.currency) : ''} readOnly style={{ ...erpInpSt, textAlign: 'right', width: '100%', background: '#f5f5f5', border: '1px solid #bbb', padding: '4px 5px' }} tabIndex={-1} />
                           </td>
                           {/* Delete */}
                           <td style={{ padding: '3px 3px', textAlign: 'center' }}>
@@ -1293,7 +1289,7 @@ export default function DirectDealsTab({
               <div style={{ display: 'flex', gap: 20, fontSize: 12, alignItems: 'center' }}>
                 <span style={{ background: viewMode === 'EDIT' ? '#D1FAE5' : '#DBEAFE', color: viewMode === 'EDIT' ? '#065F46' : '#1D4ED8', border: `1px solid ${viewMode === 'EDIT' ? '#6EE7B7' : '#BFDBFE'}`, borderRadius: 3, padding: '2px 10px', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>Mode: {viewMode}</span>
                 <span><span style={{ color: '#555' }}>Total Qty: </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtQty(formTotals.totalQty)}</span></span>
-                <span><span style={{ color: '#555' }}>Total Amount: {form.currency} </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtMoney(formTotals.totalAmount)}</span></span>
+                <span><span style={{ color: '#555' }}>Total Amount: {form.currency} </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtMoney(formTotals.totalAmount, form.currency)}</span></span>
               </div>
             </div>
 
@@ -1442,7 +1438,7 @@ export default function DirectDealsTab({
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>{deal.currency}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right' }}>{deal.lineItems?.length || 0}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right' }}>{fmtQty(deal.totalQty)}</td>
-                  <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right', fontWeight: 700 }}>{deal.currency} {fmtMoney(deal.totalAmount)}</td>
+                  <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right', fontWeight: 700 }}>{deal.currency} {fmtMoney(deal.totalAmount, deal.currency)}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>
                     <span style={{ padding: '0.2rem 0.45rem', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 700, background: deal.status === 'confirmed' ? '#DCFCE7' : '#FEF3C7', color: deal.status === 'confirmed' ? '#166534' : '#92400E' }}>{deal.status}</span>
                   </td>
