@@ -1,3 +1,5 @@
+import { toMoney } from '../../../utils/money'
+
 const STANDARD_METAL_CODES = new Set(['XAU', 'XAG', 'XPT', 'XPD'])
 
 export const DEFAULT_STATEMENT_METAL_OPTIONS = [
@@ -214,7 +216,7 @@ export function accumulateUnfixedVoucherRevaluationByMetal(
       signedAmount = bookedAmount * sign
     } else {
       if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) return acc
-      const unpricedAmount = Number(Math.max(voucherAmount - postedAmount, 0).toFixed(2))
+      const unpricedAmount = toMoney(Math.max(voucherAmount - postedAmount, 0))
       if (unpricedAmount <= 0) return acc
       const exposureSign = Number(entry?.signedAmount || 0) < 0 ? -1 : 1
       signedAmount = unpricedAmount * exposureSign

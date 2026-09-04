@@ -818,6 +818,7 @@ export default function ERPTabPanels({
         handleVendorTableDocumentUpload={handleVendorTableDocumentUpload}
         setVendorDocumentForm={setVendorDocumentForm}
         handleDeleteVendorDocument={handleDeleteVendorDocument}
+        baseCurrencyCode={baseCurrencyCode}
           />
         </Suspense>
       )}

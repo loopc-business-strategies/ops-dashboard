@@ -45,6 +45,8 @@ function registerVendorRoutes(deps) {
     Ledger,
     Transaction,
     ChartOfAccount,
+    Currency,
+    BASE_CURRENCY_CODE,
     getLatestMetalRate,
     DEFAULT_METAL_RATES,
     _canAccessVendors,
@@ -443,6 +445,11 @@ function registerVendorRoutes(deps) {
         return res.status(400).json({ success: false, message: 'Vendor name is required' })
       }
 
+      const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+      const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+      const resolvedCurrency = String(currency || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
+      const resolvedPreferredCurrency = String(preferredCurrency || resolvedCurrency).trim().toUpperCase() || resolvedCurrency
+
       const normalizedCode = String(vendorCode || '').trim().toUpperCase() || await nextVendorCode()
       const duplicateCode = await Vendor.exists({ vendorCode: normalizedCode, deletedAt: null })
       if (duplicateCode) {
@@ -464,7 +471,7 @@ function registerVendorRoutes(deps) {
         accountCode,
         accountType: 'Liability',
         parentAccountId: payableParent?._id || null,
-        currency: currency || 'USD',
+        currency: resolvedCurrency,
         description: `Auto-created payable account for vendor ${name}`,
         createdBy: req.user._id,
       })
@@ -492,12 +499,12 @@ function registerVendorRoutes(deps) {
         approvalHistory: [{ status: 'draft', reason: 'Vendor profile created', changedBy: req.user._id, changedAt: new Date() }],
         notes: notes || '',
         tags: Array.isArray(tags) ? tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 20) : [],
-        preferredCurrency: String(preferredCurrency || currency || 'USD').toUpperCase(),
+        preferredCurrency: resolvedPreferredCurrency,
         bankName: bankName || '',
         bankAccountNumber: bankAccountNumber || '',
         iban: iban || '',
         swiftCode: swiftCode || '',
-        currency: currency || 'USD',
+        currency: resolvedCurrency,
         ledgerAccountId: creditorAccount._id,
         createdBy: req.user._id,
         updatedBy: req.user._id,
@@ -518,7 +525,7 @@ function registerVendorRoutes(deps) {
             createdBy: req.user._id,
             updatedBy: req.user._id,
             department: req.user.department,
-            currency: currency || 'USD',
+            currency: resolvedCurrency,
           })
         }
       }

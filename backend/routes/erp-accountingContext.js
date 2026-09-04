@@ -551,6 +551,8 @@ function registerErpAccountingRoutes(router) {
     Ledger,
     Transaction,
     ChartOfAccount,
+    Currency,
+    BASE_CURRENCY_CODE,
     getLatestMetalRate,
     DEFAULT_METAL_RATES,
     canAccessVendors,

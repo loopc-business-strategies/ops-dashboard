@@ -2,6 +2,7 @@
  * Pure builders for ERP financial report exports (CSV/XLSX/PDF row grids).
  */
 
+import { formatAmount } from '../../../utils/money'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
 
 const REPORT_VIEW_LABELS = {
@@ -227,10 +228,7 @@ export function buildReportPdfMeta({
   reportView = 'summary',
   reports = {},
   selectedReportAccountCode = '',
-  formatMoney = (value) => Number(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }),
+  formatMoney = (value) => formatAmount(value),
 } = {}) {
   const titleBase = REPORT_PDF_TITLES[reportView] || 'ERP Report'
   const title = reportView === 'ledger' && selectedReportAccountCode

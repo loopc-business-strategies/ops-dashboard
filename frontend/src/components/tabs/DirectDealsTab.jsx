@@ -5,7 +5,7 @@ import { getTenantBranding, isMasterDocumentSettingsEnabled, isVoucherKeyboardNa
 import { resolveVoucherPrintSettings } from './erp/documentBranding'
 import { createLogoRenderAsset } from './erp/ERPBrandingUtils'
 import { focusElement, handleRecommendedTab } from './voucher/voucherKeyboardNav'
-import { formatAmount, parseAmount } from '../../utils/money'
+import { formatAmount, parseAmount, roundMoney } from '../../utils/money'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -339,6 +339,7 @@ export default function DirectDealsTab({
     const price = Number(row.price || 0)
     const eqOz = Number(row.eqOz || calcEqOzFromQtyAndStock(qty, stockCode) || 0)
     const amount = Number(row.amount || (eqOz * price) || 0)
+    const moneyCur = String(form.currency || row.currency || 'USD').toUpperCase()
 
     const normalized = {
       rowNo: row.rowNo || idx + 2,
@@ -351,7 +352,7 @@ export default function DirectDealsTab({
       stockCode,
       price: String(row.price || ''),
       eqOz: String(Number.isFinite(eqOz) ? Number(eqOz.toFixed(3)) : ''),
-      amount: String(Number.isFinite(amount) ? Number(amount.toFixed(2)) : ''),
+      amount: String(Number.isFinite(amount) ? roundMoney(amount, moneyCur) : ''),
       notes: String(row.notes || '').trim(),
     }
 
@@ -397,7 +398,7 @@ export default function DirectDealsTab({
           const eqOz = calcEqOzFromQtyAndStock(qty, stock)
           const amount = calcAmountFromWeightAndPrice(qty, stock, price)
           updated.eqOz = eqOz ? eqOz.toFixed(3) : ''
-          updated.amount = amount ? amount.toFixed(2) : ''
+          updated.amount = amount ? String(roundMoney(amount, prev.currency || 'USD')) : ''
         }
         return updated
       })
@@ -483,7 +484,7 @@ export default function DirectDealsTab({
           const qty = Number(key === 'qty' ? value : updated.qty || 0)
           const price = Number(key === 'price' ? value : updated.price || 0)
           const amount = qty * price
-          updated.amount = amount ? String(Number(amount.toFixed(2))) : ''
+          updated.amount = amount ? String(roundMoney(amount, form.currency || 'USD')) : ''
           if (!updated.eqOz) updated.eqOz = updated.qty
         }
         return normalizePreviewRow(updated, i)

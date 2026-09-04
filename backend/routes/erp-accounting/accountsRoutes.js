@@ -1047,11 +1047,13 @@ router.post('/accounts/bulk-seed', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'accounts array required' })
     }
     let created = 0, updated = 0
+    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     for (const acc of accounts) {
       if (!acc.accountName || !acc.accountCode || !acc.accountType) continue
       const result = await ChartOfAccount.updateOne(
         { accountCode: acc.accountCode },
-        { $set: { accountName: acc.accountName, accountType: acc.accountType, currency: acc.currency || 'USD', isActive: acc.isActive !== false, description: acc.description || '', address: acc.address || '', openingBalance: acc.openingBalance || 0, department: acc.department || '', createdBy: req.user._id } },
+        { $set: { accountName: acc.accountName, accountType: acc.accountType, currency: acc.currency || baseCurrencyCode, isActive: acc.isActive !== false, description: acc.description || '', address: acc.address || '', openingBalance: acc.openingBalance || 0, department: acc.department || '', createdBy: req.user._id } },
         { upsert: true }
       )
       if (result.upsertedCount > 0) created++

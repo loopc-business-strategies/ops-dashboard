@@ -23,6 +23,7 @@ function createTransactionPostingService(deps) {
     effectiveTransactionDate,
   } = deps
   const { withSession, writeOpts } = require('../../utils/mongoTransaction')
+  const { roundMoney } = require('../../shared/money')
 
   const noopAssert = async () => {}
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function' ? assertAccountingPeriodOpen : noopAssert
@@ -210,7 +211,8 @@ function createTransactionPostingService(deps) {
             return sum + (premiumVal * rateQty)
           }, 0)
 
-          const roundedPremiumImpact = Number(unfixedPremiumAmount.toFixed(2))
+          const premiumCurrency = String(tx.currency || baseCurrencyCode || 'USD').toUpperCase()
+          const roundedPremiumImpact = roundMoney(unfixedPremiumAmount, premiumCurrency)
           const isDiscountImpact = roundedPremiumImpact < 0
           const postingAmount = Math.abs(roundedPremiumImpact)
           const debitAccountId = isDiscountImpact ? resolved.creditAccountId : resolved.debitAccountId
@@ -226,7 +228,7 @@ function createTransactionPostingService(deps) {
             referenceId: tx._id,
             createdBy: user._id,
             department: user.department || tx.department || '',
-            currency: tx.currency || 'USD',
+            currency: premiumCurrency,
             exchangeRate: tx.exchangeRate || 1,
             notes: isDiscountImpact
               ? 'Unfixed voucher - discount-only ledger entry (customer credit impact).'
