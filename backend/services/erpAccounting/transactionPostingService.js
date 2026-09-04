@@ -57,7 +57,7 @@ function createTransactionPostingService(deps) {
     if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can post transactions')
     if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
 
-    await assertPeriod({ date: resolveTxDate(tx) })
+    await assertPeriod({ date: resolveTxDate(tx), createdAt: tx.createdAt })
 
     const baseCurrency = await withSession(
       Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(),

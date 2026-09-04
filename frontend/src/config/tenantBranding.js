@@ -40,6 +40,7 @@ const defaultBranding = {
     voucherKeyboardNav: true,
     professionalVoucherPrint: true,
     accountingPeriodClosing: true,
+    voucher24HourLock: true,
   },
 }
 
@@ -99,6 +100,7 @@ const tenantBranding = {
       voucherKeyboardNav: true,
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
+      voucher24HourLock: true,
     },
   },
   loopc: {
@@ -121,6 +123,7 @@ const tenantBranding = {
       voucherKeyboardNav: true,
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
+      voucher24HourLock: true,
     },
   },
 }
@@ -156,6 +159,10 @@ export function isProfessionalVoucherPrintEnabled(tenant) {
 
 export function isAccountingPeriodClosingEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.accountingPeriodClosing === true
+}
+
+export function isVoucher24HourLockEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.voucher24HourLock === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

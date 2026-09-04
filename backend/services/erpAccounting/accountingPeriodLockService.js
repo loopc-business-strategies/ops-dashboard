@@ -1,5 +1,13 @@
 const { isAccountingPeriodClosingEnabled } = require('../../shared/accountingPeriodClosing')
 const { getActiveTenantKey } = require('../../db/tenantModelProxy')
+const {
+  assertVoucher24HourLock,
+  isPast24HourWindow,
+  editableUntil,
+  getVoucher24HourLockSetting,
+  isVoucher24HourLockFeatureEnabled,
+  make24hLockedError,
+} = require('./voucher24HourLockService')
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -54,6 +62,9 @@ function createAccountingPeriodLockService(deps = {}) {
   const Transaction = deps.Transaction
   const Ledger = deps.Ledger
   const ChartOfAccount = deps.ChartOfAccount
+  const runAssertVoucher24HourLock = deps.assertVoucher24HourLock || assertVoucher24HourLock
+  const runGetVoucher24HourLockSetting = deps.getVoucher24HourLockSetting || getVoucher24HourLockSetting
+  const runIsPast24HourWindow = deps.isPast24HourWindow || isPast24HourWindow
 
   async function ensureMonthlyPeriod(year, month) {
     const { startDate, endDate } = monthBounds(year, month)
@@ -130,14 +141,55 @@ function createAccountingPeriodLockService(deps = {}) {
   }
 
   /**
-   * Central lock check. No-op when feature flag is off for the tenant.
+   * Central period lock check. No-op when feature flag is off for the tenant.
    * On edits, pass both `date` (new) and `existingDate` (stored).
+   * Optional `createdAt` enables the 24-hour voucher/JV lock when that feature is on.
    */
-  async function assertAccountingPeriodOpen({ tenant, date, existingDate } = {}) {
+  async function assertAccountingPeriodOpen({ tenant, date, existingDate, createdAt } = {}) {
     const tenantKey = String(tenant || getActiveTenantKey() || '').trim().toLowerCase()
-    if (!isAccountingPeriodClosingEnabled(tenantKey)) return
-    if (existingDate) await assertDateOpen(existingDate)
-    if (date) await assertDateOpen(date)
+    if (isAccountingPeriodClosingEnabled(tenantKey)) {
+      if (existingDate) await assertDateOpen(existingDate)
+      if (date) await assertDateOpen(date)
+    }
+    await runAssertVoucher24HourLock({ tenant: tenantKey, createdAt })
+  }
+
+  /**
+   * Combined period + 24h lock for mutating existing accounting entries.
+   * Prefer this for update/delete/void/post of stored vouchers and JV lines.
+   */
+  async function assertAccountingEntryEditable({
+    tenant,
+    date,
+    existingDate,
+    createdAt,
+  } = {}) {
+    return assertAccountingPeriodOpen({ tenant, date, existingDate, createdAt })
+  }
+
+  async function getEntryLockStatus({ tenant, createdAt, date } = {}) {
+    const tenantKey = String(tenant || getActiveTenantKey() || '').trim().toLowerCase()
+    let periodLocked = false
+    try {
+      if (isAccountingPeriodClosingEnabled(tenantKey) && date) {
+        await assertDateOpen(date)
+      }
+    } catch (err) {
+      if (err?.code === 'ACCOUNTING_PERIOD_CLOSED') periodLocked = true
+      else throw err
+    }
+
+    const featureOn = isVoucher24HourLockFeatureEnabled(tenantKey)
+    const settingOn = featureOn ? await runGetVoucher24HourLockSetting(tenantKey) : false
+    const ageLocked = Boolean(settingOn && createdAt && runIsPast24HourWindow(createdAt))
+    return {
+      locked: periodLocked || ageLocked,
+      periodLocked,
+      ageLocked,
+      voucher24HourLockFeatureEnabled: featureOn,
+      voucher24HourLockEnabled: settingOn,
+      editableUntil: settingOn ? editableUntil(createdAt) : null,
+    }
   }
 
   function effectiveTransactionDate(tx) {
@@ -298,6 +350,8 @@ function createAccountingPeriodLockService(deps = {}) {
     cascadeCloseMonthlyPeriodsForYear,
     cascadeReopenMonthlyPeriodsForYear,
     assertAccountingPeriodOpen,
+    assertAccountingEntryEditable,
+    getEntryLockStatus,
     effectiveTransactionDate,
     listPeriodsForYear,
     getClosingChecklist,
@@ -306,6 +360,7 @@ function createAccountingPeriodLockService(deps = {}) {
     monthBounds,
     yearBounds,
     makePeriodClosedError,
+    make24hLockedError,
   }
 }
 
@@ -317,4 +372,5 @@ module.exports = {
   monthBounds,
   yearBounds,
   makePeriodClosedError,
+  make24hLockedError,
 }

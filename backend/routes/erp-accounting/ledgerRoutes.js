@@ -591,9 +591,13 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
       await assertPeriod({ tenant: req.tenant, date: new Date(row.date) })
     }
     if (replaceEntryIds.length) {
-      const replaced = await TenantLedger.find({ _id: { $in: replaceEntryIds } }).select('date').lean()
+      const replaced = await TenantLedger.find({ _id: { $in: replaceEntryIds } }).select('date createdAt').lean()
       for (const row of replaced) {
-        await assertPeriod({ tenant: req.tenant, existingDate: row.date })
+        await assertPeriod({
+          tenant: req.tenant,
+          existingDate: row.date,
+          createdAt: row.createdAt,
+        })
       }
     }
 
@@ -680,6 +684,14 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
     })
   } catch (err) {
     console.error('[ledger/journal-voucher] error:', err)
+    if (err?.code === 'ACCOUNTING_PERIOD_CLOSED' || err?.code === 'ACCOUNTING_ENTRY_24H_LOCKED') {
+      return res.status(err.status || 409).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+        details: err.details,
+      })
+    }
     if (err.name === 'CastError') {
       return res.status(400).json({ success: false, message: 'Invalid account or reference id' })
     }
@@ -707,6 +719,7 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
       tenant: req.tenant,
       existingDate: entry.date,
       date: date !== undefined ? new Date(date) : entry.date,
+      createdAt: entry.createdAt,
     })
     if (debitAccountId && creditAccountId && debitAccountId === creditAccountId) {
       return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
@@ -766,7 +779,12 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
     if (!canEditLedgerEntry(req.user, entry)) {
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
-    await assertPeriod({ tenant: req.tenant, existingDate: entry.date, date: new Date() })
+    await assertPeriod({
+      tenant: req.tenant,
+      existingDate: entry.date,
+      date: new Date(),
+      createdAt: entry.createdAt,
+    })
     const refType = String(entry.referenceType || '').toLowerCase()
     const isManualJv = refType === 'journal' || refType === 'bank_jv'
 
@@ -834,7 +852,11 @@ router.delete('/ledger/:id/permanent', protect, validateParams(idParamSchema), r
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
 
-    await assertPeriod({ tenant: req.tenant, existingDate: entry.date })
+    await assertPeriod({
+      tenant: req.tenant,
+      existingDate: entry.date,
+      createdAt: entry.createdAt,
+    })
 
     const linkedTx = await TenantTransaction.findOne({ journalEntryId: entry._id }).select('_id')
     if (linkedTx) {
@@ -877,7 +899,11 @@ router.put('/ledger/:id/reconcile', protect, validateParams(idParamSchema), asyn
     if (entry.referenceType !== 'bank_jv') return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
 
     const fullEntry = await TenantLedger.findById(req.params.id).select('date referenceType bankReconciled')
-    await assertPeriod({ tenant: req.tenant, existingDate: fullEntry?.date || entry.date })
+    await assertPeriod({
+      tenant: req.tenant,
+      existingDate: fullEntry?.date || entry.date,
+      createdAt: fullEntry?.createdAt || entry.createdAt,
+    })
 
     const nextReconciled = !entry.bankReconciled
     await TenantLedger.updateOne(
@@ -941,15 +967,25 @@ router.post('/ledger/repair-jv-fx/apply', protect, requireDestructiveAdminGuard(
     const jvDates = await TenantLedger.find({
       referenceType: { $in: ['journal', 'bank_jv'] },
       isDeleted: { $ne: true },
-    }).select('date').lean()
+    }).select('date createdAt').lean()
     const seenMonths = new Set()
+    let oldestCreatedAt = null
     for (const row of jvDates) {
+      if (row.createdAt) {
+        const c = new Date(row.createdAt)
+        if (!Number.isNaN(c.getTime()) && (!oldestCreatedAt || c < oldestCreatedAt)) {
+          oldestCreatedAt = c
+        }
+      }
       const d = row.date instanceof Date ? row.date : new Date(row.date)
       if (Number.isNaN(d.getTime())) continue
       const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`
       if (seenMonths.has(key)) continue
       seenMonths.add(key)
       await assertPeriod({ tenant: req.tenant, existingDate: d })
+    }
+    if (oldestCreatedAt) {
+      await assertPeriod({ tenant: req.tenant, createdAt: oldestCreatedAt })
     }
     const db = TenantLedger.db
     const mode = String(req.body?.mode || 'coa').toLowerCase()

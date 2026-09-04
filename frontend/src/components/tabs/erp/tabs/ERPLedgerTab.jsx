@@ -349,7 +349,7 @@ export default function ERPLedgerTab({
                     const voucherNo = voucher.voucherNo
                     const narrDetail = voucher.narration
                     const isBankJv = String(voucher.referenceType || '').toLowerCase() === 'bank_jv'
-                    const periodLocked = isEntryLocked(voucher.date || entry)
+                    const periodLocked = isEntryLocked(entry || { date: voucher.date })
                     return (
                     <tr key={voucher.key} style={{ borderBottom: `1px solid ${C.p2}`, background: isBankJv ? '#F0F9FF' : 'transparent' }}>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(voucher.date).toLocaleDateString()}</td>
@@ -458,7 +458,7 @@ export default function ERPLedgerTab({
                           </button>
                           {periodLocked ? (
                             <span title="Accounting period closed" style={{ padding: '0.35rem 0.5rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '0.35rem', fontSize: '0.75rem', fontWeight: 700 }}>
-                              🔒 CLOSED
+                              🔒 LOCKED
                             </span>
                           ) : (
                             <>

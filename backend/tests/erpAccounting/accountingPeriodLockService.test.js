@@ -7,14 +7,18 @@ const {
 
 describe('accountingPeriodClosing feature flag', () => {
   const original = process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS
+  const original24h = process.env.VOUCHER_24H_LOCK_TENANTS
 
   afterEach(() => {
     if (original === undefined) delete process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS
     else process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = original
+    if (original24h === undefined) delete process.env.VOUCHER_24H_LOCK_TENANTS
+    else process.env.VOUCHER_24H_LOCK_TENANTS = original24h
   })
 
   test('defaults enable loopc, cg, and mg', () => {
     delete process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS
+    process.env.VOUCHER_24H_LOCK_TENANTS = ''
     expect(isAccountingPeriodClosingEnabled('loopc')).toBe(true)
     expect(isAccountingPeriodClosingEnabled('cg')).toBe(true)
     expect(isAccountingPeriodClosingEnabled('mg')).toBe(true)
@@ -22,6 +26,7 @@ describe('accountingPeriodClosing feature flag', () => {
 
   test('env override can disable all tenants (MG rollout simulation)', () => {
     process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = ''
+    process.env.VOUCHER_24H_LOCK_TENANTS = ''
     expect(isAccountingPeriodClosingEnabled('loopc')).toBe(false)
     expect(isAccountingPeriodClosingEnabled('cg')).toBe(false)
     expect(isAccountingPeriodClosingEnabled('mg')).toBe(false)
@@ -30,10 +35,18 @@ describe('accountingPeriodClosing feature flag', () => {
 
 describe('accountingPeriodLockService', () => {
   const original = process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS
+  const original24h = process.env.VOUCHER_24H_LOCK_TENANTS
+
+  beforeEach(() => {
+    // Keep period-lock unit tests isolated from 24h DB setting lookups.
+    process.env.VOUCHER_24H_LOCK_TENANTS = ''
+  })
 
   afterEach(() => {
     if (original === undefined) delete process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS
     else process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = original
+    if (original24h === undefined) delete process.env.VOUCHER_24H_LOCK_TENANTS
+    else process.env.VOUCHER_24H_LOCK_TENANTS = original24h
   })
 
   function makeStore() {

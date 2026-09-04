@@ -37,6 +37,7 @@ export default function VoucherEditorPanel({
   editingId,
   editingLineIdx,
   formReadOnly,
+  entryLockInfo = null,
   handleAddLineClick,
   handleAmountFC,
   handleAmountLC,
@@ -375,8 +376,8 @@ export default function VoucherEditorPanel({
                 marginBottom: '0.6rem',
               }}>
                 <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" onClick={() => openCreate()} disabled={!canCreate} />
-                <TbBtn tip="Edit — unlocks the current record for modification" label="Edit" onClick={handleEditUnlock} disabled={isReadOnly || (!editingId && mode !== 'create')} />
-                <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} disabled={isReadOnly || (Boolean(editingId) && !canDeleteCurrentVoucher)} />
+                <TbBtn tip="Edit — unlocks the current record for modification" label={entryLockInfo?.locked ? 'View Only' : 'Edit'} onClick={handleEditUnlock} disabled={isReadOnly || entryLockInfo?.locked || (!editingId && mode !== 'create')} />
+                <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} disabled={isReadOnly || entryLockInfo?.locked || (Boolean(editingId) && !canDeleteCurrentVoucher)} />
                 <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} disabled={formReadOnly} />
                 <TbBtn tip="Cancel — discards unsaved changes" label="Cancel" onClick={handleCancelChanges} />
                 <Sep />
@@ -395,6 +396,43 @@ export default function VoucherEditorPanel({
               </div>
             )
           })()}
+
+          {entryLockInfo?.locked && (
+            <div
+              role="status"
+              style={{
+                margin: '0 0.9rem 0.6rem',
+                padding: '0.55rem 0.75rem',
+                borderRadius: 8,
+                border: '1px solid #FECACA',
+                background: '#FEF2F2',
+                color: '#991B1B',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+              }}
+            >
+              {entryLockInfo.ageLocked
+                ? 'LOCKED — VIEW ONLY. This accounting entry is locked because more than 24 hours have passed since creation.'
+                : 'LOCKED — VIEW ONLY. Accounting period is closed for this entry.'}
+            </div>
+          )}
+          {!entryLockInfo?.locked && entryLockInfo?.editableUntil && entryLockInfo?.voucher24HourLockEnabled && (
+            <div
+              role="status"
+              style={{
+                margin: '0 0.9rem 0.6rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: 8,
+                border: '1px solid #BBF7D0',
+                background: '#F0FDF4',
+                color: '#166534',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+              }}
+            >
+              Editable until {entryLockInfo.editableUntil.toLocaleString()}
+            </div>
+          )}
 
           {/* ── Body padding wrapper ── */}
           <div style={isMetalVoucher ? metalWin.body : { padding: '0.75rem 0.9rem' }}>

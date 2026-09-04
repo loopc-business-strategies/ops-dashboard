@@ -142,7 +142,7 @@ export default function VoucherListPanel({
                       </span>
                       {periodLocked ? (
                         <span style={{ marginLeft: '0.35rem', padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: '#FEE2E2', color: '#991B1B' }}>
-                          CLOSED
+                          LOCKED
                         </span>
                       ) : null}
                     </td>

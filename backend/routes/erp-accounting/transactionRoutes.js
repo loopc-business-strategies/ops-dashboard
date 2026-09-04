@@ -134,7 +134,12 @@ function queueOwnerVoucherNotify(req, ownerId, type, tx, action, extra = {}) {
 }
 
 const reversePostedTransactionEffects = async ({ tx, user, session, deleteReason }) => {
-  await assertPeriod({ date: resolveTxDate(tx), existingDate: resolveTxDate(tx) })
+  await assertPeriod({
+    tenant: tx?.company || undefined,
+    date: resolveTxDate(tx),
+    existingDate: resolveTxDate(tx),
+    createdAt: tx?.createdAt,
+  })
 
   const now = new Date()
 
@@ -528,6 +533,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
       tenant: req.tenant,
       existingDate: wasPosted ? existingDate : null,
       date: nextDateCandidate,
+      createdAt: tx.createdAt,
     })
 
     // If editing a posted transaction, reverse its ledger entries and reset to draft
@@ -623,7 +629,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
 
     res.json({ success: true, transaction: tx })
   } catch (e) {
-    if (e?.code === 'ACCOUNTING_PERIOD_CLOSED') {
+    if (e?.code === 'ACCOUNTING_PERIOD_CLOSED' || e?.code === 'ACCOUNTING_ENTRY_24H_LOCKED') {
       return respondRouteError(res, e, { tag: 'erp-accounting/transactions' })
     }
     if (/Invalid|exceeds allowed maximum/i.test(e?.message || '')) {
@@ -683,6 +689,9 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
 
     res.json({ success: true, message: 'Transaction voided and linked ledger entries soft-deleted' })
   } catch (e) {
+    if (e?.code === 'ACCOUNTING_PERIOD_CLOSED' || e?.code === 'ACCOUNTING_ENTRY_24H_LOCKED') {
+      return respondRouteError(res, e, { tag: 'erp-accounting/transactions/void' })
+    }
     console.error('Void transaction error:', e)
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -699,6 +708,12 @@ router.delete('/transactions/:id', protect, async (req, res) => {
     if (tx.status === 'posted') {
       return res.status(400).json({ success: false, message: 'Posted transaction cannot be deleted' })
     }
+    await assertPeriod({
+      tenant: req.tenant,
+      existingDate: resolveTxDate(tx),
+      date: resolveTxDate(tx),
+      createdAt: tx.createdAt,
+    })
     tx.isDeleted = true
     tx.deletedAt = new Date()
     tx.updatedBy = req.user._id
@@ -719,6 +734,14 @@ router.delete('/transactions/:id', protect, async (req, res) => {
 
     res.json({ success: true, message: 'Transaction deleted (soft)', transaction: tx })
   } catch (err) {
+    if (err?.code === 'ACCOUNTING_PERIOD_CLOSED' || err?.code === 'ACCOUNTING_ENTRY_24H_LOCKED') {
+      return res.status(err.status || 409).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+        details: err.details,
+      })
+    }
     console.error('Transaction delete failed:', err)
     res.status(500).json({ success: false, message: 'Server error' })
   }

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   getAccountingPeriodClosedMessage,
   isAccountingPeriodClosedError,
+  getAccountingEntry24hLockedMessage,
+  getAccountingEntryLockMessage,
   isDateLocked,
+  isPast24HourWindow,
   effectiveMonthStatus,
   accountingDateFromEntry,
 } from './accountingPeriodClosed'
@@ -19,6 +22,19 @@ describe('accountingPeriodClosed helpers', () => {
     }
     expect(isAccountingPeriodClosedError(err)).toBe(true)
     expect(getAccountingPeriodClosedMessage(err)).toContain('January 2026 is closed')
+  })
+
+  it('detects ACCOUNTING_ENTRY_24H_LOCKED API errors', () => {
+    const err = {
+      response: {
+        data: {
+          code: 'ACCOUNTING_ENTRY_24H_LOCKED',
+          message: 'This accounting entry is locked because more than 24 hours have passed since it was created.',
+        },
+      },
+    }
+    expect(getAccountingEntry24hLockedMessage(err)).toMatch(/24 hours/)
+    expect(getAccountingEntryLockMessage(err)).toMatch(/24 hours/)
   })
 
   it('returns null for unrelated errors', () => {
@@ -57,5 +73,12 @@ describe('accountingPeriodClosed helpers', () => {
       date: '2026-01-01T00:00:00.000Z',
     })
     expect(d.getUTCMonth()).toBe(2)
+  })
+
+  it('isPast24HourWindow boundary', () => {
+    const createdAt = new Date('2026-09-04T10:00:00.000Z')
+    const ms = 24 * 60 * 60 * 1000
+    expect(isPast24HourWindow(createdAt, createdAt.getTime() + ms - 1)).toBe(false)
+    expect(isPast24HourWindow(createdAt, createdAt.getTime() + ms)).toBe(true)
   })
 })

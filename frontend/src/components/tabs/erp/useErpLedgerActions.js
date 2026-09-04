@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { extractLedgerJvDocNoFromDescription } from './journalVoucherHelpers'
-import { getAccountingPeriodClosedMessage } from './accountingPeriodClosed'
+import { getAccountingEntryLockMessage } from './accountingPeriodClosed'
 
 export function useErpLedgerActions({
   token,
@@ -43,7 +43,7 @@ export function useErpLedgerActions({
       setError('')
       showNotification(`✅ Voucher removed (${entryIds.length} line${entryIds.length === 1 ? '' : 's'})`)
     } catch (e) {
-      setError(getAccountingPeriodClosedMessage(e) || e.response?.data?.message || 'Failed to remove voucher')
+      setError(getAccountingEntryLockMessage(e) || e.response?.data?.message || 'Failed to remove voucher')
     } finally {
       setSaving(false)
     }
@@ -56,7 +56,7 @@ export function useErpLedgerActions({
       await loadLedger()
       showNotification(`✅ Entry marked as ${entry.bankReconciled ? 'Unreconciled' : 'Reconciled'}`)
     } catch (e) {
-      setError(getAccountingPeriodClosedMessage(e) || e.response?.data?.message || 'Failed to update reconciliation status')
+      setError(getAccountingEntryLockMessage(e) || e.response?.data?.message || 'Failed to update reconciliation status')
     } finally {
       setSaving(false)
     }
@@ -79,7 +79,7 @@ export function useErpLedgerActions({
       setError('')
       showNotification('✅ Entry updated successfully')
     } catch (e) {
-      setError(getAccountingPeriodClosedMessage(e) || e.response?.data?.message || 'Failed to update entry')
+      setError(getAccountingEntryLockMessage(e) || e.response?.data?.message || 'Failed to update entry')
     } finally {
       setSaving(false)
     }

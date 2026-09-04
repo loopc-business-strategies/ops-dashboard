@@ -92,6 +92,7 @@ const { createErpAccountingDirectDealAndExchangeService } = require('../services
 const { createAccountingPeriodLockService } = require('../services/erpAccounting/accountingPeriodLockService')
 const AccountingPeriod = require('../models/AccountingPeriod')
 const { registerAccountingPeriodRoutes } = require('./erp-accounting/accountingPeriodRoutes')
+const { registerAccountingControlsRoutes } = require('./erp-accounting/accountingControlsRoutes')
 const {
   populateTransactionListQuery,
   populateTransactionQuery,
@@ -482,6 +483,11 @@ function registerErpAccountingRoutes(router) {
     canViewLedger,
     canAccessReports,
     accountingPeriodLockService,
+  })
+
+  registerAccountingControlsRoutes({
+    router,
+    protect,
   })
   
   // ==========================================

@@ -1,7 +1,9 @@
 /**
- * Normalize ACCOUNTING_PERIOD_CLOSED API errors for UI toasts,
- * and helpers for closed-period view-only checks.
+ * Normalize ACCOUNTING_PERIOD_CLOSED / ACCOUNTING_ENTRY_24H_LOCKED API errors for UI toasts,
+ * and helpers for closed-period / 24h view-only checks.
  */
+
+const MS_24H = 24 * 60 * 60 * 1000
 
 function toDate(value) {
   if (!value) return null
@@ -22,6 +24,22 @@ export function getAccountingPeriodClosedMessage(error, fallback = 'Accounting p
 
 export function isAccountingPeriodClosedError(error) {
   return Boolean(getAccountingPeriodClosedMessage(error))
+}
+
+export function getAccountingEntry24hLockedMessage(error, fallback = 'Accounting entry locked') {
+  const data = error?.response?.data
+  if (data?.code === 'ACCOUNTING_ENTRY_24H_LOCKED' || error?.code === 'ACCOUNTING_ENTRY_24H_LOCKED') {
+    return data?.message || error?.message || fallback
+  }
+  return null
+}
+
+export function isAccountingEntry24hLockedError(error) {
+  return Boolean(getAccountingEntry24hLockedMessage(error))
+}
+
+export function getAccountingEntryLockMessage(error) {
+  return getAccountingEntry24hLockedMessage(error) || getAccountingPeriodClosedMessage(error)
 }
 
 /** Month row status after applying yearly lock (year CLOSED => all months effectively CLOSED). */
@@ -47,6 +65,18 @@ export function isDateLocked(date, periods = {}) {
   return String(row?.status || '').toUpperCase() === 'CLOSED'
 }
 
+export function isPast24HourWindow(createdAt, nowMs = Date.now()) {
+  const created = toDate(createdAt)
+  if (!created) return false
+  return nowMs >= created.getTime() + MS_24H
+}
+
+export function editableUntilFromCreatedAt(createdAt) {
+  const created = toDate(createdAt)
+  if (!created) return null
+  return new Date(created.getTime() + MS_24H)
+}
+
 export function accountingDateFromEntry(entry) {
   if (!entry) return null
   return toDate(
@@ -55,4 +85,9 @@ export function accountingDateFromEntry(entry) {
     || entry.date
     || null,
   )
+}
+
+export function createdAtFromEntry(entry) {
+  if (!entry) return null
+  return toDate(entry.createdAt || entry.created_at || null)
 }

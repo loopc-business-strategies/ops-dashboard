@@ -681,7 +681,7 @@ export default function VoucherTab({
 
   const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
   const currentVoucherStatus = currentVoucher?.status || 'draft'
-  const { isEntryLocked, prefetchDates } = useAccountingPeriodLocks()
+  const { isEntryLocked, getEntryLockInfo, prefetchDates } = useAccountingPeriodLocks()
   useEffect(() => {
     prefetchDates(
       (vouchers || []).flatMap((v) => [
@@ -696,6 +696,7 @@ export default function VoucherTab({
       ? isEntryLocked(currentVoucher)
       : (mode === 'create' && isEntryLocked({ date: header.valueDate || header.docDate })),
   )
+  const entryLockInfo = currentVoucher ? getEntryLockInfo(currentVoucher) : null
   const mutateReadOnly = isReadOnly || periodLocked
   const formReadOnly = mutateReadOnly || mode === 'view'
 
@@ -1393,6 +1394,7 @@ export default function VoucherTab({
         editingId={editingId}
         editingLineIdx={editingLineIdx}
         formReadOnly={formReadOnly}
+        entryLockInfo={entryLockInfo}
         handleAddLineClick={handleAddLineClick}
         handleAmountFC={handleAmountFC}
         handleAmountLC={handleAmountLC}
