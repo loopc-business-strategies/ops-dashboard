@@ -72,6 +72,7 @@ const tenantBranding = {
       voucherKeyboardNav: true,
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
+      voucher24HourLock: true,
     },
   },
   cg: {

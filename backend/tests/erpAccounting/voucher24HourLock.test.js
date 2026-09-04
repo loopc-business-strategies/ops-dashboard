@@ -17,12 +17,12 @@ describe('voucher24HourLock feature gate', () => {
     else process.env.VOUCHER_24H_LOCK_TENANTS = original
   })
 
-  test('defaults enable loopc and cg only (MG off)', () => {
+  test('defaults enable loopc, cg, and mg', () => {
     delete process.env.VOUCHER_24H_LOCK_TENANTS
-    expect(DEFAULT_ENABLED_TENANTS).toEqual(['loopc', 'cg'])
+    expect(DEFAULT_ENABLED_TENANTS).toEqual(['loopc', 'cg', 'mg'])
     expect(isVoucher24HourLockFeatureEnabled('loopc')).toBe(true)
     expect(isVoucher24HourLockFeatureEnabled('cg')).toBe(true)
-    expect(isVoucher24HourLockFeatureEnabled('mg')).toBe(false)
+    expect(isVoucher24HourLockFeatureEnabled('mg')).toBe(true)
   })
 
   test('empty env disables all tenants', () => {
@@ -56,7 +56,7 @@ describe('assertAccountingEntryEditable 24h + period', () => {
 
   beforeEach(() => {
     process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS = 'loopc,cg,mg'
-    process.env.VOUCHER_24H_LOCK_TENANTS = 'loopc,cg'
+    process.env.VOUCHER_24H_LOCK_TENANTS = 'loopc,cg,mg'
   })
 
   afterEach(() => {
@@ -120,7 +120,19 @@ describe('assertAccountingEntryEditable 24h + period', () => {
     return { service, periods, clock }
   }
 
-  test('MG feature off: old createdAt does not throw 24h lock', async () => {
+  test('MG setting ON: locks when age > 24h', async () => {
+    const { service } = makeService({
+      nowMs: Date.parse('2026-09-06T12:00:00.000Z'),
+    })
+    await expect(service.assertAccountingEntryEditable({
+      tenant: 'mg',
+      date: new Date('2026-09-04T10:00:00.000Z'),
+      createdAt: new Date('2026-09-04T10:00:00.000Z'),
+    })).rejects.toMatchObject({ code: 'ACCOUNTING_ENTRY_24H_LOCKED', status: 409 })
+  })
+
+  test('feature off via env: MG old createdAt does not throw 24h lock', async () => {
+    process.env.VOUCHER_24H_LOCK_TENANTS = ''
     const { service } = makeService()
     await expect(service.assertAccountingEntryEditable({
       tenant: 'mg',
