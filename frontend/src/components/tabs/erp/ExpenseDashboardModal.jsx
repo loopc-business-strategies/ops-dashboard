@@ -42,7 +42,7 @@ const modalCloseButtonStyle = {
   padding: 0,
 }
 
-export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpenLedgerEntry }) {
+export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpenLedgerEntry, baseCurrencyCode = 'USD' }) {
   const [trendRange, setTrendRange] = useState('6m')
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -169,6 +169,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
             peakMonthIndex={peakMonthIndex}
             selectedMonthIndex={selectedMonthIndex}
             trendRangeLabel={trendRangeLabel}
+            baseCurrencyCode={baseCurrencyCode}
             style={{ marginBottom: '1rem' }}
           />
 
@@ -201,11 +202,12 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
               onOpenLedgerEntry={onOpenLedgerEntry}
               scrollMaxHeight="50vh"
               onAfterLedgerOpen={onClose}
+              baseCurrencyCode={baseCurrencyCode}
               style={{ marginBottom: '1rem' }}
             />
           )}
 
-          <ExpenseStatsFooter {...footerStats} />
+          <ExpenseStatsFooter {...footerStats} baseCurrencyCode={baseCurrencyCode} />
         </div>
       </div>
     </div>

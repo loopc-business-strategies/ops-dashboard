@@ -317,7 +317,7 @@ function APARWidget({ dashboard, onNavigate }) {
   )
 }
 
-function ExpensesWidget({ dashboard, token }) {
+function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD' }) {
   const {
     year: yearFilter,
     startDate: registerStartDate,
@@ -386,9 +386,10 @@ function ExpensesWidget({ dashboard, token }) {
         peakMonthIndex={peakMonthIndex}
         selectedMonthIndex={selectedMonthIndex}
         trendRangeLabel="Monthly Expenses"
+        baseCurrencyCode={baseCurrencyCode}
         style={{ flex: 1, minHeight: 0 }}
       />
-      <ExpenseStatsFooter compact {...footerStats} />
+      <ExpenseStatsFooter compact {...footerStats} baseCurrencyCode={baseCurrencyCode} />
     </div>
   )
 }
@@ -640,6 +641,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           dashboard={dashboard}
           token={options.token}
           onOpenLedgerEntry={options.onOpenLedgerEntry}
+          baseCurrencyCode={options.baseCurrencyCode || 'USD'}
         />
       )
     }

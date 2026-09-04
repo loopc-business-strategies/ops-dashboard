@@ -11,6 +11,7 @@ export default function ExpenseStatsFooter({
   deltaSubtext = '',
   compact = false,
   style = {},
+  baseCurrencyCode = 'USD',
 }) {
   const padding = compact ? '0.45rem 0.5rem' : '0.95rem 1rem'
   const labelSize = compact ? '0.62rem' : '0.73rem'
@@ -19,10 +20,10 @@ export default function ExpenseStatsFooter({
   const showDelta = !compact && deltaSubtext
 
   const cells = [
-    ['Total Expenses', fmtDollar(periodTotal), showDelta ? deltaSubtext : (compact ? 'Filtered period' : deltaSubtext), deltaColor],
-    ['Last Month', fmtDollar(lastMonthAmount), 'Previous period', '#111827'],
-    ['This Year (YTD)', fmtDollar(ytdTotal), 'Year filter total', '#059669'],
-    ['Total Transactions', txCount > 0 ? txCount.toLocaleString() : '0', `Avg ${fmtDollar(avgExpense)}`, '#111827'],
+    ['Total Expenses', fmtDollar(periodTotal, baseCurrencyCode), showDelta ? deltaSubtext : (compact ? 'Filtered period' : deltaSubtext), deltaColor],
+    ['Last Month', fmtDollar(lastMonthAmount, baseCurrencyCode), 'Previous period', '#111827'],
+    ['This Year (YTD)', fmtDollar(ytdTotal, baseCurrencyCode), 'Year filter total', '#059669'],
+    ['Total Transactions', txCount > 0 ? txCount.toLocaleString() : '0', `Avg ${fmtDollar(avgExpense, baseCurrencyCode)}`, '#111827'],
   ]
 
   return (

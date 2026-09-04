@@ -444,7 +444,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     const fxValidationMessage = validateFxReferenceRateRequirement({
       type,
-      currency: String(currency || 'USD').toUpperCase(),
+      currency: String(currency || baseCurrencyCode).toUpperCase(),
       voucherMeta,
       baseCurrencyCode,
     })
@@ -472,7 +472,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
       amount: normalizedAmount,
       date: date ? new Date(date) : new Date(),
       description,
-      currency: (currency || 'USD').toUpperCase(),
+      currency: (currency || baseCurrencyCode).toUpperCase(),
       exchangeRate: normalizedExchangeRate,
       customerId: sanitizeOptionalRef(customerId),
       vendorId: sanitizeOptionalRef(vendorId),
@@ -589,8 +589,8 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
     const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     const nextCurrency = req.body.currency !== undefined
-      ? String(req.body.currency || 'USD').toUpperCase()
-      : String(tx.currency || 'USD').toUpperCase()
+      ? String(req.body.currency || baseCurrencyCode).toUpperCase()
+      : String(tx.currency || baseCurrencyCode).toUpperCase()
     const nextVoucherMeta = req.body.voucherMeta !== undefined ? req.body.voucherMeta : tx.voucherMeta
     const fxValidationMessage = validateFxReferenceRateRequirement({
       type: nextType,
@@ -606,7 +606,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     if (req.body.amount !== undefined) tx.amount = normalizeMoneyValue(req.body.amount, 'amount')
     if (req.body.date !== undefined) tx.date = req.body.date ? new Date(req.body.date) : tx.date
     if (req.body.description !== undefined) tx.description = req.body.description
-    if (req.body.currency !== undefined) tx.currency = String(req.body.currency || 'USD').toUpperCase()
+    if (req.body.currency !== undefined) tx.currency = String(req.body.currency || baseCurrencyCode).toUpperCase()
     if (req.body.exchangeRate !== undefined) tx.exchangeRate = normalizeExchangeRateValue(req.body.exchangeRate ?? 1)
     if (req.body.customerId !== undefined) tx.customerId = sanitizeOptionalRef(req.body.customerId)
     if (req.body.vendorId !== undefined) tx.vendorId = sanitizeOptionalRef(req.body.vendorId)

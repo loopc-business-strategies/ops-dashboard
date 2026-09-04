@@ -43,7 +43,7 @@ export function useVoucherLineForm({
     const rate = parseFloat(header.currRate) || 1
     return {
       ...baseLine,
-      currCode: header.currCode || 'USD',
+      currCode: header.currCode || baseCurrencyCode,
       currRate: String(rate.toFixed(6)),
       currRateSource: header.currRateSource || 'currency_table',
       vatType: baseLine.vatType || 'VAT',
@@ -60,7 +60,7 @@ export function useVoucherLineForm({
     const defaultAccountCode = pickDefaultAccountCodeByType(activeAccounts, defaultType)
     const baseLine = {
       ...emptyLine(),
-      currCode: header.currCode || 'USD',
+      currCode: header.currCode || baseCurrencyCode,
       currRate: header.currRate || '1.000000',
       currRateSource: header.currRateSource || 'currency_table',
       type: defaultType,
@@ -175,7 +175,7 @@ export function useVoucherLineForm({
     let nextAmountFC = rawAmountFC
     let nextAmountLC = rawAmountLC
 
-    const fcCur = String(next.currCode || header.currCode || 'USD').trim().toUpperCase() || 'USD'
+    const fcCur = String(next.currCode || header.currCode || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
     const lcCur = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
 
     if ((source === 'amountFC' || source === 'rate') && parsedAmountFC !== null) {
@@ -270,7 +270,7 @@ export function useVoucherLineForm({
   }
 
   const handleHeaderCurrRateChange = (val) => {
-    const normalizedHeaderCurrency = String(header.currCode || 'USD').trim().toUpperCase()
+    const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode).trim().toUpperCase()
     if (normalizedHeaderCurrency === 'USD') {
       setHeader((prev) => ({
         ...prev,

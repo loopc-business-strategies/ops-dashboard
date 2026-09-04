@@ -39,12 +39,13 @@ export function fmtPosition(value: unknown) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })
 }
 
-export function fmtCompactCurrency(value: unknown) {
+export function fmtCompactCurrency(value: unknown, currencyCode = 'USD') {
+  const code = String(currencyCode || 'USD').trim().toUpperCase() || 'USD'
   const n = Number(value || 0)
-  if (!Number.isFinite(n)) return '$0'
-  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}m`
-  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  if (!Number.isFinite(n)) return formatMoney(0, code)
+  if (Math.abs(n) >= 1_000_000) return `${code} ${(n / 1_000_000).toFixed(1)}m`
+  if (Math.abs(n) >= 1_000) return `${code} ${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`
+  return formatMoney(n, code)
 }
 
 export function fmtTime(value?: string) {

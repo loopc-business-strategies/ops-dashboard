@@ -48,11 +48,25 @@ describe('shared/money currency precision + roundMoney', () => {
     expect(getCurrencyPrecision('EUR')).toBe(2)
     expect(getCurrencyPrecision('GBP')).toBe(2)
     expect(getCurrencyPrecision('AED')).toBe(2)
+    expect(getCurrencyPrecision('INR')).toBe(2)
     expect(getCurrencyPrecision('UZS')).toBe(0)
     expect(getCurrencyPrecision('JPY')).toBe(0)
     expect(getCurrencyPrecision('KWD')).toBe(3)
+    expect(getCurrencyPrecision('BHD')).toBe(3)
     expect(getCurrencyPrecision('UNKNOWN')).toBe(2)
     expect(getCurrencyPrecision('UZS')).toBe(getCurrencyDisplayPrecision('UZS'))
+  })
+
+  test('mandated ladder survives parse/round/format for major currencies', () => {
+    const ladder = [0, 1, 10, 99, 100, 999, 1000, 2000, 9999, 10000, 100000, 300000, 1000000, 3000000, 10000000]
+    const codes = ['USD', 'AED', 'INR', 'JPY', 'KWD', 'BHD', 'UZS']
+    for (const code of codes) {
+      for (const n of ladder) {
+        expect(parseAmount(n)).toBe(n)
+        expect(roundMoney(n, code)).toBe(n)
+        expect(parseAmount(formatAmount(n, { currencyCode: code }))).toBe(n)
+      }
+    }
   })
 
   test('roundMoney respects currency digits', () => {

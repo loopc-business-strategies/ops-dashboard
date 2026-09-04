@@ -5,7 +5,10 @@ const {
   buildBalanceSheetSummaryFromBalances,
   filterTrialBalanceRowsForIncludeZero,
   toEndOfDay,
+  roundRatio,
+  defaultToMoney,
 } = require('../services/erpAccounting/reportSummaryService')
+const { toMoney } = require('../../shared/money')
 
 const expenseId = 'exp-620001'
 const incomeId = 'inc-4190'
@@ -151,5 +154,46 @@ describe('buildProfitLossDateQuery', () => {
 
     const lateEntry = new Date('2026-06-22T18:30:00.000')
     expect(lateEntry >= query.$gte && lateEntry <= query.$lte).toBe(true)
+  })
+})
+
+describe('money vs ratio separation', () => {
+  test('defaultToMoney is shared toMoney and preserves identity amounts', () => {
+    expect(defaultToMoney).toBe(toMoney)
+    for (const n of [0, 1, 10, 99, 100, 999, 1000, 2000, 9999, 10000, 100000, 300000, 1000000, 3000000, 10000000]) {
+      expect(defaultToMoney(n)).toBe(n)
+    }
+  })
+
+  test('roundRatio rounds display ratios without digit-length scaling', () => {
+    expect(roundRatio(12.345)).toBe(12.35)
+    expect(roundRatio(2000)).toBe(2000)
+    expect(roundRatio(300000)).toBe(300000)
+    expect(roundRatio(1.234, 3)).toBe(1.234)
+  })
+
+  test('grossMarginPct uses ratio rounding while totals preserve money identity', () => {
+    const entries = [
+      { debitAccountId: bankId, creditAccountId: incomeId, amount: 3000000, exchangeRate: 1 },
+      { debitAccountId: expenseId, creditAccountId: bankId, amount: 300000, exchangeRate: 1 },
+    ]
+    const summary = summarizeProfitLossEntriesFromLedgerRows(entries, pnlAccounts, false)
+    expect(summary.totalIncome).toBe(3000000)
+    expect(summary.totalExpense).toBe(300000)
+    expect(summary.netProfit).toBe(2700000)
+    // (3000000 - 300000) / 3000000 * 100 = 90
+    expect(summary.grossMarginPct).toBe(90)
+  })
+
+  test('currentRatio uses roundRatio for non-money metric', () => {
+    const accounts = [
+      { _id: 'ca', accountCode: '1100', accountName: 'Cash Bank', accountType: 'Asset', openingBalance: 2000 },
+      { _id: 'cl', accountCode: '2100', accountName: 'Payable Creditor', accountType: 'Liability', openingBalance: -1234.56 },
+    ]
+    const summary = buildBalanceSheetSummaryFromBalances(accounts, new Map(), true)
+    expect(summary.currentAssets).toBe(2000)
+    expect(summary.currentLiabilities).toBe(1234.56)
+    expect(summary.currentRatio).toBe(roundRatio(2000 / 1234.56))
+    expect(summary.currentRatio).toBe(Number((2000 / 1234.56).toFixed(2)))
   })
 })

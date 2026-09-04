@@ -8,6 +8,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import financeAPI from '../../api/finance'
 import erpAccountingAPI from '../../api/erp-accounting'
+import { formatMoney } from '../../utils/money'
 import { Modal } from '../ui-components'
 import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { BudgetModal, ExpenseModal, InvoiceModal, PayrollModal } from './finance/FinanceModals'
@@ -132,8 +133,22 @@ const INIT_NOTIFS = [
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────
-function fmt(n)      { return n>=1000000 ? '$'+(n/1000000).toFixed(2)+'M' : n>=1000 ? '$'+(n/1000).toFixed(0)+'k' : '$'+n.toLocaleString() }
-function fmtFull(n)  { return '$'+Number(n).toLocaleString() }
+// Module-level currency for panel helpers below; set from FinanceTab when currencies load.
+let financeBaseCurrencyCode = 'USD'
+function setFinanceBaseCurrencyCode(code) {
+  financeBaseCurrencyCode = String(code || 'USD').trim().toUpperCase() || 'USD'
+}
+function fmt(n) {
+  const code = financeBaseCurrencyCode
+  const num = Number(n || 0)
+  if (!Number.isFinite(num)) return formatMoney(0, code)
+  if (Math.abs(num) >= 1000000) return `${code} ${(num / 1000000).toFixed(2)}M`
+  if (Math.abs(num) >= 1000) return `${code} ${(num / 1000).toFixed(0)}k`
+  return formatMoney(num, code)
+}
+function fmtFull(n) {
+  return formatMoney(n, financeBaseCurrencyCode)
+}
 function pct(v,t)    { return Math.max(0,Math.min(100,Math.round((v/t)*100))) }
 
 // ─── Shared UI ────────────────────────────────────────────────
@@ -730,7 +745,7 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
         <Modal title={editId ? 'Edit Budget' : 'Add Budget'} onClose={() => setBudgetModal(false)}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <div><ML>Department</ML><input value={bf.dept} onChange={e=>setBf(p=>({...p,dept:e.target.value}))} style={iStyle} placeholder="Department" /></div>
-            <div><ML>Annual Budget ($)</ML><input type="number" value={bf.annual} onChange={e=>setBf(p=>({...p,annual:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Annual Budget ({financeBaseCurrencyCode})</ML><input type="number" value={bf.annual} onChange={e=>setBf(p=>({...p,annual:e.target.value}))} style={iStyle} /></div>
             <div><ML>Spent to Date ($)</ML><input type="number" value={bf.spent} onChange={e=>setBf(p=>({...p,spent:e.target.value}))} style={iStyle} /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
@@ -1020,7 +1035,7 @@ function TaxCompliance({ finRole: _finRole, can, canEdit, onToast, taxes, setTax
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <div><ML>Tax Type</ML><input value={tf.type} onChange={e=>setTf(p=>({...p,type:e.target.value}))} style={iStyle} /></div>
             <div><ML>Period</ML><input value={tf.period} onChange={e=>setTf(p=>({...p,period:e.target.value}))} style={iStyle} placeholder="Q2 2026" /></div>
-            <div><ML>Amount ($)</ML><input type="number" value={tf.amount} onChange={e=>setTf(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Amount ({financeBaseCurrencyCode})</ML><input type="number" value={tf.amount} onChange={e=>setTf(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
             <div><ML>Due Date</ML><input value={tf.due} onChange={e=>setTf(p=>({...p,due:e.target.value}))} style={iStyle} placeholder="Apr 30, 2026" /></div>
             <div><ML>Filed Date</ML><input value={tf.filed} onChange={e=>setTf(p=>({...p,filed:e.target.value}))} style={iStyle} placeholder="—" /></div>
             <div><ML>Status</ML><select value={tf.status} onChange={e=>setTf(p=>({...p,status:e.target.value}))} style={iStyle}><option>Pending</option><option>Due Soon</option><option>Filed</option></select></div>
@@ -1237,7 +1252,7 @@ function GeneralLedger({ finRole: _finRole, can, canEdit, onToast, token }) {
         <Modal title={editEntry ? 'Edit Ledger Entry' : 'New Ledger Entry'} onClose={() => setEditModal(false)}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <div><ML>Date</ML><input type="date" value={formData.date} onChange={e=>setFormData(p=>({...p,date:e.target.value}))} style={iStyle} /></div>
-            <div><ML>Amount ($)</ML><input type="number" value={formData.amount} onChange={e=>setFormData(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Amount ({financeBaseCurrencyCode})</ML><input type="number" value={formData.amount} onChange={e=>setFormData(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
             <div><ML>Debit Account</ML><input value={formData.debitAccount} onChange={e=>setFormData(p=>({...p,debitAccount:e.target.value}))} style={iStyle} placeholder="e.g. Cash" /></div>
             <div><ML>Credit Account</ML><input value={formData.creditAccount} onChange={e=>setFormData(p=>({...p,creditAccount:e.target.value}))} style={iStyle} placeholder="e.g. Revenue" /></div>
           </div>
@@ -1347,6 +1362,27 @@ export default function FinanceTab() {
   const [toast,        setToast]        = useState(null)
   const [modal,        setModal]        = useState(null)   // 'invoice'|'expense'|'payroll'|'budget'|null
   const [notifOpen,    setNotifOpen]    = useState(false)
+  const [baseCurrencyCode, setBaseCurrencyCode] = useState('USD')
+
+  useEffect(() => {
+    setFinanceBaseCurrencyCode(baseCurrencyCode)
+  }, [baseCurrencyCode])
+
+  useEffect(() => {
+    if (!token) return
+    let cancelled = false
+    erpAccountingAPI.getCurrencies(token)
+      .then((res) => {
+        if (cancelled) return
+        const list = res?.currencies || res || []
+        const base = (Array.isArray(list) ? list : []).find((c) => c.baseCurrency)
+        const code = String(base?.code || 'USD').trim().toUpperCase() || 'USD'
+        setBaseCurrencyCode(code)
+      })
+      .catch(() => { /* keep USD default */ })
+    return () => { cancelled = true }
+  }, [token])
+
   useEffect(() => {
     if (!token) return
     let cancelled = false

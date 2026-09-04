@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { formatCurrency } from '../../../utils/money'
+import { formatCurrency, formatAmount } from '../../../utils/money'
 
 export function fmtDollar(val, currencyCode = 'USD') {
   return formatCurrency(val, {
@@ -8,11 +8,13 @@ export function fmtDollar(val, currencyCode = 'USD') {
   })
 }
 
-function fmtCompactCurrency(value) {
+export function fmtCompactCurrency(value, currencyCode = 'USD') {
+  const code = String(currencyCode || 'USD').trim().toUpperCase() || 'USD'
   const n = Number(value || 0)
-  if (Math.abs(n) >= 1000000) return `$${(n / 1000000).toFixed(1)}m`
-  if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  if (!Number.isFinite(n)) return formatAmount(0, { currencyCode: code })
+  if (Math.abs(n) >= 1000000) return `${code} ${(n / 1000000).toFixed(1)}m`
+  if (Math.abs(n) >= 1000) return `${code} ${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`
+  return formatAmount(n, { currencyCode: code })
 }
 
 function ExpenseDonut({ segments = [], total = 0, size = 152, stroke = 34, label = '', subLabel = '' }) {
@@ -66,6 +68,7 @@ export default function ExpenseChartsPanel({
   trendRangeLabel = 'Monthly Expenses',
   compact = false,
   style = {},
+  baseCurrencyCode = 'USD',
 }) {
   const donutSize = compact ? 108 : 158
   const donutStroke = compact ? 24 : 34
@@ -96,7 +99,7 @@ export default function ExpenseChartsPanel({
             total={displayTotal}
             size={donutSize}
             stroke={donutStroke}
-            label={fmtDollar(displayTotal)}
+            label={fmtDollar(displayTotal, baseCurrencyCode)}
             subLabel={subLabel}
           />
           <div style={{ display: 'grid', gap: compact ? '0.4rem' : '0.62rem', minWidth: 0, overflow: 'hidden' }}>
@@ -109,7 +112,7 @@ export default function ExpenseChartsPanel({
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{seg.label}</span>
                   </div>
                   <span style={{ textAlign: 'right', color: '#374151', fontWeight: '700' }}>{seg.pct.toFixed(0)}%</span>
-                  <span style={{ textAlign: 'right', color: '#111827', fontWeight: '800' }}>{fmtDollar(seg.value)}</span>
+                  <span style={{ textAlign: 'right', color: '#111827', fontWeight: '800' }}>{fmtDollar(seg.value, baseCurrencyCode)}</span>
                 </div>
               ))}
           </div>
@@ -132,7 +135,7 @@ export default function ExpenseChartsPanel({
                 : rowMonthIndex === peakMonthIndex
               return (
                 <div key={row.key || `${row.label}-${index}`} style={{ flex: 1, minWidth: compact ? 28 : 42, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
-                  <span style={{ color: active ? '#111827' : '#334155', fontSize: compact ? '0.62rem' : '0.7rem', fontWeight: '900' }}>{fmtCompactCurrency(amount)}</span>
+                  <span style={{ color: active ? '#111827' : '#334155', fontSize: compact ? '0.62rem' : '0.7rem', fontWeight: '900' }}>{fmtCompactCurrency(amount, baseCurrencyCode)}</span>
                   <div style={{ width: '42%', minWidth: 12, maxWidth: compact ? 20 : 28, height, borderRadius: '999px 999px 0 0', background: active ? '#059669' : '#C7F0DC' }} />
                   <span style={{ color: '#64748B', fontSize: compact ? '0.58rem' : '0.66rem', whiteSpace: 'nowrap' }}>{row.label || row.month}</span>
                 </div>

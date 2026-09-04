@@ -61,7 +61,7 @@ export function ExpensesWidget({
       </View>
 
       {displayTotal > 0 ? (
-        <Text style={widgetStyles.note}>Total breakdown: {fmtCompactCurrency(displayTotal)}</Text>
+        <Text style={widgetStyles.note}>Total breakdown: {fmtCompactCurrency(displayTotal, baseCurrencyCode)}</Text>
       ) : null}
     </View>
   )

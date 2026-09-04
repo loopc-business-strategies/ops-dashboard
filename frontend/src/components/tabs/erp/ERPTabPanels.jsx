@@ -437,6 +437,7 @@ export default function ERPTabPanels({
         token={token}
         accounts={accounts}
         setLedgerFilters={setLedgerFilters}
+        baseCurrencyCode={baseCurrencyCode}
       />
       )}
       {/* CHART OF ACCOUNTS TAB */}

@@ -94,6 +94,7 @@ export default function ExpenseRegisterSection({
   scrollMaxHeight = '320px',
   fillHeight = false,
   style,
+  baseCurrencyCode = 'USD',
 }) {
   const scrollStyle = fillHeight
     ? { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }
@@ -247,8 +248,8 @@ export default function ExpenseRegisterSection({
                   <td style={{ padding: '0.65rem 0.85rem', color: '#374151', maxWidth: 220 }}>{row.description}</td>
                   <td style={{ padding: '0.65rem 0.85rem', color: Number(row.amount || 0) < 0 ? '#DC2626' : '#111827', fontWeight: '900', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {Number(row.amount || 0) < 0
-                      ? `(${fmtDollar(Math.abs(Number(row.amount || 0)))})`
-                      : fmtDollar(row.amount)}
+                      ? `(${fmtDollar(Math.abs(Number(row.amount || 0)), baseCurrencyCode)})`
+                      : fmtDollar(row.amount, baseCurrencyCode)}
                   </td>
                   <td style={{ padding: '0.65rem 0.85rem' }}>
                     <span style={{ ...badge, display: 'inline-block', borderRadius: 4, padding: '2px 8px', fontSize: '0.68rem', fontWeight: '800' }}>

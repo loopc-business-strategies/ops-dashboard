@@ -38,6 +38,7 @@ export default function ERPDashboardTab({
   token,
   accounts = [],
   setLedgerFilters,
+  baseCurrencyCode = 'USD',
 }) {
   const openLedgerFromExpense = setLedgerFilters ? (entry) => {
     const entryDate = entry?.date ? formatDateInputLocal(new Date(entry.date)) : ''
@@ -134,6 +135,7 @@ export default function ERPDashboardTab({
                   liveRecalcEnabled: dashboardLiveRecalcEnabled,
                   token,
                   onOpenLedgerEntry: openLedgerFromExpense,
+                  baseCurrencyCode,
                 }
                 return (
                   <div
@@ -273,6 +275,7 @@ export default function ERPDashboardTab({
               token={token}
               onClose={() => setDashExpandedWidget(null)}
               onOpenLedgerEntry={openLedgerFromExpense}
+              baseCurrencyCode={baseCurrencyCode}
             />
           )}
 
