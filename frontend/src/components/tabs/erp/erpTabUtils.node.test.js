@@ -31,8 +31,13 @@ describe('erpTabUtils (node)', () => {
     expect(resolveAccountIdFromInput('', options)).toBe('')
   })
 
+  test('createInventoryMappingForm defaults currency from tenant base', () => {
+    expect(createInventoryMappingForm('AED').currency).toBe('AED')
+    expect(createInventoryMappingForm('AED').priceCurrency).toBe('AED')
+  })
+
   test('buildAutoStockCode respects metal-purity vs prefix-metal-purity', () => {
-    const form = createInventoryMappingForm()
+    const form = createInventoryMappingForm('USD')
     expect(buildAutoStockCode(form, { format: 'metal-purity', prefix: 'RM' })).toBe('GOLD')
     expect(buildAutoStockCode(form, { format: 'prefix-metal-purity', prefix: 'RM' })).toBe('RM-GOLD')
   })

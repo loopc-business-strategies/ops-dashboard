@@ -1,9 +1,10 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
-import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM, vendorToFormState } from './vendorFormDefaults'
+import { EMPTY_VENDOR_DOCUMENT_FORM, createEmptyVendorForm, vendorToFormState } from './vendorFormDefaults'
 
 export function useErpVendorActions({
   token,
+  baseCurrencyCode = 'USD',
   canManageVendors,
   vendorPermissions,
   vendorForm,
@@ -55,7 +56,7 @@ export function useErpVendorActions({
         await erpAccountingAPI.createVendor(token, payload)
         showNotification('✅ Vendor created')
       }
-      setVendorForm({ ...EMPTY_VENDOR_FORM })
+      setVendorForm(createEmptyVendorForm(baseCurrencyCode))
       setShowVendorForm(false)
       setEditingVendorId('')
       await Promise.all([
@@ -69,6 +70,7 @@ export function useErpVendorActions({
     }
   }, [
     token,
+    baseCurrencyCode,
     canManageVendors,
     editingVendorId,
     vendorForm,
@@ -99,8 +101,8 @@ export function useErpVendorActions({
     }
     setEditingVendorId(vendor._id)
     setShowVendorForm(true)
-    setVendorForm(vendorToFormState(vendor))
-  }, [vendorPermissions, setEditingVendorId, setShowVendorForm, setVendorForm, setError])
+    setVendorForm(vendorToFormState(vendor, baseCurrencyCode))
+  }, [baseCurrencyCode, vendorPermissions, setEditingVendorId, setShowVendorForm, setVendorForm, setError])
 
   const handleDeleteVendor = useCallback(async (vendor) => {
     if (!vendorPermissions.canManage) {

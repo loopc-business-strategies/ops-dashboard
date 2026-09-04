@@ -2,9 +2,9 @@ import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import {
   EMPTY_CURRENCY_FORM,
-  EMPTY_CUSTOMER_FORM,
   EMPTY_MAPPING_FORM,
   buildReferenceEditFormState,
+  createEmptyCustomerForm,
   currencyFormPayload,
   resolveCurrencyExchangeRate,
 } from './referenceEditFormDefaults'
@@ -16,7 +16,6 @@ export function useErpReferenceCrud({
   currencyForm,
   mappingForm,
   editState,
-  currencies,
   setCustomerForm,
   setCurrencyForm,
   setMappingForm,
@@ -34,8 +33,8 @@ export function useErpReferenceCrud({
   handleSaveEditLedger,
 }) {
   const openEditModal = useCallback((type, record) => {
-    setEditState({ type, record, form: buildReferenceEditFormState(type, record) })
-  }, [setEditState])
+    setEditState({ type, record, form: buildReferenceEditFormState(type, record, erpBaseCurrencyCode) })
+  }, [erpBaseCurrencyCode, setEditState])
 
   const closeEditModal = useCallback(() => {
     setEditState({ type: '', record: null, form: {} })
@@ -55,10 +54,7 @@ export function useErpReferenceCrud({
         creditLimit: Number(customerForm.creditLimit || 0),
         paymentTermsDays: Number(customerForm.paymentTermsDays || 0),
       })
-      setCustomerForm({
-        ...EMPTY_CUSTOMER_FORM,
-        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'USD',
-      })
+      setCustomerForm(createEmptyCustomerForm(erpBaseCurrencyCode))
       setShowCustomerForm(false)
       await Promise.all([loadCustomers(), loadAccounts()])
       showNotification('✅ Customer created successfully')
@@ -70,7 +66,7 @@ export function useErpReferenceCrud({
   }, [
     token,
     customerForm,
-    currencies,
+    erpBaseCurrencyCode,
     setCustomerForm,
     setShowCustomerForm,
     setSaving,

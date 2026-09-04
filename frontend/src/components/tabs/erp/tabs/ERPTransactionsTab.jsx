@@ -273,6 +273,7 @@ export default function ERPTransactionsTab({
             availableTransactionTypes={availableTransactionTypes}
             TRANSACTION_TYPE_LABELS={TRANSACTION_TYPE_LABELS}
             currencies={currencies}
+            baseCurrencyCode={baseCurrencyCode}
             customers={customers}
             vendors={vendors}
             inventoryProducts={inventoryProducts}

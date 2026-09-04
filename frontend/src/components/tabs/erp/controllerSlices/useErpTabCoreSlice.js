@@ -28,7 +28,8 @@ import { canViewErpSubTab } from '../../../../utils/erpSubTabPermissions'
 import { buildJvDocNo as buildNextJvDocNo, convertJvAmountBetweenCurrencies } from '../journalVoucherHelpers'
 import { DEFAULT_BRANDING, DEFAULT_BRANDING_PROFILES } from '../ERPBrandingUtils'
 import { useErpAccounts } from '../useErpAccounts'
-import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM } from '../vendorFormDefaults'
+import { createEmptyCustomerForm } from '../referenceEditFormDefaults'
+import { EMPTY_VENDOR_DOCUMENT_FORM, createEmptyVendorForm } from '../vendorFormDefaults'
 
 
 
@@ -178,18 +179,7 @@ export function useErpTabCoreSlice(props) {
   const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
   const [mappingFilters, setMappingFilters] = useState({ department: '' })
   const [mappingSummary, setMappingSummary] = useState({ total: 0, shared: 0, byDepartment: {} })
-  const [customerForm, setCustomerForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
-    gstVat: '',
-    openingBalance: '',
-    creditLimit: '',
-    paymentTermsDays: '',
-    currency: 'USD',
-    notes: '',
-  })
+  const [customerForm, setCustomerForm] = useState(() => createEmptyCustomerForm('USD'))
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showCurrencyForm, setShowCurrencyForm] = useState(false)
   const [showMappingForm, setShowMappingForm] = useState(false)
@@ -303,7 +293,7 @@ export function useErpTabCoreSlice(props) {
   const [transactionSummary, setTransactionSummary] = useState({ totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
   const [ledgerMeta, setLedgerMeta] = useState({ cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
   const [transactionMeta, setTransactionMeta] = useState({ page: 1, limit: 25, total: 0, cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
-  const [vendorForm, setVendorForm] = useState({ ...EMPTY_VENDOR_FORM })
+  const [vendorForm, setVendorForm] = useState(() => createEmptyVendorForm('USD'))
   const [vendorFilters, setVendorFilters] = useState({ search: '', status: '', approvalStatus: '', riskLevel: '', category: '', includeInactive: false })
   const [vendorSummary, setVendorSummary] = useState({ totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
   const [vendorPermissions, setVendorPermissions] = useState({ canManage: false, canUpdateOperational: false })
@@ -332,6 +322,33 @@ export function useErpTabCoreSlice(props) {
   const [inventoryProductModalDragging, setInventoryProductModalDragging] = useState(false)
   const [inventoryStockCodeSettings, setInventoryStockCodeSettings] = useState(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
   const inventoryStockCodeSettingsKey = `${INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
+  const lastAppliedBaseRef = useRef(erpBaseCurrencyCode)
+  useEffect(() => {
+    const previousBase = String(lastAppliedBaseRef.current || '').toUpperCase()
+    lastAppliedBaseRef.current = erpBaseCurrencyCode
+    setCustomerForm((prev) => {
+      const current = String(prev.currency || '').trim().toUpperCase()
+      if (!current || current === previousBase) return { ...prev, currency: erpBaseCurrencyCode }
+      return prev
+    })
+    setVendorForm((prev) => {
+      const current = String(prev.currency || '').trim().toUpperCase()
+      const preferred = String(prev.preferredCurrency || '').trim().toUpperCase()
+      if ((!current || current === previousBase) && (!preferred || preferred === previousBase)) {
+        return { ...prev, currency: erpBaseCurrencyCode, preferredCurrency: erpBaseCurrencyCode }
+      }
+      return prev
+    })
+    if (!editingProductId) {
+      setInventoryMappingForm((prev) => {
+        const current = String(prev.currency || prev.priceCurrency || '').trim().toUpperCase()
+        if (!current || current === previousBase) {
+          return { ...prev, currency: erpBaseCurrencyCode, priceCurrency: erpBaseCurrencyCode }
+        }
+        return prev
+      })
+    }
+  }, [erpBaseCurrencyCode, editingProductId])
   const ITEMS_PER_PAGE = 25
   const statementTableRef = useRef(null)
   const showNotification = (msg) => {

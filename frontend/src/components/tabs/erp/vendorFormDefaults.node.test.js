@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { EMPTY_VENDOR_FORM, vendorToFormState } from './vendorFormDefaults'
+import { EMPTY_VENDOR_FORM, createEmptyVendorForm, vendorToFormState } from './vendorFormDefaults'
 
 describe('vendorFormDefaults', () => {
   test('vendorToFormState maps vendor record to form fields', () => {
@@ -24,5 +24,14 @@ describe('vendorFormDefaults', () => {
     expect(EMPTY_VENDOR_FORM.paymentTermsDays).toBe('30')
     expect(EMPTY_VENDOR_FORM.preferredCurrency).toBe('USD')
     expect(EMPTY_VENDOR_FORM.status).toBe('active')
+  })
+
+  test('createEmptyVendorForm and vendorToFormState fall through to tenant base', () => {
+    const empty = createEmptyVendorForm('AED')
+    expect(empty.currency).toBe('AED')
+    expect(empty.preferredCurrency).toBe('AED')
+    const hydrated = vendorToFormState({ name: 'X' }, 'UZS')
+    expect(hydrated.currency).toBe('UZS')
+    expect(hydrated.preferredCurrency).toBe('UZS')
   })
 })

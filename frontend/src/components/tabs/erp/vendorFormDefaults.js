@@ -1,31 +1,37 @@
-export const EMPTY_VENDOR_FORM = {
-  vendorCode: '',
-  name: '',
-  contactPerson: '',
-  phone: '',
-  email: '',
-  address: '',
-  city: '',
-  country: '',
-  postalCode: '',
-  gstVat: '',
-  taxRegistrationNo: '',
-  openingBalance: '',
-  paymentTermsDays: '30',
-  creditLimit: '',
-  category: 'general',
-  rating: '3',
-  riskLevel: 'medium',
-  status: 'active',
-  notes: '',
-  tags: '',
-  preferredCurrency: 'USD',
-  bankName: '',
-  bankAccountNumber: '',
-  iban: '',
-  swiftCode: '',
-  currency: 'USD',
+export function createEmptyVendorForm(baseCurrencyCode = 'USD') {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  return {
+    vendorCode: '',
+    name: '',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    country: '',
+    postalCode: '',
+    gstVat: '',
+    taxRegistrationNo: '',
+    openingBalance: '',
+    paymentTermsDays: '30',
+    creditLimit: '',
+    category: 'general',
+    rating: '3',
+    riskLevel: 'medium',
+    status: 'active',
+    notes: '',
+    tags: '',
+    preferredCurrency: base,
+    bankName: '',
+    bankAccountNumber: '',
+    iban: '',
+    swiftCode: '',
+    currency: base,
+  }
 }
+
+/** @deprecated Prefer createEmptyVendorForm(baseCurrencyCode) */
+export const EMPTY_VENDOR_FORM = createEmptyVendorForm('USD')
 
 export const EMPTY_VENDOR_DOCUMENT_FORM = {
   docType: 'contract',
@@ -40,7 +46,8 @@ export const EMPTY_VENDOR_DOCUMENT_FORM = {
   notes: '',
 }
 
-export function vendorToFormState(vendor) {
+export function vendorToFormState(vendor, baseCurrencyCode = 'USD') {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
   return {
     vendorCode: vendor.vendorCode || '',
     name: vendor.name || '',
@@ -62,11 +69,11 @@ export function vendorToFormState(vendor) {
     status: vendor.status || 'active',
     notes: vendor.notes || '',
     tags: Array.isArray(vendor.tags) ? vendor.tags.join(', ') : '',
-    preferredCurrency: vendor.preferredCurrency || vendor.currency || 'USD',
+    preferredCurrency: vendor.preferredCurrency || vendor.currency || base,
     bankName: vendor.bankName || '',
     bankAccountNumber: vendor.bankAccountNumber || '',
     iban: vendor.iban || '',
     swiftCode: vendor.swiftCode || '',
-    currency: vendor.currency || 'USD',
+    currency: vendor.currency || base,
   }
 }

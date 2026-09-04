@@ -17,7 +17,11 @@
 
 'use strict'
 
-/** ISO-4217-style fraction digits (code-level; no DB field). Unknown codes → 2. */
+/**
+ * ISO display precision by currency code (presentation only — not DB scale).
+ * UZS: 0 fraction digits is intentional for Som display (not digit-loss / not a DB rewrite).
+ * Unknown codes fall through to 2 in getDisplayPrecision.
+ */
 const DISPLAY_PRECISION_BY_CODE = {
   BHD: 3,
   IQD: 3,

@@ -1,3 +1,6 @@
+/**
+ * Destructive MG tenant Mongo cleanup (ops).
+ * Dry-run by default; pass --apply with guard flags to delete.
  */
 require('./_requireGuard')
 

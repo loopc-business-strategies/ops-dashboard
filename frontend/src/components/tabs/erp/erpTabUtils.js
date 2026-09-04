@@ -1,14 +1,17 @@
-const createInventoryMappingForm = () => ({
-  mainStock: 'gold',
-  customMainStock: '',
-  metalType: 'gold',
-  stockCode: '',
-  unit: 'grams',
-  currency: 'USD',
-  currentPrice: '',
-  priceUnit: 'OZ',
-  priceCurrency: 'USD',
-})
+const createInventoryMappingForm = (baseCurrencyCode = 'USD') => {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  return {
+    mainStock: 'gold',
+    customMainStock: '',
+    metalType: 'gold',
+    stockCode: '',
+    unit: 'grams',
+    currency: base,
+    currentPrice: '',
+    priceUnit: 'OZ',
+    priceCurrency: base,
+  }
+}
 
 const createInventoryProductForm = () => ({
   stockTypeId: '',
@@ -162,12 +165,12 @@ const resolveTransactionAttachmentUrl = (attachment) => {
   return '#'
 }
 
-const createTransactionForm = () => ({
+const createTransactionForm = (baseCurrencyCode = 'USD') => ({
   type: 'expense',
   metalFixStatus: 'fixed',
   amount: '',
   date: new Date().toISOString().slice(0, 10),
-  currency: 'USD',
+  currency: String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD',
   exchangeRate: '1',
   description: '',
   customerId: '',
@@ -177,6 +180,22 @@ const createTransactionForm = () => ({
   debitAccountId: '',
   creditAccountId: '',
 })
+
+/** Preserve UI-selected currency + rate on save (never force tenant base). */
+const buildTransactionComposerPayload = (transactionForm, baseCurrencyCode = 'USD') => {
+  const resolvedBase = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  const currency = String(transactionForm.currency || resolvedBase).trim().toUpperCase() || resolvedBase
+  const exchangeRate = Number(transactionForm.exchangeRate)
+  return {
+    ...transactionForm,
+    currency,
+    exchangeRate: Number.isFinite(exchangeRate) && exchangeRate > 0 ? exchangeRate : 1,
+    amount: Number(transactionForm.amount),
+    ...(['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase())
+      ? { metalFixStatus: transactionForm.metalFixStatus || 'fixed' }
+      : {}),
+  }
+}
 
 const accountLookupText = (account) => {
   const code = String(account?.accountCode || '').trim()
@@ -218,6 +237,7 @@ export {
   createInventoryMappingForm,
   createInventoryProductForm,
   createTransactionForm,
+  buildTransactionComposerPayload,
   decodeInventoryCategoryMeta,
   decodeInventoryCategoryPairs,
   encodeInventoryCategoryMeta,

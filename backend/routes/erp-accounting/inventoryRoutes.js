@@ -34,6 +34,25 @@ const stockOutSchema = Joi.object({
   description: Joi.string().trim().allow('').max(1000).optional(),
 })
 
+/** Pure candidate pick for stock-in/out ledger currency (before Currency master validate). */
+function pickStockMovementCurrencyCandidate({
+  requestedCurrency,
+  itemCurrency,
+  ledgerCurrency,
+  baseCurrencyCode,
+  fallbackBase = 'USD',
+}) {
+  const base = String(baseCurrencyCode || fallbackBase || 'USD').trim().toUpperCase() || 'USD'
+  return String(
+    requestedCurrency
+    || itemCurrency
+    || ledgerCurrency
+    || base
+    || fallbackBase
+    || 'USD',
+  ).trim().toUpperCase() || base
+}
+
 function registerInventoryRoutes(deps) {
   const {
     router,
@@ -58,6 +77,33 @@ function registerInventoryRoutes(deps) {
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
     ? assertAccountingPeriodOpen
     : async () => {}
+
+  const resolveStockMovementCurrency = async ({ requestedCurrency, item }) => {
+    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+
+    let ledgerCurrency = ''
+    if (item?.ledgerAccountId) {
+      const ledgerAccount = await ChartOfAccount.findById(item.ledgerAccountId).select('currency').lean()
+      ledgerCurrency = String(ledgerAccount?.currency || '').trim().toUpperCase()
+    }
+
+    const candidate = pickStockMovementCurrencyCandidate({
+      requestedCurrency,
+      itemCurrency: item?.currency,
+      ledgerCurrency,
+      baseCurrencyCode,
+      fallbackBase: BASE_CURRENCY_CODE || 'USD',
+    })
+
+    const known = await Currency.findOne({ code: candidate, isActive: true }).select('code').lean()
+    if (!known && candidate !== baseCurrencyCode) {
+      const err = new Error(`Currency ${candidate} is not an active currency master code`)
+      err.status = 400
+      throw err
+    }
+    return candidate
+  }
 
   router.get('/inventory/products', protect, async (req, res) => {
     try {
@@ -128,13 +174,18 @@ function registerInventoryRoutes(deps) {
   router.post('/inventory/stock-in', protect, validateBody(stockInSchema), async (req, res) => {
     try {
       if (!canWriteInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-      const { itemId, quantity, unitCost, vendorId, currency = 'USD', description = '' } = req.body
+      const { itemId, quantity, unitCost, vendorId, currency, description = '' } = req.body
       const qty = Number(quantity || 0)
       const cost = Number(unitCost || 0)
       if (!itemId || qty <= 0) return res.status(400).json({ success: false, message: 'Item and positive quantity are required' })
 
       const item = await InventoryItem.findById(itemId)
       if (!item || item.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
+
+      const resolvedCurrency = await resolveStockMovementCurrency({
+        requestedCurrency: currency,
+        item,
+      })
 
       const before = Number(item.quantity || 0)
       item.quantity = before + qty
@@ -181,7 +232,7 @@ function registerInventoryRoutes(deps) {
         createdBy: req.user._id,
         updatedBy: req.user._id,
         department: req.user.department,
-        currency,
+        currency: resolvedCurrency,
       })
 
       res.json({ success: true, product: item, ledgerEntry })
@@ -193,12 +244,17 @@ function registerInventoryRoutes(deps) {
   router.post('/inventory/stock-out', protect, validateBody(stockOutSchema), async (req, res) => {
     try {
       if (!canWriteInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-      const { itemId, quantity, currency = 'USD', description = '' } = req.body
+      const { itemId, quantity, currency, description = '' } = req.body
       const qty = Number(quantity || 0)
       if (!itemId || qty <= 0) return res.status(400).json({ success: false, message: 'Item and positive quantity are required' })
 
       const item = await InventoryItem.findById(itemId)
       if (!item || item.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
+
+      const resolvedCurrency = await resolveStockMovementCurrency({
+        requestedCurrency: currency,
+        item,
+      })
 
       const before = Number(item.quantity || 0)
       item.quantity = before - qty
@@ -235,7 +291,7 @@ function registerInventoryRoutes(deps) {
         createdBy: req.user._id,
         updatedBy: req.user._id,
         department: req.user.department,
-        currency,
+        currency: resolvedCurrency,
       })
 
       res.json({ success: true, product: item, ledgerEntry })
@@ -336,4 +392,5 @@ function registerInventoryRoutes(deps) {
 
 module.exports = {
   registerInventoryRoutes,
+  pickStockMovementCurrencyCandidate,
 }

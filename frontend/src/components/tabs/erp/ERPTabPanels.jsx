@@ -776,6 +776,7 @@ export default function ERPTabPanels({
         voucherSourceLoading={voucherSourceLoading}
         handleOpenVoucherSource={handleOpenVoucherSource}
         handleJumpToTransaction={handleJumpToTransaction}
+        baseCurrencyCode={baseCurrencyCode}
           />
         </Suspense>
       )}

@@ -1,5 +1,6 @@
 import { API_ORIGIN } from '../../../../api/client'
 import { formatMoney as formatMoneyShared } from '../../../../utils/money'
+import { createEmptyVendorForm } from '../vendorFormDefaults'
 
 export default function ERPVendorsTab({
   activeTab,
@@ -92,6 +93,7 @@ export default function ERPVendorsTab({
               <button
                 onClick={() => {
                   setEditingVendorId('')
+                  setVendorForm(createEmptyVendorForm(baseCurrencyCode))
                   setShowVendorForm((prev) => !prev)
                 }}
                 disabled={!canManageVendors}

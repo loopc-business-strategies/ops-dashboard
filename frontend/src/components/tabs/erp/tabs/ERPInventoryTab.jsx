@@ -99,7 +99,7 @@ export default function ERPInventoryTab({
                 type="button"
                 onClick={() => {
                   setEditingProductId('')
-                  setInventoryMappingForm(createInventoryMappingForm())
+                  setInventoryMappingForm(createInventoryMappingForm(baseCurrencyCode))
                   setInventoryStockCodeManualOverride(false)
                   setInventoryModalOffset({ x: 0, y: 0 })
                   setShowInventoryMappingModal(true)

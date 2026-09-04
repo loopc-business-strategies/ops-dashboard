@@ -386,7 +386,6 @@ export function useErpTabDomainActionsSlice(scope) {
     currencyForm,
     mappingForm,
     editState,
-    currencies,
     setCustomerForm,
     setCurrencyForm,
     setMappingForm,
@@ -415,6 +414,7 @@ export function useErpTabDomainActionsSlice(scope) {
     handleDeleteVendorDocument,
   } = useErpVendorActions({
     token,
+    baseCurrencyCode,
     canManageVendors,
     vendorPermissions,
     vendorForm,
@@ -452,6 +452,7 @@ export function useErpTabDomainActionsSlice(scope) {
     handleDeleteInventoryCatalogProduct,
   } = useErpInventoryActions({
     token,
+    baseCurrencyCode,
     isSuperAdmin,
     inventoryMappingForm,
     inventoryProductForm,

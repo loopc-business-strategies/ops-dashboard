@@ -68,17 +68,25 @@ function collectExpandIdsForSearch(nodes, search, acc = new Set()) {
   return acc
 }
 
-const emptyForm = () => ({
+const emptyForm = (baseCurrencyCode = 'USD') => ({
   accountName: '',
   accountCode: '',
   accountType: '',
   parentAccountId: '',
-  currency: 'USD',
+  currency: String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD',
   description: '',
   address: '',
   openingBalance: '',
   department: '',
   createAs: 'standard',
+})
+
+const emptyPartyDraft = (baseCurrencyCode = 'USD') => ({
+  name: '',
+  phone: '',
+  email: '',
+  address: '',
+  currency: String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD',
 })
 
 // ─── main component ────────────────────────────────────────────────────────────
@@ -89,6 +97,10 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
   const [accounts, setAccounts]         = useState([])
   const [currencies, setCurrencies]     = useState([])
+  const baseCurrencyCode = useMemo(
+    () => String(currencies.find((c) => c.baseCurrency)?.code || 'USD').trim().toUpperCase() || 'USD',
+    [currencies],
+  )
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState('')
   const [success, setSuccess]           = useState('')
@@ -108,7 +120,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
   // modal
   const [modal, setModal]     = useState(null) // { mode:'add'|'edit'|'move', node, action }
-  const [form, setForm]       = useState(emptyForm())
+  const [form, setForm]       = useState(() => emptyForm())
   const [moveTarget, setMoveTarget] = useState('')
   const [saving, setSaving]   = useState(false)
   const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 })
@@ -117,8 +129,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const [creatingSupplier, setCreatingSupplier] = useState(false)
   const [accountCodeTouched, setAccountCodeTouched] = useState(false)
   const [lastAutoSuggestedCode, setLastAutoSuggestedCode] = useState('')
-  const [newCustomerDraft, setNewCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', currency: 'USD' })
-  const [newSupplierDraft, setNewSupplierDraft] = useState({ name: '', phone: '', email: '', address: '', currency: 'USD' })
+  const [newCustomerDraft, setNewCustomerDraft] = useState(() => emptyPartyDraft())
+  const [newSupplierDraft, setNewSupplierDraft] = useState(() => emptyPartyDraft())
   const isCustomerCreateMode = modal?.mode === 'add' && (modal?.action === 'customer' || form.createAs === 'customer')
   const isSupplierCreateMode = modal?.mode === 'add' && (modal?.action === 'supplier' || form.createAs === 'supplier')
 
@@ -306,12 +318,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     const parentId = parentNode?._id || ''
     const suggestedCode = suggestNextAccountCode(parentId)
     const isLockedSubAccountFlow = action === 'general' && Boolean(parentId)
-    setNewCustomerDraft({ name: '', phone: '', email: '', address: '', currency: 'USD' })
-    setNewSupplierDraft({ name: '', phone: '', email: '', address: '', currency: 'USD' })
+    setNewCustomerDraft(emptyPartyDraft(baseCurrencyCode))
+    setNewSupplierDraft(emptyPartyDraft(baseCurrencyCode))
     setAccountCodeTouched(false)
     setLastAutoSuggestedCode(suggestedCode || '')
     setForm({
-      ...emptyForm(),
+      ...emptyForm(baseCurrencyCode),
       createAs: action === 'customer' ? 'customer' : action === 'supplier' ? 'supplier' : 'standard',
       accountType: preset.accountType || (parentNode?.accountType || ''),
       parentAccountId: parentId,
@@ -327,7 +339,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       accountCode:     node.accountCode,
       accountType:     node.accountType,
       parentAccountId: node.parentAccountId?._id || node.parentAccountId || '',
-      currency:        node.currency || 'USD',
+      currency:        node.currency || baseCurrencyCode,
       description:     node.description || '',
       address:         node.address || '',
       openingBalance:  node.openingBalance ?? '',
@@ -385,7 +397,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             phone: newCustomerDraft.phone.trim(),
             email: newCustomerDraft.email.trim(),
             address: newCustomerDraft.address.trim(),
-            currency: newCustomerDraft.currency || 'USD',
+            currency: newCustomerDraft.currency || baseCurrencyCode,
           })
 
           setSuccess('New customer and receivable account created')
@@ -401,7 +413,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             phone: newSupplierDraft.phone.trim(),
             email: newSupplierDraft.email.trim(),
             address: newSupplierDraft.address.trim(),
-            currency: newSupplierDraft.currency || 'USD',
+            currency: newSupplierDraft.currency || baseCurrencyCode,
           })
 
           setSuccess('New supplier and payable account created')
@@ -422,7 +434,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           accountCode:     form.accountCode.trim(),
           accountType:     form.accountType,
           parentAccountId: form.parentAccountId || null,
-          currency:        form.currency || 'USD',
+          currency:        form.currency || baseCurrencyCode,
           description:     form.description,
           address:         form.address,
           openingBalance:  form.openingBalance ? Number(form.openingBalance) : 0,
@@ -435,7 +447,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           accountName:  form.accountName.trim(),
           description:  form.description,
           address:      form.address,
-          currency:     form.currency || 'USD',
+          currency:     form.currency || baseCurrencyCode,
           department:   form.department,
           isActive:     true,
         })
@@ -682,7 +694,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             {/* info grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
               {[
-                { label: 'Currency',        value: selectedNode.currency || 'USD' },
+                { label: 'Currency',        value: selectedNode.currency || baseCurrencyCode },
                 { label: 'Department',      value: selectedNode.department || '—' },
                 { label: 'Opening Balance', value: Number(selectedNode.openingBalance || 0).toLocaleString() },
                 { label: 'Parent Account',  value: selectedNode.parentAccountId?.accountName || 'Root Account' },

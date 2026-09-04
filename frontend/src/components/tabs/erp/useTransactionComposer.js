@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { createTransactionForm } from './erpTabUtils'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { buildTransactionComposerPayload, createTransactionForm } from './erpTabUtils'
 
 /**
  * Transaction composer form state, validation, and create/update handler.
@@ -18,18 +18,29 @@ export function useTransactionComposer({
   showNotification,
   erpAccountingAPI,
 }) {
-  const [transactionForm, setTransactionForm] = useState(createTransactionForm)
+  const resolvedBase = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  const lastAppliedBaseRef = useRef(resolvedBase)
+  const [transactionForm, setTransactionForm] = useState(() => createTransactionForm(resolvedBase))
   const [editingTransactionId, setEditingTransactionId] = useState('')
   const isTransactionEditMode = Boolean(editingTransactionId)
 
+  useEffect(() => {
+    if (isTransactionEditMode) return
+    const previousBase = String(lastAppliedBaseRef.current || '').toUpperCase()
+    lastAppliedBaseRef.current = resolvedBase
+    setTransactionForm((prev) => {
+      const current = String(prev.currency || '').trim().toUpperCase()
+      if (!current || current === previousBase) {
+        return { ...prev, currency: resolvedBase }
+      }
+      return prev
+    })
+  }, [resolvedBase, isTransactionEditMode])
+
   const resetTransactionComposer = useCallback(() => {
     setEditingTransactionId('')
-    setTransactionForm({
-      ...createTransactionForm(),
-      currency: baseCurrencyCode,
-      exchangeRate: '1',
-    })
-  }, [baseCurrencyCode])
+    setTransactionForm(createTransactionForm(resolvedBase))
+  }, [resolvedBase])
 
   const populateTransactionForm = useCallback((tx) => {
     void loadTransactionReferenceData()
@@ -40,7 +51,7 @@ export function useTransactionComposer({
       metalFixStatus: String(tx.voucherMeta?.fixingType || '').toLowerCase().includes('non') ? 'unfixed' : 'fixed',
       amount: String(tx.amount ?? ''),
       date: tx.date ? new Date(tx.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      currency: tx.currency || 'USD',
+      currency: tx.currency || resolvedBase,
       exchangeRate: String(tx.exchangeRate ?? 1),
       description: tx.description || '',
       customerId: tx.customerId?._id || tx.customerId || '',
@@ -50,11 +61,14 @@ export function useTransactionComposer({
       debitAccountId: tx.debitAccountId?._id || tx.debitAccountId || '',
       creditAccountId: tx.creditAccountId?._id || tx.creditAccountId || '',
     })
-  }, [loadTransactionReferenceData, setSelectedTransactionId])
+  }, [loadTransactionReferenceData, resolvedBase, setSelectedTransactionId])
 
   const getTransactionValidationMessage = useCallback(() => {
     if (!transactionForm.type || !transactionForm.amount) return 'Transaction type and amount are required'
     if (Number(transactionForm.amount) <= 0) return 'Amount must be greater than zero'
+    const rate = Number(transactionForm.exchangeRate)
+    if (!Number.isFinite(rate) || rate <= 0) return 'Exchange rate must be greater than zero'
+    if (!String(transactionForm.currency || '').trim()) return 'Currency is required'
     if (['sale', 'receipt'].includes(transactionForm.type) && !transactionForm.customerId) return 'Customer is required for sales and receipts'
     if (['purchase', 'payment'].includes(transactionForm.type) && !transactionForm.vendorId) return 'Vendor is required for purchases and payments'
     return ''
@@ -93,13 +107,7 @@ export function useTransactionComposer({
     }
     try {
       setSaving(true)
-      const payload = {
-        ...transactionForm,
-        currency: baseCurrencyCode,
-        exchangeRate: 1,
-        amount: Number(transactionForm.amount),
-        ...(['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) ? { metalFixStatus: transactionForm.metalFixStatus || 'fixed' } : {}),
-      }
+      const payload = buildTransactionComposerPayload(transactionForm, resolvedBase)
       const response = isTransactionEditMode
         ? await erpAccountingAPI.updateTransaction(token, editingTransactionId, payload)
         : await erpAccountingAPI.createTransaction(token, payload)
@@ -113,7 +121,7 @@ export function useTransactionComposer({
       setSaving(false)
     }
   }, [
-    baseCurrencyCode,
+    resolvedBase,
     editingTransactionId,
     erpAccountingAPI,
     getTransactionValidationMessage,

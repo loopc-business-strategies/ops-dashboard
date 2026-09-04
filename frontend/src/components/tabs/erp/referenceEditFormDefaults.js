@@ -1,17 +1,23 @@
 import { exchangeRateFromUnitsPerBase } from './erpCurrencyRowHelpers'
 
-export const EMPTY_CUSTOMER_FORM = {
-  name: '',
-  phone: '',
-  email: '',
-  address: '',
-  gstVat: '',
-  openingBalance: '',
-  creditLimit: '',
-  paymentTermsDays: '',
-  currency: 'USD',
-  notes: '',
+export function createEmptyCustomerForm(baseCurrencyCode = 'USD') {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  return {
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    gstVat: '',
+    openingBalance: '',
+    creditLimit: '',
+    paymentTermsDays: '',
+    currency: base,
+    notes: '',
+  }
 }
+
+/** @deprecated Prefer createEmptyCustomerForm(baseCurrencyCode) */
+export const EMPTY_CUSTOMER_FORM = createEmptyCustomerForm('USD')
 
 export const EMPTY_CURRENCY_FORM = {
   code: '',
@@ -30,12 +36,13 @@ export const EMPTY_MAPPING_FORM = {
   description: '',
 }
 
-export function buildReferenceEditFormState(type, record) {
+export function buildReferenceEditFormState(type, record, baseCurrencyCode = 'USD') {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
   if (type === 'account') {
     return {
       accountName: record.accountName || '',
       description: record.description || '',
-      currency: record.currency || 'USD',
+      currency: record.currency || base,
       department: record.department || '',
     }
   }
@@ -69,7 +76,7 @@ export function buildReferenceEditFormState(type, record) {
       gstVat: record.gstVat || '',
       creditLimit: record.creditLimit || 0,
       paymentTermsDays: record.paymentTermsDays || 0,
-      currency: record.currency || 'USD',
+      currency: record.currency || base,
       notes: record.notes || '',
     }
   }

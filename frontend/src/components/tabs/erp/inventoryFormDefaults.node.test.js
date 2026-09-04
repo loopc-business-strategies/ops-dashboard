@@ -44,6 +44,28 @@ describe('inventoryFormDefaults', () => {
     expect(payload.name).toContain('Gold')
   })
 
+  test('mapping and payload fall through to tenant base when currency missing', () => {
+    const form = mappingProductToFormState({ sku: 'X', name: 'Stock', unitCost: 0, category: 'mainStock=gold' }, 'AED')
+    expect(form.currency).toBe('AED')
+    expect(form.priceCurrency).toBe('AED')
+    const payload = buildInventoryMappingPayload({
+      form: {
+        mainStock: 'gold',
+        metalType: 'gold',
+        stockCode: 'G1',
+        currentPrice: '10',
+        openingQty: '1',
+      },
+      includeOpeningQty: true,
+      inventoryStockCodeSettings: { format: 'metal-purity', prefix: 'MG' },
+      inventoryMappingProducts: [],
+      editingProductId: '',
+      isSuperAdmin: true,
+      baseCurrencyCode: 'AED',
+    })
+    expect(payload.currency).toBe('AED')
+  })
+
   test('computeInventoryProductPurityWeight applies purity factor', () => {
     expect(computeInventoryProductPurityWeight({ weight: '10', purity: '0.999' })).toBeCloseTo(9.99)
     expect(computeInventoryProductPurityWeight({ weight: '10', purity: '999' })).toBeCloseTo(9.99)

@@ -11,6 +11,7 @@ export default function TransactionComposerForm({
   availableTransactionTypes,
   TRANSACTION_TYPE_LABELS,
   currencies,
+  baseCurrencyCode = 'USD',
   customers,
   vendors,
   inventoryProducts,
@@ -41,7 +42,7 @@ export default function TransactionComposerForm({
         <input type="number" step="0.01" placeholder="Amount" value={transactionForm.amount} onChange={(e) => setTransactionForm((prev) => ({ ...prev, amount: e.target.value }))} style={modalInputStyle} />
         <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm((prev) => ({ ...prev, date: e.target.value }))} style={modalInputStyle} />
         <select value={transactionForm.currency} onChange={(e) => setTransactionForm((prev) => ({ ...prev, currency: e.target.value }))} style={modalInputStyle}>
-          {(currencies.length ? currencies : [{ code: 'USD' }]).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+          {(currencies.length ? currencies : [{ code: baseCurrencyCode || 'USD' }]).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
         </select>
         <input type="number" step="0.0001" min="0" placeholder="Exchange Rate" value={transactionForm.exchangeRate} onChange={(e) => setTransactionForm((prev) => ({ ...prev, exchangeRate: e.target.value }))} style={modalInputStyle} />
         <select value={transactionForm.customerId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, customerId: e.target.value }))} style={modalInputStyle}>

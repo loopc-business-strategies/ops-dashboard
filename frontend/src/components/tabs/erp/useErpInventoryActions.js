@@ -57,6 +57,7 @@ function useModalDrag({
 
 export function useErpInventoryActions({
   token,
+  baseCurrencyCode = 'USD',
   isSuperAdmin,
   inventoryMappingForm,
   inventoryProductForm,
@@ -129,12 +130,13 @@ export function useErpInventoryActions({
 
   const resetInventoryMappingForm = useCallback(() => {
     setEditingProductId('')
-    setInventoryMappingForm(createInventoryMappingForm())
+    setInventoryMappingForm(createInventoryMappingForm(baseCurrencyCode))
     setInventoryStockCodeManualOverride(false)
     setInventoryModalOffset({ x: 0, y: 0 })
     setInventoryModalDragging(false)
     setShowInventoryMappingModal(false)
   }, [
+    baseCurrencyCode,
     setEditingProductId,
     setInventoryMappingForm,
     setInventoryStockCodeManualOverride,
@@ -185,6 +187,7 @@ export function useErpInventoryActions({
         inventoryMappingProducts,
         editingProductId,
         isSuperAdmin,
+        baseCurrencyCode,
       })
       if (editingProductId) {
         await erpAccountingAPI.updateInventoryProduct(token, editingProductId, payload)
@@ -207,6 +210,7 @@ export function useErpInventoryActions({
     editingProductId,
     inventoryStockCodeSettings,
     isSuperAdmin,
+    baseCurrencyCode,
     setSaving,
     setError,
     showNotification,
@@ -216,11 +220,12 @@ export function useErpInventoryActions({
 
   const handleEditProduct = useCallback((product) => {
     setEditingProductId(product._id)
-    setInventoryMappingForm(mappingProductToFormState(product))
+    setInventoryMappingForm(mappingProductToFormState(product, baseCurrencyCode))
     setInventoryStockCodeManualOverride(false)
     setInventoryModalOffset({ x: 0, y: 0 })
     setShowInventoryMappingModal(true)
   }, [
+    baseCurrencyCode,
     setEditingProductId,
     setInventoryMappingForm,
     setInventoryStockCodeManualOverride,
@@ -267,6 +272,7 @@ export function useErpInventoryActions({
         editingInventoryProductId,
         selectedInventoryStockType,
         productPurityWeight,
+        baseCurrencyCode,
       })
       if (editingInventoryProductId) {
         await erpAccountingAPI.updateInventoryProduct(token, editingInventoryProductId, payload)
@@ -289,6 +295,7 @@ export function useErpInventoryActions({
     inventoryCatalogProducts,
     editingInventoryProductId,
     selectedInventoryStockType,
+    baseCurrencyCode,
     setSaving,
     setError,
     showNotification,

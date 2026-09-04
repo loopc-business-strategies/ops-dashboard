@@ -7,7 +7,8 @@ import {
   titleCaseWords,
 } from './erpTabUtils'
 
-export function mappingProductToFormState(product) {
+export function mappingProductToFormState(product, baseCurrencyCode = 'USD') {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
   const meta = decodeInventoryCategoryMeta(product.category)
   const resolvedMainStock = meta.mainStock || meta.metalType || ''
   const priceValue = Number(product.unitCost || product.sellingPrice || 0)
@@ -17,10 +18,10 @@ export function mappingProductToFormState(product) {
     metalType: meta.metalType || resolvedMainStock || 'gold',
     stockCode: product.sku || '',
     unit: 'grams',
-    currency: product.currency || 'USD',
+    currency: product.currency || base,
     currentPrice: priceValue > 0 ? String(priceValue) : '',
     priceUnit: meta.priceUnit || 'OZ',
-    priceCurrency: meta.priceCurrency || product.currency || 'USD',
+    priceCurrency: meta.priceCurrency || product.currency || base,
     openingQty: '',
   }
 }
@@ -32,14 +33,17 @@ export function buildInventoryMappingPayload({
   inventoryMappingProducts,
   editingProductId,
   isSuperAdmin,
+  baseCurrencyCode = 'USD',
 }) {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
   const mainStockValue = resolveMainStockValueFromForm(form)
   const normalizedMetalType = String(form.metalType || '').trim().toLowerCase()
+  const priceCurrency = form.priceCurrency || base
   const categoryMeta = encodeInventoryCategoryMeta({
     mainStock: mainStockValue,
     metalType: normalizedMetalType,
     priceUnit: form.priceUnit || 'OZ',
-    priceCurrency: form.priceCurrency || 'USD',
+    priceCurrency,
   })
   const label = titleCaseWords(mainStockValue || normalizedMetalType || 'Main Stock')
   const autoSku = buildUniqueStockCode(
@@ -58,8 +62,8 @@ export function buildInventoryMappingPayload({
     unit: 'grams',
     unitCost: priceValue,
     sellingPrice: priceValue,
-    currency: form.priceCurrency || 'USD',
-    description: priceValue > 0 ? `${priceValue} ${form.priceCurrency || 'USD'}/${form.priceUnit || 'OZ'}` : undefined,
+    currency: priceCurrency,
+    description: priceValue > 0 ? `${priceValue} ${priceCurrency}/${form.priceUnit || 'OZ'}` : undefined,
   }
   if (includeOpeningQty) {
     payload.quantity = Number(form.openingQty || 0)
@@ -110,7 +114,9 @@ export function buildCatalogProductPayload({
   editingInventoryProductId,
   selectedInventoryStockType,
   productPurityWeight,
+  baseCurrencyCode = 'USD',
 }) {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
   const selectedStockType = inventoryMappingProducts.find((item) => item._id === inventoryProductForm.stockTypeId)
   let baseCategory = ''
   if (selectedStockType) {
@@ -132,6 +138,9 @@ export function buildCatalogProductPayload({
     ? Number(vatPercentRaw.toFixed(2))
     : 0
   const purityWeight = Number(productPurityWeight || 0)
+  const existingCurrency = editingInventoryProductId
+    ? inventoryCatalogProducts.find((p) => p._id === editingInventoryProductId)?.currency
+    : null
   return {
     name: inventoryProductForm.name.trim(),
     category: `${baseCategory};recordType=product;productCategory=${categoryName};productDescription=${productDescription};weight=${productWeight};grossWeight=${productGrossWeight};productPurity=${productPurity};taxType=${productTaxType};vatPercent=${productVatPercent};purityWeight=${purityWeight}`,
@@ -139,6 +148,6 @@ export function buildCatalogProductPayload({
     quantity: productWeight,
     unitCost: 0,
     sellingPrice: 0,
-    currency: 'USD',
+    currency: existingCurrency || selectedStockType?.currency || base,
   }
 }

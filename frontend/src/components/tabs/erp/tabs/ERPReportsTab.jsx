@@ -43,6 +43,7 @@ export default function ERPReportsTab({
   voucherSourceLoading,
   handleOpenVoucherSource,
   handleJumpToTransaction,
+  baseCurrencyCode = 'USD',
 }) {
   const activeAccounts = filterActiveAccounts(accounts)
   const INCLUDE_ZERO_REPORT_VIEWS = new Set(['trial', 'pnl', 'balanceSheet'])
@@ -614,7 +615,7 @@ export default function ERPReportsTab({
                       <>
                         <p style={{ margin: '0.35rem 0 0' }}>Status: {voucherSource.sourceTransaction.status}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Type: {voucherSource.sourceTransaction.type}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoney(voucherSource.sourceTransaction.amount)} {voucherSource.sourceTransaction.currency || 'USD'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoney(voucherSource.sourceTransaction.amount)} {voucherSource.sourceTransaction.currency || baseCurrencyCode}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Customer: {voucherSource.sourceTransaction.customerId?.name || '-'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Vendor: {voucherSource.sourceTransaction.vendorId?.name || '-'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Inventory: {voucherSource.sourceTransaction.inventoryItemId?.sku || voucherSource.sourceTransaction.inventoryItemId?.name || '-'}</p>
