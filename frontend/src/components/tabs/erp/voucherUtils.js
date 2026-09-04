@@ -2,16 +2,13 @@
 
 import {
   formatAmount,
+  formatMoney,
   amountToWords as sharedAmountToWords,
   parseAmount,
   toMoney,
 } from '../../../utils/money'
 
-export const fmt = (n, currencyCode) => formatAmount(n, {
-  currencyCode,
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+export const fmt = (n, currencyCode) => formatAmount(n, { currencyCode })
 export const today = () => new Date().toISOString().slice(0, 10)
 
 export const emptyLine = () => ({
@@ -204,6 +201,7 @@ export const coerceVoucherDocNo = (voucherType, docNo, docDate) => {
 
 export const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
 export const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
+/** AED UI/fallback quote (1 USD ≈ 3.674 AED). Not a universal FX table — only AED display/invert helpers. */
 export const FIXED_AED_RATE = 3.674
 export const toFinitePositive = (value, fallback = 1) => {
   const parsed = Number.parseFloat(value)
@@ -389,5 +387,5 @@ export function numberToWords(amount, options = {}) {
   return sharedAmountToWords(amount, options)
 }
 
-export { parseAmount, toMoney, formatAmount }
+export { parseAmount, toMoney, formatAmount, formatMoney }
 

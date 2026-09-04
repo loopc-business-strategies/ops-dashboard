@@ -10,11 +10,14 @@
  *
  * Formatting is presentation-only. parseAmount never scales by digit count.
  * Prefer NO DB migration; historical values stay untouched.
+ *
+ * toMoney(value) stays 2dp for backend base-equivalent posting/report contracts.
+ * Use roundMoney(value, currencyCode) for document/FC currency-aware rounding.
  */
 
 'use strict'
 
-/** ISO-4217-style display fraction digits (presentation only). Unknown codes → 2. */
+/** ISO-4217-style fraction digits (code-level; no DB field). Unknown codes → 2. */
 const DISPLAY_PRECISION_BY_CODE = {
   BHD: 3,
   IQD: 3,
@@ -41,6 +44,7 @@ const DISPLAY_PRECISION_BY_CODE = {
   KMF: 0,
   PYG: 0,
   BIF: 0,
+  UZS: 0,
 }
 
 const SUBUNIT_LABEL_BY_CODE = {
@@ -60,6 +64,33 @@ const SUBUNIT_LABEL_BY_CODE = {
   UZS: 'Tiyin',
 }
 
+const MAJOR_UNIT_LABEL_BY_CODE = {
+  USD: 'Dollars',
+  EUR: 'Euros',
+  GBP: 'Pounds',
+  AED: 'Dirhams',
+  SAR: 'Riyals',
+  QAR: 'Riyals',
+  KWD: 'Dinars',
+  INR: 'Rupees',
+  CNY: 'Yuan',
+  JPY: 'Yen',
+  KZT: 'Tenge',
+  RUB: 'Rubles',
+  TRY: 'Lira',
+  UZS: 'Som',
+}
+
+const DEFAULT_SYMBOL_BY_CODE = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  CNY: '¥',
+  INR: '₹',
+}
+
+/** Backend base-equivalent / report rounding — intentionally always 2dp. */
 function toMoney(value) {
   return Number(Number(value || 0).toFixed(2))
 }
@@ -111,8 +142,8 @@ function parseAmount(raw) {
 }
 
 /**
- * Display precision only — never rewrite stored accounting values.
- * Optional currencyRow.decimalPlaces / fractionDigits overrides ISO defaults.
+ * Currency fraction digits from ISO map or optional in-memory currencyRow override.
+ * Never rewrites stored DB values.
  */
 function getCurrencyDisplayPrecision(code, currencyRow) {
   const fromRow = currencyRow?.decimalPlaces ?? currencyRow?.fractionDigits
@@ -126,12 +157,28 @@ function getCurrencyDisplayPrecision(code, currencyRow) {
   return 2
 }
 
+/** Alias — preferred name for calc/display precision. */
+function getCurrencyPrecision(code, currencyRow) {
+  return getCurrencyDisplayPrecision(code, currencyRow)
+}
+
+/**
+ * Round a numeric amount to the currency's precision (UI / document FC calc).
+ * Does not infer currency from digit count.
+ */
+function roundMoney(value, currencyCode, currencyRow) {
+  const n = typeof value === 'number' ? value : parseAmount(value)
+  if (n == null || !Number.isFinite(n)) return 0
+  const digits = getCurrencyPrecision(currencyCode, currencyRow)
+  return Number(n.toFixed(digits))
+}
+
 function formatAmount(value, options = {}) {
   const num = typeof value === 'number' ? value : parseAmount(value)
   const n = num == null || !Number.isFinite(num) ? 0 : num
   const digits = options.fractionDigits != null
     ? options.fractionDigits
-    : getCurrencyDisplayPrecision(options.currencyCode, options.currencyRow)
+    : getCurrencyPrecision(options.currencyCode, options.currencyRow)
   const min = options.minimumFractionDigits != null ? options.minimumFractionDigits : digits
   const max = options.maximumFractionDigits != null ? options.maximumFractionDigits : digits
   return n.toLocaleString('en-US', {
@@ -140,9 +187,16 @@ function formatAmount(value, options = {}) {
   })
 }
 
+/**
+ * Presentation helper: amount + currency (symbol or code).
+ * Prefer formatMoney(value, currencyCode) for call sites.
+ */
 function formatCurrency(value, options = {}) {
   const code = String(options.code || options.currencyCode || '').trim().toUpperCase()
-  const symbol = options.symbol != null ? String(options.symbol) : ''
+  let symbol = options.symbol != null ? String(options.symbol) : ''
+  if (!symbol && options.useDefaultSymbol && code && DEFAULT_SYMBOL_BY_CODE[code]) {
+    symbol = DEFAULT_SYMBOL_BY_CODE[code]
+  }
   const formatted = formatAmount(value, {
     currencyCode: code,
     currencyRow: options.currencyRow,
@@ -151,13 +205,41 @@ function formatCurrency(value, options = {}) {
     maximumFractionDigits: options.maximumFractionDigits,
   })
   if (symbol) return `${symbol}${formatted}`
-  if (code) return `${code} ${formatted}`
+  if (code) {
+    // Zero-decimal currencies often read better as "2,000 UZS"
+    const precision = getCurrencyPrecision(code, options.currencyRow)
+    if (precision === 0) return `${formatted} ${code}`
+    return `${code} ${formatted}`
+  }
   return formatted
+}
+
+/**
+ * Authoritative frontend money formatter: formatMoney(amount, currencyCode, options?).
+ */
+function formatMoney(value, currencyCode, options = {}) {
+  if (currencyCode && typeof currencyCode === 'object' && !Array.isArray(currencyCode)) {
+    // Allow formatMoney(value, { currencyCode, ... })
+    return formatCurrency(value, currencyCode)
+  }
+  return formatCurrency(value, {
+    ...options,
+    currencyCode: currencyCode || options.currencyCode || options.code,
+    code: currencyCode || options.code || options.currencyCode,
+  })
 }
 
 function getSubunitLabel(currencyCode) {
   const key = String(currencyCode || '').trim().toUpperCase()
   return SUBUNIT_LABEL_BY_CODE[key] || 'Cents'
+}
+
+function getMajorUnitLabel(currencyCode) {
+  const key = String(currencyCode || '').trim().toUpperCase()
+  if (Object.prototype.hasOwnProperty.call(MAJOR_UNIT_LABEL_BY_CODE, key)) {
+    return MAJOR_UNIT_LABEL_BY_CODE[key]
+  }
+  return key || ''
 }
 
 function amountToWords(amount, options = {}) {
@@ -181,10 +263,16 @@ function amountToWords(amount, options = {}) {
 
   const abs = Math.abs(n)
   const intPart = Math.floor(abs)
-  const precision = getCurrencyDisplayPrecision(options.currencyCode, options.currencyRow)
+  const precision = getCurrencyPrecision(options.currencyCode, options.currencyRow)
   const scale = 10 ** Math.min(precision, 4)
   const decPart = precision > 0 ? Math.round((abs - intPart) * scale) : 0
   let words = numToWord(intPart).trim()
+
+  if (options.includeMajorUnit === true && options.currencyCode) {
+    const major = options.majorUnitLabel || getMajorUnitLabel(options.currencyCode)
+    if (major) words = `${words} ${major}`.trim()
+  }
+
   if (decPart > 0) {
     const subunit = options.subunitLabel || getSubunitLabel(options.currencyCode)
     words += ` and ${numToWord(decPart).trim()} ${subunit}`
@@ -195,14 +283,20 @@ function amountToWords(amount, options = {}) {
 
 const api = {
   toMoney,
+  roundMoney,
   parseNumber,
   parseAmount,
   formatAmount,
   formatCurrency,
+  formatMoney,
   getCurrencyDisplayPrecision,
+  getCurrencyPrecision,
   getSubunitLabel,
+  getMajorUnitLabel,
   amountToWords,
   DISPLAY_PRECISION_BY_CODE,
+  MAJOR_UNIT_LABEL_BY_CODE,
+  DEFAULT_SYMBOL_BY_CODE,
 }
 
 module.exports = api

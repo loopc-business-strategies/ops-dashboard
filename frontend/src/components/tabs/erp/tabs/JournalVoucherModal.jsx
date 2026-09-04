@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useRef } from 'react'
 import AccountCombobox from '../../../AccountCombobox'
 import { focusElement, handleRecommendedTab } from '../../voucher/voucherKeyboardNav'
+import { formatMoney } from '../../../../utils/money'
 
 export default function JournalVoucherModal({
   C,
@@ -291,8 +292,8 @@ export default function JournalVoucherModal({
               <tfoot>
                 <tr style={{ background: '#F1F5F9', borderTop: '2px solid #CBD5E1' }}>
                   <td colSpan={3} style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '700', fontSize: '0.82rem', color: C.ink }}>TOTAL</td>
-                  <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvDisplayDebit > 0 ? jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
-                  <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvDisplayCredit > 0 ? jvDisplayCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                  <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvDisplayDebit > 0 ? formatMoney(jvDisplayDebit, jvTotalCurrencyLabel) : '—'}</td>
+                  <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvDisplayCredit > 0 ? formatMoney(jvDisplayCredit, jvTotalCurrencyLabel) : '—'}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -304,23 +305,23 @@ export default function JournalVoucherModal({
               {jvValidation.hasLineIssues
                 ? Object.values(jvValidation.lineIssuesById)[0]
                 : jvIsBalanced
-                  ? `✓ Balanced — Total = ${jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${jvTotalCurrencyLabel}`
-                  : `⚠ Debit and Credit totals are not balanced (diff: ${Math.abs(jvDifference).toFixed(2)} ${baseCurrencyCode})`}
+                  ? `✓ Balanced — Total = ${formatMoney(jvDisplayDebit, jvTotalCurrencyLabel)} ${jvTotalCurrencyLabel}`
+                  : `⚠ Debit and Credit totals are not balanced (diff: ${formatMoney(Math.abs(jvDifference), baseCurrencyCode)} ${baseCurrencyCode})`}
             </div>
           )}
 
           <div style={{ margin: '0.5rem 1rem 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))', gap: '0.45rem' }}>
             <div style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
               <div style={{ color: '#1D4ED8', fontSize: '0.72rem', fontWeight: '700' }}>Total Debit</div>
-              <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{formatMoney(jvDisplayDebit, jvTotalCurrencyLabel)}</div>
             </div>
             <div style={{ border: '1px solid #FECACA', background: '#FEF2F2', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
               <div style={{ color: '#DC2626', fontSize: '0.72rem', fontWeight: '700' }}>Total Credit</div>
-              <div style={{ color: '#991B1B', fontWeight: '800' }}>{jvDisplayCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div style={{ color: '#991B1B', fontWeight: '800' }}>{formatMoney(jvDisplayCredit, jvTotalCurrencyLabel)}</div>
             </div>
             <div style={{ border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FDE68A'}`, background: jvIsBalanced ? '#ECFDF5' : '#FFFBEB', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
               <div style={{ color: jvIsBalanced ? '#166534' : '#92400E', fontSize: '0.72rem', fontWeight: '700' }}>Difference</div>
-              <div style={{ color: jvIsBalanced ? '#166534' : '#B45309', fontWeight: '800' }}>{Math.abs(jvDifference).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div style={{ color: jvIsBalanced ? '#166534' : '#B45309', fontWeight: '800' }}>{formatMoney(Math.abs(jvDifference), baseCurrencyCode)}</div>
             </div>
           </div>
 

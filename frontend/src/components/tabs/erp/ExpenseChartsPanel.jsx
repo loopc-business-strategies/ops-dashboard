@@ -2,7 +2,10 @@ import React, { useState } from 'react'
 import { formatCurrency } from '../../../utils/money'
 
 export function fmtDollar(val, currencyCode = 'USD') {
-  return formatCurrency(val, { code: currencyCode, symbol: currencyCode === 'USD' ? '$' : undefined })
+  return formatCurrency(val, {
+    code: currencyCode,
+    useDefaultSymbol: true,
+  })
 }
 
 function fmtCompactCurrency(value) {

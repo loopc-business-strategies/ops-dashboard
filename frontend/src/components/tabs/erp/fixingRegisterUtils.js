@@ -1,3 +1,5 @@
+import { formatAmount } from '../../../utils/money'
+
 const FIXING_REG_UNIT_PER_OZ = {
   GOZ: 1,
   GRAM: 31.1034768,
@@ -25,7 +27,8 @@ const fixingRegFmtQty = (oz, unit) => fixingRegConvertQty(oz, unit).toLocaleStri
 
 const fixingRegFmtRate = (pricePerOz, unit) => fixingRegConvertRate(pricePerOz, unit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
 
-const fixingRegFmtAmt = (value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** Amount column — currency-aware (default USD for fixing register base). */
+const fixingRegFmtAmt = (value, currencyCode = 'USD') => formatAmount(value, { currencyCode })
 
 export {
   FIXING_REG_UNIT_PER_OZ,

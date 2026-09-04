@@ -191,12 +191,12 @@ export default function ERPReportsTab({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.8rem', marginBottom: '1rem' }}>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, fontWeight: '700' }}>Trial Balance</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Debit: {Number(reports.trialBalance?.totalDebit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Credit: {Number(reports.trialBalance?.totalCredit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Debit: {formatMoney(reports.trialBalance?.totalDebit || 0)}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Credit: {formatMoney(reports.trialBalance?.totalCredit || 0)}</p>
               <p style={{ margin: '0.2rem 0 0', color: reports.trialBalance?.balanced ? C.s1 : C.danger, fontWeight: '700', fontSize: '0.82rem' }}>{reports.trialBalance?.balanced ? 'Balanced' : 'Difference Found'}</p>
               {!reports.trialBalance?.balanced && reports.trialBalance?.difference != null && (
                 <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: C.danger, fontWeight: '600' }}>
-                  Difference: {Number(reports.trialBalance.difference).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  Difference: {formatMoney(reports.trialBalance.difference)}
                 </p>
               )}
               {String(reportFilters.search || '').trim() ? (

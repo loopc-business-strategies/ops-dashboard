@@ -426,6 +426,8 @@ export default function VoucherTab({
     lineFormVatPer: lineForm.vatPer,
     lineFormPremiumValue: lineForm.premiumValue,
     lineFormMakingCharges: lineForm.makingCharges,
+    headerCurrCode: header.currCode,
+    baseCurrencyCode,
   })
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -1055,6 +1057,7 @@ export default function VoucherTab({
     showMsg,
     applyLineAutoCalc,
     resolvePaymentRate,
+    baseCurrencyCode,
   })
 
   // Lookup party name from the relevant customer/vendor master record.

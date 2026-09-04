@@ -1,4 +1,4 @@
-import { parseAmount, toMoney, formatAmount } from '../../../utils/money'
+import { parseAmount, toMoney, roundMoney, formatAmount, formatMoney } from '../../../utils/money'
 
 const JV_MODE_META = {
   journal: { label: 'Normal JV', badge: 'JOURNAL VOUCHER', prefix: 'Jv', referenceType: 'journal' },
@@ -37,7 +37,7 @@ const convertJvAmountBetweenCurrencies = (amount, fromCurrency, toCurrency, curr
   if (!Number.isFinite(valueInBase)) return null
   const converted = to === base ? valueInBase : (toRate > 0 ? valueInBase / toRate : NaN)
   if (!Number.isFinite(converted)) return null
-  return Number(converted.toFixed(2))
+  return roundMoney(converted, to)
 }
 
 const buildJvDocNo = (ledger = [], mode = 'journal', now = new Date()) => {
@@ -274,7 +274,7 @@ const validateJvLines = ({
 
   lines.forEach((line, index) => {
     const debit = parseAmount(line.debit) ?? 0
-    const credit = Number(line.credit || 0)
+    const credit = parseAmount(line.credit) ?? 0
     const debitRawValue = Number.isFinite(debit) && debit > 0 ? debit : 0
     const creditRawValue = Number.isFinite(credit) && credit > 0 ? credit : 0
     totalDebitRaw += debitRawValue
@@ -327,15 +327,19 @@ const validateJvLines = ({
     }
   })
 
-  const difference = Number((totalDebit - totalCredit).toFixed(2))
+  const difference = toMoney(totalDebit - totalCredit)
   const hasLineIssues = Object.keys(lineIssuesById).length > 0
   const hasDebit = totalDebit > 0
   const hasCredit = totalCredit > 0
   const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
   const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
   const displayTotalCurrency = treatLineAmountsAsHeaderCurrency ? headerCur : baseNorm
-  const displayDebitTotal = treatLineAmountsAsHeaderCurrency ? Number(totalDebitRaw.toFixed(2)) : totalDebit
-  const displayCreditTotal = treatLineAmountsAsHeaderCurrency ? Number(totalCreditRaw.toFixed(2)) : totalCredit
+  const displayDebitTotal = treatLineAmountsAsHeaderCurrency
+    ? roundMoney(totalDebitRaw, headerCur)
+    : toMoney(totalDebit)
+  const displayCreditTotal = treatLineAmountsAsHeaderCurrency
+    ? roundMoney(totalCreditRaw, headerCur)
+    : toMoney(totalCredit)
   const useRawJvLineAmountsForSave = Boolean(useDocCurrency || loopcJournalHeaderLineCurrency)
 
   return {
@@ -753,7 +757,7 @@ function buildJvPostingPayloads({
     if (!strictUseDocCurrency) {
       for (const row of entries) {
         const fcRaw = Number(row.amount) / headerFxRate
-        const postAmt = toMoney(fcRaw)
+        const postAmt = roundMoney(fcRaw, headerCur)
         if (!Number.isFinite(postAmt) || postAmt <= 0) {
           return {
             error: 'A JV line would round to zero in the header currency; adjust amounts or the FX rate.',
@@ -775,7 +779,7 @@ function buildJvPostingPayloads({
         postRate = headerFxRate
       } else {
         const fcRaw = pairBase / headerFxRate
-        postAmount = toMoney(fcRaw)
+        postAmount = roundMoney(fcRaw, headerCur)
         postCurrency = headerCur
         postRate = headerFxRate
       }
@@ -806,11 +810,7 @@ const escapeHtml = (value) => String(value ?? '')
 const formatJvPrintAmount = (value, currencyCode) => {
   const n = parseAmount(value) ?? Number(value || 0)
   if (!Number.isFinite(n) || n <= 0) return ''
-  return formatAmount(n, {
-    currencyCode,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  return formatAmount(n, { currencyCode })
 }
 
 const buildJvPrintHtml = ({
@@ -839,8 +839,8 @@ const buildJvPrintHtml = ({
             <td>${index + 1}</td>
             <td>${escapeHtml(accountText)}</td>
             <td>${escapeHtml(line.description || jvHeader.narration || '')}</td>
-            <td class="num">${formatJvPrintAmount(line.debit)}</td>
-            <td class="num">${formatJvPrintAmount(line.credit)}</td>
+            <td class="num">${formatJvPrintAmount(line.debit, jvHeader.currency || baseCurrencyCode)}</td>
+            <td class="num">${formatJvPrintAmount(line.credit, jvHeader.currency || baseCurrencyCode)}</td>
           </tr>
         `
     })
@@ -873,7 +873,7 @@ const buildJvPrintHtml = ({
         </colgroup>
         <thead><tr><th>No.</th><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="5">No JV rows</td></tr>'}</tbody>
-        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${Number(validation.displayDebitTotal ?? validation.totalDebit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${Number(validation.displayCreditTotal ?? validation.totalCredit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
+        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${escapeHtml(formatMoney(validation.displayDebitTotal ?? validation.totalDebit ?? 0, jvHeader.currency || baseCurrencyCode))}</td><td class="num">${escapeHtml(formatMoney(validation.displayCreditTotal ?? validation.totalCredit ?? 0, jvHeader.currency || baseCurrencyCode))}</td></tr></tfoot>
       </table>
       <div class="note">${escapeHtml(jvHeader.narration || '')}</div>
       <div class="signatures">

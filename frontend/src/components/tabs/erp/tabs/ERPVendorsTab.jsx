@@ -1,4 +1,5 @@
 import { API_ORIGIN } from '../../../../api/client'
+import { formatMoney as formatMoneyShared } from '../../../../utils/money'
 
 export default function ERPVendorsTab({
   activeTab,
@@ -45,7 +46,7 @@ export default function ERPVendorsTab({
   }
 
 
-  const formatMoney = (value, currency = 'USD') => `${currency} ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatMoney = (value, currency = 'USD') => formatMoneyShared(value, currency)
 
   const getVendorOverdueAmount = (vendor) => {
     if (vendor.nextDue?.alertLevel === 'overdue') return Number(vendor.nextDue?.remaining || 0)

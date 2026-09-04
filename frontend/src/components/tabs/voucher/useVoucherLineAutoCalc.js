@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { resolveLiveVoucherMetalRate } from '../../../utils/liveMetalRates'
-import { parseAmount, toMoney } from '../../../utils/money'
+import { parseAmount, roundMoney } from '../../../utils/money'
 import {
   decodeFullMeta,
   decodeInventoryCategoryMeta,
@@ -31,13 +31,21 @@ export function useVoucherLineAutoCalc({
   lineFormVatPer,
   lineFormPremiumValue,
   lineFormMakingCharges,
+  headerCurrCode = '',
+  baseCurrencyCode = 'USD',
 }) {
   const [inventoryProducts, setInventoryProducts] = useState([])
   const [loadingInventoryProducts, setLoadingInventoryProducts] = useState(false)
 
+  const resolveLineCurrency = useCallback((line) => {
+    const code = String(line?.currCode || headerCurrCode || baseCurrencyCode || 'USD').trim().toUpperCase()
+    return code || 'USD'
+  }, [headerCurrCode, baseCurrencyCode])
+
   const applyLineAutoCalc = useCallback((line, options = {}) => {
     const preserveKeys = new Set(options.preserveKeys || [])
     const next = { ...line }
+    const moneyCur = resolveLineCurrency(next)
     const grossWeight = parseAmount(next.grossWeight) || 0
     const purityValue = parseAmount(next.purity)
     const purityRatio = purityValue == null || purityValue <= 0
@@ -61,23 +69,23 @@ export function useVoucherLineAutoCalc({
         : weightInOz
 
     const computedMetalAmount = rateQty > 0 && metalRate > 0
-      ? toMoney(rateQty * metalRate)
+      ? roundMoney(rateQty * metalRate, moneyCur)
       : 0
     const existingMetalAmount = parseAmount(next.metalAmount) || 0
     const effectiveMetalAmount = computedMetalAmount > 0 ? computedMetalAmount : existingMetalAmount
 
     const premiumRate = parseAmount(next.premiumValue) || 0
     const computedPremiumAmount = rateQty > 0 && premiumRate !== 0
-      ? toMoney(rateQty * premiumRate)
+      ? roundMoney(rateQty * premiumRate, moneyCur)
       : 0
     const makingChargesAmt = parseAmount(next.makingCharges) || 0
 
-    const baseTotal = toMoney(effectiveMetalAmount + computedPremiumAmount + makingChargesAmt)
+    const baseTotal = roundMoney(effectiveMetalAmount + computedPremiumAmount + makingChargesAmt, moneyCur)
     const vatPer = parseAmount(next.vatPer) || 0
-    const vatAmount = toMoney((baseTotal * vatPer) / 100)
-    const amountWithVAT = toMoney(baseTotal + vatAmount)
+    const vatAmount = roundMoney((baseTotal * vatPer) / 100, moneyCur)
+    const amountWithVAT = roundMoney(baseTotal + vatAmount, moneyCur)
     const derivedMetalRate = rateQty > 0 && effectiveMetalAmount > 0
-      ? toMoney(effectiveMetalAmount / rateQty)
+      ? roundMoney(effectiveMetalAmount / rateQty, moneyCur)
       : 0
     const effectiveMetalRate = metalRate > 0 ? metalRate : derivedMetalRate
 
@@ -85,14 +93,14 @@ export function useVoucherLineAutoCalc({
       ...next,
       pureWeight: pureWeight > 0 ? pureWeight.toFixed(3) : '',
       weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
-      metalRate: effectiveMetalRate > 0 ? String(toMoney(effectiveMetalRate)) : (next.metalRate || ''),
-      metalAmount: effectiveMetalAmount > 0 ? String(toMoney(effectiveMetalAmount)) : '',
-      premiumAmount: computedPremiumAmount !== 0 ? String(toMoney(computedPremiumAmount)) : '',
-      totalAmount: baseTotal > 0 ? String(toMoney(baseTotal)) : '',
-      amountLC: baseTotal > 0 ? String(toMoney(baseTotal)) : '',
-      vatAmountLC: vatPer > 0 ? String(toMoney(vatAmount)) : '',
-      vatAmountFC: vatPer > 0 ? String(toMoney(vatAmount)) : '',
-      amountWithVAT: baseTotal > 0 ? String(toMoney(amountWithVAT)) : '',
+      metalRate: effectiveMetalRate > 0 ? String(roundMoney(effectiveMetalRate, moneyCur)) : (next.metalRate || ''),
+      metalAmount: effectiveMetalAmount > 0 ? String(roundMoney(effectiveMetalAmount, moneyCur)) : '',
+      premiumAmount: computedPremiumAmount !== 0 ? String(roundMoney(computedPremiumAmount, moneyCur)) : '',
+      totalAmount: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
+      amountLC: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
+      vatAmountLC: vatPer > 0 ? String(roundMoney(vatAmount, moneyCur)) : '',
+      vatAmountFC: vatPer > 0 ? String(roundMoney(vatAmount, moneyCur)) : '',
+      amountWithVAT: baseTotal > 0 ? String(roundMoney(amountWithVAT, moneyCur)) : '',
     }
 
     // Keep the field the user is actively editing as raw typed text (no toFixed rewrite).
@@ -100,7 +108,7 @@ export function useVoucherLineAutoCalc({
       if (Object.prototype.hasOwnProperty.call(next, key)) out[key] = next[key]
     }
     return out
-  }, [])
+  }, [resolveLineCurrency])
 
   const applyProductTypeAutoFill = useCallback((line, productNameOverride) => {
     const productName = String(productNameOverride ?? (line.productType || '')).trim()
@@ -175,13 +183,13 @@ export function useVoucherLineAutoCalc({
       location: String(product.wipStage || prev.location || ''),
       availStock: `${Number(product.quantity || 0).toLocaleString()} ${String(product.unit || '').trim()}`.trim(),
       purity: String(meta.purity || prev.purity || ''),
-      metalRate: defaultRate > 0 ? defaultRate.toFixed(2) : prev.metalRate,
+      metalRate: defaultRate > 0 ? String(roundMoney(defaultRate, storedCurrency || resolveLineCurrency(prev))) : prev.metalRate,
       rateType: resolvedRateType,
       currCode: storedCurrency,
       vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || prev.vatType || 'VAT'),
       vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : prev.vatPer),
     }))
-  }, [applyLineAutoCalc, inventoryProducts, latestMetalRates, setLineForm, voucherType])
+  }, [applyLineAutoCalc, inventoryProducts, latestMetalRates, resolveLineCurrency, setLineForm, voucherType])
 
   useEffect(() => {
     if (!canView) return
