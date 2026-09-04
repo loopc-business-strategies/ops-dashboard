@@ -103,7 +103,7 @@ export default function ErpReportsScreen({
   )
 
   const fmtSignedMoney = useCallback(
-    (v: unknown) => fmtSignedMoney(v, baseCurrencyCode),
+    (v: unknown) => fmtSigned(v, baseCurrencyCode),
     [baseCurrencyCode],
   )
 

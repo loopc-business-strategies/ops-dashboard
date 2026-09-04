@@ -50,7 +50,7 @@ describe('buildExpensesPdfTableBody', () => {
     }])
     expect(body).toHaveLength(1)
     expect(body[0][1]).toBe('Travel')
-    expect(body[0][3]).toBe('$120.50')
+    expect(body[0][3]).toBe('USD 120.50')
     expect(body[0][5]).toBe('HSBC (1010)\n-> Travel (6200)')
     expect(body[0][6]).toBe('Journal\nJV-100')
   })
