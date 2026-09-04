@@ -356,7 +356,20 @@ router.get('/transactions', protect, validateQuery(transactionListQuerySchema), 
           $group: {
             _id: null,
             totalCount: { $sum: 1 },
-            totalAmount: { $sum: '$amount' },
+            // Base-equivalent total (existing ledger convention: amount * exchangeRate).
+            // Avoids mixing raw FC amounts across currencies.
+            totalAmount: {
+              $sum: {
+                $multiply: [
+                  { $ifNull: ['$amount', 0] },
+                  { $cond: [
+                    { $gt: [{ $ifNull: ['$exchangeRate', 0] }, 0] },
+                    '$exchangeRate',
+                    1,
+                  ] },
+                ],
+              },
+            },
             draft: { $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] } },
             submitted: { $sum: { $cond: [{ $eq: ['$status', 'submitted'] }, 1, 0] } },
             approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },

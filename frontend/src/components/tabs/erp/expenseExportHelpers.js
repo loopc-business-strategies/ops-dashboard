@@ -1,4 +1,5 @@
 import { expenseMonthLabel } from './expenseMonthFilterUtils'
+import { toMoney } from '../../../utils/money'
 
 function formatExportDate(value) {
   if (!value) return ''
@@ -7,8 +8,9 @@ function formatExportDate(value) {
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
 }
 
-function formatMoney(value) {
-  return Number(value || 0).toFixed(2)
+/** Numeric amount for CSV/XLSX cells — not locale-formatted text. */
+function exportMoneyNumber(value) {
+  return toMoney(value)
 }
 
 function formatPct(value) {
@@ -46,7 +48,7 @@ export function buildExpenseMonthExportPayload({
       formatExportDate(row.date),
       row.category || '',
       row.description || '',
-      formatMoney(row.amount),
+      exportMoneyNumber(row.amount),
       row.paymentMethod || row.paymentSource || '',
       row.paymentRoute || `${row.fundingAccount || ''} → ${row.expenseAccount || ''}`,
       row.ledgerRef || row.referenceType || '',
@@ -75,10 +77,10 @@ export function buildExpenseMomExportPayload({ year, monthRows = [], filters = {
   monthRows.forEach((row) => {
     rows.push([
       row.label,
-      formatMoney(row.total),
+      exportMoneyNumber(row.total),
       String(row.count || 0),
-      formatMoney(row.priorMonth),
-      formatMoney(row.change),
+      exportMoneyNumber(row.priorMonth),
+      exportMoneyNumber(row.change),
       formatPct(row.changePct),
     ])
   })

@@ -5,6 +5,7 @@ import { getTenantBranding, isMasterDocumentSettingsEnabled, isVoucherKeyboardNa
 import { resolveVoucherPrintSettings } from './erp/documentBranding'
 import { createLogoRenderAsset } from './erp/ERPBrandingUtils'
 import { focusElement, handleRecommendedTab } from './voucher/voucherKeyboardNav'
+import { formatAmount, parseAmount } from '../../utils/money'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -88,16 +89,16 @@ const erpSelSt = {
   width: '100%', boxSizing: 'border-box',
 }
 
-const fmtMoney = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtMoney = (v, currencyCode) => formatAmount(v, {
+  currencyCode,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 const fmtQty = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 6 })
 const fmtFixed = (v, digits) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const today = () => new Date().toISOString().slice(0, 10)
 
-const toNumber = (value) => {
-  const raw = String(value ?? '').replace(/,/g, '').trim()
-  const num = Number(raw)
-  return Number.isFinite(num) ? num : 0
-}
+const toNumber = (value) => parseAmount(value) ?? 0
 
 const customerAccountCode = (customer) => String(customer?.ledgerAccountId?.accountCode || customer?.code || '').trim()
 const customerDisplayLabel = (customer) => {

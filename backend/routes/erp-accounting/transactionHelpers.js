@@ -17,6 +17,11 @@ const {
   canAccessOperationalTransactions,
   hasExplicitErpPermissions,
 } = require('../../services/erpAccounting/accessPolicy')
+const {
+  toMoney: sharedToMoney,
+  parseNumber: sharedParseNumber,
+  parseAmount,
+} = require('../../shared/money')
 
 // ==========================================
 // TRANSACTION DOMAIN CONSTANTS
@@ -29,15 +34,21 @@ const MAX_TRANSACTION_AMOUNT = Number(process.env.MAX_TRANSACTION_AMOUNT || 1_00
 const MAX_EXCHANGE_RATE = Number(process.env.MAX_EXCHANGE_RATE || 1_000_000)
 
 // ==========================================
-// NUMERIC UTILITIES
+// NUMERIC UTILITIES (delegate to shared/money — same toFixed(2) semantics)
 // ==========================================
 
-const toMoney = (value) => Number(Number(value || 0).toFixed(2))
+const toMoney = (value) => sharedToMoney(value)
 const toQty = (value) => Number(Number(value || 0).toFixed(6))
 
-const parseNumber = (value, fallback = 0) => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
+const parseNumber = (value, fallback = 0) => sharedParseNumber(value, fallback)
+
+/** Coerce inbound amount that may be a formatted string; prefer numeric. */
+const coerceMoneyInput = (value, fallback) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  const parsed = parseAmount(value)
+  if (parsed != null) return parsed
+  if (fallback !== undefined) return fallback
+  return sharedParseNumber(value, 0)
 }
 
 // ==========================================
@@ -54,7 +65,8 @@ const normalizeMetalFixStatus = (value) => {
 }
 
 const normalizeMoneyValue = (value, field = 'amount') => {
-  const num = Number(value)
+  const coerced = typeof value === 'number' ? value : (parseAmount(value) ?? Number(value))
+  const num = coerced
   if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}`)
   if (num > MAX_TRANSACTION_AMOUNT) throw new Error(`${field} exceeds allowed maximum`)
   return num
@@ -138,6 +150,8 @@ module.exports = {
   toMoney,
   toQty,
   parseNumber,
+  parseAmount,
+  coerceMoneyInput,
   sanitizeOptionalRef,
   normalizeMetalFixStatus,
   normalizeMoneyValue,

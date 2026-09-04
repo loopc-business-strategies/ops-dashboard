@@ -139,7 +139,18 @@ function createVendorComplianceService({
         {
           $group: {
             _id: '$type',
-            total: { $sum: '$amount' },
+            total: {
+              $sum: {
+                $multiply: [
+                  { $ifNull: ['$amount', 0] },
+                  { $cond: [
+                    { $gt: [{ $ifNull: ['$exchangeRate', 0] }, 0] },
+                    '$exchangeRate',
+                    1,
+                  ] },
+                ],
+              },
+            },
           },
         },
       ]),
@@ -187,7 +198,22 @@ function createVendorComplianceService({
         : Promise.resolve([]),
       Transaction.aggregate([
         { $match: { vendorId: { $in: vendorIds }, isDeleted: { $ne: true }, status: 'posted' } },
-        { $group: { _id: { vendorId: '$vendorId', type: '$type' }, count: { $sum: 1 }, total: { $sum: '$amount' } } },
+        { $group: {
+          _id: { vendorId: '$vendorId', type: '$type' },
+          count: { $sum: 1 },
+          total: {
+            $sum: {
+              $multiply: [
+                { $ifNull: ['$amount', 0] },
+                { $cond: [
+                  { $gt: [{ $ifNull: ['$exchangeRate', 0] }, 0] },
+                  '$exchangeRate',
+                  1,
+                ] },
+              ],
+            },
+          },
+        } },
       ]),
       Transaction.find({ vendorId: { $in: vendorIds }, isDeleted: { $ne: true } })
         .sort({ date: -1, createdAt: -1 })

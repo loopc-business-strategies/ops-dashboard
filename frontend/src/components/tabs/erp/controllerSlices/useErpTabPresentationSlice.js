@@ -12,6 +12,7 @@ import { DEFAULT_BRANDING } from '../ERPBrandingUtils'
 import { resolveStatementPrintSettings } from '../documentBranding'
 import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from '../erpPrintHelpers'
 import { useErpExportActions } from '../useErpExportActions'
+import { formatAmount } from '../../../../utils/money'
 
 
 
@@ -104,8 +105,16 @@ export function useErpTabPresentationSlice(scope) {
   useEffect(() => {
     showEnquiryModalRef.current = showEnquiryModal
   }, [showEnquiryModal, showEnquiryModalRef])
-  const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
-  const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const formatMoney = (value, currencyCode) => formatAmount(value, {
+    currencyCode,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  const formatMoneyAbs = (value, currencyCode) => formatAmount(Math.abs(Number(value || 0)), {
+    currencyCode,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
   const formatReportDirectionalBalance = (row, fallbackDirection = '') => (
     formatDirectionalBalance(row?.balance, { preferredDirection: row?.direction || fallbackDirection })
   )

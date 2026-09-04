@@ -1,5 +1,6 @@
 import React from 'react'
 import { EXPENSE_MONTH_OPTIONS, currentExpenseYear } from './expenseMonthFilterUtils'
+import { fmtDollar } from './ExpenseChartsPanel'
 
 export const EXPENSE_PAYMENT_FILTERS = [
   { key: 'all', label: 'All' },
@@ -62,11 +63,6 @@ function formatExpenseDate(value) {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-}
-
-function fmtDollar(val) {
-  const n = Number(val || 0)
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export default function ExpenseRegisterSection({

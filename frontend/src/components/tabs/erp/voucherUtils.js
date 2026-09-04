@@ -1,6 +1,17 @@
 /** Domain helpers shared by VoucherTab, VoucherListPanel, and print model (no UI tokens). */
 
-export const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+import {
+  formatAmount,
+  amountToWords as sharedAmountToWords,
+  parseAmount,
+  toMoney,
+} from '../../../utils/money'
+
+export const fmt = (n, currencyCode) => formatAmount(n, {
+  currencyCode,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 export const today = () => new Date().toISOString().slice(0, 10)
 
 export const emptyLine = () => ({
@@ -362,31 +373,21 @@ export function computeVoucherGrandTotal(voucher, voucherType) {
   const isRpList = ['receipt', 'payment'].includes(String(voucherType || '').toLowerCase())
   return (m.lineItems || []).reduce((sum, line) => {
     if (isRpList) {
-      const fc = parseFloat(line.amountFC)
-      if (Number.isFinite(fc) && fc !== 0) return sum + fc
+      const fc = parseAmount(line.amountFC)
+      if (fc != null && fc !== 0) return sum + fc
     }
-    return sum + (parseFloat(line.amountWithVAT) || parseFloat(line.amountLC) || parseFloat(line.amountFC) || 0)
+    return sum + (
+      parseAmount(line.amountWithVAT)
+      ?? parseAmount(line.amountLC)
+      ?? parseAmount(line.amountFC)
+      ?? 0
+    )
   }, 0)
 }
 
-export function numberToWords(amount) {
-  if (!amount || isNaN(amount)) return ''
-  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-    'Seventeen', 'Eighteen', 'Nineteen']
-  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
-  const numToWord = (n) => {
-    if (n === 0) return ''
-    if (n < 20) return `${ones[n]} `
-    if (n < 100) return `${tens[Math.floor(n / 10)]} ${ones[n % 10]} `
-    if (n < 1000) return `${ones[Math.floor(n / 100)]} Hundred ${numToWord(n % 100)}`
-    if (n < 1000000) return `${numToWord(Math.floor(n / 1000))}Thousand ${numToWord(n % 1000)}`
-    if (n < 1000000000) return `${numToWord(Math.floor(n / 1000000))}Million ${numToWord(n % 1000000)}`
-    return `${numToWord(Math.floor(n / 1000000000))}Billion ${numToWord(n % 1000000000)}`
-  }
-  const intPart = Math.floor(Math.abs(amount))
-  const decPart = Math.round((Math.abs(amount) - intPart) * 100)
-  let words = numToWord(intPart).trim()
-  if (decPart > 0) words += ` and ${numToWord(decPart).trim()} Cents`
-  return words.trim()
+export function numberToWords(amount, options = {}) {
+  return sharedAmountToWords(amount, options)
 }
+
+export { parseAmount, toMoney, formatAmount }
+

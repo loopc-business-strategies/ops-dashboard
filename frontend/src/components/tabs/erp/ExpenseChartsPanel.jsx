@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
+import { formatCurrency } from '../../../utils/money'
 
-export function fmtDollar(val) {
-  const n = Number(val || 0)
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+export function fmtDollar(val, currencyCode = 'USD') {
+  return formatCurrency(val, { code: currencyCode, symbol: currencyCode === 'USD' ? '$' : undefined })
 }
 
 function fmtCompactCurrency(value) {

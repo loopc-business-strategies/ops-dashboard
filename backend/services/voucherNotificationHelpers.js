@@ -1,10 +1,13 @@
+const { formatAmount } = require('../shared/money')
+
 const MAX_NOTIFICATION_BODY = 220
 
 function formatNotificationMoney(amount, currency = 'USD') {
-  const n = Number(amount || 0)
   const cur = String(currency || 'USD').trim().toUpperCase() || 'USD'
-  const formatted = n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `$${formatted} ${cur}`
+  const formatted = formatAmount(amount, { currencyCode: cur })
+  // Preserve legacy "$… CODE" shape for USD notifications; other codes use "… CODE".
+  if (cur === 'USD') return `$${formatted} ${cur}`
+  return `${formatted} ${cur}`
 }
 
 function formatNotificationAccountLabel(account) {

@@ -137,7 +137,7 @@ export function buildVoucherPrintModel({
     UZS: 'Uzbekistani Som',
   }[String(currencyLabel || '').toUpperCase()] || currencyLabel || ''
   const mgAmountWords = totals.grandTotal > 0
-    ? `${numberToWords(totals.grandTotal)} ${mgAmountCurrencyName} Only`
+    ? `${numberToWords(totals.grandTotal, { currencyCode: currencyLabel })} ${mgAmountCurrencyName} Only`
     : ''
   const mgFixingDisplay = normalizeVoucherFixingType(header?.fixingType) === 'non-fixing' ? 'UNFIXED' : 'FIXED'
   const proMetalInvoiceTitle = buildProfessionalMetalInvoiceTitle(voucherType, mgFixingDisplay)

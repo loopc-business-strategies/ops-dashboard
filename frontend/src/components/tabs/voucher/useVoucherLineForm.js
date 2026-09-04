@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { parseAmount, toMoney } from '../../../utils/money'
 import {
   emptyLine,
   getAccountCodeValue,
@@ -156,8 +157,7 @@ export function useVoucherLineForm({
     const parseEditableNumber = (value) => {
       const raw = String(value ?? '').trim()
       if (!raw || raw === '.' || raw === '-' || raw === '-.') return null
-      const num = Number.parseFloat(raw)
-      return Number.isFinite(num) ? num : null
+      return parseAmount(raw)
     }
 
     const rawRate = String(next.currRate ?? '')
@@ -176,10 +176,10 @@ export function useVoucherLineForm({
 
     if ((source === 'amountFC' || source === 'rate') && parsedAmountFC !== null) {
       const computedLC = rate > 0 ? parsedAmountFC / rate : 0
-      nextAmountLC = Number.isFinite(computedLC) ? computedLC.toFixed(2) : nextAmountLC
+      nextAmountLC = Number.isFinite(computedLC) ? String(toMoney(computedLC)) : nextAmountLC
     } else if (source === 'amountLC' && parsedAmountLC !== null) {
       const computedFC = parsedAmountLC * rate
-      nextAmountFC = Number.isFinite(computedFC) ? computedFC.toFixed(2) : nextAmountFC
+      nextAmountFC = Number.isFinite(computedFC) ? String(toMoney(computedFC)) : nextAmountFC
     }
 
     const amountLCForTotal = parseEditableNumber(nextAmountLC)
@@ -191,7 +191,7 @@ export function useVoucherLineForm({
       vatPer: '',
       vatAmountFC: '',
       vatAmountLC: '',
-      amountWithVAT: amountLCForTotal !== null ? amountLCForTotal.toFixed(2) : '',
+      amountWithVAT: amountLCForTotal !== null ? String(toMoney(amountLCForTotal)) : '',
     }
   }
 

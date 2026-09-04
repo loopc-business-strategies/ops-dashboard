@@ -8,6 +8,9 @@ import {
   isMetalStockVoucherType,
   isMetalTransferVoucherType,
 } from './voucherTabShared'
+import { parseAmount } from '../../../utils/money'
+
+const moneyOrZero = (value) => parseAmount(value) ?? 0
 
 /**
  * Persist create/update voucher payload for VoucherTab.
@@ -113,7 +116,7 @@ export function useVoucherSave({
   }
 
   const receiptPaymentDocTotal = isReceiptPayment
-    ? effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountFC) || 0), 0)
+    ? effectiveLineItems.reduce((s, l) => s + moneyOrZero(l.amountFC), 0)
     : 0
   const resolvedDocAmount = isSimpleMetalSave
     ? 0.01
@@ -155,16 +158,16 @@ export function useVoucherSave({
         ...l,
         inventoryItemId: normalizeMongoIdField(l.inventoryItemId),
         currRateSource: l.currRateSource || 'manual',
-        amountFC: parseFloat(l.amountFC) || 0,
-        amountLC: parseFloat(l.amountLC) || 0,
-        headerAmt: parseFloat(l.headerAmt) || 0,
+        amountFC: moneyOrZero(l.amountFC),
+        amountLC: moneyOrZero(l.amountLC),
+        headerAmt: moneyOrZero(l.headerAmt),
         currRate: displayRateToBackendRate(l.currRate, l.currCode || header.currCode, isReceiptPayment),
         ...(l.referenceRate ? { referenceRate: displayRateToBackendRate(l.referenceRate, l.currCode || header.currCode, isReceiptPayment) } : {}),
-        vatPer: parseFloat(l.vatPer) || 0,
-        vatAmountFC: parseFloat(l.vatAmountFC) || 0,
-        vatAmountLC: parseFloat(l.vatAmountLC) || 0,
-        amountWithVAT: parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0,
-        headerAmountWithVAT: parseFloat(l.headerAmountWithVAT) || 0,
+        vatPer: moneyOrZero(l.vatPer),
+        vatAmountFC: moneyOrZero(l.vatAmountFC),
+        vatAmountLC: moneyOrZero(l.vatAmountLC),
+        amountWithVAT: moneyOrZero(l.amountWithVAT) || moneyOrZero(l.amountLC),
+        headerAmountWithVAT: moneyOrZero(l.headerAmountWithVAT),
       })),
     },
     ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave
@@ -173,7 +176,7 @@ export function useVoucherSave({
   }
   const payloadLineTotal = isReceiptPayment && receiptPaymentDocTotal > 0
     ? receiptPaymentDocTotal
-    : effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0)
+    : effectiveLineItems.reduce((s, l) => s + (moneyOrZero(l.amountWithVAT) || moneyOrZero(l.amountLC)), 0)
   payload.amount = isSimpleMetalSave ? 0.01 : (payloadLineTotal || 0.01)
   setSaving(true)
   try {

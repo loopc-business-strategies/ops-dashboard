@@ -11,6 +11,7 @@ import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from '../erpListFilters'
 import { isVoucherKeyboardNavEnabled } from '../../../../config/tenantBranding'
 import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
+import { formatAmount, toMoney } from '../../../../utils/money'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -404,13 +405,14 @@ export default function ERPLedgerTab({
                           if (useLegacyFc) {
                             displaySym = normalizeJvCurrencyCode(legacyFc)
                             const rawFc = baseEq / dispRate
-                            displayAmt = dispRate < 0.001 ? Math.round(rawFc) : Number(rawFc.toFixed(2))
+                            // Display only — do not Math.round away fractional FC for tiny rates.
+                            displayAmt = toMoney(rawFc)
                           }
 
                           const isFc = displaySym && normalizeJvCurrencyCode(displaySym) !== baseSym
                           return (
                             <div title={lineHint || undefined}>
-                              <span>{displayAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                              <span>{formatAmount(displayAmt, { currencyCode: displaySym })}</span>
                               {displaySym ? (
                                 <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{displaySym}</span>
                               ) : null}

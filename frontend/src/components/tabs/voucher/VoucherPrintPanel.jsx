@@ -399,7 +399,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           }}
           >
             {totals.grandTotal > 0
-              ? `${numberToWords(totals.grandTotal)} ${currencyLabel || 'USD'} Only`
+              ? `${numberToWords(totals.grandTotal, { currencyCode: currencyLabel || 'USD' })} ${currencyLabel || 'USD'} Only`
               : ''}
           </div>
         </div>

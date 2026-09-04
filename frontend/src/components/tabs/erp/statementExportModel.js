@@ -15,6 +15,7 @@ import {
   resolveStatementSignedAmount,
   sortStatementEntriesForExport,
 } from './statementHelpers'
+import { formatAmount } from '../../../utils/money'
 
 export function formatStatementDocDate(value) {
   if (!value) return ''
@@ -27,7 +28,7 @@ export function formatStatementDocDate(value) {
 }
 
 export function formatStatementNumber(value, decimals = 2) {
-  return Number(value || 0).toLocaleString('en-US', {
+  return formatAmount(value, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })

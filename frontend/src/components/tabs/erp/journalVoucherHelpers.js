@@ -1,3 +1,5 @@
+import { parseAmount, toMoney, formatAmount } from '../../../utils/money'
+
 const JV_MODE_META = {
   journal: { label: 'Normal JV', badge: 'JOURNAL VOUCHER', prefix: 'Jv', referenceType: 'journal' },
   bank_jv: { label: 'Bank JV', badge: 'BANK JOURNAL VOUCHER', prefix: 'BnkJV', referenceType: 'bank_jv' },
@@ -271,7 +273,7 @@ const validateJvLines = ({
   const treatLineAmountsAsHeaderCurrency = Boolean(loopcJournalHeaderLineCurrency || useDocCurrency)
 
   lines.forEach((line, index) => {
-    const debit = Number(line.debit || 0)
+    const debit = parseAmount(line.debit) ?? 0
     const credit = Number(line.credit || 0)
     const debitRawValue = Number.isFinite(debit) && debit > 0 ? debit : 0
     const creditRawValue = Number.isFinite(credit) && credit > 0 ? credit : 0
@@ -751,7 +753,7 @@ function buildJvPostingPayloads({
     if (!strictUseDocCurrency) {
       for (const row of entries) {
         const fcRaw = Number(row.amount) / headerFxRate
-        const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+        const postAmt = toMoney(fcRaw)
         if (!Number.isFinite(postAmt) || postAmt <= 0) {
           return {
             error: 'A JV line would round to zero in the header currency; adjust amounts or the FX rate.',
@@ -773,7 +775,7 @@ function buildJvPostingPayloads({
         postRate = headerFxRate
       } else {
         const fcRaw = pairBase / headerFxRate
-        postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+        postAmount = toMoney(fcRaw)
         postCurrency = headerCur
         postRate = headerFxRate
       }
@@ -801,11 +803,15 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;')
 
-const formatJvPrintAmount = (value) => (
-  Number(value || 0) > 0
-    ? Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : ''
-)
+const formatJvPrintAmount = (value, currencyCode) => {
+  const n = parseAmount(value) ?? Number(value || 0)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  return formatAmount(n, {
+    currencyCode,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
 
 const buildJvPrintHtml = ({
   validation = {},

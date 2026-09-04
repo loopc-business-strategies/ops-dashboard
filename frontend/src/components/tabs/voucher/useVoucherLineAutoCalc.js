@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { resolveLiveVoucherMetalRate } from '../../../utils/liveMetalRates'
+import { parseAmount, toMoney } from '../../../utils/money'
 import {
   decodeFullMeta,
   decodeInventoryCategoryMeta,
@@ -34,11 +35,12 @@ export function useVoucherLineAutoCalc({
   const [inventoryProducts, setInventoryProducts] = useState([])
   const [loadingInventoryProducts, setLoadingInventoryProducts] = useState(false)
 
-  const applyLineAutoCalc = useCallback((line) => {
+  const applyLineAutoCalc = useCallback((line, options = {}) => {
+    const preserveKeys = new Set(options.preserveKeys || [])
     const next = { ...line }
-    const grossWeight = parseFloat(next.grossWeight) || 0
-    const purityValue = parseFloat(next.purity)
-    const purityRatio = !Number.isFinite(purityValue) || purityValue <= 0
+    const grossWeight = parseAmount(next.grossWeight) || 0
+    const purityValue = parseAmount(next.purity)
+    const purityRatio = purityValue == null || purityValue <= 0
       ? 0
       : (purityValue > 1.2 ? purityValue / 1000 : purityValue)
 
@@ -51,7 +53,7 @@ export function useVoucherLineAutoCalc({
       : 0
 
     const rateType = normalizeRateType(next.rateType)
-    const metalRate = parseFloat(next.metalRate) || 0
+    const metalRate = parseAmount(next.metalRate) || 0
     const rateQty = rateType === 'GRAM'
       ? pureWeight
       : rateType === 'KG'
@@ -59,39 +61,45 @@ export function useVoucherLineAutoCalc({
         : weightInOz
 
     const computedMetalAmount = rateQty > 0 && metalRate > 0
-      ? Number((rateQty * metalRate).toFixed(2))
+      ? toMoney(rateQty * metalRate)
       : 0
-    const existingMetalAmount = parseFloat(next.metalAmount) || 0
+    const existingMetalAmount = parseAmount(next.metalAmount) || 0
     const effectiveMetalAmount = computedMetalAmount > 0 ? computedMetalAmount : existingMetalAmount
 
-    const premiumRate = parseFloat(next.premiumValue) || 0
+    const premiumRate = parseAmount(next.premiumValue) || 0
     const computedPremiumAmount = rateQty > 0 && premiumRate !== 0
-      ? Number((rateQty * premiumRate).toFixed(2))
+      ? toMoney(rateQty * premiumRate)
       : 0
-    const makingChargesAmt = parseFloat(next.makingCharges) || 0
+    const makingChargesAmt = parseAmount(next.makingCharges) || 0
 
-    const baseTotal = Number((effectiveMetalAmount + computedPremiumAmount + makingChargesAmt).toFixed(2))
-    const vatPer = parseFloat(next.vatPer) || 0
-    const vatAmount = Number(((baseTotal * vatPer) / 100).toFixed(2))
-    const amountWithVAT = Number((baseTotal + vatAmount).toFixed(2))
+    const baseTotal = toMoney(effectiveMetalAmount + computedPremiumAmount + makingChargesAmt)
+    const vatPer = parseAmount(next.vatPer) || 0
+    const vatAmount = toMoney((baseTotal * vatPer) / 100)
+    const amountWithVAT = toMoney(baseTotal + vatAmount)
     const derivedMetalRate = rateQty > 0 && effectiveMetalAmount > 0
-      ? Number((effectiveMetalAmount / rateQty).toFixed(2))
+      ? toMoney(effectiveMetalAmount / rateQty)
       : 0
     const effectiveMetalRate = metalRate > 0 ? metalRate : derivedMetalRate
 
-    return {
+    const out = {
       ...next,
       pureWeight: pureWeight > 0 ? pureWeight.toFixed(3) : '',
       weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
-      metalRate: effectiveMetalRate > 0 ? effectiveMetalRate.toFixed(2) : (next.metalRate || ''),
-      metalAmount: effectiveMetalAmount > 0 ? effectiveMetalAmount.toFixed(2) : '',
-      premiumAmount: computedPremiumAmount !== 0 ? computedPremiumAmount.toFixed(2) : '',
-      totalAmount: baseTotal > 0 ? baseTotal.toFixed(2) : '',
-      amountLC: baseTotal > 0 ? baseTotal.toFixed(2) : '',
-      vatAmountLC: vatPer > 0 ? vatAmount.toFixed(2) : '',
-      vatAmountFC: vatPer > 0 ? vatAmount.toFixed(2) : '',
-      amountWithVAT: baseTotal > 0 ? amountWithVAT.toFixed(2) : '',
+      metalRate: effectiveMetalRate > 0 ? String(toMoney(effectiveMetalRate)) : (next.metalRate || ''),
+      metalAmount: effectiveMetalAmount > 0 ? String(toMoney(effectiveMetalAmount)) : '',
+      premiumAmount: computedPremiumAmount !== 0 ? String(toMoney(computedPremiumAmount)) : '',
+      totalAmount: baseTotal > 0 ? String(toMoney(baseTotal)) : '',
+      amountLC: baseTotal > 0 ? String(toMoney(baseTotal)) : '',
+      vatAmountLC: vatPer > 0 ? String(toMoney(vatAmount)) : '',
+      vatAmountFC: vatPer > 0 ? String(toMoney(vatAmount)) : '',
+      amountWithVAT: baseTotal > 0 ? String(toMoney(amountWithVAT)) : '',
     }
+
+    // Keep the field the user is actively editing as raw typed text (no toFixed rewrite).
+    for (const key of preserveKeys) {
+      if (Object.prototype.hasOwnProperty.call(next, key)) out[key] = next[key]
+    }
+    return out
   }, [])
 
   const applyProductTypeAutoFill = useCallback((line, productNameOverride) => {
@@ -199,7 +207,8 @@ export function useVoucherLineAutoCalc({
   useEffect(() => {
     if (!showLineForm || !isMetalStockVoucherType(voucherType)) return
     setLineForm((prev) => {
-      const calculated = applyLineAutoCalc(prev)
+      // Preserve metalRate while typing so toFixed does not jump the cursor.
+      const calculated = applyLineAutoCalc(prev, { preserveKeys: ['metalRate', 'grossWeight', 'purity', 'premiumValue', 'makingCharges', 'vatPer'] })
       const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'vatAmountLC', 'vatAmountFC', 'amountWithVAT']
       const hasChanges = keys.some((key) => String(prev[key] || '') !== String(calculated[key] || ''))
       return hasChanges ? calculated : prev
