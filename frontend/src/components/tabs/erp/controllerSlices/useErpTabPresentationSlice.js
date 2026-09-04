@@ -105,8 +105,8 @@ export function useErpTabPresentationSlice(scope) {
   useEffect(() => {
     showEnquiryModalRef.current = showEnquiryModal
   }, [showEnquiryModal, showEnquiryModalRef])
-  const formatMoney = (value, currencyCode) => formatMoneyShared(value, currencyCode)
-  const formatMoneyAbs = (value, currencyCode) => formatMoneyShared(Math.abs(Number(value || 0)), currencyCode)
+  const formatMoney = (value, currencyCode) => formatMoneyShared(value, currencyCode || baseCurrencyCode)
+  const formatMoneyAbs = (value, currencyCode) => formatMoneyShared(Math.abs(Number(value || 0)), currencyCode || baseCurrencyCode)
   const formatReportDirectionalBalance = (row, fallbackDirection = '') => (
     formatDirectionalBalance(row?.balance, { preferredDirection: row?.direction || fallbackDirection })
   )
@@ -150,10 +150,8 @@ export function useErpTabPresentationSlice(scope) {
     const preferredDirection = normalizeBalanceDirection(options.preferredDirection)
     const direction = preferredDirection || (amount < 0 ? 'Cr' : 'Dr')
     const absAmount = Math.abs(amount)
-    const formatted = absAmount.toLocaleString(undefined, {
-      minimumFractionDigits: options.minDigits ?? 2,
-      maximumFractionDigits: options.maxDigits ?? 2,
-    })
+    const currency = options.currencyCode || baseCurrencyCode
+    const formatted = formatMoneyShared(absAmount, currency)
     if (absAmount === 0) return formatted
     return `${formatted} ${direction}`
   }
@@ -296,6 +294,7 @@ export function useErpTabPresentationSlice(scope) {
     formatReportDirectionalBalance,
     buildBrandingLogoTag,
     openPrintWindow,
+    baseCurrencyCode,
   })
 
   useEffect(() => {

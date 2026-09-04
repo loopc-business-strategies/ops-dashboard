@@ -23,6 +23,7 @@ function MarginsWidget({
   dashboard,
   onNavigate,
   liveRecalcEnabled = false,
+  baseCurrencyCode = 'USD',
 }) {
   const liveSpot = useErpLiveMetalSpotPrices()
   const goldPriceUSD = liveSpot.goldPriceUSD
@@ -46,6 +47,7 @@ function MarginsWidget({
     goldPriceUSD,
     silverPriceUSD,
     marginLiveRecalc,
+    baseCurrencyCode,
   })
   const customers = rawCustomers.map((row) => mapRow(row, 'customerName', { favorableCredit: true }))
   const suppliers = rawSuppliers.map((row) => mapRow(row, 'supplierName', { suppressMetalSpotMtm: true }))
@@ -234,7 +236,7 @@ function MarginsWidget({
 }
 
 // ── AP/AR Widget — AR / AP tabs, full 3-col width ─────────────
-function APARWidget({ dashboard, onNavigate }) {
+function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
   const [tab, setTab] = useState('ar')
   const muted = '#6B7280'; const ink = '#111827'
   const ap = dashboard?.apAr
@@ -265,7 +267,7 @@ function APARWidget({ dashboard, onNavigate }) {
           ].map(c => (
             <div key={c.label} style={{ padding: '0.625rem', borderRadius: '0.5rem', background: c.bg, textAlign: 'center' }}>
               <p style={{ fontSize: '0.62rem', color: muted, fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{c.label}</p>
-              <p style={{ fontSize: '1.05rem', fontWeight: '700', color: c.vc, margin: 0 }}>{fmtMoney(c.val)}</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: '700', color: c.vc, margin: 0 }}>{fmtMoney(c.val, baseCurrencyCode)}</p>
               <p style={{ fontSize: '0.68rem', color: c.vc, marginTop: '0.15rem' }}>{c.sub}</p>
             </div>
           ))}
@@ -289,7 +291,7 @@ function APARWidget({ dashboard, onNavigate }) {
               : (tab === 'ar' ? arRows : apRows).slice(0, 6).map((r, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
                   <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{r.customerName || r.supplierName}</td>
-                  <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(r.outstanding)}</td>
+                  <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(r.outstanding, r.currency || baseCurrencyCode)}</td>
                   <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{r.count || '—'}</td>
                 </tr>
               ))
@@ -298,7 +300,7 @@ function APARWidget({ dashboard, onNavigate }) {
           {(tab === 'ar' ? arRows : apRows).length > 0 && (
             <tfoot><tr style={{ borderTop: '2px solid #E8F5EF', background: '#F9FAFB' }}>
               <td style={{ padding: '0.35rem 0.4rem', fontWeight: '700' }}>Total {tab === 'ar' ? 'AR' : 'AP'}</td>
-              <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '700', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(tab === 'ar' ? ap?.totalAR : ap?.totalAP)}</td>
+              <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '700', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(tab === 'ar' ? ap?.totalAR : ap?.totalAP, baseCurrencyCode)}</td>
               <td />
             </tr></tfoot>
           )}
@@ -482,6 +484,7 @@ const FixingPositionSummaryWidgetMemo = React.memo(FixingPositionSummaryWidget)
 
 function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {}) {
   const { liveRecalcEnabled = false } = options
+  const baseCurrencyCode = options.baseCurrencyCode || 'USD'
   const bdr = '1px solid #F0FDF4'
   const muted = '#6B7280'
   const ink = '#111827'
@@ -507,7 +510,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
 
   switch (id) {
     case 'margins':
-      return <MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} />
+      return <MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} baseCurrencyCode={baseCurrencyCode} />
 
     case 'bank': {
       const bankRows = dashboard?.bankBalances || []
@@ -525,13 +528,13 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
                   <div style={{ fontSize: '0.8rem', fontWeight: '500', color: ink }}>{a.accountName}</div>
                   <div style={{ fontSize: '0.7rem', color: muted }}>{a.accountCode}</div>
                 </div>
-                <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem' }}>{fmtMoney(a.balance)}</span>
+                <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem' }}>{fmtMoney(a.balance, a.currency || baseCurrencyCode)}</span>
               </div>
             ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderTop: '2px solid #E8F5EF', fontSize: '0.82rem', flexShrink: 0 }}>
             <span style={{ fontWeight: '700', color: ink }}>Total</span>
-            <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total)}</span>
+            <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total, baseCurrencyCode)}</span>
           </div>
           {onNavigate && (
             <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
@@ -605,13 +608,13 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             {summaryItems.map(item => (
               <div key={item.label} style={{ background: item.bg, borderRadius: '0.375rem', padding: '0.5rem', textAlign: 'center' }}>
                 <p style={{ fontSize: '0.67rem', color: muted, margin: '0 0 2px' }}>{item.label}</p>
-                <p style={{ fontSize: '0.82rem', fontWeight: '700', color: item.vc, margin: 0 }}>{fmtMoney(item.val)}</p>
+                <p style={{ fontSize: '0.82rem', fontWeight: '700', color: item.vc, margin: 0 }}>{fmtMoney(item.val, baseCurrencyCode)}</p>
               </div>
             ))}
           </div>
           {hasTrendDelta && (
             <p style={{ margin: '0.55rem 0 0', fontSize: '0.72rem', color: trendColor, fontWeight: '600', textAlign: 'right' }}>
-              {trendArrow} Cashflow trend delta: {fmtMoney(netDelta)} (vs prev month)
+              {trendArrow} Cashflow trend delta: {fmtMoney(netDelta, baseCurrencyCode)} (vs prev month)
             </p>
           )}
           <div style={{ marginTop: '0.45rem', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.4rem' }}>
@@ -621,7 +624,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
                 <div key={item.key} style={{ border: '1px solid #E5E7EB', borderRadius: '0.35rem', padding: '0.35rem 0.4rem' }}>
                   <p style={{ margin: 0, fontSize: '0.64rem', color: muted }}>{item.label}</p>
                   <p style={{ margin: '2px 0 0', fontSize: '0.72rem', fontWeight: '700', color: isPos ? '#059669' : '#DC2626' }}>
-                    {fmtMoney(item.val)}
+                    {fmtMoney(item.val, baseCurrencyCode)}
                   </p>
                 </div>
               )
@@ -641,7 +644,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           dashboard={dashboard}
           token={options.token}
           onOpenLedgerEntry={options.onOpenLedgerEntry}
-          baseCurrencyCode={options.baseCurrencyCode || 'USD'}
+          baseCurrencyCode={baseCurrencyCode}
         />
       )
     }
@@ -673,7 +676,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
                   <span style={{ fontWeight: '500', color: ink }}>{v.metal}</span>
                 </div>
                 <span style={{ color: '#374151' }}>{Number(v.qty || 0).toLocaleString()} oz</span>
-                <span style={{ padding: '1px 7px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: '500', background: '#E8F5EF', color: '#065f46' }}>{fmtMoney(v.value)}</span>
+                <span style={{ padding: '1px 7px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: '500', background: '#E8F5EF', color: '#065f46' }}>{fmtMoney(v.value, baseCurrencyCode)}</span>
               </div>
             ))
           }
@@ -688,7 +691,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     }
 
     case 'apar':
-      return <APARWidgetMemo dashboard={dashboard} onNavigate={onNavigate} />
+      return <APARWidgetMemo dashboard={dashboard} onNavigate={onNavigate} baseCurrencyCode={baseCurrencyCode} />
 
     case 'fixing':
       return <FixingPositionSummaryWidgetMemo dashboard={dashboard} onNavigate={onNavigate} />

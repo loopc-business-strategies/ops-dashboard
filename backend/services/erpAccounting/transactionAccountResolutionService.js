@@ -178,7 +178,7 @@ function createTransactionAccountResolutionService({
       if (preferredBank) return preferredBank._id
     }
 
-    const fallbackAccount = await ensureCashBankAccount(user, tx.currency || 'USD', settlementPreference, session)
+    const fallbackAccount = await ensureCashBankAccount(user, tx.currency || BASE_CURRENCY_CODE, settlementPreference, session)
     return fallbackAccount?._id || null
   }
 
@@ -242,7 +242,7 @@ function createTransactionAccountResolutionService({
         directPartyAccountId: directPartyAccount?._id,
       }))
 
-      const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session)
+      const bank = await ensureCashBankAccount(user, tx.currency || BASE_CURRENCY_CODE, 'bank', session)
       if (transactionType === 'receipt') debitAccountId = voucherSettlementAccountId || debitAccountId || bank._id
     }
 
@@ -280,7 +280,7 @@ function createTransactionAccountResolutionService({
         directPartyAccountId: directPartyAccount?._id,
       }))
 
-      const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session)
+      const bank = await ensureCashBankAccount(user, tx.currency || BASE_CURRENCY_CODE, 'bank', session)
       if (transactionType === 'payment') creditAccountId = voucherSettlementAccountId || creditAccountId || bank._id
     }
 
@@ -307,7 +307,7 @@ function createTransactionAccountResolutionService({
           code,
           name,
           accountType: type,
-          currency: tx.currency || 'USD',
+          currency: tx.currency || BASE_CURRENCY_CODE,
           session,
         })
         return acc._id
@@ -339,10 +339,10 @@ function createTransactionAccountResolutionService({
         }
         if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
       } else if (transactionType === 'receipt') {
-        if (!debitAccountId) debitAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session).then((a) => a._id)
+        if (!debitAccountId) debitAccountId = await ensureCashBankAccount(user, tx.currency || BASE_CURRENCY_CODE, 'bank', session).then((a) => a._id)
         if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
       } else if (transactionType === 'payment') {
-        if (!creditAccountId) creditAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session).then((a) => a._id)
+        if (!creditAccountId) creditAccountId = await ensureCashBankAccount(user, tx.currency || BASE_CURRENCY_CODE, 'bank', session).then((a) => a._id)
         if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
       }
     }
@@ -358,7 +358,7 @@ function createTransactionAccountResolutionService({
   }
 
   const createLedgerFromTransaction = async ({ user, transaction, referenceType, session = null }) => {
-    const currencyCode = String(transaction.currency || 'USD').toUpperCase()
+    const currencyCode = String(transaction.currency || BASE_CURRENCY_CODE).toUpperCase()
     const base = await withSession(Currency.findOne({ baseCurrency: true, isActive: true }), session)
     const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     const txCurrency = await withSession(Currency.findOne({ code: currencyCode, isActive: true }), session)
@@ -399,12 +399,13 @@ function createTransactionAccountResolutionService({
       voucherMeta?.currCode
       || voucherLine?.currCode
       || currencyCode
+      || BASE_CURRENCY_CODE
       || 'USD'
     ).toUpperCase()
 
     if (['receipt', 'payment'].includes(type)) {
-      const lineCurrCode = String(voucherLine?.currCode || currencyCode || 'USD').toUpperCase()
-      const baseCurr = String(baseCurrencyCode || 'USD').toUpperCase()
+      const lineCurrCode = String(voucherLine?.currCode || currencyCode || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+      const baseCurr = String(baseCurrencyCode || BASE_CURRENCY_CODE || 'USD').toUpperCase()
       const isForeignLine = lineCurrCode !== baseCurr
 
       let masterRate = 0
@@ -462,7 +463,7 @@ function createTransactionAccountResolutionService({
             createdBy: user._id,
             updatedBy: user._id,
             department: user.department,
-            currency: base?.code || 'USD',
+            currency: base?.code || BASE_CURRENCY_CODE || 'USD',
             exchangeRate: 1,
           }], writeOpts(session))
         }
@@ -525,7 +526,7 @@ function createVendorAdvanceConfirmationHelpers({
 
     if (!debitAccount || String(debitAccount.accountType || '').toLowerCase() !== 'liability') return
 
-    const txCurrency = await withSession(Currency.findOne({ code: String(tx.currency || 'USD').toUpperCase(), isActive: true }).select('exchangeRate').lean(), session)
+    const txCurrency = await withSession(Currency.findOne({ code: String(tx.currency || BASE_CURRENCY_CODE || 'USD').toUpperCase(), isActive: true }).select('exchangeRate').lean(), session)
     const baseCurrency = await withSession(Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(), session)
     const exchangeRate = normalizeExchangeRateValue(tx.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
     const paymentAmount = normalizeMoneyValue(tx.amount, 'amount') * exchangeRate

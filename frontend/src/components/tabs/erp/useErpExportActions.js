@@ -33,6 +33,7 @@ export function useErpExportActions({
   formatReportDirectionalBalance,
   buildBrandingLogoTag,
   openPrintWindow,
+  baseCurrencyCode = 'USD',
 }) {
   const handleViewStatement = useCallback(async () => {
     const code = accountEnquiryData?.account?.accountCode || accountEnquiryCode
@@ -123,6 +124,7 @@ export function useErpExportActions({
       transactions,
       selectedTransactionIds,
       transactionTypeLabels,
+      baseCurrencyCode,
     })
     if (!payload) {
       setError('No transactions available to export')
@@ -130,13 +132,14 @@ export function useErpExportActions({
     }
     downloadCsv(payload.rows, `${payload.fileBase}.csv`)
     showNotification('✅ Transactions CSV exported')
-  }, [transactions, selectedTransactionIds, transactionTypeLabels, setError, showNotification])
+  }, [transactions, selectedTransactionIds, transactionTypeLabels, baseCurrencyCode, setError, showNotification])
 
   const handleExportTransactionsXlsx = useCallback(async () => {
     const payload = buildTransactionExportPayload({
       transactions,
       selectedTransactionIds,
       transactionTypeLabels,
+      baseCurrencyCode,
     })
     if (!payload) {
       setError('No transactions available to export')
@@ -144,21 +147,22 @@ export function useErpExportActions({
     }
     await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
     showNotification('✅ Transactions XLSX exported')
-  }, [transactions, selectedTransactionIds, transactionTypeLabels, setError, showNotification])
+  }, [transactions, selectedTransactionIds, transactionTypeLabels, baseCurrencyCode, setError, showNotification])
 
   const handleExportTransactionsPdf = useCallback(async () => {
     const payload = buildTransactionExportPayload({
       transactions,
       selectedTransactionIds,
       transactionTypeLabels,
+      baseCurrencyCode,
     })
     if (!payload?.scope?.length) {
       setError('No transactions available to export')
       return
     }
-    await exportTransactionsPdf({ scope: payload.scope, transactionTypeLabels })
+    await exportTransactionsPdf({ scope: payload.scope, transactionTypeLabels, baseCurrencyCode })
     showNotification('✅ Transactions PDF exported')
-  }, [transactions, selectedTransactionIds, transactionTypeLabels, setError, showNotification])
+  }, [transactions, selectedTransactionIds, transactionTypeLabels, baseCurrencyCode, setError, showNotification])
 
   const handleExportReportCsv = useCallback(() => {
     const payload = buildReportExportPayload({

@@ -44,13 +44,13 @@ export function buildVoucherPrintModel({
   const voucherPrintSettings = resolveVoucherPrintSettings({ reportBranding, user, tenantBranding: activeTenantBranding })
   const documentBranding = voucherPrintSettings
   const voucher = {
-    currency: header?.currCode || 'USD',
+    currency: header?.currCode || baseCurrencyCode || 'USD',
     partyName: header?.partyName || '',
     partyAccount: header?.partyCode || '',
   }
   const companyPhone = documentBranding.phone || branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
   const companyTrn = documentBranding.trn || branding?.trn || tenant?.trn || activeTenantBranding?.trn || ''
-  const currencyLabel = voucher?.currency || 'USD'
+  const currencyLabel = voucher?.currency || baseCurrencyCode || 'USD'
   const payNoValue = header?.vocNo || ''
   const payDateValue = header?.docDate || ''
   const preparedByValue = user?.name || ''
@@ -73,7 +73,7 @@ export function buildVoucherPrintModel({
     { label: 'Prepared By', value: preparedByValue },
     ...(isMetalVoucher && !isSimpleMetalVoucher ? [{ label: 'Fixing', value: normalizeVoucherFixingType(header?.fixingType) }] : []),
   ]
-  const printAmountLabel = `Amount (${currencyLabel || 'USD'})`
+  const printAmountLabel = `Amount (${currencyLabel || baseCurrencyCode || 'USD'})`
   const printPostingDirection = (voucherType === 'receipt' || voucherType === 'sale' || voucherType === 'metal_payment') ? 'CREDITED' : 'DEBITED'
   const accountNameByCode = (code) => (accounts || []).find((a) => getAccountCodeValue(a) === String(code || '').trim())?.accountName || ''
   const tenantIdentity = [
@@ -154,7 +154,7 @@ export function buildVoucherPrintModel({
   const mgMetalCopyLabel = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'ACCOUNTS COPY' : 'PARTY COPY'
   const mgMetalPostingDirection = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'DEBITED' : 'CREDITED'
   const mgMetalRateValue = mgLineItems.find((line) => Number(line?.metalRate || 0) > 0)?.metalRate || ''
-  const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue, currencyLabel || 'USD')} / SOZ (${currencyLabel || 'USD'})` : ''
+  const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue, currencyLabel || baseCurrencyCode || 'USD')} / SOZ (${currencyLabel || baseCurrencyCode || 'USD'})` : ''
 
   return {
     documentBranding,

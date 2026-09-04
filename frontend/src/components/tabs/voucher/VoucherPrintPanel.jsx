@@ -94,9 +94,9 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
   const headerAmountFcLabel = tableHeaders.amountFc || (isMetalVoucher ? 'Pure Wt.' : 'Amount FC')
   const headerAmountLcLabel = tableHeaders.amountLc || (isMetalVoucher ? 'Total' : printAmountLabel)
 
-  const fcCode = (line) => line?.currCode || currencyLabel || 'USD'
+  const fcCode = (line) => line?.currCode || currencyLabel || baseCurrencyCode || 'USD'
   const lcCode = baseCurrencyCode || 'USD'
-  const totalCode = currencyLabel || 'USD'
+  const totalCode = currencyLabel || baseCurrencyCode || 'USD'
 
 
   const isPreview = renderMode === 'preview'
@@ -132,9 +132,9 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
   const totalsFooter = (
     <tfoot>
       {[
-        `Total (${currencyLabel || 'USD'})`,
-        `Total Value (${currencyLabel || 'USD'})`,
-        `Total Party Value (${currencyLabel || 'USD'})`,
+        `Total (${currencyLabel || baseCurrencyCode || 'USD'})`,
+        `Total Value (${currencyLabel || baseCurrencyCode || 'USD'})`,
+        `Total Party Value (${currencyLabel || baseCurrencyCode || 'USD'})`,
       ].map((label) => (
         <tr key={label}>
           <td colSpan={4} style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{label}</td>
@@ -168,7 +168,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           salesman={preparedByValue}
           fixingLabel={mgFixingDisplay}
           metalRateLabel={mgMetalRateLabel}
-          currencyLabel={currencyLabel || 'USD'}
+          currencyLabel={currencyLabel || baseCurrencyCode || 'USD'}
           lineItems={mgLineItems}
           totals={totals}
           amountWords={mgAmountWords}
@@ -254,7 +254,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           salesman={preparedByValue}
           fixingLabel={mgFixingDisplay}
           metalRateLabel={mgMetalRateLabel}
-          currencyLabel={currencyLabel || 'USD'}
+          currencyLabel={currencyLabel || baseCurrencyCode || 'USD'}
           lineItems={mgLineItems}
           totals={totals}
           amountWords={mgAmountWords}
@@ -330,7 +330,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
               <th style={thStyle()}>{headerDescriptionLabel}</th>
               <th style={thStyle({ width: VOUCHER_COL_TYPE })}>{headerTypeLabel}</th>
               <th style={thStyle({ width: VOUCHER_COL_AMOUNT, ...VOUCHER_NUMERIC_CELL_STYLE })}>{headerAmountFcLabel}</th>
-              <th style={thStyle({ width: VOUCHER_COL_AMOUNT, ...VOUCHER_NUMERIC_CELL_STYLE })}>{useCustomVoucherLayout ? headerAmountLcLabel : `Amount (${currencyLabel || 'USD'})`}</th>
+              <th style={thStyle({ width: VOUCHER_COL_AMOUNT, ...VOUCHER_NUMERIC_CELL_STYLE })}>{useCustomVoucherLayout ? headerAmountLcLabel : `Amount (${currencyLabel || baseCurrencyCode || 'USD'})`}</th>
             </tr>
           </thead>
           <tbody>
@@ -394,7 +394,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         }}
         >
           <div style={{ fontWeight: '700', fontSize: '12px', color: '#111827', flexShrink: 0 }}>
-            {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0, totalCode)} {printPostingDirection}
+            {currencyLabel || baseCurrencyCode || 'USD'} {fmt(totals.grandTotal || 0, totalCode)} {printPostingDirection}
           </div>
           <div style={{
             fontStyle: 'italic',
@@ -405,7 +405,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           }}
           >
             {totals.grandTotal > 0
-              ? `${numberToWords(totals.grandTotal, { currencyCode: currencyLabel || 'USD' })} ${currencyLabel || 'USD'} Only`
+              ? `${numberToWords(totals.grandTotal, { currencyCode: currencyLabel || baseCurrencyCode || 'USD' })} ${currencyLabel || baseCurrencyCode || 'USD'} Only`
               : ''}
           </div>
         </div>

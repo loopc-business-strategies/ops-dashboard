@@ -215,7 +215,7 @@ function createVoucherInventoryImpactService({
           createdBy: user._id,
           updatedBy: user._id,
           department: user.department || tx.department || '',
-          currency: tx.currency || 'USD',
+          currency: tx.currency || BASE_CURRENCY_CODE,
           exchangeRate: Number(tx.exchangeRate || 1),
         }], writeOpts(session))
       }

@@ -233,7 +233,7 @@ export async function exportReportPdf({
   doc.save(`${fileBase}.pdf`)
 }
 
-export async function exportTransactionsPdf({ scope, transactionTypeLabels }) {
+export async function exportTransactionsPdf({ scope, transactionTypeLabels, baseCurrencyCode = 'USD' }) {
   const { jsPDF, autoTable } = await loadPdfTools()
   const { buildTransactionsPdfTableBody } = await import('./transactionExportHelpers')
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
@@ -245,7 +245,7 @@ export async function exportTransactionsPdf({ scope, transactionTypeLabels }) {
   doc.text(`Generated: ${new Date().toLocaleString()}`, 36, 54)
   autoTable(doc, {
     head: [['Date', 'Type', 'Party', 'Amount', 'Status', 'Description', 'Comments', 'Audit']],
-    body: buildTransactionsPdfTableBody(scope, transactionTypeLabels),
+    body: buildTransactionsPdfTableBody(scope, transactionTypeLabels, baseCurrencyCode),
     startY: 84,
     styles: { fontSize: 8, cellPadding: 4 },
     headStyles: { fillColor: [17, 24, 39] },

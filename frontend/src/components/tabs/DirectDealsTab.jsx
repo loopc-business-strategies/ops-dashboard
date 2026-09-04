@@ -206,7 +206,7 @@ const worksheetToRows = (worksheet) => {
 export default function DirectDealsTab({
   token,
   customers = [],
-  currencies: _currencies = [],
+  currencies: currenciesProp = [],
   canManage = false,
   isSuperAdmin = false,
   user = null,
@@ -225,6 +225,10 @@ export default function DirectDealsTab({
   const [deals, setDeals] = useState([])
   const [summary, setSummary] = useState({ totalQty: 0, totalAmount: 0, fixing: 0, nonFixing: 0 })
   const [permissions, setPermissions] = useState({ canManage })
+  const [baseCurrencyCode, setBaseCurrencyCode] = useState(() => {
+    const fromProp = (Array.isArray(currenciesProp) ? currenciesProp : []).find((c) => c.baseCurrency)
+    return String(fromProp?.code || 'USD').trim().toUpperCase() || 'USD'
+  })
 
   const [filters, setFilters] = useState({
     search: '',
@@ -240,16 +244,20 @@ export default function DirectDealsTab({
   const [currentDealIdx, setCurrentDealIdx] = useState(-1)
   const [importPreviewRows, setImportPreviewRows] = useState([])
   const [importPreviewFileName, setImportPreviewFileName] = useState('')
-  const [form, setForm] = useState({
-    docNo: '',
-    entryType: 'fixing',
-    docDate: today(),
-    valueDate: today(),
-    currency: 'USD',
-    branch: 'HO',
-    status: 'draft',
-    remarks: '',
-    lineItems: [makeLine()],
+  const [form, setForm] = useState(() => {
+    const fromProp = (Array.isArray(currenciesProp) ? currenciesProp : []).find((c) => c.baseCurrency)
+    const initialBase = String(fromProp?.code || 'USD').trim().toUpperCase() || 'USD'
+    return {
+      docNo: '',
+      entryType: 'fixing',
+      docDate: today(),
+      valueDate: today(),
+      currency: initialBase,
+      branch: 'HO',
+      status: 'draft',
+      remarks: '',
+      lineItems: [makeLine()],
+    }
   })
 
   const hasManage = permissions.canManage || canManage
@@ -281,6 +289,35 @@ export default function DirectDealsTab({
   }, [token, filters, t])
 
   useEffect(() => { loadDeals() }, [loadDeals])
+
+  useEffect(() => {
+    const fromProp = (Array.isArray(currenciesProp) ? currenciesProp : []).find((c) => c.baseCurrency)
+    if (fromProp?.code) {
+      const code = String(fromProp.code).trim().toUpperCase() || 'USD'
+      setBaseCurrencyCode(code)
+      return
+    }
+    if (!token) return
+    let cancelled = false
+    erpAccountingAPI.getCurrencies(token)
+      .then((res) => {
+        if (cancelled) return
+        const list = res?.currencies || res || []
+        const base = (Array.isArray(list) ? list : []).find((c) => c.baseCurrency)
+        const code = String(base?.code || 'USD').trim().toUpperCase() || 'USD'
+        setBaseCurrencyCode(code)
+      })
+      .catch(() => { /* keep current default */ })
+    return () => { cancelled = true }
+  }, [token, currenciesProp])
+
+  useEffect(() => {
+    if (editingId) return
+    setForm((prev) => {
+      if (String(prev.currency || '').trim()) return prev
+      return { ...prev, currency: baseCurrencyCode || 'USD' }
+    })
+  }, [baseCurrencyCode, editingId])
 
   const showSuccess = (msg) => {
     setSuccess(msg)
@@ -335,7 +372,7 @@ export default function DirectDealsTab({
     const price = Number(row.price || 0)
     const eqOz = Number(row.eqOz || calcEqOzFromQtyAndStock(qty, stockCode) || 0)
     const amount = Number(row.amount || (eqOz * price) || 0)
-    const moneyCur = String(form.currency || row.currency || 'USD').toUpperCase()
+    const moneyCur = String(form.currency || row.currency || baseCurrencyCode || 'USD').toUpperCase()
 
     const normalized = {
       rowNo: row.rowNo || idx + 2,
@@ -394,7 +431,7 @@ export default function DirectDealsTab({
           const eqOz = calcEqOzFromQtyAndStock(qty, stock)
           const amount = calcAmountFromWeightAndPrice(qty, stock, price)
           updated.eqOz = eqOz ? eqOz.toFixed(3) : ''
-          updated.amount = amount ? String(roundMoney(amount, prev.currency || 'USD')) : ''
+          updated.amount = amount ? String(roundMoney(amount, prev.currency || baseCurrencyCode || 'USD')) : ''
         }
         return updated
       })
@@ -451,7 +488,7 @@ export default function DirectDealsTab({
       entryType: 'fixing',
       docDate: today(),
       valueDate: today(),
-      currency: 'USD',
+      currency: baseCurrencyCode || 'USD',
       branch: 'HO',
       status: 'draft',
       remarks: '',
@@ -480,7 +517,7 @@ export default function DirectDealsTab({
           const qty = Number(key === 'qty' ? value : updated.qty || 0)
           const price = Number(key === 'price' ? value : updated.price || 0)
           const amount = qty * price
-          updated.amount = amount ? String(roundMoney(amount, form.currency || 'USD')) : ''
+          updated.amount = amount ? String(roundMoney(amount, form.currency || baseCurrencyCode || 'USD')) : ''
           if (!updated.eqOz) updated.eqOz = updated.qty
         }
         return normalizePreviewRow(updated, i)
@@ -617,7 +654,7 @@ export default function DirectDealsTab({
     pdf.text(`Currency: ${deal.currency || '-'}`, 220, startY + 36)
     pdf.text(`Status: ${deal.status || '-'}`, 380, startY + 36)
     pdf.text(`Total Qty: ${fmtQty(deal.totalQty)}`, 40, startY + 52)
-    pdf.text(`Total Amount: ${deal.currency || 'USD'} ${fmtMoney(deal.totalAmount, deal.currency)}`, 220, startY + 52)
+    pdf.text(`Total Amount: ${deal.currency || baseCurrencyCode || 'USD'} ${fmtMoney(deal.totalAmount, deal.currency || baseCurrencyCode)}`, 220, startY + 52)
 
     autoTable(pdf, {
       startY: startY + 68,
@@ -629,9 +666,9 @@ export default function DirectDealsTab({
         line.metal || '',
         fmtQty(line.qty),
         line.stockCode || '',
-        fmtMoney(line.price, deal.currency),
+        fmtMoney(line.price, deal.currency || baseCurrencyCode),
         fmtQty(line.eqOz),
-        fmtMoney(line.amount, deal.currency),
+        fmtMoney(line.amount, deal.currency || baseCurrencyCode),
       ]),
       styles: { fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [37, 99, 235] },
@@ -827,7 +864,7 @@ export default function DirectDealsTab({
       entryType: deal.entryType || 'fixing',
       docDate: deal.docDate ? String(deal.docDate).slice(0, 10) : today(),
       valueDate: deal.valueDate ? String(deal.valueDate).slice(0, 10) : today(),
-      currency: deal.currency || 'USD',
+      currency: deal.currency || baseCurrencyCode || 'USD',
       branch: deal.branch || 'HO',
       status: deal.status || 'draft',
       remarks: deal.remarks || '',
@@ -967,7 +1004,7 @@ export default function DirectDealsTab({
         </div>
         <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '0.5rem', padding: '0.7rem' }}>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: '0.75rem' }}>{t('totalAmount')}</p>
-          <p style={{ margin: '0.25rem 0 0', color: COLORS.ink, fontSize: '1.1rem', fontWeight: 800 }}>{form.currency || 'USD'} {fmtMoney(summary.totalAmount, form.currency)}</p>
+          <p style={{ margin: '0.25rem 0 0', color: COLORS.ink, fontSize: '1.1rem', fontWeight: 800 }}>{form.currency || baseCurrencyCode || 'USD'} {fmtMoney(summary.totalAmount, form.currency || baseCurrencyCode)}</p>
         </div>
       </div>
 
@@ -1255,7 +1292,7 @@ export default function DirectDealsTab({
                           </td>
                           {/* Amount */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <input value={line.amount ? fmtMoney(line.amount, form.currency) : ''} readOnly style={{ ...erpInpSt, textAlign: 'right', width: '100%', background: '#f5f5f5', border: '1px solid #bbb', padding: '4px 5px' }} tabIndex={-1} />
+                            <input value={line.amount ? fmtMoney(line.amount, form.currency || baseCurrencyCode) : ''} readOnly style={{ ...erpInpSt, textAlign: 'right', width: '100%', background: '#f5f5f5', border: '1px solid #bbb', padding: '4px 5px' }} tabIndex={-1} />
                           </td>
                           {/* Delete */}
                           <td style={{ padding: '3px 3px', textAlign: 'center' }}>
@@ -1289,7 +1326,7 @@ export default function DirectDealsTab({
               <div style={{ display: 'flex', gap: 20, fontSize: 12, alignItems: 'center' }}>
                 <span style={{ background: viewMode === 'EDIT' ? '#D1FAE5' : '#DBEAFE', color: viewMode === 'EDIT' ? '#065F46' : '#1D4ED8', border: `1px solid ${viewMode === 'EDIT' ? '#6EE7B7' : '#BFDBFE'}`, borderRadius: 3, padding: '2px 10px', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>Mode: {viewMode}</span>
                 <span><span style={{ color: '#555' }}>Total Qty: </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtQty(formTotals.totalQty)}</span></span>
-                <span><span style={{ color: '#555' }}>Total Amount: {form.currency} </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtMoney(formTotals.totalAmount, form.currency)}</span></span>
+                <span><span style={{ color: '#555' }}>Total Amount: {form.currency || baseCurrencyCode} </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtMoney(formTotals.totalAmount, form.currency || baseCurrencyCode)}</span></span>
               </div>
             </div>
 
@@ -1435,10 +1472,10 @@ export default function DirectDealsTab({
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>{deal.entryType === 'fixing' ? 'Fixing' : 'Non-Fixing'}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>{deal.docDate ? String(deal.docDate).slice(0, 10) : '-'}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>{deal.valueDate ? String(deal.valueDate).slice(0, 10) : '-'}</td>
-                  <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>{deal.currency}</td>
+                  <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>{deal.currency || baseCurrencyCode}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right' }}>{deal.lineItems?.length || 0}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right' }}>{fmtQty(deal.totalQty)}</td>
-                  <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right', fontWeight: 700 }}>{deal.currency} {fmtMoney(deal.totalAmount, deal.currency)}</td>
+                  <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'right', fontWeight: 700 }}>{deal.currency || baseCurrencyCode} {fmtMoney(deal.totalAmount, deal.currency || baseCurrencyCode)}</td>
                   <td style={{ padding: '0.45rem 0.55rem', borderBottom: `1px solid ${COLORS.border}` }}>
                     <span style={{ padding: '0.2rem 0.45rem', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 700, background: deal.status === 'confirmed' ? '#DCFCE7' : '#FEF3C7', color: deal.status === 'confirmed' ? '#166534' : '#92400E' }}>{deal.status}</span>
                   </td>

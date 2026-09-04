@@ -739,6 +739,7 @@ export default function VoucherTab({
     resolveVoucherParty,
     findPartyOptionByCode,
     initialFormSnapshotRef,
+    baseCurrencyCode,
   })
 
   openVoucherRef.current = openVoucher

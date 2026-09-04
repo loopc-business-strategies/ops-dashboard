@@ -43,11 +43,12 @@ export function useVoucherOpenEdit({
   resolveVoucherParty,
   findPartyOptionByCode,
   initialFormSnapshotRef,
+  baseCurrencyCode = 'USD',
 }) {
   const openVoucher = (v) => {
   const m = v.voucherMeta || {}
   const resolvedParty = resolveVoucherParty(m.partyCode || '')
-  const voucherCurrency = String(v.currency || 'USD').trim().toUpperCase()
+  const voucherCurrency = String(v.currency || baseCurrencyCode || 'USD').trim().toUpperCase()
   const isAedVoucher = voucherCurrency === 'AED'
   const voucherKind = String(v?.type || voucherType || '').trim().toLowerCase()
   const isReceiptPaymentVoucher = voucherKind === 'receipt' || voucherKind === 'payment'
@@ -77,7 +78,7 @@ export function useVoucherOpenEdit({
   if (!nextPartyId && vid) nextPartyId = `vendor:${String(vid)}`
   if (!nextPartyId) nextPartyId = resolvedParty?.partyId || findPartyOptionByCode(m.partyCode || '')?.id || ''
   const nextLineItems = (m.lineItems || []).map((line) => {
-    const lineCurrency = String(line?.currCode || voucherCurrency || 'USD').trim().toUpperCase()
+    const lineCurrency = String(line?.currCode || voucherCurrency || baseCurrencyCode || 'USD').trim().toUpperCase()
     const lineRateSource = line?.currRateSource || 'manual'
     const lineRate = parseFloat(line?.currRate)
     const normalizedLineRate = backendRateToDisplayRate(lineRate, lineCurrency, isReceiptPaymentVoucher)

@@ -485,7 +485,7 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
       void queueJvPostedNotify(tenantKey, {
         vocNo,
         amount: Number(entry.amount || 0),
-        currency: entry.currency || posting?.currency || 'USD',
+        currency: entry.currency || posting?.currency || BASE_CURRENCY_CODE || 'USD',
         debitAccountId,
         creditAccountId,
         isBankJv: refType === 'bank_jv',
@@ -670,7 +670,7 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
     void queueJvPostedNotify(tenantKey, {
       vocNo,
       amount: totalAmount,
-      currency: firstEntry?.currency || 'USD',
+      currency: firstEntry?.currency || BASE_CURRENCY_CODE || 'USD',
       debitAccountId: firstEntry?.debitAccountId,
       creditAccountId: firstEntry?.creditAccountId,
       isBankJv: mode === 'bank_jv',

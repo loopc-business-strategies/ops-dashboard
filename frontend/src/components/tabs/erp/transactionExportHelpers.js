@@ -2,10 +2,13 @@
  * Pure builders for ERP transaction register exports (CSV/XLSX row grids).
  */
 
+import { formatMoney } from '../../../utils/money'
+
 export function buildTransactionExportPayload({
   transactions = [],
   selectedTransactionIds = [],
   transactionTypeLabels = {},
+  baseCurrencyCode = 'USD',
 } = {}) {
   const scope = selectedTransactionIds.length
     ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
@@ -20,12 +23,13 @@ export function buildTransactionExportPayload({
     ['Date', 'Type', 'Party', 'Amount', 'Currency', 'Status', 'Description', 'Debit Account', 'Credit Account', 'Created By', 'Approved By', 'Posted By', 'Comments', 'Audit Events'],
   ]
   scope.forEach((tx) => {
+    const currency = tx.currency || baseCurrencyCode
     rows.push([
       tx.date ? new Date(tx.date).toLocaleString() : '',
       transactionTypeLabels[tx.type] || tx.type,
       tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
       Number(tx.amount || 0),
-      tx.currency || 'USD',
+      currency,
       tx.status || '',
       tx.description || '',
       tx.debitAccountId ? `${tx.debitAccountId.accountCode} - ${tx.debitAccountId.accountName}` : '',
@@ -41,12 +45,12 @@ export function buildTransactionExportPayload({
 }
 
 /** Rows for jsPDF autoTable body (transactions register PDF). */
-export function buildTransactionsPdfTableBody(scope = [], transactionTypeLabels = {}) {
+export function buildTransactionsPdfTableBody(scope = [], transactionTypeLabels = {}, baseCurrencyCode = 'USD') {
   return scope.map((tx) => [
     tx.date ? new Date(tx.date).toLocaleDateString() : '',
     transactionTypeLabels[tx.type] || tx.type,
     tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
-    `${tx.currency || 'USD'} ${Number(tx.amount || 0).toLocaleString()}`,
+    formatMoney(tx.amount, tx.currency || baseCurrencyCode),
     tx.status || '',
     tx.description || '',
     String(tx.comments?.length || 0),

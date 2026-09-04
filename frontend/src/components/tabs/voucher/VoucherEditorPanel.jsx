@@ -1213,7 +1213,7 @@ export default function VoucherEditorPanel({
                         )}
                         {!isSimpleMetalVoucher && (
                         <tr style={{ background: '#F1F3F6' }}>
-                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{`Net Amt (${receiptPaymentNetAmtLabelCurrency || header.currCode || 'USD'}) :`}</td>
+                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{`Net Amt (${receiptPaymentNetAmtLabelCurrency || header.currCode || baseCurrencyCode || 'USD'}) :`}</td>
                           <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(totals.grandTotal, receiptPaymentNetAmtLabelCurrency || header.currCode || baseCurrencyCode)}</td>
                         </tr>
                         )}

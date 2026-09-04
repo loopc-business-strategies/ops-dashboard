@@ -125,9 +125,9 @@ export default function ERPInventoryTab({
                         ) : (
                           Number(item.unitCost || 0) > 0 && (
                             <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#166534', background: '#DCFCE7', padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>
-                              {Number(item.unitCost).toLocaleString()}
+                              {formatAmount(item.unitCost, { currencyCode: item.currency || baseCurrencyCode })}
                               {' '}
-                              {item.currency || 'USD'}
+                              {item.currency || baseCurrencyCode}
                               /
                               {meta.priceUnit || 'OZ'}
                             </span>
