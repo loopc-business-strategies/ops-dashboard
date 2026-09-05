@@ -12,12 +12,14 @@
 require('dotenv').config()
 const readline = require('readline')
 const mongoose = require('mongoose')
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const { createSafeCleanup } = require('../utils/safeCleanupWrapper')
 
-const TENANT_URIS = {
-  mg: process.env.MONGO_URI_MG,
-  cg: process.env.MONGO_URI_CG,
-  loopc: process.env.MONGO_URI_LOOPC,
+const VALID_TENANTS = new Set(['mg', 'cg', 'loopc'])
+
+function resolveTenantUri(tenant) {
+  const key = `MONGO_URI_${String(tenant || '').toUpperCase()}`
+  return String(process.env[key] || '').trim()
 }
 
 const CLEANUP_OPERATIONS = {
@@ -85,17 +87,27 @@ async function main() {
     let reason = readArgValue(args, '--reason') || readArgValue(args, '--comment')
     let token = readArgValue(args, '--token')
 
-    if (!tenant || !TENANT_URIS[tenant]) {
+    if (!tenant || !VALID_TENANTS.has(tenant)) {
       console.log('\n[!] Valid tenants: mg, cg, loopc\n')
       tenant = await prompt('Select tenant (mg/cg/loopc): ')
     }
 
-    if (!TENANT_URIS[tenant]) {
+    tenant = String(tenant || '').trim().toLowerCase()
+    if (!VALID_TENANTS.has(tenant)) {
       console.error(`[ERROR] Invalid tenant: ${tenant}`)
       process.exit(1)
     }
 
-    const mongoUri = TENANT_URIS[tenant]
+    assertStagingOnlyScript({
+      scriptName: 'safe-cleanup-cli.js',
+      tenants: [tenant],
+    })
+
+    const mongoUri = resolveTenantUri(tenant)
+    if (!mongoUri) {
+      console.error(`[ERROR] No staging Mongo URI mapped for tenant: ${tenant}`)
+      process.exit(1)
+    }
 
     if (!CLEANUP_OPERATIONS[operationName]) {
       console.log('\n[!] Available operations:')

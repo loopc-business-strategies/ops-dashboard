@@ -3,6 +3,17 @@
  * Never connects to MongoDB or mutates data.
  */
 
+/** Known production Atlas hosts — always reject for staging scripts (denylist wins). */
+const KNOWN_PRODUCTION_MONGO_HOSTS = Object.freeze([
+  'cluster0.m5yqfs7.mongodb.net', // MG production
+  'cluster0.karzgcd.mongodb.net', // CG production
+  'cluster0.fiijdd5.mongodb.net', // LoopC production
+])
+
+const KNOWN_PRODUCTION_URI_MARKERS = Object.freeze([
+  'api.loopcstrategies.com',
+])
+
 function envBool(value) {
   return String(value || '').trim().toLowerCase() === 'true'
 }
@@ -20,6 +31,17 @@ function redactMongoUri(uri) {
   }
 }
 
+function hostnameFromMongoUri(uri) {
+  const raw = String(uri || '').trim()
+  if (!raw) return ''
+  try {
+    const parsed = new URL(raw.replace(/^mongodb(\+srv)?:\/\//, 'https://'))
+    return String(parsed.hostname || '').trim().toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 function looksLikeLocalOrEphemeralUri(uri) {
   const lower = String(uri || '').toLowerCase()
   return (
@@ -30,9 +52,20 @@ function looksLikeLocalOrEphemeralUri(uri) {
   )
 }
 
-function looksLikeNonProductionUri(uri) {
+function isKnownProductionMongoHost(uri) {
+  const host = hostnameFromMongoUri(uri)
+  if (host && KNOWN_PRODUCTION_MONGO_HOSTS.some((denied) => host === denied || host.endsWith(`.${denied}`))) {
+    return true
+  }
   const lower = String(uri || '').toLowerCase()
+  return KNOWN_PRODUCTION_URI_MARKERS.some((marker) => lower.includes(marker))
+}
+
+function looksLikeNonProductionUri(uri) {
+  // Denylist wins even if URI also contains staging|test keywords.
+  if (isKnownProductionMongoHost(uri)) return false
   if (looksLikeLocalOrEphemeralUri(uri)) return true
+  const lower = String(uri || '').toLowerCase()
   return /staging|preview|test|dev|sandbox|smoke|qa|uat/.test(lower)
 }
 
@@ -73,7 +106,10 @@ function assertMigrationApplyAllowed({ tenants, resolveUri }) {
 module.exports = {
   envBool,
   redactMongoUri,
+  hostnameFromMongoUri,
   looksLikeLocalOrEphemeralUri,
   looksLikeNonProductionUri,
+  isKnownProductionMongoHost,
+  KNOWN_PRODUCTION_MONGO_HOSTS,
   assertMigrationApplyAllowed,
 }

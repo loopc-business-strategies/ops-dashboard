@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /**
+ * READ-ONLY production probe; no writes.
  * Atlas backup drill: direct tenant data probe + Atlas Admin API backup/snapshot checks.
  * Set ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, ATLAS_GROUP_ID in backend/.env (see .env.example).
  */

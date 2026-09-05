@@ -2,15 +2,25 @@
 /**
  * Apply missing security vars from backend/.env.staging.generated.local
  * to Railway STAGING ops-dashboard only. Never touches MONGO_URI_* or JWT_SECRET.
+ *
+ * Fail-closed: refuses known production Mongo hosts / production-like URIs if they
+ * appear in the generated file or in Railway staging MONGO_* listings.
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
 const generatedPath = path.join(rootDir, 'backend', '.env.staging.generated.local')
+const require = createRequire(import.meta.url)
+const {
+  looksLikeNonProductionUri,
+  isKnownProductionMongoHost,
+  redactMongoUri,
+} = require(path.join(rootDir, 'backend', 'utils', 'migrationSafety.js'))
 
 const ENSURE_VOLUME_KEYS = {
   UPLOAD_STORAGE_ROOT: '/app/uploads',
@@ -38,9 +48,23 @@ const NEVER_TOUCH = new Set([
   'NODE_ENV',
 ])
 
+const MONGO_KEY_RE = /^(?:STAGING_)?MONGO_URI_[A-Z0-9_]+$/
+
 function loadDotEnv(filePath) {
   const out = {}
   for (const line of readFileSync(filePath, 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eq = trimmed.indexOf('=')
+    if (eq === -1) continue
+    out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+  }
+  return out
+}
+
+function parseKv(text) {
+  const out = {}
+  for (const line of String(text || '').split(/\r?\n/)) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
     const eq = trimmed.indexOf('=')
@@ -62,32 +86,68 @@ function runRailway(args) {
   return result.stdout.trim()
 }
 
+function assertAppEnvStaging(bundle) {
+  const appEnv = String(bundle.APP_ENV || process.env.APP_ENV || '').trim().toLowerCase()
+  if (appEnv !== 'staging') {
+    throw new Error(
+      'Refusing apply-staging-railway-vars: APP_ENV must be staging '
+      + `(generated file or process.env). Got ${appEnv || '(empty)'}.`,
+    )
+  }
+}
+
+function assertMongoValuesSafe(sourceLabel, entries) {
+  for (const [key, value] of entries) {
+    if (!MONGO_KEY_RE.test(key)) continue
+    const uri = String(value || '').trim()
+    if (!uri) continue
+    if (isKnownProductionMongoHost(uri)) {
+      throw new Error(
+        `Refusing ${sourceLabel}: ${key} points at a known production Mongo host `
+        + `(${redactMongoUri(uri)}).`,
+      )
+    }
+    if (!looksLikeNonProductionUri(uri)) {
+      throw new Error(
+        `Refusing ${sourceLabel}: ${key}=${redactMongoUri(uri)} is not a non-production URI.`,
+      )
+    }
+  }
+}
+
 function main() {
   if (!existsSync(generatedPath)) {
     throw new Error(`Missing ${generatedPath}. Run npm run setup:staging first.`)
   }
 
   const bundle = loadDotEnv(generatedPath)
+  assertAppEnvStaging(bundle)
+  assertMongoValuesSafe('generated staging env file', Object.entries(bundle))
+
   runRailway(['environment', 'staging'])
   runRailway(['service', 'ops-dashboard'])
 
   const existingKv = runRailway(['variable', 'list', '-e', 'staging', '-s', 'ops-dashboard', '--kv'])
-  const existing = new Set(
-    existingKv.split(/\r?\n/).map((line) => line.split('=')[0]).filter(Boolean),
-  )
+  const existingMap = parseKv(existingKv)
+  const existing = new Set(Object.keys(existingMap))
+
+  assertMongoValuesSafe('Railway staging variable list', Object.entries(existingMap))
 
   console.log('Railway staging ops-dashboard — applying missing security vars only.')
   console.log('Skipping: JWT_SECRET, MONGO_URI_* (already configured for ops-dashboard-staging DBs).')
 
-  let mongoOk = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC'].every((key) => {
-    const line = existingKv.split(/\r?\n/).find((row) => row.startsWith(`${key}=`))
-    return line && /ops-dashboard-staging/i.test(line)
+  const mongoKeys = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC']
+  const mongoOk = mongoKeys.every((key) => {
+    const line = existingMap[key] || ''
+    return /ops-dashboard-staging/i.test(line)
   })
   if (!mongoOk) {
-    console.warn('Warning: staging MONGO_URI_* may not point at ops-dashboard-staging databases — verify in Railway dashboard.')
-  } else {
-    console.log('Verified: MONGO_URI_MG/CG/LOOPC already use ops-dashboard-staging databases (unchanged).')
+    throw new Error(
+      'Refusing: staging MONGO_URI_* must point at ops-dashboard-staging databases. '
+      + 'Verify in Railway dashboard before applying security vars.',
+    )
   }
+  console.log('Verified: MONGO_URI_MG/CG/LOOPC already use ops-dashboard-staging databases (unchanged).')
 
   for (const [key, value] of Object.entries(ENSURE_VOLUME_KEYS)) {
     if (existing.has(key)) {

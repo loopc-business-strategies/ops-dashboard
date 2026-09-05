@@ -4,16 +4,16 @@
  * Creates read-only smoke probe users in each tenant DB and stores credentials
  * in GitHub Actions secrets for post-deploy smoke tests.
  *
- * Requires:
- *   - MONGO_URI_MG, MONGO_URI_CG, MONGO_URI_LOOPC (backend/.env or workflow env)
+ * Staging-only. Requires:
+ *   - --staging
+ *   - APP_ENV=staging (set by this script)
+ *   - STAGING_MONGO_URI_MG, STAGING_MONGO_URI_CG, STAGING_MONGO_URI_LOOPC
  *   - gh authenticated (GH_TOKEN or gh auth login) with repo admin access
  *
  * Usage:
  *   node scripts/setup-smoke-github-secrets.js --staging
  *   node scripts/setup-smoke-github-secrets.js --staging --verify-only
  *   node scripts/setup-smoke-github-secrets.js --staging --reactivate-only
- *
- * Requires: --staging, APP_ENV=staging (set by script), STAGING_MONGO_URI_MG/CG/LOOPC
  */
 
 const { spawnSync } = require('node:child_process')
@@ -29,11 +29,14 @@ if (process.platform === 'win32') {
 const rootDir = path.resolve(__dirname, '..')
 const backendDir = path.join(rootDir, 'backend')
 const isStaging = process.argv.includes('--staging')
-const skipBackendDotenv = isStaging && ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC'].every(
+const skipBackendDotenv = isStaging && ['STAGING_MONGO_URI_MG', 'STAGING_MONGO_URI_CG', 'STAGING_MONGO_URI_LOOPC'].every(
   (key) => String(process.env[key] || '').trim(),
 )
 
 if (!skipBackendDotenv) {
+  require(path.join(backendDir, 'node_modules', 'dotenv')).config({
+    path: path.join(backendDir, '.env.staging.local'),
+  })
   require(path.join(backendDir, 'node_modules', 'dotenv')).config({
     path: path.join(backendDir, '.env'),
   })
@@ -285,20 +288,16 @@ async function main() {
 
   if (reactivateOnly) {
     for (const tenant of TENANTS) {
-      const envVar = isStaging
-        ? `STAGING_MONGO_URI_${tenant.toUpperCase()}`
-        : `MONGO_URI_${tenant.toUpperCase()}`
-      const uri = String(process.env[envVar] || process.env[`MONGO_URI_${tenant.toUpperCase()}`] || '').trim()
+      const envVar = `STAGING_MONGO_URI_${tenant.toUpperCase()}`
+      const uri = String(process.env[envVar] || '').trim()
       if (!uri) {
-        throw new Error(`Missing ${envVar} (or MONGO_URI_${tenant.toUpperCase()}) in env`)
+        throw new Error(`Missing ${envVar}. Do not use MONGO_URI_* as a staging substitute.`)
       }
-    if (isStaging) {
+      // assertStagingOnlyScript already mapped STAGING → MONGO_URI_*; keep explicit.
       process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
     }
-  }
-  // Staging URI already validated via assertStagingOnlyScript at main() entry.
 
-  console.log(`Reactivating ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc (no password change)...`)
+    console.log('Reactivating staging smoke users in mg/cg/loopc (no password change)...')
     for (const tenant of TENANTS) {
       const result = await reactivateSmokeUser(tenant)
       console.log(`  ${result.tenant.toUpperCase()} (${result.userName}): ${result.action}${result.id ? ` (${result.id})` : ''}`)
@@ -333,16 +332,12 @@ async function main() {
   }
 
   for (const tenant of TENANTS) {
-    const envVar = isStaging
-      ? `STAGING_MONGO_URI_${tenant.toUpperCase()}`
-      : `MONGO_URI_${tenant.toUpperCase()}`
-    const uri = String(process.env[envVar] || process.env[`MONGO_URI_${tenant.toUpperCase()}`] || '').trim()
+    const envVar = `STAGING_MONGO_URI_${tenant.toUpperCase()}`
+    const uri = String(process.env[envVar] || '').trim()
     if (!uri) {
-      throw new Error(`Missing ${envVar} (or MONGO_URI_${tenant.toUpperCase()}) in env`)
+      throw new Error(`Missing ${envVar}. Do not use MONGO_URI_* as a staging substitute.`)
     }
-    if (isStaging) {
-      process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
-    }
+    process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
   }
 
   // Staging URI already validated via assertStagingOnlyScript at main() entry.

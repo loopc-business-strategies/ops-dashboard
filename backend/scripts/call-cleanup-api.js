@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 /**
- * Call cleanup endpoint via API
+ * Call cleanup endpoint via API (staging-only).
  */
 
 const https = require('https')
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 
 const API_URL = 'https://api.loopcstrategies.com'
 const TENANT = 'mg'
+
+assertStagingOnlyScript({
+  scriptName: 'call-cleanup-api.js',
+  tenants: [TENANT],
+})
 
 async function callCleanup() {
   return new Promise((resolve, reject) => {
