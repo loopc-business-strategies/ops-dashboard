@@ -5,8 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import { applyTenantTheme, getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
-import BuildInfoBadge from '../components/BuildInfoBadge'
-import MgLoginShell from './MgLoginShell'
+import TenantLoginShell from './TenantLoginShell'
 
 function Login() {
   const navigate = useNavigate()
@@ -18,11 +17,11 @@ function Login() {
   const company = resolveTenantFromSearch(window.location.search, hostTenant)
   const isPlainLocalHost = isLocalTenantHost(window.location.hostname)
 
-  const [name,     setName]     = useState('')
+  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
-  const [error,    setError]    = useState('')
+  const [error, setError] = useState('')
   const [idleNotice, setIdleNotice] = useState('')
-  const [loading,  setLoading]  = useState(false)
+  const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
   const branding = getTenantBranding(company)
 
@@ -69,240 +68,22 @@ function Login() {
     }
   }
 
-  const bp = branding.colors.brandPrimary
-  const circleLarge = bp
-  const circleMed   = bp
-  const circleSmall = bp
-  const heroCircleShadow = 'inset 28px 28px 64px rgba(255,255,255,0.18), inset -28px -28px 64px rgba(0,0,0,0.26)'
-  const orbShadow = 'inset 16px 16px 36px rgba(255,255,255,0.16), inset -18px -18px 40px rgba(0,0,0,0.24)'
-
-  if (company === 'mg') {
-    return (
-      <MgLoginShell
-        name={name}
-        setName={setName}
-        password={password}
-        setPassword={setPassword}
-        error={error}
-        idleNotice={idleNotice}
-        setError={setError}
-        loading={loading}
-        showPass={showPass}
-        setShowPass={setShowPass}
-        handleSubmit={handleSubmit}
-        t={t}
-      />
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-[#eef2f6] p-0 md:p-3">
-      <div
-        className="min-h-screen md:min-h-[calc(100vh-24px)] relative overflow-hidden bg-white md:rounded-[24px] border border-[#dbe4ef]"
-        style={{ boxShadow: '0 18px 40px rgba(27, 42, 51, 0.08), inset 0 1px 0 rgba(255,255,255,0.7)' }}
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            background: 'radial-gradient(circle at 68% 34%, rgba(201, 164, 92, 0.14), transparent 28%), radial-gradient(circle at 54% 78%, rgba(0, 91, 150, 0.05), transparent 22%), linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%)',
-          }}
-        />
-
-        <div
-          className="absolute hidden lg:block rounded-full"
-          style={{
-            width: '150px',
-            height: '150px',
-            left: '-8px',
-            bottom: '-14px',
-            background: circleSmall,
-            boxShadow: orbShadow,
-            zIndex: 1,
-          }}
-        />
-        <div
-          className="absolute hidden lg:block rounded-full"
-          style={{
-            width: '162px',
-            height: '162px',
-            left: '340px',
-            bottom: '32px',
-            background: circleMed,
-            boxShadow: orbShadow,
-            zIndex: 1,
-          }}
-        />
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: '230px',
-            height: '230px',
-            right: '-34px',
-            bottom: '-54px',
-            background: circleSmall,
-            boxShadow: orbShadow,
-            zIndex: 1,
-          }}
-        />
-
-        <div style={{ position: 'absolute', top: '18px', right: '20px', zIndex: 5 }}>
-          <BuildInfoBadge tone="light" className="hidden sm:inline-flex" />
-        </div>
-
-        <div className="relative min-h-screen md:min-h-[calc(100vh-24px)] flex flex-col lg:flex-row">
-          <div className="hidden lg:flex lg:w-[46%] relative overflow-hidden">
-            <div
-              className="absolute rounded-full"
-              style={{
-                width: '840px',
-                height: '840px',
-                top: '-114px',
-                left: '-430px',
-                background: circleLarge,
-                boxShadow: heroCircleShadow,
-              }}
-            />
-
-            <div className="absolute z-10 left-[48px] top-[178px] max-w-[320px]">
-              <div
-                className="inline-flex items-center justify-center w-[78px] h-[78px] rounded-[18px] mb-7"
-                style={{ background: 'rgba(255,255,255,0.14)', border: '2px solid rgba(255,255,255,0.28)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }}
-              >
-                {branding.logoImage
-                  ? <img src={branding.logoImage} alt={branding.displayName} className="w-12 h-12 object-contain" />
-                  : <span className="text-[20px] font-extrabold text-white tracking-wide">{branding.logoText}</span>
-                }
-              </div>
-
-              <h1 className="text-[38px] leading-none font-extrabold text-white tracking-tight mb-3">WELCOME</h1>
-              <div className="text-[26px] leading-none font-extrabold tracking-tight mb-3">
-                <span style={{ color: '#7bc3ff' }}>Nexa</span>
-                <span style={{ color: '#0f172a' }}>Ops</span>
-              </div>
-              <p className="text-[14px] leading-8 text-white/82 max-w-[290px]">
-                Unified platform for metal trading, ERP,
-                compliance, and financial control.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex-1 relative flex items-center justify-center lg:justify-start px-6 py-24 sm:px-10 lg:px-0 xl:px-0">
-            <div className="relative z-10 w-full max-w-[488px] lg:ml-[22px] xl:ml-[38px]">
-              <div className="lg:hidden mb-8 text-center">
-                <div
-                  className="inline-flex items-center justify-center w-16 h-16 rounded-[18px] mb-4"
-                  style={{ background: branding.colors.gradBar, boxShadow: '0 14px 28px rgba(var(--purple-rgb),0.18)' }}
-                >
-                  {branding.logoImage
-                    ? <img src={branding.logoImage} alt={branding.displayName} className="w-11 h-11 object-contain" />
-                    : <span className="text-xl font-extrabold text-white tracking-wide">{branding.logoText}</span>
-                  }
-                </div>
-                <div className="text-[24px] font-extrabold tracking-tight text-[#17233c]">{t('signIn')}</div>
-                <div className="text-[13px] text-[#7f8b9c] mt-1">{branding.tagline || t('operationsControl')}</div>
-              </div>
-
-              <div
-                className="rounded-[24px] border border-[#dbe3ef] bg-white"
-                style={{ width: '100%', maxWidth: '448px', margin: '0 auto', padding: '40px 28px 34px', boxShadow: '0 16px 38px rgba(20, 34, 60, 0.08), inset 0 1px 0 rgba(255,255,255,0.95)' }}
-              >
-                <div className="hidden lg:block" style={{ marginBottom: 26 }}>
-                  <h1 className="leading-none font-extrabold tracking-tight text-[#1b2540]" style={{ fontSize: 52 }}>{t('signIn')}</h1>
-                  <p className="text-[13px] text-[#7f8796] mt-2">{branding.tagline || t('operationsControl')}</p>
-                </div>
-
-                <form onSubmit={handleSubmit} style={{ display: 'grid', rowGap: 16 }}>
-                  {idleNotice && (
-                    <div className="flex items-center gap-2 rounded-[12px] border border-[#f0d58a] bg-[#fffbeb] px-3 py-3">
-                      <p className="text-[12px] text-[#92400e]">{idleNotice}</p>
-                    </div>
-                  )}
-                  {error && (
-                    <div className="flex items-center gap-2 rounded-[12px] border border-[#f0c9c9] bg-[#fff5f5] px-3 py-3">
-                      <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-[12px] text-red-600">{error}</p>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[12px] font-semibold text-[#8b95a5] mb-[8px] uppercase tracking-[0.05em]">
-                      {t('username')}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => { setName(e.target.value); setError('') }}
-                        placeholder={t('enterUsername')}
-                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] pl-4 pr-4 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
-                        style={{ height: 56 }}
-                        autoFocus
-                        autoComplete="username"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-semibold text-[#8b95a5] mb-[8px] uppercase tracking-[0.05em]">
-                      {t('password')}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPass ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => { setPassword(e.target.value); setError('') }}
-                        placeholder={t('enterPassword')}
-                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] pl-4 pr-20 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
-                        style={{ height: 56 }}
-                        autoComplete="current-password"
-                        disabled={loading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPass(!showPass)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[12px] font-bold tracking-wide text-[#2a67d7] hover:opacity-80 transition-opacity"
-                      >
-                        {showPass ? 'HIDE' : 'SHOW'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full rounded-[11px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(var(--purple-rgb),0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
-                    style={{ background: 'var(--grad-brand)', color: 'var(--brand-button-text, #fff)', height: 54 }}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        {t('signingIn')}
-                      </span>
-                    ) : t('signIn')}
-                  </button>
-
-                  <div className="text-center" style={{ paddingTop: 6 }}>
-                    <p className="text-[13px] text-[#7f8796] font-medium">
-                      <span className="mr-1">🔒</span>
-                      {t('accessByInvitation')}
-                    </p>
-                    <p className="text-[12px] text-[#7f8796] mt-1">
-                      Contact your administrator to get access
-                    </p>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <TenantLoginShell
+      branding={branding}
+      name={name}
+      setName={setName}
+      password={password}
+      setPassword={setPassword}
+      error={error}
+      idleNotice={idleNotice}
+      setError={setError}
+      loading={loading}
+      showPass={showPass}
+      setShowPass={setShowPass}
+      handleSubmit={handleSubmit}
+      t={t}
+    />
   )
 }
 

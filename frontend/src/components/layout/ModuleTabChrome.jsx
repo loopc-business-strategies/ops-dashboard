@@ -4,29 +4,29 @@ import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
 /** Vertical rhythm between major blocks (matches ERP inner spacing). */
 export const MODULE_TAB_GAP = '1.25rem'
 
-export const ERP_INK = '#111827'
-export const ERP_INK_SOFT = '#374151'
+export const ERP_INK = 'var(--text-primary)'
+export const ERP_INK_SOFT = 'var(--text-secondary)'
 
 const pillIdle = {
-  padding: '0.625rem 1.25rem',
-  borderRadius: '0.375rem',
+  padding: '0.55rem 1.1rem',
+  borderRadius: '999px',
   cursor: 'pointer',
   fontFamily: 'inherit',
-  fontSize: '0.9rem',
+  fontSize: '0.85rem',
   fontWeight: 600,
-  transition: 'all 0.25s ease',
+  transition: 'var(--transition)',
   whiteSpace: 'nowrap',
-  border: '1px solid #D1D5DB',
-  background: 'transparent',
-  color: '#1F1F1F',
+  border: '1px solid var(--border)',
+  background: '#fff',
+  color: 'var(--text-secondary)',
 }
 
 const pillActive = {
-  background: 'var(--purple-light)',
-  color: '#FFFFFF',
-  border: 'none',
+  background: 'var(--brand-soft)',
+  color: 'var(--brand-on-soft)',
+  border: '1px solid var(--brand-border)',
   fontWeight: 700,
-  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  boxShadow: 'none',
 }
 
 function handleSubTabNavClick(event, onClick) {

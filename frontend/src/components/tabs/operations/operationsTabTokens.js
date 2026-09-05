@@ -11,8 +11,8 @@ export const OPS_C = {
   t2: '#374151',
   t3: '#334155',
   t4: '#475569',
-  border: 'rgba(var(--purple-rgb),0.15)',
-  border2: 'rgba(var(--purple-rgb),0.35)',
+  border: 'rgba(var(--brand-rgb),0.15)',
+  border2: 'rgba(var(--brand-rgb),0.35)',
   card: '#ffffff',
   card2: '#f8f9fa',
   inp: '#f8f9fa',
@@ -20,9 +20,9 @@ export const OPS_C = {
 }
 
 export const OPS_B = {
-  pri: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'var(--grad-brand)', color: '#fff', boxShadow: '0 4px 15px rgba(var(--purple-rgb),.35)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  pri: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'var(--grad-brand)', color: '#fff', boxShadow: '0 4px 15px rgba(var(--brand-rgb),.35)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   sec: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: 'var(--purple)', border: '1px solid var(--purple)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  ghost: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: '#475569', border: '1px solid rgba(var(--purple-rgb),0.15)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  ghost: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: '#475569', border: '1px solid rgba(var(--brand-rgb),0.15)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   warn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'rgba(255,112,67,.15)', color: '#9a3412', border: '1px solid rgba(255,112,67,.3)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   succ: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'rgba(0,200,150,.15)', color: '#065f46', border: '1px solid rgba(0,200,150,.3)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   sm: { padding: '5px 11px', fontSize: 11 },
@@ -40,7 +40,7 @@ export const OPS_BADGE_MAP = {
   Done: { bg: 'rgba(0,200,150,.12)', color: '#065f46', b: 'rgba(0,200,150,.3)' },
   'Contract Signed': { bg: 'rgba(0,200,150,.12)', color: '#065f46', b: 'rgba(0,200,150,.3)' },
   'In Progress': { bg: 'rgba(255,214,0,.10)', color: '#ffd600', b: 'rgba(255,214,0,.3)' },
-  'Under review': { bg: 'rgba(var(--purple-rgb),.15)', color: 'var(--purple)', b: 'rgba(var(--purple-rgb),.3)' },
+  'Under review': { bg: 'rgba(var(--brand-rgb),.15)', color: 'var(--purple)', b: 'rgba(var(--brand-rgb),.3)' },
   'Advance Paid': { bg: 'rgba(255,214,0,.10)', color: '#ffd600', b: 'rgba(255,214,0,.3)' },
   Pending: { bg: 'rgba(255,214,0,.10)', color: '#ffd600', b: 'rgba(255,214,0,.3)' },
   'Pending Review': { bg: 'rgba(255,214,0,.10)', color: '#ffd600', b: 'rgba(255,214,0,.3)' },
@@ -51,7 +51,7 @@ export const OPS_BADGE_MAP = {
   'Under Investigation': { bg: 'rgba(255,214,0,.10)', color: '#ffd600', b: 'rgba(255,214,0,.3)' },
   'Final Negotiation': { bg: 'rgba(0,180,216,.12)', color: '#00b4d8', b: 'rgba(0,180,216,.3)' },
   'MoU Stage': { bg: 'rgba(0,180,216,.12)', color: '#00b4d8', b: 'rgba(0,180,216,.3)' },
-  'Pending External': { bg: 'rgba(var(--purple-rgb),.15)', color: 'var(--purple)', b: 'rgba(var(--purple-rgb),.3)' },
+  'Pending External': { bg: 'rgba(var(--brand-rgb),.15)', color: 'var(--purple)', b: 'rgba(var(--brand-rgb),.3)' },
   'Not Started': { bg: 'rgba(255,255,255,.05)', color: '#475569', b: 'rgba(255,255,255,.1)' },
   No: { bg: 'rgba(255,255,255,.05)', color: '#475569', b: 'rgba(255,255,255,.1)' },
   Suspended: { bg: 'rgba(255,255,255,.05)', color: '#475569', b: 'rgba(255,255,255,.1)' },
@@ -66,7 +66,7 @@ export const OPS_BADGE_MAP = {
   Medium: { bg: 'rgba(255,214,0,.10)', color: '#ffd600', b: 'rgba(255,214,0,.3)' },
   Low: { bg: 'rgba(0,200,150,.12)', color: '#065f46', b: 'rgba(0,200,150,.3)' },
   Road: { bg: 'rgba(0,180,216,.12)', color: '#00b4d8', b: 'rgba(0,180,216,.3)' },
-  Air: { bg: 'rgba(var(--purple-rgb),.15)', color: 'var(--purple)', b: 'rgba(var(--purple-rgb),.3)' },
+  Air: { bg: 'rgba(var(--brand-rgb),.15)', color: 'var(--purple)', b: 'rgba(var(--brand-rgb),.3)' },
   Rail: { bg: 'rgba(245,158,11,.12)', color: '#f59e0b', b: 'rgba(245,158,11,.3)' },
 }
 
@@ -94,7 +94,7 @@ export const OPS_TD = {
 export const OPS_INPUT_STYLE = {
   width: '100%',
   background: 'rgba(255,255,255,.05)',
-  border: '1.5px solid rgba(var(--purple-rgb),.25)',
+  border: '1.5px solid rgba(var(--brand-rgb),.25)',
   borderRadius: 8,
   padding: '10px 14px',
   fontSize: 13,

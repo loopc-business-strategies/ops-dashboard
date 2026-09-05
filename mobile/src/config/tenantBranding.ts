@@ -9,6 +9,7 @@ export type MobileTenantBranding = {
   colors: {
     primary: string
     secondary: string
+    dark?: string
     background: string
     card: string
     text: string
@@ -35,6 +36,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     colors: {
       primary: '#EA580C',
       secondary: '#F97316',
+      dark: '#9A3412',
       background: '#FFF7ED',
       card: '#FFFFFF',
       text: '#111827',
@@ -56,6 +58,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     colors: {
       primary: '#16A34A',
       secondary: '#22C55E',
+      dark: '#166534',
       background: '#F0FDF4',
       card: '#FFFFFF',
       text: '#111827',
@@ -77,6 +80,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     colors: {
       primary: '#2563EB',
       secondary: '#3B82F6',
+      dark: '#1E3A8A',
       background: '#EFF6FF',
       card: '#FFFFFF',
       text: '#111827',

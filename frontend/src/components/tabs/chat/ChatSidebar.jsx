@@ -61,9 +61,9 @@ export default function ChatSidebar({
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder={t('searchChats')}
-                  style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(var(--purple-rgb),0.2)', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+                  style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(var(--brand-rgb),0.2)', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
                   onFocus={e => e.target.style.borderColor = C.accent}
-                  onBlur={e  => e.target.style.borderColor = 'rgba(var(--purple-rgb),0.2)'}
+                  onBlur={e  => e.target.style.borderColor = 'rgba(var(--brand-rgb),0.2)'}
                 />
               </div>
             </div>
@@ -72,24 +72,24 @@ export default function ChatSidebar({
             {canCreateGroup ? (
               <div
                 onClick={() => setShowGroupModal(true)}
-                style={{ margin:'4px 14px 6px', padding:'10px 14px', borderRadius:10, background:'rgba(var(--purple-rgb),0.12)', border:'1.5px dashed rgba(var(--purple-rgb),0.35)', display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}
-                onMouseEnter={e => { e.currentTarget.style.background='rgba(var(--purple-rgb),0.2)'; e.currentTarget.style.borderColor='rgba(var(--purple-rgb),0.6)' }}
-                onMouseLeave={e => { e.currentTarget.style.background='rgba(var(--purple-rgb),0.12)'; e.currentTarget.style.borderColor='rgba(var(--purple-rgb),0.35)' }}
+                style={{ margin:'4px 14px 6px', padding:'10px 14px', borderRadius:10, background:'rgba(var(--brand-rgb),0.12)', border:'1.5px dashed rgba(var(--brand-rgb),0.35)', display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(var(--brand-rgb),0.2)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),0.6)' }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(var(--brand-rgb),0.12)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),0.35)' }}
               >
                 <div style={{ width:28, height:28, borderRadius:8, background:C.accent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, color:'#fff', flexShrink:0, fontWeight:700 }}>+</div>
                 <div>
                   <div style={{ fontSize:12, fontWeight:600, color:C.accent }}>{t('createNewGroup')}</div>
-                  <div style={{ fontSize:10, color:'rgba(var(--purple-rgb),0.6)', marginTop:1 }}>Admin &amp; Dept Heads only</div>
+                  <div style={{ fontSize:10, color:'rgba(var(--brand-rgb),0.6)', marginTop:1 }}>Admin &amp; Dept Heads only</div>
                 </div>
               </div>
             ) : (
-              <div style={{ margin:'4px 14px 6px', padding:'8px 12px', borderRadius:8, background:'rgba(var(--purple-rgb),0.04)', border:`1px solid ${C.border}`, fontSize:11, color:'#334155', display:'flex', gap:6, alignItems:'center' }}>
+              <div style={{ margin:'4px 14px 6px', padding:'8px 12px', borderRadius:8, background:'rgba(var(--brand-rgb),0.04)', border:`1px solid ${C.border}`, fontSize:11, color:'#334155', display:'flex', gap:6, alignItems:'center' }}>
                 <IconLock /> Group creation — Admin / Head only
               </div>
             )}
 
             {/* Chat list */}
-            <div style={{ flex:1, overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:`rgba(var(--purple-rgb),0.3) transparent` }}>
+            <div style={{ flex:1, overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:`rgba(var(--brand-rgb),0.3) transparent` }}>
 
               {/* Groups */}
               {groupChats.length > 0 && (
@@ -107,12 +107,12 @@ export default function ChatSidebar({
                         onMouseEnter={e => { if (!active) e.currentTarget.style.background = C.sidebarHover }}
                         onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                       >
-                        <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(var(--purple-rgb),0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>👥</div>
+                        <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(var(--brand-rgb),0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>👥</div>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
                             <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                               <span style={{ fontSize:13, fontWeight:600, color:'#1c2a33' }}>{chat.name}</span>
-                              <span style={{ fontSize:9, background:'rgba(var(--purple-rgb),0.1)', color:'var(--purple)', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
+                              <span style={{ fontSize:9, background:'rgba(var(--brand-rgb),0.1)', color:'var(--purple)', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
                             </div>
                             <span style={{ fontSize:10, color:'#334155', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
                           </div>
