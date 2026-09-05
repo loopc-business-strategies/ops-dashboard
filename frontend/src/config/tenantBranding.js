@@ -61,7 +61,7 @@ export function applyTenantTheme(colors = {}) {
   const sidebarActiveBg = c.sidebarActiveBg || soft
   const sidebarActiveFg = c.sidebarActiveFg || dark
   const sidebarBorder = c.sidebarBorder || 'rgba(255, 255, 255, 0.18)'
-  const sidebarLogoPlate = c.sidebarLogoPlate || 'transparent'
+  const sidebarLogoPlate = c.sidebarLogoPlate || '#FFFFFF'
   const rgb = hexToRgb(primary)
   const buttonRgb = hexToRgb(buttonBg)
   const darkRgb = hexToRgb(dark)
@@ -199,7 +199,7 @@ function buildPalette({
     sidebarActiveBg: brandSoftBg,
     sidebarActiveFg: brandDark,
     sidebarBorder: 'rgba(255, 255, 255, 0.18)',
-    sidebarLogoPlate: 'transparent',
+    sidebarLogoPlate: '#FFFFFF',
     // Compat aliases: solid CTA fills (no decorative gradients)
     gradBar: brandButtonBg,
     gradBrand: brandButtonBg,

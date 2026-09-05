@@ -94,6 +94,11 @@ export default function TenantLoginShell({
             <BuildInfoBadge tone="light" className="hidden sm:inline-flex" />
           </div>
           <form className="mg-login__card" onSubmit={onSubmit} noValidate>
+            {branding.logoImage ? (
+              <div className="mg-login__form-logo" aria-hidden="true">
+                <img src={branding.logoImage} alt="" />
+              </div>
+            ) : null}
             <h2 className="mg-login__form-title">{t('signIn')}</h2>
             <p className="mg-login__form-sub">{branding.tagline || t('operationsControl')}</p>
 

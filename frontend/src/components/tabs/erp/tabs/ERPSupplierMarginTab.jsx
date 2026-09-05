@@ -27,7 +27,7 @@ export default function ERPSupplierMarginTab({
                   <button
                     onClick={() => setActiveTabGuarded('dashboard')}
                     title="Back to ERP Dashboard"
-                    style={{ background: 'none', border: '1px solid #A7F3D0', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: '#1a6647', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
+                    style={{ background: 'none', border: '1px solid var(--brand-border)', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: 'var(--brand-on-soft)', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
                   >â†</button>
                   <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Supplier Margin</h3>
                 </div>
@@ -58,8 +58,8 @@ export default function ERPSupplierMarginTab({
                 </div>
               </div>
               <ErpMetalLivePricesBar />
-              <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
-                <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
+              <div style={{ border: '1px solid var(--brand-border, var(--border, #E2E8F0))', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
+                <div style={{ background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: 'var(--brand-on-soft)' }}>
                   Supplier Margin
                 </div>
                 <div style={{ overflowX: 'auto', overflowY: supplierMarginCompactView ? 'auto' : 'visible', maxHeight: supplierMarginCompactView ? '380px' : 'none' }}>
@@ -75,38 +75,40 @@ export default function ERPSupplierMarginTab({
                       <col style={{ width: '8%' }} />
                     </colgroup>
                     <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #D9E2EC' }}>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'left', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Supplier Name</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Gold Position</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Silver Position</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Equity</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Excess</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
+                      <tr style={{ background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)' }}>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'left', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Supplier Name</th>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Gold Position</th>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Silver Position</th>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Equity</th>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin</th>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Excess</th>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
+                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
                       </tr>
                     </thead>
                     <tbody>
                       {supplierMarginRows.map((row, index) => {
                         const isNegative = row.status === 'NEGATIVE'
-                        const valueColor = isNegative ? '#DC2626' : '#1D4ED8'
-                        const excessColor = Number(row.excess || 0) < 0 ? '#DC2626' : '#1D4ED8'
+                        const isPositive = row.status === 'POSITIVE'
+                        const statusColor = isNegative ? '#DC2626' : isPositive ? '#059669' : 'var(--text-primary, #111827)'
+                        const textPrimary = 'var(--text-primary, #111827)'
+                        const signedColor = (n) => (Number(n || 0) < 0 ? '#DC2626' : textPrimary)
                         return (
                           <tr
                             key={row.id || index}
                             onClick={(event) => handleSupplierMarginRowContextMenu(event, row)}
                             onContextMenu={(event) => handleSupplierMarginRowContextMenu(event, row)}
                             title="Click or right click to open details submenu"
-                            style={{ borderBottom: '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FCFDFF', height: '30px', cursor: 'context-menu' }}
+                            style={{ borderBottom: '1px solid var(--border, #EEF2F7)', background: index % 2 === 0 ? '#FFFFFF' : '#F8FAFC', height: '30px', cursor: 'context-menu' }}
                           >
-                            <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', color: valueColor, fontWeight: '600', fontSize: '0.85rem', lineHeight: 1.08, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.supplierName}</td>
-                            <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.goldPosition)}</td>
-                            <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.silverPosition)}</td>
-                            <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity(row)}</td>
-                            <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(row.marginAmount)}</td>
-                            <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: excessColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity({ equity: row.excess })}</td>
-                            <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.8rem', letterSpacing: '0.035em', lineHeight: 1.08 }}>{row.status}</td>
-                            <td style={{ padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(row.marginPercent)}</td>
+                            <td style={{ borderRight: '1px solid var(--border, #EEF3F9)', padding: '0.34rem 0.68rem', verticalAlign: 'middle', color: textPrimary, fontWeight: '600', fontSize: '0.85rem', lineHeight: 1.08, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.supplierName}</td>
+                            <td style={{ borderRight: '1px solid var(--border, #EEF3F9)', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: signedColor(row.goldPosition), fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.goldPosition)}</td>
+                            <td style={{ borderRight: '1px solid var(--border, #EEF3F9)', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: signedColor(row.silverPosition), fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.silverPosition)}</td>
+                            <td style={{ borderRight: '1px solid var(--border, #EEF3F9)', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: signedColor(row.equity), fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity(row)}</td>
+                            <td style={{ borderRight: '1px solid var(--border, #EEF3F9)', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: textPrimary, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(row.marginAmount)}</td>
+                            <td style={{ borderRight: '1px solid var(--border, #EEF3F9)', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: signedColor(row.excess), fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity({ equity: row.excess })}</td>
+                            <td style={{ borderRight: '1px solid var(--border, #EEF3F9)', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: statusColor, fontWeight: '700', fontSize: '0.8rem', letterSpacing: '0.035em', lineHeight: 1.08 }}>{row.status}</td>
+                            <td style={{ padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: statusColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(row.marginPercent)}</td>
                           </tr>
                         )
                       })}
@@ -123,31 +125,31 @@ export default function ERPSupplierMarginTab({
                     top: `${supplierMarginContextMenu.y}px`,
                     left: `${supplierMarginContextMenu.x}px`,
                     width: '292px',
-                    background: '#FDFEFE',
-                    border: '1px solid #9DB5D5',
+                    background: '#FFFFFF',
+                    border: '1px solid var(--brand-border, var(--border))',
                     boxShadow: '0 10px 24px rgba(15, 23, 42, 0.2)',
                     zIndex: 2000,
                     borderRadius: '0.2rem',
                     overflow: 'hidden',
                   }}
                 >
-                  <div style={{ padding: '0.35rem 0.5rem', borderBottom: '1px solid #D7E3F3', background: '#E7EFFA', color: '#15407E', fontSize: '0.76rem', fontWeight: '700', letterSpacing: '0.03em' }}>
+                  <div style={{ padding: '0.35rem 0.5rem', borderBottom: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--brand-on-soft)', fontSize: '0.76rem', fontWeight: '700', letterSpacing: '0.03em' }}>
                     SUPPLIER MARGIN SUB MENU
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', fontSize: '0.78rem' }}>
-                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Account Code</div>
+                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid var(--border, #E8EEF7)', borderRight: '1px solid var(--border, #E8EEF7)', color: 'var(--brand-on-soft)', fontWeight: '700' }}>Account Code</div>
                     <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827' }}>{supplierMarginContextMenu.row.accountCode || '-'}</div>
-                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Description</div>
+                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid var(--border, #E8EEF7)', borderRight: '1px solid var(--border, #E8EEF7)', color: 'var(--brand-on-soft)', fontWeight: '700' }}>Description</div>
                     <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{supplierMarginContextMenu.row.description || '-'}</div>
-                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Gold Position</div>
+                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid var(--border, #E8EEF7)', borderRight: '1px solid var(--border, #E8EEF7)', color: 'var(--brand-on-soft)', fontWeight: '700' }}>Gold Position</div>
                     <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(supplierMarginContextMenu.row.goldPosition)}</div>
-                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Silver Position</div>
+                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid var(--border, #E8EEF7)', borderRight: '1px solid var(--border, #E8EEF7)', color: 'var(--brand-on-soft)', fontWeight: '700' }}>Silver Position</div>
                     <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(supplierMarginContextMenu.row.silverPosition)}</div>
-                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Excess/Short</div>
+                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid var(--border, #E8EEF7)', borderRight: '1px solid var(--border, #E8EEF7)', color: 'var(--brand-on-soft)', fontWeight: '700' }}>Excess/Short</div>
                     <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginExcessShort(supplierMarginContextMenu.row)}</div>
-                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin</div>
+                    <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid var(--border, #E8EEF7)', borderRight: '1px solid var(--border, #E8EEF7)', color: 'var(--brand-on-soft)', fontWeight: '700' }}>Margin</div>
                     <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(supplierMarginContextMenu.row.marginAmount)}</div>
-                    <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin %</div>
+                    <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid var(--border, #E8EEF7)', color: 'var(--brand-on-soft)', fontWeight: '700' }}>Margin %</div>
                     <div style={{ padding: '0.34rem 0.52rem', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(supplierMarginContextMenu.row.marginPercent)}</div>
                   </div>
                 </div>

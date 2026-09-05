@@ -41,15 +41,15 @@ export default function AppSidebar({
       onMouseLeave={onMouseLeave}
     >
       <div className="sidebar-logo flex-shrink-0">
-        <div className="sidebar-logo-plate" aria-hidden={!branding.logoImage}>
+        <div className="sidebar-logo-plate">
           {branding.logoImage ? (
             <img
               src={branding.logoImage}
-              alt=""
+              alt={`${branding.displayName} logo`}
               decoding="async"
             />
           ) : (
-            <span style={{ color: '#FFFFFF', fontWeight: 800, fontSize: 14 }}>
+            <span style={{ color: 'var(--brand-dark)', fontWeight: 800, fontSize: 14 }}>
               {branding.logoText}
             </span>
           )}

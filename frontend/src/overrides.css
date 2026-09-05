@@ -148,8 +148,8 @@ button.tab:hover,
 
 /* ── 4. SIDEBAR ACTIVE ITEM (scoped; soft plate + dark tenant text) ─ */
 
-.sidebar .sidebar-item.active,
 .sidebar a.sidebar-item.active,
+.sidebar .sidebar-item.active,
 .sidebar [class*="sidebar-item"].active {
   background: var(--sidebar-active-bg) !important;
   color: var(--sidebar-active-fg) !important;
@@ -157,11 +157,26 @@ button.tab:hover,
   box-shadow: inset 3px 0 0 var(--sidebar-active-fg) !important;
 }
 
+.sidebar a.sidebar-item.active,
+.sidebar a.sidebar-item.active * {
+  color: var(--sidebar-active-fg) !important;
+  -webkit-text-fill-color: var(--sidebar-active-fg) !important;
+}
+
 .sidebar .sidebar-item.active .sidebar-item-label,
 .sidebar .sidebar-item.active .sidebar-item-icon,
 .sidebar a.sidebar-item.active span {
   color: var(--sidebar-active-fg) !important;
   opacity: 1 !important;
+  -webkit-text-fill-color: var(--sidebar-active-fg) !important;
+}
+
+.sidebar a.sidebar-item.active:hover,
+.sidebar .sidebar-item.active:hover,
+.sidebar a.sidebar-item.active:hover *,
+.sidebar .sidebar-item.active:hover * {
+  background: var(--sidebar-active-bg) !important;
+  color: var(--sidebar-active-fg) !important;
   -webkit-text-fill-color: var(--sidebar-active-fg) !important;
 }
 
@@ -232,14 +247,14 @@ button.delete {
   border-radius: 999px !important;
 }
 
-/* ── 8. LOGO / BRAND ICON (flat / transparent plate) ─── */
+/* ── 8. LOGO / BRAND ICON (white plate on brand sidebar) ─ */
 
 .sidebar .sidebar-brand-icon,
 .sidebar .sidebar-logo-plate,
 .sb-logo-icon {
-  background: var(--sidebar-logo-plate, transparent) !important;
+  background: var(--sidebar-logo-plate, #ffffff) !important;
   border: none !important;
-  box-shadow: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
 }
 
 .login-logo,

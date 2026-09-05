@@ -32,15 +32,15 @@ export default function ErpMetalLivePricesBar() {
         marginBottom: '0.85rem',
         padding: '0.65rem 0.75rem',
         borderRadius: '0.5rem',
-        border: '1px solid #BFD0E5',
-        background: 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%)',
+        border: '1px solid var(--border, #E2E8F0)',
+        background: '#F8FAFC',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.55rem' }}>
-        <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 700, color: '#1E3A8A', letterSpacing: '0.03em' }}>
+        <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary, #111827)', letterSpacing: '0.03em' }}>
           LIVE SPOT PRICES
         </p>
-        <p style={{ margin: 0, fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+        <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary, #64748B)', fontWeight: 600 }}>
           {error
             ? metalErrorLabel(error) || 'Feed unavailable'
             : isMt4 && updatedLabel
@@ -67,7 +67,7 @@ export default function ErpMetalLivePricesBar() {
                 padding: '0.4rem 0.65rem 0.4rem 0.5rem',
                 borderRadius: '0.45rem',
                 background: '#FFFFFF',
-                border: '1px solid #D1D5DB',
+                border: '1px solid var(--border, #E2E8F0)',
                 minWidth: '8.5rem',
                 flex: '1 1 8.5rem',
                 maxWidth: '12rem',
@@ -94,8 +94,8 @@ export default function ErpMetalLivePricesBar() {
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.35rem' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#475569' }}>{label}</span>
-                  <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{fmtSpot(price)}</span>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary, #475569)' }}>{label}</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary, #111827)', fontVariantNumeric: 'tabular-nums' }}>{fmtSpot(price)}</span>
                 </div>
                 <div
                   style={{
@@ -120,7 +120,7 @@ export default function ErpMetalLivePricesBar() {
           )
         })}
       </div>
-      <p style={{ margin: '0.45rem 0 0', fontSize: '0.72rem', color: '#64748B' }}>
+      <p style={{ margin: '0.45rem 0 0', fontSize: '0.72rem', color: 'var(--text-secondary, #64748B)' }}>
         {`Prices in ${snapshot.currency || 'USD'}/${formatLiveMetalUnit(snapshot.unit || 'TOZ')}. Equity and margin columns update as spot moves.`}
       </p>
     </div>
