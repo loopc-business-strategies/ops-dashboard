@@ -273,7 +273,7 @@ function Login() {
                   <button
                     type="submit"
                     className="w-full rounded-[11px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(var(--purple-rgb),0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
-                    style={{ background: branding.colors.gradBar, height: 54 }}
+                    style={{ background: 'var(--grad-brand)', color: 'var(--brand-button-text, #fff)', height: 54 }}
                     disabled={loading}
                   >
                     {loading ? (

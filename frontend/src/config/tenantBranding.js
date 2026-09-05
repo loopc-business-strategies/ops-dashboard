@@ -47,10 +47,15 @@ export function applyTenantTheme(colors = {}) {
   const topbar = c.bgTopbar || dark
   const onBrand = c.onBrand || '#FFFFFF'
   const onSoft = c.onSoft || dark
+  const buttonBg = c.brandButtonBg || dark
+  const buttonHover = c.brandButtonHover || buttonBg
+  const buttonText = c.brandButtonText || '#FFFFFF'
   const secondary = c.brandSecondary || accent
-  const gradBar = c.gradBar || `linear-gradient(90deg, ${primary}, ${accent})`
-  const gradBrand = c.gradBrand || `linear-gradient(135deg, ${primary}, ${secondary})`
+  // CTA gradients use contrast-safe dark fills (not primary→light)
+  const gradBar = c.gradBar || `linear-gradient(90deg, ${buttonBg}, ${buttonHover})`
+  const gradBrand = c.gradBrand || `linear-gradient(135deg, ${buttonBg}, ${buttonHover})`
   const rgb = hexToRgb(primary)
+  const buttonRgb = hexToRgb(buttonBg)
 
   const keys = [
     '--brand-primary',
@@ -62,7 +67,13 @@ export function applyTenantTheme(colors = {}) {
     '--brand-border',
     '--brand-on-primary',
     '--brand-on-soft',
+    '--brand-on-solid',
+    '--brand-button-bg',
+    '--brand-button-hover',
+    '--brand-button-text',
+    '--brand-focus-ring',
     '--brand-rgb',
+    '--brand-button-rgb',
     '--purple',
     '--purple-light',
     '--purple-dark',
@@ -88,10 +99,17 @@ export function applyTenantTheme(colors = {}) {
   root.style.setProperty('--brand-border', border)
   root.style.setProperty('--brand-on-primary', onBrand)
   root.style.setProperty('--brand-on-soft', onSoft)
+  root.style.setProperty('--brand-on-solid', buttonText)
+  root.style.setProperty('--brand-button-bg', buttonBg)
+  root.style.setProperty('--brand-button-hover', buttonHover)
+  root.style.setProperty('--brand-button-text', buttonText)
+  root.style.setProperty('--brand-focus-ring', `rgba(${rgb}, 0.45)`)
   root.style.setProperty('--brand-rgb', rgb)
+  root.style.setProperty('--brand-button-rgb', buttonRgb)
 
   // Legacy aliases — keep existing consumers working
-  root.style.setProperty('--purple', primary)
+  // Brand text-on-white chrome uses dark (AA-safe); fills for CTAs use button tokens via grad-*
+  root.style.setProperty('--purple', dark)
   root.style.setProperty('--purple-light', light)
   root.style.setProperty('--purple-dark', dark)
   root.style.setProperty('--purple-rgb', rgb)
@@ -110,6 +128,10 @@ export function applyTenantTheme(colors = {}) {
   }
 }
 
+/**
+ * Build tenant color map.
+ * Identity primaries stay as specified; CTA fills use darker AA-safe shades for white text.
+ */
 function buildPalette({
   brandPrimary,
   brandHover,
@@ -119,7 +141,10 @@ function buildPalette({
   brandSoftBg,
   brandBorder,
   bgTopbar,
+  brandButtonHover,
 }) {
+  const brandButtonBg = brandDark
+  const buttonHover = brandButtonHover || brandDark
   return {
     brandPrimary,
     brandHover,
@@ -130,10 +155,14 @@ function buildPalette({
     brandSoftBg,
     brandBorder,
     bgTopbar,
+    brandButtonBg,
+    brandButtonHover: buttonHover,
+    brandButtonText: '#FFFFFF',
     onBrand: '#FFFFFF',
     onSoft: brandDark,
-    gradBar: `linear-gradient(90deg, ${brandPrimary}, ${brandAccent})`,
-    gradBrand: `linear-gradient(135deg, ${brandPrimary}, ${brandLight})`,
+    // CTA gradients: dark→darker (white text safe). Identity primary kept for soft/border accents.
+    gradBar: `linear-gradient(90deg, ${brandButtonBg}, ${buttonHover})`,
+    gradBrand: `linear-gradient(135deg, ${brandButtonBg}, ${buttonHover})`,
   }
 }
 
@@ -152,6 +181,7 @@ const defaultBranding = {
     brandSoftBg: '#EFF6FF',
     brandBorder: '#BFDBFE',
     bgTopbar: '#172554',
+    brandButtonHover: '#172554',
   }),
   enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
   enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
@@ -189,6 +219,7 @@ const tenantBranding = {
       brandSoftBg: '#FFF7ED',
       brandBorder: '#FED7AA',
       bgTopbar: '#431407',
+      brandButtonHover: '#7C2D12',
     }),
     enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
@@ -222,6 +253,7 @@ const tenantBranding = {
       brandSoftBg: '#F0FDF4',
       brandBorder: '#BBF7D0',
       bgTopbar: '#052E16',
+      brandButtonHover: '#14532D',
     }),
     enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],

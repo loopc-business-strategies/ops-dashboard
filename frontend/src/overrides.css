@@ -15,42 +15,47 @@ button[type="submit"],
 .signin-btn,
 .auth-form button[type="submit"] {
   border: none;
-  color: var(--brand-on-primary, #fff);
+  color: var(--brand-button-text, #fff);
+  background: var(--grad-brand);
 }
 
-/* All-tenant: keep Sign In label white on brand gradient (beats main .text-white) */
+/* All-tenant: keep Sign In label white on brand CTA (beats main .text-white) */
 button[type="submit"].text-white,
 button[type="submit"][style*="gradient"] {
-  color: #ffffff !important;
+  color: var(--brand-button-text, #ffffff) !important;
 }
 
 button[type="submit"]:hover,
 .login-btn:hover,
 .signin-btn:hover {
-  opacity: 0.9 !important;
+  background: var(--brand-button-hover, var(--brand-dark)) !important;
+  color: var(--brand-button-text, #fff) !important;
+  opacity: 1 !important;
   transform: translateY(-1px) !important;
 }
 
-/* MG Sign In — restore visible brand chrome (overrides any transparent leftovers) */
+/* MG Sign In — contrast-safe dark orange CTA (AA white text) */
 .mg-login .mg-login__submit {
-  background: linear-gradient(90deg, var(--mg-orange-2, var(--brand-light, #FB923C)), var(--mg-orange-deep, var(--brand-hover, #C2410C))) !important;
-  color: #ffffff !important;
-  box-shadow: 0 10px 22px rgba(var(--brand-rgb, 234, 88, 12), 0.28) !important;
+  background: var(--grad-brand) !important;
+  color: var(--brand-button-text, #ffffff) !important;
+  box-shadow: 0 10px 22px rgba(var(--brand-button-rgb, var(--brand-rgb)), 0.28) !important;
   opacity: 1 !important;
 }
 .mg-login .mg-login__submit:hover:not(:disabled) {
+  background: var(--brand-button-hover, #7C2D12) !important;
+  color: var(--brand-button-text, #ffffff) !important;
   opacity: 1 !important;
   transform: translateY(-1px) !important;
-  filter: brightness(1.03);
+  filter: none;
 }
 .mg-login .mg-login__submit:disabled {
-  color: #ffffff !important;
+  color: var(--brand-button-text, #ffffff) !important;
   opacity: 0.85 !important;
   transform: none !important;
 }
 .mg-login .mg-login__forgot,
 .mg-login .mg-login__eye {
-  color: var(--mg-orange, var(--brand-primary, #EA580C)) !important;
+  color: var(--brand-dark, var(--mg-orange, #9A3412)) !important;
   background: transparent !important;
   box-shadow: none !important;
   opacity: 1 !important;
@@ -73,8 +78,8 @@ button.tab.on,
 [role="tab"].active {
   background: transparent !important;
   background-color: transparent !important;
-  color: var(--purple) !important;
-  border-bottom: 2px solid var(--purple) !important;
+  color: var(--brand-dark, var(--purple)) !important;
+  border-bottom: 2px solid var(--brand-primary, var(--purple)) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
@@ -371,7 +376,7 @@ button.delete {
 .np-filter-btn:hover { color: #374151; border-color: rgba(var(--purple-rgb), 0.4); }
 .np-filter-btn.active {
   background: var(--grad-brand);
-  color: var(--brand-on-primary, #fff);
+  color: var(--brand-button-text, #fff);
   border-color: transparent;
 }
 .np-body {
@@ -430,10 +435,14 @@ button.delete {
 .np-footer-btn { flex: 1; padding: 9px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; transition: all 0.15s; }
 .np-footer-btn.pri {
   background: var(--grad-brand);
-  color: var(--brand-on-primary, #fff);
-  box-shadow: 0 4px 15px rgba(var(--purple-rgb), 0.3);
+  color: var(--brand-button-text, #fff);
+  box-shadow: 0 4px 15px rgba(var(--brand-button-rgb, var(--purple-rgb)), 0.3);
 }
-.np-footer-btn.pri:hover { opacity: 0.9; }
+.np-footer-btn.pri:hover {
+  background: var(--brand-button-hover, var(--brand-dark));
+  color: var(--brand-button-text, #fff);
+  opacity: 1;
+}
 .np-footer-btn.sec { background: rgba(0,0,0,0.05); color: #6b7280; border: 1px solid rgba(0,0,0,0.1); }
 .np-footer-btn.sec:hover { background: rgba(0,0,0,0.08); color: #374151; }
 
@@ -554,6 +563,10 @@ main select option {
 .sidebar-item.active span { color: var(--purple) !important; }
 .sidebar-item:hover { background: rgba(var(--purple-rgb), 0.05) !important; }
 
-/* Primary buttons — ensure readable on-brand labels */
-.btn-primary { color: var(--brand-on-primary, #fff); }
-.btn-primary:hover { background: var(--grad-brand); filter: brightness(0.95); }
+/* Primary buttons — contrast-safe on-brand labels */
+.btn-primary { color: var(--brand-button-text, #fff); }
+.btn-primary:hover {
+  background: var(--brand-button-hover, var(--brand-dark)) !important;
+  color: var(--brand-button-text, #fff) !important;
+  filter: none;
+}

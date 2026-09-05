@@ -39,10 +39,16 @@ describe('tenant branding integration', () => {
   test('applies MG orange, CG green, and LoopC blue tenant palettes', () => {
     expect(getTenantBranding('mg').colors.brandPrimary).toBe('#EA580C')
     expect(getTenantBranding('mg').colors.bgTopbar).toBe('#431407')
+    expect(getTenantBranding('mg').colors.brandButtonBg).toBe('#9A3412')
+    expect(getTenantBranding('mg').colors.brandButtonHover).toBe('#7C2D12')
     expect(getTenantBranding('cg').colors.brandPrimary).toBe('#16A34A')
     expect(getTenantBranding('cg').colors.bgTopbar).toBe('#052E16')
+    expect(getTenantBranding('cg').colors.brandButtonBg).toBe('#166534')
+    expect(getTenantBranding('cg').colors.brandButtonHover).toBe('#14532D')
     expect(getTenantBranding('loopc').colors.brandPrimary).toBe('#2563EB')
     expect(getTenantBranding('loopc').colors.bgTopbar).toBe('#172554')
+    expect(getTenantBranding('loopc').colors.brandButtonBg).toBe('#1E3A8A')
+    expect(getTenantBranding('loopc').colors.brandButtonHover).toBe('#172554')
   })
 
   test('enables advanced ERP list filters for LOOPC, MG, and CG', () => {

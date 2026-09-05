@@ -33,16 +33,22 @@
   --brand-border:      #BFDBFE;
   --brand-on-primary:  #FFFFFF;
   --brand-on-soft:     #1E3A8A;
+  --brand-on-solid:    #FFFFFF;
+  --brand-button-bg:   #1E3A8A;
+  --brand-button-hover:#172554;
+  --brand-button-text: #FFFFFF;
+  --brand-focus-ring:  rgba(37, 99, 235, 0.45);
   --brand-rgb:         37, 99, 235;
+  --brand-button-rgb:  30, 58, 138;
 
-  /* Legacy aliases — concrete values so rgba(var(--purple-rgb), n) works */
-  --purple:            #2563EB;
+  /* Legacy aliases — text-on-white uses dark (AA); CTAs use button/grad tokens */
+  --purple:            #1E3A8A;
   --purple-light:      #60A5FA;
   --purple-dark:       #1E3A8A;
   --purple-rgb:        37, 99, 235;
   --magenta:           #3B82F6;
-  --grad-brand:        linear-gradient(135deg, #2563EB, #60A5FA);
-  --grad-bar:          linear-gradient(90deg, #2563EB, #3B82F6);
+  --grad-brand:        linear-gradient(135deg, #1E3A8A, #172554);
+  --grad-bar:          linear-gradient(90deg, #1E3A8A, #172554);
 
   /* Semantic Colors (NOT tenant brand — preserve meaning) */
   --green:             #059669;
@@ -275,7 +281,12 @@ html, body, #root {
   transition: var(--transition); white-space: nowrap;
 }
 .role-pill:hover { color: var(--text-secondary); border-color: var(--border-hover); background: rgba(var(--purple-rgb), 0.07); }
-.role-pill.active { background: var(--grad-brand); color: #fff; border-color: transparent; box-shadow: var(--shadow-btn); }
+.role-pill.active {
+  background: var(--grad-brand);
+  color: var(--brand-button-text, #fff);
+  border-color: transparent;
+  box-shadow: var(--shadow-btn);
+}
 
 /* ─── Tabs Bar ───────────────────────────────────────── */
 .tabs-bar {
@@ -293,7 +304,7 @@ html, body, #root {
   transition: var(--transition); white-space: nowrap; flex-shrink: 0;
 }
 .tab-btn:hover  { color: var(--text-secondary); }
-.tab-btn.active { color: var(--purple); border-bottom-color: var(--purple); }
+.tab-btn.active { color: var(--brand-dark, var(--purple)); border-bottom-color: var(--brand-primary, var(--purple)); }
 
 /* ─── Page Content ───────────────────────────────────── */
 .page-content {
@@ -354,14 +365,24 @@ html, body, #root {
   font-size: 13px; font-weight: 700; font-family: var(--font);
   cursor: pointer; border: none; transition: var(--transition); white-space: nowrap;
 }
-.btn-primary { background: var(--grad-brand); color: #fff; box-shadow: var(--shadow-btn); }
-.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: var(--shadow-card-hover); }
-.btn-secondary { background: transparent; color: var(--purple); border: 1px solid var(--purple); }
+.btn-primary {
+  background: var(--grad-brand);
+  color: var(--brand-button-text, #fff);
+  box-shadow: var(--shadow-btn);
+}
+.btn-primary:hover {
+  background: var(--brand-button-hover, var(--brand-dark));
+  color: var(--brand-button-text, #fff);
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-hover);
+}
+.btn-secondary { background: transparent; color: var(--brand-dark, var(--purple)); border: 1px solid var(--brand-dark, var(--purple)); }
 .btn-secondary:hover { background: rgba(var(--purple-rgb), 0.08); transform: translateY(-1px); }
 .btn-danger   { background: var(--red); color: #fff; }
 .btn-danger:hover  { opacity: 0.85; transform: translateY(-1px); }
 .btn-ghost    { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
-.btn-ghost:hover   { color: var(--purple); border-color: var(--border-hover); background: rgba(var(--purple-rgb), 0.06); }
+.btn-ghost:hover   { color: var(--brand-dark, var(--purple)); border-color: var(--border-hover); background: rgba(var(--purple-rgb), 0.06); }
 .btn-sm  { padding: 6px 12px; font-size: 12px; }
 .btn-icon { width: 34px; height: 34px; padding: 0; border-radius: var(--radius-md); justify-content: center; }
 
@@ -431,8 +452,8 @@ input[type="date"], input[type="number"], select, textarea {
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus,
 input:focus, select:focus, textarea:focus {
-  border-color: var(--purple);
-  box-shadow: 0 0 0 3px rgba(var(--purple-rgb), 0.15);
+  border-color: var(--brand-primary, var(--purple));
+  box-shadow: 0 0 0 3px var(--brand-focus-ring, rgba(var(--purple-rgb), 0.15));
 }
 input::placeholder, textarea::placeholder { color: var(--text-muted); }
 select option  { background: var(--bg-dropdown); }

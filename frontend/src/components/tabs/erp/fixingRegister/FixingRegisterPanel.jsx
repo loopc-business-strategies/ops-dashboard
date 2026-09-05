@@ -240,7 +240,7 @@ export default function FixingRegisterPanel({
                   type="button"
                   onClick={handleFixingRegProceed}
                   disabled={fixingRegLoading}
-                  style={{ padding: '0.52rem 1.75rem', background: fixingRegLoading ? '#86EFAC' : '#16A34A', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.9rem', fontWeight: '700', letterSpacing: '0.02em', boxShadow: fixingRegLoading ? 'none' : '0 1px 3px rgba(22,163,74,0.35)' }}
+                  style={{ padding: '0.52rem 1.75rem', background: fixingRegLoading ? '#86EFAC' : '#166534', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.9rem', fontWeight: '700', letterSpacing: '0.02em', boxShadow: fixingRegLoading ? 'none' : '0 1px 3px rgba(22,101,52,0.35)' }}
                 >
                   {fixingRegLoading ? 'Loading…' : 'Load'}
                 </button>
@@ -350,7 +350,7 @@ export default function FixingRegisterPanel({
                       type="button"
                       onClick={handleFixingRegProceed}
                       disabled={fixingRegLoading}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.42rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: fixingRegLoading ? '#86EFAC' : '#16A34A', color: '#FFFFFF', fontSize: '0.82rem', fontWeight: '700', cursor: fixingRegLoading ? 'default' : 'pointer' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.42rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: fixingRegLoading ? '#86EFAC' : '#166534', color: '#FFFFFF', fontSize: '0.82rem', fontWeight: '700', cursor: fixingRegLoading ? 'default' : 'pointer' }}
                     >
                       ↻ Refresh
                     </button>

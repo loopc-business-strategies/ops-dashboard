@@ -333,7 +333,7 @@ export default function JournalVoucherModal({
                   type="button"
                   onClick={handleSaveMultiLineJV}
                   disabled={saving || !jvValidation.canSave}
-                  style={{ padding: '0.38rem 1.2rem', background: jvValidation.canSave ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvValidation.canSave ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
+                  style={{ padding: '0.38rem 1.2rem', background: jvValidation.canSave ? '#166534' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvValidation.canSave ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
                 >
                   {saving ? 'Saving...' : jvEditEntryIds.length > 0 ? '💾 Update JV' : '💾 Save JV'}
                 </button>
