@@ -53,8 +53,18 @@ export function applyTenantTheme(colors = {}) {
   // CTA gradients use contrast-safe dark fills (not primary→light)
   const gradBar = c.gradBar || `linear-gradient(90deg, ${buttonBg}, ${buttonHover})`
   const gradBrand = c.gradBrand || `linear-gradient(135deg, ${buttonBg}, ${buttonHover})`
+  const bgBase = c.bgBase || '#F8FAFC'
+  const sidebarBg = c.sidebarBg || `linear-gradient(180deg, ${topbar} 0%, ${dark} 52%, ${primary} 160%)`
+  const sidebarFg = c.sidebarFg || '#FFFFFF'
+  const sidebarFgMuted = c.sidebarFgMuted || 'rgba(255, 255, 255, 0.72)'
+  const sidebarHover = c.sidebarHover || 'rgba(255, 255, 255, 0.12)'
+  const sidebarActiveBg = c.sidebarActiveBg || 'rgba(255, 255, 255, 0.22)'
+  const sidebarActiveFg = c.sidebarActiveFg || '#FFFFFF'
+  const sidebarBorder = c.sidebarBorder || 'rgba(255, 255, 255, 0.16)'
+  const sidebarLogoPlate = c.sidebarLogoPlate || '#FFFFFF'
   const rgb = hexToRgb(primary)
   const buttonRgb = hexToRgb(buttonBg)
+  const darkRgb = hexToRgb(dark)
 
   const keys = [
     '--brand-primary',
@@ -78,7 +88,17 @@ export function applyTenantTheme(colors = {}) {
     '--purple-dark',
     '--purple-rgb',
     '--magenta',
+    '--bg-base',
+    '--bg-sidebar',
     '--bg-topbar',
+    '--sidebar-fg',
+    '--sidebar-fg-muted',
+    '--sidebar-hover',
+    '--sidebar-active-bg',
+    '--sidebar-active-fg',
+    '--sidebar-border',
+    '--sidebar-logo-plate',
+    '--sidebar-dark-rgb',
     '--grad-brand',
     '--grad-bar',
     '--border-hover',
@@ -105,6 +125,17 @@ export function applyTenantTheme(colors = {}) {
   root.style.setProperty('--brand-focus-ring', `rgba(${rgb}, 0.45)`)
   root.style.setProperty('--brand-rgb', rgb)
   root.style.setProperty('--brand-button-rgb', buttonRgb)
+
+  root.style.setProperty('--bg-base', bgBase)
+  root.style.setProperty('--bg-sidebar', sidebarBg)
+  root.style.setProperty('--sidebar-fg', sidebarFg)
+  root.style.setProperty('--sidebar-fg-muted', sidebarFgMuted)
+  root.style.setProperty('--sidebar-hover', sidebarHover)
+  root.style.setProperty('--sidebar-active-bg', sidebarActiveBg)
+  root.style.setProperty('--sidebar-active-fg', sidebarActiveFg)
+  root.style.setProperty('--sidebar-border', sidebarBorder)
+  root.style.setProperty('--sidebar-logo-plate', sidebarLogoPlate)
+  root.style.setProperty('--sidebar-dark-rgb', darkRgb)
 
   // Legacy aliases — keep existing consumers working
   // Brand text-on-white chrome uses dark (AA-safe); fills for CTAs use button tokens via grad-*
@@ -154,11 +185,21 @@ function buildPalette({
     brandSoftBg,
     brandBorder,
     bgTopbar,
+    bgBase: '#F8FAFC',
     brandButtonBg,
     brandButtonHover: buttonHover,
     brandButtonText: '#FFFFFF',
     onBrand: '#FFFFFF',
     onSoft: brandDark,
+    // Full-color branded sidebar (depth via dark→primary gradient)
+    sidebarBg: `linear-gradient(180deg, ${bgTopbar} 0%, ${brandDark} 48%, ${brandPrimary} 145%)`,
+    sidebarFg: '#FFFFFF',
+    sidebarFgMuted: 'rgba(255, 255, 255, 0.72)',
+    sidebarHover: 'rgba(255, 255, 255, 0.12)',
+    sidebarActiveBg: 'rgba(255, 255, 255, 0.22)',
+    sidebarActiveFg: '#FFFFFF',
+    sidebarBorder: 'rgba(255, 255, 255, 0.16)',
+    sidebarLogoPlate: '#FFFFFF',
     // CTA gradients: dark→darker (white text safe). Identity primary kept for soft/border accents.
     gradBar: `linear-gradient(90deg, ${brandButtonBg}, ${buttonHover})`,
     gradBrand: `linear-gradient(135deg, ${brandButtonBg}, ${buttonHover})`,

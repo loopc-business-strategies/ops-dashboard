@@ -1,203 +1,289 @@
 // FILE: src/components/ui-components.jsx
-// Shared UI primitives — design-system.css powered
-// All components rely on CSS variables defined in design-system.css
+// Shared UI primitives — design-system.css powered (.card / .btn / .badge / …)
 
-// ── Card ─────────────────────────────────────────
-export function Card({ children, className = '', style = {} }) {
+export function Card({ children, className = '', style = {}, title, subtitle, actions }) {
   return (
-    <div className={`ds-card ${className}`} style={style}>
+    <div className={`card ${className}`} style={style}>
+      {(title || actions) && (
+        <div className="card-title">
+          <div>
+            {title}
+            {subtitle && <div className="card-subtitle">{subtitle}</div>}
+          </div>
+          {actions}
+        </div>
+      )}
       {children}
     </div>
   )
 }
 
-// ── StatCard ─────────────────────────────────────
-// icon: emoji or SVG element
-// trend: '+12%' | '-3%' | null  (positive = green, negative = red)
 export function StatCard({ label, value, icon, trend, sub, className = '' }) {
-  const trendPos = trend && !trend.startsWith('-')
+  const trendPos = trend && !String(trend).startsWith('-')
   return (
-    <div className={`ds-stat-card ${className}`}>
-      <div className="ds-stat-icon">{icon}</div>
-      <div className="ds-stat-value">{value}</div>
-      <div className="ds-stat-label">{label}</div>
+    <div className={`stat-card ${className}`}>
+      <div className="stat-card-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>{label}</span>
+        {icon && <span aria-hidden="true">{icon}</span>}
+      </div>
+      <div className="stat-card-value">{value}</div>
       {(trend || sub) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+        <div className="stat-card-sub">
           {trend && (
-            <span style={{ fontSize: 11, color: trendPos ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+            <span style={{ color: trendPos ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
               {trendPos ? '▲' : '▼'} {trend}
             </span>
           )}
-          {sub && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</span>}
+          {sub && <span>{sub}</span>}
         </div>
       )}
     </div>
   )
 }
 
-// ── Badge ─────────────────────────────────────────
-// variant: 'success' | 'progress' | 'pending' | 'info' | 'muted' | 'danger' | 'orange'
-export function Badge({ children, variant = 'muted' }) {
-  return <span className={`ds-badge ds-badge-${variant}`}>{children}</span>
+export function KpiCard(props) {
+  return <StatCard {...props} />
 }
 
-// ── Button ────────────────────────────────────────
-// variant: 'primary' | 'secondary' | 'danger' | 'ghost'
-export function Button({ children, variant = 'primary', onClick, disabled = false, style = {}, className = '', type = 'button' }) {
+export function Badge({ children, variant = 'muted' }) {
+  return <span className={`badge badge-${variant}`}>{children}</span>
+}
+
+export function StatusBadge({ status = 'pending', children }) {
+  const map = {
+    paid: 'success',
+    posted: 'success',
+    approved: 'success',
+    completed: 'success',
+    active: 'success',
+    pending: 'progress',
+    processing: 'progress',
+    draft: 'muted',
+    inactive: 'muted',
+    cancelled: 'danger',
+    rejected: 'danger',
+    returned: 'orange',
+  }
+  const key = String(status || '').toLowerCase()
+  return <Badge variant={map[key] || 'pending'}>{children || status}</Badge>
+}
+
+export function Button({
+  children,
+  variant = 'primary',
+  onClick,
+  disabled = false,
+  style = {},
+  className = '',
+  type = 'button',
+  loading = false,
+  size,
+}) {
+  const sizeClass = size === 'sm' ? 'btn-sm' : ''
   return (
     <button
       type={type}
       onClick={onClick}
-      disabled={disabled}
-      className={`ds-btn ds-btn-${variant} ${className}`}
+      disabled={disabled || loading}
+      className={`btn btn-${variant} ${sizeClass} ${className}`.trim()}
       style={style}
+      aria-busy={loading || undefined}
     >
-      {children}
+      {loading ? '…' : children}
     </button>
   )
 }
 
-// ── Table ─────────────────────────────────────────
-// headers: string[]
-// rows: array of arrays (cells per row)
-// Can also pass children for custom <tbody> content
-export function Table({ headers, rows, children, className = '' }) {
+export function Table({ headers, rows, children, className = '', title, subtitle }) {
   return (
-    <div className={`ds-table-wrap ${className}`}>
-      <table className="ds-table">
-        {headers && (
-          <thead>
-            <tr>
-              {headers.map((h, i) => <th key={i}>{h}</th>)}
-            </tr>
-          </thead>
-        )}
-        <tbody>
-          {rows
-            ? rows.map((row, ri) => (
-                <tr key={ri}>
-                  {row.map((cell, ci) => <td key={ci}>{cell}</td>)}
-                </tr>
-              ))
-            : children}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ── Modal ─────────────────────────────────────────
-// onClose: () => void
-// title: string
-export function Modal({ title, onClose, children, width = 500 }) {
-  return (
-    <div className="ds-modal-overlay" onClick={onClose}>
-      <div
-        className="ds-modal"
-        style={{ width: '100%', maxWidth: width }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="ds-modal-header">
-          <h3 className="ds-modal-title">{title}</h3>
-          <button className="ds-modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="ds-modal-body">{children}</div>
-      </div>
-    </div>
-  )
-}
-
-// ── ProgressBar ───────────────────────────────────
-// value: 0–100 number
-// label: string shown above bar
-// showPct: bool (default true)
-// variant: 'default' | 'orange' (default uses brand gradient)
-export function ProgressBar({ value = 0, label, showPct = true, variant = 'default' }) {
-  const clamp = Math.max(0, Math.min(100, value))
-  const bg = variant === 'orange' ? '#f97316' : undefined  // undefined → CSS var handles it
-  return (
-    <div>
-      {label && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{label}</span>
-          {showPct && <span style={{ fontSize: 12, color: 'var(--purple-light)', fontWeight: 600 }}>{clamp}%</span>}
+    <div className={`table-wrapper ${className}`}>
+      {(title || subtitle) && (
+        <div className="table-header">
+          <div>
+            {title && <div className="table-title">{title}</div>}
+            {subtitle && <div className="table-subtitle">{subtitle}</div>}
+          </div>
         </div>
       )}
-      <div className="ds-progress">
-        <div
-          className="ds-progress-bar"
-          style={{ width: `${clamp}%`, ...(bg ? { background: bg } : {}) }}
-        />
+      <div className="table-scroll">
+        <table className="data-table">
+          {headers && (
+            <thead>
+              <tr>
+                {headers.map((h, i) => <th key={i}>{h}</th>)}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {rows
+              ? rows.map((row, ri) => (
+                  <tr key={ri}>
+                    {row.map((cell, ci) => <td key={ci}>{cell}</td>)}
+                  </tr>
+                ))
+              : children}
+          </tbody>
+        </table>
       </div>
     </div>
   )
 }
 
-// ── SectionHeader ─────────────────────────────────
-// icon: emoji/char, title: string, action: optional JSX (button etc.)
-export function SectionHeader({ icon, title, action, sub }) {
+export function Modal({ title, onClose, children, width = 500, footer }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-      <div>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {icon && <span>{icon}</span>}
-          {title}
-        </h2>
-        {sub && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</p>}
+    <div className="modal-overlay open" onClick={onClose} role="presentation">
+      <div
+        className="modal-box"
+        style={{ width: '100%', maxWidth: width }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="flex-between" style={{ marginBottom: 12 }}>
+          <h3 className="modal-title" style={{ marginBottom: 0 }}>{title}</h3>
+          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div>{children}</div>
+        {footer && <div className="modal-footer">{footer}</div>}
       </div>
-      {action && <div>{action}</div>}
     </div>
   )
 }
 
-// ── TabsBar ───────────────────────────────────────
-// tabs: [{ id, label, icon? }]
-// active: string
-// onChange: (id) => void
+export function Drawer({ title, onClose, children, width = 420, footer }) {
+  return (
+    <div className="modal-overlay open" onClick={onClose} role="presentation">
+      <div
+        className="drawer-panel"
+        style={{ width: 'min(100%, ' + width + 'px)' }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="drawer-header">
+          <h3 className="modal-title" style={{ marginBottom: 0 }}>{title}</h3>
+          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="drawer-body">{children}</div>
+        {footer && <div className="drawer-footer">{footer}</div>}
+      </div>
+    </div>
+  )
+}
+
+export function ProgressBar({ value = 0, label, showPct = true }) {
+  const clamp = Math.max(0, Math.min(100, value))
+  return (
+    <div className="progress-row">
+      {label && <span className="progress-label">{label}</span>}
+      <div className="progress-track">
+        <div className="progress-fill progress-fill-brand" style={{ width: `${clamp}%` }} />
+      </div>
+      {showPct && <span className="progress-pct">{clamp}%</span>}
+    </div>
+  )
+}
+
+export function PageHeader({ title, subtitle, actions, icon }) {
+  return (
+    <div className="page-header section-header">
+      <div>
+        <h1 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {icon}
+          {title}
+        </h1>
+        {subtitle && <p className="section-subtitle">{subtitle}</p>}
+      </div>
+      {actions && <div className="section-actions">{actions}</div>}
+    </div>
+  )
+}
+
+export function SectionHeader({ icon, title, action, sub }) {
+  return <PageHeader title={title} subtitle={sub} actions={action} icon={icon} />
+}
+
 export function TabsBar({ tabs, active, onChange }) {
   return (
-    <div className="ds-tabs">
-      {tabs.map(t => (
+    <div className="tabs-bar" role="tablist">
+      {tabs.map((tab) => (
         <button
-          key={t.id}
-          className={`ds-tab${active === t.id ? ' active' : ''}`}
-          onClick={() => onChange(t.id)}
+          key={tab.id}
+          type="button"
+          role="tab"
+          aria-selected={active === tab.id}
+          className={`tab-btn${active === tab.id ? ' active' : ''}`}
+          onClick={() => onChange(tab.id)}
         >
-          {t.icon && <span style={{ marginRight: 5 }}>{t.icon}</span>}
-          {t.label}
+          {tab.icon && <span style={{ marginRight: 5 }}>{tab.icon}</span>}
+          {tab.label}
         </button>
       ))}
     </div>
   )
 }
 
-// ── FormField ────────────────────────────────────
-// type: 'text' | 'number' | 'select' | 'textarea' | 'date'
-// options: [{ value, label }] for select
-export function FormField({ label, type = 'text', value, onChange, options = [], placeholder = '', required = false, rows = 3 }) {
-  const id = `ff-${label?.replace(/\s+/g, '-').toLowerCase()}`
+export function FormField({ label, type = 'text', value, onChange, options = [], placeholder = '', required = false, rows = 3, helper, error }) {
+  const id = `ff-${String(label || 'field').replace(/\s+/g, '-').toLowerCase()}`
   return (
-    <div className="ds-form-field">
-      {label && <label className="ds-label" htmlFor={id}>{label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}</label>}
+    <div className="form-group">
+      {label && (
+        <label className="form-label" htmlFor={id}>
+          {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
+        </label>
+      )}
       {type === 'select' ? (
-        <select id={id} className="ds-input" value={value} onChange={e => onChange(e.target.value)}>
+        <select id={id} className="form-select" value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">-- Select --</option>
-          {options.map(o => (
+          {options.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
       ) : type === 'textarea' ? (
-        <textarea id={id} className="ds-input" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} />
+        <textarea id={id} className="form-textarea" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows} />
       ) : (
-        <input id={id} className="ds-input" type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required} />
+        <input id={id} className="form-input" type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required={required} />
       )}
+      {helper && !error && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>{helper}</p>}
+      {error && <p style={{ fontSize: 11, color: 'var(--danger)', margin: 0 }}>{error}</p>}
     </div>
   )
 }
 
-// ── Avatar ────────────────────────────────────────
-// name: string (uses first char)
-// size: number (px, default 32)
+export function FilterBar({ children, className = '' }) {
+  return <div className={`filter-bar ${className}`.trim()}>{children}</div>
+}
+
+export function EmptyState({ title = 'Nothing here yet', message, action }) {
+  return (
+    <div className="empty-state">
+      <p className="empty-state-title">{title}</p>
+      {message && <p className="empty-state-msg">{message}</p>}
+      {action}
+    </div>
+  )
+}
+
+export function LoadingSkeleton({ lines = 3 }) {
+  return (
+    <div className="empty-state" aria-busy="true" aria-label="Loading">
+      {Array.from({ length: lines }).map((_, i) => (
+        <div key={i} className="skeleton-line" style={{ width: `${80 - i * 12}%`, marginBottom: 8 }} />
+      ))}
+    </div>
+  )
+}
+
+export function ChartCard({ title, subtitle, children, actions }) {
+  return (
+    <Card title={title} subtitle={subtitle} actions={actions} className="chart-card">
+      {children}
+    </Card>
+  )
+}
+
 export function Avatar({ name = '?', size = 32 }) {
   return (
     <div style={{
@@ -212,28 +298,18 @@ export function Avatar({ name = '?', size = 32 }) {
   )
 }
 
-// ── Toast ─────────────────────────────────────────
-// Render at bottom-right. Pass { title, msg } or null.
 export function Toast({ toast }) {
   if (!toast) return null
   return (
-    <div className="ds-toast">
-      <strong style={{ display: 'block', marginBottom: 2 }}>{toast.title}</strong>
-      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{toast.msg}</span>
+    <div className={`toast show`}>
+      <strong className="toast-title">{toast.title}</strong>
+      <span className="toast-msg">{toast.msg}</span>
     </div>
   )
 }
 
-// ── RestrictedNotice ─────────────────────────────
-// Used when a role cannot access a section
 export function RestrictedNotice({ message = "You don't have permission to view this section." }) {
   return (
-    <div style={{
-      textAlign: 'center', padding: '60px 24px',
-      color: 'var(--text-muted)', fontSize: 14,
-    }}>
-      <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-      <p>{message}</p>
-    </div>
+    <EmptyState title="Restricted" message={message} />
   )
 }

@@ -6,9 +6,9 @@ import {
 import useLiveMetalRates from '../hooks/useLiveMetalRates'
 
 const METALS = [
-  { key: 'gold', label: 'Gold', swatch: '#FACC15', sym: 'Au', labelColor: '#FDE047' },
-  { key: 'silver', label: 'Silver', swatch: '#CBD5E1', sym: 'Ag', labelColor: 'rgba(248, 250, 252, 0.88)' },
-  { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#FDE68A' },
+  { key: 'gold', label: 'Gold', swatch: '#FACC15', sym: 'Au', labelColor: '#92400E' },
+  { key: 'silver', label: 'Silver', swatch: '#CBD5E1', sym: 'Ag', labelColor: '#475569' },
+  { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#6B21A8' },
 ]
 
 /**
@@ -24,11 +24,12 @@ export default function TopbarMetalTickers() {
     gap: '0.45rem',
     padding: '0.4rem 0.75rem',
     borderRadius: '999px',
-    background: 'rgba(15, 23, 42, 0.42)',
-    border: '1px solid rgba(255,255,255,0.14)',
+    background: '#fff',
+    border: '1px solid var(--border)',
     minWidth: '8.75rem',
     flexShrink: 0,
     boxSizing: 'border-box',
+    boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
   }
 
   return (
@@ -67,15 +68,15 @@ export default function TopbarMetalTickers() {
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1, overflow: 'hidden', paddingRight: '0.1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(3.75rem, 1fr)', alignItems: 'baseline', gap: '0.35rem', width: '100%', lineHeight: 1.15 }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'rgba(255,255,255,0.55)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{label}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmtSpot(price)}</span>
+                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'var(--text-muted)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{label}</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmtSpot(price)}</span>
               </div>
               <div
                 style={{
                   marginTop: '0.12rem',
                   fontSize: '0.65rem',
                   fontWeight: 600,
-                  color: move ? (move.up ? '#4ade80' : '#f87171') : error ? '#fbbf24' : 'rgba(255,255,255,0.45)',
+                  color: move ? (move.up ? 'var(--success)' : 'var(--danger)') : error ? 'var(--warning)' : 'var(--text-muted)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',

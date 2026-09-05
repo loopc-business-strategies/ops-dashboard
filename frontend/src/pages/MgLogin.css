@@ -536,3 +536,199 @@
     max-width: none;
   }
 }
+
+/* Unified enterprise login (all tenants) */
+.enterprise-login .mg-login__frame {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100%;
+}
+.enterprise-login .mg-login__panel--brand {
+  color: #fff;
+  padding: 40px 28px;
+  position: relative;
+  overflow: hidden;
+}
+.enterprise-login .mg-login__brand-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.enterprise-login .mg-login__logo-plate {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+.enterprise-login .mg-login__logo-plate img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.enterprise-login .mg-login__logo-fallback {
+  font-weight: 800;
+  color: var(--brand-dark);
+  font-size: 18px;
+}
+.enterprise-login .mg-login__eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin: 0 0 8px;
+}
+.enterprise-login .mg-login__hero-title {
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 0 12px;
+  color: #fff;
+}
+.enterprise-login .mg-login__hero-copy {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.85);
+  max-width: 320px;
+}
+.enterprise-login .mg-login__chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 0;
+  padding: 0;
+}
+.enterprise-login .mg-login__chips li {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.22);
+  font-size: 12px;
+  font-weight: 600;
+}
+.enterprise-login .mg-login__panel--form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background: #F8FAFC;
+  position: relative;
+}
+.enterprise-login .mg-login__form-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+.enterprise-login .mg-login__form-sub {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.enterprise-login .mg-login__label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 12px 0 6px;
+}
+.enterprise-login .mg-login__field input {
+  width: 100%;
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid var(--border-input);
+  background: #fff;
+  padding: 0 14px;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+}
+.enterprise-login .mg-login__field input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--brand-focus-ring);
+}
+.enterprise-login .mg-login__field--pass {
+  position: relative;
+}
+.enterprise-login .mg-login__eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--brand-dark);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.enterprise-login .mg-login__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 18px;
+  flex-wrap: wrap;
+}
+.enterprise-login .mg-login__remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.enterprise-login .mg-login__forgot {
+  border: none;
+  background: none;
+  color: var(--brand-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.enterprise-login .mg-login__alert {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.enterprise-login .mg-login__alert--error {
+  background: #fff5f5;
+  border: 1px solid #f0c9c9;
+  color: #b91c1c;
+}
+.enterprise-login .mg-login__alert--warn {
+  background: #fffbeb;
+  border: 1px solid #f0d58a;
+  color: #92400e;
+}
+.enterprise-login .mg-login__alert--info {
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-border);
+  color: var(--brand-on-soft);
+}
+.enterprise-login .mg-login__footnote {
+  text-align: center;
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+@media (min-width: 1024px) {
+  .enterprise-login .mg-login__frame {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    min-height: 100vh;
+  }
+  .enterprise-login .mg-login__panel--brand,
+  .enterprise-login .mg-login__panel--form {
+    min-height: 100vh;
+  }
+}

@@ -11,12 +11,14 @@ import {
   buildDashboardHref,
   buildDashboardTabParam,
   dashboardSearchFromState,
-  isPrimaryNavClick,
   parseDashboardUrl,
   parseEnquiryDeepLink,
 } from '../utils/dashboardNavigation'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
+import AppShell from '../components/layout/AppShell'
+import AppSidebar from '../components/layout/AppSidebar'
+import { getNavItems } from '../components/layout/navConfig'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
 import {
@@ -117,8 +119,11 @@ class TabErrorBoundary extends Component {
 
 function TabLoadingFallback() {
   return (
-    <div className="p-6 rounded-xl border" style={{ background: '#FFFFFF', borderColor: '#E5E7EB', color: '#1C2A33' }}>
-      <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Loading module...</p>
+    <div className="empty-state" style={{ margin: 24 }}>
+      <div className="skeleton-line" style={{ width: '40%', marginBottom: 12 }} />
+      <div className="skeleton-line" style={{ width: '70%', marginBottom: 8 }} />
+      <div className="skeleton-line" style={{ width: '55%' }} />
+      <p style={{ margin: '16px 0 0', fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Loading module...</p>
     </div>
   )
 }
@@ -235,122 +240,6 @@ function resolveRealtimeBellErpFields(payload) {
   }
 }
 
-// ── Sidebar nav item ────────────────────────────
-function NavItem({
-  label,
-  active,
-  href,
-  onAfterClick,
-  badge,
-  openInNewTab = true,
-  onSameTabNavigate,
-  onPrefetch,
-}) {
-  const className = `sidebar-item w-full justify-center text-center${active ? ' active' : ''}`
-  const style = { textDecoration: 'none', display: 'flex', alignItems: 'center' }
-  const prefetchHandlers = {
-    onMouseEnter: () => onPrefetch?.(),
-    onFocus: () => onPrefetch?.(),
-  }
-
-  if (openInNewTab) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={() => onAfterClick?.()}
-        className={className}
-        style={style}
-        {...prefetchHandlers}
-      >
-        <span className="truncate">{label}</span>
-        {badge && (
-          <span style={{ fontSize: 11, background: 'var(--purple)', color: '#fff', borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>
-            {badge}
-          </span>
-        )}
-      </a>
-    )
-  }
-
-  return (
-    <a
-      href={href}
-      onClick={(event) => {
-        if (!isPrimaryNavClick(event)) return
-        event.preventDefault()
-        onSameTabNavigate?.()
-        onAfterClick?.()
-      }}
-      className={className}
-      style={style}
-      {...prefetchHandlers}
-    >
-      <span className="truncate">{label}</span>
-      {badge && (
-        <span style={{ fontSize: 11, background: 'var(--purple)', color: '#fff', borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>
-          {badge}
-        </span>
-      )}
-    </a>
-  )
-}
-
-// ── All sidebar tabs definition ─────────────────
-function getNavItems(perms, t, chatUnread = 0, branding) {
-  const canShowErpSubTab = (subTab) => (
-    perms.canViewERP && (!perms.canViewERPSubTab || perms.canViewERPSubTab(subTab))
-  )
-  const rawItems = [
-    // ── Main ──
-    { id: 'overview',    label: t('overview'),    group: 'main',       show: perms.canViewModule('overview') },
-    { id: 'chat',        label: t('chat'),        group: 'main',       show: perms.canViewModule('chat'), badge: chatUnread || null },
-    { id: 'master-settings', label: 'Master Settings', group: 'main', show: true },
-
-    // ── Admin (super_admin only) ──
-    { id: 'admin',       label: t('admin'),       group: 'admin',      show: perms.canViewAdmin },
-
-    // ── Departments ──
-    { id: 'hr',          label: t('hr'),          group: 'departments', show: perms.canViewModule('hr') },
-    { id: 'compliance',  label: t('compliance'),  group: 'departments', show: perms.canViewModule('government') },
-    { id: 'production',  label: t('production'),  group: 'departments', show: perms.canViewModule('production') },
-    { id: 'finance',     label: t('finance'),     group: 'departments', show: perms.canViewModule('finance') },
-    { id: 'sales',       label: t('sales'),       group: 'departments', show: perms.canViewModule('sales') },
-    { id: 'operations',  label: t('operations'),  group: 'departments', show: perms.canViewModule('operations') },
-    { id: 'training',    label: t('training'),    group: 'departments', show: perms.canViewModule('training') },
-    { id: 'erp-dashboard',    label: 'Dashboard',      group: 'erp', erpSub: 'dashboard',    show: canShowErpSubTab('dashboard') },
-    { id: 'erp-accounts',     label: 'Accounts',       group: 'erp', erpSub: 'accounts',     show: canShowErpSubTab('accounts') },
-    { id: 'erp-mappings',     label: 'Mappings',       group: 'erp', erpSub: 'mappings',     show: canShowErpSubTab('mappings') },
-    { id: 'erp-settings',     label: 'Settings',       group: 'erp', erpSub: 'settings',     show: canShowErpSubTab('settings') },
-    { id: 'erp-currencies',   label: 'Currency Master',group: 'erp', erpSub: 'currencies',   show: canShowErpSubTab('currencies') },
-    { id: 'erp-enquiry',      label: 'Account Summary',group: 'erp', erpSub: 'enquiry',      show: canShowErpSubTab('enquiry') },
-    { id: 'erp-customers',        label: 'Customers',       group: 'erp', erpSub: 'customers',       show: canShowErpSubTab('customers') },
-    { id: 'erp-customer-margin',  label: 'Customer Margin', group: 'erp', erpSub: 'customer-margin', show: canShowErpSubTab('customer-margin') },
-    { id: 'erp-supplier-margin',  label: 'Supplier Margin', group: 'erp', erpSub: 'supplier-margin', show: canShowErpSubTab('supplier-margin') },
-    { id: 'erp-ledger',           label: 'Ledger',          group: 'erp', erpSub: 'ledger',          show: canShowErpSubTab('ledger') },
-    { id: 'erp-period-closing',   label: 'Period Closing',  group: 'erp', erpSub: 'period-closing', show: Boolean(branding?.featureFlags?.accountingPeriodClosing) && canShowErpSubTab('period-closing') },
-    { id: 'erp-transactions', label: 'Transactions',   group: 'erp', erpSub: 'transactions', show: canShowErpSubTab('transactions') },
-    { id: 'erp-reports',      label: 'Reports',        group: 'erp', erpSub: 'reports',      show: canShowErpSubTab('reports') },
-    { id: 'erp-vendors',      label: 'Vendors',        group: 'erp', erpSub: 'vendors',      show: canShowErpSubTab('vendors') },
-    { id: 'erp-inventory',    label: 'Inventory',      group: 'erp', erpSub: 'inventory',    show: canShowErpSubTab('inventory') },
-    { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: canShowErpSubTab('vouchers') },
-    { id: 'erp-direct-deals',    label: 'Fixing Deals',    group: 'erp', erpSub: 'direct-deals',    show: canShowErpSubTab('direct-deals') },
-    { id: 'erp-fixing-register', label: 'Net Position', group: 'erp', erpSub: 'fixing-register', show: canShowErpSubTab('fixing-register') },
-    { id: 'procurement-plus', label: 'Procurement Plus', group: 'departments', show: Boolean(branding?.featureFlags?.procurementPlus) && perms.canViewModule('procurement-plus') },
-  ]
-
-  return rawItems
-    .filter((item) => item.show)
-    .filter((item) => {
-      if (!branding) return true
-      if (item.group === 'erp') return branding.enabledErpSubTabs.includes(item.erpSub)
-      if (item.id === 'admin') return branding.enabledTabs.includes('admin')
-      if (item.group === 'main' || item.group === 'departments') return branding.enabledTabs.includes(item.id)
-      return true
-    })
-}
-
 // ── Render the content for each tab ────────────
 function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
   switch (tabId) {
@@ -444,7 +333,7 @@ function Dashboard() {
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
 
   const [activeTab,    setActiveTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).activeTab)
-  const [sidebarOpen,  setSidebarOpen]  = useState(false)
+  const [sidebarOpen,  setSidebarOpen]  = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true)
   const [adminOpen,    setAdminOpen]    = useState(true)
   const [deptOpen,     setDeptOpen]     = useState(true)
   const [erpOpen,      setErpOpen]      = useState(true)
@@ -471,7 +360,7 @@ function Dashboard() {
   const accountMenuRef = useRef(null)
 
   const DESKTOP_MIN_WIDTH = 1024
-  const DESKTOP_SIDEBAR_WIDTH = 216
+  const DESKTOP_SIDEBAR_WIDTH = 264
   const [isDesktop, setIsDesktop] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
@@ -694,7 +583,9 @@ function Dashboard() {
     if (typeof window === 'undefined') return
 
     const handleResize = () => {
-      setIsDesktop(window.innerWidth >= DESKTOP_MIN_WIDTH)
+      const desktop = window.innerWidth >= DESKTOP_MIN_WIDTH
+      setIsDesktop(desktop)
+      if (desktop) setSidebarOpen(true)
     }
 
     handleResize()
@@ -928,160 +819,54 @@ function Dashboard() {
 
   return (
     <LiveMetalRatesProvider token={token} tenant={branding.key} enabled={metalRatesEnabled}>
-    <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)', display: 'flex', flexDirection: 'row', minHeight: '100vh' }} onMouseMove={handleShellMouseMove}>
-
-      {/* Desktop edge sensor: reveal sidebar when mouse nears left/right edge */}
-      {isDesktop && !sidebarOpen && (
-        <div
-          className={`fixed inset-y-0 z-40 ${isRTL ? 'right-0' : 'left-0'}`}
-          style={{ width: EDGE_TRIGGER_WIDTH }}
-          onMouseEnter={openSidebar}
-        />
-      )}
-
-      {/* ══════════════════════════════════════
-          SIDEBAR
-          ══════════════════════════════════════ */}
-      <aside
-        className={`sidebar fixed inset-y-0 z-50 flex flex-col transform transition-transform duration-300 ease-in-out
-          ${isRTL ? 'right-0' : 'left-0'}
-          ${sidebarOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full'}
-        `}
+    <AppShell
+      isDesktop={isDesktop}
+      isRTL={isRTL}
+      sidebarOpen={sidebarOpen}
+      edgeTriggerWidth={EDGE_TRIGGER_WIDTH}
+      onShellMouseMove={handleShellMouseMove}
+      onEdgeEnter={openSidebar}
+      sidebar={(
+      <AppSidebar
+        branding={branding}
+        t={t}
+        isRTL={isRTL}
+        isDesktop={isDesktop}
+        sidebarOpen={sidebarOpen}
+        mainItems={mainItems}
+        adminItems={adminItems}
+        deptItems={deptItems}
+        erpItems={erpItems}
+        adminOpen={adminOpen}
+        setAdminOpen={setAdminOpen}
+        deptOpen={deptOpen}
+        setDeptOpen={setDeptOpen}
+        erpOpen={erpOpen}
+        setErpOpen={setErpOpen}
+        activeTab={activeTab}
+        erpSubTab={erpSubTab}
+        buildNavHref={buildNavHref}
+        sidebarLinkAfterClick={sidebarLinkAfterClick}
+        prefetchTabChunk={prefetchTabChunk}
+        onLogout={handleLogout}
+        onErpNavigate={(erpSub) => navigateToTab('erp', { erpSub, sub: null })}
         onMouseEnter={isDesktop ? clearHideTimer : undefined}
-        onMouseLeave={isDesktop ? queueHideSidebar : undefined}>
-
-        {/* Sidebar top — logo */}
-        <div className="sidebar-logo flex-shrink-0">
-          <div className="flex items-center gap-3">
-            {branding.logoImage ? (
-              <img
-                src={branding.logoImage}
-                alt={`${branding.displayName} logo`}
-                className="rounded-lg flex-shrink-0"
-                style={branding.key === 'mg'
-                  ? { height: 36, width: 'auto', maxWidth: 140, objectFit: 'contain', background: 'transparent' }
-                  : { height: 32, width: 52, objectFit: 'contain', background: '#FFFFFF' }}
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
-                style={{ background: 'var(--grad-brand)' }}>
-                <span style={{ color: 'white', fontWeight: 700, letterSpacing: 0.4 }}>{branding.logoText}</span>
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>{branding.displayName} Ops</p>
-              <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{t('controlSystem')}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav links */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-
-          {/* Main */}
-          {mainItems.map(item => (
-            <NavItem key={item.id} {...item}
-              href={buildNavHref(item)}
-              active={activeTab === item.id}
-              onAfterClick={sidebarLinkAfterClick}
-              onPrefetch={() => prefetchTabChunk(item.id)} />
-          ))}
-
-          {/* Divider before Admin */}
-          {adminItems.length > 0 && <div className="sidebar-divider" />}
-
-          {/* Admin section */}
-          {adminItems.length > 0 && (
-            <>
-              <button className="sidebar-section-title w-full justify-center gap-2"
-                onClick={() => setAdminOpen(v => !v)}>
-                <span>{t('adminSection')}</span>
-                <span className="section-chevron">{adminOpen ? '▴' : '▾'}</span>
-              </button>
-              {adminOpen && adminItems.map(item => (
-                <NavItem key={item.id} {...item}
-                  href={buildNavHref(item)}
-                  active={activeTab === item.id}
-                  onAfterClick={sidebarLinkAfterClick}
-                  onPrefetch={() => prefetchTabChunk(item.id)} />
-              ))}
-            </>
-          )}
-
-          {/* Divider before Departments */}
-          {deptItems.length > 0 && <div className="sidebar-divider" />}
-
-          {/* Departments */}
-          {deptItems.length > 0 && (
-            <>
-              <button className="sidebar-section-title w-full justify-center gap-2"
-                onClick={() => setDeptOpen(v => !v)}>
-                <span>{t('departments')}</span>
-                <span className="section-chevron">{deptOpen ? '▴' : '▾'}</span>
-              </button>
-              {deptOpen && deptItems.map(item => (
-                <NavItem key={item.id} {...item}
-                  href={buildNavHref(item)}
-                  active={activeTab === item.id}
-                  onAfterClick={sidebarLinkAfterClick}
-                  onPrefetch={() => prefetchTabChunk(item.id)} />
-              ))}
-            </>
-          )}
-
-          {/* Divider before ERP */}
-          {erpItems.length > 0 && <div className="sidebar-divider" />}
-
-          {/* ERP */}
-          {erpItems.length > 0 && (
-            <>
-              <button className="sidebar-section-title w-full justify-center gap-2"
-                onClick={() => setErpOpen(v => !v)}>
-                <span>{t('erp')}</span>
-                <span className="section-chevron">{erpOpen ? '▴' : '▾'}</span>
-              </button>
-              {erpOpen && erpItems.map(item => (
-                <NavItem key={item.id} {...item}
-                  href={buildNavHref(item)}
-                  active={activeTab === 'erp' && erpSubTab === item.erpSub}
-                  openInNewTab={false}
-                  onSameTabNavigate={() => navigateToTab('erp', { erpSub: item.erpSub, sub: null })}
-                  onAfterClick={sidebarLinkAfterClick}
-                  onPrefetch={() => prefetchTabChunk('erp')} />
-              ))}
-            </>
-          )}
-
-        </nav>
-
-        {/* Sidebar bottom — logout */}
-        <div className="sidebar-footer flex-shrink-0 inline">
-          <button onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all"
-            style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            {t('signOut')}
-          </button>
-        </div>
-      </aside>
-
+        onMouseLeave={isDesktop ? queueHideSidebar : undefined}
+      />
+      )}
+      overlay={(
+      <>
       {/* Mobile overlay */}
       {sidebarOpen && !isDesktop && (
         <div className="fixed inset-0 z-40 lg:hidden"
           style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
           onClick={closeSidebar} />
       )}
-
-      {/* ══════════════════════════════════════
-          MAIN CONTENT AREA
-          ══════════════════════════════════════ */}
+      </>
+      )}
+      main={(
       <div
-        className="flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300"
+        className="app-main flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300"
         style={isDesktop && sidebarOpen
           ? (isRTL
               ? { marginRight: DESKTOP_SIDEBAR_WIDTH }
@@ -1094,11 +879,13 @@ function Dashboard() {
           <div className="flex w-full items-center justify-between gap-3 min-w-0 overflow-visible">
             <div className="flex items-center gap-2.5 flex-shrink-0 min-w-0">
               {/* Hamburger */}
-              <button onClick={toggleSidebar}
-                className="p-2 rounded-lg transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="topbar-icon-btn"
+                aria-label="Toggle sidebar"
+                style={{ color: 'var(--text-secondary)' }}
+              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
@@ -1139,11 +926,11 @@ function Dashboard() {
                   aria-label="Notifications"
                   aria-expanded={notifOpen}
                   onClick={() => setNotifOpen(v => !v)}
-                  className="relative h-7 w-7 rounded-lg transition-all inline-flex items-center justify-center"
+                  className="topbar-icon-btn relative"
                   style={{
-                    background: notifOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#ffffff',
+                    background: notifOpen ? 'var(--brand-soft)' : '#fff',
+                    borderColor: notifOpen ? 'var(--brand-border)' : undefined,
+                    color: 'var(--text-secondary)',
                   }}>
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .53-.21 1.04-.59 1.41L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
@@ -1239,7 +1026,9 @@ function Dashboard() {
                   title={t('language')}
                   className="topbar-pill text-xs transition-all"
                   style={{
-                    background: langMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
+                    background: langMenuOpen ? 'var(--brand-soft)' : '#fff',
+                    borderColor: langMenuOpen ? 'var(--brand-border)' : undefined,
+                    color: 'var(--text-secondary)',
                   }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ opacity: 0.85 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9zM3 12a9 9 0 019-9 9 9 0 019 9 9 9 0 01-9 9 9 9 0 01-9-9z" />
@@ -1417,7 +1206,8 @@ function Dashboard() {
         </main>
 
       </div>
-    </div>
+      )}
+    />
     </LiveMetalRatesProvider>
   )
 }

@@ -13,8 +13,8 @@ export const FINANCE_C = {
   t2: '#374151',
   t3: '#334155',
   t4: '#475569',
-  border: 'rgba(var(--purple-rgb),0.15)',
-  border2: 'rgba(var(--purple-rgb),0.35)',
+  border: 'rgba(var(--brand-rgb),0.15)',
+  border2: 'rgba(var(--brand-rgb),0.35)',
   card: '#ffffff',
   inp: '#f8f9fa',
 }
@@ -22,7 +22,7 @@ export const FINANCE_C = {
 export const financeInputStyle = {
   width: '100%',
   background: '#f8f9fa',
-  border: '1.5px solid rgba(var(--purple-rgb),.25)',
+  border: '1.5px solid rgba(var(--brand-rgb),.25)',
   borderRadius: 10,
   padding: '10px 14px',
   fontSize: 13,
