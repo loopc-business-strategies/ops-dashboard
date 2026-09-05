@@ -160,6 +160,7 @@ export function useErpTabRouter({
 
   useEffect(() => {
     if (!token || !canAccessERP) return undefined
+    if (activeTab !== 'ledger' && activeTab !== 'transactions') return undefined
 
     let stopRealtime = () => {}
     const tenantKey = user?.tenant || user?.company
@@ -168,6 +169,8 @@ export function useErpTabRouter({
       stopRealtime = startERPRealtimeFeeds({
         token,
         tenant: tenantKey,
+        enableLedger: activeTab === 'ledger',
+        enableTransactions: activeTab === 'transactions',
         onLedgerUpdate: () => {
           if (activeTabRef.current === 'ledger') {
             loadLedger({ cursor: null, cursorHistory: [] })
@@ -186,7 +189,7 @@ export function useErpTabRouter({
       stopRealtime()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, user?.tenant, user?.company, canAccessERP])
+  }, [token, user?.tenant, user?.company, canAccessERP, activeTab])
 
   useEffect(() => {
     if (!token || !showEnquiryModal) return
@@ -196,10 +199,8 @@ export function useErpTabRouter({
 
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token) return
-    loadCustomers({ limit: 500 })
-    loadVendors()
+    // Defer heavy catalogs until voucher editor needs them — currencies only on tab enter
     if (!currencies.length) loadCurrencies()
-    loadAccounts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token])
 

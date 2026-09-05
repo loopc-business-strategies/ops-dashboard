@@ -135,6 +135,7 @@ const {
   canCreateTransaction,
   canCreateTransactionFor,
   canAccessReports,
+  canAccessFixingRegister,
   canAccessVendors,
   canManageVendors,
   canUpdateVendorOperational,
@@ -731,6 +732,7 @@ function registerErpAccountingRoutes(router) {
     buildDocumentExpiryBuckets,
     evaluateVendorCompliance,
     canAccessReports,
+    canAccessFixingRegister,
     canReadErpDashboardReport,
     BASE_CURRENCY_CODE,
   })

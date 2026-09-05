@@ -94,4 +94,7 @@ const inventoryItemSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+inventoryItemSchema.index({ sku: 1 })
+inventoryItemSchema.index({ isDeleted: 1, category: 1 })
+
 module.exports = createTenantModel('InventoryItem', inventoryItemSchema)

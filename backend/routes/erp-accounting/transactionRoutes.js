@@ -16,6 +16,7 @@ function registerTransactionRoutes(deps) {
   const Message = require('../../models/Message')
   const { publishRealtimeEvent } = require('../../utils/realtimeBus')
   const { resolveRequestTenantKey } = require('../../config/tenants')
+  const { invalidateErpReadCaches } = require('../../utils/erpReadCaches')
   const {
     router,
     protect,
@@ -701,6 +702,7 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
       }
     })
 
+    invalidateErpReadCaches(tenantKey)
     res.json({ success: true, message: 'Transaction voided and linked ledger entries soft-deleted' })
   } catch (e) {
     if (e?.code === 'ACCOUNTING_PERIOD_CLOSED' || e?.code === 'ACCOUNTING_ENTRY_24H_LOCKED') {
@@ -833,6 +835,7 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
     })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
+    invalidateErpReadCaches(tenantKey)
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {

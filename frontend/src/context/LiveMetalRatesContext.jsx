@@ -1,7 +1,16 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import { currenciesApi } from '../api/erp-accounting/currencies'
 import { reportsApi } from '../api/erp-accounting/reports'
-import { startMetalRatesRealtime, buildRealtimeEventsUrl } from '../utils/realtimeSocket'
+import { startMetalRatesRealtime } from '../utils/realtimeSocket'
+import { subscribeRealtimeEvents, parseRealtimeEventData } from '../utils/realtimeEventsBus'
 import {
   LIVE_METAL_RATE_LIMIT_BACKOFF_MS,
   TOPBAR_MARKET_PARAMS,
@@ -32,16 +41,46 @@ const EMPTY_SNAPSHOT = {
   prevSnapshot: null,
 }
 
+/** Module store so Provider state ticks do not re-render the whole Dashboard tree. */
+let storeState = {
+  snapshot: EMPTY_SNAPSHOT,
+  error: null,
+  streamWarning: null,
+}
+const storeListeners = new Set()
+
+function getMetalRatesStoreState() {
+  return storeState
+}
+
+function subscribeMetalRatesStore(listener) {
+  storeListeners.add(listener)
+  return () => storeListeners.delete(listener)
+}
+
+function setMetalRatesStoreState(partial) {
+  storeState = { ...storeState, ...partial }
+  storeListeners.forEach((listener) => listener())
+}
+
+function resetMetalRatesStoreState() {
+  storeState = {
+    snapshot: EMPTY_SNAPSHOT,
+    error: null,
+    streamWarning: null,
+  }
+  storeListeners.forEach((listener) => listener())
+}
+
 export function LiveMetalRatesProvider({ token, tenant, enabled = true, children }) {
-  const [snapshot, setSnapshot] = useState(EMPTY_SNAPSHOT)
-  const [error, setError] = useState(null)
-  const [streamWarning, setStreamWarning] = useState(null)
   const lastSnapshotRef = useRef(null)
   const sourceRef = useRef('')
   const streamConnectedRef = useRef(false)
   const pollPausedUntilRef = useRef(0)
   const pollTimerRef = useRef(null)
   const pollIntervalMsRef = useRef(null)
+  const schedulePollRef = useRef(() => {})
+  const loadRef = useRef(async () => {})
 
   const applyRates = useCallback((rates, options = {}) => {
     if (!rates) return
@@ -80,14 +119,16 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     lastSnapshotRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
     const prevSource = sourceRef.current
     sourceRef.current = next.source
-    setError(null)
-    setStreamWarning(null)
-    setSnapshot({
-      ...next,
-      deltas,
-      prevSnapshot: prevSnapshot && (prevSnapshot.gold > 0 || prevSnapshot.silver > 0 || prevSnapshot.platinum > 0)
-        ? { gold: prevSnapshot.gold, silver: prevSnapshot.silver, platinum: prevSnapshot.platinum }
-        : null,
+    setMetalRatesStoreState({
+      error: null,
+      streamWarning: null,
+      snapshot: {
+        ...next,
+        deltas,
+        prevSnapshot: prevSnapshot && (prevSnapshot.gold > 0 || prevSnapshot.silver > 0 || prevSnapshot.platinum > 0)
+          ? { gold: prevSnapshot.gold, silver: prevSnapshot.silver, platinum: prevSnapshot.platinum }
+          : null,
+      },
     })
     if (prevSource !== next.source) {
       schedulePollRef.current()
@@ -117,7 +158,9 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
         if (sg > 0 && ss > 0) {
           applyRates(normalizeInboundRates(saved.rates))
           if (!live?.live) {
-            setError(live?.message ? { message: 'bridge offline' } : null)
+            setMetalRatesStoreState({
+              error: live?.message ? { message: 'bridge offline' } : null,
+            })
           }
         }
       }
@@ -126,11 +169,11 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       if (parsed.status === 429) {
         pollPausedUntilRef.current = Date.now() + LIVE_METAL_RATE_LIMIT_BACKOFF_MS
       }
-      setError(parsed)
+      setMetalRatesStoreState({ error: parsed })
     }
   }, [applyRates, enabled, token])
 
-  const schedulePollRef = useRef(() => {})
+  loadRef.current = load
 
   const schedulePoll = useCallback(() => {
     const intervalMs = resolveLiveMetalPollIntervalMs(streamConnectedRef.current, sourceRef.current)
@@ -165,34 +208,19 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
   }, [schedulePoll])
 
   useEffect(() => {
-    if (!enabled || !token || typeof window === 'undefined' || typeof window.EventSource !== 'function') {
+    if (!enabled || !token) {
       return undefined
     }
 
-    const url = buildRealtimeEventsUrl(tenant)
-    if (!url) return undefined
-
-    let closed = false
-    const source = new window.EventSource(url, { withCredentials: true })
-
-    const onMetalRatesUpdate = (event) => {
-      if (closed) return
+    return subscribeRealtimeEvents(tenant, 'metal-rates:update', (event) => {
       try {
-        const data = JSON.parse(event.data || '{}')
+        const data = parseRealtimeEventData(event, {})
         const rates = data.rates || data
         applyRates(normalizeInboundRates(rates))
       } catch {
         // Ignore malformed realtime events.
       }
-    }
-
-    source.addEventListener('metal-rates:update', onMetalRatesUpdate)
-
-    return () => {
-      closed = true
-      source.removeEventListener('metal-rates:update', onMetalRatesUpdate)
-      source.close()
-    }
+    })
   }, [applyRates, enabled, tenant, token])
 
   useEffect(() => {
@@ -258,11 +286,14 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
         streamConnectedRef.current = false
         schedulePoll()
       }
-      setStreamWarning({ message: 'market stream offline' })
+      setMetalRatesStoreState({ streamWarning: { message: 'market stream offline' } })
       const hasPrices = lastSnapshotRef.current
         && (lastSnapshotRef.current.gold > 0 || lastSnapshotRef.current.silver > 0 || lastSnapshotRef.current.platinum > 0)
       if (!hasPrices) {
-        setError((prev) => prev || { message: 'market stream offline' })
+        const prev = getMetalRatesStoreState()
+        if (!prev.error) {
+          setMetalRatesStoreState({ error: { message: 'market stream offline' } })
+        }
       }
     }
 
@@ -273,7 +304,15 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     }
   }, [applyRates, enabled, schedulePoll, tenant, token])
 
-  const value = { snapshot, error, streamWarning, reload: load }
+  useEffect(() => () => {
+    resetMetalRatesStoreState()
+    lastSnapshotRef.current = null
+    sourceRef.current = ''
+  }, [])
+
+  const reload = useCallback(() => loadRef.current(), [])
+  const value = useMemo(() => ({ reload }), [reload])
+
   return (
     <LiveMetalRatesContext.Provider value={value}>
       {children}
@@ -286,7 +325,17 @@ export function useLiveMetalRates() {
   if (!ctx) {
     throw new Error('useLiveMetalRates must be used within LiveMetalRatesProvider')
   }
-  return ctx
+  const state = useSyncExternalStore(
+    subscribeMetalRatesStore,
+    getMetalRatesStoreState,
+    getMetalRatesStoreState,
+  )
+  return {
+    snapshot: state.snapshot,
+    error: state.error,
+    streamWarning: state.streamWarning,
+    reload: ctx.reload,
+  }
 }
 
 export default LiveMetalRatesContext

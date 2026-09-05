@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react'
+import { VirtualScrollList } from './VirtualScrollList'
 
 /**
  * AccountCombobox – type-to-filter + grouped dropdown picker.
@@ -12,6 +13,8 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
  *   disabled  : bool
  *   onKeyDown : (event) => void
  */
+const VIRTUALIZE_THRESHOLD = 80
+
 const AccountCombobox = forwardRef(function AccountCombobox({
   groups = [],
   value = '',
@@ -38,7 +41,6 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     contains: (node) => containerRef.current?.contains(node) || false,
   }), [])
 
-  // Keep input text in sync if value changes externally
   useEffect(() => {
     setInputVal(labelFor(value))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,6 +56,19 @@ const AccountCombobox = forwardRef(function AccountCombobox({
         }))
         .filter((g) => g.options.length > 0)
     : groups
+
+  const flatRows = useMemo(() => {
+    const rows = []
+    filteredGroups.forEach((group) => {
+      rows.push({ type: 'group', label: group.label })
+      group.options.forEach((opt) => {
+        rows.push({ type: 'opt', opt })
+      })
+    })
+    return rows
+  }, [filteredGroups])
+
+  const useVirtual = flatRows.length > VIRTUALIZE_THRESHOLD
 
   const handleInput = (e) => {
     const q = e.target.value
@@ -78,11 +93,9 @@ const AccountCombobox = forwardRef(function AccountCombobox({
   }
 
   const handleBlur = () => {
-    // Delay so mousedown on option fires first
     setTimeout(() => {
       if (containerRef.current && !containerRef.current.matches(':focus-within')) {
         setOpen(false)
-        // If typed text doesn't match a known option, try exact match; else restore
         const matched = allOptions.find((o) =>
           o.label.toLowerCase() === inputVal.toLowerCase()
         )
@@ -107,7 +120,6 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     }
   }
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
@@ -131,7 +143,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     borderRadius: '6px',
     boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
     maxHeight: '300px',
-    overflowY: 'auto',
+    overflowY: useVirtual ? 'hidden' : 'auto',
     marginTop: '3px',
   }
 
@@ -157,6 +169,15 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     color: '#1F2937',
   })
 
+  const renderFlatRow = (index) => {
+    const row = flatRows[index]
+    if (!row) return null
+    if (row.type === 'group') {
+      return <div style={groupLabelStyle}>{row.label}</div>
+    }
+    return <HoverOption opt={row.opt} onSelect={handleSelect} optionStyle={optionStyle} />
+  }
+
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <input
@@ -174,16 +195,27 @@ const AccountCombobox = forwardRef(function AccountCombobox({
         autoComplete="off"
       />
       {open && filteredGroups.length > 0 && (
-        <div style={dropdownStyle}>
-          {filteredGroups.map((group) => (
-            <div key={group.label}>
-              <div style={groupLabelStyle}>{group.label}</div>
-              {group.options.map((opt) => (
-                <HoverOption key={opt.value} opt={opt} onSelect={handleSelect} optionStyle={optionStyle} />
-              ))}
-            </div>
-          ))}
-        </div>
+        useVirtual ? (
+          <div style={dropdownStyle}>
+            <VirtualScrollList
+              count={flatRows.length}
+              estimateSize={(i) => (flatRows[i]?.type === 'group' ? 26 : 34)}
+              maxHeight={300}
+              renderRow={renderFlatRow}
+            />
+          </div>
+        ) : (
+          <div style={dropdownStyle}>
+            {filteredGroups.map((group) => (
+              <div key={group.label}>
+                <div style={groupLabelStyle}>{group.label}</div>
+                {group.options.map((opt) => (
+                  <HoverOption key={opt.value} opt={opt} onSelect={handleSelect} optionStyle={optionStyle} />
+                ))}
+              </div>
+            ))}
+          </div>
+        )
       )}
       {open && query.trim() && filteredGroups.length === 0 && (
         <div style={{ ...dropdownStyle, padding: '10px 14px', fontSize: '0.8rem', color: '#9CA3AF' }}>

@@ -160,21 +160,22 @@ async function getAgingMapForAccounts(Ledger, accountIds, asOfDate = new Date())
   }]))
   if (!ids.length) return map
 
-  const entries = await Ledger.find({
+  const entriesByAccount = new Map(ids.map((id) => [String(id), []]))
+  const cursor = Ledger.find({
     isDeleted: { $ne: true },
     $or: [{ debitAccountId: { $in: ids } }, { creditAccountId: { $in: ids } }],
   })
     .select('date debitAccountId creditAccountId amount exchangeRate')
     .sort({ date: 1, _id: 1 })
     .lean()
+    .cursor()
 
-  const entriesByAccount = new Map(ids.map((id) => [String(id), []]))
-  entries.forEach((entry) => {
+  for await (const entry of cursor) {
     const debitKey = String(entry.debitAccountId)
     const creditKey = String(entry.creditAccountId)
     if (entriesByAccount.has(debitKey)) entriesByAccount.get(debitKey).push(entry)
     if (creditKey !== debitKey && entriesByAccount.has(creditKey)) entriesByAccount.get(creditKey).push(entry)
-  })
+  }
 
   entriesByAccount.forEach((accountEntries, accountKey) => {
     map.set(accountKey, computeAgingFromEntries(accountEntries, accountKey, asOfDate))

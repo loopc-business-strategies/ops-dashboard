@@ -70,5 +70,6 @@ const leaveRequestSchema = new mongoose.Schema(
 )
 
 leaveRequestSchema.index({ status: 1, department: 1, createdAt: -1 })
+leaveRequestSchema.index({ employeeName: 1, createdAt: -1 })
 
 module.exports = createTenantModel('LeaveRequest', leaveRequestSchema)

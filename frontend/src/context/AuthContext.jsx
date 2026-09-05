@@ -5,7 +5,7 @@
 //   Any component can call: login(), logout()
 //   This avoids passing user data as props through every component.
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import axios from '../api/client'
 import authAPI from '../api/auth'
@@ -127,7 +127,7 @@ export function AuthProvider({ children }) {
     return undefined
   }, [user?.id])
 
-  const login = async (name, password, selectedCompany) => {
+  const login = useCallback(async (name, password, selectedCompany) => {
     const tenant = resolveTenantFromSearch(
       window.location.search,
       resolveTenantFromHostname(window.location.hostname, selectedCompany || company || resolvedTenant)
@@ -150,9 +150,9 @@ export function AuthProvider({ children }) {
     setToken('cookie-session')
     writeStoredActivityAt(Date.now())
     return data
-  }
+  }, [company, resolvedTenant])
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await teardownWebPush()
     try {
       await authAPI.logout()
@@ -165,15 +165,22 @@ export function AuthProvider({ children }) {
     setSessionPolicy(DEFAULT_SESSION_POLICY)
     delete axios.defaults.headers.common['x-tenant']
     delete axios.defaults.headers.common['x-company']
-  }
+  }, [])
+
+  const value = useMemo(() => ({
+    user,
+    token,
+    company,
+    isLoading,
+    sessionPolicy,
+    isAuthenticated: !!user,
+    setCompany,
+    login,
+    logout,
+  }), [user, token, company, isLoading, sessionPolicy, login, logout])
 
   return (
-    <AuthContext.Provider value={{
-      user, token, company, isLoading, sessionPolicy,
-      isAuthenticated: !!user,
-      setCompany,
-      login, logout,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
       {user && !isLoading && !isAuthExemptRoute ? <WebIdleSessionGuard /> : null}
     </AuthContext.Provider>

@@ -5,6 +5,7 @@ const fs = require('fs')
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
+const compression = require('compression')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const { createSharedRateLimitStore } = require('./utils/sharedRateLimitStore')
 const cookieParser = require('cookie-parser')
@@ -208,6 +209,18 @@ function createApp() {
 
   app.use(helmet())
 
+  // Compress JSON/HTML responses; skip SSE and already-compressed streams
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) return false
+      const accept = String(req.headers.accept || '')
+      if (accept.includes('text/event-stream')) return false
+      const url = String(req.originalUrl || req.url || '')
+      if (url.includes('/realtime/') || url.includes('/market-prices/stream')) return false
+      return compression.filter(req, res)
+    },
+  }))
+
   // Build CORS allowlist from environment.
   // CLIENT_URL  — single origin (legacy, kept for compatibility)
   // CLIENT_URLS — comma-separated list of all allowed origins (preferred)
@@ -329,8 +342,17 @@ function createApp() {
     const frontendIndexPath = path.join(frontendDistPath, 'index.html')
 
     if (fs.existsSync(frontendIndexPath)) {
-      app.use(express.static(frontendDistPath))
+      app.use(express.static(frontendDistPath, {
+        maxAge: '1y',
+        immutable: true,
+        setHeaders: (res, filePath) => {
+          if (String(filePath).endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache')
+          }
+        },
+      }))
       app.get(/.*/, (req, res) => {
+        res.setHeader('Cache-Control', 'no-cache')
         res.sendFile(frontendIndexPath)
       })
     }

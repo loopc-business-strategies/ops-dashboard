@@ -644,7 +644,15 @@ export default function AccountEnquiryModal({
                               const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
                               const balancePureWeight = isMetalRow ? (pureWeightRunningByEntryKey.get(entry._id) ?? null) : null
                               return (
-                                <tr key={entry._id || `${entry.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                                <tr
+                                  key={entry._id || `${entry.date}-${index}`}
+                                  style={{
+                                    background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB',
+                                    borderBottom: '1px solid #E5E7EB',
+                                    contentVisibility: 'auto',
+                                    containIntrinsicSize: 'auto 42px',
+                                  }}
+                                >
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
                                   <td style={{ padding: '0.6rem', color: '#111827', fontFamily: 'monospace', fontSize: '0.8rem' }}>{receiptNo}</td>
                                   {showStatementAuditIds && <td style={{ padding: '0.6rem', color: '#475569', fontFamily: 'monospace', fontSize: '0.78rem' }}>{entry.sourceTransactionId || '-'}</td>}

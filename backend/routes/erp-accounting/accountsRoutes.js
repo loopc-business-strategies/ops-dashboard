@@ -14,11 +14,8 @@ const {
   resolveDirectDealLineMetalCode,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
-const { createReportResponseCache } = require('../../utils/reportResponseCache')
+const { enquiryCache, summaryAccountsCache } = require('../../utils/erpReadCaches')
 const { _getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
-
-const enquiryCache = createReportResponseCache(180000)
-const summaryAccountsCache = createReportResponseCache(120000)
 const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
 
 function parseEnquiryStartDate(value) {

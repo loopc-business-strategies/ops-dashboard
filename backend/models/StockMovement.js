@@ -48,4 +48,7 @@ const stockMovementSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+stockMovementSchema.index({ itemId: 1, createdAt: -1 })
+stockMovementSchema.index({ isDeleted: 1, itemId: 1, createdAt: -1 })
+
 module.exports = createTenantModel('StockMovement', stockMovementSchema)

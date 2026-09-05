@@ -1,49 +1,57 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { toMoney } from '../../../utils/money'
+import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 
 /** Paginate vendors until all rows are merged (used by transactions + vendor tab). */
 export async function fetchAllVendorsAggregated(token, baseFilters = {}) {
-  const pageSize = 100
-  let page = 1
-  let total = Number.POSITIVE_INFINITY
-  let merged = []
-  let permissions = { canManage: false, canUpdateOperational: false }
-  while (merged.length < total) {
-    const data = await erpAccountingAPI.getVendors(token, { ...baseFilters, page, limit: pageSize })
-    const rows = data.vendors || []
-    merged = merged.concat(rows)
-    total = Number(data.total || merged.length)
-    permissions = data.permissions || permissions
-    if (!rows.length) break
-    page += 1
-  }
-  const uniqueById = new Map()
-  merged.forEach((item) => {
-    if (item?._id) uniqueById.set(item._id, item)
-  })
-  const vendors = Array.from(uniqueById.values())
-  const summaryTotals = vendors.reduce((acc, row) => {
-    acc.count += 1
-    acc.outstanding += Number(row.outstanding || 0)
-    acc.overLimit += row.isOverLimit ? 1 : 0
-    acc.blacklisted += row.status === 'blacklisted' ? 1 : 0
-    acc.onHold += row.status === 'on_hold' ? 1 : 0
-    acc.nonCompliant += row.compliance?.compliant ? 0 : 1
-    return acc
-  }, { count: 0, outstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
-  return {
-    vendors,
-    permissions,
-    summary: {
-      totalVendors: summaryTotals.count,
-      totalOutstanding: toMoney(summaryTotals.outstanding),
-      overLimit: summaryTotals.overLimit,
-      blacklisted: summaryTotals.blacklisted,
-      onHold: summaryTotals.onHold,
-      nonCompliant: summaryTotals.nonCompliant,
+  return fetchCatalogCached(
+    CATALOG_KINDS.vendors,
+    token,
+    { ...baseFilters, all: true },
+    async () => {
+      const pageSize = 100
+      let page = 1
+      let total = Number.POSITIVE_INFINITY
+      let merged = []
+      let permissions = { canManage: false, canUpdateOperational: false }
+      while (merged.length < total) {
+        const data = await erpAccountingAPI.getVendors(token, { ...baseFilters, page, limit: pageSize })
+        const rows = data.vendors || []
+        merged = merged.concat(rows)
+        total = Number(data.total || merged.length)
+        permissions = data.permissions || permissions
+        if (!rows.length) break
+        page += 1
+      }
+      const uniqueById = new Map()
+      merged.forEach((item) => {
+        if (item?._id) uniqueById.set(item._id, item)
+      })
+      const vendors = Array.from(uniqueById.values())
+      const summaryTotals = vendors.reduce((acc, row) => {
+        acc.count += 1
+        acc.outstanding += Number(row.outstanding || 0)
+        acc.overLimit += row.isOverLimit ? 1 : 0
+        acc.blacklisted += row.status === 'blacklisted' ? 1 : 0
+        acc.onHold += row.status === 'on_hold' ? 1 : 0
+        acc.nonCompliant += row.compliance?.compliant ? 0 : 1
+        return acc
+      }, { count: 0, outstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
+      return {
+        vendors,
+        permissions,
+        summary: {
+          totalVendors: summaryTotals.count,
+          totalOutstanding: toMoney(summaryTotals.outstanding),
+          overLimit: summaryTotals.overLimit,
+          blacklisted: summaryTotals.blacklisted,
+          onHold: summaryTotals.onHold,
+          nonCompliant: summaryTotals.nonCompliant,
+        },
+      }
     },
-  }
+  )
 }
 
 export function useErpVendors({

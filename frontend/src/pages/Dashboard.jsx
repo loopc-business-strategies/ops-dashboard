@@ -19,6 +19,11 @@ import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
+import {
+  applyPresenceUpdate,
+  clearOnlineUserIds,
+  setOnlineUserIds,
+} from '../utils/presenceStore'
 import { resolveChatTargetIdFromSocketPayload } from '../utils/notificationChatTarget'
 
 // Import tab content components
@@ -35,6 +40,32 @@ const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
 const ERPTab = lazy(() => import('../components/tabs/ERPTab'))
 const ComplianceTab = lazy(() => import('../components/tabs/ComplianceTab'))
 const ProcurementPlusTab = lazy(() => import('../components/tabs/ProcurementPlusTab'))
+
+const TAB_CHUNK_PREFETCHERS = {
+  overview: () => import('../components/tabs/OverviewTab'),
+  admin: () => import('../components/tabs/AdminTab'),
+  hr: () => import('../components/tabs/HRTab'),
+  finance: () => import('../components/tabs/FinanceTab'),
+  production: () => import('../components/tabs/ProductionTab'),
+  chat: () => import('../components/tabs/ChatTab'),
+  'master-settings': () => import('../components/tabs/MasterSettingsTab'),
+  training: () => import('../components/tabs/TrainingTab'),
+  operations: () => import('../components/tabs/OperationsTab'),
+  sales: () => import('../components/tabs/SalesTab'),
+  erp: () => import('../components/tabs/ERPTab'),
+  compliance: () => import('../components/tabs/ComplianceTab'),
+  'procurement-plus': () => import('../components/tabs/ProcurementPlusTab'),
+}
+
+const prefetchedTabs = new Set()
+function prefetchTabChunk(tabId) {
+  const key = tabId === 'erp' || String(tabId || '').startsWith('erp-') ? 'erp' : tabId
+  if (!key || prefetchedTabs.has(key)) return
+  const loader = TAB_CHUNK_PREFETCHERS[key]
+  if (!loader) return
+  prefetchedTabs.add(key)
+  void loader()
+}
 
 class TabErrorBoundary extends Component {
   constructor(props) {
@@ -205,9 +236,14 @@ function NavItem({
   badge,
   openInNewTab = true,
   onSameTabNavigate,
+  onPrefetch,
 }) {
   const className = `sidebar-item w-full justify-center text-center${active ? ' active' : ''}`
   const style = { textDecoration: 'none', display: 'flex', alignItems: 'center' }
+  const prefetchHandlers = {
+    onMouseEnter: () => onPrefetch?.(),
+    onFocus: () => onPrefetch?.(),
+  }
 
   if (openInNewTab) {
     return (
@@ -218,6 +254,7 @@ function NavItem({
         onClick={() => onAfterClick?.()}
         className={className}
         style={style}
+        {...prefetchHandlers}
       >
         <span className="truncate">{label}</span>
         {badge && (
@@ -240,6 +277,7 @@ function NavItem({
       }}
       className={className}
       style={style}
+      {...prefetchHandlers}
     >
       <span className="truncate">{label}</span>
       {badge && (
@@ -319,7 +357,6 @@ function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab,
           openChatId={chatTabProps.openChatId}
           onOpenChatIdConsumed={chatTabProps.onOpenChatIdConsumed}
           focusComposerNonce={chatTabProps.focusComposerNonce || 0}
-          onlineUserIds={chatTabProps.onlineUserIds || []}
         />
       )
 
@@ -409,7 +446,6 @@ function Dashboard() {
   const [notifOpen, setNotifOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
-  const [onlineUserIds, setOnlineUserIds] = useState([])
   const [pendingChatOpenId, setPendingChatOpenId] = useState(null)
   /** Bumped when opening Chat from the bell so the message composer receives focus. */
   const [chatComposerFocusNonce, setChatComposerFocusNonce] = useState(0)
@@ -543,9 +579,8 @@ function Dashboard() {
       openChatId: pendingChatOpenId,
       onOpenChatIdConsumed: consumeOpenChatId,
       focusComposerNonce: chatComposerFocusNonce,
-      onlineUserIds,
     }),
-    [pendingChatOpenId, consumeOpenChatId, chatComposerFocusNonce, onlineUserIds],
+    [pendingChatOpenId, consumeOpenChatId, chatComposerFocusNonce],
   )
   const erpTabRealtimeProps = useMemo(
     () => ({
@@ -703,7 +738,7 @@ function Dashboard() {
     if (!user) return undefined
     const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
 
-    return startUserNotifications({
+    const stop = startUserNotifications({
       token,
       tenant,
       onNotification: (payload) => {
@@ -728,19 +763,16 @@ function Dashboard() {
         ])
       },
       onPresenceSnapshot: (ids) => {
-        setOnlineUserIds(Array.isArray(ids) ? ids.map(String) : [])
+        setOnlineUserIds(ids)
       },
       onPresenceUpdate: ({ userId, online }) => {
-        const normalizedId = String(userId || '')
-        if (!normalizedId) return
-        setOnlineUserIds((prev) => {
-          const next = new Set(prev.map(String))
-          if (online) next.add(normalizedId)
-          else next.delete(normalizedId)
-          return Array.from(next)
-        })
+        applyPresenceUpdate({ userId, online })
       },
     })
+    return () => {
+      stop?.()
+      clearOnlineUserIds()
+    }
   }, [token, user])
 
   useEffect(() => {
@@ -769,6 +801,23 @@ function Dashboard() {
       },
     })
   }, [token, user, t])
+
+  // Idle-time prefetch of likely next tabs (does not block first paint)
+  useEffect(() => {
+    if (!token) return undefined
+    const likely = activeTab === 'overview'
+      ? ['erp', 'chat', 'hr']
+      : activeTab === 'erp'
+        ? ['chat', 'overview']
+        : ['overview', 'erp']
+    const run = () => likely.forEach((id) => prefetchTabChunk(id))
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(run, { timeout: 2500 })
+      return () => window.cancelIdleCallback?.(idleId)
+    }
+    const timer = window.setTimeout(run, 1500)
+    return () => window.clearTimeout(timer)
+  }, [token, activeTab])
 
   // Sync active tab from URL (back/forward, deep links)
   useEffect(() => {
@@ -932,7 +981,8 @@ function Dashboard() {
             <NavItem key={item.id} {...item}
               href={buildNavHref(item)}
               active={activeTab === item.id}
-              onAfterClick={sidebarLinkAfterClick} />
+              onAfterClick={sidebarLinkAfterClick}
+              onPrefetch={() => prefetchTabChunk(item.id)} />
           ))}
 
           {/* Divider before Admin */}
@@ -950,7 +1000,8 @@ function Dashboard() {
                 <NavItem key={item.id} {...item}
                   href={buildNavHref(item)}
                   active={activeTab === item.id}
-                  onAfterClick={sidebarLinkAfterClick} />
+                  onAfterClick={sidebarLinkAfterClick}
+                  onPrefetch={() => prefetchTabChunk(item.id)} />
               ))}
             </>
           )}
@@ -970,7 +1021,8 @@ function Dashboard() {
                 <NavItem key={item.id} {...item}
                   href={buildNavHref(item)}
                   active={activeTab === item.id}
-                  onAfterClick={sidebarLinkAfterClick} />
+                  onAfterClick={sidebarLinkAfterClick}
+                  onPrefetch={() => prefetchTabChunk(item.id)} />
               ))}
             </>
           )}
@@ -992,7 +1044,8 @@ function Dashboard() {
                   active={activeTab === 'erp' && erpSubTab === item.erpSub}
                   openInNewTab={false}
                   onSameTabNavigate={() => navigateToTab('erp', { erpSub: item.erpSub, sub: null })}
-                  onAfterClick={sidebarLinkAfterClick} />
+                  onAfterClick={sidebarLinkAfterClick}
+                  onPrefetch={() => prefetchTabChunk('erp')} />
               ))}
             </>
           )}

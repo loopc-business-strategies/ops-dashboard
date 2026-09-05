@@ -60,7 +60,7 @@ router.get('/', protect, async (req, res) => {
 
     const activeFilter = { $and: [filter, { isDeleted: { $ne: true } }] }
     const [employees, total] = await Promise.all([
-      TenantEmployee.find(activeFilter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      TenantEmployee.find(activeFilter).select('-__v').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       TenantEmployee.countDocuments(activeFilter),
     ])
     res.json({ success: true, count: employees.length, total, page, limit, employees })

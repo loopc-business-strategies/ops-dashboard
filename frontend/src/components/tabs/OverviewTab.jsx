@@ -9,7 +9,7 @@ import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
 import { ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
-import { buildRealtimeEventsUrl } from '../../utils/realtimeSocket'
+import { subscribeRealtimeEvents } from '../../utils/realtimeEventsBus'
 
 const overviewConfig = {
   super_admin: 'executive_dashboard',
@@ -471,9 +471,29 @@ function OverviewTab({ onNavigate, buildTabHref }) {
   }, [token, loadTasks])
 
   useEffect(() => {
+    if (!token) return
     loadAssigneesAndEmployees()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, tasks.length])
+  }, [token, user?.role])
+
+  // Merge task assignee names once tasks arrive (without re-fetching users/employees)
+  useEffect(() => {
+    if (!tasks.length) return
+    setAssignees((prev) => {
+      const taskNames = Array.from(new Set(tasks.map((t) => t.assignedTo).filter(Boolean)))
+        .map((name) => ({ id: name, name, department: '' }))
+      const merged = [...prev, ...taskNames]
+      const uniqueByName = []
+      const seen = new Set()
+      merged.forEach((p) => {
+        const key = (p.name || '').toLowerCase().trim()
+        if (!key || seen.has(key)) return
+        seen.add(key)
+        uniqueByName.push(p)
+      })
+      return uniqueByName
+    })
+  }, [tasks])
 
   const loadAttendanceAndMessages = async () => {
     try {
@@ -527,27 +547,17 @@ function OverviewTab({ onNavigate, buildTabHref }) {
   useEffect(() => {
     if (!token) return undefined
 
-    const realtimeUrl = buildRealtimeEventsUrl(user?.company || user?.tenant?.key || user?.tenant?.name)
-    if (!realtimeUrl) return undefined
-    const source = new EventSource(realtimeUrl, { withCredentials: true })
+    const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
     const onTaskEvent = () => { loadTasks() }
     const onMessageEvent = () => { loadAttendanceAndMessages() }
 
-    source.addEventListener('task.created', onTaskEvent)
-    source.addEventListener('task.updated', onTaskEvent)
-    source.addEventListener('task.deleted', onTaskEvent)
-    source.addEventListener('task.commented', onTaskEvent)
-    source.addEventListener('task.reminder_due', onTaskEvent)
-    source.addEventListener('message.created', onMessageEvent)
+    const unsubs = [
+      subscribeRealtimeEvents(tenant, ['task.created', 'task.updated', 'task.deleted', 'task.commented', 'task.reminder_due'], onTaskEvent),
+      subscribeRealtimeEvents(tenant, 'message.created', onMessageEvent),
+    ]
 
     return () => {
-      source.removeEventListener('task.created', onTaskEvent)
-      source.removeEventListener('task.updated', onTaskEvent)
-      source.removeEventListener('task.deleted', onTaskEvent)
-      source.removeEventListener('task.commented', onTaskEvent)
-      source.removeEventListener('task.reminder_due', onTaskEvent)
-      source.removeEventListener('message.created', onMessageEvent)
-      source.close()
+      unsubs.forEach((unsub) => unsub())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, user?.company, user?.tenant])

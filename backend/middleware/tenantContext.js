@@ -41,6 +41,9 @@ async function bindTenantContext(req, res, next) {
       return res.status(401).json({ success: false, message: 'Session tenant does not match this company portal.' })
     }
 
+    req.authJwt = decoded
+    req.tenant = tenant
+
     const connection = await connectTenant(tenant)
     registerAllOnConnection(connection)
 

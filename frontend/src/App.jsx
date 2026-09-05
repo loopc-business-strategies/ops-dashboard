@@ -7,12 +7,14 @@
 //   /        → Redirects to /dashboard
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { LanguageProvider } from './context/LanguageContext'
 import ProtectedRoute  from './components/ProtectedRoute'
 import Login           from './pages/Login'
 import Setup           from './pages/Setup'
-import Dashboard       from './pages/Dashboard'
+
+const Dashboard = lazy(() => import('./pages/Dashboard'))
 
 function App() {
   return (
@@ -27,7 +29,9 @@ function App() {
           {/* Protected — requires login */}
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <Dashboard />
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-gray-500">Loading…</div>}>
+                <Dashboard />
+              </Suspense>
             </ProtectedRoute>
           } />
 

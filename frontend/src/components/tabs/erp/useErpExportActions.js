@@ -176,6 +176,9 @@ export function useErpExportActions({
       setError(getReportNotReadyMessage(reportView, 'exporting'))
       return
     }
+    if (reportView === 'dayBook' && reports.dayBook?.truncated) {
+      showNotification('⚠️ Day book export includes truncated rows only; totals on screen are full-set. Narrow the period or raise limit.')
+    }
     downloadCsv(payload.rows, `${payload.fileBase}.csv`)
     showNotification(`✅ ${payload.successLabel} CSV exported`)
   }, [reportView, reports, branding, defaultBranding, ledgerReportRows, setError, showNotification])
@@ -191,6 +194,9 @@ export function useErpExportActions({
     if (!payload) {
       setError(getReportNotReadyMessage(reportView, 'exporting'))
       return
+    }
+    if (reportView === 'dayBook' && reports.dayBook?.truncated) {
+      showNotification('⚠️ Day book export includes truncated rows only; totals on screen are full-set. Narrow the period or raise limit.')
     }
     await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
     showNotification(`✅ ${payload.successLabel} XLSX exported`)

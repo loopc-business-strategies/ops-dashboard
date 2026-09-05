@@ -9,10 +9,9 @@ const metalSpotCache = {
 
 const DASHBOARD_CACHE_TTL_MS = 120000
 
-const { createReportResponseCache } = require('../../utils/reportResponseCache')
+const { reportCache } = require('../../utils/erpReadCaches')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const { createSharedRateLimitStore } = require('../../utils/sharedRateLimitStore')
-const reportCache = createReportResponseCache(60000)
 
 const {
   getOutstandingMapForAccounts,
@@ -84,9 +83,14 @@ function registerReportRoutes(deps) {
     buildDocumentExpiryBuckets,
     evaluateVendorCompliance,
     canAccessReports,
+    canAccessFixingRegister,
     canReadErpDashboardReport,
     BASE_CURRENCY_CODE,
   } = deps
+
+  const {
+    loadFixingRegisterReport,
+  } = require('../../services/erpAccounting/fixingRegisterReport')
 
   const {
     isUnfixedFixingType,
@@ -145,16 +149,15 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
     ])
     const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
-    const query = { isDeleted: { $ne: true } }
+
     const dateQuery = buildDateQuery(startDate, endDate)
-    if (dateQuery) query.date = dateQuery
-
-    const accountDocs = await ChartOfAccount.find({ isActive: true }).select('accountCode accountName accountType openingBalance')
-    const accountById = new Map(accountDocs.map((acc) => [String(acc._id), acc]))
-
-    const entries = await Ledger.find(query)
-      .select('debitAccountId creditAccountId amount exchangeRate')
+    const accountDocs = await ChartOfAccount.find({ isActive: true })
+      .select('accountCode accountName accountType openingBalance')
       .lean()
+    const accountById = new Map(accountDocs.map((acc) => [String(acc._id), acc]))
+    const accountObjectIds = accountDocs.map((acc) => acc._id)
+
+    const { aggregateLedgerAccountTotals } = require('../../utils/ledgerAccountTotalsAgg')
 
     const accountTotals = new Map()
 
@@ -169,48 +172,48 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
     })
 
     // When a start date is provided, include brought-forward movement prior to the period.
+    // BF applies each side independently (same as legacy JS reduce).
     if (startDate) {
-      const broughtForwardEntries = await Ledger.find({
-        isDeleted: { $ne: true },
+      const { debitMap: bfDebit, creditMap: bfCredit } = await aggregateLedgerAccountTotals(Ledger, {
         date: { $lt: new Date(startDate) },
-      }).select('debitAccountId creditAccountId amount exchangeRate')
-
-      broughtForwardEntries.forEach((entry) => {
-        const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-        const debitKey = String(entry.debitAccountId || '')
-        const creditKey = String(entry.creditAccountId || '')
-
-        if (debitKey && accountById.has(debitKey)) {
-          if (!accountTotals.has(debitKey)) {
-            accountTotals.set(debitKey, { account: accountById.get(debitKey), debit: 0, credit: 0, openingNet: 0 })
-          }
-          accountTotals.get(debitKey).openingNet += amount
+        $or: [
+          { debitAccountId: { $in: accountObjectIds } },
+          { creditAccountId: { $in: accountObjectIds } },
+        ],
+      })
+      bfDebit.forEach((amount, debitKey) => {
+        if (!accountById.has(debitKey)) return
+        if (!accountTotals.has(debitKey)) {
+          accountTotals.set(debitKey, { account: accountById.get(debitKey), debit: 0, credit: 0, openingNet: 0 })
         }
-
-        if (creditKey && accountById.has(creditKey)) {
-          if (!accountTotals.has(creditKey)) {
-            accountTotals.set(creditKey, { account: accountById.get(creditKey), debit: 0, credit: 0, openingNet: 0 })
-          }
-          accountTotals.get(creditKey).openingNet -= amount
+        accountTotals.get(debitKey).openingNet += amount
+      })
+      bfCredit.forEach((amount, creditKey) => {
+        if (!accountById.has(creditKey)) return
+        if (!accountTotals.has(creditKey)) {
+          accountTotals.set(creditKey, { account: accountById.get(creditKey), debit: 0, credit: 0, openingNet: 0 })
         }
+        accountTotals.get(creditKey).openingNet -= amount
       })
     }
-    entries.forEach((entry) => {
-      const debitKey = String(entry.debitAccountId || '')
-      const creditKey = String(entry.creditAccountId || '')
-      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-      const debitAccount = accountById.get(debitKey)
-      const creditAccount = accountById.get(creditKey)
-      if (!debitAccount || !creditAccount) return
 
+    // Period movement: only entries where BOTH sides are active CoA accounts (legacy semantics).
+    const periodMatch = {
+      ...(dateQuery ? { date: dateQuery } : {}),
+      debitAccountId: { $in: accountObjectIds },
+      creditAccountId: { $in: accountObjectIds },
+    }
+    const { debitMap, creditMap } = await aggregateLedgerAccountTotals(Ledger, periodMatch)
+    debitMap.forEach((amount, debitKey) => {
       if (!accountTotals.has(debitKey)) {
-        accountTotals.set(debitKey, { account: debitAccount, debit: 0, credit: 0, openingNet: 0 })
+        accountTotals.set(debitKey, { account: accountById.get(debitKey), debit: 0, credit: 0, openingNet: 0 })
       }
-      if (!accountTotals.has(creditKey)) {
-        accountTotals.set(creditKey, { account: creditAccount, debit: 0, credit: 0, openingNet: 0 })
-      }
-
       accountTotals.get(debitKey).debit += amount
+    })
+    creditMap.forEach((amount, creditKey) => {
+      if (!accountTotals.has(creditKey)) {
+        accountTotals.set(creditKey, { account: accountById.get(creditKey), debit: 0, credit: 0, openingNet: 0 })
+      }
       accountTotals.get(creditKey).credit += amount
     })
 
@@ -497,6 +500,11 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate, referenceType, minAmount = '0' } = req.query
+    const parsedLimit = Number(req.query.limit)
+    const limit = Math.min(
+      5000,
+      Math.max(1, Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.floor(parsedLimit) : 2000),
+    )
     const cacheKey = reportCache.buildKey([
       reportTenantKey(req),
       'day-book',
@@ -504,6 +512,7 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       endDate,
       referenceType,
       minAmount,
+      limit,
     ])
     const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
@@ -519,33 +528,50 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
     if (referenceType) query.referenceType = referenceType
     if (Number(minAmount || 0) > 0) query.amount = { $gte: Number(minAmount) }
 
-    const [accountDocs, rawEntries] = await Promise.all([
+    const amountExpr = { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] }
+
+    const [accountDocs, rawEntries, totalsAgg, summaryAgg] = await Promise.all([
       ChartOfAccount.find({ isActive: true }).select('_id accountCode accountName').lean(),
       Ledger.find(query)
         .select('date referenceType amount exchangeRate debitAccountId creditAccountId description createdAt')
         .sort({ date: 1, createdAt: 1 })
+        .limit(limit + 1)
         .lean(),
+      Ledger.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            debit: { $sum: amountExpr },
+            credit: { $sum: amountExpr },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Ledger.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: { $ifNull: ['$referenceType', 'journal'] },
+            count: { $sum: 1 },
+            amount: { $sum: amountExpr },
+          },
+        },
+      ]),
     ])
+    const hasMore = rawEntries.length > limit
+    const cappedRaw = hasMore ? rawEntries.slice(0, limit) : rawEntries
     const accountById = new Map(accountDocs.map((acc) => [String(acc._id), acc]))
-    const entries = rawEntries.map((entry) => ({
+    const entries = cappedRaw.map((entry) => ({
       ...entry,
       debitAccountId: accountById.get(String(entry.debitAccountId)) || entry.debitAccountId,
       creditAccountId: accountById.get(String(entry.creditAccountId)) || entry.creditAccountId,
     }))
 
-    const totals = entries.reduce((acc, entry) => {
-      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-      acc.debit += amount
-      acc.credit += amount
-      acc.count += 1
-      return acc
-    }, { debit: 0, credit: 0, count: 0 })
-
-    const summaryByType = entries.reduce((acc, entry) => {
-      const key = entry.referenceType || 'journal'
-      if (!acc[key]) acc[key] = { count: 0, amount: 0 }
-      acc[key].count += 1
-      acc[key].amount += Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+    const totalsRow = totalsAgg[0] || { debit: 0, credit: 0, count: 0 }
+    const summaryByType = summaryAgg.reduce((acc, row) => {
+      const key = row._id || 'journal'
+      acc[key] = { count: row.count || 0, amount: row.amount || 0 }
       return acc
     }, {})
 
@@ -553,14 +579,77 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       success: true,
       period: { startDate: startDate || null, endDate: endDate || null },
       entries,
+      limit,
+      hasMore,
+      truncated: hasMore,
       totals: {
-        debit: toMoney(totals.debit),
-        credit: toMoney(totals.credit),
-        count: totals.count,
+        debit: toMoney(totalsRow.debit),
+        credit: toMoney(totalsRow.credit),
+        count: totalsRow.count || 0,
       },
       summaryByType,
       generatedAt: new Date(),
     }
+    await reportCache.setShared(cacheKey, payload)
+    res.json(payload)
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
+  }
+})
+
+router.get('/reports/fixing-register', protect, reportExportLimiter, async (req, res) => {
+  try {
+    if (!canAccessFixingRegister(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+    const {
+      fromDate,
+      toDate,
+      startDate,
+      endDate,
+      metalType,
+      status,
+      partyFilter,
+      partySearch,
+      groupBy,
+      orderBy,
+      excludeFutures,
+      excludeOpeningBalance,
+    } = req.query
+    const cacheKey = reportCache.buildKey([
+      reportTenantKey(req),
+      'fixing-register',
+      fromDate || startDate,
+      toDate || endDate,
+      metalType,
+      status,
+      partyFilter,
+      partySearch,
+      groupBy,
+      orderBy,
+      excludeFutures,
+      excludeOpeningBalance,
+    ])
+    const cached = await reportCache.getShared(cacheKey)
+    if (cached) return res.json(cached)
+
+    const payload = await loadFixingRegisterReport(
+      { Transaction, DirectDeal, buildDateQuery },
+      {
+        fromDate,
+        toDate,
+        startDate,
+        endDate,
+        metalType,
+        status,
+        partyFilter,
+        partySearch,
+        groupBy,
+        orderBy,
+        excludeFutures,
+        excludeOpeningBalance,
+      },
+    )
     await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch (err) {
@@ -1322,6 +1411,10 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
             type: { $in: ['sale', 'purchase'] },
             status: 'posted',
             isDeleted: { $ne: true },
+            $or: [
+              { metalFixStatus: { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
+              { 'voucherMeta.fixingType': { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
+            ],
           }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
         : Promise.resolve([]),
       vendorIdsForMargin.length && Transaction
@@ -1330,6 +1423,10 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
             type: { $in: ['sale', 'purchase'] },
             status: 'posted',
             isDeleted: { $ne: true },
+            $or: [
+              { metalFixStatus: { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
+              { 'voucherMeta.fixingType': { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
+            ],
           }).select('vendorId type amount exchangeRate metalFixStatus voucherMeta.grandTotal voucherMeta.fixingType voucherMeta.lineItems').lean()
         : Promise.resolve([]),
       customerIdsForMargin.length && DirectDeal

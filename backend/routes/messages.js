@@ -448,7 +448,11 @@ router.get('/latest', protect, validateQuery(latestQuerySchema), async (req, res
       query.type = String(type)
     }
 
-    const messages = await Message.find(query).sort({ createdAt: -1 }).limit(limit)
+    const messages = await Message.find(query)
+      .select('type room senderName senderId text recipientIds groupId createdAt attachments')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean()
 
     res.json({ success: true, count: messages.length, messages })
   } catch {

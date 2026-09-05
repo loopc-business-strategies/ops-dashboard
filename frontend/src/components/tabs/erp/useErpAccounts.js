@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../../utils/erpSummaryAccountsCache'
+import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { filterActiveAccounts } from './accountDropdownHelpers'
 
 export function useErpAccounts({
@@ -50,7 +51,12 @@ export function useErpAccounts({
     }
     try {
       if (isSummaryScope) {
-        const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 })
+        const data = await fetchCatalogCached(
+          CATALOG_KINDS.accounts,
+          token,
+          { ...params, page: 1, limit: 5000 },
+          () => erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 }),
+        )
         const rows = filterActiveAccounts(data.accounts || [])
         const uniqueById = new Map()
         rows.forEach((item) => {

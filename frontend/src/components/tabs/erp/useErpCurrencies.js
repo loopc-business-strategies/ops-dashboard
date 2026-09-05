@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 
 export function useErpCurrencies({
   token,
@@ -12,7 +13,8 @@ export function useErpCurrencies({
     if (!canLoadReferenceData) return
     setLoading(true)
     try {
-      const data = await erpAccountingAPI.getCurrencies(token)
+      const data = await fetchCatalogCached(CATALOG_KINDS.currencies, token, {}, () =>
+        erpAccountingAPI.getCurrencies(token))
       setCurrencies(data.currencies || [])
       setError('')
     } catch (e) {

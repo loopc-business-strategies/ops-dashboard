@@ -287,9 +287,27 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     summarizeProfitLossEntriesFromLedgerRows(entries, pnlAccounts, includeZero, toMoney)
 
   const fetchProfitLossEntries = async (startDate, endDate) => {
+    const pnlAccounts = await getPnlAccountSets()
+    const pnlIds = [...pnlAccounts.incomeIds, ...pnlAccounts.expenseIds]
+      .filter(Boolean)
+      .map((id) => {
+        try {
+          return new (require('mongoose').Types.ObjectId)(id)
+        } catch {
+          return null
+        }
+      })
+      .filter(Boolean)
+
     const query = { isDeleted: { $ne: true } }
     const dateQuery = buildDateQuery(startDate, endDate)
     if (dateQuery) query.date = dateQuery
+    if (pnlIds.length) {
+      query.$or = [
+        { debitAccountId: { $in: pnlIds } },
+        { creditAccountId: { $in: pnlIds } },
+      ]
+    }
     return Ledger.find(query)
       .select('date debitAccountId creditAccountId amount exchangeRate')
       .lean()

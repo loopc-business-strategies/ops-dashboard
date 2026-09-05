@@ -5,7 +5,14 @@ const { taskMessageRecipients, createTaskMessage } = require('../utils/taskDm')
 const { emitTaskWebhook } = require('../utils/taskWebhooks')
 const { forEachConfiguredTenantTaskDb } = require('./tenantTaskSweep')
 
-const INTERVAL_MS = 60_000
+const DEFAULT_INTERVAL_MS = 300_000
+const MIN_INTERVAL_MS = 60_000
+
+function resolveReminderIntervalMs() {
+  const raw = Number(process.env.TASK_REMINDER_INTERVAL_MS)
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_INTERVAL_MS
+  return Math.max(MIN_INTERVAL_MS, raw)
+}
 
 async function resolveReminderSender(task) {
   if (task.createdById) {
@@ -81,8 +88,16 @@ async function sweepDueReminders() {
 
 function startTaskReminderJob() {
   if (String(process.env.TASK_REMINDER_JOB || 'true').toLowerCase() === 'false') return () => {}
-  const id = setInterval(sweepDueReminders, INTERVAL_MS)
+  const intervalMs = resolveReminderIntervalMs()
+  void sweepDueReminders()
+  const id = setInterval(sweepDueReminders, intervalMs)
   return () => clearInterval(id)
 }
 
-module.exports = { startTaskReminderJob, sweepDueReminders }
+module.exports = {
+  startTaskReminderJob,
+  sweepDueReminders,
+  resolveReminderIntervalMs,
+  DEFAULT_INTERVAL_MS,
+  MIN_INTERVAL_MS,
+}

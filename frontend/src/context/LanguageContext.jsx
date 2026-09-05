@@ -1,14 +1,36 @@
 ﻿// FILE: src/context/LanguageContext.jsx
 // Provides language switching (English, Arabic, Uzbek, Russian) across the whole app.
 // Arabic uses RTL layout; others are LTR.
+// English is eager; other locales are lazy-loaded.
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import en from '../locales/en.json'
-import ar from '../locales/ar.json'
-import uz from '../locales/uz.json'
-import ru from '../locales/ru.json'
 
-const translations = { en, ar, uz, ru }
+const localeLoaders = {
+  ar: () => import('../locales/ar.json'),
+  uz: () => import('../locales/uz.json'),
+  ru: () => import('../locales/ru.json'),
+}
+
+const translationsCache = { en }
+
+async function ensureLocaleLoaded(code) {
+  if (code === 'en' || translationsCache[code]) return translationsCache[code] || en
+  const loader = localeLoaders[code]
+  if (!loader) return en
+  const mod = await loader()
+  const dict = mod?.default || mod
+  translationsCache[code] = dict
+  return dict
+}
+
+function readStoredLang() {
+  try {
+    return localStorage.getItem('app_language') || 'en'
+  } catch {
+    return 'en'
+  }
+}
 
 // ── Language metadata ─────────────────────────────────────────────────────────
 export const LANGUAGES = [
@@ -22,31 +44,57 @@ export const LANGUAGES = [
 const LanguageContext = createContext(null)
 
 export function LanguageProvider({ children }) {
-  const [langCode, setLangCode] = useState(() => {
-    return localStorage.getItem('app_language') || 'en'
-  })
+  const initialCode = readStoredLang()
+  const [langCode, setLangCode] = useState(initialCode)
+  const [localeReady, setLocaleReady] = useState(initialCode === 'en' || Boolean(translationsCache[initialCode]))
 
-  const langMeta = LANGUAGES.find(l => l.code === langCode) || LANGUAGES[0]
-  const isRTL    = langMeta.dir === 'rtl'
+  const langMeta = LANGUAGES.find((l) => l.code === langCode) || LANGUAGES[0]
+  const isRTL = langMeta.dir === 'rtl'
 
   useEffect(() => {
-    document.documentElement.dir  = langMeta.dir
+    let cancelled = false
+    if (langCode === 'en') {
+      setLocaleReady(true)
+      return undefined
+    }
+    setLocaleReady(Boolean(translationsCache[langCode]))
+    ensureLocaleLoaded(langCode).then(() => {
+      if (!cancelled) setLocaleReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [langCode])
+
+  useEffect(() => {
+    document.documentElement.dir = langMeta.dir
     document.documentElement.lang = langCode
-    document.body.dir             = langMeta.dir
+    document.body.dir = langMeta.dir
   }, [langCode, langMeta.dir])
 
-  const switchLanguage = (code) => {
+  const switchLanguage = useCallback(async (code) => {
     localStorage.setItem('app_language', code)
+    if (code !== 'en') await ensureLocaleLoaded(code)
     setLangCode(code)
-  }
+  }, [])
 
-  const t = (key) => {
-    const dict = translations[langCode] || translations.en
-    return dict[key] ?? translations.en[key] ?? key
+  const t = useCallback((key) => {
+    const dict = translationsCache[langCode] || translationsCache.en
+    return dict[key] ?? translationsCache.en[key] ?? key
+  }, [langCode, localeReady])
+
+  const value = useMemo(
+    () => ({ langCode, langMeta, isRTL, switchLanguage, t, LANGUAGES, localeReady }),
+    [langCode, langMeta, isRTL, switchLanguage, t, localeReady],
+  )
+
+  // Gate first paint for stored non-en locale to avoid English flash
+  if (!localeReady && langCode !== 'en') {
+    return null
   }
 
   return (
-    <LanguageContext.Provider value={{ langCode, langMeta, isRTL, switchLanguage, t, LANGUAGES }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   )

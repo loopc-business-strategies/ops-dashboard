@@ -59,6 +59,8 @@ const employeeSchema = new mongoose.Schema(
   }
 )
 
+employeeSchema.index({ department: 1 })
+
 const EmployeeModel = createTenantModel('Employee', employeeSchema)
 
 module.exports = EmployeeModel

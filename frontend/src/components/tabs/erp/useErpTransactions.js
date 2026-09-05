@@ -1,6 +1,8 @@
 import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { fetchAllVendorsAggregated } from './useErpVendors'
+import { fetchAllCustomersAggregated } from './useErpCustomers'
 import { filterActiveAccounts } from './accountDropdownHelpers'
 import { normalizeFilterMonths, normalizeFilterYear, toMonthCsv } from './erpListFilters'
 
@@ -34,12 +36,30 @@ export function useErpTransactions({
     transactionReferenceLoadedRef.current = true
     try {
       const [customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
-        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: false }) : Promise.resolve(null),
-        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
-        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+        canLoadParties
+          ? fetchCatalogCached(CATALOG_KINDS.customers, token, { all: true }, () =>
+            fetchAllCustomersAggregated(token))
+          : Promise.resolve(null),
+        canLoadParties
+          ? fetchCatalogCached(CATALOG_KINDS.vendors, token, { includeInactive: false, all: true }, () =>
+            fetchAllVendorsAggregated(token, { includeInactive: false }))
+          : Promise.resolve(null),
+        canLoadInventoryData
+          ? fetchCatalogCached(CATALOG_KINDS.inventory, token, {}, () =>
+            erpAccountingAPI.getInventoryProducts(token))
+          : Promise.resolve(null),
+        canViewMappings
+          ? fetchCatalogCached(CATALOG_KINDS.mappings, token, {}, () =>
+            erpAccountingAPI.getMappings(token))
+          : Promise.resolve(null),
+        canLoadReferenceData
+          ? fetchCatalogCached(CATALOG_KINDS.accounts, token, { page: 1, limit: 5000 }, () =>
+            erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }))
+          : Promise.resolve(null),
+        canLoadReferenceData
+          ? fetchCatalogCached(CATALOG_KINDS.currencies, token, {}, () =>
+            erpAccountingAPI.getCurrencies(token))
+          : Promise.resolve(null),
       ])
       if (customerData) setCustomers(customerData.customers || [])
       if (vendorData) setVendors(vendorData.vendors || [])

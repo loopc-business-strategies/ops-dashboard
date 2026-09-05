@@ -1,6 +1,7 @@
 import { API_ORIGIN } from '../../../../api/client'
 import { formatMoney as formatMoneyShared } from '../../../../utils/money'
 import { createEmptyVendorForm } from '../vendorFormDefaults'
+import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 export default function ERPVendorsTab({
   activeTab,
@@ -49,6 +50,11 @@ export default function ERPVendorsTab({
 
 
   const formatMoney = (value, currency = baseCurrencyCode) => formatMoneyShared(value, currency)
+  const vendorColCount = 11
+  const { scrollRef: vendorScrollRef, enabled: vendorVirtEnabled, virtualItems: vendorVirtualItems, paddingTop: vendorPadTop, paddingBottom: vendorPadBottom } = useVirtualTableRows(
+    vendors.length,
+    { estimateSize: 64 },
+  )
 
   const getVendorOverdueAmount = (vendor) => {
     if (vendor.nextDue?.alertLevel === 'overdue') return Number(vendor.nextDue?.remaining || 0)
@@ -282,7 +288,7 @@ export default function ERPVendorsTab({
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
-            <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+            <div ref={vendorScrollRef} style={{ overflow: 'auto', maxHeight: vendorVirtEnabled ? 560 : undefined, background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem', minWidth: '1180px' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${C.p2}`, background: '#F8FAFC' }}>
@@ -292,14 +298,17 @@ export default function ERPVendorsTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {vendors.map((v) => {
+                  {vendorVirtEnabled && vendorPadTop > 0 && (
+                    <tr><td colSpan={vendorColCount} style={{ height: vendorPadTop, padding: 0, border: 'none' }} /></tr>
+                  )}
+                  {(vendorVirtEnabled ? vendorVirtualItems.map((vi) => vendors[vi.index]).filter(Boolean) : vendors).map((v) => {
                     const latestDoc = (v.documents || [])[0]
                     const alert = getVendorAlertMeta(v)
                     const payDue = Number(v.dueAmount || v.nextDue?.remaining || v.outstanding || 0)
                     const overdue = getVendorOverdueAmount(v)
                     const currency = v.nextDue?.currency || v.currency || baseCurrencyCode
                     return (
-                    <tr key={v._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedVendorId === v._id ? '#ECFEFF' : 'transparent' }}>
+                    <tr key={v._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedVendorId === v._id ? '#ECFEFF' : 'transparent', contentVisibility: 'auto', containIntrinsicSize: 'auto 64px' }}>
                       <td style={{ padding: '0.7rem', color: '#334155', fontWeight: '700' }}>{v.vendorCode || '-'}</td>
                       <td style={{ padding: '0.6rem', minWidth: '170px' }}>
                         <div style={{ fontWeight: '700', color: C.ink }}>{v.name}</div>
@@ -358,6 +367,9 @@ export default function ERPVendorsTab({
                       </td>
                     </tr>
                   )})}
+                  {vendorVirtEnabled && vendorPadBottom > 0 && (
+                    <tr><td colSpan={vendorColCount} style={{ height: vendorPadBottom, padding: 0, border: 'none' }} /></tr>
+                  )}
                 </tbody>
               </table>
               {vendors.length === 0 && <p style={{ color: C.inkSoft, margin: '0.8rem', textAlign: 'center' }}>No vendors found for current filters.</p>}

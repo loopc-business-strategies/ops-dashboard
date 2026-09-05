@@ -17,6 +17,7 @@ const getMarketPricesStreamUrl = (params = {}) => `${BASE}/reports/market-prices
 const getProfitLossReport = async (token, params) => (await axios.get(`${BASE}/reports/profit-loss`, getAuthConfig(token, params))).data
 const getBalanceSheetReport = async (token, params) => (await axios.get(`${BASE}/reports/balance-sheet`, getAuthConfig(token, params))).data
 const getDayBookReport = async (token, params) => (await axios.get(`${BASE}/reports/day-book`, getAuthConfig(token, params))).data
+const getFixingRegisterReport = async (token, params) => (await axios.get(`${BASE}/reports/fixing-register`, getAuthConfig(token, params))).data
 const getCustomerOutstandingReport = async (token, params) => (await axios.get(`${BASE}/reports/customer-outstanding`, getAuthConfig(token, params))).data
 const getVendorOutstandingReport = async (token, params) => (await axios.get(`${BASE}/reports/vendor-outstanding`, getAuthConfig(token, params))).data
 const getForexGainLossReport = async (token, params) => (await axios.get(`${BASE}/reports/forex-gain-loss`, getAuthConfig(token, params))).data
@@ -44,6 +45,7 @@ export const reportsApi = {
   getProfitLossReport,
   getBalanceSheetReport,
   getDayBookReport,
+  getFixingRegisterReport,
   getCustomerOutstandingReport,
   getVendorOutstandingReport,
   getForexGainLossReport,

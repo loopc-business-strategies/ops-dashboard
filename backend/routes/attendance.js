@@ -112,25 +112,28 @@ router.get('/summary', protect, async (req, res) => {
     const employeeFilter = {}
     if (deptScope) employeeFilter.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
 
-    let employees = await Employee.find(employeeFilter).select('name department')
-
-    if (!employees.length) {
-      employees = [{ _id: null, name: req.user.name, department: req.user.department || '' }]
-    }
-
     const recordFilter = { date }
     if (deptScope) recordFilter.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
 
-    let records = await AttendanceRecord.find(recordFilter)
+    const [employees, records] = await Promise.all([
+      Employee.find(employeeFilter).select('name department').lean(),
+      AttendanceRecord.find(recordFilter).lean(),
+    ])
+    let scopedEmployees = employees
+    let scopedRecords = records
 
-    if (req.user.role === 'department_user' || req.user.role === 'external') {
-      employees = employees.filter((e) => normalize(e.name) === normalize(req.user.name))
-      records = records.filter((r) => normalize(r.employeeName) === normalize(req.user.name))
+    if (!scopedEmployees.length) {
+      scopedEmployees = [{ _id: null, name: req.user.name, department: req.user.department || '' }]
     }
 
-    const recordByName = new Map(records.map((r) => [normalize(r.employeeName), r]))
+    if (req.user.role === 'department_user' || req.user.role === 'external') {
+      scopedEmployees = scopedEmployees.filter((e) => normalize(e.name) === normalize(req.user.name))
+      scopedRecords = scopedRecords.filter((r) => normalize(r.employeeName) === normalize(req.user.name))
+    }
 
-    const rows = employees.map((employee) => {
+    const recordByName = new Map(scopedRecords.map((r) => [normalize(r.employeeName), r]))
+
+    const rows = scopedEmployees.map((employee) => {
       const rec = recordByName.get(normalize(employee.name))
       return {
         id: employee._id || employee.name,
@@ -183,19 +186,21 @@ router.get('/me', protect, async (req, res) => {
     monthStart.setDate(1)
     monthStart.setHours(0, 0, 0, 0)
 
-    const records = await AttendanceRecord.find({
-      employeeName: new RegExp(`^${escapeRegex(req.user.name)}$`, 'i'),
-      createdAt: { $gte: monthStart },
-    }).sort({ createdAt: -1 })
+    const nameRegex = new RegExp(`^${escapeRegex(req.user.name)}$`, 'i')
+    const [records, todayRecord] = await Promise.all([
+      AttendanceRecord.find({
+        employeeName: nameRegex,
+        createdAt: { $gte: monthStart },
+      }).sort({ createdAt: -1 }).lean(),
+      AttendanceRecord.findOne({
+        employeeName: nameRegex,
+        date: dayKey(),
+      }).lean(),
+    ])
 
     const presentDays = records.filter((r) => ['present', 'late', 'wfh'].includes(r.status)).length
     const leaveDays = records.filter((r) => r.status === 'leave').length
     const totalDays = Math.max(records.length, 1)
-
-    const todayRecord = await AttendanceRecord.findOne({
-      employeeName: new RegExp(`^${escapeRegex(req.user.name)}$`, 'i'),
-      date: dayKey(),
-    })
 
     res.json({
       success: true,

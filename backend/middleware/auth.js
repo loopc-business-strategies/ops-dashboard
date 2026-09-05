@@ -22,6 +22,8 @@ const { readRequestAuthToken } = require('../utils/tenantSessionCookies')
 //   4. We attach the user to req.user
 //   5. We call next() to proceed to the route
 // -----------------------------------------------
+const AUTH_USER_SELECT = '-expoPushTokens -webPushSubscriptions'
+
 const protect = async (req, res, next) => {
   try {
     let token = readRequestAuthToken(req)
@@ -30,8 +32,11 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Please log in to access this.' })
     }
 
-    // Verify token — throws error if invalid or expired
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
+    // Reuse JWT already verified by bindTenantContext when present
+    let decoded = req.authJwt
+    if (!decoded || !decoded.id) {
+      decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
+    }
     const tenant = normalizeTenant(decoded.company)
 
     if (!tenant) {
@@ -47,9 +52,9 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Session tenant does not match this company portal.' })
     }
 
-    // Find the user this token belongs to
+    // Find the user this token belongs to (omit bulky push token arrays)
     const tenantUserModel = await User.getTenantModel(tenant)
-    const user = await tenantUserModel.findById(decoded.id)
+    const user = await tenantUserModel.findById(decoded.id).select(AUTH_USER_SELECT)
 
     if (!user || user.isDeleted) return res.status(401).json({ success: false, message: 'User no longer exists.' })
     if (!user.isActive)          return res.status(401).json({ success: false, message: 'Account has been deactivated.' })

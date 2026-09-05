@@ -43,5 +43,7 @@ const directDealSchema = new mongoose.Schema(
 
 directDealSchema.index({ entryType: 1, docDate: -1 })
 directDealSchema.index({ status: 1, updatedAt: -1 })
+directDealSchema.index({ status: 1, isDeleted: 1, 'lineItems.customerId': 1 })
+directDealSchema.index({ isDeleted: 1, status: 1, docDate: -1 })
 
 module.exports = createTenantModel('DirectDeal', directDealSchema)

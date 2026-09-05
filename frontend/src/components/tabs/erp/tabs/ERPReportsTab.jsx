@@ -422,7 +422,13 @@ export default function ERPReportsTab({
               <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.84rem' }}>
                 Total Entries: {reports.dayBook?.totals?.count || 0} | Debit: {formatMoney(reports.dayBook?.totals?.debit || 0)} | Credit: {formatMoney(reports.dayBook?.totals?.credit || 0)}
               </p>
-              {dayBookEntries.length > DAY_BOOK_UI_ROW_CAP && (
+              {reports.dayBook?.truncated && (
+                <p style={{ margin: '0 0 0.5rem', color: '#B45309', fontSize: '0.82rem', fontWeight: 600 }}>
+                  Row list truncated at {reports.dayBook?.limit || dayBookEntries.length} of {reports.dayBook?.totals?.count || dayBookEntries.length} entries.
+                  Totals above are for the full set. Narrow the period or raise limit (max 5000) before treating export as complete.
+                </p>
+              )}
+              {!reports.dayBook?.truncated && dayBookEntries.length > DAY_BOOK_UI_ROW_CAP && (
                 <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.82rem' }}>
                   Showing first {DAY_BOOK_UI_ROW_CAP} of {dayBookEntries.length} rows (UI cap). Export or narrow the report period for the full list.
                 </p>
