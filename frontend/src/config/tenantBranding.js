@@ -50,7 +50,6 @@ export function applyTenantTheme(colors = {}) {
   const buttonBg = c.brandButtonBg || dark
   const buttonHover = c.brandButtonHover || buttonBg
   const buttonText = c.brandButtonText || '#FFFFFF'
-  const secondary = c.brandSecondary || accent
   // CTA gradients use contrast-safe dark fills (not primary→light)
   const gradBar = c.gradBar || `linear-gradient(90deg, ${buttonBg}, ${buttonHover})`
   const gradBrand = c.gradBrand || `linear-gradient(135deg, ${buttonBg}, ${buttonHover})`
