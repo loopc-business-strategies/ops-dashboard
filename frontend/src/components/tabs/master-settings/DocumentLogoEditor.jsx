@@ -105,7 +105,7 @@ export default function DocumentLogoEditor({
             <button
               type="button"
               onClick={() => void handleEditLogo()}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer' }}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}
             >
               Edit logo
             </button>

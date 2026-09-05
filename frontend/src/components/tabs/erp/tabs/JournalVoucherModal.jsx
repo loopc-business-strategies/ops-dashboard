@@ -142,7 +142,7 @@ export default function JournalVoucherModal({
           </div>
 
           {jvReadOnly && (
-            <div style={{ padding: '0.45rem 1rem', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', color: '#1E40AF', fontSize: '0.78rem', fontWeight: '600' }}>
+            <div style={{ padding: '0.45rem 1rem', background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', color: 'var(--purple)', fontSize: '0.78rem', fontWeight: '600' }}>
               View mode — click Edit from the list to modify
             </div>
           )}
@@ -311,7 +311,7 @@ export default function JournalVoucherModal({
           )}
 
           <div style={{ margin: '0.5rem 1rem 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))', gap: '0.45rem' }}>
-            <div style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
+            <div style={{ border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
               <div style={{ color: '#1D4ED8', fontSize: '0.72rem', fontWeight: '700' }}>Total Debit</div>
               <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{formatMoney(jvDisplayDebit, jvTotalCurrencyLabel)}</div>
             </div>
@@ -328,7 +328,7 @@ export default function JournalVoucherModal({
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.65rem 1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
             {!jvReadOnly && (
               <>
-                <button type="button" onClick={addJvLine} style={{ padding: '0.38rem 0.8rem', background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>+ Add Row</button>
+                <button type="button" onClick={addJvLine} style={{ padding: '0.38rem 0.8rem', background: 'var(--brand-soft)', color: 'var(--purple)', border: '1px solid var(--brand-border)', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>+ Add Row</button>
                 <button
                   type="button"
                   onClick={handleSaveMultiLineJV}

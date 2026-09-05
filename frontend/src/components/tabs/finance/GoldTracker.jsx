@@ -22,7 +22,7 @@ export default function GoldTracker({ finRole, can, canEdit, onToast }) {
               <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:4 }}>
                 <div style={{ display:'flex', gap:2, alignItems:'flex-end', width:'100%' }}>
                   <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.v*2, background:'rgba(245,158,11,0.5)' }} />
-                  {!salesOnly && <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.r*0.35, background:'linear-gradient(180deg,#00c896,#00b4d8)' }} />}
+                  {!salesOnly && <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.r*0.35, background:'var(--grad-brand)' }} />}
                 </div>
                 <div style={{ fontSize:9, color:C.t3, fontWeight:600 }}>{d.m}</div>
               </div>

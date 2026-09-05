@@ -7,7 +7,7 @@ const USE_SEED_DATA =
 const C = {
   acc:  'var(--purple)',
   accH: 'var(--purple-light)',
-  accD: '#023430',
+  accD: 'var(--purple-dark)',
   grad: 'var(--grad-brand)',
 }
 

@@ -198,7 +198,7 @@ function CsvGuideModal({ kind, onClose }) {
       <div style={{ overflow: 'auto', border: `1px solid ${C.border}`, borderRadius: 10 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 860 }}>
           <thead>
-            <tr style={{ background: 'rgba(0,104,74,0.06)' }}>
+            <tr style={{ background: 'rgba(var(--purple-rgb),0.06)' }}>
               {guide.headers.map((h) => (
                 <th key={h} style={{ textAlign: 'left', padding: 8, borderBottom: `1px solid ${C.border}`, color: C.text, whiteSpace: 'nowrap' }}>{h}</th>
               ))}
@@ -659,7 +659,7 @@ function FollowupGroups({ followups, onMarkDone, onEdit }) {
       </div>
       <Section title='OVERDUE' rows={overdue} color='rgba(239,68,68,0.35)' />
       <Section title='DUE TODAY' rows={today} color='rgba(234,179,8,0.35)' />
-      <Section title='THIS WEEK' rows={week} color='rgba(0,104,74,0.28)' />
+      <Section title='THIS WEEK' rows={week} color='rgba(var(--purple-rgb),0.28)' />
       <Section title='UPCOMING' rows={upcoming} color='rgba(100,116,139,0.3)' />
     </div>
   )
@@ -1191,7 +1191,7 @@ export default function SalesTab() {
 
   return (
     <ModuleTabColumn style={{ fontFamily: 'inherit' }}>
-      {msg && <div style={{ marginBottom: 10, background: 'rgba(0,104,74,0.08)', border: `1px solid ${C.border}`, color: C.primary, padding: '8px 10px', borderRadius: 8, fontSize: 12 }}>{msg}</div>}
+      {msg && <div style={{ marginBottom: 10, background: 'rgba(var(--purple-rgb),0.08)', border: `1px solid ${C.border}`, color: C.primary, padding: '8px 10px', borderRadius: 8, fontSize: 12 }}>{msg}</div>}
 
       <ModuleSubTabRow
         right={(

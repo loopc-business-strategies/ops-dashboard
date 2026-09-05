@@ -56,7 +56,7 @@ export default function KPIOverview({ finRole, can, canEdit, invoices: _invoices
               {[{m:'Nov',r:180,e:115},{m:'Dec',r:210,e:128},{m:'Jan',r:195,e:120},{m:'Feb',r:225,e:132},{m:'Mar',r:240,e:138},{m:'Apr',r:195,e:110}].map((d,i) => (
                 <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:4 }}>
                   <div style={{ display:'flex', gap:2, alignItems:'flex-end', width:'100%' }}>
-                    <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.r*0.5, background:'linear-gradient(180deg,#00c896,#00b4d8)' }} />
+                    <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.r*0.5, background:'var(--grad-brand)' }} />
                     <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.e*0.5, background:'linear-gradient(180deg,var(--purple),var(--purple-light))' }} />
                   </div>
                   <div style={{ fontSize:9, color:C.t3, fontWeight:600 }}>{d.m}</div>

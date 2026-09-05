@@ -64,10 +64,10 @@ export default function ERPReportsTab({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.5rem',
-    background: '#EFF6FF',
-    border: '1px solid #BFDBFE',
+    background: 'var(--brand-soft)',
+    border: '1px solid var(--brand-border)',
     borderRadius: '999px',
-    color: '#1E3A8A',
+    color: 'var(--purple)',
     fontWeight: '700',
     fontSize: '0.82rem',
     padding: '0.45rem 0.75rem',
@@ -184,7 +184,7 @@ export default function ERPReportsTab({
                 {reportPdfDownloadEnabled && (
                   <button onClick={handleExportReportPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Download PDF</button>
                 )}
-                <button onClick={handlePrintCurrentReport} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', fontWeight: '700', cursor: 'pointer' }}>Print</button>
+                <button onClick={handlePrintCurrentReport} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', fontWeight: '700', cursor: 'pointer' }}>Print</button>
               </div>
             </div>
           </div>
@@ -325,7 +325,7 @@ export default function ERPReportsTab({
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
                     <tbody>
                       {(reports.profitLoss?.incomeBreakdown || []).map((row) => (
-                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -338,7 +338,7 @@ export default function ERPReportsTab({
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
                     <tbody>
                       {(reports.profitLoss?.expenseBreakdown || []).map((row) => (
-                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -382,7 +382,7 @@ export default function ERPReportsTab({
                       <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Name</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Balance</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Action</th></tr></thead>
                       <tbody>
                         {rows.map((row) => (
-                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}{row.isReclassified ? <span style={{ marginLeft: '0.4rem', color: '#64748B', fontSize: '0.72rem', fontWeight: '700' }}>reclassified</span> : null}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatDirectionalBalance(row.balance, { preferredDirection: row.direction || (title === 'Assets' ? 'debit' : 'credit') })}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}{row.isReclassified ? <span style={{ marginLeft: '0.4rem', color: '#64748B', fontSize: '0.72rem', fontWeight: '700' }}>reclassified</span> : null}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatDirectionalBalance(row.balance, { preferredDirection: row.direction || (title === 'Assets' ? 'debit' : 'credit') })}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
                         ))}
                       </tbody>
                     </table>

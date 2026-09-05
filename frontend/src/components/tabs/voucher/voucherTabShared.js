@@ -57,7 +57,7 @@ export const S = {
   border: '#D1D5DB',
   bg: '#F9FAFB',
   white: '#FFFFFF',
-  blueSoft: '#EFF6FF',
+  blueSoft: 'var(--brand-soft)',
   headerBg: '#F3F4F6',
 }
 

@@ -164,7 +164,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     padding: '7px 14px',
     fontSize: '0.8rem',
     cursor: 'pointer',
-    background: hovered ? '#EFF6FF' : '#fff',
+    background: hovered ? 'var(--brand-soft)' : '#fff',
     borderBottom: '1px solid #F3F4F6',
     color: '#1F2937',
   })

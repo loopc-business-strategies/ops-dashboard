@@ -139,7 +139,7 @@ export function IBtn({ onClick, title, children, style = {} }) {
       title={title}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{ width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color: hover ? '#ffffff' : '#334155', background: hover ? C.accent : 'rgba(0,104,74,0.08)', transition:'all .15s', ...style }}
+      style={{ width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color: hover ? '#ffffff' : '#334155', background: hover ? C.accent : 'rgba(var(--purple-rgb),0.08)', transition:'all .15s', ...style }}
     >
       {children}
     </button>

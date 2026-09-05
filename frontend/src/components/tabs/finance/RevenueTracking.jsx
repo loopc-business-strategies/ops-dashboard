@@ -21,7 +21,7 @@ export default function RevenueTracking({ finRole, can, canEdit: _canEdit, onToa
           <div style={{ display:'flex', alignItems:'flex-end', gap:4, height:110 }}>
             {[{m:'M',v:165},{m:'J',v:142},{m:'J',v:188},{m:'A',v:175},{m:'S',v:210},{m:'O',v:228},{m:'N',v:180},{m:'D',v:210},{m:'J',v:195},{m:'F',v:225},{m:'M',v:240},{m:'A',v:195}].map((d,i) => (
               <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
-                <div style={{ width:'100%', borderRadius:'4px 4px 0 0', height:d.v*0.45, background:i===11?'linear-gradient(180deg,#00c896,#00b4d8)':'rgba(0,200,150,0.35)' }} />
+                <div style={{ width:'100%', borderRadius:'4px 4px 0 0', height:d.v*0.45, background:i===11?'var(--grad-brand)':'rgba(var(--purple-rgb),0.35)' }} />
                 <div style={{ fontSize:9, color:C.t3 }}>{d.m}</div>
               </div>
             ))}

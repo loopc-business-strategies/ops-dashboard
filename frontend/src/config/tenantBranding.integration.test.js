@@ -36,6 +36,15 @@ describe('tenant branding integration', () => {
     expect(mg.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
   })
 
+  test('applies MG orange, CG green, and LoopC blue tenant palettes', () => {
+    expect(getTenantBranding('mg').colors.brandPrimary).toBe('#EA580C')
+    expect(getTenantBranding('mg').colors.bgTopbar).toBe('#431407')
+    expect(getTenantBranding('cg').colors.brandPrimary).toBe('#16A34A')
+    expect(getTenantBranding('cg').colors.bgTopbar).toBe('#052E16')
+    expect(getTenantBranding('loopc').colors.brandPrimary).toBe('#2563EB')
+    expect(getTenantBranding('loopc').colors.bgTopbar).toBe('#172554')
+  })
+
   test('enables advanced ERP list filters for LOOPC, MG, and CG', () => {
     expect(isErpAdvancedListFiltersEnabled('loopc')).toBe(true)
     expect(isErpAdvancedListFiltersEnabled('mg')).toBe(true)

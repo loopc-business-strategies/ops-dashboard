@@ -21,7 +21,7 @@ const UI = {
   card: { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14, padding: '1.1rem 1.2rem' },
   ink: '#1C2A33',
   muted: '#6B7280',
-  primary: '#005B96',
+  primary: 'var(--purple)',
   border: '#E5E7EB',
 }
 

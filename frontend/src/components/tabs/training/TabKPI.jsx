@@ -27,7 +27,7 @@ export default function TabKPI({ batches, certs, sessions }) {
           <CardTitle>Batch Completion Progress</CardTitle>
           {batches.map(b => (
             <ProgRow key={b.id} label={b.name.split('—')[0].trim()} p={b.completion}
-              color={b.completion === 100 ? 'linear-gradient(90deg,#00c896,#00b4d8)' : b.st === 'On Hold' ? C.yellow : C.gbar} />
+              color={b.completion === 100 ? 'var(--grad-bar)' : b.st === 'On Hold' ? C.yellow : C.gbar} />
           ))}
         </Card>
         <Card>

@@ -154,7 +154,7 @@ export function PayrollModal({ open, onClose, onRun }) {
         <div><ML>Authorised By</ML><input value={auth} onChange={(e) => setAuth(e.target.value)} placeholder="Your name" style={iStyle} /></div>
         <div><ML>Bank Account</ML><select value={bank} onChange={(e) => setBank(e.target.value)} style={iStyle}><option>Main Operations Account</option><option>Payroll Dedicated Account</option></select></div>
       </M2>
-      <MBtns onCancel={onClose} onSubmit={() => { onRun(auth, bank); setAuth(''); onClose() }} submitLabel="✓ Confirm & Run Payroll" submitStyle="linear-gradient(135deg,#00c896,#00b4d8)" />
+      <MBtns onCancel={onClose} onSubmit={() => { onRun(auth, bank); setAuth(''); onClose() }} submitLabel="✓ Confirm & Run Payroll" submitStyle="var(--grad-brand)" />
     </ModalOverlay>
   )
 }

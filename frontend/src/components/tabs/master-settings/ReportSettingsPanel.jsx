@@ -113,7 +113,7 @@ export default function ReportSettingsPanel({
           type="button"
           disabled={saving}
           onClick={() => void onSave()}
-          style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: '#005B96', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+          style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: 'var(--purple)', color: 'var(--brand-on-primary)', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
         >
           {saving ? 'Saving…' : 'Save report settings'}
         </button>

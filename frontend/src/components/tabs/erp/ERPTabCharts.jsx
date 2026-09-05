@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-function MiniBarChart({ data = [], valueKey = 'value', labelKey = 'label', color = '#059669', height = 56 }) {
+function MiniBarChart({ data = [], valueKey = 'value', labelKey = 'label', color = 'var(--purple)', height = 56 }) {
   const [hovered, setHovered] = useState(null)
   const max = Math.max(...data.map((item) => Number(item[valueKey] || 0)), 1)
   return (

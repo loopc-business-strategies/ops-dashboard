@@ -138,9 +138,9 @@ export default function ExpenseRegisterSection({
                 type="button"
                 onClick={() => onPaymentFilterChange?.(chip.key)}
                 style={{
-                  border: `1px solid ${active ? '#059669' : '#E5E7EB'}`,
-                  background: active ? '#ECFDF5' : '#FAFAFA',
-                  color: active ? '#047857' : '#4B5563',
+                  border: `1px solid ${active ? 'var(--purple)' : '#E5E7EB'}`,
+                  background: active ? 'var(--brand-soft)' : '#FAFAFA',
+                  color: active ? 'var(--purple)' : '#4B5563',
                   borderRadius: 999,
                   padding: '0.26rem 0.55rem',
                   fontSize: '0.72rem',
@@ -268,7 +268,7 @@ export default function ExpenseRegisterSection({
                       <button
                         type="button"
                         onClick={() => handleLedgerOpen(row)}
-                        style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', borderRadius: '0.4rem', padding: '0.28rem 0.55rem', fontSize: '0.68rem', fontWeight: '800', cursor: 'pointer' }}
+                        style={{ border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', borderRadius: '0.4rem', padding: '0.28rem 0.55rem', fontSize: '0.68rem', fontWeight: '800', cursor: 'pointer' }}
                       >
                         Open in Ledger
                       </button>

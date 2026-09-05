@@ -136,7 +136,7 @@ export default function ExpenseChartsPanel({
               return (
                 <div key={row.key || `${row.label}-${index}`} style={{ flex: 1, minWidth: compact ? 28 : 42, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                   <span style={{ color: active ? '#111827' : '#334155', fontSize: compact ? '0.62rem' : '0.7rem', fontWeight: '900' }}>{fmtCompactCurrency(amount, baseCurrencyCode)}</span>
-                  <div style={{ width: '42%', minWidth: 12, maxWidth: compact ? 20 : 28, height, borderRadius: '999px 999px 0 0', background: active ? '#059669' : '#C7F0DC' }} />
+                  <div style={{ width: '42%', minWidth: 12, maxWidth: compact ? 20 : 28, height, borderRadius: '999px 999px 0 0', background: active ? 'var(--purple)' : 'rgba(var(--purple-rgb), 0.22)' }} />
                   <span style={{ color: '#64748B', fontSize: compact ? '0.58rem' : '0.66rem', whiteSpace: 'nowrap' }}>{row.label || row.month}</span>
                 </div>
               )

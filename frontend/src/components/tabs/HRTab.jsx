@@ -279,7 +279,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
             type="submit"
             disabled={loading}
             className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #00684A, #13AA52)', color: '#ffffff' }}
+            style={{ background: 'var(--grad-brand)', color: 'var(--brand-on-primary, #ffffff)' }}
           >
             {loading ? t('saving') : t('saveEmployee')}
           </button>
@@ -348,7 +348,7 @@ function EmployeeList({ token }) {
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex min-h-10 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md"
-            style={{ background: 'linear-gradient(135deg, #00684A, #13AA52)', color: '#ffffff' }}
+            style={{ background: 'var(--grad-brand)', color: 'var(--brand-on-primary, #ffffff)' }}
           >
             + Add Employee
           </button>

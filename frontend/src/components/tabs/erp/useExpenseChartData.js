@@ -6,7 +6,7 @@ import {
   peakExpenseTrendMonthIndex,
 } from './expenseMonthFilterUtils'
 
-export const EXPENSE_CHART_COLORS = ['#176B4B', '#49B68D', '#A8D8C0', '#15A8E2', '#6366F1', '#D97706']
+export const EXPENSE_CHART_COLORS = ['var(--purple)', '#49B68D', '#A8D8C0', '#15A8E2', '#6366F1', '#D97706']
 
 export function useExpenseChartData({
   dashboard,

@@ -142,7 +142,7 @@ export default function ERPVendorsTab({
               <p style={{ margin: 0, color: '#92400E', fontSize: '0.76rem' }}>Due Soon (7d)</p>
               <p style={{ margin: '0.2rem 0 0', color: '#78350F', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.due_soon || 0}</p>
             </div>
-            <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
+            <div style={{ background: 'var(--brand-soft)', border: '1px solid var(--brand-border)', borderRadius: '0.45rem', padding: '0.55rem' }}>
               <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.76rem' }}>Upcoming</p>
               <p style={{ margin: '0.2rem 0 0', color: '#1E3A8A', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.upcoming || 0}</p>
             </div>
@@ -150,7 +150,7 @@ export default function ERPVendorsTab({
               <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.76rem' }}>Total Due Amount</p>
               <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{formatMoney(vendorPaymentCalendar.alerts?.totalDue || 0)}</p>
             </div>
-            <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
+            <div style={{ background: 'var(--brand-soft)', border: '1px solid var(--brand-border)', borderRadius: '0.45rem', padding: '0.55rem' }}>
               <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.76rem' }}>Doc Warning 30d</p>
               <p style={{ margin: '0.2rem 0 0', color: '#1E3A8A', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.warning30 || 0}</p>
             </div>
@@ -396,7 +396,7 @@ export default function ERPVendorsTab({
                       style={{ ...modalInputStyle, marginBottom: '0.45rem' }}
                     />
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                      <button onClick={() => handleVendorWorkflowStatus('draft')} disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer', fontSize: '0.74rem' }}>Draft</button>
+                      <button onClick={() => handleVendorWorkflowStatus('draft')} disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer', fontSize: '0.74rem' }}>Draft</button>
                       <button onClick={() => handleVendorWorkflowStatus('review')} disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #FDE68A', background: '#FFFBEB', color: '#92400E', cursor: 'pointer', fontSize: '0.74rem' }}>Review</button>
                       <button onClick={() => handleVendorWorkflowStatus('approved')} disabled={saving || !vendorPermissions.canManage} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #6EE7B7', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontSize: '0.74rem' }}>Approve</button>
                       <button onClick={() => handleVendorWorkflowStatus('blacklisted')} disabled={saving || !vendorPermissions.canManage} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontSize: '0.74rem' }}>Blacklist</button>

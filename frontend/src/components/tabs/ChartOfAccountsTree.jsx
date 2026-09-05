@@ -568,7 +568,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             {canManageAccounts && (
               <button
                 onClick={() => openAdd('general', null)}
-                style={{ padding: '0.25rem 0.6rem', background: '#059669', color: '#fff', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
+                style={{ padding: '0.25rem 0.6rem', background: 'var(--purple)', color: 'var(--brand-on-primary)', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
               >+ {t('add')}</button>
             )}
           </div>
@@ -683,7 +683,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
               {canManageAccounts && (
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <button onClick={() => openAdd('general', selectedNode)} style={btnStyle('#059669')}>+ Sub-Account</button>
+                  <button onClick={() => openAdd('general', selectedNode)} style={btnStyle('var(--purple)')}>+ Sub-Account</button>
                   <button onClick={() => openEdit(selectedNode)} style={btnStyle('#0F766E')}>✏️ Edit</button>
                   <button onClick={() => openMove(selectedNode)} style={btnStyle('#6366F1')}>↕️ Move</button>
                   <button onClick={() => handleDelete(selectedNode)} style={btnStyle('#DC2626')}>🗑️ Delete</button>
@@ -1108,7 +1108,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                 <button type="button" onClick={() => setModal(null)} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}>
                   {t('cancel')}
                 </button>
-                <button type="submit" disabled={saving || creatingCustomer || creatingSupplier} style={{ padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.875rem', opacity: (saving || creatingCustomer || creatingSupplier) ? 0.7 : 1 }}>
+                <button type="submit" disabled={saving || creatingCustomer || creatingSupplier} style={{ padding: '0.5rem 1.25rem', background: 'var(--purple)', color: 'var(--brand-on-primary)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.875rem', opacity: (saving || creatingCustomer || creatingSupplier) ? 0.7 : 1 }}>
                   {(saving || creatingCustomer || creatingSupplier) ? t('saving') : modal.mode === 'edit' ? t('update') : modal.mode === 'move' ? t('move') : t('create')}
                 </button>
               </div>

@@ -196,8 +196,8 @@ function VoucherPreviewModal({
                   style={{
                     padding: '6px 12px',
                     border: 'none',
-                    background: previewMode === value ? '#005B96' : '#FFFFFF',
-                    color: previewMode === value ? '#FFFFFF' : '#374151',
+                    background: previewMode === value ? 'var(--purple)' : '#FFFFFF',
+                    color: previewMode === value ? 'var(--brand-on-primary)' : '#374151',
                     fontWeight: 600,
                     fontSize: '13px',
                     cursor: 'pointer',
@@ -229,8 +229,8 @@ function VoucherPreviewModal({
             onClick={() => (onPrint ? onPrint() : window.print())}
             style={{
               padding: '0.6rem 1.2rem',
-              background: '#005B96',
-              color: '#fff',
+              background: 'var(--purple)',
+              color: 'var(--brand-on-primary)',
               border: 'none',
               borderRadius: '0.5rem',
               fontSize: '0.95rem',

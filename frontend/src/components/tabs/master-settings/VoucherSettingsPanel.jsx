@@ -303,8 +303,8 @@ export default function VoucherSettingsPanel({
                 style={{
                   padding: '6px 12px',
                   border: 'none',
-                  background: previewDataMode === value ? '#005B96' : '#FFFFFF',
-                  color: previewDataMode === value ? '#FFFFFF' : '#374151',
+                  background: previewDataMode === value ? 'var(--purple)' : '#FFFFFF',
+                  color: previewDataMode === value ? 'var(--brand-on-primary)' : '#374151',
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: 'pointer',
@@ -317,7 +317,7 @@ export default function VoucherSettingsPanel({
           <button
             type="button"
             onClick={() => setPreviewModalOpen(true)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #005B96', background: '#EFF6FF', color: '#005B96', fontWeight: 700, cursor: 'pointer' }}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--purple)', background: 'var(--brand-soft)', color: 'var(--purple)', fontWeight: 700, cursor: 'pointer' }}
           >
             Open full preview
           </button>
@@ -342,7 +342,7 @@ export default function VoucherSettingsPanel({
           type="button"
           disabled={saving}
           onClick={() => void onSave()}
-          style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: '#005B96', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+          style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: 'var(--purple)', color: 'var(--brand-on-primary)', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
         >
           {saving ? 'Saving…' : 'Save voucher settings'}
         </button>

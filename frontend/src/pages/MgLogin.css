@@ -1,14 +1,14 @@
 /* Modern Gold — real HTML login (MG tenant only) */
 
 .mg-login {
-  --mg-orange: #ff6a00;
-  --mg-orange-2: #ff8a00;
-  --mg-orange-deep: #ff5a00;
-  --mg-gold: #ffc400;
+  --mg-orange: var(--brand-primary, #EA580C);
+  --mg-orange-2: var(--brand-light, #FB923C);
+  --mg-orange-deep: var(--brand-hover, #C2410C);
+  --mg-gold: var(--brand-accent, #F97316);
   --mg-text: #111111;
   --mg-muted: #6b7280;
-  --mg-border: #d9dee7;
-  --mg-warm: #faf8f5;
+  --mg-border: var(--brand-border, #FED7AA);
+  --mg-warm: var(--brand-soft, #FFF7ED);
   --mg-white: #ffffff;
 
   position: fixed;
@@ -40,7 +40,7 @@
   position: absolute;
   inset: 0;
   opacity: 0.35;
-  background-image: radial-gradient(circle, rgba(255, 106, 0, 0.18) 1px, transparent 1.5px);
+  background-image: radial-gradient(circle, rgba(var(--brand-rgb, 234, 88, 12), 0.18) 1px, transparent 1.5px);
   background-size: 22px 22px;
 }
 

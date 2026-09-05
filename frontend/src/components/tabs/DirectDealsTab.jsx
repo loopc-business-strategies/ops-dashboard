@@ -34,7 +34,6 @@ const COLORS = {
   green: '#059669',
   red: '#DC2626',
   amber: '#D97706',
-  blue: '#2563EB',
 }
 
 const inputStyle = {
@@ -58,9 +57,9 @@ const btnStyle = (variant = 'primary') => {
     cursor: 'pointer',
   }
   if (variant === 'danger') return { ...base, background: '#FEE2E2', color: '#B91C1C' }
-  if (variant === 'secondary') return { ...base, background: '#EFF6FF', color: '#1D4ED8' }
+  if (variant === 'secondary') return { ...base, background: 'var(--brand-soft)', color: 'var(--purple)' }
   if (variant === 'ghost') return { ...base, background: '#F3F4F6', color: '#111827' }
-  return { ...base, background: COLORS.green, color: '#FFFFFF' }
+  return { ...base, background: 'var(--purple)', color: 'var(--brand-on-primary)' }
 }
 
 // ERP window inline styles
@@ -1156,7 +1155,7 @@ export default function DirectDealsTab({
               )}
               {/* Mode indicator banner */}
               {viewMode === 'VIEW' && editingId && (
-                <div style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '0.4rem', padding: '4px 10px', marginBottom: '0.65rem', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ background: 'var(--brand-soft)', color: 'var(--purple)', border: '1px solid var(--brand-border)', borderRadius: '0.4rem', padding: '4px 10px', marginBottom: '0.65rem', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>👁 VIEW MODE</span>
                   <span style={{ color: '#555', fontWeight: 400 }}>— Click <strong>Edit</strong> in the toolbar to unlock for editing</span>
                 </div>

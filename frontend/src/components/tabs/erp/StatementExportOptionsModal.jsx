@@ -33,9 +33,9 @@ export default function StatementExportOptionsModal({ open, onClose, onPrint, on
           <button
             type="button"
             onClick={onDownloadPdf}
-            style={{ ...primaryBtn, background: '#10B981' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#059669' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = '#10B981' }}
+            style={{ ...primaryBtn, background: 'var(--purple)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--purple-dark)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--purple)' }}
           >
             ⬇ Download PDF
           </button>

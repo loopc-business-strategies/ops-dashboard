@@ -230,8 +230,8 @@ function StatementPreviewModal({
               disabled={loading || !html}
               style={{
                 padding: '0.6rem 1.2rem',
-                background: '#005B96',
-                color: '#fff',
+                background: 'var(--purple)',
+                color: 'var(--brand-on-primary)',
                 border: 'none',
                 borderRadius: '0.5rem',
                 fontSize: '0.95rem',

@@ -317,7 +317,7 @@ export default function ERPTransactionsTab({
                     <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Attachments</p>
                     <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Upload supporting receipts, invoices, approvals, or backup documents.</p>
                   </div>
-                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1D4ED8', borderRadius: '0.35rem', cursor: (saving || selectedPeriodLocked) ? 'not-allowed' : 'pointer', fontWeight: '700', opacity: selectedPeriodLocked ? 0.55 : 1 }}>
+                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', borderRadius: '0.35rem', cursor: (saving || selectedPeriodLocked) ? 'not-allowed' : 'pointer', fontWeight: '700', opacity: selectedPeriodLocked ? 0.55 : 1 }}>
                     Upload document
                     <input
                       key={transactionAttachmentInputKey}

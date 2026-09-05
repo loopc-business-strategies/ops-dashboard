@@ -249,7 +249,7 @@ export default function FixingRegisterPanel({
           </div>
 
           {fixingRegLoading && (
-            <div style={{ maxWidth: 'min(1200px, 100%)', marginBottom: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.45rem', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1E3A8A', fontSize: '0.88rem', fontWeight: '600' }}>
+            <div style={{ maxWidth: 'min(1200px, 100%)', marginBottom: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.45rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', fontSize: '0.88rem', fontWeight: '600' }}>
               Loading net position…
             </div>
           )}

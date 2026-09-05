@@ -84,7 +84,7 @@ export default function ERPSettingsTab({
       </div>
 
       {masterDocumentSettingsEnabled ? (
-        <div style={{ marginBottom: '1.25rem', background: '#EFF6FF', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #BFDBFE' }}>
+        <div style={{ marginBottom: '1.25rem', background: 'var(--brand-soft)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--brand-border)' }}>
           <p style={{ margin: 0, color: '#1E3A8A', fontSize: '0.875rem' }}>
             Branding for vouchers, statements, and financial reports is configured in <strong>Master Settings</strong>.
           </p>

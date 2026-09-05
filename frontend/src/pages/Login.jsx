@@ -4,17 +4,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
+import { applyTenantTheme, getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import MgLoginShell from './MgLoginShell'
-
-function hexToRgb(hex) {
-  const h = hex.replace('#', '')
-  const r = parseInt(h.slice(0, 2), 16)
-  const g = parseInt(h.slice(2, 4), 16)
-  const b = parseInt(h.slice(4, 6), 16)
-  return `${r}, ${g}, ${b}`
-}
 
 function Login() {
   const navigate = useNavigate()
@@ -42,12 +34,7 @@ function Login() {
   }, [t])
 
   useEffect(() => {
-    const root = document.documentElement
-    root.style.setProperty('--purple', branding.colors.brandPrimary)
-    root.style.setProperty('--purple-light', branding.colors.brandSecondary)
-    root.style.setProperty('--purple-rgb', hexToRgb(branding.colors.brandPrimary))
-    root.style.setProperty('--grad-brand', `linear-gradient(135deg, ${branding.colors.brandPrimary}, ${branding.colors.brandSecondary})`)
-    root.style.setProperty('--grad-bar', branding.colors.gradBar)
+    return applyTenantTheme(branding.colors)
   }, [branding])
 
   useEffect(() => {
@@ -285,7 +272,7 @@ function Login() {
 
                   <button
                     type="submit"
-                    className="w-full rounded-[11px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(0,91,150,0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
+                    className="w-full rounded-[11px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(var(--purple-rgb),0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
                     style={{ background: branding.colors.gradBar, height: 54 }}
                     disabled={loading}
                   >

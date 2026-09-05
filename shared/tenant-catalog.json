@@ -7,7 +7,7 @@
       "tagline": "Metal Group Operations",
       "portalHost": "mg.loopcstrategies.com",
       "envVar": "MONGO_URI_MG",
-      "brandPrimary": "#005B96",
+      "brandPrimary": "#EA580C",
       "sharedInboxEmail": "",
       "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
@@ -18,7 +18,7 @@
       "tagline": "CG Enterprise Suite",
       "portalHost": "cg.loopcstrategies.com",
       "envVar": "MONGO_URI_CG",
-      "brandPrimary": "#9A3412",
+      "brandPrimary": "#16A34A",
       "sharedInboxEmail": "",
       "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
@@ -29,7 +29,7 @@
       "tagline": "Loop C Business Platform",
       "portalHost": "loopc.loopcstrategies.com",
       "envVar": "MONGO_URI_LOOPC",
-      "brandPrimary": "#00684A",
+      "brandPrimary": "#2563EB",
       "sharedInboxEmail": "business@loopcstrategies.com",
       "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     }

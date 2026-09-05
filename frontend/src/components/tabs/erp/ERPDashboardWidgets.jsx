@@ -83,8 +83,8 @@ function MarginsWidget({
 
   const tabSt = (active) => ({
     padding: '0.45rem 0.9rem', fontSize: '0.75rem', fontWeight: active ? '600' : '500',
-    color: active ? '#059669' : muted, cursor: 'pointer',
-    borderBottom: `2px solid ${active ? '#059669' : 'transparent'}`,
+    color: active ? 'var(--purple)' : muted, cursor: 'pointer',
+    borderBottom: `2px solid ${active ? 'var(--purple)' : 'transparent'}`,
     background: active ? '#fff' : 'transparent', userSelect: 'none',
   })
   const statusColor = (s) => s === 'POSITIVE' ? '#16A34A' : s === 'NEGATIVE' ? '#DC2626' : '#6B7280'
@@ -246,8 +246,8 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
   const netFavorable = netPosition >= 0
   const tabSt = (active) => ({
     padding: '0.45rem 0.9rem', fontSize: '0.75rem', fontWeight: active ? '600' : '500',
-    color: active ? '#059669' : muted, cursor: 'pointer',
-    borderBottom: `2px solid ${active ? '#059669' : 'transparent'}`,
+    color: active ? 'var(--purple)' : muted, cursor: 'pointer',
+    borderBottom: `2px solid ${active ? 'var(--purple)' : 'transparent'}`,
     background: active ? '#fff' : 'transparent', userSelect: 'none',
   })
   return (
@@ -579,7 +579,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           {monthly.length > 0 && (
             <>
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.4rem' }}>
-                {[['#22C97E', 'Inflow'], ['#FCA5A5', 'Outflow'], ['#059669', 'Net']].map(([c, l]) => (
+                {[['#22C97E', 'Inflow'], ['#FCA5A5', 'Outflow'], ['var(--purple)', 'Net']].map(([c, l]) => (
                   <div key={l} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: muted }}>
                     <span style={{ width: 8, height: 8, borderRadius: '2px', background: c, display: 'inline-block' }} />{l}
                   </div>
@@ -595,7 +595,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
                       <div style={{ display: 'flex', gap: '1px', alignItems: 'flex-end', height: '62px' }}>
                         <div style={{ flex: 1, borderRadius: '2px 2px 0 0', background: '#22C97E', height: `${inH}px` }} />
                         <div style={{ flex: 1, borderRadius: '2px 2px 0 0', background: '#FCA5A5', height: `${outH}px` }} />
-                        <div style={{ flex: 1, borderRadius: '2px 2px 0 0', background: '#059669', height: `${netH}px` }} />
+                        <div style={{ flex: 1, borderRadius: '2px 2px 0 0', background: 'var(--purple)', height: `${netH}px` }} />
                       </div>
                       <div style={{ fontSize: '0.6rem', color: muted, marginTop: '3px' }}>{m.month}</div>
                     </div>
@@ -699,7 +699,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     case 'chat': {
       const FALLBACK_MSGS = [
         { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: 'Gold fixing confirmed at $2,341.50/oz', time: '10:30 AM' },
-        { mine: true,  av: 'N', bg: '#E8F5EF', tc: '#1A6647', text: 'Proceed with ABC Trading allocation', time: '10:32 AM' },
+        { mine: true,  av: 'N', bg: 'var(--brand-soft)', tc: 'var(--purple)', text: 'Proceed with ABC Trading allocation', time: '10:32 AM' },
         { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: 'Done. Invoice #1042 sent to PlatGroup', time: '11:15 AM' },
       ]
       const hasMsgs = chatMessages.length > 0
@@ -709,7 +709,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             {hasMsgs
               ? chatMessages.slice(-4).map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
-                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#E8F5EF', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: '700', flexShrink: 0 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--brand-soft)', color: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: '700', flexShrink: 0 }}>
                     {String(m.senderName || '?')[0].toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -724,13 +724,13 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               : FALLBACK_MSGS.map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: '0.5rem', flexDirection: m.mine ? 'row-reverse' : 'row', alignItems: 'flex-end' }}>
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: m.bg, color: m.tc, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: '700', flexShrink: 0 }}>{m.av}</div>
-                  <div style={{ maxWidth: '78%', padding: '5px 8px', borderRadius: '9px', fontSize: '0.75rem', lineHeight: 1.4, background: m.mine ? '#059669' : '#fff', color: m.mine ? '#fff' : ink, boxShadow: '0 1px 3px rgba(0,0,0,.07)' }}>{m.text}</div>
+                  <div style={{ maxWidth: '78%', padding: '5px 8px', borderRadius: '9px', fontSize: '0.75rem', lineHeight: 1.4, background: m.mine ? 'var(--purple)' : '#fff', color: m.mine ? 'var(--brand-on-primary)' : ink, boxShadow: '0 1px 3px rgba(0,0,0,.07)' }}>{m.text}</div>
                 </div>
               ))
             }
           </div>
           {onNavigateMain && (
-            <div style={{ textAlign: 'center', padding: '0.35rem 0.75rem 0.6rem', background: '#F0FDF4', borderRadius: '6px', fontSize: '0.72rem', color: '#059669', fontWeight: '500', cursor: 'pointer', flexShrink: 0, margin: '0 0.75rem 0.6rem' }} onClick={() => onNavigateMain('chat')}>
+            <div style={{ textAlign: 'center', padding: '0.35rem 0.75rem 0.6rem', background: 'var(--brand-soft)', borderRadius: '6px', fontSize: '0.72rem', color: 'var(--purple)', fontWeight: '500', cursor: 'pointer', flexShrink: 0, margin: '0 0.75rem 0.6rem' }} onClick={() => onNavigateMain('chat')}>
               💬 Open full chat →
             </div>
           )}

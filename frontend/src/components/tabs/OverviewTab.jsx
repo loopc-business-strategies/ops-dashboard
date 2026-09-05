@@ -1600,7 +1600,7 @@ function OverviewTab({ onNavigate, buildTabHref }) {
             <div className="border border-gray-200 rounded-xl p-3 bg-white">
               <p className="text-xs text-gray-600 mb-2">Revenue Trend</p>
               <svg viewBox="0 0 240 120" className="w-full h-32">
-                <polyline fill="none" stroke="#00ED64" strokeWidth="3" points="0,90 25,78 50,80 75,70 100,75 125,62 150,55 175,58 200,45 225,35 240,38" />
+                <polyline fill="none" stroke="var(--purple-light)" strokeWidth="3" points="0,90 25,78 50,80 75,70 100,75 125,62 150,55 175,58 200,45 225,35 240,38" />
                 <line x1="0" y1="52" x2="240" y2="52" stroke="#64748b" strokeDasharray="4 4" />
               </svg>
             </div>

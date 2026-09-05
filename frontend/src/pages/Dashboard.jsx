@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
-import { getTenantBranding, isLocalTenantHost } from '../config/tenantBranding'
+import { applyTenantTheme, getTenantBranding, isLocalTenantHost } from '../config/tenantBranding'
 import {
   buildDashboardHref,
   buildDashboardTabParam,
@@ -653,28 +653,7 @@ function Dashboard() {
   }, [activeTab, erpSubTab, navItems])
 
   useEffect(() => {
-    const root = document.documentElement
-    const prevPrimary = root.style.getPropertyValue('--purple')
-    const prevSecondary = root.style.getPropertyValue('--purple-light')
-    const prevTopbar = root.style.getPropertyValue('--bg-topbar')
-    const prevGradBrand = root.style.getPropertyValue('--grad-brand')
-    const prevGradBar = root.style.getPropertyValue('--grad-bar')
-
-    const hexToRgb = (hex) => { const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16); const g=parseInt(h.slice(2,4),16); const b=parseInt(h.slice(4,6),16); return `${r}, ${g}, ${b}` }
-    root.style.setProperty('--purple', branding.colors.brandPrimary)
-    root.style.setProperty('--purple-light', branding.colors.brandSecondary)
-    root.style.setProperty('--purple-rgb', hexToRgb(branding.colors.brandPrimary))
-    root.style.setProperty('--bg-topbar', branding.colors.bgTopbar)
-    root.style.setProperty('--grad-brand', `linear-gradient(135deg, ${branding.colors.brandPrimary}, ${branding.colors.brandSecondary})`)
-    root.style.setProperty('--grad-bar', branding.colors.gradBar)
-
-    return () => {
-      root.style.setProperty('--purple', prevPrimary)
-      root.style.setProperty('--purple-light', prevSecondary)
-      root.style.setProperty('--bg-topbar', prevTopbar)
-      root.style.setProperty('--grad-brand', prevGradBrand)
-      root.style.setProperty('--grad-bar', prevGradBar)
-    }
+    return applyTenantTheme(branding.colors)
   }, [branding])
 
   const clearHideTimer = () => {

@@ -33,7 +33,7 @@ export default function ERPEnquiryTab({
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#ECFDF5', color: '#065F46', fontSize: '0.78rem', fontWeight: '700' }}>{isSuperAdmin ? 'Super Admin' : isFinance ? 'Finance' : 'Department Head'}</span>
-                  <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '0.78rem', fontWeight: '700' }}>Role Based</span>
+                  <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: 'var(--brand-soft)', color: 'var(--purple)', fontSize: '0.78rem', fontWeight: '700' }}>Role Based</span>
                 </div>
               </div>
               {!canViewBalanceEnquiry ? (

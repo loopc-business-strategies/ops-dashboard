@@ -1,25 +1,11 @@
 /* ───────────────────────────────────────────────────────
-   ORANGE → PURPLE OVERRIDE FILE
-   Add this as: frontend/src/overrides.css
-   Import it LAST in index.css (after design-system.css)
-   It fixes every remaining orange element seen in screenshots
+   TENANT THEME OVERRIDES
+   Import LAST in index.css (after design-system.css).
+   Uses CSS vars from applyTenantTheme — no hardcoded tenant colors.
 ─────────────────────────────────────────────────────── */
 
-/* ── 1. LOGIN PAGE ──────────────────────────────────────
-   Fixes: Orange "SIGN IN" header bar, orange Sign In button
-──────────────────────────────────────────────────────── */
+/* ── 1. LOGIN PAGE ────────────────────────────────────── */
 
-/* Sign In form header bar (orange strip) */
-.login-header,
-[class*="sign-in-header"],
-[class*="signin-header"],
-[class*="login-title-bar"],
-form > div:first-child[style*="background"],
-.auth-header {
-  /* background removed for multi-tenant support - now using CSS vars */
-}
-
-/* Sign In / Submit button on login page */
 button[type="submit"],
 .login-btn,
 .signin-btn,
@@ -27,10 +13,8 @@ button[type="submit"],
 [class*="sign-in"] button,
 [class*="signin"] button.btn,
 .auth-form button[type="submit"] {
-  /* background color now handled by CSS vars from tenantBranding.js */
-  /* removed !important rules that forced green for multi-tenant support */
   border: none;
-  color: #fff;
+  color: var(--brand-on-primary, #fff);
 }
 
 button[type="submit"]:hover,
@@ -41,26 +25,25 @@ button[type="submit"]:hover,
 }
 
 /* MG tenant login uses PNG art underneath — keep submit chrome transparent */
+.mg-login button[type="submit"],
 .mg-login-shell button[type="submit"] {
   background: transparent !important;
   box-shadow: none !important;
   transform: none !important;
 }
+.mg-login button[type="submit"]:not(:disabled),
 .mg-login-shell button[type="submit"]:not(:disabled) {
   color: transparent !important;
 }
+.mg-login button[type="submit"]:disabled,
 .mg-login-shell button[type="submit"]:disabled {
   color: #071422 !important;
   opacity: 1 !important;
   transform: none !important;
 }
 
-/* ── 2. ACTIVE TABS ─────────────────────────────────────
-   Fixes: Orange solid background on active tabs (HR, Production, etc.)
-   Change: Solid orange bg → no bg, just purple bottom border
-──────────────────────────────────────────────────────── */
+/* ── 2. ACTIVE TABS ───────────────────────────────────── */
 
-/* Remove orange background from active tabs — use purple underline style */
 .tab.active,
 .tab.on,
 button.tab.active,
@@ -75,19 +58,18 @@ button.tab.on,
 [role="tab"].active {
   background: transparent !important;
   background-color: transparent !important;
-  color: #13AA52 !important;
-  border-bottom: 2px solid #00684A !important;
+  color: var(--purple) !important;
+  border-bottom: 2px solid var(--purple) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
 
-/* Ensure inactive tabs don't have orange */
 .tab,
 button.tab,
 [class*="tab-btn"],
 .tabs button {
   background: transparent !important;
-  color: #8b8fa8 !important;
+  color: var(--text-muted, #6b7280) !important;
   border-bottom: 2px solid transparent !important;
   border-radius: 0 !important;
 }
@@ -96,84 +78,55 @@ button.tab,
 button.tab:hover,
 [class*="tab-btn"]:hover,
 .tabs button:hover {
-  color: #c4c4d4 !important;
+  color: var(--text-secondary, #374151) !important;
   background: transparent !important;
 }
 
-/* ── 3. PRIMARY BUTTONS ─────────────────────────────────
-   DISABLED for multi-tenant support
-   These !important rules were forcing green on all orange buttons
-──────────────────────────────────────────────────────── */
+/* ── 3. CHAT TAB ──────────────────────────────────────── */
 
-/* Removed - button color forcing rules for multi-tenant CSS vars */
-
-/* CSS variable overrides — DISABLED for multi-tenant ───────────
-:root {
-  --acc:    #00684A !important;
-  --acc-h:  #13AA52 !important;
-  --acc-d:  #023430 !important;
-  --primary:        #00684A;
-  --primary-hover:  #13AA52;
-  --primary-dark:   #023430;
-  --btn-bg:         linear-gradient(135deg, #00684A, #00ED64);
-  --active-tab-bg:  transparent;
-  --active-tab-color: #13AA52;
-  --active-tab-border: #00684A;
-}
-──────────────────────────────────────────────────────── */
-
-/* ── 4. CHAT TAB ────────────────────────────────────────
-   Fixes: Orange "Create New Group" button + orange "+" icon
-──────────────────────────────────────────────────────── */
-
-/* Create New Group button */
 [class*="new-grp"],
 [class*="newGrp"],
 [class*="create-group"],
 [class*="createGroup"],
 .new-group-btn,
 .create-group-btn {
-  background: rgba(0, 104, 74, 0.12) !important;
-  border: 1.5px dashed rgba(0, 104, 74, 0.4) !important;
-  color: #13AA52 !important;
+  background: rgba(var(--purple-rgb), 0.12) !important;
+  border: 1.5px dashed rgba(var(--purple-rgb), 0.4) !important;
+  color: var(--purple) !important;
 }
 
 [class*="new-grp"]:hover,
 [class*="newGrp"]:hover,
 .new-group-btn:hover {
-  background: rgba(0, 104, 74, 0.2) !important;
-  border-color: rgba(0, 104, 74, 0.7) !important;
+  background: rgba(var(--purple-rgb), 0.2) !important;
+  border-color: rgba(var(--purple-rgb), 0.7) !important;
 }
 
 [class*="new-grp"] > [class*="icon"],
 [class*="new-grp"] > span:first-child,
 .new-group-btn .icon {
-  background: #00684A !important;
-  color: #fff !important;
+  background: var(--purple) !important;
+  color: var(--brand-on-primary, #fff) !important;
 }
 
-/* Chat + button (new message / add) */
 .chat-add-btn,
 [class*="chat"] button[class*="add"],
 [class*="chat"] .icon-btn.hot,
 [class*="chat"] .ib.hot {
-  background: #00684A !important;
-  color: #fff !important;
-  box-shadow: 0 4px 15px rgba(0, 104, 74, 0.35) !important;
+  background: var(--purple) !important;
+  color: var(--brand-on-primary, #fff) !important;
+  box-shadow: 0 4px 15px rgba(var(--purple-rgb), 0.35) !important;
 }
 
-/* Chat unread badge (orange circle with number) */
 .unread-badge,
 .chat-badge,
 [class*="unread"],
 [class*="ni-bd"],
 .ni-bd {
-  background: #ff4757 !important;
+  background: var(--danger, #DC2626) !important;
 }
 
-/* ── 5. SIDEBAR ACTIVE ITEM ─────────────────────────────
-   Fixes: Orange left border + orange bg on active nav item
-──────────────────────────────────────────────────────── */
+/* ── 4. SIDEBAR ACTIVE ITEM ───────────────────────────── */
 
 .ni.on,
 .nav-item.active,
@@ -191,25 +144,23 @@ button.tab:hover,
 .sidebar-item.active .sidebar-item-label,
 [class*="nav-item"].active [class*="label"],
 [class*="sidebar-item"].active [class*="label"] {
-  color: var(--purple-light) !important;
+  color: var(--purple) !important;
 }
 
-/* ── 6. TABLE ACTION BUTTONS ────────────────────────────
-   Fixes: Orange "Edit" + "Delete" text buttons in tables
-──────────────────────────────────────────────────────── */
+/* ── 5. TABLE ACTION BUTTONS ──────────────────────────── */
 
 .td-ed,
 .td-edit,
 [class*="edit-btn"],
 [class*="editBtn"],
 button.edit {
-  color: #13AA52 !important;
+  color: var(--purple) !important;
 }
 
 .td-ed:hover,
 .td-edit:hover,
 button.edit:hover {
-  color: #fff !important;
+  color: var(--brand-hover, var(--purple)) !important;
 }
 
 .td-del,
@@ -217,12 +168,10 @@ button.edit:hover {
 [class*="delete-btn"],
 [class*="deleteBtn"],
 button.delete {
-  color: #ff4757 !important;
+  color: var(--danger, #DC2626) !important;
 }
 
-/* ── 7. STAR RATINGS ────────────────────────────────────
-   Fixes: Orange stars in HR Employee List (keep yellow)
-──────────────────────────────────────────────────────── */
+/* ── 6. STAR RATINGS (semantic warning yellow) ────────── */
 
 .star-on,
 [class*="star"].on,
@@ -230,30 +179,26 @@ button.delete {
 [class*="starOn"],
 [class*="starFilled"],
 .rating .on {
-  color: #ffd600 !important;
+  color: var(--warning, #D97706) !important;
 }
 
-/* ── 8. TOPBAR ROLE BADGE ───────────────────────────────
-   Fixes: Orange role badge in topbar
-──────────────────────────────────────────────────────── */
+/* ── 7. TOPBAR ROLE BADGE ─────────────────────────────── */
 
 .topbar-role-badge,
 [class*="role-badge"],
 [class*="roleBadge"],
 .tb-badge,
 .tb-bg {
-  background: linear-gradient(135deg, #00684A, #00ED64) !important;
+  background: var(--grad-brand) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   background-clip: text !important;
-  border: 1px solid rgba(0, 104, 74, 0.3) !important;
+  border: 1px solid rgba(var(--purple-rgb), 0.35) !important;
   padding: 3px 12px !important;
   border-radius: 999px !important;
 }
 
-/* ── 9. LOGO / BRAND ICON ───────────────────────────────
-   Fixes: Orange logo background in sidebar and login
-──────────────────────────────────────────────────────── */
+/* ── 8. LOGO / BRAND ICON ─────────────────────────────── */
 
 .sb-logo-icon,
 .sidebar-brand-icon,
@@ -261,38 +206,28 @@ button.delete {
 [class*="brandIcon"],
 [class*="logo-icon"],
 [class*="logoIcon"] {
-  background: linear-gradient(135deg, #00684A, #00ED64) !important;
+  background: var(--grad-brand) !important;
   border: none !important;
-  box-shadow: 0 4px 15px rgba(0, 104, 74, 0.35) !important;
+  box-shadow: 0 4px 15px rgba(var(--purple-rgb), 0.35) !important;
 }
 
 .login-logo,
 [class*="login"] [class*="logo"],
 [class*="auth"] [class*="logo"],
-[class*="logo"][style*="border"],
-[class*="logo"][style*="orange"] {
-  border-color: rgba(0, 104, 74, 0.5) !important;
-  box-shadow: 0 0 20px rgba(0, 104, 74, 0.3) !important;
+[class*="logo"][style*="border"] {
+  border-color: rgba(var(--purple-rgb), 0.5) !important;
+  box-shadow: 0 0 20px rgba(var(--purple-rgb), 0.3) !important;
 }
 
-/* ── 10. CATCH-ALL INLINE STYLE OVERRIDES ───────────────
-   DISABLED for multi-tenant support
-   These !important rules were forcing green colors everywhere
-   Now using dynamic CSS vars from tenantBranding.js instead
-──────────────────────────────────────────────────────── */
+/* ── 9. NOTIFICATIONS PANEL ───────────────────────────── */
 
-/* All hardcoded color forcing removed - now handled by CSS variables */
-
-/* ── 11. NOTIFICATIONS PANEL ────────────────────────────
-   Slide-in panel for ProductionTab real-time alerts
-──────────────────────────────────────────────────────── */
 .notif-bell {
   position: relative;
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: rgba(0, 104, 74, 0.1);
-  border: 1px solid rgba(0, 104, 74, 0.25);
+  background: rgba(var(--purple-rgb), 0.1);
+  border: 1px solid rgba(var(--purple-rgb), 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -302,8 +237,8 @@ button.delete {
   flex-shrink: 0;
 }
 .notif-bell:hover {
-  background: rgba(0, 104, 74, 0.22);
-  border-color: rgba(0, 104, 74, 0.5);
+  background: rgba(var(--purple-rgb), 0.22);
+  border-color: rgba(var(--purple-rgb), 0.5);
 }
 .notif-count {
   position: absolute;
@@ -312,14 +247,14 @@ button.delete {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #ff4757;
+  background: var(--danger, #DC2626);
   color: #fff;
   font-size: 10px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #0f0f1a;
+  border: 2px solid #f8f9fa;
 }
 @keyframes notif-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
@@ -373,7 +308,7 @@ button.delete {
   gap: 8px;
 }
 .np-title-badge {
-  background: #ff4757;
+  background: var(--danger, #DC2626);
   color: #fff;
   font-size: 10px;
   font-weight: 800;
@@ -394,12 +329,12 @@ button.delete {
   font-size: 14px;
   transition: all 0.15s;
 }
-.np-close:hover { background: rgba(255,71,87,0.15); color: #ff4757; }
+.np-close:hover { background: rgba(220,38,38,0.15); color: var(--danger, #DC2626); }
 .np-filters {
   padding: 10px 18px;
   display: flex;
   gap: 6px;
-  border-bottom: 1px solid rgba(0,104,74,0.1);
+  border-bottom: 1px solid rgba(var(--purple-rgb), 0.1);
   flex-shrink: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -418,14 +353,18 @@ button.delete {
   white-space: nowrap;
   transition: all 0.15s;
 }
-.np-filter-btn:hover { color: #374151; border-color: rgba(0,104,74,0.4); }
-.np-filter-btn.active { background: linear-gradient(135deg,#00684A,#00ED64); color: #fff; border-color: transparent; }
+.np-filter-btn:hover { color: #374151; border-color: rgba(var(--purple-rgb), 0.4); }
+.np-filter-btn.active {
+  background: var(--grad-brand);
+  color: var(--brand-on-primary, #fff);
+  border-color: transparent;
+}
 .np-body {
   flex: 1;
   overflow-y: auto;
   padding: 12px 14px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0,104,74,0.3) transparent;
+  scrollbar-color: rgba(var(--purple-rgb), 0.3) transparent;
 }
 .np-empty {
   display: flex;
@@ -449,44 +388,44 @@ button.delete {
 }
 .np-item:hover { background: rgba(0,0,0,0.04); }
 .np-item.read { opacity: 0.55; }
-.np-item.crit    { border-left-color: #ff4757; }
-.np-item.high    { border-left-color: #ff7043; }
-.np-item.med     { border-left-color: #ffd600; }
-.np-item.info    { border-left-color: #00b4d8; }
-.np-item.success { border-left-color: #00c896; }
+.np-item.crit    { border-left-color: var(--danger, #DC2626); }
+.np-item.high    { border-left-color: var(--orange, #EA580C); }
+.np-item.med     { border-left-color: var(--warning, #D97706); }
+.np-item.info    { border-left-color: var(--info, #0284C7); }
+.np-item.success { border-left-color: var(--success, #059669); }
 .np-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
-.np-item-title { font-size: 12.5px; font-weight: 700; }
-.np-item.crit    .np-item-title { color: #ff4757; }
-.np-item.high    .np-item-title { color: #ff7043; }
-.np-item.med     .np-item-title { color: #ffd600; }
-.np-item.info    .np-item-title { color: #00b4d8; }
-.np-item.success .np-item-title { color: #00c896; }
+.np-item-title { font-size: 12.5px; font-weight: 700; color: #111827; }
+.np-item.crit    .np-item-title { color: var(--danger, #DC2626); }
+.np-item.high    .np-item-title { color: var(--orange, #EA580C); }
+.np-item.med     .np-item-title { color: var(--warning, #D97706); }
+.np-item.info    .np-item-title { color: var(--info, #0284C7); }
+.np-item.success .np-item-title { color: var(--success, #059669); }
 .np-item-time { font-size: 10px; color: #9ca3af; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
 .np-item-desc { font-size: 11.5px; color: #6b7280; line-height: 1.55; margin-bottom: 8px; }
 .np-item-meta { font-size: 10px; color: #9ca3af; margin-bottom: 9px; }
 .np-item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .np-action-btn { padding: 4px 11px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; transition: all 0.15s; }
-.np-btn-ack       { background: rgba(0,200,150,0.12); color: #00c896; }
-.np-btn-ack:hover { background: rgba(0,200,150,0.22); }
-.np-btn-esc       { background: rgba(255,112,67,0.12); color: #ff7043; }
-.np-btn-esc:hover { background: rgba(255,112,67,0.22); }
+.np-btn-ack       { background: rgba(5,150,105,0.12); color: #059669; }
+.np-btn-ack:hover { background: rgba(5,150,105,0.22); }
+.np-btn-esc       { background: rgba(234,88,12,0.12); color: #EA580C; }
+.np-btn-esc:hover { background: rgba(234,88,12,0.22); }
 .np-btn-dis       { background: rgba(0,0,0,0.05); color: #6b7280; }
 .np-btn-dis:hover { background: rgba(0,0,0,0.08); color: #374151; }
-.np-footer { padding: 12px 18px; border-top: 1px solid rgba(0,104,74,0.1); display: flex; gap: 8px; flex-shrink: 0; }
+.np-footer { padding: 12px 18px; border-top: 1px solid rgba(var(--purple-rgb), 0.1); display: flex; gap: 8px; flex-shrink: 0; }
 .np-footer-btn { flex: 1; padding: 9px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; transition: all 0.15s; }
-.np-footer-btn.pri { background: linear-gradient(135deg, #00684A, #00ED64); color: #fff; box-shadow: 0 4px 15px rgba(0,104,74,0.3); }
+.np-footer-btn.pri {
+  background: var(--grad-brand);
+  color: var(--brand-on-primary, #fff);
+  box-shadow: 0 4px 15px rgba(var(--purple-rgb), 0.3);
+}
 .np-footer-btn.pri:hover { opacity: 0.9; }
 .np-footer-btn.sec { background: rgba(0,0,0,0.05); color: #6b7280; border: 1px solid rgba(0,0,0,0.1); }
 .np-footer-btn.sec:hover { background: rgba(0,0,0,0.08); color: #374151; }
 
 /* ═══════════════════════════════════════════════════════
    LIGHT THEME — Tailwind class overrides
-   Converts hardcoded dark Tailwind classes to light.
-   Sidebar (.sidebar) uses CSS var --bg-sidebar (dark, unchanged).
-   Scoped to <main> tag for text — avoids breaking sidebar white text.
 ═══════════════════════════════════════════════════════ */
 
-/* ── Global page/container backgrounds ─────────────── */
 .bg-gray-950      { background-color: #f5f5f7 !important; }
 .bg-gray-900      { background-color: #ffffff !important; }
 .bg-gray-800      { background-color: #f3f4f6 !important; }
@@ -494,12 +433,10 @@ button.delete {
 .bg-gray-900\/50  { background-color: rgba(255,255,255,0.85) !important; }
 .bg-gray-800\/60  { background-color: rgba(0,0,0,0.04) !important; }
 
-/* ── Global border classes ──────────────────────────── */
 .border-gray-800  { border-color: #e5e7eb !important; }
 .border-gray-700  { border-color: #d1d5db !important; }
 .border-gray-600  { border-color: #9ca3af !important; }
 
-/* ── Text inside <main> (tab content — not sidebar) ─── */
 main .text-white  { color: #111827 !important; }
 main .text-gray-100 { color: #111827 !important; }
 main .text-gray-200 { color: #1f2937 !important; }
@@ -508,62 +445,59 @@ main .text-gray-400 { color: #4b5563 !important; }
 main .text-gray-500 { color: #374151 !important; }
 main .text-gray-600 { color: #1f2937 !important; }
 
-/* ── Login / Setup / Error pages — headings on light bg */
 .min-h-screen h1.text-white,
 .min-h-screen h2.text-white,
 .min-h-screen h3.text-white { color: #111827 !important; }
-/* Topbar (dark bg) — keep all text white */
 .topbar .text-white,
 header .text-white { color: #ffffff !important; }
 
-/* ── Restore white text: colored-bg avatars/icons ───── */
+/* Restore white text on brand / semantic colored backgrounds */
 main .bg-emerald-700.text-white,
 main .bg-violet-500.text-white,
-main .bg-green-600.text-white { color: #ffffff !important; }
+main .bg-green-600.text-white,
+main .bg-blue-600.text-white,
+main .bg-orange-600.text-white { color: #ffffff !important; }
 
-/* ── Restore white text: elements inside gradient parents */
-main [style*="00684A"] .text-white,
-main [style*="13AA52"] .text-white,
-main [style*="gradient"] .text-white { color: #ffffff !important; }
-[style*="00684A"] .text-white,
-[style*="gradient"] .text-white     { color: #ffffff !important; }
-
-/* ── Restore white text: buttons with inline gradient ── */
-main button[style*="00684A"].text-white,
-main button[style*="13AA52"].text-white,
+main [style*="gradient"] .text-white,
+[style*="gradient"] .text-white,
 main button[style*="gradient"].text-white { color: #ffffff !important; }
 
-/* ── Hover states: dark→light context ──────────────── */
+/* Brand hex families — keep white text on branded chrome */
+main [style*="2563EB"] .text-white,
+main [style*="16A34A"] .text-white,
+main [style*="EA580C"] .text-white,
+main [style*="1D4ED8"] .text-white,
+main [style*="15803D"] .text-white,
+main [style*="C2410C"] .text-white,
+main button[style*="2563EB"].text-white,
+main button[style*="16A34A"].text-white,
+main button[style*="EA580C"].text-white { color: #ffffff !important; }
+
 main .hover\:bg-gray-800:hover  { background-color: #e5e7eb !important; }
 main .hover\:bg-gray-700:hover  { background-color: #d1d5db !important; }
 .hover\:bg-gray-800\/20:hover   { background-color: rgba(0,0,0,0.03) !important; }
-/* hover:text-white — becomes dark on light bg instead */
 main .hover\:text-white:hover   { color: #1C2A33 !important; }
-/* Exception: buttons with inline style or topbar keep white on hover */
-main button[style*="00684A"].hover\:text-white:hover,
 main button[style*="gradient"].hover\:text-white:hover { color: #ffffff !important; }
 header .hover\:text-white:hover,
 .topbar .hover\:text-white:hover { color: #ffffff !important; }
 
-/* ── Input/select inside main ───────────────────────── */
 main input:not([type="checkbox"]):not([type="radio"]),
 main select,
 main textarea {
   background-color: #ffffff;
   color: #1C2A33;
-  border-color: rgba(0,104,74,0.35);
+  border-color: rgba(var(--purple-rgb), 0.35);
 }
 main input::placeholder,
 main textarea::placeholder { color: #9ca3af; }
 
-/* Select option (dropdown list) */
 select option, main select option {
   background-color: #ffffff;
   color: #1C2A33;
 }
 main select:focus {
-  border-color: #00684A !important;
-  box-shadow: 0 0 0 3px rgba(0,104,74,0.12) !important;
+  border-color: var(--purple) !important;
+  box-shadow: 0 0 0 3px rgba(var(--purple-rgb), 0.12) !important;
 }
 main select,
 select.input-field {
@@ -578,8 +512,8 @@ select.input-field {
 }
 select option:checked,
 main select option:checked {
-  background-color: #e8f5ef;
-  color: #023430;
+  background-color: var(--brand-soft, #EFF6FF);
+  color: var(--brand-on-soft, #1E3A8A);
   font-weight: 600;
 }
 select option,
@@ -588,25 +522,23 @@ main select option {
   line-height: 1.35;
 }
 
-/* ── Toast / fixed notifications in main area ───────── */
 .fixed.bg-gray-800 { background-color: #ffffff !important; }
 .fixed.border-gray-700 { border-color: #e5e7eb !important; }
 
-/* ── Notif bell border fix for light bg ────────────── */
-/* ── Notif bell border fix for bg ──────────────────── */
 .notif-count { border-color: #f8f9fa; }
 
 /* ═══════════════════════════════════════════════════════
-   SIDEBAR — WHITE THEME (MongoDB Atlas style)
+   SIDEBAR — WHITE THEME
 ═══════════════════════════════════════════════════════ */
-/* Sidebar brand text (was text-white, now dark on white bg) */
 .sidebar .text-white:not([style*="background"]) { color: #1C2A33 !important; }
-/* Font override for sidebar */
 .sidebar { font-family: 'Inter', sans-serif; border-right: 1px solid #e8edeb !important; }
-/* Sidebar item active — brand accent */
 .sidebar-item.active {
   background: rgba(var(--purple-rgb), 0.08) !important;
   border-left-color: var(--purple) !important;
 }
 .sidebar-item.active span { color: var(--purple) !important; }
 .sidebar-item:hover { background: rgba(var(--purple-rgb), 0.05) !important; }
+
+/* Primary buttons — ensure readable on-brand labels */
+.btn-primary { color: var(--brand-on-primary, #fff); }
+.btn-primary:hover { background: var(--grad-brand); filter: brightness(0.95); }

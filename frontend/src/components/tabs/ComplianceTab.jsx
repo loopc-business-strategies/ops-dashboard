@@ -377,7 +377,7 @@ function ComplianceTab() {
         title="Government & Compliance"
         subtitle="Role-based compliance control center with actionable records and audit-ready data."
         right={(
-          <div style={{ background: readOnlyByRole ? 'rgba(148,163,184,0.18)' : 'rgba(0,104,74,0.12)', color: readOnlyByRole ? '#556273' : C.primary, border: `1px solid ${readOnlyByRole ? 'rgba(100,116,139,0.3)' : C.borderStrong}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700 }}>
+          <div style={{ background: readOnlyByRole ? 'rgba(148,163,184,0.18)' : 'rgba(var(--purple-rgb),0.12)', color: readOnlyByRole ? '#556273' : C.primary, border: `1px solid ${readOnlyByRole ? 'rgba(100,116,139,0.3)' : C.borderStrong}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700 }}>
             {readOnlyByRole ? 'Read Only Access' : 'Edit Access Enabled'}
           </div>
         )}
@@ -411,7 +411,7 @@ function ComplianceTab() {
           </div>
           <div style={{ overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 860 }}>
-              <thead><tr style={{ background: 'rgba(0,104,74,0.06)' }}><th style={th}>Entity</th><th style={th}>Permit</th><th style={th}>Status</th><th style={th}>Last Review</th><th style={th}>Owner</th><th style={th}>Notes</th><th style={th}>Actions</th></tr></thead>
+              <thead><tr style={{ background: 'rgba(var(--purple-rgb),0.06)' }}><th style={th}>Entity</th><th style={th}>Permit</th><th style={th}>Status</th><th style={th}>Last Review</th><th style={th}>Owner</th><th style={th}>Notes</th><th style={th}>Actions</th></tr></thead>
               <tbody>
                 {eligibility.map(r => (
                   <tr key={r.id}><td style={td}>{r.entity}</td><td style={td}>{r.permit}</td><td style={td}><Badge>{r.status}</Badge></td><td style={td}>{r.lastReview || '—'}</td><td style={td}>{r.owner || '—'}</td><td style={td}>{r.notes || '—'}</td><td style={td}><RowActions canEdit={!readOnlyByRole} onEdit={() => openEligibility(r)} onDelete={() => removeRowApi(setEligibility, eligibility, r.id, r.entity, complianceAPI.eligibility)} /></td></tr>
@@ -430,7 +430,7 @@ function ComplianceTab() {
           </div>
           <div style={{ overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 900 }}>
-              <thead><tr style={{ background: 'rgba(0,104,74,0.06)' }}><th style={th}>Authority</th><th style={th}>Filing</th><th style={th}>Due</th><th style={th}>Submitted</th><th style={th}>Status</th><th style={th}>Reference</th><th style={th}>Actions</th></tr></thead>
+              <thead><tr style={{ background: 'rgba(var(--purple-rgb),0.06)' }}><th style={th}>Authority</th><th style={th}>Filing</th><th style={th}>Due</th><th style={th}>Submitted</th><th style={th}>Status</th><th style={th}>Reference</th><th style={th}>Actions</th></tr></thead>
               <tbody>
                 {approvals.map(r => (
                   <tr key={r.id}>
@@ -472,7 +472,7 @@ function ComplianceTab() {
           </div>
           <div style={{ overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 900 }}>
-              <thead><tr style={{ background: 'rgba(0,104,74,0.06)' }}><th style={th}>Document</th><th style={th}>Category</th><th style={th}>Owner</th><th style={th}>Version</th><th style={th}>Expiry</th><th style={th}>Status</th><th style={th}>Actions</th></tr></thead>
+              <thead><tr style={{ background: 'rgba(var(--purple-rgb),0.06)' }}><th style={th}>Document</th><th style={th}>Category</th><th style={th}>Owner</th><th style={th}>Version</th><th style={th}>Expiry</th><th style={th}>Status</th><th style={th}>Actions</th></tr></thead>
               <tbody>
                 {docs.map(r => (
                   <tr key={r.id}>
@@ -516,7 +516,7 @@ function ComplianceTab() {
           </div>
           <div style={{ overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 960 }}>
-              <thead><tr style={{ background: 'rgba(0,104,74,0.06)' }}><th style={th}>Title</th><th style={th}>Source</th><th style={th}>Effective</th><th style={th}>Impact</th><th style={th}>Owner</th><th style={th}>Status</th><th style={th}>Actions</th></tr></thead>
+              <thead><tr style={{ background: 'rgba(var(--purple-rgb),0.06)' }}><th style={th}>Title</th><th style={th}>Source</th><th style={th}>Effective</th><th style={th}>Impact</th><th style={th}>Owner</th><th style={th}>Status</th><th style={th}>Actions</th></tr></thead>
               <tbody>
                 {updates.map(r => (
                   <tr key={r.id}><td style={td}>{r.title}</td><td style={td}>{r.source}</td><td style={td}>{r.effective || '—'}</td><td style={td}>{r.impact}</td><td style={td}>{r.actionOwner || '—'}</td><td style={td}><Badge>{r.status}</Badge></td><td style={td}><RowActions canEdit={!readOnlyByRole} onEdit={() => openUpdate(r)} onDelete={() => removeRowApi(setUpdates, updates, r.id, r.title, complianceAPI.updates)} /></td></tr>
@@ -535,7 +535,7 @@ function ComplianceTab() {
           </div>
           <div style={{ overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 960 }}>
-              <thead><tr style={{ background: 'rgba(0,104,74,0.06)' }}><th style={th}>Partner</th><th style={th}>Type</th><th style={th}>Start</th><th style={th}>End</th><th style={th}>Value</th><th style={th}>Status</th><th style={th}>Actions</th></tr></thead>
+              <thead><tr style={{ background: 'rgba(var(--purple-rgb),0.06)' }}><th style={th}>Partner</th><th style={th}>Type</th><th style={th}>Start</th><th style={th}>End</th><th style={th}>Value</th><th style={th}>Status</th><th style={th}>Actions</th></tr></thead>
               <tbody>
                 {agreements.map(r => (
                   <tr key={r.id}>

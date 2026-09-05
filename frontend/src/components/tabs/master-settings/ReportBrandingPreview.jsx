@@ -16,10 +16,10 @@ export default function ReportBrandingPreview({ branding = {} }) {
       }}
     >
       <p style={{ marginTop: 0, marginBottom: 12, color: '#111827', fontWeight: 700 }}>Financial Report Preview</p>
-      <div style={{ height: 10, background: 'linear-gradient(90deg, #00684A, #00b4d8)', borderRadius: 999, marginBottom: 14 }} />
+      <div style={{ height: 10, background: 'var(--grad-bar)', borderRadius: 999, marginBottom: 14 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, borderBottom: '2px solid #111827', paddingBottom: 14, marginBottom: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 260, flex: '1 1 320px' }}>
-          <p style={{ margin: '0 0 6px', color: '#065F46', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
+          <p style={{ margin: '0 0 6px', color: 'var(--purple)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
             {preview.companyName || DEFAULT_BRANDING.companyName}
           </p>
           <p style={{ margin: '0 0 6px', color: '#111827', fontSize: 21, fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700 }}>

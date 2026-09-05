@@ -66,7 +66,7 @@ export default function ChatThread({
                 {/* Chat Header */}
                 <div style={{ padding:'30px 20px', background:C.sidebar, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
                   {activeChat.type === 'group' ? (
-                    <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(0,104,74,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>👥</div>
+                    <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(var(--purple-rgb),0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>👥</div>
                   ) : (
                     <div style={{ position:'relative', flexShrink:0 }}>
                       <div style={{ width:40, height:40, borderRadius:'50%', background:(displayUser(activeChat.otherId)?.color || '#334155') + '20', color: displayUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>
@@ -95,7 +95,7 @@ export default function ChatThread({
                     <button
                       onClick={() => showToast('📹 Video Call', `Starting video call with ${activeChat.name}...`, '#60a5fa')}
                       style={{ padding:'7px 14px', borderRadius:8, border:`1.5px solid ${C.border}`, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, background:'#f8f9fa', color:'#374151', transition:'all .2s' }}
-                      onMouseEnter={e => e.currentTarget.style.background='#f0faf5'}
+                      onMouseEnter={e => e.currentTarget.style.background='var(--brand-soft)'}
                       onMouseLeave={e => e.currentTarget.style.background='#f8f9fa'}
                     >
                       <IconVideo /> Video
@@ -114,7 +114,7 @@ export default function ChatThread({
                 </div>
 
                 {/* Messages */}
-                <div style={{ flex:1, overflowY:'auto', padding:'20px 18px', display:'flex', flexDirection:'column', gap:4, scrollbarWidth:'thin', scrollbarColor:`rgba(0,104,74,0.3) transparent` }}>
+                <div style={{ flex:1, overflowY:'auto', padding:'20px 18px', display:'flex', flexDirection:'column', gap:4, scrollbarWidth:'thin', scrollbarColor:`rgba(var(--purple-rgb),0.3) transparent` }}>
                   <div style={{ alignSelf:'center', fontSize:11, fontWeight:600, color:'#334155', background:'#f0f2f5', padding:'4px 14px', borderRadius:20, marginBottom:8 }}>Today</div>
 
                   {activeChat.messages.map((msg, idx) => {
@@ -184,7 +184,7 @@ export default function ChatThread({
                 {/* Input bar */}
                 <div style={{ padding:'12px 16px', background:C.inputBg, borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
                   {chatTranslateEnabled && translatePanelOpen ? (
-                    <div style={{ marginBottom:10, padding:'10px 12px', borderRadius:12, background:'#f0faf5', border:'1px solid rgba(0,104,74,0.18)', direction:'ltr', unicodeBidi:'isolate' }}>
+                    <div style={{ marginBottom:10, padding:'10px 12px', borderRadius:12, background:'var(--brand-soft)', border:'1px solid rgba(var(--purple-rgb),0.18)', direction:'ltr', unicodeBidi:'isolate' }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:10 }}>
                         <span style={{ fontSize:11, fontWeight:700, color:'#0f766e' }}>{t('chatTranslatePreview')}</span>
                         <button
@@ -203,7 +203,7 @@ export default function ChatThread({
                           value={translateSourceLang}
                           onChange={(e) => handleTranslateSourceChange(e.target.value)}
                           aria-label={t('chatTranslateSourceLang')}
-                          style={{ height:34, borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px', maxWidth:130 }}
+                          style={{ height:34, borderRadius:999, border:'1px solid rgba(var(--purple-rgb),0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px', maxWidth:130 }}
                         >
                           {CHAT_TRANSLATE_SOURCE_LANGS.map((lang) => (
                             <option key={lang.code} value={lang.code}>{t(lang.labelKey)}</option>
@@ -213,7 +213,7 @@ export default function ChatThread({
                           value={translateTargetLang}
                           onChange={(e) => handleTranslateTargetChange(e.target.value)}
                           aria-label={t('chatTranslateTargetLang')}
-                          style={{ height:34, borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px' }}
+                          style={{ height:34, borderRadius:999, border:'1px solid rgba(var(--purple-rgb),0.25)', background:'#fff', color:'#334155', fontSize:12, padding:'0 10px' }}
                         >
                           {CHAT_TRANSLATE_LANGS.map((lang) => (
                             <option key={lang.code} value={lang.code}>{t(lang.labelKey)}</option>
@@ -228,7 +228,7 @@ export default function ChatThread({
                             height:34,
                             padding:'0 12px',
                             borderRadius:999,
-                            border:'1px solid rgba(0,104,74,0.25)',
+                            border:'1px solid rgba(var(--purple-rgb),0.25)',
                             background: msgText.trim() && !translateLoading ? '#ecfdf5' : '#f8fafc',
                             color:'#0f766e',
                             fontSize:12,
@@ -250,7 +250,7 @@ export default function ChatThread({
                               style={{
                                 padding:'8px 10px',
                                 borderRadius:10,
-                                border:'1px solid rgba(0,104,74,0.12)',
+                                border:'1px solid rgba(var(--purple-rgb),0.12)',
                                 background:'#f8fafc',
                                 fontSize:12,
                                 lineHeight:1.5,
@@ -276,7 +276,7 @@ export default function ChatThread({
                                 boxSizing:'border-box',
                                 resize:'vertical',
                                 minHeight:52,
-                                border:'1px solid rgba(0,104,74,0.2)',
+                                border:'1px solid rgba(var(--purple-rgb),0.2)',
                                 borderRadius:10,
                                 padding:'8px 10px',
                                 fontSize:13,
@@ -301,7 +301,7 @@ export default function ChatThread({
                             <button
                               type="button"
                               onClick={handleRevertTranslation}
-                              style={{ padding:'6px 12px', borderRadius:999, border:'1px solid rgba(0,104,74,0.25)', background:'#fff', color:'#334155', fontSize:12, fontWeight:600, cursor:'pointer' }}
+                              style={{ padding:'6px 12px', borderRadius:999, border:'1px solid rgba(var(--purple-rgb),0.25)', background:'#fff', color:'#334155', fontSize:12, fontWeight:600, cursor:'pointer' }}
                             >
                               {t('chatTranslateRevert')}
                             </button>
@@ -326,9 +326,9 @@ export default function ChatThread({
                     </div>
 
                     {/* Input box */}
-                    <div style={{ flex:1, display:'flex', alignItems:'center', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:24, padding:'9px 16px', gap:8, transition:'border-color .2s' }}
+                    <div style={{ flex:1, display:'flex', alignItems:'center', background:'#f8f9fa', border:'1.5px solid rgba(var(--purple-rgb),0.2)', borderRadius:24, padding:'9px 16px', gap:8, transition:'border-color .2s' }}
                       onFocusCapture={e => e.currentTarget.style.borderColor = C.accent}
-                      onBlurCapture={e  => e.currentTarget.style.borderColor = 'rgba(0,104,74,0.2)'}
+                      onBlurCapture={e  => e.currentTarget.style.borderColor = 'rgba(var(--purple-rgb),0.2)'}
                     >
                       <input
                         ref={inputRef}
@@ -362,7 +362,7 @@ export default function ChatThread({
                           height:34,
                           padding:'0 12px',
                           borderRadius:999,
-                          border:'1px solid rgba(0,104,74,0.25)',
+                          border:'1px solid rgba(var(--purple-rgb),0.25)',
                           background: translatePanelOpen ? '#ecfdf5' : '#fff',
                           color:'#0f766e',
                           fontSize:12,
@@ -380,9 +380,9 @@ export default function ChatThread({
                     <button
                       onClick={() => sendMessage(activeChatId)}
                       disabled={!msgText.trim()}
-                      style={{ width:40, height:40, borderRadius:'50%', background: msgText.trim() ? C.accent : 'rgba(0,104,74,0.3)', border:'none', cursor: msgText.trim() ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
+                      style={{ width:40, height:40, borderRadius:'50%', background: msgText.trim() ? C.accent : 'rgba(var(--purple-rgb),0.3)', border:'none', cursor: msgText.trim() ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
                       onMouseEnter={e => { if (msgText.trim()) { e.currentTarget.style.background=C.accent2; e.currentTarget.style.transform='scale(1.06)' }}}
-                      onMouseLeave={e => { e.currentTarget.style.background = msgText.trim() ? C.accent : 'rgba(0,104,74,0.3)'; e.currentTarget.style.transform='scale(1)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = msgText.trim() ? C.accent : 'rgba(var(--purple-rgb),0.3)'; e.currentTarget.style.transform='scale(1)' }}
                     >
                       <IconSend />
                     </button>
