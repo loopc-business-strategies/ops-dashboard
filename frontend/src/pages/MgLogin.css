@@ -626,16 +626,21 @@
   position: relative;
 }
 .enterprise-login .mg-login__form-logo {
-  width: 40px;
-  height: 40px;
-  margin: 0 0 14px;
+  width: 64px;
+  height: 64px;
+  margin: 0 0 16px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid var(--border, #e5e7eb);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 .enterprise-login .mg-login__form-logo img {
-  max-width: 40px;
-  max-height: 40px;
+  max-width: 48px;
+  max-height: 48px;
   width: auto;
   height: auto;
   object-fit: contain;
@@ -660,16 +665,34 @@
   color: #374151;
   margin: 12px 0 6px;
 }
+/* Wrapper is layout-only; input owns the visible control (avoids double orange ring). */
+.enterprise-login .mg-login__field {
+  display: block;
+  height: auto;
+  padding: 0;
+  gap: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.enterprise-login .mg-login__field:focus-within {
+  border: none;
+  box-shadow: none;
+}
 .enterprise-login .mg-login__field input {
   width: 100%;
   height: 52px;
   border-radius: 12px;
-  border: 1px solid var(--border-input);
+  border: 1px solid var(--border-input, #9CA3AF);
   background: #ffffff;
   padding: 0 14px;
   font-size: 14px;
   color: #111827;
   outline: none;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .enterprise-login .mg-login__field input::placeholder {
   color: #9CA3AF;
@@ -678,30 +701,56 @@
   border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px var(--brand-focus-ring);
 }
+.enterprise-login .mg-login__field input:-webkit-autofill,
+.enterprise-login .mg-login__field input:-webkit-autofill:hover,
+.enterprise-login .mg-login__field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111827;
+  caret-color: #111827;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+.enterprise-login .mg-login__field input:-webkit-autofill:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 1000px #ffffff inset, 0 0 0 3px var(--brand-focus-ring);
+}
 .enterprise-login .mg-login__submit {
-  background: var(--brand-button-bg, var(--brand-dark));
-  color: var(--brand-button-text, #ffffff);
-  box-shadow: none;
+  background: var(--brand-button-bg, var(--brand-dark)) !important;
+  color: var(--brand-button-text, #ffffff) !important;
+  box-shadow: none !important;
 }
 .enterprise-login .mg-login__submit:hover:not(:disabled) {
-  background: var(--brand-button-hover, var(--brand-dark));
-  box-shadow: none;
+  background: var(--brand-button-hover, var(--brand-dark)) !important;
+  box-shadow: none !important;
   transform: none;
 }
 .enterprise-login .mg-login__field--pass {
   position: relative;
+}
+.enterprise-login .mg-login__field--pass input {
+  padding-right: 56px;
 }
 .enterprise-login .mg-login__eye {
   position: absolute;
   right: 12px;
   top: 50%;
   transform: translateY(-50%);
+  width: auto;
+  height: auto;
   border: none;
+  border-radius: 0;
   background: transparent;
   color: var(--brand-dark);
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+  padding: 4px 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.enterprise-login .mg-login__eye:hover:not(:disabled) {
+  color: var(--brand-dark);
+  background: transparent;
 }
 .enterprise-login .mg-login__row {
   display: flex;
