@@ -34,7 +34,6 @@ export default function ChatThread({
   handleFileSelected,
   messagesEndRef,
   inputRef,
-  typing,
   typingChatId,
   chatTranslateEnabled,
   translatePanelOpen,

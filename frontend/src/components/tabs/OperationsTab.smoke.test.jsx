@@ -34,6 +34,7 @@ describe('OperationsTab smoke', () => {
         <OperationsTab />
       </MemoryRouter>,
     )
-    expect(screen.getAllByText(/KPI overview/i).length).toBeGreaterThan(0)
+    // Shell tab labels use t('kpiOverview'); smoke mock returns the key as-is.
+    expect(screen.getAllByText(/kpiOverview/i).length).toBeGreaterThan(0)
   })
 })

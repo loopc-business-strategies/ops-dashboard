@@ -7,8 +7,8 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import messagesAPI from '../../api/messages'
 import { getTenantBranding } from '../../config/tenantBranding'
-import { CHAT_TRANSLATE_LANGS, CHAT_TRANSLATE_SOURCE_LANGS, detectTextDirection, isRtlChatLang, isSameTranslation } from '../../utils/chatTranslate'
-import { subscribeRealtimeEvents } from '../../utils/realtimeEventsBus'
+import { detectTextDirection, isRtlChatLang, isSameTranslation } from '../../utils/chatTranslate'
+import { buildRealtimeEventsUrl } from '../../utils/realtimeUrl'
 import { countOnlineMembers as countOnlineMemberIds, createOnlineLookup } from '../../utils/chatPresence'
 import useOnlineUserIds from '../../hooks/useOnlineUserIds'
 import { C } from './chat/chatUi'
@@ -112,15 +112,6 @@ const AUTO_REPLIES = [
   "Received. Let me check with the team and get back to you.",
 ]
 
-function msgTime(iso) {
-  const d    = new Date(iso)
-  const diff = (Date.now() - d) / 86400000
-  if (diff < 1) return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })
-  if (diff < 2) return 'Yesterday'
-  if (diff < 7) return d.toLocaleDateString([], { weekday:'short' })
-  return d.toLocaleDateString([], { day:'numeric', month:'short' })
-}
-
 function getUser(id) {
   const seeded = SEED_USERS.find((u) => u.id === id)
   if (seeded) return seeded
@@ -133,10 +124,11 @@ function getUser(id) {
   return { id: String(id), name: 'Team member', dept: '', color: '#64748b', initials: 'TM' }
 }
 
-function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed, focusComposerNonce = 0, onlineUserIds = [] }) {
+function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed, focusComposerNonce = 0 }) {
   const { user, token, company }  = useAuth()
   const perms     = usePermissions()
   const { t } = useLanguage()
+  const onlineUserIds = useOnlineUserIds()
   const chatTranslateEnabled = Boolean(getTenantBranding(user?.company || company)?.featureFlags?.chatTranslate)
 
   const [chats,         setChats]         = useState(INITIAL_CHATS)
@@ -850,7 +842,6 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
         handleFileSelected={handleFileSelected}
         messagesEndRef={messagesEndRef}
         inputRef={inputRef}
-        typing={typing}
         typingChatId={typingChatId}
         chatTranslateEnabled={chatTranslateEnabled}
         translatePanelOpen={translatePanelOpen}
