@@ -5,18 +5,29 @@ const {
 } = require('../utils/stagingMongoSafety')
 
 describe('stagingMongoSafety', () => {
-  test('resolveStagingMongoUri prefers STAGING_MONGO_URI_*', () => {
-    const uri = resolveStagingMongoUri('mg', {
+  test('resolveStagingMongoUri uses only STAGING_MONGO_URI_* (no MONGO_URI fallback)', () => {
+    const withStaging = resolveStagingMongoUri('mg', {
       STAGING_MONGO_URI_MG: 'mongodb+srv://x/staging-mg',
       MONGO_URI_MG: 'mongodb+srv://x/prod-mg',
     })
-    expect(uri).toContain('staging-mg')
+    expect(withStaging).toContain('staging-mg')
+
+    const mongoOnly = resolveStagingMongoUri('mg', {
+      MONGO_URI_MG: 'mongodb+srv://x/staging-mg',
+    })
+    expect(mongoOnly).toBe('')
   })
 
   test('assertStagingMongoTargets blocks production-like URIs', () => {
     expect(() => assertStagingMongoTargets(['mg'], {
       STAGING_MONGO_URI_MG: 'mongodb+srv://u:p@prod-cluster.mongodb.net/ops',
     })).toThrow(/production-like/i)
+  })
+
+  test('assertStagingMongoTargets refuses MONGO_URI-only config', () => {
+    expect(() => assertStagingMongoTargets(['mg'], {
+      MONGO_URI_MG: 'mongodb+srv://u:p@staging-mg.abcd.mongodb.net/ops_staging',
+    })).toThrow(/Missing staging Mongo URIs/i)
   })
 
   test('assertStagingMongoTargets allows staging URIs', () => {

@@ -25,6 +25,7 @@ const path = require('path')
 const dns = require('dns')
 const mongoose = require('mongoose')
 const { getTenantUri, normalizeTenant } = require('../config/tenants')
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
 
@@ -162,6 +163,10 @@ async function main() {
   }
 
   const apply = process.argv.includes('--apply')
+  assertStagingOnlyScript({
+    scriptName: path.basename(__filename),
+    tenants: [tenant],
+  })
   if (apply) {
     require(path.join(__dirname, 'destructive', '_destructive-guard'))({
       scriptName: path.basename(__filename),

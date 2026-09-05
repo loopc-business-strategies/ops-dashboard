@@ -7,7 +7,7 @@ const metalSpotCache = {
   expiresAt: 0,
 }
 
-const DASHBOARD_CACHE_TTL_MS = 120000
+const DASHBOARD_CACHE_TTL_MS = 180000
 
 const { reportCache } = require('../../utils/erpReadCaches')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')

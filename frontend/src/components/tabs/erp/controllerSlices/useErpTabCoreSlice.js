@@ -403,6 +403,7 @@ export function useErpTabCoreSlice(props) {
     token,
     canLoadDashboard,
     setError,
+    tenantKey: user?.company || user?.tenant?.key || user?.tenant?.name || '',
   })
   const { loadCustomers } = useErpCustomers({
     token,

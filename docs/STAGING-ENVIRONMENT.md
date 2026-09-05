@@ -152,7 +152,7 @@ $env:SMOKE_REQUIRE_AUTH = "false"
 npm run smoke:staging
 ```
 
-`npm run smoke:staging` refuses to run against production `loopcstrategies.com` targets unless `STAGING_SMOKE_ALLOW_PRODUCTION_TARGETS=true` is set intentionally.
+`npm run smoke:staging` refuses to run against production `loopcstrategies.com` targets. There is no production bypass flag.
 
 ## 7. Smoke checklist after provisioning staging
 

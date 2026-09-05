@@ -26,7 +26,6 @@ function assertStagingTargets() {
   const apiBase = String(process.env.SMOKE_API_BASE || '').trim().replace(/\/$/, '')
   const baseDomain = String(process.env.SMOKE_BASE_DOMAIN || '').trim()
   const vercelHosts = splitCsv(process.env.SMOKE_VERCEL_HOSTS)
-  const allowProductionTargets = String(process.env.STAGING_SMOKE_ALLOW_PRODUCTION_TARGETS || '').toLowerCase() === 'true'
   const skipFrontend = String(process.env.SMOKE_SKIP_FRONTEND || '').toLowerCase() === 'true'
 
   if (!apiBase) {
@@ -40,10 +39,10 @@ function assertStagingTargets() {
     if (PROD_HOST_RE.test(host)) productionTargets.push(`SMOKE_VERCEL_HOSTS contains ${host}`)
   }
 
-  if (productionTargets.length && !allowProductionTargets) {
+  if (productionTargets.length) {
     throw new Error(
       'Refusing to run staging smoke against production target(s): '
-      + `${productionTargets.join(', ')}. Set STAGING_SMOKE_ALLOW_PRODUCTION_TARGETS=true only for an intentional emergency check.`,
+      + `${productionTargets.join(', ')}. Production targets are impossible for staging smoke.`,
     )
   }
 

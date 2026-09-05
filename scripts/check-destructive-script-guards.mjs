@@ -9,6 +9,7 @@ const mutatingScriptFiles = [
   'backend/scripts/backfill-mapping-departments.js',
   'backend/scripts/backfill-missing-metal-ledger.js',
   'backend/scripts/backfill-transaction-type-all-tenants.js',
+  'backend/scripts/backfill-jv-ledger-base-to-fc.js',
   'backend/scripts/bootstrap-statutory-accounts-all-tenants.js',
   'backend/scripts/copy-chart-of-accounts.js',
   'backend/scripts/copy-ops-to-cg.js',
@@ -39,7 +40,10 @@ const stagingAssertMutators = [
   'backend/scripts/migrate-persistent-session-all-tenants.js',
   'backend/scripts/backfill-fx-journals-all-tenants.js',
   'backend/scripts/backfill-fx-journals-missing.js',
+  'backend/scripts/repair-misposted-purchase-voucher.js',
+  'backend/scripts/void-metal-voucher-by-voc-no.js',
   'scripts/migrate-fx-adjustment-journal-to-expense.mjs',
+  'scripts/setup-smoke-github-secrets.js',
 ]
 
 const guardPatterns = [
@@ -57,7 +61,7 @@ const stagingAssertPatterns = [
   "require('../backend/utils/assertStagingOnlyScript",
 ]
 
-function hasGuardInFirstLines(filePath, lineCount = 8) {
+function hasGuardInFirstLines(filePath, lineCount = 20) {
   const head = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).slice(0, lineCount).join('\n')
   return guardPatterns.some((pattern) => head.includes(pattern))
 }

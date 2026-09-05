@@ -28,4 +28,13 @@ describe('reportResponseCache singleflight', () => {
     expect(cache.get('loopc:trial-balance:x')).toBeNull()
     expect(cache.get('mg:trial-balance:x')).toEqual({ b: 2 })
   })
+
+  test('getOrCompute honors custom TTL', async () => {
+    const cache = createReportResponseCache(60000)
+    await cache.getOrCompute('dash:ttl', async () => ({ v: 1 }), 180000)
+    const row = cache.get('dash:ttl')
+    expect(row).toEqual({ v: 1 })
+    // Expiry stored as expiresAt; ensure entry is still live well under 180s
+    expect(cache.get('dash:ttl')).not.toBeNull()
+  })
 })

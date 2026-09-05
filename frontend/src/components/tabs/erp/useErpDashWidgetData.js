@@ -5,19 +5,20 @@ import { formatDateInputLocal } from './erpTabPresentation'
 
 const reportSoftCache = new Map()
 
-function reportCacheKey(from, to) {
-  return `${from}|${to}`
+function reportCacheKey(tenant, from, to) {
+  return `${tenant || '_'}|${from}|${to}`
 }
 
 /**
  * Fetches ERP dashboard report payload and latest chat messages for dashboard widgets.
- * Report and chat load independently so chat latency does not block the report spinner.
+ * Report and chat load independently so neither waits on the other.
  */
 export function useErpDashWidgetData({
   activeTab,
   token,
   canLoadDashboard,
   setError,
+  tenantKey = '',
 }) {
   const [dashDateFrom] = useState(() => {
     const d = new Date()
@@ -28,12 +29,13 @@ export function useErpDashWidgetData({
   const [dashboard, setDashboard] = useState(null)
   const [dashChatMessages, setDashChatMessages] = useState([])
   const [dashboardLoading, setDashboardLoading] = useState(false)
-  const loadSeqRef = useRef(0)
+  const reportSeqRef = useRef(0)
+  const chatSeqRef = useRef(0)
 
   const loadDashboardReport = useCallback(async () => {
     if (!canLoadDashboard || !token) return
-    const seq = ++loadSeqRef.current
-    const key = reportCacheKey(dashDateFrom, dashDateTo)
+    const seq = ++reportSeqRef.current
+    const key = reportCacheKey(tenantKey, dashDateFrom, dashDateTo)
     const soft = reportSoftCache.get(key)
     if (soft) {
       setDashboard(soft)
@@ -46,47 +48,49 @@ export function useErpDashWidgetData({
         startDate: dashDateFrom,
         endDate: dashDateTo,
       })
-      if (seq !== loadSeqRef.current) return
+      if (seq !== reportSeqRef.current) return
       reportSoftCache.set(key, data)
       setDashboard(data)
       setError('')
     } catch (e) {
-      if (seq !== loadSeqRef.current) return
+      if (seq !== reportSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load dashboard')
     } finally {
-      if (seq === loadSeqRef.current) setDashboardLoading(false)
+      if (seq === reportSeqRef.current) setDashboardLoading(false)
     }
-  }, [canLoadDashboard, token, dashDateFrom, dashDateTo, setError])
+  }, [canLoadDashboard, token, dashDateFrom, dashDateTo, setError, tenantKey])
 
   const loadDashChat = useCallback(async () => {
     if (!canLoadDashboard || !token) return
-    const seq = loadSeqRef.current
+    const seq = ++chatSeqRef.current
     try {
       const chatData = await messagesAPI.getLatestMessages(token, 'group', 10).catch(() => ({ messages: [] }))
-      if (seq !== loadSeqRef.current) return
+      if (seq !== chatSeqRef.current) return
       setDashChatMessages(chatData?.messages || chatData || [])
     } catch {
-      if (seq !== loadSeqRef.current) return
+      if (seq !== chatSeqRef.current) return
       setDashChatMessages([])
     }
   }, [canLoadDashboard, token])
 
-  const loadDashboard = useCallback(async () => {
-    await Promise.all([loadDashboardReport(), loadDashChat()])
+  /** Kick report + chat independently; do not await a joined Promise.all. */
+  const loadDashboard = useCallback(() => {
+    void loadDashboardReport()
+    void loadDashChat()
   }, [loadDashboardReport, loadDashChat])
 
   useEffect(() => {
     if (activeTab !== 'dashboard' || !canLoadDashboard || !token) return
-    loadDashboardReport()
-    loadDashChat()
+    void loadDashboardReport()
+    void loadDashChat()
   }, [activeTab, dashDateFrom, dashDateTo, token, canLoadDashboard, loadDashboardReport, loadDashChat])
 
   useEffect(() => {
     if (!dashAutoRefresh || activeTab !== 'dashboard') return undefined
     const interval = setInterval(() => {
       if (canLoadDashboard && token) {
-        loadDashboardReport()
-        loadDashChat()
+        void loadDashboardReport()
+        void loadDashChat()
       }
     }, 30000)
     return () => clearInterval(interval)
@@ -100,5 +104,6 @@ export function useErpDashWidgetData({
     dashDateTo,
     dashAutoRefresh,
     loadDashboard,
+    loadDashboardReport,
   }
 }

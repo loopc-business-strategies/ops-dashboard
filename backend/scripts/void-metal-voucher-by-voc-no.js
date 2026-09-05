@@ -20,6 +20,7 @@ const { getTenantUri, normalizeTenant } = require('../config/tenants')
 const { reverseMetalVoucherStockForVoid, escapeRegExp } = require('../utils/metalVoucherStockReversal')
 const { toQty } = require('../routes/erp-accounting/transactionHelpers')
 const { appendTransactionAudit } = require('../utils/transactionWorkflowHelpers')
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
 
@@ -74,6 +75,10 @@ async function main() {
   }
 
   const apply = process.argv.includes('--apply')
+  assertStagingOnlyScript({
+    scriptName: path.basename(__filename),
+    tenants: [tenant],
+  })
   if (apply) {
     if (!readArgValue('--confirm')) {
       const fromEnv = String(

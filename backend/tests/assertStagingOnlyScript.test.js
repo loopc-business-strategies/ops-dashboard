@@ -86,6 +86,15 @@ describe('assertStagingOnlyScript', () => {
     })).not.toThrow()
   })
 
+  test('refuses when only MONGO_URI_* is set (STAGING_MONGO_URI required)', () => {
+    process.env.APP_ENV = 'staging'
+    process.env.MONGO_URI_MG = 'mongodb+srv://u:p@staging-mg.abcd.mongodb.net/ops_staging'
+    expect(() => assertStagingOnlyScript({
+      scriptName: 'test-script',
+      tenants: ['mg'],
+    })).toThrow(/Missing staging Mongo URIs/i)
+  })
+
   test('refuses --production flag even with staging env', () => {
     process.env.APP_ENV = 'staging'
     process.env.STAGING_MONGO_URI_MG = 'mongodb+srv://u:p@staging-mg.abcd.mongodb.net/ops_staging'

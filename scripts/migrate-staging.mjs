@@ -5,6 +5,8 @@
  *   node scripts/migrate-staging.mjs
  *   node scripts/migrate-staging.mjs --apply --confirm=$MIGRATION_CONFIRM_TOKEN
  *   node scripts/migrate-staging.mjs --until=002-backfill-mapping-departments
+ *
+ * Requires APP_ENV=staging (established here) and dedicated STAGING_MONGO_URI_*.
  */
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -19,32 +21,33 @@ const stagingLocalPath = path.join(backendDir, '.env.staging.local')
 
 const dotenv = require('dotenv')
 dotenv.config({ path: stagingLocalPath })
-const { mapStagingMongoToProcessEnv } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
+const {
+  mapStagingMongoToProcessEnv,
+  assertStagingMongoTargets,
+} = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
 const { assertStagingOnlyScript } = require(path.join(backendDir, 'utils', 'assertStagingOnlyScript.js'))
 
-const env = {
+const STAGING_TENANTS = ['mg', 'cg', 'loopc']
+
+const baseEnv = {
   ...process.env,
-  ...mapStagingMongoToProcessEnv(process.env),
-  APP_ENV: String(process.env.APP_ENV || 'staging').trim() || 'staging',
+  APP_ENV: 'staging',
 }
 
-const stagingTenants = ['mg', 'cg', 'loopc'].filter((tenant) => {
-  const key = tenant.toUpperCase()
-  return String(env[`STAGING_MONGO_URI_${key}`] || env[`MONGO_URI_${key}`] || '').trim()
-})
 try {
+  assertStagingMongoTargets(STAGING_TENANTS, baseEnv)
   assertStagingOnlyScript(
-    {
-      scriptName: 'migrate-staging',
-      tenants: stagingTenants.length ? stagingTenants : ['mg', 'cg', 'loopc'],
-    },
-    env,
+    { scriptName: 'migrate-staging', tenants: STAGING_TENANTS },
+    baseEnv,
     process.argv,
   )
 } catch (error) {
   console.error(error.message || error)
   process.exit(1)
 }
+
+const env = mapStagingMongoToProcessEnv(baseEnv)
+env.APP_ENV = 'staging'
 
 const runnerArgs = ['migrations/runner.js', ...process.argv.slice(2)]
 const result = spawnSync('node', runnerArgs, {

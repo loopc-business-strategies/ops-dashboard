@@ -7,6 +7,7 @@ const { looksLikeNonProductionUri, redactMongoUri } = require('./migrationSafety
 const {
   resolveStagingMongoUri,
   assertStagingMongoTargets,
+  mapStagingMongoToProcessEnv,
 } = require('./stagingMongoSafety')
 
 const IGNORED_PRODUCTION_OVERRIDE_FLAGS = [
@@ -69,15 +70,8 @@ function assertHostAllowlist(uri, env = process.env) {
 }
 
 /**
- * Resolve the URI a script would use after staging map:
- * STAGING_MONGO_URI_* wins, else MONGO_URI_*.
- */
-function resolveEffectiveTenantUri(tenant, env = process.env) {
-  return resolveStagingMongoUri(tenant, env)
-}
-
-/**
  * Fail-closed staging-only assert. Never connects Mongo.
+ * Requires APP_ENV=staging and dedicated STAGING_MONGO_URI_* per tenant.
  * @param {{ scriptName?: string, tenants: string[] }} options
  * @param {NodeJS.ProcessEnv} [env]
  * @param {string[]} [argv]
@@ -108,18 +102,24 @@ function assertStagingOnlyScript({ scriptName, tenants } = {}, env = process.env
     throw new Error(`[${name}] tenants array is required for staging assert.`)
   }
 
-  // Prefer STAGING_MONGO_URI_* (falls back to MONGO_URI_* via resolveStagingMongoUri).
+  // Dedicated STAGING_MONGO_URI_* only — no MONGO_URI_* fallback.
   assertStagingMongoTargets(tenantList, env)
 
   for (const tenant of tenantList) {
     const key = String(tenant).toUpperCase()
-    const stagingUri = String(env[`STAGING_MONGO_URI_${key}`] || '').trim()
+    const stagingUri = resolveStagingMongoUri(tenant, env)
     const mongoUri = String(env[`MONGO_URI_${key}`] || '').trim()
-    const effectiveUri = resolveEffectiveTenantUri(tenant, env)
 
-    console.log(`[${name}] staging target ${tenant}: ${redactMongoUri(effectiveUri)}`)
+    console.log(`[${name}] staging target ${tenant}: ${redactMongoUri(stagingUri)}`)
 
-    // Also check MONGO_URI_* that scripts commonly read after (or without) staging map.
+    if (!looksLikeNonProductionUri(stagingUri)) {
+      throw new Error(
+        `[${name}] Refusing production-like STAGING_MONGO_URI_${key} target ${redactMongoUri(stagingUri)}. `
+        + 'Production execution is impossible.',
+      )
+    }
+
+    // If MONGO_URI_* is also set (e.g. before mapping), refuse production-like values.
     if (mongoUri && !looksLikeNonProductionUri(mongoUri)) {
       throw new Error(
         `[${name}] Refusing production-like MONGO_URI_${key} target ${redactMongoUri(mongoUri)}. `
@@ -127,21 +127,16 @@ function assertStagingOnlyScript({ scriptName, tenants } = {}, env = process.env
       )
     }
 
-    if (stagingUri && !looksLikeNonProductionUri(stagingUri)) {
-      throw new Error(
-        `[${name}] Refusing production-like STAGING_MONGO_URI_${key} target ${redactMongoUri(stagingUri)}. `
-        + 'Production execution is impossible.',
-      )
-    }
+    assertHostAllowlist(stagingUri, env)
+  }
 
-    if (effectiveUri && !looksLikeNonProductionUri(effectiveUri)) {
-      throw new Error(
-        `[${name}] Refusing production-like target ${redactMongoUri(effectiveUri)}. `
-        + 'Production execution is impossible.',
-      )
+  // After validation, copy STAGING_MONGO_URI_* → MONGO_URI_* for connect helpers.
+  if (env === process.env) {
+    const mapped = mapStagingMongoToProcessEnv(env)
+    for (const tenant of tenantList) {
+      const key = `MONGO_URI_${String(tenant).toUpperCase()}`
+      if (mapped[key]) process.env[key] = mapped[key]
     }
-
-    assertHostAllowlist(effectiveUri || mongoUri || stagingUri, env)
   }
 }
 

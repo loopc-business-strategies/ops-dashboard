@@ -30,26 +30,44 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
+      - name: Require staging Mongo secrets
+        env:
+          STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+        run: |
+          missing=0
+          for key in STAGING_MONGO_URI_MG STAGING_MONGO_URI_CG STAGING_MONGO_URI_LOOPC; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing required secret $key"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Refusing migration: staging Mongo secrets are required. Do not fall back to production URIs."
+            exit 1
+          fi
+
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
 
       - name: Dry-run migration 002 (skip 003)
         if: ${{ inputs.apply != true }}
-        working-directory: backend
         env:
-          MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
-          MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
-          MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
-        run: node migrations/runner.js --until=002-backfill-mapping-departments
+          APP_ENV: staging
+          STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+        run: node scripts/migrate-staging.mjs --until=002-backfill-mapping-departments
 
       - name: Apply migration 002 (skip 003)
         if: ${{ inputs.apply == true }}
-        working-directory: backend
         env:
-          MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
-          MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
-          MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          APP_ENV: staging
+          STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
           MIGRATION_I_HAVE_BACKUP: 'true'
           MIGRATION_CONFIRM_TOKEN: ${{ secrets.MIGRATION_CONFIRM_TOKEN }}
-        run: node migrations/runner.js --until=002-backfill-mapping-departments --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }}
+        run: node scripts/migrate-staging.mjs --until=002-backfill-mapping-departments --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }}

@@ -9,10 +9,11 @@
  *   - gh authenticated (GH_TOKEN or gh auth login) with repo admin access
  *
  * Usage:
- *   node scripts/setup-smoke-github-secrets.js
  *   node scripts/setup-smoke-github-secrets.js --staging
- *   node scripts/setup-smoke-github-secrets.js --verify-only
- *   node scripts/setup-smoke-github-secrets.js --reactivate-only
+ *   node scripts/setup-smoke-github-secrets.js --staging --verify-only
+ *   node scripts/setup-smoke-github-secrets.js --staging --reactivate-only
+ *
+ * Requires: --staging, APP_ENV=staging (set by script), STAGING_MONGO_URI_MG/CG/LOOPC
  */
 
 const { spawnSync } = require('node:child_process')
@@ -263,6 +264,21 @@ async function main() {
   const skipVerify = process.argv.includes('--skip-verify')
     || process.argv.includes('--skip-production-verify')
 
+  if (!isStaging) {
+    throw new Error(
+      'Refusing: smoke user provisioning/reactivation is staging-only. '
+      + 'Pass --staging with APP_ENV=staging and dedicated STAGING_MONGO_URI_MG/CG/LOOPC. '
+      + 'Production database mutation is impossible.',
+    )
+  }
+
+  process.env.APP_ENV = 'staging'
+  const { assertStagingOnlyScript } = require(path.join(backendDir, 'utils', 'assertStagingOnlyScript.js'))
+  assertStagingOnlyScript({
+    scriptName: 'setup-smoke-github-secrets.js',
+    tenants: TENANTS,
+  })
+
   if (!usersOnly && !reactivateOnly && !process.env.GH_TOKEN && spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: true }).status !== 0) {
     throw new Error('GitHub CLI is not authenticated. Run gh auth login or set GH_TOKEN.')
   }
@@ -276,16 +292,13 @@ async function main() {
       if (!uri) {
         throw new Error(`Missing ${envVar} (or MONGO_URI_${tenant.toUpperCase()}) in env`)
       }
-      if (isStaging) {
-        process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
-      }
+    if (isStaging) {
+      process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
     }
-    if (isStaging && !process.argv.includes('--skip-staging-uri-guard')) {
-      const { assertStagingMongoTargets } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
-      assertStagingMongoTargets(TENANTS)
-    }
+  }
+  // Staging URI already validated via assertStagingOnlyScript at main() entry.
 
-    console.log(`Reactivating ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc (no password change)...`)
+  console.log(`Reactivating ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc (no password change)...`)
     for (const tenant of TENANTS) {
       const result = await reactivateSmokeUser(tenant)
       console.log(`  ${result.tenant.toUpperCase()} (${result.userName}): ${result.action}${result.id ? ` (${result.id})` : ''}`)
@@ -332,10 +345,7 @@ async function main() {
     }
   }
 
-  if (isStaging && !process.argv.includes('--skip-staging-uri-guard')) {
-    const { assertStagingMongoTargets } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
-    assertStagingMongoTargets(TENANTS)
-  }
+  // Staging URI already validated via assertStagingOnlyScript at main() entry.
 
   const passwordSecretName = `${SECRET_PREFIX}AUTH_PASSWORD`
 
