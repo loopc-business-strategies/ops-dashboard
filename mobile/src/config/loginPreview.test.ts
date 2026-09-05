@@ -12,21 +12,21 @@ describe('getLoginPreviewBranding', () => {
   it('returns MG branding for mg', () => {
     const branding = getLoginPreviewBranding('mg')
     expect(branding?.logoText).toBe('MG')
-    expect(branding?.colors.primary).toBe('#005B96')
+    expect(branding?.colors.primary).toBe('#EA580C')
     expect(branding?.tagline).toBe('Metal Group Operations')
   })
 
   it('returns CG branding for cg (case-insensitive)', () => {
     const branding = getLoginPreviewBranding('CG')
     expect(branding?.logoText).toBe('CG')
-    expect(branding?.colors.primary).toBe('#9A3412')
+    expect(branding?.colors.primary).toBe('#16A34A')
     expect(branding?.tagline).toBe('CG Enterprise Suite')
   })
 
   it('returns LoopC branding for loopc', () => {
     const branding = getLoginPreviewBranding('loopc')
     expect(branding?.logoText).toBe('LC')
-    expect(branding?.colors.primary).toBe('#00684A')
+    expect(branding?.colors.primary).toBe('#2563EB')
     expect(branding?.tagline).toBe('Loop C Business Platform')
   })
 })
