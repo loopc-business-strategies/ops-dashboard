@@ -413,16 +413,16 @@ function OverviewTab({ onNavigate, buildTabHref }) {
   }
 
   const loadTasks = useCallback(async () => {
-    setLoadingTasks(true)
+    setLoadingTasks((prev) => (tasks.length === 0 ? true : prev))
     try {
       const data = await projectsAPI.getProjects(token)
       setTasks(data.projects || [])
     } catch {
-      setTasks([])
+      if (tasks.length === 0) setTasks([])
     } finally {
       setLoadingTasks(false)
     }
-  }, [token])
+  }, [token, tasks.length])
 
   const loadAssigneesAndEmployees = async () => {
     setLoadingEmployees(true)

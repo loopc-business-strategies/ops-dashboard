@@ -1,6 +1,7 @@
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { formatAmount } from '../../../../utils/money'
+import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 export default function ERPInventoryTab({
   activeTab,
@@ -74,6 +75,15 @@ export default function ERPInventoryTab({
   handleCreateProduct,
   handleInventoryModalDragStart,
 }) {
+  const invColCount = 13
+  const {
+    scrollRef: invScrollRef,
+    enabled: invVirtEnabled,
+    virtualItems: invVirtualItems,
+    paddingTop: invPadTop,
+    paddingBottom: invPadBottom,
+  } = useVirtualTableRows(sortedInventoryTableRows.length, { estimateSize: 44 })
+
   return (
   <>
       {activeTab === 'inventory' && (
@@ -286,7 +296,7 @@ export default function ERPInventoryTab({
                   <span style={{ padding: '0.3rem 0.6rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{sortedInventoryTableRows.length} items</span>
                 </div>
               </div>
-              <div style={{ overflowX: 'auto' }}>
+              <div ref={invScrollRef} style={{ overflow: 'auto', maxHeight: invVirtEnabled ? 520 : undefined }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead>
                     <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
@@ -315,7 +325,13 @@ export default function ERPInventoryTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedInventoryTableRows.map(({ item, categoryMeta, productMeta, reportRow }) => {
+                    {invVirtEnabled && invPadTop > 0 && (
+                      <tr><td colSpan={invColCount} style={{ height: invPadTop, padding: 0, border: 'none' }} /></tr>
+                    )}
+                    {(invVirtEnabled
+                      ? invVirtualItems.map((vi) => sortedInventoryTableRows[vi.index]).filter(Boolean)
+                      : sortedInventoryTableRows
+                    ).map(({ item, categoryMeta, productMeta, reportRow }) => {
                       const displayQty = Math.max(0, Number(item.quantity || 0))
                       const zeroStock = displayQty <= 0
                       const lowStock = zeroStock || (Number(item.minThreshold || 0) > 0 && displayQty <= Number(item.minThreshold || 0))
@@ -323,7 +339,7 @@ export default function ERPInventoryTab({
                       const totalValue = Number(reportRow?.stockValue ?? (displayQty * unitCost))
                       const usesLivePrice = Boolean(reportRow?.usesLivePrice)
                       return (
-                        <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined }}>
+                        <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined, contentVisibility: 'auto', containIntrinsicSize: 'auto 44px' }}>
                           <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
                           <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{item.name}</td>
                           <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{item.category ? (categoryMeta.mainStock || item.category).slice(0, 30) : '—'}</td>
@@ -347,6 +363,9 @@ export default function ERPInventoryTab({
                         </tr>
                       )
                     })}
+                    {invVirtEnabled && invPadBottom > 0 && (
+                      <tr><td colSpan={invColCount} style={{ height: invPadBottom, padding: 0, border: 'none' }} /></tr>
+                    )}
                   </tbody>
                 </table>
               </div>

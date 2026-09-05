@@ -4,6 +4,7 @@ import TransactionComposerForm from './TransactionComposerForm'
 import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from '../erpListFilters'
 import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
+import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 export default function ERPTransactionsTab({
   activeTab,
@@ -122,6 +123,14 @@ export default function ERPTransactionsTab({
     if (!selectedTypeFilter) return transactions
     return transactions.filter((tx) => String(tx.type || '').toLowerCase() === selectedTypeFilter)
   }, [transactions, selectedTypeFilter])
+  const txColCount = 9
+  const {
+    scrollRef: txScrollRef,
+    enabled: txVirtEnabled,
+    virtualItems: txVirtualItems,
+    paddingTop: txPadTop,
+    paddingBottom: txPadBottom,
+  } = useVirtualTableRows(filteredTransactions.length, { estimateSize: 64 })
   const allFilteredTransactionsSelected = filteredTransactions.length > 0
     && filteredTransactions.every((tx) => selectedTransactionIds.includes(tx._id))
   const toggleFilteredTransactionSelection = () => {
@@ -430,7 +439,7 @@ export default function ERPTransactionsTab({
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+          <div ref={txScrollRef} style={{ overflow: 'auto', maxHeight: txVirtEnabled ? 560 : undefined, background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
@@ -448,8 +457,14 @@ export default function ERPTransactionsTab({
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map((tx) => (
-                  <tr id={`erp-transaction-row-${tx._id}`} key={tx._id} onClick={() => setSelectedTransactionId(tx._id)} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedTransactionId === tx._id ? '#ECFDF5' : 'transparent', outline: selectedTransactionId === tx._id ? '2px solid #10B981' : 'none', outlineOffset: '-2px', cursor: 'pointer' }}>
+                {txVirtEnabled && txPadTop > 0 && (
+                  <tr><td colSpan={txColCount} style={{ height: txPadTop, padding: 0, border: 'none' }} /></tr>
+                )}
+                {(txVirtEnabled
+                  ? txVirtualItems.map((vi) => filteredTransactions[vi.index]).filter(Boolean)
+                  : filteredTransactions
+                ).map((tx) => (
+                  <tr id={`erp-transaction-row-${tx._id}`} key={tx._id} onClick={() => setSelectedTransactionId(tx._id)} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedTransactionId === tx._id ? '#ECFDF5' : 'transparent', outline: selectedTransactionId === tx._id ? '2px solid #10B981' : 'none', outlineOffset: '-2px', cursor: 'pointer', contentVisibility: 'auto', containIntrinsicSize: 'auto 64px' }}>
                     <td style={{ padding: '0.65rem', textAlign: 'center' }}>
                       <input type="checkbox" checked={selectedTransactionIds.includes(tx._id)} onChange={(e) => { e.stopPropagation(); toggleTransactionSelection(tx._id) }} onClick={(e) => e.stopPropagation()} />
                     </td>
@@ -520,6 +535,9 @@ export default function ERPTransactionsTab({
                     </td>
                   </tr>
                 ))}
+                {txVirtEnabled && txPadBottom > 0 && (
+                  <tr><td colSpan={txColCount} style={{ height: txPadBottom, padding: 0, border: 'none' }} /></tr>
+                )}
                 {!filteredTransactions.length && (
                   <tr>
                     <td colSpan={9} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No transactions match the current filters.</td>

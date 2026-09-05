@@ -441,6 +441,11 @@ function Dashboard() {
   const [deptOpen,     setDeptOpen]     = useState(true)
   const [erpOpen,      setErpOpen]      = useState(true)
   const [erpSubTab,    setErpSubTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).erpSubTab)
+  /** Keep Overview/ERP mounted after first visit to avoid full remount/refetch on return. */
+  const [visitedKeepAliveTabs, setVisitedKeepAliveTabs] = useState(() => {
+    const initial = parseDashboardUrl(searchParams.toString(), null).activeTab
+    return new Set(initial === 'overview' || initial === 'erp' ? [initial] : [])
+  })
   const [chatUnread,   setChatUnread]   = useState(0)
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -602,6 +607,16 @@ function Dashboard() {
       handleErpSubTabChange,
     ],
   )
+
+  useEffect(() => {
+    if (activeTab !== 'overview' && activeTab !== 'erp') return
+    setVisitedKeepAliveTabs((prev) => {
+      if (prev.has(activeTab)) return prev
+      const next = new Set(prev)
+      next.add(activeTab)
+      return next
+    })
+  }, [activeTab])
 
   useEffect(() => {
     const firstAllowed = navItems[0]
@@ -1373,14 +1388,44 @@ function Dashboard() {
           className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
         >
-          {activeTab === 'chat' ? (
-            <div className="flex-1 min-h-0 flex flex-col">
-              {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+          {visitedKeepAliveTabs.has('overview') && (
+            <div
+              className="flex-1 min-h-0"
+              style={{
+                display: activeTab === 'overview' ? 'flex' : 'none',
+                flexDirection: 'column',
+                padding: '1.5rem',
+                boxSizing: 'border-box',
+              }}
+              aria-hidden={activeTab !== 'overview'}
+            >
+              {renderTabContent('overview', navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
-          ) : (
-            <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-              {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+          )}
+          {visitedKeepAliveTabs.has('erp') && (
+            <div
+              className="flex-1 min-h-0"
+              style={{
+                display: activeTab === 'erp' ? 'flex' : 'none',
+                flexDirection: 'column',
+                padding: '1.5rem',
+                boxSizing: 'border-box',
+              }}
+              aria-hidden={activeTab !== 'erp'}
+            >
+              {renderTabContent('erp', navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
+          )}
+          {activeTab !== 'overview' && activeTab !== 'erp' && (
+            activeTab === 'chat' ? (
+              <div className="flex-1 min-h-0 flex flex-col">
+                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
+                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              </div>
+            )
           )}
         </main>
 

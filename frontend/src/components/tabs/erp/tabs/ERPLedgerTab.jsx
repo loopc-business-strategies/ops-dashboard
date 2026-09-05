@@ -12,6 +12,7 @@ import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalize
 import { isVoucherKeyboardNavEnabled } from '../../../../config/tenantBranding'
 import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
 import { formatAmount, formatMoney, roundMoney } from '../../../../utils/money'
+import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -102,6 +103,27 @@ export default function ERPLedgerTab({
   useEffect(() => {
     prefetchDates(filteredGroupedJvVouchers.map((voucher) => voucher.date).filter(Boolean))
   }, [filteredGroupedJvVouchers, prefetchDates])
+
+  const sortedLedgerEntries = useMemo(() => {
+    return [...filteredGroupedJvVouchers].sort((a, b) => {
+      if (sorting.ledger.by === 'date') {
+        return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
+      }
+      if (sorting.ledger.by === 'amount') {
+        return sorting.ledger.asc ? a.totalBaseAmount - b.totalBaseAmount : b.totalBaseAmount - a.totalBaseAmount
+      }
+      return 0
+    })
+  }, [filteredGroupedJvVouchers, sorting.ledger.by, sorting.ledger.asc])
+
+  const ledgerColCount = 8
+  const {
+    scrollRef: ledgerScrollRef,
+    enabled: ledgerVirtEnabled,
+    virtualItems: ledgerVirtualItems,
+    paddingTop: ledgerPadTop,
+    paddingBottom: ledgerPadBottom,
+  } = useVirtualTableRows(sortedLedgerEntries.length, { estimateSize: 56 })
 
   return (
     <>
@@ -317,19 +339,7 @@ export default function ERPLedgerTab({
               />
             </div>
           ) : null}
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
-            {(() => {
-              const pagedLedgerEntries = [...filteredGroupedJvVouchers]
-                .sort((a, b) => {
-                  if (sorting.ledger.by === 'date') {
-                    return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
-                  } else if (sorting.ledger.by === 'amount') {
-                    return sorting.ledger.asc ? a.totalBaseAmount - b.totalBaseAmount : b.totalBaseAmount - a.totalBaseAmount
-                  }
-                  return 0
-                })
-
-              return (
+          <div ref={ledgerScrollRef} style={{ overflow: 'auto', maxHeight: ledgerVirtEnabled ? 560 : undefined, background: C.p1, borderRadius: '0.5rem' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
@@ -344,15 +354,20 @@ export default function ERPLedgerTab({
                 </tr>
               </thead>
               <tbody>
-                {pagedLedgerEntries
-                  .map((voucher) => {
+                {ledgerVirtEnabled && ledgerPadTop > 0 && (
+                  <tr><td colSpan={ledgerColCount} style={{ height: ledgerPadTop, padding: 0, border: 'none' }} /></tr>
+                )}
+                {(ledgerVirtEnabled
+                  ? ledgerVirtualItems.map((vi) => sortedLedgerEntries[vi.index]).filter(Boolean)
+                  : sortedLedgerEntries
+                ).map((voucher) => {
                     const entry = voucher.representative
                     const voucherNo = voucher.voucherNo
                     const narrDetail = voucher.narration
                     const isBankJv = String(voucher.referenceType || '').toLowerCase() === 'bank_jv'
                     const periodLocked = isEntryLocked(entry || { date: voucher.date })
                     return (
-                    <tr key={voucher.key} style={{ borderBottom: `1px solid ${C.p2}`, background: isBankJv ? '#F0F9FF' : 'transparent' }}>
+                    <tr key={voucher.key} style={{ borderBottom: `1px solid ${C.p2}`, background: isBankJv ? '#F0F9FF' : 'transparent', contentVisibility: 'auto', containIntrinsicSize: 'auto 56px' }}>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(voucher.date).toLocaleDateString()}</td>
                       <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '700', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{voucherNo}</td>
                       <td style={{ padding: '0.75rem', color: C.t2, fontSize: '0.78rem', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={narrDetail}>{narrDetail}</td>
@@ -484,10 +499,11 @@ export default function ERPLedgerTab({
                     </tr>
                     )
                   })}
+                {ledgerVirtEnabled && ledgerPadBottom > 0 && (
+                  <tr><td colSpan={ledgerColCount} style={{ height: ledgerPadBottom, padding: 0, border: 'none' }} /></tr>
+                )}
               </tbody>
             </table>
-              )
-            })()}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>

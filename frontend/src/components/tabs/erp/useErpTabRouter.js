@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import { canViewErpSubTab } from '../../../utils/erpSubTabPermissions'
 import { startERPRealtimeFeeds } from '../../../utils/realtimeSocket'
 
+const ERP_SUBTAB_TTL_MS = 45_000
+
 export function useErpTabRouter({
   activeTab,
   activeTabRef,
@@ -43,6 +45,18 @@ export function useErpTabRouter({
   loadLedger,
   loadMappings,
 }) {
+  const subTabFetchedAtRef = useRef({})
+
+  const shouldRefreshSubTab = (key, { force = false } = {}) => {
+    if (force) return true
+    const last = subTabFetchedAtRef.current[key] || 0
+    return Date.now() - last > ERP_SUBTAB_TTL_MS
+  }
+
+  const markSubTabFetched = (key) => {
+    subTabFetchedAtRef.current[key] = Date.now()
+  }
+
   useEffect(() => {
     setSelectedTransactionIds((prev) => {
       const next = prev.filter((id) => transactions.some((tx) => tx._id === id))
@@ -83,33 +97,48 @@ export function useErpTabRouter({
       return
     }
     if (!canViewErpSubTab(user, activeTab)) return
-    if (activeTab === 'accounts') loadAccounts()
-    else if (activeTab === 'customer-margin') loadCustomers({ limit: 200 })
-    else if (activeTab === 'customers') loadCustomers()
-    else if (activeTab === 'supplier-margin') loadVendors()
-    else if (activeTab === 'transactions' && (canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) loadTransactions()
-    else if (activeTab === 'vouchers') loadReportBranding()
+
+    const refresh = (key, run, { force = false } = {}) => {
+      if (!shouldRefreshSubTab(key, { force })) return
+      Promise.resolve(run()).then(() => markSubTabFetched(key)).catch(() => {})
+    }
+
+    if (activeTab === 'accounts') refresh('accounts', () => loadAccounts())
+    else if (activeTab === 'customer-margin') refresh('customer-margin', () => loadCustomers({ limit: 200 }))
+    else if (activeTab === 'customers') refresh('customers', () => loadCustomers())
+    else if (activeTab === 'supplier-margin') refresh('supplier-margin', () => loadVendors())
+    else if (activeTab === 'transactions' && (canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) {
+      refresh('transactions', () => loadTransactions(), { force: transactions.length === 0 })
+    } else if (activeTab === 'vouchers') refresh('vouchers-branding', () => loadReportBranding())
     else if (activeTab === 'vendors') {
-      Promise.all([
+      refresh('vendors', () => Promise.all([
         loadVendors(),
         loadVendorPaymentCalendar(),
         loadVendorComplianceSummary(),
         loadVendorOverdueQueue(),
-      ]).catch(() => {})
+      ]))
     } else if (activeTab === 'inventory') {
-      loadInventory()
-      loadStockLedger()
-      loadVendors()
+      refresh('inventory', () => {
+        loadInventory()
+        loadStockLedger()
+        loadVendors()
+      })
     } else if (activeTab === 'settings') {
-      loadCurrencies()
-      loadReportBranding()
+      refresh('settings', () => {
+        loadCurrencies()
+        loadReportBranding()
+      })
     } else if (activeTab === 'currencies') {
-      loadCurrencies()
-      if (!accounts.length) loadAccounts()
+      refresh('currencies', () => {
+        loadCurrencies()
+        if (!accounts.length) loadAccounts()
+      })
     } else if (activeTab === 'enquiry') {
-      loadAccounts({ scope: 'summary' })
-      if (!currencies.length) loadCurrencies()
-      loadReportBranding()
+      refresh('enquiry', () => {
+        loadAccounts({ scope: 'summary' })
+        if (!currencies.length) loadCurrencies()
+        loadReportBranding()
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token])
@@ -121,7 +150,9 @@ export function useErpTabRouter({
   useEffect(() => {
     if (!canAccessERP || !token || activeTab !== 'ledger') return
     loadLedger()
-    loadAccounts({ scope: 'summary' })
+    markSubTabFetched('ledger')
+    // Accounts for ledger filters come from loadLedger catalog cache (same key as page/limit 5000).
+    // Do not also hit loadAccounts({ scope: 'summary' }) — that is a separate cache key / destination.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
@@ -173,11 +204,13 @@ export function useErpTabRouter({
         enableTransactions: activeTab === 'transactions',
         onLedgerUpdate: () => {
           if (activeTabRef.current === 'ledger') {
+            subTabFetchedAtRef.current.ledger = 0
             loadLedger({ cursor: null, cursorHistory: [] })
           }
         },
         onTransactionUpdate: () => {
           if (activeTabRef.current === 'transactions') {
+            subTabFetchedAtRef.current.transactions = 0
             loadTransactions({ cursor: null, cursorHistory: [] })
           }
         },

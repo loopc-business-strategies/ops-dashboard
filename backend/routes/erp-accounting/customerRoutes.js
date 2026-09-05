@@ -78,7 +78,8 @@ function registerCustomerRoutes(deps) {
           })
           .sort({ createdAt: -1 })
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         Customer.countDocuments({ isActive: true }),
       ])
 
@@ -166,7 +167,7 @@ function registerCustomerRoutes(deps) {
           suppressMetalSpotMtm,
         })
         return {
-          ...customer.toObject(),
+          ...customer,
           outstandingBalance: outstanding,
           goldPosition,
           silverPosition,

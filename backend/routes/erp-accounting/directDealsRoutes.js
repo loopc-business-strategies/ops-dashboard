@@ -94,7 +94,8 @@ function registerDirectDealsRoutes(deps) {
           .populate('lineItems.customerId', 'name code')
           .sort({ docDate: -1, updatedAt: -1 })
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         DirectDeal.countDocuments(query),
       ])
 

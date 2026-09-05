@@ -162,7 +162,7 @@ function createVendorComplianceService({
           },
         },
       ]),
-      Transaction.findOne({ vendorId: vendor._id, isDeleted: { $ne: true } }).sort({ date: -1, createdAt: -1 }).select('type amount date status currency'),
+      Transaction.findOne({ vendorId: vendor._id, isDeleted: { $ne: true } }).sort({ date: -1, createdAt: -1 }).select('type amount date status currency').lean(),
     ])
 
     const purchaseAmount = postedAmountSummary.find((row) => row._id === 'purchase')?.total || 0
@@ -223,10 +223,21 @@ function createVendorComplianceService({
           },
         } },
       ]),
-      Transaction.find({ vendorId: { $in: vendorIds }, isDeleted: { $ne: true } })
-        .sort({ date: -1, createdAt: -1 })
-        .select('vendorId type amount date status currency')
-        .lean(),
+      Transaction.aggregate([
+        { $match: { vendorId: { $in: vendorIds }, isDeleted: { $ne: true } } },
+        { $sort: { date: -1, createdAt: -1 } },
+        {
+          $group: {
+            _id: '$vendorId',
+            type: { $first: '$type' },
+            amount: { $first: '$amount' },
+            date: { $first: '$date' },
+            status: { $first: '$status' },
+            currency: { $first: '$currency' },
+            txId: { $first: '$_id' },
+          },
+        },
+      ]),
     ])
 
     const debitMap = new Map(debitAggs.map((r) => [String(r._id), r.total]))
@@ -242,9 +253,18 @@ function createVendorComplianceService({
     })
 
     const recentMap = new Map()
-    recentTxRows.forEach((tx) => {
-      const vid = String(tx.vendorId)
-      if (!recentMap.has(vid)) recentMap.set(vid, tx)
+    recentTxRows.forEach((row) => {
+      const vid = String(row._id || '')
+      if (!vid) return
+      recentMap.set(vid, {
+        _id: row.txId,
+        vendorId: row._id,
+        type: row.type,
+        amount: row.amount,
+        date: row.date,
+        status: row.status,
+        currency: row.currency,
+      })
     })
 
     return vendors.map((vendor) => {

@@ -15,6 +15,7 @@ const { escapeRegex } = require('../../utils/escapeRegex')
 const { buildLedgerListSearchOr } = require('../../utils/ledgerListSearch')
 const { applyYearMonthsDateFilter } = require('../../utils/yearMonthsDateFilter')
 const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
+const { invalidateErpReadCaches } = require('../../utils/erpReadCaches')
 const { BASE_CURRENCY_CODE: FALLBACK_BASE_CURRENCY_CODE } = require('./transactionHelpers')
 
 const objectId = Joi.string().hex().length(24)
@@ -330,7 +331,8 @@ router.get('/ledger', protect, async (req, res) => {
           .populate('createdBy', 'name')
           .sort({ date: -1, _id: -1 })
           .skip(skip)
-          .limit(safeLimit),
+          .limit(safeLimit)
+          .lean(),
         TenantLedger.countDocuments(query),
       ])
 
@@ -367,6 +369,7 @@ router.get('/ledger', protect, async (req, res) => {
       .populate('createdBy', 'name')
       .sort({ date: -1, _id: -1 })
       .limit(safeLimit + 1)
+      .lean()
 
     const hasMore = rows.length > safeLimit
     const entries = hasMore ? rows.slice(0, safeLimit) : rows
@@ -492,6 +495,7 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
         creditAccountId,
         isBankJv: refType === 'bank_jv',
       }).catch((err) => console.warn('[notify] jv_posted', err?.message || err))
+      invalidateErpReadCaches(tenantKey)
     }
 
     res.status(201).json({ success: true, entry })
@@ -678,6 +682,8 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
       isBankJv: mode === 'bank_jv',
     }).catch((err) => console.warn('[notify] jv_posted', err?.message || err))
 
+    invalidateErpReadCaches(tenantKey)
+
     return res.status(201).json({
       success: true,
       referenceId: String(referenceId),
@@ -766,6 +772,10 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
         })
       }
     })
+    const updatedRefType = String(updated?.referenceType || entry.referenceType || '').toLowerCase()
+    if (updatedRefType === 'journal' || updatedRefType === 'bank_jv') {
+      invalidateErpReadCaches(tenantKey)
+    }
     res.json({ success: true, entry: updated })
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/ledgerRoutes' })
@@ -809,6 +819,7 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
           })
         }
       })
+      invalidateErpReadCaches(tenantKey)
       return res.json({ success: true, message: 'Journal voucher line removed' })
     }
 

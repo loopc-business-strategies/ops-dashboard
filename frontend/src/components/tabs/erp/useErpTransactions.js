@@ -30,6 +30,7 @@ export function useErpTransactions({
   setError,
 }) {
   const transactionReferenceLoadedRef = useRef(false)
+  const loadSeqRef = useRef(0)
 
   const loadTransactionReferenceData = useCallback(async () => {
     if (transactionReferenceLoadedRef.current) return
@@ -86,6 +87,7 @@ export function useErpTransactions({
 
   const loadTransactions = useCallback(async (overrides = {}) => {
     if (!(canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) return
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
       const hasCursorOverride = Object.prototype.hasOwnProperty.call(overrides, 'cursor')
@@ -108,6 +110,7 @@ export function useErpTransactions({
         params.page = overrides.page
       }
       const data = await erpAccountingAPI.getTransactions(token, params)
+      if (seq !== loadSeqRef.current) return
       setTransactions(data.transactions || [])
       setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
       setTransactionMeta((prev) => ({
@@ -123,9 +126,10 @@ export function useErpTransactions({
       setError('')
       void loadTransactionReferenceData()
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load transactions')
     }
-    setLoading(false)
+    if (seq === loadSeqRef.current) setLoading(false)
   }, [
     token,
     canAccessTransactions,

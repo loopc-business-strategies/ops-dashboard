@@ -5,6 +5,7 @@ function populateTransactionListQuery(query) {
     .populate('debitAccountId', 'accountCode accountName')
     .populate('creditAccountId', 'accountCode accountName')
     .populate('createdBy', 'name')
+    .lean()
 }
 
 function populateTransactionQuery(query) {

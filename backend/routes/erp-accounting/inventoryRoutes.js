@@ -115,7 +115,8 @@ function registerInventoryRoutes(deps) {
           .populate('ledgerAccountId', 'accountCode accountName')
           .sort({ updatedAt: -1 })
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         InventoryItem.countDocuments(query),
       ])
       res.json({ success: true, products, total, page, limit })

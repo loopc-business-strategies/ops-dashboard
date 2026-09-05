@@ -139,7 +139,8 @@ function registerVendorRoutes(deps) {
           })
           .sort({ vendorCode: 1, name: 1 })
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         Vendor.countDocuments(query),
       ])
 
@@ -200,7 +201,7 @@ function registerVendorRoutes(deps) {
             silverPrice: rates.silverPrice,
           })
           return {
-            ...vendor.toObject(),
+            ...vendor,
             ...summary,
             goldPosition,
             silverPosition,
@@ -275,7 +276,8 @@ function registerVendorRoutes(deps) {
           .select('name vendorCode category approvalStatus status documents')
           .sort({ createdAt: -1 })
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         Vendor.countDocuments(query),
       ])
 
@@ -335,7 +337,8 @@ function registerVendorRoutes(deps) {
           .select('name vendorCode email contactPerson paymentTermsDays currency approvalStatus status ledgerAccountId')
           .sort({ createdAt: -1 })
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         Vendor.countDocuments(vendorQuery),
       ])
 
@@ -870,7 +873,8 @@ function registerVendorRoutes(deps) {
           .select('name vendorCode paymentTermsDays currency status approvalStatus')
           .sort({ createdAt: -1 })
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         Vendor.countDocuments(vendorQuery),
       ])
 

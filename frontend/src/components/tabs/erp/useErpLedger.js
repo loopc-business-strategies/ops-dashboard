@@ -21,9 +21,11 @@ export function useErpLedger({
   setError,
 }) {
   const referenceLoadedRef = useRef(false)
+  const loadSeqRef = useRef(0)
 
   const loadLedger = useCallback(async (options = {}) => {
     if (!canViewLedger) return
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
       const hasCursorOverride = Object.prototype.hasOwnProperty.call(options, 'cursor')
@@ -55,6 +57,7 @@ export function useErpLedger({
             erpAccountingAPI.getMappings(token))
           : Promise.resolve(null),
       ])
+      if (seq !== loadSeqRef.current) return
       setLedger(ledgerData.entries || [])
       setLedgerMeta({
         cursor: ledgerData.cursor || cursor || null,
@@ -68,9 +71,10 @@ export function useErpLedger({
       if (needReference || needMappings) referenceLoadedRef.current = true
       setError('')
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load ledger')
     }
-    setLoading(false)
+    if (seq === loadSeqRef.current) setLoading(false)
   }, [
     token,
     canViewLedger,

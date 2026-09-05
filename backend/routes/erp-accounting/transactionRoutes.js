@@ -1171,6 +1171,9 @@ router.post('/transactions/bulk-action', protect, validateBody(transactionBulkAc
 
     const refreshed = await populateTransactionQuery(Transaction.find({ _id: { $in: results.successIds } }))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
+    if ((action === 'post' || action === 'void') && results.successIds.length) {
+      invalidateErpReadCaches(tenantKey)
+    }
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function' && results.successIds.length) {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
