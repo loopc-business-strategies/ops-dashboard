@@ -13,7 +13,7 @@ require('./_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: tr
  *   node backend/scripts/destructive/revalue-loopc-inr-base-cutover.js --tenant=loopc --inr-per-usd=83.5
  *
  * Apply (requires token + reason + production flag if prod):
- *   ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true \  # if NODE_ENV/RAILWAY_ENV is production
+ *   APP_ENV=staging \  # required; ALLOW_PRODUCTION_* flags are ignored
  *   node backend/scripts/destructive/revalue-loopc-inr-base-cutover.js --tenant=loopc --inr-per-usd=83.5 --apply \
  *     --reason="LoopC INR base cutover approved YYYY-MM-DD" --confirm="$DESTRUCTIVE_ADMIN_CONFIRM_TOKEN"
  *

@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
-import { resolveErpUserTenantKey } from './erp/resolveErpUserTenant'
-import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
-import { buildMetalRatesFromApiPayload } from '../../utils/liveMetalRates'
+import { liveRatesToMetalRatesState } from '../../utils/liveMetalRates'
+import useLiveMetalRates from '../../hooks/useLiveMetalRates'
 import { fmt, S, btn, tabBtn, emptyLine, emptyHeader, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, formatPartyAddress, decodeInventoryCategoryMeta, toTitle, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
 import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
 import { useVoucherLineAutoCalc } from './voucher/useVoucherLineAutoCalc'
@@ -129,18 +128,11 @@ export default function VoucherTab({
     if (canView) refreshMetalRates()
   }, [canView, refreshMetalRates])
 
+  const { snapshot: liveMetalSnapshot } = useLiveMetalRates()
   useEffect(() => {
-    if (!canView || !token) return undefined
-    const tenant = resolveErpUserTenantKey(user)
-    return startMetalRatesRealtime({
-      token,
-      tenant,
-      onRatesUpdate: (payload) => {
-        const rates = payload?.rates || payload?.data?.rates
-        if (rates) setLatestMetalRates(buildMetalRatesFromApiPayload(rates))
-      },
-    })
-  }, [canView, token, user])
+    const fromContext = liveRatesToMetalRatesState(liveMetalSnapshot)
+    if (fromContext) setLatestMetalRates(fromContext)
+  }, [liveMetalSnapshot])
   const [vouchers, setVouchers] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [saving, setSaving] = useState(false)

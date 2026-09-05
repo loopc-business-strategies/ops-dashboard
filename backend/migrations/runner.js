@@ -21,6 +21,7 @@ const {
   assertMigrationApplyAllowed,
   redactMongoUri,
 } = require('../utils/migrationSafety')
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 
 const MIGRATIONS_DIR = __dirname
 const COLLECTION = '_migrations'
@@ -94,6 +95,14 @@ async function main() {
     return
   }
 
+  const tenants = TENANT_KEYS.filter((tenant) => resolveTenantUri(tenant))
+  if (!tenants.length) {
+    throw new Error('No tenant Mongo URIs configured (MONGO_URI_MG / _CG / _LOOPC)')
+  }
+
+  // Fail-closed staging gate before any mongoose connect (including dry-run).
+  assertStagingOnlyScript({ scriptName: 'migrations/runner', tenants })
+
   if (apply) {
     if (!expectedToken) {
       throw new Error('Refusing apply: set MIGRATION_CONFIRM_TOKEN in the environment.')
@@ -101,13 +110,7 @@ async function main() {
     if (!confirm || confirm !== expectedToken) {
       throw new Error('Refusing apply: pass --confirm=$MIGRATION_CONFIRM_TOKEN')
     }
-    const tenantsPreview = TENANT_KEYS.filter((tenant) => resolveTenantUri(tenant))
-    assertMigrationApplyAllowed({ tenants: tenantsPreview, resolveUri: resolveTenantUri })
-  }
-
-  const tenants = TENANT_KEYS.filter((tenant) => resolveTenantUri(tenant))
-  if (!tenants.length) {
-    throw new Error('No tenant Mongo URIs configured (MONGO_URI_MG / _CG / _LOOPC)')
+    assertMigrationApplyAllowed({ tenants, resolveUri: resolveTenantUri })
   }
 
   console.log(`Migration runner — mode: ${apply ? 'apply' : 'dry-run'}`)

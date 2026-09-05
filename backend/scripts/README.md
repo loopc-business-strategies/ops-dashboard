@@ -17,11 +17,12 @@ Destructive or live-mutating scripts matching `cleanup-*`, `clear-*`, `delete-*`
 requires:
 
 - `--tenant=mg`, `--tenant=cg`, `--tenant=loopc`, or `--tenant=all`
+- `APP_ENV=staging` (exact) and staging-like Mongo URIs (`STAGING_MONGO_URI_*` preferred)
 - `--apply`
 - `--reason="approved maintenance reason"` with enough detail to audit later
 - `--confirm=<token>` matching `CLEANUP_CONFIRM_TOKEN` or `DESTRUCTIVE_ADMIN_CONFIRM_TOKEN`
-- `ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true` when `NODE_ENV`, Railway, Vercel,
-  or `--production` indicates production
+
+`ALLOW_PRODUCTION_*` overrides are **ignored/deprecated** and do not bypass the staging gate. `--production` aborts. Production execution is impossible.
 
 The guard only blocks accidental execution. It does not make legacy scripts
 safe or transactional; inspect each script and take a backup before applying.
@@ -34,10 +35,8 @@ Use these as the default maintenance flow:
    `node scripts/audit-mg-accounting-integrity.js`
 2. Run API smoke checks before and after maintenance:
    `node scripts/smoke-tenants.js`
-3. Run quarantined destructive scripts only with an explicit tenant, reason, and confirmation token:
-   `CLEANUP_CONFIRM_TOKEN=... node scripts/destructive/example.js --tenant=mg --apply --reason="ticket OPS-123 approved cleanup" --confirm=...`
-4. For production, also require the production override after a backup:
-   `ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true NODE_ENV=production CLEANUP_CONFIRM_TOKEN=... node scripts/destructive/example.js --tenant=mg --apply --reason="ticket OPS-123 approved cleanup after backup" --confirm=...`
+3. Run quarantined destructive scripts only against staging with an explicit tenant, reason, and confirmation token:
+   `APP_ENV=staging CLEANUP_CONFIRM_TOKEN=... node scripts/destructive/example.js --tenant=mg --apply --reason="ticket OPS-123 approved cleanup" --confirm=...`
 
 ### `void-metal-voucher-by-voc-no.js`
 

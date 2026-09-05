@@ -6,6 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 const { timingSafeEqualString } = require('./timingSafeEqualString')
+const { assertStagingOnlyScript } = require('./assertStagingOnlyScript')
 
 const AUDIT_LOG_DIR = path.resolve(__dirname, '../logs/cleanup-audit')
 const VALID_TENANTS = new Set(['mg', 'cg', 'loopc'])
@@ -26,22 +27,6 @@ function readArgValue(name) {
 
 function hasFlag(name) {
   return process.argv.includes(name)
-}
-
-function envBool(value, defaultValue = false) {
-  if (value === undefined || value === null || value === '') return defaultValue
-  return String(value).trim().toLowerCase() === 'true'
-}
-
-function isProductionLike() {
-  const envName = String(
-    process.env.NODE_ENV ||
-    process.env.RAILWAY_ENVIRONMENT ||
-    process.env.VERCEL_ENV ||
-    ''
-  ).trim().toLowerCase()
-
-  return envName === 'production' || hasFlag('--production')
 }
 
 function resolveExpectedToken(configToken) {
@@ -102,18 +87,21 @@ function validateExecutionRequest({ tenant, apply, confirmationToken, providedTo
     return { ok: false, reason: 'A cleanup reason/comment of at least 8 characters is required.' }
   }
 
-  if (
-    isProductionLike() &&
-    !envBool(process.env.ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT) &&
-    !envBool(process.env.ALLOW_PRODUCTION_CLEANUP)
-  ) {
-    return {
-      ok: false,
-      reason: 'Production cleanup is blocked unless ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true or ALLOW_PRODUCTION_CLEANUP=true.',
-    }
+  const normalizedTenant = String(tenant || '').trim().toLowerCase()
+  if (!normalizedTenant || !VALID_TENANTS.has(normalizedTenant)) {
+    return { ok: false, reason: 'tenant must be one of: mg, cg, loopc' }
   }
 
-  return { ok: true, cleanupReason, tenant }
+  try {
+    assertStagingOnlyScript({
+      scriptName: 'safe-cleanup',
+      tenants: [normalizedTenant],
+    })
+  } catch (error) {
+    return { ok: false, reason: error.message || String(error) }
+  }
+
+  return { ok: true, cleanupReason, tenant: normalizedTenant }
 }
 
 function createSafeCleanup(config) {

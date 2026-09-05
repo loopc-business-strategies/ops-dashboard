@@ -11,8 +11,24 @@
  *   node scripts/backfill-fx-journals-missing.js [--tenant mg|cg|loopc] [--dry-run]
  */
 require('dotenv').config()
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
+const { resolveStagingMongoUri } = require('../utils/stagingMongoSafety')
 const dns = require('dns')
 const mongoose = require('mongoose')
+
+const argsEarly = process.argv.slice(2)
+const tenantArgEarly = argsEarly.find((a) => a.startsWith('--tenant'))
+const tenantKeyEarly = tenantArgEarly
+  ? tenantArgEarly.split('=')[1] || argsEarly[argsEarly.indexOf(tenantArgEarly) + 1]
+  : null
+const allTenants = ['mg', 'cg', 'loopc']
+const stagingTenants = tenantKeyEarly
+  ? [String(tenantKeyEarly).trim().toLowerCase()]
+  : allTenants.filter((tenant) => resolveStagingMongoUri(tenant))
+assertStagingOnlyScript({
+  scriptName: 'backfill-fx-journals-missing.js',
+  tenants: stagingTenants.length ? stagingTenants : allTenants,
+})
 
 dns.setServers(['8.8.8.8', '1.1.1.1'])
 

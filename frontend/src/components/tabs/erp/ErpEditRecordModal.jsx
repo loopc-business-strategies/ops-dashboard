@@ -1,4 +1,16 @@
+import { useMemo } from 'react'
 import { ERP_MODAL_BACKDROP_STYLE, ERP_MODAL_CARD_STYLE, ERP_MODAL_INPUT_STYLE } from './erpTabPresentation'
+import AccountCombobox from '../../AccountCombobox'
+
+function buildAccountGroups(accounts) {
+  return [{
+    label: 'Accounts',
+    options: (accounts || []).map((account) => ({
+      value: account._id,
+      label: `${account.accountCode} - ${account.accountName}`,
+    })),
+  }]
+}
 
 export default function ErpEditRecordModal({
   editState,
@@ -11,6 +23,7 @@ export default function ErpEditRecordModal({
   onSubmit,
   colors,
 }) {
+  const accountComboGroups = useMemo(() => buildAccountGroups(accounts), [accounts])
   if (!editState.record) return null
   const C = colors
   return (
@@ -31,18 +44,20 @@ export default function ErpEditRecordModal({
           {editState.type === 'mapping' && (
             <>
               <input value={editState.form.mappingType || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, mappingType: e.target.value } }))} placeholder="Mapping Type" style={ERP_MODAL_INPUT_STYLE} />
-              <select value={editState.form.debitAccountId || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
-                <option value="">Select Debit Account</option>
-                {accounts.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                ))}
-              </select>
-              <select value={editState.form.creditAccountId || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
-                <option value="">Select Credit Account</option>
-                {accounts.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                ))}
-              </select>
+              <AccountCombobox
+                groups={accountComboGroups}
+                value={editState.form.debitAccountId || ''}
+                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: val } }))}
+                placeholder="Select Debit Account"
+                style={ERP_MODAL_INPUT_STYLE}
+              />
+              <AccountCombobox
+                groups={accountComboGroups}
+                value={editState.form.creditAccountId || ''}
+                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: val } }))}
+                placeholder="Select Credit Account"
+                style={ERP_MODAL_INPUT_STYLE}
+              />
               <select value={editState.form.department || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
                 <option value="">Shared / All Departments</option>
                 {ledgerDepartments.map((department) => (
@@ -83,18 +98,20 @@ export default function ErpEditRecordModal({
           {editState.type === 'ledger' && (
             <>
               <input type="date" value={editState.form.date || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, date: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE} />
-              <select value={editState.form.debitAccountId || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
-                <option value="">Debit Account</option>
-                {accounts.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                ))}
-              </select>
-              <select value={editState.form.creditAccountId || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
-                <option value="">Credit Account</option>
-                {accounts.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                ))}
-              </select>
+              <AccountCombobox
+                groups={accountComboGroups}
+                value={editState.form.debitAccountId || ''}
+                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: val } }))}
+                placeholder="Debit Account"
+                style={ERP_MODAL_INPUT_STYLE}
+              />
+              <AccountCombobox
+                groups={accountComboGroups}
+                value={editState.form.creditAccountId || ''}
+                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: val } }))}
+                placeholder="Credit Account"
+                style={ERP_MODAL_INPUT_STYLE}
+              />
               <input type="number" step="0.01" value={editState.form.amount || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, amount: e.target.value } }))} placeholder="Amount" style={ERP_MODAL_INPUT_STYLE} />
               <input value={editState.form.description || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))} placeholder="Description" style={ERP_MODAL_INPUT_STYLE} />
               <select value={editState.form.referenceType || 'journal'} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, referenceType: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>

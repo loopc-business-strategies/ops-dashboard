@@ -66,8 +66,9 @@ If `syncIndexes` fails on a unique index, clean duplicate documents first, then 
 - Always implement `up` as idempotent when possible.
 - Before `--apply`:
   1. **Backup** every tenant database ([MONGODB-BACKUPS-AND-DATA-SAFETY.md](../docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md))
-  2. Set `MIGRATION_I_HAVE_BACKUP=true`
-  3. Set `MIGRATION_CONFIRM_TOKEN` and pass `--confirm=<same-token>`
-  4. Use **staging URIs** unless `ALLOW_PRODUCTION_MIGRATION=true` (only after verified backup)
+  2. Set `APP_ENV=staging` and use **staging** Mongo URIs only (`STAGING_MONGO_URI_*` preferred)
+  3. Set `MIGRATION_I_HAVE_BACKUP=true`
+  4. Set `MIGRATION_CONFIRM_TOKEN` and pass `--confirm=<same-token>`
+- Production migration execution is **impossible** — `ALLOW_PRODUCTION_MIGRATION` is ignored/deprecated and does not bypass the staging gate.
 - Destructive migrations require `MIGRATION_CONFIRM_TOKEN` matching `--confirm=` when using `--apply`.
 - Run `npm run check:data-safety` for a read-only local checklist (no DB connection).

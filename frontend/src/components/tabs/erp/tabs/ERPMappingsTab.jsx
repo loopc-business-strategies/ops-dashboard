@@ -1,5 +1,8 @@
 import erpAccountingAPI from '../../../../api/erp-accounting'
+import { invalidateCatalogCache, CATALOG_KINDS } from '../../../../utils/erpCatalogCache'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
+import AccountCombobox from '../../../AccountCombobox'
+import { useMemo } from 'react'
 
 export default function ERPMappingsTab({
   C,
@@ -32,6 +35,13 @@ export default function ERPMappingsTab({
   handleDeleteMapping,
 }) {
   const activeAccounts = filterActiveAccounts(accounts)
+  const accountComboGroups = useMemo(() => [{
+    label: 'Accounts',
+    options: activeAccounts.map((account) => ({
+      value: account._id,
+      label: `${account.accountCode} - ${account.accountName}`,
+    })),
+  }], [activeAccounts])
   return (
     <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
@@ -92,26 +102,20 @@ export default function ERPMappingsTab({
                     onChange={(e) => setMappingForm({ ...mappingForm, mappingType: e.target.value })}
                     style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
                   />
-                  <select
-                    value={mappingForm.debitAccountId}
-                    onChange={(e) => setMappingForm({ ...mappingForm, debitAccountId: e.target.value })}
+                  <AccountCombobox
+                    groups={accountComboGroups}
+                    value={mappingForm.debitAccountId || ''}
+                    onChange={(val) => setMappingForm({ ...mappingForm, debitAccountId: val })}
+                    placeholder="Select Debit Account"
                     style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                  >
-                    <option value="">Select Debit Account</option>
-                    {activeAccounts.map((account) => (
-                      <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={mappingForm.creditAccountId}
-                    onChange={(e) => setMappingForm({ ...mappingForm, creditAccountId: e.target.value })}
+                  />
+                  <AccountCombobox
+                    groups={accountComboGroups}
+                    value={mappingForm.creditAccountId || ''}
+                    onChange={(val) => setMappingForm({ ...mappingForm, creditAccountId: val })}
+                    placeholder="Select Credit Account"
                     style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                  >
-                    <option value="">Select Credit Account</option>
-                    {activeAccounts.map((account) => (
-                      <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                    ))}
-                  </select>
+                  />
                   <select
                     value={mappingForm.department}
                     onChange={(e) => setMappingForm({ ...mappingForm, department: e.target.value })}
@@ -175,6 +179,7 @@ export default function ERPMappingsTab({
                             <input type="checkbox" checked={m.isActive !== false} onChange={async () => {
                               try {
                                 await erpAccountingAPI.updateMapping(token, m._id, {isActive: m.isActive === false})
+                                invalidateCatalogCache(CATALOG_KINDS.mappings)
                                 await loadMappings()
                                 showNotification(m.isActive === false ? '✅ Mapping activated' : '✅ Mapping deactivated')
                               } catch (e) {

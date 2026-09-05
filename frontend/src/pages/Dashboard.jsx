@@ -61,6 +61,14 @@ const prefetchedTabs = new Set()
 function prefetchTabChunk(tabId) {
   const key = tabId === 'erp' || String(tabId || '').startsWith('erp-') ? 'erp' : tabId
   if (!key || prefetchedTabs.has(key)) return
+  try {
+    const conn = typeof navigator !== 'undefined' ? navigator.connection || navigator.mozConnection || navigator.webkitConnection : null
+    if (conn?.saveData) return
+    const effectiveType = String(conn?.effectiveType || '').toLowerCase()
+    if (effectiveType === 'slow-2g' || effectiveType === '2g') return
+  } catch {
+    // Ignore Network Information API gaps
+  }
   const loader = TAB_CHUNK_PREFETCHERS[key]
   if (!loader) return
   prefetchedTabs.add(key)

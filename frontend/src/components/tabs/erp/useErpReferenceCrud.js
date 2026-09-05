@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { invalidateCatalogCache, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import {
   EMPTY_CURRENCY_FORM,
   EMPTY_MAPPING_FORM,
@@ -54,6 +55,8 @@ export function useErpReferenceCrud({
         creditLimit: Number(customerForm.creditLimit || 0),
         paymentTermsDays: Number(customerForm.paymentTermsDays || 0),
       })
+      invalidateCatalogCache(CATALOG_KINDS.customers)
+      invalidateCatalogCache(CATALOG_KINDS.accounts)
       setCustomerForm(createEmptyCustomerForm(erpBaseCurrencyCode))
       setShowCustomerForm(false)
       await Promise.all([loadCustomers(), loadAccounts()])
@@ -87,10 +90,12 @@ export function useErpReferenceCrud({
     try {
       if (editState.type === 'account') {
         await erpAccountingAPI.updateAccount(token, editState.record._id, editState.form)
+        invalidateCatalogCache(CATALOG_KINDS.accounts)
         await loadAccounts()
       }
       if (editState.type === 'mapping') {
         await erpAccountingAPI.updateMapping(token, editState.record._id, editState.form)
+        invalidateCatalogCache(CATALOG_KINDS.mappings)
         await loadMappings()
       }
       if (editState.type === 'currency') {
@@ -104,6 +109,7 @@ export function useErpReferenceCrud({
           ...currencyFormPayload(editState.form),
           exchangeRate,
         })
+        invalidateCatalogCache(CATALOG_KINDS.currencies)
         await loadCurrencies()
       }
       if (editState.type === 'customer') {
@@ -112,6 +118,7 @@ export function useErpReferenceCrud({
           creditLimit: Number(editState.form.creditLimit || 0),
           paymentTermsDays: Number(editState.form.paymentTermsDays || 0),
         })
+        invalidateCatalogCache(CATALOG_KINDS.customers)
         await loadCustomers()
       }
       closeEditModal()
@@ -150,6 +157,7 @@ export function useErpReferenceCrud({
     setSaving(true)
     try {
       await erpAccountingAPI.createCurrency(token, { ...currencyFormPayload(currencyForm), exchangeRate })
+      invalidateCatalogCache(CATALOG_KINDS.currencies)
       setCurrencyForm({ ...EMPTY_CURRENCY_FORM })
       setShowCurrencyForm(false)
       await loadCurrencies()
@@ -175,6 +183,7 @@ export function useErpReferenceCrud({
     setSaving(true)
     try {
       const response = await erpAccountingAPI.seedDefaultCurrencies(token)
+      invalidateCatalogCache(CATALOG_KINDS.currencies)
       await loadCurrencies()
       showNotification(`✅ Currency master synced (${response.createdCount || 0} created, ${response.normalizedCount || 0} updated)`)
     } catch (err) {
@@ -193,6 +202,7 @@ export function useErpReferenceCrud({
     setSaving(true)
     try {
       await erpAccountingAPI.createMapping(token, mappingForm)
+      invalidateCatalogCache(CATALOG_KINDS.mappings)
       setMappingForm({ ...EMPTY_MAPPING_FORM })
       setShowMappingForm(false)
       await loadMappings()
@@ -221,6 +231,7 @@ export function useErpReferenceCrud({
     if (!window.confirm(`Deactivate mapping ${mapping.mappingType}?`)) return
     try {
       await erpAccountingAPI.deleteMapping(token, mapping._id)
+      invalidateCatalogCache(CATALOG_KINDS.mappings)
       await loadMappings()
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete mapping')
@@ -231,6 +242,7 @@ export function useErpReferenceCrud({
     if (!window.confirm(`Delete currency ${currency.code}?`)) return
     try {
       await erpAccountingAPI.deleteCurrency(token, currency._id)
+      invalidateCatalogCache(CATALOG_KINDS.currencies)
       await loadCurrencies()
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete currency')
@@ -241,6 +253,7 @@ export function useErpReferenceCrud({
     if (!window.confirm(`Deactivate customer ${customer.name}?`)) return
     try {
       await erpAccountingAPI.deleteCustomer(token, customer._id)
+      invalidateCatalogCache(CATALOG_KINDS.customers)
       await loadCustomers()
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete customer')

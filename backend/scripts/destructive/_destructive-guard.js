@@ -1,4 +1,5 @@
 const path = require('path')
+const { assertStagingOnlyScript } = require('../../utils/assertStagingOnlyScript')
 
 const VALID_TENANTS = new Set(['mg', 'cg', 'loopc', 'all'])
 
@@ -32,17 +33,6 @@ function hasFlag(name) {
   return process.argv.includes(name)
 }
 
-function isProductionLike() {
-  const envName = String(
-    process.env.NODE_ENV ||
-    process.env.RAILWAY_ENVIRONMENT ||
-    process.env.VERCEL_ENV ||
-    ''
-  ).trim().toLowerCase()
-
-  return envName === 'production' || hasFlag('--production')
-}
-
 function requireDestructiveScriptGuard(options = {}) {
   const scriptName = options.scriptName || path.basename(process.argv[1] || 'destructive-script')
   const tenant = resolveTenant(options)
@@ -51,6 +41,14 @@ function requireDestructiveScriptGuard(options = {}) {
   if (!tenant || !VALID_TENANTS.has(tenant)) {
     console.error(`[blocked] ${scriptName} is quarantined as destructive.`)
     console.error('Pass an explicit tenant: --tenant=mg, --tenant=cg, --tenant=loopc, or --tenant=all.')
+    process.exit(1)
+  }
+
+  const stagingTenants = tenant === 'all' ? ['mg', 'cg', 'loopc'] : [tenant]
+  try {
+    assertStagingOnlyScript({ scriptName, tenants: stagingTenants })
+  } catch (error) {
+    console.error(`[blocked] ${error.message || error}`)
     process.exit(1)
   }
 
@@ -82,12 +80,6 @@ function requireDestructiveScriptGuard(options = {}) {
       console.error(`[blocked] ${scriptName} requires --confirm to match the configured confirmation token.`)
       process.exit(1)
     }
-  }
-
-  if (isProductionLike() && String(process.env.ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT || '').toLowerCase() !== 'true') {
-    console.error(`[blocked] ${scriptName} appears to be targeting production.`)
-    console.error('Set ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true only after backup and written approval.')
-    process.exit(1)
   }
 
   process.env.DESTRUCTIVE_SCRIPT_TENANT = tenant

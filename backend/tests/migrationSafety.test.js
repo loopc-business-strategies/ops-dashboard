@@ -7,8 +7,21 @@ const {
 describe('migrationSafety', () => {
   const previous = { ...process.env }
 
+  beforeEach(() => {
+    process.env = { ...previous }
+    delete process.env.ALLOW_PRODUCTION_MIGRATION
+    delete process.env.APP_ENV
+    delete process.env.STAGING_MONGO_URI_MG
+    delete process.env.STAGING_MONGO_URI_LOOPC
+    delete process.env.MONGO_URI_MG
+    delete process.env.MONGO_URI_LOOPC
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    jest.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
   afterEach(() => {
     process.env = { ...previous }
+    jest.restoreAllMocks()
   })
 
   test('redactMongoUri hides credentials', () => {
@@ -17,10 +30,11 @@ describe('migrationSafety', () => {
     expect(redacted).not.toContain('secret')
   })
 
-  test('blocks apply on production-like URI without override', () => {
+  test('blocks apply on production-like URI', () => {
+    process.env.APP_ENV = 'staging'
     process.env.MIGRATION_I_HAVE_BACKUP = 'true'
     process.env.MIGRATION_CONFIRM_TOKEN = 'token'
-    delete process.env.ALLOW_PRODUCTION_MIGRATION
+    process.env.STAGING_MONGO_URI_MG = 'mongodb+srv://u:p@prod-cluster.mongodb.net/ops'
 
     expect(() => assertMigrationApplyAllowed({
       tenants: ['mg'],
@@ -28,13 +42,28 @@ describe('migrationSafety', () => {
     })).toThrow(/production-like/i)
   })
 
-  test('allows apply on staging URI when backup flag set', () => {
+  test('ALLOW_PRODUCTION_MIGRATION does not bypass staging gate', () => {
+    process.env.APP_ENV = 'production'
+    process.env.ALLOW_PRODUCTION_MIGRATION = 'true'
     process.env.MIGRATION_I_HAVE_BACKUP = 'true'
     process.env.MIGRATION_CONFIRM_TOKEN = 'token'
+    process.env.STAGING_MONGO_URI_MG = 'mongodb+srv://u:p@staging-mg.abcd.mongodb.net/ops_staging'
+
+    expect(() => assertMigrationApplyAllowed({
+      tenants: ['mg'],
+      resolveUri: () => process.env.STAGING_MONGO_URI_MG,
+    })).toThrow(/APP_ENV must be exactly "staging"/i)
+  })
+
+  test('allows apply on staging URI when APP_ENV=staging and backup flag set', () => {
+    process.env.APP_ENV = 'staging'
+    process.env.MIGRATION_I_HAVE_BACKUP = 'true'
+    process.env.MIGRATION_CONFIRM_TOKEN = 'token'
+    process.env.STAGING_MONGO_URI_LOOPC = 'mongodb+srv://u:p@staging-loopc.abcd.mongodb.net/ops_staging'
 
     expect(() => assertMigrationApplyAllowed({
       tenants: ['loopc'],
-      resolveUri: () => 'mongodb+srv://u:p@staging-loopc.abcd.mongodb.net/ops_staging',
+      resolveUri: () => process.env.STAGING_MONGO_URI_LOOPC,
     })).not.toThrow()
   })
 

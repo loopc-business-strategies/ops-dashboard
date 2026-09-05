@@ -147,8 +147,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       sortDir,
       minAbsolute,
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const dateQuery = buildDateQuery(startDate, endDate)
     const accountDocs = await ChartOfAccount.find({ isActive: true })
@@ -297,7 +296,8 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       rowCount: trialBalance.length,
       generatedAt: new Date(),
     }
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -316,8 +316,7 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
       startDate,
       endDate,
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const query = {
       isDeleted: { $ne: true },
@@ -374,7 +373,8 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
     })
 
     const payload = { success: true, report }
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -396,8 +396,7 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
       includeZero,
       includeComparisons,
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const comparisonAnchor = endDate ? new Date(endDate) : new Date()
     const [currentPeriod, comparisonData, previousPeriodData] = await Promise.all([
@@ -440,7 +439,8 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
       quarterlyComparison: comparisonData.quarterlyComparison,
       generatedAt: new Date(),
     }
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -460,8 +460,7 @@ router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, r
       includeZero,
       includeComparisons,
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const anchorDate = endDate ? new Date(endDate) : new Date()
     const [snapshot, comparisonData] = await Promise.all([
@@ -489,7 +488,8 @@ router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, r
       quarterlyComparison: comparisonData.quarterlyComparison,
       generatedAt: new Date(),
     }
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -514,8 +514,7 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       minAmount,
       limit,
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const query = {
       isDeleted: { $ne: true },
@@ -590,7 +589,8 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       summaryByType,
       generatedAt: new Date(),
     }
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -630,8 +630,7 @@ router.get('/reports/fixing-register', protect, reportExportLimiter, async (req,
       excludeFutures,
       excludeOpeningBalance,
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const payload = await loadFixingRegisterReport(
       { Transaction, DirectDeal, buildDateQuery },
@@ -650,7 +649,8 @@ router.get('/reports/fixing-register', protect, reportExportLimiter, async (req,
         excludeOpeningBalance,
       },
     )
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -661,8 +661,7 @@ router.get('/reports/customer-outstanding', protect, reportExportLimiter, async 
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const cacheKey = reportCache.buildKey([reportTenantKey(req), 'customer-outstanding'])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName').lean()
     const ledgerAccountIds = customers.map((customer) => customer.ledgerAccountId?._id).filter(Boolean)
@@ -713,7 +712,8 @@ router.get('/reports/customer-outstanding', protect, reportExportLimiter, async 
       },
       generatedAt: new Date(),
     }
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -724,8 +724,7 @@ router.get('/reports/vendor-outstanding', protect, reportExportLimiter, async (r
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const cacheKey = reportCache.buildKey([reportTenantKey(req), 'vendor-outstanding'])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) return res.json(cached)
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName').lean()
     const ledgerAccountIds = vendors.map((vendor) => vendor.ledgerAccountId?._id).filter(Boolean)
@@ -761,7 +760,8 @@ router.get('/reports/vendor-outstanding', protect, reportExportLimiter, async (r
       },
       generatedAt: new Date(),
     }
-    await reportCache.setShared(cacheKey, payload)
+    return payload
+    })
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
@@ -1128,10 +1128,7 @@ router.get('/reports/expense-register', protect, reportExportLimiter, async (req
       String(paymentSource || 'all'),
       String(limit || '200'),
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) {
-      return res.json(cached)
-    }
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const [accountMetaMap, ledgerEntries, baseCurrency] = await Promise.all([
       loadAccountMetaMap(ChartOfAccount),
@@ -1164,8 +1161,9 @@ router.get('/reports/expense-register', protect, reportExportLimiter, async (req
       ...register,
     }
 
-    await reportCache.setShared(cacheKey, payload, 60000)
-    return res.json(payload)
+    return payload
+    }, 60000)
+    res.json(payload)
   } catch (err) {
     console.error('[reports] expense-register error:', err)
     return res.status(500).json({ success: false, message: 'Internal server error' })
@@ -1188,10 +1186,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       periodStart.toISOString(),
       periodEnd.toISOString(),
     ])
-    const cached = await reportCache.getShared(cacheKey)
-    if (cached) {
-      return res.json(cached)
-    }
+    const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const sixMonthsStart = new Date(today.getFullYear(), today.getMonth() - 5, 1)
     const ytdStart = new Date(today.getFullYear(), 0, 1)
@@ -1819,8 +1814,9 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       generatedAt: new Date(),
     }
 
-    await reportCache.setShared(cacheKey, dashboardPayload, DASHBOARD_CACHE_TTL_MS)
-    res.json(dashboardPayload)
+    return dashboardPayload
+    }, DASHBOARD_CACHE_TTL_MS)
+    res.json(payload)
   } catch (err) {
     console.error('[reports] error:', err)
     res.status(500).json({ success: false, message: 'Internal server error' })

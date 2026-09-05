@@ -27,6 +27,11 @@ vi.mock('../../api/erp-accounting', () => ({
   },
 }))
 
+vi.mock('../../hooks/useLiveMetalRates', () => ({
+  default: () => ({ snapshot: {}, error: null, streamWarning: null, reload: () => {} }),
+  useLiveMetalRates: () => ({ snapshot: {}, error: null, streamWarning: null, reload: () => {} }),
+}))
+
 import VoucherTab from './VoucherTab'
 
 describe('VoucherTab smoke', () => {

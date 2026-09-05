@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import {
   currentExpenseMonthIndex,
@@ -48,8 +48,12 @@ export function useErpReports({
   setLedgerReportRows,
   setError,
 }) {
+  const loadSeqRef = useRef(0)
+  const ledgerSeqRef = useRef(0)
+
   const loadReports = useCallback(async (targetView = reportView) => {
     if (!canAccessReports) return
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
       const { endDate, commonRange } = buildReportDateRange(reportFilters)
@@ -97,12 +101,14 @@ export function useErpReports({
         updates.forex = await erpAccountingAPI.getForexGainLossReport(token, commonRange)
       }
 
+      if (seq !== loadSeqRef.current) return
       setReports((prev) => ({ ...prev, ...updates }))
       setError('')
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load reports')
     }
-    setLoading(false)
+    if (seq === loadSeqRef.current) setLoading(false)
   }, [token, canAccessReports, reportView, reportFilters, setLoading, setReports, setError])
 
   const loadLedgerReport = useCallback(async (accountId) => {
@@ -110,6 +116,7 @@ export function useErpReports({
       setLedgerReportRows([])
       return
     }
+    const seq = ++ledgerSeqRef.current
     try {
       const { startDate, endDate } = buildReportDateRange(reportFilters)
       const data = await erpAccountingAPI.getLedgerReport(token, {
@@ -117,8 +124,10 @@ export function useErpReports({
         ...(startDate ? { startDate } : {}),
         ...(endDate ? { endDate } : {}),
       })
+      if (seq !== ledgerSeqRef.current) return
       setLedgerReportRows(data.report || [])
     } catch (e) {
+      if (seq !== ledgerSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load ledger report')
     }
   }, [token, reportFilters, setLedgerReportRows, setError])

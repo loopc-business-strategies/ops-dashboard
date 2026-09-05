@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { invalidateCatalogCache, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import {
   buildAutoStockCode,
   buildUniqueStockCode,
@@ -196,6 +197,7 @@ export function useErpInventoryActions({
         await erpAccountingAPI.createInventoryProduct(token, payload)
         showNotification('✅ Stock mapping created')
       }
+      invalidateCatalogCache(CATALOG_KINDS.inventory)
       resetInventoryMappingForm()
       await loadInventory()
     } catch (err) {
@@ -238,6 +240,7 @@ export function useErpInventoryActions({
     try {
       setSaving(true)
       await erpAccountingAPI.deleteInventoryProduct(token, product._id)
+      invalidateCatalogCache(CATALOG_KINDS.inventory)
       await loadInventory()
       showNotification('✅ Stock mapping deleted')
     } catch (err) {
@@ -281,6 +284,7 @@ export function useErpInventoryActions({
         await erpAccountingAPI.createInventoryProduct(token, payload)
         showNotification('✅ Product created')
       }
+      invalidateCatalogCache(CATALOG_KINDS.inventory)
       resetInventoryProductForm()
       await loadInventory()
     } catch (err) {
@@ -325,6 +329,7 @@ export function useErpInventoryActions({
     try {
       setSaving(true)
       await erpAccountingAPI.deleteInventoryProduct(token, productItem._id)
+      invalidateCatalogCache(CATALOG_KINDS.inventory)
       if (editingInventoryProductId && String(editingInventoryProductId) === String(productItem._id)) {
         resetInventoryProductForm()
       }

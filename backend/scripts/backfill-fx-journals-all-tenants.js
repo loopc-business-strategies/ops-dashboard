@@ -1,4 +1,12 @@
 require('dotenv').config()
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
+const { resolveStagingMongoUri } = require('../utils/stagingMongoSafety')
+const allTenants = ['mg', 'cg', 'loopc']
+const tenantsWithUri = allTenants.filter((tenant) => resolveStagingMongoUri(tenant))
+assertStagingOnlyScript({
+  scriptName: 'backfill-fx-journals-all-tenants.js',
+  tenants: tenantsWithUri.length ? tenantsWithUri : allTenants,
+})
 const dns = require('dns')
 const mongoose = require('mongoose')
 

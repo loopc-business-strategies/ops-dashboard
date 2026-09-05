@@ -20,10 +20,30 @@ const stagingLocalPath = path.join(backendDir, '.env.staging.local')
 const dotenv = require('dotenv')
 dotenv.config({ path: stagingLocalPath })
 const { mapStagingMongoToProcessEnv } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
+const { assertStagingOnlyScript } = require(path.join(backendDir, 'utils', 'assertStagingOnlyScript.js'))
 
 const env = {
   ...process.env,
   ...mapStagingMongoToProcessEnv(process.env),
+  APP_ENV: String(process.env.APP_ENV || 'staging').trim() || 'staging',
+}
+
+const stagingTenants = ['mg', 'cg', 'loopc'].filter((tenant) => {
+  const key = tenant.toUpperCase()
+  return String(env[`STAGING_MONGO_URI_${key}`] || env[`MONGO_URI_${key}`] || '').trim()
+})
+try {
+  assertStagingOnlyScript(
+    {
+      scriptName: 'migrate-staging',
+      tenants: stagingTenants.length ? stagingTenants : ['mg', 'cg', 'loopc'],
+    },
+    env,
+    process.argv,
+  )
+} catch (error) {
+  console.error(error.message || error)
+  process.exit(1)
 }
 
 const runnerArgs = ['migrations/runner.js', ...process.argv.slice(2)]

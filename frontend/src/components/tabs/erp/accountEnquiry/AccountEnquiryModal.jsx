@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES } from '../statementHelpers'
+import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 const linkButtonStyle = {
   textDecoration: 'none',
@@ -82,6 +83,23 @@ export default function AccountEnquiryModal({
   const statementMeta = accountEnquiryData?.statement?.meta || null
   const statementTruncated = Boolean(statementMeta?.truncated)
   const statementLimit = Number(statementMeta?.limit || 0)
+  const statementColCount = showStatementAuditIds ? 13 : 12
+  const {
+    scrollRef: statementVirtScrollRef,
+    enabled: statementVirtEnabled,
+    virtualItems: statementVirtualItems,
+    paddingTop: statementPadTop,
+    paddingBottom: statementPadBottom,
+  } = useVirtualTableRows(filteredStatementEntries?.length || 0, { estimateSize: 42 })
+
+  const setStatementScrollRef = (node) => {
+    statementVirtScrollRef.current = node
+    if (statementTableRef) statementTableRef.current = node
+  }
+
+  const visibleStatementIndexes = statementVirtEnabled
+    ? statementVirtualItems.map((v) => v.index)
+    : (filteredStatementEntries || []).map((_, index) => index)
 
   useEffect(() => {
     if (!open || !accountEnquiryData?.account?.accountCode || typeof refetchEnquiryForDateRange !== 'function') {
@@ -596,7 +614,7 @@ export default function AccountEnquiryModal({
                         Show Transaction ID
                       </label>
                     </div>
-                    <div ref={statementTableRef} tabIndex={-1} style={{ overflowX: 'auto' }} data-statement-table="true">
+                    <div ref={setStatementScrollRef} tabIndex={-1} style={{ overflow: 'auto', maxHeight: statementVirtEnabled ? 480 : undefined }} data-statement-table="true">
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                         <thead>
                           <tr style={{ background: '#E8EBE0', borderBottom: '1px solid #CBD5E0' }}>
@@ -622,12 +640,18 @@ export default function AccountEnquiryModal({
                         <tbody>
                           {filteredStatementEntries.length === 0 ? (
                             <tr>
-                              <td colSpan={showStatementAuditIds ? 13 : 12} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
+                              <td colSpan={statementColCount} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
                                 No statement entries found for selected filters.
                               </td>
                             </tr>
                           ) : (
-                            filteredStatementEntries.map((entry, index) => {
+                            <>
+                              {statementVirtEnabled && statementPadTop > 0 && (
+                                <tr><td colSpan={statementColCount} style={{ height: statementPadTop, padding: 0, border: 'none' }} /></tr>
+                              )}
+                              {visibleStatementIndexes.map((index) => {
+                              const entry = filteredStatementEntries[index]
+                              if (!entry) return null
                               const receiptNo = resolveStatementReceiptNo(entry)
                               // Account enquiry statement amounts are already in base currency from API.
                               const debitUsd = Number(entry.debitAmount || 0)
@@ -679,7 +703,11 @@ export default function AccountEnquiryModal({
                                   </td>
                                 </tr>
                               )
-                            })
+                            })}
+                              {statementVirtEnabled && statementPadBottom > 0 && (
+                                <tr><td colSpan={statementColCount} style={{ height: statementPadBottom, padding: 0, border: 'none' }} /></tr>
+                              )}
+                            </>
                           )}
                         </tbody>
                       </table>

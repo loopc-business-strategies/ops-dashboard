@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { formatDateInputLocal } from './erpTabPresentation'
 
@@ -34,9 +34,11 @@ export function useExpenseRegister({
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const loadSeqRef = useRef(0)
 
   const load = useCallback(async () => {
     if (!token || !enabled) return
+    const seq = ++loadSeqRef.current
     setLoading(true)
     setError('')
     try {
@@ -47,16 +49,18 @@ export function useExpenseRegister({
         paymentSource,
         limit,
       }))
+      if (seq !== loadSeqRef.current) return
       setItems(res.items || [])
       setTotal(Number(res.total || 0))
       setCategories(res.categories || [])
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load expense register')
       setItems([])
       setTotal(0)
       setCategories([])
     } finally {
-      setLoading(false)
+      if (seq === loadSeqRef.current) setLoading(false)
     }
   }, [token, enabled, startDate, endDate, category, paymentSource, limit])
 

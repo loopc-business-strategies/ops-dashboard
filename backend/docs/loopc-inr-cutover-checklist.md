@@ -11,7 +11,7 @@ Run only after backup and finance approval. Cutover script: [`revalue-loopc-inr-
 ## Apply
 
 - [ ] `DESTRUCTIVE_ADMIN_CONFIRM_TOKEN` (or `CLEANUP_CONFIRM_TOKEN`) set in environment.
-- [ ] Production: `ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true` only during the window.
+- [ ] Staging only: `APP_ENV=staging` plus approved staging Mongo URIs (production overrides are ignored / impossible).
 - [ ] Apply command includes `--reason="..."` (≥10 chars) and `--confirm=...` matching the token.
 
 ## Post-cutover (ERP as LoopC tenant)

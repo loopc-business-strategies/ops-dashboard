@@ -76,7 +76,7 @@ function main() {
   console.log('')
   console.log('Before any apply / destructive script:')
   console.log('  1. Backup MongoDB (docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md)')
-  console.log('  2. Use staging URIs only unless ALLOW_PRODUCTION_MIGRATION=true after backup')
+  console.log('  2. Set APP_ENV=staging and use staging Mongo URIs only (production execution is impossible)')
   console.log('  3. Set MIGRATION_I_HAVE_BACKUP=true and MIGRATION_CONFIRM_TOKEN for migrate:apply')
   console.log('')
   console.log('Templates: backend/.env.staging.example, backend/.env.production.example')

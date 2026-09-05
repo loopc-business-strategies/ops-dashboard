@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../../utils/erpSummaryAccountsCache'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
@@ -22,6 +22,7 @@ export function useErpAccounts({
   setSummaryAccounts,
   setError,
 }) {
+  const loadSeqRef = useRef(0)
   const canLoadReferenceData = canViewAccounts
     || canAccessTransactions
     || canAccessVouchers
@@ -35,6 +36,7 @@ export function useErpAccounts({
   const loadAccounts = useCallback(async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
     if (!canLoadReferenceData && !(isSummaryScope && canViewBalanceEnquiry)) return
+    const seq = ++loadSeqRef.current
     if (isSummaryScope) {
       const cached = readSummaryAccountsCache(tenantKey)
       if (Array.isArray(cached) && cached.length) {
@@ -57,6 +59,7 @@ export function useErpAccounts({
           { ...params, page: 1, limit: 5000 },
           () => erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 }),
         )
+        if (seq !== loadSeqRef.current) return
         const rows = filterActiveAccounts(data.accounts || [])
         const uniqueById = new Map()
         rows.forEach((item) => {
@@ -72,6 +75,7 @@ export function useErpAccounts({
         let total = Number.POSITIVE_INFINITY
         let collected = []
         while (collected.length < total) {
+          if (seq !== loadSeqRef.current) return
           const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
           const rows = data.accounts || []
           collected = collected.concat(rows)
@@ -79,12 +83,16 @@ export function useErpAccounts({
           if (!rows.length) break
           page += 1
         }
+        if (seq !== loadSeqRef.current) return
         setAccounts(filterActiveAccounts(collected))
       }
+      if (seq !== loadSeqRef.current) return
       setError('')
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e.response?.data?.message || `Failed to load ${isSummaryScope ? 'account summary options' : 'accounts'}`)
     }
+    if (seq !== loadSeqRef.current) return
     if (isSummaryScope) setSummaryAccountsLoading(false)
     else setLoading(false)
   }, [

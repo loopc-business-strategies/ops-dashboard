@@ -6,9 +6,26 @@
  */
 const path = require('path')
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
+const { resolveStagingMongoUri } = require('../utils/stagingMongoSafety')
 const dns = require('dns')
 const mongoose = require('mongoose')
 const { getTenantUri, normalizeTenant, TENANT_KEYS } = require('../config/tenants')
+
+function argValueEarly(name, fallback) {
+  const prefix = `--${name}=`
+  const hit = process.argv.find((a) => a.startsWith(prefix))
+  if (!hit) return fallback
+  return hit.slice(prefix.length).trim() || fallback
+}
+const oneTenantEarly = argValueEarly('tenant', '')
+const stagingTenants = oneTenantEarly
+  ? [normalizeTenant(oneTenantEarly)].filter(Boolean)
+  : TENANT_KEYS.filter((tenant) => resolveStagingMongoUri(tenant))
+assertStagingOnlyScript({
+  scriptName: 'migrate-persistent-session-all-tenants.js',
+  tenants: stagingTenants.length ? stagingTenants : [...TENANT_KEYS],
+})
 
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
 

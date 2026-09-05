@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { toMoney } from '../../../utils/money'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
@@ -67,19 +67,24 @@ export function useErpVendors({
   setVendorOverdueQueue,
   setError,
 }) {
+  const loadSeqRef = useRef(0)
+
   const loadVendors = useCallback(async (filters = {}) => {
     if (!canLoadParties) return
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
       const data = await fetchAllVendorsAggregated(token, filters)
+      if (seq !== loadSeqRef.current) return
       setVendors(data.vendors || [])
       setVendorSummary(data.summary || { totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
       setVendorPermissions(data.permissions || { canManage: false, canUpdateOperational: false })
       setError('')
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load vendors')
     }
-    setLoading(false)
+    if (seq === loadSeqRef.current) setLoading(false)
   }, [token, canLoadParties, setLoading, setVendors, setVendorSummary, setVendorPermissions, setError])
 
   const loadVendorDetails = useCallback(async (id) => {

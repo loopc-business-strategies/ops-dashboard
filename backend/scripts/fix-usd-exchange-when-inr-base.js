@@ -10,9 +10,22 @@
  * Env: MONGO_URI_* from .env (see ../config/tenants.js)
  */
 require('dotenv').config()
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const dns = require('dns')
 const mongoose = require('mongoose')
 const { getTenantUri, normalizeTenant, TENANT_KEYS } = require('../config/tenants')
+
+function argValueEarly(name, fallback) {
+  const prefix = `--${name}=`
+  const hit = process.argv.find((a) => a.startsWith(prefix))
+  if (!hit) return fallback
+  return hit.slice(prefix.length).trim() || fallback
+}
+const stagingTenant = normalizeTenant(argValueEarly('tenant', 'loopc')) || 'loopc'
+assertStagingOnlyScript({
+  scriptName: 'fix-usd-exchange-when-inr-base.js',
+  tenants: [stagingTenant],
+})
 
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
 

@@ -6,6 +6,7 @@
  *   node scripts/migrate-fx-adjustment-journal-to-expense.mjs --tenant cg
  *   node scripts/migrate-fx-adjustment-journal-to-expense.mjs --tenant all --apply
  */
+import { createRequire } from 'node:module'
 import {
   apiRequest,
   fetchAllJournalJv,
@@ -16,6 +17,16 @@ import {
   parseTenantList,
   TENANTS,
 } from './jv-live-api-common.mjs'
+
+const require = createRequire(import.meta.url)
+const { assertStagingOnlyScript } = require('../backend/utils/assertStagingOnlyScript.js')
+
+const tenantArgEarly = parseTenantArg(process.argv, 'cg')
+const stagingTenants = tenantArgEarly === 'all' ? [...TENANTS] : parseTenantList(tenantArgEarly)
+assertStagingOnlyScript({
+  scriptName: 'migrate-fx-adjustment-journal-to-expense.mjs',
+  tenants: stagingTenants,
+})
 
 const APPLY = process.argv.includes('--apply')
 

@@ -4,9 +4,18 @@
  * Usage: node scripts/reconcile-mg-inventory-qty.js mg [--apply]
  */
 require('dotenv').config()
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const dns = require('dns')
 const mongoose = require('mongoose')
 const { getTenantUri, normalizeTenant } = require('../config/tenants')
+
+const reconcileTenant = normalizeTenant(
+  process.argv.find((a) => !a.startsWith('-') && a !== process.argv[0] && a !== process.argv[1]) || 'mg',
+) || 'mg'
+assertStagingOnlyScript({
+  scriptName: 'reconcile-mg-inventory-qty.js',
+  tenants: [reconcileTenant],
+})
 
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
 

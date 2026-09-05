@@ -495,6 +495,22 @@ function OverviewTab({ onNavigate, buildTabHref }) {
     })
   }, [tasks])
 
+  const loadMessagesOnly = async () => {
+    try {
+      const messagesRes = await messagesAPI.getLatestMessages(token, 'all', 30)
+      setLatestMessages((messagesRes.messages || []).map((m) => ({
+        id: m._id,
+        type: m.type,
+        room: m.room,
+        sender: m.senderName,
+        text: m.text,
+        ago: fmtDateTime(m.createdAt),
+      })))
+    } catch {
+      // Keep UI fallback values if APIs fail.
+    }
+  }
+
   const loadAttendanceAndMessages = async () => {
     try {
       const [summaryRes, meRes, leaveRes, messagesRes] = await Promise.allSettled([
@@ -549,7 +565,7 @@ function OverviewTab({ onNavigate, buildTabHref }) {
 
     const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
     const onTaskEvent = () => { loadTasks() }
-    const onMessageEvent = () => { loadAttendanceAndMessages() }
+    const onMessageEvent = () => { loadMessagesOnly() }
 
     const unsubs = [
       subscribeRealtimeEvents(tenant, ['task.created', 'task.updated', 'task.deleted', 'task.commented', 'task.reminder_due'], onTaskEvent),

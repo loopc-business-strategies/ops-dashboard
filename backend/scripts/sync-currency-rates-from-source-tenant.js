@@ -13,9 +13,26 @@
  * Env: MONGO_URI_MG, MONGO_URI_CG, MONGO_URI_LOOPC (from .env via dotenv)
  */
 require('dotenv').config()
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const dns = require('dns')
 const mongoose = require('mongoose')
 const { getTenantUri, normalizeTenant, TENANT_KEYS } = require('../config/tenants')
+
+function argValueEarly(name, fallback) {
+  const prefix = `--${name}=`
+  const hit = process.argv.find((a) => a.startsWith(prefix))
+  if (!hit) return fallback
+  return hit.slice(prefix.length).trim() || fallback
+}
+const sourceTenantEarly = normalizeTenant(argValueEarly('source', 'mg')) || 'mg'
+const targetsEarly = String(argValueEarly('targets', 'cg,loopc'))
+  .split(',')
+  .map((s) => normalizeTenant(s))
+  .filter(Boolean)
+assertStagingOnlyScript({
+  scriptName: 'sync-currency-rates-from-source-tenant.js',
+  tenants: [sourceTenantEarly, ...targetsEarly.filter((t) => t !== sourceTenantEarly)],
+})
 
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
 

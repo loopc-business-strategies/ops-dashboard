@@ -1,5 +1,6 @@
 import { btn, computeVoucherGrandTotal, fmt, inputStyle, isMetalStockVoucherType, S } from './voucherTabShared'
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
+import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
 
 const STATUS_COLORS = {
   draft: { bg: '#FEF3C7', color: '#92400E' },
@@ -41,6 +42,21 @@ export default function VoucherListPanel({
   displayVoucherDocNo,
   erpAdvancedListFiltersEnabled,
 }) {
+  const colCount = 7
+    + (isSimpleMetalVoucher ? 0 : 2)
+    + (isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? 1 : 0)
+  const {
+    scrollRef,
+    enabled: virtEnabled,
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+  } = useVirtualTableRows(filteredVouchers.length, { estimateSize: 52 })
+
+  const visibleIndexes = virtEnabled
+    ? virtualItems.map((v) => v.index)
+    : filteredVouchers.map((_, index) => index)
+
   return (
     <div>
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -98,7 +114,7 @@ export default function VoucherListPanel({
           )}
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div ref={scrollRef} style={{ overflow: 'auto', maxHeight: virtEnabled ? 560 : undefined }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: S.headerBg }}>
@@ -110,7 +126,12 @@ export default function VoucherListPanel({
               </tr>
             </thead>
             <tbody>
-              {filteredVouchers.map((voucher, index) => {
+              {virtEnabled && paddingTop > 0 && (
+                <tr><td colSpan={colCount} style={{ height: paddingTop, padding: 0, border: 'none' }} /></tr>
+              )}
+              {visibleIndexes.map((index) => {
+                const voucher = filteredVouchers[index]
+                if (!voucher) return null
                 const meta = voucher.voucherMeta || {}
                 const grand = computeVoucherGrandTotal(voucher, voucherType)
                 const statusStyle = STATUS_COLORS[voucher.status] || { bg: '#F3F4F6', color: '#374151' }
@@ -226,6 +247,9 @@ export default function VoucherListPanel({
                   </tr>
                 )
               })}
+              {virtEnabled && paddingBottom > 0 && (
+                <tr><td colSpan={colCount} style={{ height: paddingBottom, padding: 0, border: 'none' }} /></tr>
+              )}
             </tbody>
           </table>
           <p style={{ marginTop: '0.5rem', color: S.muted, fontSize: '0.8rem' }}>{filteredVouchers.length} voucher(s)</p>

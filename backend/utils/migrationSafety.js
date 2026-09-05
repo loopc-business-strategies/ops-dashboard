@@ -51,9 +51,12 @@ function assertMigrationApplyAllowed({ tenants, resolveUri }) {
     )
   }
 
-  if (envBool(process.env.ALLOW_PRODUCTION_MIGRATION)) {
-    return
-  }
+  // Lazy require avoids circular dependency with assertStagingOnlyScript.
+  const { assertStagingOnlyScript } = require('./assertStagingOnlyScript')
+  assertStagingOnlyScript({
+    scriptName: 'migration-apply',
+    tenants: Array.isArray(tenants) ? tenants : [],
+  })
 
   for (const tenant of tenants) {
     const uri = resolveUri(tenant)
@@ -61,7 +64,7 @@ function assertMigrationApplyAllowed({ tenants, resolveUri }) {
     if (!looksLikeNonProductionUri(uri)) {
       throw new Error(
         `[${tenant}] Refusing migration apply on production-like target ${redactMongoUri(uri)}. `
-        + 'Use a staging database, or set ALLOW_PRODUCTION_MIGRATION=true only after a verified backup.',
+        + 'Production execution is impossible — use staging databases only.',
       )
     }
   }

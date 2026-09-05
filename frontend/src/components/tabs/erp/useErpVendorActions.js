@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { invalidateCatalogCache, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { EMPTY_VENDOR_DOCUMENT_FORM, createEmptyVendorForm, vendorToFormState } from './vendorFormDefaults'
 
 export function useErpVendorActions({
@@ -56,6 +57,7 @@ export function useErpVendorActions({
         await erpAccountingAPI.createVendor(token, payload)
         showNotification('✅ Vendor created')
       }
+      invalidateCatalogCache(CATALOG_KINDS.vendors)
       setVendorForm(createEmptyVendorForm(baseCurrencyCode))
       setShowVendorForm(false)
       setEditingVendorId('')
@@ -113,6 +115,7 @@ export function useErpVendorActions({
     try {
       setSaving(true)
       await erpAccountingAPI.deleteVendor(token, vendor._id)
+      invalidateCatalogCache(CATALOG_KINDS.vendors)
       if (selectedVendorId === vendor._id) {
         setSelectedVendorId('')
         setSelectedVendorDetails(null)

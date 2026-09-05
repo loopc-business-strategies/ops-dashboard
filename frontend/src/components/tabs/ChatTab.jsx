@@ -8,7 +8,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import messagesAPI from '../../api/messages'
 import { getTenantBranding } from '../../config/tenantBranding'
 import { detectTextDirection, isRtlChatLang, isSameTranslation } from '../../utils/chatTranslate'
-import { buildRealtimeEventsUrl } from '../../utils/realtimeUrl'
+import { subscribeRealtimeEvents } from '../../utils/realtimeEventsBus'
 import { countOnlineMembers as countOnlineMemberIds, createOnlineLookup } from '../../utils/chatPresence'
 import useOnlineUserIds from '../../hooks/useOnlineUserIds'
 import { C } from './chat/chatUi'
@@ -471,18 +471,14 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
     if (!token) return undefined
     loadLatestFromApi(false)
 
-    const realtimeUrl = buildRealtimeEventsUrl(user?.company || user?.tenant?.key || user?.tenant?.name)
-    if (!realtimeUrl) return undefined
-    const source = new EventSource(realtimeUrl, { withCredentials: true })
+    const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
     const onMessageCreated = () => { loadLatestFromApi(true) }
-
-    source.addEventListener('message.created', onMessageCreated)
+    const unsub = subscribeRealtimeEvents(tenant, 'message.created', onMessageCreated)
 
     const fallbackId = window.setInterval(() => { loadLatestFromApi(false) }, 60000)
 
     return () => {
-      source.removeEventListener('message.created', onMessageCreated)
-      source.close()
+      unsub()
       window.clearInterval(fallbackId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

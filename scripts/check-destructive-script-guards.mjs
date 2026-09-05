@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const destructiveDir = path.resolve('backend/scripts/destructive')
+const destructiveGuardPath = path.join(destructiveDir, '_destructive-guard.js')
+
 const mutatingScriptFiles = [
   'backend/scripts/backfill-ledger-exchange-rates.js',
   'backend/scripts/backfill-mapping-departments.js',
@@ -30,6 +32,16 @@ const mutatingScriptFiles = [
   'scripts/ops-misc/authenticated-cleanup-mg.js',
 ]
 
+const stagingAssertMutators = [
+  'backend/scripts/fix-usd-exchange-when-inr-base.js',
+  'backend/scripts/sync-currency-rates-from-source-tenant.js',
+  'backend/scripts/reconcile-mg-inventory-qty.js',
+  'backend/scripts/migrate-persistent-session-all-tenants.js',
+  'backend/scripts/backfill-fx-journals-all-tenants.js',
+  'backend/scripts/backfill-fx-journals-missing.js',
+  'scripts/migrate-fx-adjustment-journal-to-expense.mjs',
+]
+
 const guardPatterns = [
   "require('./_destructive-guard')",
   "require('./destructive/_destructive-guard')",
@@ -38,14 +50,37 @@ const guardPatterns = [
   "require('./_requireGuard')",
 ]
 
-function hasGuardInFirstLines(filePath) {
-  const head = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).slice(0, 8).join('\n')
+const stagingAssertPatterns = [
+  'assertStagingOnlyScript',
+  "require('../utils/assertStagingOnlyScript')",
+  "require('../../utils/assertStagingOnlyScript')",
+  "require('../backend/utils/assertStagingOnlyScript",
+]
+
+function hasGuardInFirstLines(filePath, lineCount = 8) {
+  const head = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).slice(0, lineCount).join('\n')
   return guardPatterns.some((pattern) => head.includes(pattern))
+}
+
+function hasStagingAssert(filePath) {
+  const contents = fs.readFileSync(filePath, 'utf8')
+  return stagingAssertPatterns.some((pattern) => contents.includes(pattern))
 }
 
 if (!fs.existsSync(destructiveDir)) {
   console.log('No destructive script directory found.')
   process.exit(0)
+}
+
+if (!fs.existsSync(destructiveGuardPath)) {
+  console.error('Missing backend/scripts/destructive/_destructive-guard.js')
+  process.exit(1)
+}
+
+const guardSource = fs.readFileSync(destructiveGuardPath, 'utf8')
+if (!guardSource.includes('assertStagingOnlyScript')) {
+  console.error('_destructive-guard.js must call assertStagingOnlyScript (staging-only fail-closed gate).')
+  process.exit(1)
 }
 
 const scripts = fs.readdirSync(destructiveDir)
@@ -73,10 +108,25 @@ for (const file of mutatingScriptFiles) {
   }
 }
 
+for (const file of stagingAssertMutators) {
+  const fullPath = path.resolve(file)
+  if (!fs.existsSync(fullPath)) {
+    violations.push(`${file} (listed staging-assert mutator missing)`)
+    continue
+  }
+  if (!hasStagingAssert(fullPath)) {
+    violations.push(`${file} (missing assertStagingOnlyScript)`)
+  }
+}
+
 if (violations.length) {
-  console.error('Mutating scripts must import destructive guard in the first eight lines:')
+  console.error('Mutating scripts must import destructive guard (first eight lines) or assertStagingOnlyScript:')
   for (const file of violations) console.error(`- ${file}`)
   process.exit(1)
 }
 
-console.log(`Destructive script guard check passed (${scripts.length + mutatingScriptFiles.length} scripts).`)
+console.log(
+  `Destructive script guard check passed `
+  + `(${scripts.length + mutatingScriptFiles.length} guarded, `
+  + `${stagingAssertMutators.length} staging-assert mutators).`,
+)

@@ -1,3 +1,19 @@
+import { useMemo } from 'react'
+import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
+
+function isQtyImpactRow(row) {
+  const mode = String(row?.fixingMode || '').trim().toLowerCase()
+  if (mode === 'unfixing') return false
+  return true
+}
+
+function getRowSignedValue(row) {
+  const amount = Number(row?.amount || 0)
+  const mode = String(row?.fixingMode || '').trim().toLowerCase()
+  if (mode === 'unfixing') return amount
+  return String(row?.direction || '').toLowerCase() === 'buy' ? amount : -amount
+}
+
 export default function FixingRegisterPanel({
   activeTab,
   C,
@@ -21,6 +37,48 @@ export default function FixingRegisterPanel({
   fixingRegFmtRate,
   fixingRegFmtAmt,
 }) {
+  const openingQtyOz = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.qtyOz || 0)
+  const openingValue = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.value || 0)
+
+  const enrichedResults = useMemo(() => {
+    let runningQtyOz = openingQtyOz
+    let runningAmount = openingValue
+    return (fixingRegResults || []).map((row, idx) => {
+      const qtyOz = Number(row.qty || 0)
+      const isBuy = String(row.direction || '').toLowerCase() === 'buy'
+      const qtyImpact = isQtyImpactRow(row)
+      const qtyInOz = isBuy ? qtyOz : 0
+      const qtyOutOz = isBuy ? 0 : qtyOz
+      const signedQtyOz = qtyImpact ? (isBuy ? qtyOz : -qtyOz) : 0
+      const signedValue = getRowSignedValue(row)
+      runningQtyOz += signedQtyOz
+      runningAmount += signedValue
+      const avgRate = runningQtyOz !== 0 ? (runningAmount / runningQtyOz) : null
+      return {
+        row,
+        idx,
+        qtyInOz,
+        qtyOutOz,
+        signedValue,
+        runningQtyOz,
+        runningAmount,
+        avgRate,
+      }
+    })
+  }, [fixingRegResults, openingQtyOz, openingValue])
+
+  const {
+    scrollRef: fixingScrollRef,
+    enabled: fixingVirtEnabled,
+    virtualItems: fixingVirtualItems,
+    paddingTop: fixingPadTop,
+    paddingBottom: fixingPadBottom,
+  } = useVirtualTableRows(enrichedResults.length, { estimateSize: 36 })
+
+  const visibleEnriched = fixingVirtEnabled
+    ? fixingVirtualItems.map((v) => enrichedResults[v.index]).filter(Boolean)
+    : enrichedResults
+
   return (
     <>
       {/* FIXING POSITION REGISTER TAB */}
@@ -208,11 +266,6 @@ export default function FixingRegisterPanel({
             const qUnit = fixingRegFilter.quantityUnit
             const rUnit = fixingRegFilter.rateUnit
             const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'ALL'
-            const isQtyImpactRow = (row) => {
-              const mode = String(row?.fixingMode || '').trim().toLowerCase()
-              if (mode === 'unfixing') return false
-              return true
-            }
             const totalBuyOz = fixingRegResults
               .filter((r) => r.direction === 'buy' && isQtyImpactRow(r))
               .reduce((s, r) => s + Number(r.qty || 0), 0)
@@ -220,18 +273,8 @@ export default function FixingRegisterPanel({
               .filter((r) => r.direction === 'sell' && isQtyImpactRow(r))
               .reduce((s, r) => s + Number(r.qty || 0), 0)
             const netOz = totalBuyOz - totalSellOz
-            const openingQtyOz = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.qtyOz || 0)
-            const openingValue = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.value || 0)
             const closingQtyOz = openingQtyOz + netOz
-            const getRowSignedValue = (row) => {
-              const amount = Number(row?.amount || 0)
-              const mode = String(row?.fixingMode || '').trim().toLowerCase()
-              if (mode === 'unfixing') return amount
-              return String(row?.direction || '').toLowerCase() === 'buy' ? amount : -amount
-            }
-            const txnNetValue = fixingRegResults.reduce((sum, row) => {
-              return sum + getRowSignedValue(row)
-            }, 0)
+            const txnNetValue = fixingRegResults.reduce((sum, row) => sum + getRowSignedValue(row), 0)
             const closingValue = openingValue + txnNetValue
             const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
             const fmtSignedAmt = (v) => {
@@ -289,8 +332,11 @@ export default function FixingRegisterPanel({
               fontVariantNumeric: 'tabular-nums',
               fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif',
             }
-            let runningQtyOz = openingQtyOz
-            let runningAmount = openingValue
+            const openingAvg = (() => {
+              let rq = openingQtyOz
+              let ra = openingValue
+              return rq !== 0 ? fmtSignedRate(ra / rq) : '-'
+            })()
 
             return (
               <div style={{ marginTop: '1rem', borderRadius: '0.5rem', border: '1px solid #CBD5E1', background: '#FFFFFF', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', overflow: 'hidden', maxWidth: 'min(1200px, 100%)' }}>
@@ -327,7 +373,7 @@ export default function FixingRegisterPanel({
                     ))}
                   </div>
 
-                  <div style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', background: '#FCFCFC', maxHeight: 'min(70vh, 720px)' }}>
+                  <div ref={fixingScrollRef} style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', background: '#FCFCFC', maxHeight: 'min(70vh, 720px)' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} />
@@ -376,21 +422,12 @@ export default function FixingRegisterPanel({
                           <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
                           <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
                           <td style={numericCell}>{fmtSignedAmt(openingValue)}</td>
-                          <td style={numericCell}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
+                          <td style={numericCell}>{openingAvg}</td>
                         </tr>
-                        {fixingRegResults.map((row, idx) => (
-                          (() => {
-                            const qtyOz = Number(row.qty || 0)
-                            const isBuy = String(row.direction || '').toLowerCase() === 'buy'
-                            const isQtyImpactEnabled = isQtyImpactRow(row)
-                            const qtyInOz = isBuy ? qtyOz : 0
-                            const qtyOutOz = isBuy ? 0 : qtyOz
-                            const signedQtyOz = isQtyImpactEnabled ? (isBuy ? qtyOz : -qtyOz) : 0
-                            const signedValue = getRowSignedValue(row)
-                            runningQtyOz += signedQtyOz
-                            runningAmount += signedValue
-                            const avgRate = runningQtyOz !== 0 ? (runningAmount / runningQtyOz) : null
-                            return (
+                        {fixingVirtEnabled && fixingPadTop > 0 && (
+                          <tr><td colSpan={12} style={{ height: fixingPadTop, padding: 0, border: 'none' }} /></tr>
+                        )}
+                        {visibleEnriched.map(({ row, idx, qtyInOz, qtyOutOz, signedValue, runningQtyOz, runningAmount, avgRate }) => (
                           <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#FCFAF4' }}>
                             <td style={{ ...legacyCell, textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
                             <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
@@ -423,9 +460,10 @@ export default function FixingRegisterPanel({
                             <td style={numericCell}>{fmtSignedAmt(runningAmount)}</td>
                             <td style={numericCell}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
                           </tr>
-                            )
-                          })()
                         ))}
+                        {fixingVirtEnabled && fixingPadBottom > 0 && (
+                          <tr><td colSpan={12} style={{ height: fixingPadBottom, padding: 0, border: 'none' }} /></tr>
+                        )}
                         <tr style={{ background: '#F4D9A3' }}>
                           <td style={{ ...legacyCell, textAlign: 'right', color: '#78350F', fontWeight: '700' }}>-</td>
                           <td style={{ ...legacyCell, color: '#78350F', whiteSpace: 'nowrap', fontWeight: '700' }}>-</td>

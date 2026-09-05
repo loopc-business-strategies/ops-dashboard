@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 
@@ -44,8 +44,11 @@ export function useErpCustomers({
   setCustomers,
   setError,
 }) {
+  const loadSeqRef = useRef(0)
+
   const loadCustomers = useCallback(async (params) => {
     if (!canLoadParties) return
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
       if (wantsSinglePage(params)) {
@@ -55,17 +58,21 @@ export function useErpCustomers({
           params,
           () => erpAccountingAPI.getCustomers(token, params),
         )
+        if (seq !== loadSeqRef.current) return
         setCustomers(data.customers || [])
       } else {
         const { limit: _ignoredLimit, page: _ignoredPage, all: _all, ...filters } = params || {}
         const data = await fetchAllCustomersAggregated(token, filters)
+        if (seq !== loadSeqRef.current) return
         setCustomers(data.customers || [])
       }
+      if (seq !== loadSeqRef.current) return
       setError('')
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load customers')
     }
-    setLoading(false)
+    if (seq === loadSeqRef.current) setLoading(false)
   }, [token, canLoadParties, setLoading, setCustomers, setError])
 
   return { loadCustomers }
