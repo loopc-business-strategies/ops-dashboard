@@ -1,4 +1,4 @@
-import { C, B, Card, StatCard, SectionHeader, Restricted, PieLegend, pct } from './ui'
+import { C, B, Card, StatCard, SectionHeader, Restricted, PieLegend } from './ui'
 
 export default function KPIOverview({ finRole, can, canEdit, invoices: _invoices, openModal, onToast }) {
   if (can('vendor')) return <Restricted msg="Financial KPIs are not available to vendors. Please contact your account manager." />

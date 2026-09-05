@@ -81,7 +81,7 @@ export function LanguageProvider({ children }) {
   const t = useCallback((key) => {
     const dict = translationsCache[langCode] || translationsCache.en
     return dict[key] ?? translationsCache.en[key] ?? key
-  }, [langCode, localeReady])
+  }, [langCode])
 
   const value = useMemo(
     () => ({ langCode, langMeta, isRTL, switchLanguage, t, LANGUAGES, localeReady }),

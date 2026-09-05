@@ -1,4 +1,5 @@
 import { C, B, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, DataTable, fmtFull } from './ui'
+import { useAuth } from '../../../context/AuthContext'
 
 export default function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAudit, onToast, openModal, financeApi }) {
     const { user: authUser } = useAuth()

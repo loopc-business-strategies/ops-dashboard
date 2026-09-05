@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { Modal } from '../../ui-components'
-import { C, B, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmtFull } from './ui'
+import { C, B, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmtFull, financeBaseCurrencyCode } from './ui'
+import { financeInputStyle as iStyle } from './financeTabTokens'
 
 export default function GeneralLedger({ finRole: _finRole, can, canEdit, onToast, token }) {
   const [ledgerEntries, setLedgerEntries] = useState([])

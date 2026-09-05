@@ -820,6 +820,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
         activeChatId={activeChatId}
         openChat={openChat}
         displayUser={displayUser}
+        isUserOnline={isUserOnline}
       />
       <ChatThread
         t={t}
@@ -849,11 +850,11 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
         handleTranslateMessage={handleTranslateMessage}
         translateLoading={translateLoading}
         translatePreview={translatePreview}
+        setTranslatePreview={setTranslatePreview}
         translateOriginal={translateOriginal}
         handleUseTranslation={handleUseTranslation}
         handleRevertTranslation={handleRevertTranslation}
         resetTranslateState={resetTranslateState}
-        clearTranslateResult={clearTranslateResult}
         composerTextDirection={composerTextDirection}
         originalTextDirection={originalTextDirection}
         previewTargetRtl={previewTargetRtl}

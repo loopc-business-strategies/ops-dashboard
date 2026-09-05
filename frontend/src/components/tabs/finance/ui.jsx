@@ -26,6 +26,7 @@ export function ML({ children }) {
 // ─── Helpers ──────────────────────────────────────────────────
 // Module-level currency for panel helpers below; set from FinanceTab when currencies load.
 let financeBaseCurrencyCode = 'USD'
+export { financeBaseCurrencyCode }
 export function setFinanceBaseCurrencyCode(code) {
   financeBaseCurrencyCode = String(code || 'USD').trim().toUpperCase() || 'USD'
 }

@@ -1,4 +1,4 @@
-import { C, B, Badge, Td, Card, StatCard, SectionHeader, Restricted, PieLegend, DataTable, pct, fmtFull } from './ui'
+import { C, B, Badge, Td, Card, StatCard, SectionHeader, Restricted, PieLegend, DataTable, fmtFull } from './ui'
 
 export default function RevenueTracking({ finRole, can, canEdit: _canEdit, onToast }) {
   if (can('vendor','hr_mgr','dept_head')) return <Restricted msg="Revenue tracking is restricted. Contact Finance department for enquiries." />

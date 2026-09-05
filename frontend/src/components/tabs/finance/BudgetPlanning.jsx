@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '../../ui-components'
-import { C, B, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, InlineBar, DataTable, pct, fmt, fmtFull } from './ui'
+import { C, B, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, InlineBar, DataTable, pct, fmt, fmtFull, financeBaseCurrencyCode } from './ui'
+import { financeInputStyle as iStyle } from './financeTabTokens'
 
 export default function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, setBudgets, financeApi }) {
   const [budgetModal, setBudgetModal] = useState(false)

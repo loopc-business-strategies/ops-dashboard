@@ -21,6 +21,7 @@ export default function ChatSidebar({
   activeChatId,
   openChat,
   displayUser,
+  isUserOnline,
 }) {
   return (
     <div style={{ width:350, padding:30, flexShrink:0, display:'flex', flexDirection:'column', background:C.sidebar, borderRight:`1px solid ${C.border}` }}>
@@ -179,7 +180,7 @@ export default function ChatSidebar({
                 </>
               )}
 
-              {filtered.length === 0 && (
+              {groupChats.length === 0 && directChats.length === 0 && (
                 <div style={{ textAlign:'center', padding:'40px 16px', fontSize:13, color:'#334155' }}>{t('noChatsFound')}</div>
               )}
             </div>

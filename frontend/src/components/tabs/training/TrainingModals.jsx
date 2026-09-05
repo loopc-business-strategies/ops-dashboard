@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { C, B, Badge, ProgRow, IS, ML, MI, MS, MTA, Modal } from './ui'
+import { C, Badge, ProgRow, IS, ML, MI, MS, MTA, Modal } from './ui'
 
 export function ModalSession({ initial, onClose, onSave }) {
   const [f, setF] = useState(initial ? { ...initial } : { title:'', prog:'Gold Safety Essentials', date:'', time:'', trainer:'', venue:'Training Room A', batch:'Batch A — Gold Safety', st:'Scheduled' })

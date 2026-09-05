@@ -13,8 +13,6 @@ import {
 import {
   CHAT_TRANSLATE_LANGS,
   CHAT_TRANSLATE_SOURCE_LANGS,
-  detectTextDirection,
-  isRtlChatLang,
 } from '../../../utils/chatTranslate'
 
 export default function ChatThread({
@@ -45,11 +43,11 @@ export default function ChatThread({
   handleTranslateMessage,
   translateLoading,
   translatePreview,
+  setTranslatePreview,
   translateOriginal,
   handleUseTranslation,
   handleRevertTranslation,
   resetTranslateState,
-  clearTranslateResult,
   composerTextDirection,
   originalTextDirection,
   previewTargetRtl,
