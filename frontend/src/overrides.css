@@ -4,17 +4,24 @@
    Uses CSS vars from applyTenantTheme — no hardcoded tenant colors.
 ─────────────────────────────────────────────────────── */
 
-/* ── 1. LOGIN PAGE ────────────────────────────────────── */
+/* ── 1. LOGIN PAGE ──────────────────────────────────────
+   Do NOT use [class*="login"] button — it matches MG Forgot/eye
+   and forces white text on the white card.
+   MG Sign In uses .mg-login__submit in MgLogin.css.
+──────────────────────────────────────────────────────── */
 
 button[type="submit"],
 .login-btn,
 .signin-btn,
-[class*="login"] button,
-[class*="sign-in"] button,
-[class*="signin"] button.btn,
 .auth-form button[type="submit"] {
   border: none;
   color: var(--brand-on-primary, #fff);
+}
+
+/* All-tenant: keep Sign In label white on brand gradient (beats main .text-white) */
+button[type="submit"].text-white,
+button[type="submit"][style*="gradient"] {
+  color: #ffffff !important;
 }
 
 button[type="submit"]:hover,
@@ -24,20 +31,28 @@ button[type="submit"]:hover,
   transform: translateY(-1px) !important;
 }
 
-/* MG tenant login uses PNG art underneath — keep submit chrome transparent */
-.mg-login button[type="submit"],
-.mg-login-shell button[type="submit"] {
-  background: transparent !important;
-  box-shadow: none !important;
+/* MG Sign In — restore visible brand chrome (overrides any transparent leftovers) */
+.mg-login .mg-login__submit {
+  background: linear-gradient(90deg, var(--mg-orange-2, var(--brand-light, #FB923C)), var(--mg-orange-deep, var(--brand-hover, #C2410C))) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(var(--brand-rgb, 234, 88, 12), 0.28) !important;
+  opacity: 1 !important;
+}
+.mg-login .mg-login__submit:hover:not(:disabled) {
+  opacity: 1 !important;
+  transform: translateY(-1px) !important;
+  filter: brightness(1.03);
+}
+.mg-login .mg-login__submit:disabled {
+  color: #ffffff !important;
+  opacity: 0.85 !important;
   transform: none !important;
 }
-.mg-login button[type="submit"]:not(:disabled),
-.mg-login-shell button[type="submit"]:not(:disabled) {
-  color: transparent !important;
-}
-.mg-login button[type="submit"]:disabled,
-.mg-login-shell button[type="submit"]:disabled {
-  color: #071422 !important;
+.mg-login .mg-login__forgot,
+.mg-login .mg-login__eye {
+  color: var(--mg-orange, var(--brand-primary, #EA580C)) !important;
+  background: transparent !important;
+  box-shadow: none !important;
   opacity: 1 !important;
   transform: none !important;
 }
