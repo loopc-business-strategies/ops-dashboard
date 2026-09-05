@@ -409,7 +409,7 @@
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  background: var(--grad-brand);
+  background: var(--brand-button-bg, var(--brand-dark));
   box-shadow: 0 10px 22px rgba(var(--brand-button-rgb, 154, 52, 18), 0.28);
   display: inline-flex;
   align-items: center;

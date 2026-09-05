@@ -49,7 +49,7 @@ export default function AppSidebar({
               decoding="async"
             />
           ) : (
-            <span style={{ color: 'var(--brand-dark)', fontWeight: 800, fontSize: 14 }}>
+            <span style={{ color: '#FFFFFF', fontWeight: 800, fontSize: 14 }}>
               {branding.logoText}
             </span>
           )}

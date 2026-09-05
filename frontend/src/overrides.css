@@ -16,7 +16,7 @@ button[type="submit"],
 .auth-form button[type="submit"] {
   border: none;
   color: var(--brand-button-text, #fff);
-  background: var(--grad-brand);
+  background: var(--brand-button-bg, var(--brand-dark));
 }
 
 /* All-tenant: keep Sign In label white on brand CTA (beats main .text-white) */
@@ -36,7 +36,7 @@ button[type="submit"]:hover,
 
 /* MG Sign In — contrast-safe dark orange CTA (AA white text) */
 .mg-login .mg-login__submit {
-  background: var(--grad-brand) !important;
+  background: var(--brand-button-bg, var(--brand-dark)) !important;
   color: var(--brand-button-text, #ffffff) !important;
   box-shadow: 0 10px 22px rgba(var(--brand-button-rgb, var(--brand-rgb)), 0.28) !important;
   opacity: 1 !important;
@@ -146,25 +146,38 @@ button.tab:hover,
   background: var(--danger, #DC2626) !important;
 }
 
-/* ── 4. SIDEBAR ACTIVE ITEM ───────────────────────────── */
+/* ── 4. SIDEBAR ACTIVE ITEM (scoped; soft plate + dark tenant text) ─ */
+
+.sidebar .sidebar-item.active,
+.sidebar a.sidebar-item.active,
+.sidebar [class*="sidebar-item"].active {
+  background: var(--sidebar-active-bg) !important;
+  color: var(--sidebar-active-fg) !important;
+  border-left-color: transparent !important;
+  box-shadow: inset 3px 0 0 var(--sidebar-active-fg) !important;
+}
+
+.sidebar .sidebar-item.active .sidebar-item-label,
+.sidebar .sidebar-item.active .sidebar-item-icon,
+.sidebar a.sidebar-item.active span {
+  color: var(--sidebar-active-fg) !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: var(--sidebar-active-fg) !important;
+}
 
 .ni.on,
 .nav-item.active,
-.sidebar-item.active,
 [class*="nav-item"].active,
-[class*="navItem"].active,
-[class*="sidebar-item"].active,
-[class*="sidebarItem"].active {
-  background: rgba(var(--purple-rgb), 0.14) !important;
-  border-left-color: var(--purple) !important;
+[class*="navItem"].active {
+  background: var(--sidebar-active-bg, var(--brand-soft)) !important;
+  color: var(--sidebar-active-fg, var(--brand-dark)) !important;
+  border-left-color: var(--sidebar-active-fg, var(--brand-dark)) !important;
 }
 
 .ni.on .ni-lb,
 .nav-item.active .nav-label,
-.sidebar-item.active .sidebar-item-label,
-[class*="nav-item"].active [class*="label"],
-[class*="sidebar-item"].active [class*="label"] {
-  color: var(--purple) !important;
+[class*="nav-item"].active [class*="label"] {
+  color: var(--sidebar-active-fg, var(--brand-dark)) !important;
 }
 
 /* ── 5. TABLE ACTION BUTTONS ──────────────────────────── */
@@ -174,13 +187,13 @@ button.tab:hover,
 [class*="edit-btn"],
 [class*="editBtn"],
 button.edit {
-  color: var(--purple) !important;
+  color: var(--brand-dark, var(--purple)) !important;
 }
 
 .td-ed:hover,
 .td-edit:hover,
 button.edit:hover {
-  color: var(--brand-hover, var(--purple)) !important;
+  color: var(--brand-hover, var(--brand-dark)) !important;
 }
 
 .td-del,
@@ -202,41 +215,37 @@ button.delete {
   color: var(--warning, #D97706) !important;
 }
 
-/* ── 7. TOPBAR ROLE BADGE ─────────────────────────────── */
+/* ── 7. TOPBAR ROLE BADGE (flat solid, no gradient text) ─ */
 
 .topbar-role-badge,
 [class*="role-badge"],
 [class*="roleBadge"],
 .tb-badge,
 .tb-bg {
-  background: var(--grad-brand) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-  border: 1px solid rgba(var(--purple-rgb), 0.35) !important;
+  background: var(--brand-soft) !important;
+  color: var(--brand-on-soft, var(--brand-dark)) !important;
+  -webkit-background-clip: unset !important;
+  -webkit-text-fill-color: unset !important;
+  background-clip: unset !important;
+  border: 1px solid var(--brand-border) !important;
   padding: 3px 12px !important;
   border-radius: 999px !important;
 }
 
-/* ── 8. LOGO / BRAND ICON ─────────────────────────────── */
+/* ── 8. LOGO / BRAND ICON (flat / transparent plate) ─── */
 
-.sb-logo-icon,
-.sidebar-brand-icon,
-[class*="brand-icon"],
-[class*="brandIcon"],
-[class*="logo-icon"],
-[class*="logoIcon"] {
-  background: var(--grad-brand) !important;
+.sidebar .sidebar-brand-icon,
+.sidebar .sidebar-logo-plate,
+.sb-logo-icon {
+  background: var(--sidebar-logo-plate, transparent) !important;
   border: none !important;
-  box-shadow: 0 4px 15px rgba(var(--purple-rgb), 0.35) !important;
+  box-shadow: none !important;
 }
 
 .login-logo,
-[class*="login"] [class*="logo"],
-[class*="auth"] [class*="logo"],
-[class*="logo"][style*="border"] {
-  border-color: rgba(var(--purple-rgb), 0.5) !important;
-  box-shadow: 0 0 20px rgba(var(--purple-rgb), 0.3) !important;
+.mg-login__logo-plate {
+  border-color: rgba(var(--brand-rgb), 0.35) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
 }
 
 /* ── 9. NOTIFICATIONS PANEL ───────────────────────────── */
@@ -375,7 +384,7 @@ button.delete {
 }
 .np-filter-btn:hover { color: #374151; border-color: rgba(var(--purple-rgb), 0.4); }
 .np-filter-btn.active {
-  background: var(--grad-brand);
+  background: var(--brand-button-bg, var(--brand-dark));
   color: var(--brand-button-text, #fff);
   border-color: transparent;
 }
@@ -434,7 +443,7 @@ button.delete {
 .np-footer { padding: 12px 18px; border-top: 1px solid rgba(var(--purple-rgb), 0.1); display: flex; gap: 8px; flex-shrink: 0; }
 .np-footer-btn { flex: 1; padding: 9px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; transition: all 0.15s; }
 .np-footer-btn.pri {
-  background: var(--grad-brand);
+  background: var(--brand-button-bg, var(--brand-dark));
   color: var(--brand-button-text, #fff);
   box-shadow: 0 4px 15px rgba(var(--brand-button-rgb, var(--purple-rgb)), 0.3);
 }
@@ -552,19 +561,35 @@ main select option {
 .notif-count { border-color: #f8f9fa; }
 
 /* ═══════════════════════════════════════════════════════
-   SIDEBAR — WHITE THEME
+   SIDEBAR — SOLID TENANT THEME (do not force white chrome)
 ═══════════════════════════════════════════════════════ */
-.sidebar .text-white:not([style*="background"]) { color: #1C2A33 !important; }
-.sidebar { font-family: 'Inter', sans-serif; border-right: 1px solid #e8edeb !important; }
-.sidebar-item.active {
-  background: rgba(var(--purple-rgb), 0.08) !important;
-  border-left-color: var(--purple) !important;
+.sidebar {
+  font-family: var(--font, 'Inter', sans-serif);
+  border-right: 1px solid var(--sidebar-border) !important;
+  background: var(--bg-sidebar) !important;
+  color: var(--sidebar-fg) !important;
 }
-.sidebar-item.active span { color: var(--purple) !important; }
-.sidebar-item:hover { background: rgba(var(--purple-rgb), 0.05) !important; }
+.sidebar .sidebar-item:not(.active) {
+  color: var(--sidebar-fg) !important;
+}
+.sidebar .sidebar-item:not(.active) .sidebar-item-label,
+.sidebar .sidebar-item:not(.active) span {
+  color: var(--sidebar-fg) !important;
+  -webkit-text-fill-color: var(--sidebar-fg) !important;
+}
+.sidebar .sidebar-item:hover:not(.active) {
+  background: var(--sidebar-hover) !important;
+}
+.sidebar .text-white {
+  color: var(--sidebar-fg) !important;
+  -webkit-text-fill-color: var(--sidebar-fg) !important;
+}
 
-/* Primary buttons — contrast-safe on-brand labels */
-.btn-primary { color: var(--brand-button-text, #fff); }
+/* Primary buttons — contrast-safe solid fills */
+.btn-primary {
+  background: var(--brand-button-bg, var(--brand-dark)) !important;
+  color: var(--brand-button-text, #fff) !important;
+}
 .btn-primary:hover {
   background: var(--brand-button-hover, var(--brand-dark)) !important;
   color: var(--brand-button-text, #fff) !important;

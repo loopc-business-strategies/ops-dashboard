@@ -288,7 +288,7 @@ export function Avatar({ name = '?', size = 32 }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: 8,
-      background: 'var(--grad-brand)',
+      background: 'var(--brand-button-bg, var(--brand-dark))',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontWeight: 700, fontSize: size * 0.4, color: '#fff', flexShrink: 0,
       textTransform: 'uppercase',

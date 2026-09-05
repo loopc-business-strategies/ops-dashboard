@@ -50,18 +50,18 @@ export function applyTenantTheme(colors = {}) {
   const buttonBg = c.brandButtonBg || dark
   const buttonHover = c.brandButtonHover || buttonBg
   const buttonText = c.brandButtonText || '#FFFFFF'
-  // CTA gradients use contrast-safe dark fills (not primary→light)
-  const gradBar = c.gradBar || `linear-gradient(90deg, ${buttonBg}, ${buttonHover})`
-  const gradBrand = c.gradBrand || `linear-gradient(135deg, ${buttonBg}, ${buttonHover})`
+  // Flat enterprise: grad-* aliases are solid CTA fills (compat names, no decorative gradients)
+  const gradBar = c.gradBar || buttonBg
+  const gradBrand = c.gradBrand || buttonBg
   const bgBase = c.bgBase || '#F8FAFC'
-  const sidebarBg = c.sidebarBg || `linear-gradient(180deg, ${topbar} 0%, ${dark} 52%, ${primary} 160%)`
+  const sidebarBg = c.sidebarBg || primary
   const sidebarFg = c.sidebarFg || '#FFFFFF'
   const sidebarFgMuted = c.sidebarFgMuted || 'rgba(255, 255, 255, 0.72)'
-  const sidebarHover = c.sidebarHover || 'rgba(255, 255, 255, 0.12)'
-  const sidebarActiveBg = c.sidebarActiveBg || 'rgba(255, 255, 255, 0.22)'
-  const sidebarActiveFg = c.sidebarActiveFg || '#FFFFFF'
-  const sidebarBorder = c.sidebarBorder || 'rgba(255, 255, 255, 0.16)'
-  const sidebarLogoPlate = c.sidebarLogoPlate || '#FFFFFF'
+  const sidebarHover = c.sidebarHover || 'rgba(255, 255, 255, 0.14)'
+  const sidebarActiveBg = c.sidebarActiveBg || soft
+  const sidebarActiveFg = c.sidebarActiveFg || dark
+  const sidebarBorder = c.sidebarBorder || 'rgba(255, 255, 255, 0.18)'
+  const sidebarLogoPlate = c.sidebarLogoPlate || 'transparent'
   const rgb = hexToRgb(primary)
   const buttonRgb = hexToRgb(buttonBg)
   const darkRgb = hexToRgb(dark)
@@ -191,18 +191,18 @@ function buildPalette({
     brandButtonText: '#FFFFFF',
     onBrand: '#FFFFFF',
     onSoft: brandDark,
-    // Full-color branded sidebar (depth via dark→primary gradient)
-    sidebarBg: `linear-gradient(180deg, ${bgTopbar} 0%, ${brandDark} 48%, ${brandPrimary} 145%)`,
+    // Flat solid tenant sidebar + soft active plate (high-contrast dark text)
+    sidebarBg: brandPrimary,
     sidebarFg: '#FFFFFF',
     sidebarFgMuted: 'rgba(255, 255, 255, 0.72)',
-    sidebarHover: 'rgba(255, 255, 255, 0.12)',
-    sidebarActiveBg: 'rgba(255, 255, 255, 0.22)',
-    sidebarActiveFg: '#FFFFFF',
-    sidebarBorder: 'rgba(255, 255, 255, 0.16)',
-    sidebarLogoPlate: '#FFFFFF',
-    // CTA gradients: dark→darker (white text safe). Identity primary kept for soft/border accents.
-    gradBar: `linear-gradient(90deg, ${brandButtonBg}, ${buttonHover})`,
-    gradBrand: `linear-gradient(135deg, ${brandButtonBg}, ${buttonHover})`,
+    sidebarHover: 'rgba(255, 255, 255, 0.14)',
+    sidebarActiveBg: brandSoftBg,
+    sidebarActiveFg: brandDark,
+    sidebarBorder: 'rgba(255, 255, 255, 0.18)',
+    sidebarLogoPlate: 'transparent',
+    // Compat aliases: solid CTA fills (no decorative gradients)
+    gradBar: brandButtonBg,
+    gradBrand: brandButtonBg,
   }
 }
 
