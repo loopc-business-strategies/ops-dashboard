@@ -58,12 +58,12 @@ export default function ERPCustomerMarginTab({
                 </div>
               </div>
               <ErpMetalLivePricesBar />
-              <div style={{ border: '1px solid var(--brand-border, var(--border, #E2E8F0))', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
+              <div className="erp-table-wrap" style={{ borderRadius: '0.45rem' }}>
                 <div style={{ background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: 'var(--brand-on-soft)' }}>
                   Customer Margin
                 </div>
                 <div style={{ overflowX: 'auto', overflowY: customerMarginCompactView ? 'auto' : 'visible', maxHeight: customerMarginCompactView ? '380px' : 'none' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.88rem' }}>
+                  <table className="erp-table erp-table--compact">
                     <colgroup>
                       <col style={{ width: '28%' }} />
                       <col style={{ width: '10%' }} />
@@ -75,15 +75,15 @@ export default function ERPCustomerMarginTab({
                       <col style={{ width: '8%' }} />
                     </colgroup>
                     <thead>
-                      <tr style={{ background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)' }}>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'left', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Customer Name</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Gold Position</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Silver Position</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Equity</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Excess</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', borderRight: '1px solid var(--brand-border)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
-                        <th style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--brand-soft)', padding: '0.46rem 0.68rem', textAlign: 'right', color: 'var(--brand-on-soft)', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
+                      <tr>
+                        <th>Customer Name</th>
+                        <th className="num">Gold Position</th>
+                        <th className="num">Silver Position</th>
+                        <th className="num">Equity</th>
+                        <th className="num">Margin</th>
+                        <th className="num">Excess</th>
+                        <th className="num">Status</th>
+                        <th className="num">Margin %</th>
                       </tr>
                     </thead>
                     <tbody>

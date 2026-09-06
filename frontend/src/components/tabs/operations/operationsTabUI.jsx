@@ -139,7 +139,7 @@ export function Modal({ title, sub, onClose, onSave, saveLabel = 'Save', childre
 export function Toast({ t }) {
   if (!t) return null
   return (
-    <div style={{ position: 'fixed', bottom: 22, right: 22, minWidth: 260, background: '#ffffff', border: `1px solid ${C.border2}`, borderLeft: '3px solid var(--purple)', borderRadius: 10, padding: '13px 18px', zIndex: 9999, boxShadow: '0 8px 30px rgba(var(--purple-rgb),.22)' }}>
+    <div style={{ position: 'fixed', bottom: 22, right: 22, minWidth: 260, background: '#ffffff', border: `1px solid ${C.border2}`, borderLeft: '3px solid var(--brand-primary)', borderRadius: 10, padding: '13px 18px', zIndex: 9999, boxShadow: '0 8px 30px rgba(var(--brand-rgb),.18)' }}>
       <style>{`@keyframes toastIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
       <div style={{ fontWeight: 700, color: C.t1, marginBottom: 3, animation: 'toastIn .3s ease' }}>{t.title}</div>
       <div style={{ fontSize: 12, color: C.t3 }}>{t.msg}</div>

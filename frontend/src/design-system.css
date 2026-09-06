@@ -825,3 +825,72 @@ textarea       { resize: vertical; min-height: 70px; }
   box-shadow: var(--shadow-card);
   padding: 16px 18px;
 }
+
+/* ─── ERP register table (shared presentation) ───────── */
+.erp-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+.erp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.erp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 40px;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand-on-soft);
+  background: var(--brand-soft);
+  border-bottom: 1px solid var(--brand-border);
+  border-right: 1px solid var(--brand-border);
+  white-space: nowrap;
+}
+.erp-table thead th:last-child { border-right: none; }
+.erp-table thead th.num,
+.erp-table tbody td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: Consolas, "Courier New", monospace;
+}
+.erp-table tbody td {
+  height: 42px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  vertical-align: middle;
+  color: var(--text-primary);
+}
+.erp-table tbody td:last-child { border-right: none; }
+.erp-table tbody tr:nth-child(even) { background: #F8FAFC; }
+.erp-table tbody tr:hover { background: var(--brand-soft); }
+.erp-table tbody tr:last-child td { border-bottom: none; }
+.erp-table.erp-table--compact {
+  font-size: 0.88rem;
+  table-layout: fixed;
+}
+.erp-table.erp-table--compact thead th {
+  height: 32px;
+  padding: 0.46rem 0.68rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+.erp-table.erp-table--compact tbody td {
+  height: 30px;
+  padding: 0.34rem 0.68rem;
+  font-size: 0.84rem;
+  line-height: 1.08;
+}
+

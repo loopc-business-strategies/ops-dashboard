@@ -1,8 +1,8 @@
 /** Shared Finance tab design tokens (modals + tables). */
 export const FINANCE_C = {
-  grad: 'var(--grad-brand)',
-  gbar: 'var(--grad-bar)',
-  gfin: 'var(--grad-brand)',
+  grad: 'var(--brand-primary)',
+  gbar: 'var(--brand-primary)',
+  gfin: 'var(--brand-primary)',
   green: '#065f46',
   cyan: '#00b4d8',
   yellow: '#ffd600',
@@ -13,7 +13,7 @@ export const FINANCE_C = {
   t2: '#374151',
   t3: '#334155',
   t4: '#475569',
-  border: 'rgba(var(--brand-rgb),0.15)',
+  border: 'var(--brand-border)',
   border2: 'rgba(var(--brand-rgb),0.35)',
   card: '#ffffff',
   inp: '#f8f9fa',

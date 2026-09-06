@@ -27,8 +27,6 @@ export default function AppSidebar({
   prefetchTabChunk,
   onLogout,
   onErpNavigate,
-  onMouseEnter,
-  onMouseLeave,
 }) {
   return (
     <aside
@@ -37,8 +35,6 @@ export default function AppSidebar({
         ${sidebarOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full'}
       `}
       aria-label="Main navigation"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
     >
       <div className="sidebar-logo flex-shrink-0">
         <div className="sidebar-logo-plate">
