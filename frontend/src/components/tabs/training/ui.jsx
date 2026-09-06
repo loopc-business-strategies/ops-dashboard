@@ -1,18 +1,18 @@
 // Shared Training tab UI primitives
 
 export const C = {
-  grad:   'var(--grad-brand)',
-  gbar:   'var(--grad-bar)',
+  grad:   'var(--brand-primary)',
+  gbar:   'var(--brand-primary)',
   green:  '#065f46', cyan:   '#00b4d8', yellow: '#ffd600',
   orange: '#9a3412', red:    '#ff4757', gold:   '#f59e0b',
   t1:'#1c2a33', t2:'#374151', t3:'#334155', t4:'#475569',
-  border: 'rgba(var(--purple-rgb),0.15)', border2:'rgba(var(--purple-rgb),0.35)',
+  border: 'var(--brand-border)', border2:'rgba(var(--brand-rgb),0.35)',
   card:'#ffffff', card2:'#f8f9fa', inp:'#f8f9fa',
-  pur: 'var(--purple)',
+  pur: 'var(--brand-primary)',
 }
 export const B = {
-  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:C.grad, color:'#fff', boxShadow:'0 4px 15px rgba(var(--purple-rgb),.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--purple)', border:'1px solid var(--purple)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:'var(--brand-primary)', color:'#fff', boxShadow:'none', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--brand-primary)', border:'1px solid var(--brand-primary)', whiteSpace:'nowrap', fontFamily:'inherit' },
   ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid ${C.border}`, whiteSpace:'nowrap', fontFamily:'inherit' },
   succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#065f46', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   sm:    { padding:'5px 11px', fontSize:11 },
@@ -38,12 +38,12 @@ const BADGE_MAP = {
   'Fail':          { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
   'Absent':        { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
   'Cancelled':     { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
-  'PDF':           { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
+  'PDF':           { bg:'var(--brand-soft)',  color:'var(--brand-on-soft)', b:'var(--brand-border)' },
   'Video':         { bg:'rgba(255,112,67,.12)',  color:'#9a3412', b:'rgba(255,112,67,.3)' },
   'Document':      { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'Advanced':      { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
   'Intermediate':  { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'Expert':        { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
+  'Expert':        { bg:'var(--brand-soft)',  color:'var(--brand-on-soft)', b:'var(--brand-border)' },
   'Basic':         { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'Beginner':      { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
 }
@@ -138,7 +138,7 @@ export function Restrict({ text }) {
 }
 
 // ─── Modal base ─────────────────────────────────────────────────────────────────
-export const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(var(--purple-rgb),.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
+export const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(var(--brand-rgb),.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
 export function ML({ children }) { return <div style={{ fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</div> }
 export function MI(props) { return <input {...props} style={IS} /> }
 export function MS({ children, ...p }) { return <select {...p} style={{ ...IS, appearance:'auto' }}>{children}</select> }
@@ -169,7 +169,7 @@ export function Modal({ title, sub, onClose, onSave, saveLabel = 'Save', wide, c
 export function Toast({ t }) {
   if (!t) return null
   return (
-    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid var(--purple)`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(var(--purple-rgb),.22)', animation:'toastIn .3s ease' }}>
+    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid var(--brand-primary)`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(var(--brand-rgb),.22)', animation:'toastIn .3s ease' }}>
       <style>{`@keyframes toastIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
       <div style={{ fontWeight:700, color:C.t1, marginBottom:3 }}>{t.title}</div>
       <div style={{ fontSize:12, color:C.t3 }}>{t.msg}</div>

@@ -12,7 +12,7 @@ export default function ReportBrandingPreview({ branding = {} }) {
         padding: 16,
         borderRadius: 12,
         border: '1px solid #E5E7EB',
-        background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+        background: '#F8FAFC',
       }}
     >
       <p style={{ marginTop: 0, marginBottom: 12, color: '#111827', fontWeight: 700 }}>Financial Report Preview</p>

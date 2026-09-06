@@ -74,7 +74,7 @@ const ROLE_COLOR = {
   external: { bg: '#ECFCCB', text: '#3F6212', border: '#BEF264' },
 }
 
-const AVATAR_COLORS = ['#6366F1', '#0EA5E9', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6']
+const AVATAR_COLORS = ['var(--brand-primary)', '#0EA5E9', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6']
 
 const EMPTY_FORM = {
   name: '',
@@ -126,11 +126,11 @@ const ADMIN = {
   border: '#E2E8F0',
   ink: '#0F172A',
   inkSoft: '#64748B',
-  primary: '#6366F1',
-  primaryDark: '#4F46E5',
+  primary: 'var(--brand-primary)',
+  primaryDark: 'var(--brand-dark)',
   green: '#10B981',
   greenSoft: '#ECFDF5',
-  purpleSoft: '#EEF2FF',
+  purpleSoft: 'var(--brand-soft)',
 }
 
 function deptLabel(val) {
@@ -612,8 +612,8 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
                         <span style={{ fontSize: '0.75rem', color: ADMIN.inkSoft }}>Self account protected</span>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                          <button type="button" onClick={() => setEditUser(u)} style={actionBtn('#6366F1', '#EEF2FF')}>Edit</button>
-                          <button type="button" onClick={() => onOpenPermissions(u._id)} style={actionBtn('#6366F1', '#EEF2FF')}>Permissions</button>
+                          <button type="button" onClick={() => setEditUser(u)} style={actionBtn('var(--brand-primary)', 'var(--brand-soft)')}>Edit</button>
+                          <button type="button" onClick={() => onOpenPermissions(u._id)} style={actionBtn('var(--brand-primary)', 'var(--brand-soft)')}>Permissions</button>
                           <button type="button" onClick={() => handleToggle(u)} style={actionBtn('#B45309', '#FFFBEB')}>{u.isActive ? 'Deactivate' : 'Activate'}</button>
                           <button type="button" onClick={() => handleDelete(u)} style={actionBtn('#B91C1C', '#FEF2F2')}>Delete</button>
                         </div>

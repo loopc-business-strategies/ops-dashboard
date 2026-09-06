@@ -276,17 +276,17 @@ export default function ERPReportsTab({
                   Showing first {TRIAL_BALANCE_UI_ROW_CAP} of {trialBalanceFiltered.length} matching rows (UI cap). Narrow search or export for the full set.
                 </p>
               )}
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+              <div className="erp-table-wrap" style={{ overflowX: 'auto', borderRadius: '0.45rem' }}>
+                <table className="erp-table">
                   <thead>
-                    <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Code</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Name</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Type</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Debit</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Credit</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Net</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Action</th>
+                    <tr>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th className="num">Debit</th>
+                      <th className="num">Credit</th>
+                      <th className="num">Net</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>

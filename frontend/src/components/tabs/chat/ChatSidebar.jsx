@@ -112,7 +112,7 @@ export default function ChatSidebar({
                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
                             <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                               <span style={{ fontSize:13, fontWeight:600, color:'#1c2a33' }}>{chat.name}</span>
-                              <span style={{ fontSize:9, background:'rgba(var(--brand-rgb),0.1)', color:'var(--purple)', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
+                              <span style={{ fontSize:9, background:'rgba(var(--brand-rgb),0.1)', color:'var(--brand-primary)', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
                             </div>
                             <span style={{ fontSize:10, color:'#334155', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
                           </div>

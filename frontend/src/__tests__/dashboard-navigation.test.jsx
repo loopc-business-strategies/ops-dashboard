@@ -171,22 +171,26 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByText('erp-tab-focus:ledger')).toBeTruthy()
   })
 
-  it('sidebar department link opens in a new tab', async () => {
+  it('sidebar department link navigates in the same tab', async () => {
     renderDashboard()
 
     const hrLink = await screen.findByRole('link', { name: 'HR' })
     expect(hrLink.getAttribute('href')).toContain('tab=hr')
-    expect(hrLink.getAttribute('target')).toBe('_blank')
-    expect(hrLink.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(hrLink.getAttribute('target')).toBeNull()
+
+    fireEvent.click(hrLink)
+    expect(await screen.findByText('hr-tab')).toBeTruthy()
   })
 
-  it('sidebar chat link opens in a new tab', async () => {
+  it('sidebar chat link navigates in the same tab', async () => {
     renderDashboard()
 
     const chatLink = await screen.findByRole('link', { name: 'Chat' })
     expect(chatLink.getAttribute('href')).toContain('tab=chat')
-    expect(chatLink.getAttribute('target')).toBe('_blank')
-    expect(chatLink.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(chatLink.getAttribute('target')).toBeNull()
+
+    fireEvent.click(chatLink)
+    expect(await screen.findByText('chat-tab')).toBeTruthy()
   })
 
   it('shows Master Settings in MG tenant sidebar', async () => {

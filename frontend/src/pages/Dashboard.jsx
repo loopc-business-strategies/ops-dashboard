@@ -797,6 +797,7 @@ function Dashboard() {
         sidebarLinkAfterClick={sidebarLinkAfterClick}
         prefetchTabChunk={prefetchTabChunk}
         onLogout={handleLogout}
+        onModuleNavigate={(tabId) => navigateToTab(tabId)}
         onErpNavigate={(erpSub) => navigateToTab('erp', { erpSub, sub: null })}
       />
       )}
