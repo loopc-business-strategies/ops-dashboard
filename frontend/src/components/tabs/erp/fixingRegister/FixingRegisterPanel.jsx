@@ -373,8 +373,8 @@ export default function FixingRegisterPanel({
                     ))}
                   </div>
 
-                  <div ref={fixingScrollRef} style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', background: '#FCFCFC', maxHeight: 'min(70vh, 720px)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
+                  <div ref={fixingScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: 'min(70vh, 720px)', borderRadius: '0.24rem' }}>
+                    <table className="erp-table" style={{ minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} />
                         <col style={{ width: '110px' }} />

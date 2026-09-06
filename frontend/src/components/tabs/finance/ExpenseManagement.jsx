@@ -38,7 +38,7 @@ export default function ExpenseManagement({ finRole, can, canEdit, expenses, set
         <ProgressRow label="Operations"      value={42000}  max={100000} color={C.gbar} valLabel="$42k"  />
         <ProgressRow label="HR & Payroll"    value={284600} max={400000} color={C.gfin} valLabel="$285k" />
         <ProgressRow label="Sales & Marketing" value={15000} max={100000} color="var(--grad-bar)" valLabel={<span style={{color:C.red}}>$15k ⚠</span>} />
-        <ProgressRow label="Production"      value={42600}  max={100000} color="linear-gradient(90deg,#ffd600,#9a3412)"  valLabel="$43k"  />
+        <ProgressRow label="Production"      value={42600}  max={100000} color="#f59e0b"  valLabel="$43k"  />
         <ProgressRow label="Compliance"      value={8500}   max={100000} color={C.gbar} valLabel="$8.5k" />
       </Card>
       <DataTable title="Expense Register" headers={['Expense ID','Date','Dept','Category','Amount','Submitted By','Status','Approved By',...(canEdit()?['Actions']:[])]}>

@@ -110,32 +110,32 @@ button.tab:hover,
 [class*="createGroup"],
 .new-group-btn,
 .create-group-btn {
-  background: var(--brand-soft) !important;
-  border: 1.5px dashed var(--brand-border) !important;
-  color: var(--brand-on-soft) !important;
+  background: var(--brand-soft);
+  border: 1.5px dashed var(--brand-border);
+  color: var(--brand-on-soft);
 }
 
 [class*="new-grp"]:hover,
 [class*="newGrp"]:hover,
 .new-group-btn:hover {
-  background: var(--brand-soft) !important;
-  border-color: var(--brand-primary) !important;
+  background: var(--brand-soft);
+  border-color: var(--brand-primary);
 }
 
 [class*="new-grp"] > [class*="icon"],
 [class*="new-grp"] > span:first-child,
 .new-group-btn .icon {
-  background: var(--brand-primary) !important;
-  color: var(--brand-on-primary, #fff) !important;
+  background: var(--brand-primary);
+  color: var(--brand-on-primary, #fff);
 }
 
 .chat-add-btn,
 [class*="chat"] button[class*="add"],
 [class*="chat"] .icon-btn.hot,
 [class*="chat"] .ib.hot {
-  background: var(--brand-primary) !important;
-  color: var(--brand-on-primary, #fff) !important;
-  box-shadow: none !important;
+  background: var(--brand-primary);
+  color: var(--brand-on-primary, #fff);
+  box-shadow: none;
 }
 
 .unread-badge,
@@ -143,7 +143,8 @@ button.tab:hover,
 [class*="unread"],
 [class*="ni-bd"],
 .ni-bd {
-  background: var(--danger, #DC2626) !important;
+  background: var(--danger, #DC2626);
+  color: #fff;
 }
 
 /* ── 4. SIDEBAR ACTIVE ITEM (scoped; soft plate + dark tenant text) ─ */
@@ -195,40 +196,7 @@ button.tab:hover,
   color: var(--sidebar-active-fg, var(--brand-dark)) !important;
 }
 
-/* ── 5. TABLE ACTION BUTTONS ──────────────────────────── */
-
-.td-ed,
-.td-edit,
-[class*="edit-btn"],
-[class*="editBtn"],
-button.edit {
-  color: var(--brand-dark, var(--brand-primary)) !important;
-}
-
-.td-ed:hover,
-.td-edit:hover,
-button.edit:hover {
-  color: var(--brand-hover, var(--brand-dark)) !important;
-}
-
-.td-del,
-.td-delete,
-[class*="delete-btn"],
-[class*="deleteBtn"],
-button.delete {
-  color: var(--danger, #DC2626) !important;
-}
-
-/* ── 6. STAR RATINGS (semantic warning yellow) ────────── */
-
-.star-on,
-[class*="star"].on,
-[class*="star"].filled,
-[class*="starOn"],
-[class*="starFilled"],
-.rating .on {
-  color: var(--warning, #D97706) !important;
-}
+/* ── 5. TABLE ACTION BUTTONS / STARS — moved to design-system.css ─ */
 
 /* ── 7. TOPBAR ROLE BADGE (flat solid, no gradient text) ─ */
 
@@ -600,13 +568,4 @@ main select option {
   -webkit-text-fill-color: var(--sidebar-fg) !important;
 }
 
-/* Primary buttons — contrast-safe solid fills */
-.btn-primary {
-  background: var(--brand-button-bg, var(--brand-dark)) !important;
-  color: var(--brand-button-text, #fff) !important;
-}
-.btn-primary:hover {
-  background: var(--brand-button-hover, var(--brand-dark)) !important;
-  color: var(--brand-button-text, #fff) !important;
-  filter: none;
-}
+/* .btn-primary lives in design-system.css — intentional login/sidebar locks remain above */

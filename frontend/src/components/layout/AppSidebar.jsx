@@ -27,6 +27,7 @@ export default function AppSidebar({
   prefetchTabChunk,
   onLogout,
   onErpNavigate,
+  onModuleNavigate,
 }) {
   return (
     <aside
@@ -63,6 +64,7 @@ export default function AppSidebar({
             {...item}
             href={buildNavHref(item)}
             active={activeTab === item.id}
+            onSameTabNavigate={() => onModuleNavigate?.(item.id)}
             onAfterClick={sidebarLinkAfterClick}
             onPrefetch={() => prefetchTabChunk(item.id)}
           />
@@ -86,6 +88,7 @@ export default function AppSidebar({
                 {...item}
                 href={buildNavHref(item)}
                 active={activeTab === item.id}
+                onSameTabNavigate={() => onModuleNavigate?.(item.id)}
                 onAfterClick={sidebarLinkAfterClick}
                 onPrefetch={() => prefetchTabChunk(item.id)}
               />
@@ -111,6 +114,7 @@ export default function AppSidebar({
                 {...item}
                 href={buildNavHref(item)}
                 active={activeTab === item.id}
+                onSameTabNavigate={() => onModuleNavigate?.(item.id)}
                 onAfterClick={sidebarLinkAfterClick}
                 onPrefetch={() => prefetchTabChunk(item.id)}
               />

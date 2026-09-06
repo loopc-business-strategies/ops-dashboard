@@ -21,7 +21,7 @@ export default function TabAnalytics({ batches, canEdit: _canEdit, isAdmin, isHe
           <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:110 }}>
             {batches.filter(b => b.st !== 'On Hold').map(b => (
               <div key={b.id} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
-                <div style={{ height:b.completion, width:'100%', borderRadius:'4px 4px 0 0', background: b.completion === 100 ? 'var(--grad-brand)' : 'linear-gradient(180deg,var(--purple),var(--purple-light))', minHeight:4 }} />
+                <div style={{ height:b.completion, width:'100%', borderRadius:'4px 4px 0 0', background: 'var(--brand-primary)', minHeight:4 }} />
                 <div style={{ fontSize:9, fontWeight:700, color:C.t3 }}>{b.completion}%</div>
                 <div style={{ fontSize:9, color:C.t3 }}>{b.name.split('—')[0].trim().split(' ')[1]}</div>
               </div>

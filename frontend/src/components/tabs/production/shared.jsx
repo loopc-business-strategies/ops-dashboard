@@ -5,10 +5,10 @@ const USE_SEED_DATA =
 
 // ── Design tokens ─────────────────────────────────
 const C = {
-  acc:  'var(--purple)',
-  accH: 'var(--purple-light)',
-  accD: 'var(--purple-dark)',
-  grad: 'var(--grad-brand)',
+  acc:  'var(--brand-primary)',
+  accH: 'var(--brand-light)',
+  accD: 'var(--brand-dark)',
+  grad: 'var(--brand-primary)',
 }
 
 function getProductionTabs(t) {
@@ -43,7 +43,7 @@ function Badge({ children, color = 'gray' }) {
   )
 }
 
-function StatCard({ icon, label, value, sub, color = 'var(--purple)', trend }) {
+function StatCard({ icon, label, value, sub, color = 'var(--brand-primary)', trend }) {
   return (
     <div
       className="rounded-2xl p-5 hover:-translate-y-0.5 transition-all"

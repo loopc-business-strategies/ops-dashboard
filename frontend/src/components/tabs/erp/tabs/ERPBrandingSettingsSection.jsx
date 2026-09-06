@@ -123,7 +123,7 @@ export default function ERPBrandingSettingsSection({
               <option value="fill">Fill / Stretch</option>
             </select>
           </div>
-          <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', border: `1px solid ${C.p2}`, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)' }}>
+          <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', border: `1px solid ${C.p2}`, background: '#F8FAFC' }}>
             <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.ink, fontWeight: '700' }}>Company Profile Preview</p>
             <div style={{ height: '10px', background: 'var(--grad-brand)', borderRadius: '999px', marginBottom: '14px' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '2px solid #111827', paddingBottom: '0.9rem', marginBottom: '0.9rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
