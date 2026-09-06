@@ -48,17 +48,17 @@ export {
   numberToWords,
 } from '../erp/voucherUtils'
 export const S = {
-  // Colours
-  green: 'var(--purple-light)',
-  greenDark: 'var(--purple)',
+  // Colours — tenant tokens where brand-facing
+  green: 'var(--brand-button-bg, var(--brand-dark))',
+  greenDark: 'var(--brand-dark)',
   danger: '#DC2626',
-  ink: '#111827',
-  muted: '#6B7280',
-  border: '#D1D5DB',
-  bg: '#F9FAFB',
+  ink: 'var(--text-primary, #111827)',
+  muted: 'var(--text-muted, #6B7280)',
+  border: 'var(--border, #E5E7EB)',
+  bg: '#F8FAFC',
   white: '#FFFFFF',
   blueSoft: 'var(--brand-soft)',
-  headerBg: '#F3F4F6',
+  headerBg: 'var(--brand-soft)',
 }
 
 export const fieldRow = {
@@ -78,9 +78,9 @@ export const fieldGroup = (label, children, span) => ({
 export const labelStyle = { fontSize: '0.72rem', fontWeight: '600', color: S.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }
 
 export const inputStyle = {
-  padding: '0.35rem 0.6rem',
-  border: `1px solid ${S.border}`,
-  borderRadius: '0.3rem',
+  padding: '0.4rem 0.65rem',
+  border: `1px solid var(--border-input, #9CA3AF)`,
+  borderRadius: '8px',
   fontSize: '0.875rem',
   background: S.white,
   color: S.ink,
@@ -92,18 +92,18 @@ export const readInput = { ...inputStyle, background: S.bg, color: S.muted }
 
 export const sectionBox = {
   border: `1px solid ${S.border}`,
-  borderRadius: '0.5rem',
+  borderRadius: '10px',
   marginBottom: '1rem',
   overflow: 'visible',
 }
 
 export const sectionHeader = {
   background: S.headerBg,
-  padding: '0.4rem 0.8rem',
+  padding: '0.45rem 0.8rem',
   fontWeight: '700',
   fontSize: '0.8rem',
-  color: S.ink,
-  borderBottom: `1px solid ${S.border}`,
+  color: 'var(--brand-on-soft)',
+  borderBottom: `1px solid var(--brand-border)`,
   letterSpacing: '0.03em',
 }
 
@@ -111,7 +111,7 @@ export const sectionBody = { padding: '0.75rem' }
 
 export const btn = (variant = 'primary') => ({
   padding: '0.45rem 1rem',
-  borderRadius: '0.375rem',
+  borderRadius: '8px',
   fontSize: '0.85rem',
   fontWeight: '600',
   cursor: 'pointer',
@@ -126,17 +126,12 @@ export const tabBtn = (active) => ({
   padding: '0.42rem 1rem',
   fontSize: '0.78rem',
   fontWeight: '700',
-  color: active ? 'var(--purple)' : '#374151',
-  background: active
-    ? 'linear-gradient(180deg, #FFF7F0 0%, #FFE8D0 100%)'
-    : 'linear-gradient(180deg, #FFFFFF 0%, #ECECEC 100%)',
-  border: `1px solid ${active ? 'var(--purple)' : '#BFC5CB'}`,
-  borderTop: '1px solid #F8FAFC',
-  borderLeft: '1px solid #EEF2F7',
-  boxShadow: active
-    ? 'inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(15,23,42,0.08)'
-    : 'inset 0 1px 0 rgba(255,255,255,0.9)',
-  borderRadius: '0.24rem 0.24rem 0 0',
+  color: active ? 'var(--brand-dark)' : '#374151',
+  background: active ? 'var(--brand-soft)' : '#FFFFFF',
+  border: `1px solid ${active ? 'var(--brand-border)' : 'var(--border, #E5E7EB)'}`,
+  borderBottom: active ? '2px solid var(--brand-primary)' : '1px solid var(--border, #E5E7EB)',
+  boxShadow: 'none',
+  borderRadius: '8px 8px 0 0',
   cursor: 'pointer',
   minWidth: '88px',
 })
@@ -153,23 +148,23 @@ export const classicHeaderGrid = {
 }
 
 export const classicPanel = {
-  border: '1px solid #C9CED6',
-  borderRadius: '0.25rem',
+  border: `1px solid ${S.border}`,
+  borderRadius: '10px',
   background: '#FFFFFF',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.88)',
+  boxShadow: 'none',
   overflow: 'visible',
   alignSelf: 'start',
   height: 'fit-content',
 }
 
 export const classicPanelTitle = {
-  background: 'linear-gradient(180deg, #F3F4F6 0%, #D8DCE2 100%)',
-  borderBottom: '1px solid #C9CED6',
-  color: '#4B5563',
+  background: 'var(--brand-soft)',
+  borderBottom: '1px solid var(--brand-border)',
+  color: 'var(--brand-on-soft)',
   fontSize: '0.72rem',
   fontWeight: '700',
   letterSpacing: '0.04em',
-  padding: '0.42rem 0.65rem',
+  padding: '0.45rem 0.65rem',
   textTransform: 'uppercase',
 }
 
@@ -183,27 +178,27 @@ export const classicPartyGrid = {
 
 export const classicPartyCard = {
   margin: '0 0.55rem 0.55rem',
-  border: '1px solid #C9CED6',
-  borderRadius: '0.2rem',
-  background: '#FBFCFE',
+  border: `1px solid ${S.border}`,
+  borderRadius: '8px',
+  background: '#FFFFFF',
   overflow: 'hidden',
 }
 
 export const classicPartyCardHeader = {
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1fr) auto',
-  borderBottom: '1px solid #D7DCE3',
-  background: 'linear-gradient(180deg, #F8FBFF 0%, #E6ECF5 100%)',
+  borderBottom: '1px solid var(--brand-border)',
+  background: 'var(--brand-soft)',
 }
 
 export const classicPartyCardTitle = {
   padding: '0.46rem 0.68rem',
   fontSize: '0.82rem',
   fontWeight: '700',
-  color: '#F9FAFB',
-  borderRight: '1px solid #D7DCE3',
-  background: 'linear-gradient(180deg, #B8C4D6 0%, #94A3B8 100%)',
-  textShadow: '0 1px 0 rgba(15,23,42,0.18)',
+  color: 'var(--brand-on-soft)',
+  borderRight: '1px solid var(--brand-border)',
+  background: 'var(--brand-soft)',
+  textShadow: 'none',
 }
 
 export const classicPartyCardCodeWrap = {
@@ -218,7 +213,7 @@ export const classicPartyCardCode = {
   fontWeight: '700',
   color: '#374151',
   background: '#FFFFFF',
-  borderRight: '1px solid #D7DCE3',
+  borderRight: `1px solid ${S.border}`,
   minWidth: '96px',
   textAlign: 'left',
 }
@@ -241,7 +236,7 @@ export const classicPartyCardSearch = {
   justifyContent: 'center',
   fontSize: '0.9rem',
   color: '#6B7280',
-  background: 'linear-gradient(180deg, #FFFFFF 0%, #E5E7EB 100%)',
+  background: '#F8FAFC',
   border: 0,
   width: '100%',
   height: '100%',
@@ -252,8 +247,8 @@ export const classicPartyCardName = {
   padding: '0.55rem 0.68rem',
   fontSize: '1.12rem',
   fontWeight: '800',
-  color: '#243B53',
-  borderBottom: '1px solid #E5E7EB',
+  color: 'var(--text-primary, #111827)',
+  borderBottom: `1px solid ${S.border}`,
   minHeight: '2.55rem',
   display: 'flex',
   alignItems: 'center',
@@ -309,10 +304,10 @@ export const classicLabel = {
 export const classicInput = {
   ...inputStyle,
   minHeight: '1.9rem',
-  borderRadius: '0.12rem',
-  borderColor: '#C8CED6',
+  borderRadius: '8px',
+  borderColor: 'var(--border-input, #9CA3AF)',
   background: '#FFFFFF',
-  boxShadow: 'inset 0 1px 1px rgba(15, 23, 42, 0.04)',
+  boxShadow: 'none',
   padding: '0.28rem 0.45rem',
   fontSize: '0.82rem',
 }
@@ -324,7 +319,7 @@ export const classicReadInput = {
 }
 
 export const classicTextAreaRow = {
-  borderTop: '1px solid #D4D8DE',
+  borderTop: `1px solid ${S.border}`,
   display: 'grid',
   gridTemplateColumns: '96px 150px',
   gap: '0.4rem 0.55rem',
@@ -334,34 +329,34 @@ export const classicTextAreaRow = {
 
 export const metalWin = {
   shell: {
-    border: '2px solid #7B8798',
-    borderRadius: '0.45rem',
-    background: '#E6E8EC',
-    boxShadow: '0 14px 26px rgba(15, 23, 42, 0.45)',
+    border: '1px solid var(--border, #E5E7EB)',
+    borderRadius: '12px',
+    background: '#FFFFFF',
+    boxShadow: 'var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.06))',
   },
   body: {
-    padding: '0.5rem 0.6rem',
-    background: '#ECEFF3',
+    padding: '0.65rem 0.75rem',
+    background: '#FFFFFF',
   },
   tabLabel: {
-    color: '#334155',
-    background: 'linear-gradient(180deg, #F2F4F7 0%, #D9DEE5 100%)',
-    border: '1px solid #B7C0CC',
+    color: 'var(--brand-on-soft)',
+    background: 'var(--brand-soft)',
+    border: '1px solid var(--brand-border)',
     textShadow: 'none',
   },
   headerRow: {
-    background: 'linear-gradient(180deg, #F8F9FB 0%, #E7EAF0 100%)',
-    color: '#374151',
-    borderBottom: '1px solid #C9CED6',
+    background: 'var(--brand-soft)',
+    color: 'var(--brand-on-soft)',
+    borderBottom: '1px solid var(--brand-border)',
   },
   tableCell: {
-    borderRight: '1px solid #E5E7EB',
-    borderBottom: '1px solid #D7DBE0',
+    borderRight: '1px solid var(--border, #E5E7EB)',
+    borderBottom: '1px solid var(--border, #E5E7EB)',
     background: '#FFFFFF',
   },
   summaryHeader: {
-    background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)',
-    color: '#374151',
+    background: 'var(--brand-soft)',
+    color: 'var(--brand-on-soft)',
   },
 }
 

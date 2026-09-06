@@ -294,7 +294,7 @@ export default function VoucherEditorPanel({
             </span>
             <div style={{ display: 'flex', gap: 2 }}>
               {['─', '□'].map((ch) => (
-                <button key={ch} type="button" style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#D8DCE3,#A9B2C1)', border: '1px solid #6F7B8B', borderTop: '1px solid #EFF3F8', borderLeft: '1px solid #E5EAF1', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#1F2937', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>{ch}</button>
+                <button key={ch} type="button" style={{ width: 18, height: 15, background: '#F8FAFC', border: '1px solid #6F7B8B', borderTop: '1px solid #EFF3F8', borderLeft: '1px solid #E5EAF1', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#1F2937', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'none' }}>{ch}</button>
               ))}
               <button
                 type="button"
@@ -308,7 +308,7 @@ export default function VoucherEditorPanel({
                 onClick={(e) => {
                   e.preventDefault()
                 }}
-                style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#E3D8D8,#C4A0A0)', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}
+                style={{ width: 18, height: 15, background: '#FEF2F2', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'none' }}
               >
                 ✕
               </button>
@@ -322,7 +322,7 @@ export default function VoucherEditorPanel({
               minWidth: compactMetalTb ? 24 : 68,
               width: compactMetalTb ? 24 : undefined,
               height: compactMetalTb ? 22 : 24,
-              background: 'linear-gradient(180deg,#FBFBFB 0%,#E5E5E5 48%,#CACACA 100%)',
+              background: '#F8FAFC',
               border: '1px solid #A9A9A9',
               borderTop: '1px solid #F8F8F8',
               borderLeft: '1px solid #ECECEC',
@@ -363,8 +363,8 @@ export default function VoucherEditorPanel({
             return (
               <div style={{
                 background: isMetalVoucher
-                  ? 'linear-gradient(180deg,#F0F0F0,#D7D7D7)'
-                  : 'linear-gradient(180deg,#F0F0F0,#D7D7D7)',
+                  ? '#FFFFFF'
+                  : '#FFFFFF',
                 borderBottom: isMetalVoucher ? '2px solid #9C9C9C' : '2px solid #9C9C9C',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85)',
                 padding: '3px 6px',
@@ -765,7 +765,7 @@ export default function VoucherEditorPanel({
               <div style={{ overflowX: 'auto', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>
-                    <tr style={isMetalVoucher ? metalWin.headerRow : { background: 'linear-gradient(180deg, #F8F9FB 0%, #E7EAF0 100%)' }}>
+                    <tr style={isMetalVoucher ? metalWin.headerRow : { background: 'var(--brand-soft)' }}>
                       {lineTableHeaders.map(h => (
                         <th key={h} style={{ padding: '0.34rem 0.48rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: isMetalVoucher ? '#374151' : '#374151', borderBottom: isMetalVoucher ? '1px solid #C9CED6' : '1px solid #C9CED6', borderRight: isMetalVoucher ? '1px solid #E5E7EB' : '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
@@ -1132,10 +1132,10 @@ export default function VoucherEditorPanel({
                         <input ref={lineNarrationRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', width: '100%', boxSizing: 'border-box' }} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
                       </div>
                       {/* Action buttons */}
-                      <div style={{ display: 'flex', gap: '0.4rem', padding: '0.32rem 0.55rem', background: 'linear-gradient(180deg, #F3F4F6 0%, #E8EAED 100%)', borderTop: '1px solid #D4D8DE' }}>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={() => { saveLine(); if (!lineForm.acCode.trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
+                      <div style={{ display: 'flex', gap: '0.4rem', padding: '0.32rem 0.55rem', background: '#F8FAFC', borderTop: '1px solid #D4D8DE' }}>
+                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }} onClick={() => { saveLine(); if (!lineForm.acCode.trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
                         <button ref={lineSaveBtnRef} style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'var(--grad-brand)', border: '1px solid var(--purple)', borderRadius: '0.15rem', cursor: 'pointer', color: 'var(--brand-on-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }} onClick={saveLine} onKeyDown={handleCashLineNavKeyDown}>Save</button>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={cancelLine}>Cancel</button>
+                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }} onClick={cancelLine}>Cancel</button>
                       </div>
                     </div>
                   )}
@@ -1144,7 +1144,7 @@ export default function VoucherEditorPanel({
               )}
 
               {/* ── Bottom strip: Actions + Remarks + Amount Summary ── */}
-              <div style={{ borderTop: '2px solid #B8BEC8', background: 'linear-gradient(180deg, #F4F5F7 0%, #E8EAED 100%)', padding: '0.38rem 0.55rem' }}>
+              <div style={{ borderTop: '2px solid #B8BEC8', background: '#F8FAFC', padding: '0.38rem 0.55rem' }}>
                 <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   {/* Left: Add/Edit/Delete + Remarks */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.38rem', flex: 1 }}>
@@ -1152,7 +1152,7 @@ export default function VoucherEditorPanel({
                       <div style={{ display: 'flex', gap: '0.3rem' }}>
                         <button
                           ref={addLineBtnRef}
-                          style={{ padding: '0.2rem 0.72rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92), 0 1px 1px rgba(0,0,0,0.06)' }}
+                          style={{ padding: '0.2rem 0.72rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }}
                           onClick={handleAddLineClick}
                           onKeyDown={handleHeaderNavKeyDown}
                         >Add</button>
@@ -1162,7 +1162,7 @@ export default function VoucherEditorPanel({
                   </div>
                   {/* Right: Amount Summary / Total Summary */}
                   <div style={{ border: '1px solid #8EA0C5', borderRadius: '0.15rem', background: '#FFFFFF', minWidth: '245px', overflow: 'hidden', flexShrink: 0 }}>
-                    <div style={{ ...(isMetalVoucher ? metalWin.summaryHeader : { background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)', color: '#374151' }), borderBottom: isMetalVoucher ? `1px solid ${S.greenDark}` : '1px solid #8EA0C5', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{isSimpleMetalVoucher ? 'Total Summary' : 'Amount Summary'}</div>
+                    <div style={{ ...(isMetalVoucher ? metalWin.summaryHeader : { background: 'var(--brand-soft)', color: '#374151' }), borderBottom: isMetalVoucher ? `1px solid ${S.greenDark}` : '1px solid #8EA0C5', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{isSimpleMetalVoucher ? 'Total Summary' : 'Amount Summary'}</div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
                       <tbody>
                         {isSimpleMetalVoucher && (

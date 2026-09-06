@@ -1,20 +1,20 @@
 import { formatMoney } from '../../../utils/money'
 
 export const C = {
-  grad:   'var(--grad-brand)',
-  gbar:   'var(--grad-bar)',
-  gfin:   'var(--grad-brand)',
+  grad:   'var(--brand-primary)',
+  gbar:   'var(--brand-primary)',
+  gfin:   'var(--brand-primary)',
   green:  '#065f46', cyan:   '#00b4d8', yellow: '#ffd600',
   orange: '#9a3412', red:    '#ff4757', gold:   '#f59e0b',
   t1:'#1c2a33', t2:'#374151', t3:'#334155', t4:'#475569',
-  border: 'rgba(var(--purple-rgb),0.15)', border2:'rgba(var(--purple-rgb),0.35)',
+  border: 'var(--brand-border)', border2:'rgba(var(--brand-rgb),0.35)',
   card:'#ffffff', inp:'#f8f9fa',
 }
 
 export const B = {
-  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:'var(--grad-brand)', color:'#fff', boxShadow:'0 4px 15px rgba(var(--purple-rgb),.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--purple)', border:'1px solid var(--purple)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid rgba(var(--purple-rgb),0.15)`, whiteSpace:'nowrap', fontFamily:'inherit' },
+  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:'var(--brand-primary)', color:'#fff', boxShadow:'none', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--brand-primary)', border:'1px solid var(--brand-primary)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:'1px solid var(--brand-border)', whiteSpace:'nowrap', fontFamily:'inherit' },
   succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,0.15)', color:'#065f46', border:'1px solid rgba(0,200,150,0.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   sm:    { padding:'5px 11px', fontSize:11 },
 }

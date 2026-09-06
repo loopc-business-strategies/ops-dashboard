@@ -364,10 +364,7 @@ function Dashboard() {
   const [isDesktop, setIsDesktop] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
-  const EDGE_TRIGGER_WIDTH = 20
-  const HIDE_DELAY_MS = 400
-  const HIDE_THRESHOLD_X = 320
-  const hideTimerRef = useRef(null)
+  // Sidebar is user-controlled (toggle + mobile drawer); no hover auto-hide / edge-open.
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
   const includeCompany = useMemo(
@@ -545,15 +542,7 @@ function Dashboard() {
     return applyTenantTheme(branding.colors)
   }, [branding])
 
-  const clearHideTimer = () => {
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current)
-      hideTimerRef.current = null
-    }
-  }
-
   const closeSidebar = () => {
-    clearHideTimer()
     setSidebarOpen(false)
   }
 
@@ -561,23 +550,9 @@ function Dashboard() {
     if (!isDesktop) closeSidebar()
   }
 
-  const openSidebar = () => {
-    clearHideTimer()
-    setSidebarOpen(true)
+  const toggleSidebar = () => {
+    setSidebarOpen((open) => !open)
   }
-
-  const queueHideSidebar = () => {
-    if (!isDesktop) return
-    clearHideTimer()
-    hideTimerRef.current = setTimeout(() => {
-      setSidebarOpen(false)
-      hideTimerRef.current = null
-    }, HIDE_DELAY_MS)
-  }
-
-  useEffect(() => {
-    return () => clearHideTimer()
-  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -735,22 +710,6 @@ function Dashboard() {
     })
   }, [activeTab, erpSubTab, searchParams, writeDashboardUrl])
 
-  const handleShellMouseMove = (e) => {
-    if (!isDesktop) return
-
-    const x = e.clientX
-
-    if (x <= EDGE_TRIGGER_WIDTH) {
-      if (!sidebarOpen) openSidebar()
-      else clearHideTimer()
-      return
-    }
-
-    if (sidebarOpen && x > HIDE_THRESHOLD_X) {
-      queueHideSidebar()
-    }
-  }
-
   const handleMarkAllNotificationsRead = useCallback(() => {
     setNotifications((prev) => prev.map((x) => ({ ...x, read: true })))
   }, [])
@@ -792,11 +751,6 @@ function Dashboard() {
     }
   }, [navigateToTab])
 
-  const toggleSidebar = () => {
-    clearHideTimer()
-    setSidebarOpen((prev) => !prev)
-  }
-
   // Group nav items
   const mainItems  = navItems.filter(n => n.group === 'main')
   const adminItems = navItems.filter(n => n.group === 'admin')
@@ -820,12 +774,6 @@ function Dashboard() {
   return (
     <LiveMetalRatesProvider token={token} tenant={branding.key} enabled={metalRatesEnabled}>
     <AppShell
-      isDesktop={isDesktop}
-      isRTL={isRTL}
-      sidebarOpen={sidebarOpen}
-      edgeTriggerWidth={EDGE_TRIGGER_WIDTH}
-      onShellMouseMove={handleShellMouseMove}
-      onEdgeEnter={openSidebar}
       sidebar={(
       <AppSidebar
         branding={branding}
@@ -850,8 +798,6 @@ function Dashboard() {
         prefetchTabChunk={prefetchTabChunk}
         onLogout={handleLogout}
         onErpNavigate={(erpSub) => navigateToTab('erp', { erpSub, sub: null })}
-        onMouseEnter={isDesktop ? clearHideTimer : undefined}
-        onMouseLeave={isDesktop ? queueHideSidebar : undefined}
       />
       )}
       overlay={(

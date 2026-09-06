@@ -339,18 +339,18 @@ export default function ERPLedgerTab({
               />
             </div>
           ) : null}
-          <div ref={ledgerScrollRef} style={{ overflow: 'auto', maxHeight: ledgerVirtEnabled ? 560 : undefined, background: C.p1, borderRadius: '0.5rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+          <div ref={ledgerScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: ledgerVirtEnabled ? 560 : undefined, borderRadius: '0.5rem' }}>
+            <table className="erp-table">
               <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th onClick={() => setSorting({...sorting, ledger: {by: 'date', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'date' ? C.p2 : 'transparent' }}>Date {sorting.ledger.by === 'date' && (sorting.ledger.asc ? '▲' : '▼')}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', minWidth: '110px' }}>Voucher No.</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', maxWidth: '220px' }}>Narration / detail</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debit Account</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Credit Account</th>
-                  <th onClick={() => setSorting({...sorting, ledger: {by: 'amount', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'amount' ? C.p2 : 'transparent' }}>Amount {sorting.ledger.by === 'amount' && (sorting.ledger.asc ? '▲' : '▼')}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Type</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Actions</th>
+                <tr>
+                  <th onClick={() => setSorting({...sorting, ledger: {by: 'date', asc: !sorting.ledger.asc}})} style={{ cursor: 'pointer', background: sorting.ledger.by === 'date' ? 'var(--brand-border)' : undefined }}>Date {sorting.ledger.by === 'date' && (sorting.ledger.asc ? '▲' : '▼')}</th>
+                  <th style={{ minWidth: '110px' }}>Voucher No.</th>
+                  <th style={{ maxWidth: '220px' }}>Narration / detail</th>
+                  <th>Debit Account</th>
+                  <th>Credit Account</th>
+                  <th className="num" onClick={() => setSorting({...sorting, ledger: {by: 'amount', asc: !sorting.ledger.asc}})} style={{ cursor: 'pointer', background: sorting.ledger.by === 'amount' ? 'var(--brand-border)' : undefined }}>Amount {sorting.ledger.by === 'amount' && (sorting.ledger.asc ? '▲' : '▼')}</th>
+                  <th>Type</th>
+                  <th style={{ textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>

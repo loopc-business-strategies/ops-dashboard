@@ -288,12 +288,12 @@ export default function ERPVendorsTab({
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
-            <div ref={vendorScrollRef} style={{ overflow: 'auto', maxHeight: vendorVirtEnabled ? 560 : undefined, background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem', minWidth: '1180px' }}>
+            <div ref={vendorScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: vendorVirtEnabled ? 560 : undefined, borderRadius: '0.5rem' }}>
+              <table className="erp-table" style={{ minWidth: '1180px' }}>
                 <thead>
-                  <tr style={{ borderBottom: `1px solid ${C.p2}`, background: '#F8FAFC' }}>
+                  <tr>
                     {['Code', 'Vendor', 'Contact / Contract', 'Status', 'Pay Due', 'Overdue', 'Alerts', 'Next Due Date', 'Monthly (Est.)', 'Attachments', 'Actions'].map((heading) => (
-                      <th key={heading} style={{ padding: '0.75rem 0.7rem', textAlign: heading === 'Pay Due' || heading === 'Overdue' || heading === 'Monthly (Est.)' ? 'right' : heading === 'Actions' ? 'center' : 'left', color: '#334155', fontSize: '0.74rem', fontWeight: '800' }}>{heading}</th>
+                      <th key={heading} className={heading === 'Pay Due' || heading === 'Overdue' || heading === 'Monthly (Est.)' ? 'num' : undefined} style={{ textAlign: heading === 'Actions' ? 'center' : undefined }}>{heading}</th>
                     ))}
                   </tr>
                 </thead>

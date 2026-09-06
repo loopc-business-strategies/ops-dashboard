@@ -6,6 +6,7 @@ import { resolveVoucherPrintSettings } from './erp/documentBranding'
 import { createLogoRenderAsset } from './erp/ERPBrandingUtils'
 import { focusElement, handleRecommendedTab } from './voucher/voucherKeyboardNav'
 import { formatAmount, parseAmount, roundMoney } from '../../utils/money'
+import { erpWin } from './erp/erpWindowChrome'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -62,31 +63,11 @@ const btnStyle = (variant = 'primary') => {
   return { ...base, background: 'var(--purple)', color: 'var(--brand-on-primary)' }
 }
 
-// ERP window inline styles
-const tbBtnSt = {
-  width: 26, height: 22,
-  background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)',
-  border: '1px solid #999', borderRadius: 2,
-  cursor: 'pointer', fontSize: 12,
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  color: '#333', padding: 0,
-}
-const btmBtnSt = {
-  padding: '4px 14px', border: '1px solid #888', borderRadius: 2,
-  fontSize: 12, cursor: 'pointer',
-  background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', color: '#222',
-  fontFamily: 'inherit',
-}
-const erpInpSt = {
-  border: '1px solid #999', padding: '4px 8px', fontSize: 12,
-  background: '#fff', borderRadius: 1, fontFamily: 'inherit',
-  boxSizing: 'border-box',
-}
-const erpSelSt = {
-  border: '1px solid #bbb', padding: '3px 3px', fontSize: 12,
-  background: '#fff', fontFamily: 'inherit', cursor: 'pointer',
-  width: '100%', boxSizing: 'border-box',
-}
+// Flat ERP window chrome (presentation only)
+const tbBtnSt = erpWin.toolBtn
+const btmBtnSt = erpWin.footerBtn
+const erpInpSt = erpWin.input
+const erpSelSt = erpWin.select
 
 const fmtMoney = (v, currencyCode) => formatAmount(v, { currencyCode })
 const fmtQty = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 6 })
@@ -1025,22 +1006,22 @@ export default function DirectDealsTab({
       ══════════════════════════════════════════════ */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 860, maxWidth: '98vw', border: '2px solid #6a8cbf', borderRadius: 4, boxShadow: '4px 4px 18px rgba(0,0,0,.5)', background: '#f0f0f0', display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
+          <div style={{ ...erpWin.shell, width: 860, maxWidth: '98vw', display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
 
             {/* ── Title bar ── */}
-            <div style={{ background: 'linear-gradient(180deg,#6a8cbf 0%,#3a5f9a 40%,#2a4f8a 100%)', color: '#fff', padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a4f8a', flexShrink: 0 }}>
+            <div style={{ ...erpWin.titleBar }}>
               <div style={{ width: 60 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.3px' }}>Fixing Deals</span>
+              <span style={{ ...erpWin.titleText, flex: 1, textAlign: 'center' }}>Fixing Deals</span>
               <div style={{ display: 'flex', gap: 2 }}>
                 {['─', '□'].map((ch) => (
-                  <button key={ch} type="button" style={{ width: 18, height: 16, background: 'linear-gradient(180deg,#d0d0d0,#a0a0a0)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#222', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ch}</button>
+                  <button key={ch} type="button" style={{ ...erpWin.titleBtn }}>{ch}</button>
                 ))}
-                <button type="button" onClick={() => setShowModal(false)} style={{ width: 18, height: 16, background: 'linear-gradient(180deg,#d0d0d0,#a0a0a0)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#222', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                <button type="button" onClick={() => setShowModal(false)} style={{ ...erpWin.titleBtn }}>✕</button>
               </div>
             </div>
 
             {/* ── Toolbar ── */}
-            <div style={{ background: 'linear-gradient(180deg,#d8d8d8,#c0c0c0)', borderBottom: '2px solid #888', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, flexWrap: 'wrap' }}>
+            <div style={{ ...erpWin.toolbar }}>
 
               {/* Group 1 — Record Actions */}
               <button type="button" title="New — Open a blank form for a new entry" style={tbBtnSt} onClick={() => { openCreateModal() }}>
@@ -1190,7 +1171,7 @@ export default function DirectDealsTab({
                     style={{ ...erpInpSt, width: 120 }}
                     disabled={viewMode !== 'EDIT' || !hasManage || saving}
                   />
-                  <span style={{ width: 22, height: 22, border: '1px solid #999', borderRadius: 2, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
+                  <span style={{ width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, color: '#222', fontWeight: 500, whiteSpace: 'nowrap' }}>Value Date :</label>
@@ -1203,13 +1184,13 @@ export default function DirectDealsTab({
                     style={{ ...erpInpSt, width: 120 }}
                     disabled={viewMode !== 'EDIT' || !hasManage || saving}
                   />
-                  <span style={{ width: 22, height: 22, border: '1px solid #999', borderRadius: 2, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
+                  <span style={{ width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
                 </div>
               </div>
 
               {/* Customer tab */}
               <div style={{ display: 'flex', marginBottom: 0 }}>
-                <div style={{ background: 'linear-gradient(180deg,#7a9a60,#5a7a40)', color: '#fff', padding: '5px 18px', fontSize: 12, fontWeight: 500, border: '1px solid #4a6a30', borderBottom: 'none', borderRadius: '3px 3px 0 0', cursor: 'default' }}>
+                <div style={{ background: 'var(--brand-soft)', color: 'var(--brand-on-soft)', padding: '6px 14px', fontSize: 12, fontWeight: 600, border: '1px solid var(--brand-border)', borderBottom: 'none', borderRadius: '8px 8px 0 0', cursor: 'default' }}>
                   Customer
                 </div>
               </div>
@@ -1295,7 +1276,7 @@ export default function DirectDealsTab({
                           </td>
                           {/* Delete */}
                           <td style={{ padding: '3px 3px', textAlign: 'center' }}>
-                            <button type="button" onClick={() => removeLine(idx)} disabled={viewMode !== 'EDIT' || !hasManage || saving || form.lineItems.length === 1} style={{ width: 24, height: 20, background: 'linear-gradient(180deg,#e0e0e0,#b8b8b8)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#444', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                            <button type="button" onClick={() => removeLine(idx)} disabled={viewMode !== 'EDIT' || !hasManage || saving || form.lineItems.length === 1} style={{ ...erpWin.titleBtn, width: 28, height: 24 }}>✕</button>
                           </td>
                         </tr>
                       ))}
@@ -1315,11 +1296,11 @@ export default function DirectDealsTab({
             </div>{/* end body */}
 
             {/* ── Bottom bar ── */}
-            <div style={{ background: 'linear-gradient(180deg,#d8d8d8,#c0c0c0)', borderTop: '2px solid #888', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <div style={{ ...erpWin.footer }}>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button type="button" onClick={addLine} style={btmBtnSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>+ Add Line</button>
                 <button type="button" onClick={() => saveFormData()} disabled={saving || viewMode !== 'EDIT' || !hasManage || isEditingLocked} style={btmBtnSt}>💾 Save Draft</button>
-                <button type="button" onClick={() => saveFormData('confirmed')} disabled={saving || viewMode !== 'EDIT' || !hasManage || isEditingLocked} style={{ ...btmBtnSt, background: 'linear-gradient(180deg,#7aba70,#4a8a40)', color: '#fff', borderColor: '#3a6a30' }}>✓ Post</button>
+                <button type="button" onClick={() => saveFormData('confirmed')} disabled={saving || viewMode !== 'EDIT' || !hasManage || isEditingLocked} style={{ ...erpWin.footerBtnPrimary }}>✓ Post</button>
                 <button type="button" onClick={() => { resetForm(); setShowModal(false) }} style={btmBtnSt}>Cancel</button>
               </div>
               <div style={{ display: 'flex', gap: 20, fontSize: 12, alignItems: 'center' }}>

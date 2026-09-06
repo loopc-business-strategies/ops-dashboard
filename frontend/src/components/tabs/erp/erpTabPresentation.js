@@ -19,14 +19,58 @@ export const formatDateInputLocal = (date) => {
 export const ERP_TAB_COLORS = {
   p1: '#FFFFFF',
   p2: '#F3F4F6',
-  s1: 'var(--purple-light)',
-  s2: 'var(--purple)',
+  s1: 'var(--brand-primary)',
+  s2: 'var(--brand-dark, var(--brand-primary))',
   ink: '#111827',
   inkSoft: '#374151',
   t1: '#111827',
   t2: '#374151',
   t3: '#334155',
   danger: '#DC2626',
+}
+
+/** Shared register table cell styles (pair with `.erp-table` when possible). */
+export const ERP_TABLE = {
+  wrap: {
+    width: '100%',
+    overflowX: 'auto',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    background: 'var(--bg-card)',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: 13,
+    color: 'var(--text-primary)',
+  },
+  th: {
+    height: 40,
+    padding: '8px 12px',
+    textAlign: 'left',
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: 'var(--brand-on-soft)',
+    background: 'var(--brand-soft)',
+    borderBottom: '1px solid var(--brand-border)',
+    borderRight: '1px solid var(--brand-border)',
+    whiteSpace: 'nowrap',
+  },
+  td: {
+    height: 42,
+    padding: '8px 12px',
+    borderBottom: '1px solid var(--border)',
+    borderRight: '1px solid var(--border)',
+    verticalAlign: 'middle',
+    color: 'var(--text-primary)',
+  },
+  num: {
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+    fontFamily: 'Consolas, "Courier New", monospace',
+  },
 }
 
 /** Shared empty-state card for ERP tab sections */

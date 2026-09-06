@@ -97,7 +97,7 @@ export default function ERPDashboardTab({
 
           {/* Edit mode banner */}
           {dashEditMode && (
-            <div style={{ background: 'linear-gradient(90deg,#DCFCE7,#F0FDF4)', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.6rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: C.s2 }}>
+            <div style={{ background: '#F0FDF4', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.6rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: C.s2 }}>
               <span style={{ fontSize: '1rem' }}>↕</span>
               <span>Drag widgets to rearrange. Margins and fixing are pinned to the front when you click <strong>Done</strong> or <strong>Customize → Apply</strong>. Click <strong>✕</strong> to remove a widget.</span>
             </div>

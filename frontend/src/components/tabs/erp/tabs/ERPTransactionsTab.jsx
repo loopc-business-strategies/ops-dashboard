@@ -317,7 +317,7 @@ export default function ERPTransactionsTab({
                     <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Attachments</p>
                     <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Upload supporting receipts, invoices, approvals, or backup documents.</p>
                   </div>
-                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', borderRadius: '0.35rem', cursor: (saving || selectedPeriodLocked) ? 'not-allowed' : 'pointer', fontWeight: '700', opacity: selectedPeriodLocked ? 0.55 : 1 }}>
+                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--brand-on-soft)', borderRadius: '0.35rem', cursor: (saving || selectedPeriodLocked) ? 'not-allowed' : 'pointer', fontWeight: '700', opacity: selectedPeriodLocked ? 0.55 : 1 }}>
                     Upload document
                     <input
                       key={transactionAttachmentInputKey}
@@ -439,21 +439,21 @@ export default function ERPTransactionsTab({
             </div>
           </div>
 
-          <div ref={txScrollRef} style={{ overflow: 'auto', maxHeight: txVirtEnabled ? 560 : undefined, background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+          <div ref={txScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: txVirtEnabled ? 560 : undefined, borderRadius: '0.5rem' }}>
+            <table className="erp-table">
               <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th style={{ padding: '0.65rem', textAlign: 'center' }}>
+                <tr>
+                  <th style={{ textAlign: 'center' }}>
                     <input type="checkbox" checked={selectedTypeFilter ? allFilteredTransactionsSelected : allVisibleTransactionsSelected} onChange={selectedTypeFilter ? toggleFilteredTransactionSelection : toggleVisibleTransactionSelection} />
                   </th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Date</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Type</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Party</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Amount</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Status</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Description</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Attachments</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Chat</th>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Party</th>
+                  <th className="num">Amount</th>
+                  <th>Status</th>
+                  <th>Description</th>
+                  <th>Attachments</th>
+                  <th>Chat</th>
                 </tr>
               </thead>
               <tbody>

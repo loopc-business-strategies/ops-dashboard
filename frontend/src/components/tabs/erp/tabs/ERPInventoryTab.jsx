@@ -296,24 +296,21 @@ export default function ERPInventoryTab({
                   <span style={{ padding: '0.3rem 0.6rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{sortedInventoryTableRows.length} items</span>
                 </div>
               </div>
-              <div ref={invScrollRef} style={{ overflow: 'auto', maxHeight: invVirtEnabled ? 520 : undefined }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+              <div ref={invScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: invVirtEnabled ? 520 : undefined, border: 'none', borderRadius: 0 }}>
+                <table className="erp-table">
                   <thead>
-                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
+                    <tr>
                       {['SKU', 'Name', 'Category', 'Tax Type', 'VAT %', 'Qty On Hand (Gross)', 'Pure Qty', 'Unit', 'Unit Cost', 'Selling Price', 'Total Value', 'Min Stock', 'Status'].map(col => {
                         const isVatCol = col === 'VAT %'
                         const vatSortIndicator = inventoryVatSortDir === 'none' ? '' : inventoryVatSortDir === 'asc' ? ' ▲' : ' ▼'
+                        const isNum = col === 'VAT %' || col === 'Qty On Hand (Gross)' || col === 'Pure Qty' || col === 'Unit Cost' || col === 'Selling Price' || col === 'Total Value'
                         return (
                           <th
                             key={col}
+                            className={isNum ? 'num' : undefined}
                             onClick={isVatCol ? () => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none')) : undefined}
                             title={isVatCol ? 'Click to sort VAT %' : undefined}
                             style={{
-                              padding: '0.55rem 0.7rem',
-                              textAlign: col === 'VAT %' || col === 'Qty On Hand (Gross)' || col === 'Pure Qty' || col === 'Unit Cost' || col === 'Selling Price' || col === 'Total Value' ? 'right' : 'left',
-                              color: '#374151',
-                              fontWeight: '700',
-                              whiteSpace: 'nowrap',
                               cursor: isVatCol ? 'pointer' : 'default',
                               userSelect: isVatCol ? 'none' : 'auto',
                             }}
@@ -418,12 +415,12 @@ export default function ERPInventoryTab({
                           Showing first {STOCK_MOVEMENTS_UI_CAP} of {filtered.length} movements (UI cap). Refine filter to narrow results.
                         </p>
                       )}
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <div className="erp-table-wrap" style={{ overflowX: 'auto', borderRadius: '0.45rem' }}>
+                      <table className="erp-table">
                         <thead>
-                          <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
+                          <tr>
                             {['Date', 'Item', 'Change', 'Before', 'After', 'Reason (Voucher)', 'By'].map(col => (
-                              <th key={col} style={{ padding: '0.55rem 0.7rem', textAlign: col === 'Change' || col === 'Before' || col === 'After' ? 'right' : 'left', color: '#374151', fontWeight: '700', whiteSpace: 'nowrap' }}>{col}</th>
+                              <th key={col} className={col === 'Change' || col === 'Before' || col === 'After' ? 'num' : undefined}>{col}</th>
                             ))}
                           </tr>
                         </thead>
