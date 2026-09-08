@@ -38,7 +38,7 @@
       "displayName": "Venus Bullions",
       "companyName": "Venus Bullions",
       "tagline": "Venus Bullions Operations",
-      "portalHost": "vb.loopcstrategies.com",
+      "portalHost": "venusbullions.loopcstrategies.com",
       "envVar": "MONGO_URI_VB",
       "brandPrimary": "#B45309",
       "sharedInboxEmail": "",
@@ -46,6 +46,8 @@
     }
   },
   "customDomains": {
-    "erp.enterprise-demo.com": "mg"
+    "erp.enterprise-demo.com": "mg",
+    "venusbullions.loopcstrategies.com": "vb",
+    "vb.loopcstrategies.com": "vb"
   }
 }

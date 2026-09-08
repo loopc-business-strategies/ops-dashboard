@@ -17,6 +17,7 @@ describe('tenant branding integration', () => {
     expect(resolveTenantFromHostname('mg.loopcstrategies.com')).toBe('mg')
     expect(resolveTenantFromHostname('cg.loopcstrategies.com')).toBe('cg')
     expect(resolveTenantFromHostname('vb.loopcstrategies.com')).toBe('vb')
+    expect(resolveTenantFromHostname('venusbullions.loopcstrategies.com')).toBe('vb')
     expect(resolveTenantFromHostname('localhost', 'loopc')).toBe('loopc')
     expect(resolveTenantFromSearch('?tenant=mg', 'loopc')).toBe('mg')
     expect(resolveTenantFromSearch('?company=cg', 'loopc')).toBe('cg')

@@ -36,13 +36,15 @@ const BUILTIN_CATALOG = {
       key: 'vb',
       displayName: 'Venus Bullions',
       tagline: 'Venus Bullions Operations',
-      portalHost: 'vb.loopcstrategies.com',
+      portalHost: 'venusbullions.loopcstrategies.com',
       envVar: 'MONGO_URI_VB',
       sharedInboxEmail: '',
     },
   },
   customDomains: {
     'erp.enterprise-demo.com': 'mg',
+    'venusbullions.loopcstrategies.com': 'vb',
+    'vb.loopcstrategies.com': 'vb',
   },
 }
 
