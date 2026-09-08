@@ -232,8 +232,9 @@ export function useErpTabRouter({
 
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token) return
-    // Defer heavy catalogs until voucher editor needs them — currencies only on tab enter
+    // Party Account combobox needs chart of accounts; currencies for FX headers.
     if (!currencies.length) loadCurrencies()
+    if (!accounts.length) loadAccounts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token])
 

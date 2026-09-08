@@ -98,4 +98,24 @@ describe('useErpTabRouter currency loading', () => {
     expect(props.loadAccounts).toHaveBeenCalledWith({ scope: 'summary' })
     expect(props.loadCurrencies).not.toHaveBeenCalled()
   })
+
+  it('loads accounts and currencies when vouchers tab activates', () => {
+    const props = buildRouterProps({ activeTab: 'vouchers' })
+    renderHook(() => useErpTabRouter(props))
+
+    expect(props.loadCurrencies).toHaveBeenCalled()
+    expect(props.loadAccounts).toHaveBeenCalled()
+  })
+
+  it('skips catalog reload on vouchers when accounts and currencies exist', () => {
+    const props = buildRouterProps({
+      activeTab: 'vouchers',
+      accounts: [{ _id: 'a1', accountCode: '1100' }],
+      currencies: [{ code: 'USD' }],
+    })
+    renderHook(() => useErpTabRouter(props))
+
+    expect(props.loadCurrencies).not.toHaveBeenCalled()
+    expect(props.loadAccounts).not.toHaveBeenCalled()
+  })
 })

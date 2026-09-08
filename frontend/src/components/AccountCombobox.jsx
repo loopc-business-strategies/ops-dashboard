@@ -217,7 +217,12 @@ const AccountCombobox = forwardRef(function AccountCombobox({
           </div>
         )
       )}
-      {open && query.trim() && filteredGroups.length === 0 && (
+      {open && allOptions.length === 0 && (
+        <div style={{ ...dropdownStyle, padding: '10px 14px', fontSize: '0.8rem', color: '#9CA3AF' }}>
+          No accounts loaded
+        </div>
+      )}
+      {open && allOptions.length > 0 && query.trim() && filteredGroups.length === 0 && (
         <div style={{ ...dropdownStyle, padding: '10px 14px', fontSize: '0.8rem', color: '#9CA3AF' }}>
           No accounts found
         </div>
