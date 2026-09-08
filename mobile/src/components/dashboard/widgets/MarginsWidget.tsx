@@ -33,7 +33,7 @@ export function MarginsWidget({
   const liveRecalcEnabled = liveRecalcProp ?? liveSpot.liveRecalcEnabled
   const recalcOptions = { goldPriceUSD, silverPriceUSD, liveRecalcEnabled }
   const customers = (dashboard?.customerMargins || []).map((r) =>
-    mapMarginRow(r, 'customerName', { ...recalcOptions, favorableCredit: true }),
+    mapMarginRow(r, 'customerName', { ...recalcOptions }),
   )
   const suppliers = (dashboard?.supplierMargins?.rows || []).map((r) =>
     mapMarginRow(r, 'supplierName', { ...recalcOptions, suppressMetalSpotMtm: true }),

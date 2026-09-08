@@ -22,7 +22,7 @@ function buildCustomerLiveMetrics(customer, goldPriceUSD, silverPriceUSD) {
     silverPrice: silverPriceUSD,
     suppressMetalSpotMtm,
     revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
-    fundsMode: 'customerAbsIfNegative',
+    fundsMode: 'asIs',
   })
 }
 

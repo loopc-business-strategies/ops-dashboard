@@ -12,13 +12,11 @@ describe('mapErpLiveMarginRow', () => {
       marginAmount: 4,
     }
     const low = mapErpLiveMarginRow(row, 'customerName', {
-      favorableCredit: true,
       marginLiveRecalc: true,
       goldPriceUSD: 20,
       silverPriceUSD: 1,
     })
     const high = mapErpLiveMarginRow(row, 'customerName', {
-      favorableCredit: true,
       marginLiveRecalc: true,
       goldPriceUSD: 25,
       silverPriceUSD: 1,
@@ -66,18 +64,52 @@ describe('mapErpLiveMarginRow', () => {
       suppressMetalSpotMtm: true,
     }
     const low = mapErpLiveMarginRow(row, 'customerName', {
-      favorableCredit: true,
       marginLiveRecalc: true,
       goldPriceUSD: 10,
       silverPriceUSD: 1,
     })
     const high = mapErpLiveMarginRow(row, 'customerName', {
-      favorableCredit: true,
       marginLiveRecalc: true,
       goldPriceUSD: 100,
       silverPriceUSD: 1,
     })
     expect(low.equity).toBe(800)
     expect(high.equity).toBe(800)
+  })
+
+  test('customer credit equity stays signed negative (no favorableCredit abs)', () => {
+    const mapped = mapErpLiveMarginRow(
+      {
+        customerName: 'MODERN CAPITAL',
+        equity: -162131,
+        marginAmount: 0,
+        marginExcess: -162131,
+        goldPosition: 0,
+        silverPosition: 0,
+      },
+      'customerName',
+    )
+    expect(mapped.equity).toBe(-162131)
+    expect(mapped.equityFmt).toBe('-162,131.00')
+    expect(mapped.status).toBe('NEGATIVE')
+  })
+
+  test('supplier payable equity stays negative', () => {
+    const mapped = mapErpLiveMarginRow(
+      {
+        supplierName: 'FINMASTER MCHJ',
+        equity: -495.87,
+        marginAmount: 0,
+        marginExcess: -495.87,
+        goldPosition: 0,
+        silverPosition: 0,
+        suppressMetalSpotMtm: true,
+      },
+      'supplierName',
+      { suppressMetalSpotMtm: true },
+    )
+    expect(mapped.equity).toBe(-495.87)
+    expect(mapped.equityFmt).toBe('-495.87')
+    expect(mapped.status).toBe('NEGATIVE')
   })
 })

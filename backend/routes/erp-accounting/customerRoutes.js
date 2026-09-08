@@ -50,7 +50,7 @@ function registerCustomerRoutes(deps) {
       goldPrice,
       silverPrice,
       suppressMetalSpotMtm,
-      fundsMode: 'customerAbsIfNegative',
+      fundsMode: 'asIs',
     })
     return {
       totalFunds: toMoney(raw.funds),
