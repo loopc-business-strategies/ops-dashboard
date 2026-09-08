@@ -63,6 +63,9 @@ ops_dashboard.local.html
 # Mongo backup workflow artifacts
 backup-artifacts/
 
+# Local one-off operator scratch (secrets / temp URIs)
+scripts/_tmp-*
+
 # Playwright output (root-level hardening)
 test-results/
 playwright-report/

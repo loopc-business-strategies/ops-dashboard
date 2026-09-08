@@ -1,11 +1,12 @@
 ﻿// FILE: src/pages/Login.jsx
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import { applyTenantTheme, getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 import TenantLoginShell from './TenantLoginShell'
+import authAPI from '../api/auth'
 
 function Login() {
   const navigate = useNavigate()
@@ -23,6 +24,7 @@ function Login() {
   const [idleNotice, setIdleNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
+  const [needsSetup, setNeedsSetup] = useState(false)
   const branding = getTenantBranding(company)
 
   useEffect(() => {
@@ -31,6 +33,14 @@ function Login() {
       setIdleNotice(t('loginIdleMessage'))
     }
   }, [t])
+
+  useEffect(() => {
+    let mounted = true
+    authAPI.setupStatus(company).then((data) => {
+      if (mounted && data?.needsSetup) setNeedsSetup(true)
+    }).catch(() => {})
+    return () => { mounted = false }
+  }, [company])
 
   useEffect(() => {
     return applyTenantTheme(branding.colors)
@@ -62,6 +72,9 @@ function Login() {
         setError(t('loginErrNetwork'))
       } else if (err.response.status >= 500) {
         setError(t('loginErrServer'))
+      } else if (err.response?.data?.code === 'TENANT_NEEDS_SETUP') {
+        setNeedsSetup(true)
+        setError(err.response.data.message)
       } else {
         setError(err.response?.data?.message || t('loginErrInvalid'))
       }
@@ -83,6 +96,12 @@ function Login() {
       setShowPass={setShowPass}
       handleSubmit={handleSubmit}
       t={t}
+      setupNotice={needsSetup ? (
+        <span>
+          No admin exists for {branding.displayName} yet.{' '}
+          <Link to="/setup" style={{ color: 'inherit', fontWeight: 700 }}>Create the first Super Admin</Link>
+        </span>
+      ) : null}
     />
   )
 }

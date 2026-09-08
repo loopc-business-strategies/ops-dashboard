@@ -36,6 +36,7 @@ const TENANTS = [
   { key: 'mg', uriKey: 'MONGO_URI_MG', clusterHost: 'cluster0.m5yqfs7.mongodb.net' },
   { key: 'cg', uriKey: 'MONGO_URI_CG', clusterHost: 'cluster0.karzgcd.mongodb.net' },
   { key: 'loopc', uriKey: 'MONGO_URI_LOOPC', clusterHost: 'cluster0.fiijdd5.mongodb.net' },
+  { key: 'vb', uriKey: 'MONGO_URI_VB', clusterHost: 'cluster0.fiotefu.mongodb.net' },
 ]
 
 const SAMPLE_COLLECTIONS = ['users', 'transactions', 'ledgers']
@@ -45,18 +46,38 @@ function parseClusterName(uri) {
   return match?.[1] || 'Cluster0'
 }
 
-async function probeTenant({ key, uriKey }) {
+function hostnameFromUri(uri) {
+  try {
+    return new URL(String(uri).replace(/^mongodb(\+srv)?:\/\//, 'https://')).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
+async function probeTenant({ key, uriKey, clusterHost }) {
   const uri = String(process.env[uriKey] || '').trim()
   if (!uri) throw new Error(`${uriKey} is not set`)
+
+  const host = hostnameFromUri(uri)
+  if (clusterHost && host && host !== clusterHost.toLowerCase()) {
+    throw new Error(`${key}: expected host ${clusterHost}, got ${host}`)
+  }
+  if (key === 'vb' && host === 'cluster0.m5yqfs7.mongodb.net') {
+    throw new Error('vb: MONGO_URI_VB still points at MG cluster — finish dedicated Atlas separation first')
+  }
 
   await mongoose.connect(uri, { maxPoolSize: 2, serverSelectionTimeoutMS: 20000 })
   const db = mongoose.connection.db
   const collections = await db.listCollections().toArray()
   const names = collections.map((c) => c.name)
 
+  const probeNames = key === 'vb'
+    ? [...SAMPLE_COLLECTIONS, 'chartofaccounts', 'currencies']
+    : SAMPLE_COLLECTIONS
+
   const counts = {}
   const samples = {}
-  for (const name of SAMPLE_COLLECTIONS.filter((n) => names.includes(n))) {
+  for (const name of probeNames.filter((n) => names.includes(n))) {
     counts[name] = await db.collection(name).countDocuments({})
     if (counts[name] > 0) {
       const doc = await db.collection(name).findOne({}, { projection: { _id: 1 } })
@@ -66,9 +87,9 @@ async function probeTenant({ key, uriKey }) {
 
   await mongoose.disconnect()
 
-  const hasData = SAMPLE_COLLECTIONS.some((n) => (counts[n] ?? 0) > 0)
+  const hasData = Object.values(counts).some((n) => (n ?? 0) > 0)
   if (!hasData) {
-    throw new Error(`${key}: no documents in users/transactions/ledgers`)
+    throw new Error(`${key}: no documents in probe collections`)
   }
 
   return {
@@ -109,7 +130,9 @@ async function main() {
 
   const probeResults = []
   for (const tenant of TENANTS) {
-    process.stdout.write(`  ${tenant.key} direct Mongo (${tenant.clusterHost})... `)
+    const uri = String(process.env[tenant.uriKey] || '').trim()
+    const hostLabel = tenant.clusterHost || hostnameFromUri(uri) || 'from-uri'
+    process.stdout.write(`  ${tenant.key} direct Mongo (${hostLabel})... `)
     const row = await probeTenant(tenant)
     probeResults.push(row)
     const summary = SAMPLE_COLLECTIONS

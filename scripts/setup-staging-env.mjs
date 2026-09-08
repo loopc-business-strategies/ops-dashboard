@@ -141,9 +141,9 @@ function pushStagingMongoSecrets() {
 
   const { assertStagingMongoTargets } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
   const localEnv = loadDotEnv(stagingLocalPath)
-  assertStagingMongoTargets(['mg', 'cg', 'loopc'], localEnv)
+  assertStagingMongoTargets(['mg', 'cg', 'loopc', 'vb'], localEnv)
 
-  for (const tenant of ['MG', 'CG', 'LOOPC']) {
+  for (const tenant of ['MG', 'CG', 'LOOPC', 'VB']) {
     const key = `STAGING_MONGO_URI_${tenant}`
     const value = String(localEnv[key] || '').trim()
     if (!value) {
@@ -161,7 +161,7 @@ function pushGithubSecrets(bundle) {
   console.log(`\nPushing staging smoke secrets to ${REPO}...`)
   runGh(['secret', 'set', 'STAGING_SMOKE_AUTH_NAME', '-R', REPO], `${bundle.STAGING_SMOKE_AUTH_NAME}\n`)
   runGh(['secret', 'set', 'STAGING_SMOKE_AUTH_PASSWORD', '-R', REPO], `${bundle.STAGING_SMOKE_AUTH_PASSWORD}\n`)
-  for (const tenant of ['MG', 'CG', 'LOOPC']) {
+  for (const tenant of ['MG', 'CG', 'LOOPC', 'VB']) {
     runGh(['secret', 'set', `STAGING_SMOKE_AUTH_NAME_${tenant}`, '-R', REPO], `${bundle.STAGING_SMOKE_AUTH_NAME}\n`)
     runGh(['secret', 'set', `STAGING_SMOKE_AUTH_PASSWORD_${tenant}`, '-R', REPO], `${bundle.STAGING_SMOKE_AUTH_PASSWORD}\n`)
   }
@@ -208,7 +208,7 @@ function provisionStagingSmokeUsers(bundle) {
 
   const { assertStagingMongoTargets, mapStagingMongoToProcessEnv } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
   const localEnv = loadDotEnv(stagingLocalPath)
-  assertStagingMongoTargets(['mg', 'cg', 'loopc'], localEnv)
+  assertStagingMongoTargets(['mg', 'cg', 'loopc', 'vb'], localEnv)
 
   const childEnv = mapStagingMongoToProcessEnv({
     ...process.env,

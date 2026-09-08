@@ -1,12 +1,12 @@
 /**
  * Tenant rollout for 24-Hour Voucher / JV Lock.
- * Enabled for LOOPC, CG, and MG by default.
+ * Enabled for LOOPC, CG, MG, and VB by default.
  *
- * Override with env VOUCHER_24H_LOCK_TENANTS=loopc,cg,mg
+ * Override with env VOUCHER_24H_LOCK_TENANTS=loopc,cg,mg,vb
  * (comma-separated). Empty string disables all; unset uses defaults below.
  */
 
-const DEFAULT_ENABLED_TENANTS = ['loopc', 'cg', 'mg']
+const DEFAULT_ENABLED_TENANTS = ['loopc', 'cg', 'mg', 'vb']
 
 function parseEnabledTenants() {
   const raw = process.env.VOUCHER_24H_LOCK_TENANTS

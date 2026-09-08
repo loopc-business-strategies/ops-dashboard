@@ -36,6 +36,7 @@ function main() {
     STAGING_MONGO_URI_MG: vars.MONGO_URI_MG,
     STAGING_MONGO_URI_CG: vars.MONGO_URI_CG,
     STAGING_MONGO_URI_LOOPC: vars.MONGO_URI_LOOPC,
+    STAGING_MONGO_URI_VB: vars.MONGO_URI_VB,
   }
 
   for (const [key, value] of Object.entries(mapping)) {
@@ -54,6 +55,7 @@ function main() {
     `STAGING_MONGO_URI_MG=${mapping.STAGING_MONGO_URI_MG}`,
     `STAGING_MONGO_URI_CG=${mapping.STAGING_MONGO_URI_CG}`,
     `STAGING_MONGO_URI_LOOPC=${mapping.STAGING_MONGO_URI_LOOPC}`,
+    `STAGING_MONGO_URI_VB=${mapping.STAGING_MONGO_URI_VB}`,
     '',
     `STAGING_SMOKE_API_BASE=${vars.SERVER_BASE_URL || DEFAULT_STAGING_API}`,
     '',
@@ -62,7 +64,7 @@ function main() {
   writeFileSync(stagingLocalPath, `${lines.join('\n')}\n`, 'utf8')
 
   const { assertStagingMongoTargets } = require(path.join(rootDir, 'backend', 'utils', 'stagingMongoSafety.js'))
-  assertStagingMongoTargets(['mg', 'cg', 'loopc'], Object.fromEntries(
+  assertStagingMongoTargets(['mg', 'cg', 'loopc', 'vb'], Object.fromEntries(
     Object.entries(mapping).map(([k, v]) => [k, v]),
   ))
 

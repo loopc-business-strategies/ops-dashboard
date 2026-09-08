@@ -16,12 +16,13 @@ describe('accountingPeriodClosing feature flag', () => {
     else process.env.VOUCHER_24H_LOCK_TENANTS = original24h
   })
 
-  test('defaults enable loopc, cg, and mg', () => {
+  test('defaults enable loopc, cg, mg, and vb', () => {
     delete process.env.ACCOUNTING_PERIOD_CLOSING_TENANTS
     process.env.VOUCHER_24H_LOCK_TENANTS = ''
     expect(isAccountingPeriodClosingEnabled('loopc')).toBe(true)
     expect(isAccountingPeriodClosingEnabled('cg')).toBe(true)
     expect(isAccountingPeriodClosingEnabled('mg')).toBe(true)
+    expect(isAccountingPeriodClosingEnabled('vb')).toBe(true)
   })
 
   test('env override can disable all tenants (MG rollout simulation)', () => {
@@ -30,6 +31,7 @@ describe('accountingPeriodClosing feature flag', () => {
     expect(isAccountingPeriodClosingEnabled('loopc')).toBe(false)
     expect(isAccountingPeriodClosingEnabled('cg')).toBe(false)
     expect(isAccountingPeriodClosingEnabled('mg')).toBe(false)
+    expect(isAccountingPeriodClosingEnabled('vb')).toBe(false)
   })
 })
 

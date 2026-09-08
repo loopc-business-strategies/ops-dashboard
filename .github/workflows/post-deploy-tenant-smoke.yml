@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   smoke-tenants:
-    name: Smoke mg/cg/loopc
+    name: Smoke mg/cg/loopc/vb
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -84,6 +84,8 @@ jobs:
           SMOKE_AUTH_PASSWORD_CG: ${{ secrets.SMOKE_AUTH_PASSWORD_CG }}
           SMOKE_AUTH_NAME_LOOPC: ${{ secrets.SMOKE_AUTH_NAME_LOOPC }}
           SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.SMOKE_AUTH_PASSWORD_LOOPC }}
+          SMOKE_AUTH_NAME_VB: ${{ secrets.SMOKE_AUTH_NAME_VB }}
+          SMOKE_AUTH_PASSWORD_VB: ${{ secrets.SMOKE_AUTH_PASSWORD_VB }}
           SMOKE_REQUIRE_AUTH: 'true'
         run: npm run smoke:prod
 
@@ -118,6 +120,8 @@ jobs:
           SMOKE_AUTH_PASSWORD_CG: ${{ secrets.SMOKE_AUTH_PASSWORD_CG }}
           SMOKE_AUTH_NAME_LOOPC: ${{ secrets.SMOKE_AUTH_NAME_LOOPC }}
           SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.SMOKE_AUTH_PASSWORD_LOOPC }}
+          SMOKE_AUTH_NAME_VB: ${{ secrets.SMOKE_AUTH_NAME_VB }}
+          SMOKE_AUTH_PASSWORD_VB: ${{ secrets.SMOKE_AUTH_PASSWORD_VB }}
           SMOKE_AUTH_NAME: ${{ secrets.SMOKE_AUTH_NAME }}
           SMOKE_AUTH_PASSWORD: ${{ secrets.SMOKE_AUTH_PASSWORD }}
         run: |
@@ -140,6 +144,7 @@ jobs:
           smoke_tenant mg
           smoke_tenant cg
           smoke_tenant loopc
+          smoke_tenant vb
       - name: Notify Slack on smoke failure
         if: failure()
         env:

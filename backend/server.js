@@ -28,18 +28,17 @@ const { isWeakJwtSecret, isHardenedDeployEnv, validateHardenedDeploySecrets } = 
     missing.push('SERVER_BASE_URL')
   }
   
-  // Check if at least one tenant URI is available; warn if none (dev/test only)
-  const hasAnyTenantUri = process.env.MONGO_URI_MG || process.env.MONGO_URI_CG || process.env.MONGO_URI_LOOPC
-  const hasAllTenantUris = process.env.MONGO_URI_MG && process.env.MONGO_URI_CG && process.env.MONGO_URI_LOOPC
-  
+  const { TENANT_KEYS, getTenantUri } = require('./config/tenants')
+  const configuredTenants = TENANT_KEYS.filter((tenant) => Boolean(getTenantUri(tenant)))
+  const hasAnyTenantUri = configuredTenants.length > 0
+  const hasAllTenantUris = configuredTenants.length === TENANT_KEYS.length
+
   if (!hasAnyTenantUri) {
-    missing.push('At least one of: MONGO_URI_MG / MONGO_URI_CG / MONGO_URI_LOOPC')
+    missing.push(`At least one of: ${TENANT_KEYS.map((t) => `MONGO_URI_${t.toUpperCase()}`).join(' / ')}`)
   } else if (!hasAllTenantUris && !isHardenedDeployEnv()) {
-    const available = []
-    if (process.env.MONGO_URI_MG) available.push('MG')
-    if (process.env.MONGO_URI_CG) available.push('CG')
-    if (process.env.MONGO_URI_LOOPC) available.push('Loopc')
-    console.warn(`[startup] WARNING — only some tenants configured: ${available.join(', ')} (missing: ${['MG', 'CG', 'Loopc'].filter(t => !available.includes(t)).join(', ')})`)
+    const available = configuredTenants.map((t) => t.toUpperCase())
+    const missingTenants = TENANT_KEYS.filter((t) => !configuredTenants.includes(t)).map((t) => t.toUpperCase())
+    console.warn(`[startup] WARNING — only some tenants configured: ${available.join(', ')} (missing: ${missingTenants.join(', ')})`)
   }
   
   if (missing.length) {
@@ -127,7 +126,7 @@ const mongoSelection = buildMongoUri()
 const mongoUri = mongoSelection?.uri || null
 const mongoInfo = getMongoConfigInfo()
 if (!mongoUri) {
-  console.warn('[startup] WARNING — Mongo config missing. Set at least one of MONGO_URI_MG/MONGO_URI_CG/MONGO_URI_LOOPC.')
+  console.warn('[startup] WARNING — Mongo config missing. Set at least one tenant MONGO_URI_* (including MONGO_URI_VB).')
 }
 
 console.log(`Mongo config mode: ${mongoInfo.mode}`)

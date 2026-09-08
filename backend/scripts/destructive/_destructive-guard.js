@@ -1,7 +1,16 @@
 const path = require('path')
 const { assertStagingOnlyScript } = require('../../utils/assertStagingOnlyScript')
 
-const VALID_TENANTS = new Set(['mg', 'cg', 'loopc', 'all'])
+function loadValidTenants() {
+  try {
+    const catalog = require('../../shared/tenant-catalog.json')
+    return new Set([...Object.keys(catalog.tenants || {}), 'all'])
+  } catch {
+    return new Set(['mg', 'cg', 'loopc', 'vb', 'all'])
+  }
+}
+
+const VALID_TENANTS = loadValidTenants()
 
 function readArgValue(name) {
   const exactPrefix = `${name}=`
@@ -40,11 +49,13 @@ function requireDestructiveScriptGuard(options = {}) {
 
   if (!tenant || !VALID_TENANTS.has(tenant)) {
     console.error(`[blocked] ${scriptName} is quarantined as destructive.`)
-    console.error('Pass an explicit tenant: --tenant=mg, --tenant=cg, --tenant=loopc, or --tenant=all.')
+    console.error('Pass an explicit tenant: --tenant=<catalog-key> or --tenant=all.')
     process.exit(1)
   }
 
-  const stagingTenants = tenant === 'all' ? ['mg', 'cg', 'loopc'] : [tenant]
+  const stagingTenants = tenant === 'all'
+    ? [...VALID_TENANTS].filter((key) => key !== 'all')
+    : [tenant]
   try {
     assertStagingOnlyScript({ scriptName, tenants: stagingTenants })
   } catch (error) {

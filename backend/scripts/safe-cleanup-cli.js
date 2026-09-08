@@ -15,7 +15,9 @@ const mongoose = require('mongoose')
 const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const { createSafeCleanup } = require('../utils/safeCleanupWrapper')
 
-const VALID_TENANTS = new Set(['mg', 'cg', 'loopc'])
+const { TENANT_KEYS } = require('../config/tenants')
+
+const VALID_TENANTS = new Set(TENANT_KEYS)
 
 function resolveTenantUri(tenant) {
   const key = `MONGO_URI_${String(tenant || '').toUpperCase()}`
@@ -88,8 +90,8 @@ async function main() {
     let token = readArgValue(args, '--token')
 
     if (!tenant || !VALID_TENANTS.has(tenant)) {
-      console.log('\n[!] Valid tenants: mg, cg, loopc\n')
-      tenant = await prompt('Select tenant (mg/cg/loopc): ')
+      console.log(`\n[!] Valid tenants: ${[...VALID_TENANTS].join(', ')}\n`)
+      tenant = await prompt(`Select tenant (${[...VALID_TENANTS].join('/')}): `)
     }
 
     tenant = String(tenant || '').trim().toLowerCase()

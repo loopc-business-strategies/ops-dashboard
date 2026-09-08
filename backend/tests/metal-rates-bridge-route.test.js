@@ -41,6 +41,7 @@ beforeAll(async () => {
   process.env.MONGO_URI_MG = mongoUri
   process.env.MONGO_URI_CG = mongoUri
   process.env.MONGO_URI_LOOPC = mongoUri
+  process.env.MONGO_URI_VB = mongoUri
 
   await mongoose.connect(mongoUri, { maxPoolSize: 1 })
   const registry = require('../db/tenantModelRegistry')
@@ -51,7 +52,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   if (!isMongooseConnected(mongoose)) return
-  for (const tenant of ['mg', 'cg', 'loopc']) {
+  for (const tenant of ['mg', 'cg', 'loopc', 'vb']) {
     const Model = await MetalRate.getTenantModel(tenant)
     await Model.deleteMany({})
   }
@@ -64,7 +65,7 @@ afterAll(async () => {
 })
 
 describe('POST /api/erp-accounting/metal-rates/bridge', () => {
-  test('fans out normalized rates to mg, cg, and loopc', async () => {
+  test('fans out normalized rates to all catalog tenants', async () => {
     const res = await request(app)
       .post('/api/erp-accounting/metal-rates/bridge')
       .set('x-metal-rates-bridge-token', BRIDGE_TOKEN)
@@ -74,11 +75,11 @@ describe('POST /api/erp-accounting/metal-rates/bridge', () => {
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
     expect(res.body.tenant).toBe('mg')
-    expect(res.body.fanout).toEqual(expect.arrayContaining(['mg', 'cg', 'loopc']))
+    expect(res.body.fanout).toEqual(expect.arrayContaining(['mg', 'cg', 'loopc', 'vb']))
     expect(res.body.rates.source).toBe('mt4-bridge')
     expect(res.body.rates.sourceGoldPrice).toBeGreaterThan(0)
 
-    for (const tenant of ['mg', 'cg', 'loopc']) {
+    for (const tenant of ['mg', 'cg', 'loopc', 'vb']) {
       const Model = await MetalRate.getTenantModel(tenant)
       const doc = await Model.findOne({ source: 'mt4-bridge' })
       expect(doc).toBeTruthy()

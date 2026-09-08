@@ -27,7 +27,7 @@ const {
 } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
 const { assertStagingOnlyScript } = require(path.join(backendDir, 'utils', 'assertStagingOnlyScript.js'))
 
-const STAGING_TENANTS = ['mg', 'cg', 'loopc']
+const STAGING_TENANTS = ['mg', 'cg', 'loopc', 'vb']
 
 const baseEnv = {
   ...process.env,

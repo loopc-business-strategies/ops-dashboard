@@ -8,6 +8,7 @@ const KNOWN_PRODUCTION_MONGO_HOSTS = Object.freeze([
   'cluster0.m5yqfs7.mongodb.net', // MG production
   'cluster0.karzgcd.mongodb.net', // CG production
   'cluster0.fiijdd5.mongodb.net', // LoopC production
+  'cluster0.fiotefu.mongodb.net', // Venus Bullions (vb) production
 ])
 
 const KNOWN_PRODUCTION_URI_MARKERS = Object.freeze([
@@ -62,9 +63,22 @@ function isKnownProductionMongoHost(uri) {
 }
 
 function looksLikeNonProductionUri(uri) {
-  // Denylist wins even if URI also contains staging|test keywords.
-  if (isKnownProductionMongoHost(uri)) return false
   if (looksLikeLocalOrEphemeralUri(uri)) return true
+
+  // Known production Atlas hosts may also host a dedicated *staging* database name
+  // (e.g. ops-dashboard-staging on the same cluster as production).
+  if (isKnownProductionMongoHost(uri)) {
+    const db = (() => {
+      try {
+        const parsed = new URL(String(uri || '').trim().replace(/^mongodb(\+srv)?:\/\//, 'https://'))
+        return String(parsed.pathname || '').replace(/^\//, '').toLowerCase()
+      } catch {
+        return ''
+      }
+    })()
+    return db.includes('staging')
+  }
+
   const lower = String(uri || '').toLowerCase()
   return /staging|preview|test|dev|sandbox|smoke|qa|uat/.test(lower)
 }

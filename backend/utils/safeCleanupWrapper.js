@@ -9,7 +9,7 @@ const { timingSafeEqualString } = require('./timingSafeEqualString')
 const { assertStagingOnlyScript } = require('./assertStagingOnlyScript')
 
 const AUDIT_LOG_DIR = path.resolve(__dirname, '../logs/cleanup-audit')
-const VALID_TENANTS = new Set(['mg', 'cg', 'loopc'])
+const VALID_TENANTS = new Set(['mg', 'cg', 'loopc', 'vb'])
 
 if (!fs.existsSync(AUDIT_LOG_DIR)) {
   fs.mkdirSync(AUDIT_LOG_DIR, { recursive: true })

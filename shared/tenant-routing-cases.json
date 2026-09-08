@@ -12,6 +12,18 @@
     "expected": "cg"
   },
   {
+    "name": "production vb subdomain",
+    "hostname": "vb.loopcstrategies.com",
+    "fallback": "loopc",
+    "expected": "vb"
+  },
+  {
+    "name": "production venusbullions brand alias",
+    "hostname": "venusbullions.loopcstrategies.com",
+    "fallback": "loopc",
+    "expected": "vb"
+  },
+  {
     "name": "direct tenant host",
     "hostname": "loopc",
     "fallback": "mg",

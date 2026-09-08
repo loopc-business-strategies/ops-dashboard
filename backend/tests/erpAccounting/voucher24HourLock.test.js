@@ -17,12 +17,13 @@ describe('voucher24HourLock feature gate', () => {
     else process.env.VOUCHER_24H_LOCK_TENANTS = original
   })
 
-  test('defaults enable loopc, cg, and mg', () => {
+  test('defaults enable loopc, cg, mg, and vb', () => {
     delete process.env.VOUCHER_24H_LOCK_TENANTS
-    expect(DEFAULT_ENABLED_TENANTS).toEqual(['loopc', 'cg', 'mg'])
+    expect(DEFAULT_ENABLED_TENANTS).toEqual(['loopc', 'cg', 'mg', 'vb'])
     expect(isVoucher24HourLockFeatureEnabled('loopc')).toBe(true)
     expect(isVoucher24HourLockFeatureEnabled('cg')).toBe(true)
     expect(isVoucher24HourLockFeatureEnabled('mg')).toBe(true)
+    expect(isVoucher24HourLockFeatureEnabled('vb')).toBe(true)
   })
 
   test('empty env disables all tenants', () => {
@@ -30,6 +31,7 @@ describe('voucher24HourLock feature gate', () => {
     expect(isVoucher24HourLockFeatureEnabled('loopc')).toBe(false)
     expect(isVoucher24HourLockFeatureEnabled('cg')).toBe(false)
     expect(isVoucher24HourLockFeatureEnabled('mg')).toBe(false)
+    expect(isVoucher24HourLockFeatureEnabled('vb')).toBe(false)
   })
 })
 

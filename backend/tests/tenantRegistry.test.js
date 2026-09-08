@@ -16,7 +16,7 @@ describe('tenantRegistry', () => {
 
   test('lists built-in tenants from shared catalog', () => {
     const keys = getTenantKeys()
-    expect(keys).toEqual(expect.arrayContaining(['mg', 'cg', 'loopc']))
+    expect(keys).toEqual(expect.arrayContaining(['mg', 'cg', 'loopc', 'vb']))
   })
 
   test('normalizes tenant keys case-insensitively', () => {
@@ -27,6 +27,8 @@ describe('tenantRegistry', () => {
   test('resolves subdomain hostnames to tenant keys', () => {
     expect(resolveTenantFromHost('mg.loopcstrategies.com')).toBe('mg')
     expect(resolveTenantFromHost('cg.loopcstrategies.com')).toBe('cg')
+    expect(resolveTenantFromHost('vb.loopcstrategies.com')).toBe('vb')
+    expect(resolveTenantFromHost('venusbullions.loopcstrategies.com')).toBe('vb')
     expect(resolveTenantFromHost('localhost', 'loopc')).toBe('loopc')
   })
 

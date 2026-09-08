@@ -92,6 +92,29 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
       tabInactive: '#9CA3AF',
     },
   },
+  vb: {
+    key: 'vb',
+    appName: APP_NAME,
+    displayName: 'Venus Bullions',
+    companyName: 'Venus Bullions',
+    tagline: 'Venus Bullions Operations',
+    logoText: 'VB',
+    portalHost: 'vb.loopcstrategies.com',
+    colors: {
+      primary: '#B45309',
+      secondary: '#F59E0B',
+      dark: '#78350F',
+      background: '#FFFBEB',
+      card: '#FFFFFF',
+      text: '#111827',
+      muted: '#6B7280',
+      success: '#059669',
+      danger: '#DC2626',
+      warning: '#D97706',
+      tabBar: '#FFFFFF',
+      tabInactive: '#9CA3AF',
+    },
+  },
 }
 
 /** Keep in sync with `shared/tenant-catalog.json` tenant keys. */

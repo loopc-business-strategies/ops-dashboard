@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   staging-smoke:
-    name: Smoke staging mg/cg/loopc
+    name: Smoke staging mg/cg/loopc/vb
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -58,6 +58,8 @@ jobs:
           SMOKE_AUTH_PASSWORD_CG: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_CG }}
           SMOKE_AUTH_NAME_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_NAME_LOOPC }}
           SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_LOOPC }}
+          SMOKE_AUTH_NAME_VB: ${{ secrets.STAGING_SMOKE_AUTH_NAME_VB }}
+          SMOKE_AUTH_PASSWORD_VB: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_VB }}
         run: npm run smoke:staging
 
       - name: Install mobile dependencies for API smoke

@@ -1,5 +1,6 @@
 const {
   getTenantKeys,
+  getTenantConfig,
   normalizeTenantKey,
   getDefaultTenant,
   resolveTenantFromHost,
@@ -21,6 +22,7 @@ module.exports = {
   TENANTS,
   normalizeTenant: normalizeTenantKey,
   getDefaultTenant,
+  getTenantConfig,
   resolveTenantFromHost,
   getTenantUri,
   resolveRequestTenantKey,

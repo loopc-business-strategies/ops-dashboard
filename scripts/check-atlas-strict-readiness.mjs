@@ -10,9 +10,10 @@ import {
   hasAtlasGroupIdsForTenants,
   getAtlasGroupIdForTenant,
 } from './lib/atlasAdminApi.mjs'
+import { loadCatalogTenantKeys } from './loadCatalogTenantKeys.mjs'
 
 const phase = String(process.env.ATLAS_BACKUP_PHASE || 'deferred').trim().toLowerCase()
-const TENANTS = ['mg', 'cg', 'loopc']
+const TENANTS = loadCatalogTenantKeys()
 
 if (phase !== 'strict') {
   console.log(`Atlas backup phase: ${phase} — strict readiness check skipped.`)
@@ -34,7 +35,7 @@ if (missingGroupIds.length) {
 if (missing.length || !hasAtlasGroupIdsForTenants(TENANTS)) {
   console.error('ATLAS_BACKUP_PHASE=strict requires Atlas M10+ Cloud Backup and API credentials.')
   console.error('Missing:', missing.length ? missing.join(', ') : 'tenant group ID coverage')
-  console.error('Set ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, and ATLAS_GROUP_ID_MG / CG / LOOPC')
+  console.error('Set ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, and ATLAS_GROUP_ID_MG / CG / LOOPC / VB')
   console.error('(or a shared ATLAS_GROUP_ID that applies to all tenants).')
   console.error('See docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md')
   process.exit(1)

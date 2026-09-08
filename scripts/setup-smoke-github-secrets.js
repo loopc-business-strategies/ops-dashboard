@@ -7,7 +7,7 @@
  * Staging-only. Requires:
  *   - --staging
  *   - APP_ENV=staging (set by this script)
- *   - STAGING_MONGO_URI_MG, STAGING_MONGO_URI_CG, STAGING_MONGO_URI_LOOPC
+ *   - STAGING_MONGO_URI_MG, STAGING_MONGO_URI_CG, STAGING_MONGO_URI_LOOPC, STAGING_MONGO_URI_VB
  *   - gh authenticated (GH_TOKEN or gh auth login) with repo admin access
  *
  * Usage:
@@ -29,7 +29,12 @@ if (process.platform === 'win32') {
 const rootDir = path.resolve(__dirname, '..')
 const backendDir = path.join(rootDir, 'backend')
 const isStaging = process.argv.includes('--staging')
-const skipBackendDotenv = isStaging && ['STAGING_MONGO_URI_MG', 'STAGING_MONGO_URI_CG', 'STAGING_MONGO_URI_LOOPC'].every(
+const skipBackendDotenv = isStaging && [
+  'STAGING_MONGO_URI_MG',
+  'STAGING_MONGO_URI_CG',
+  'STAGING_MONGO_URI_LOOPC',
+  'STAGING_MONGO_URI_VB',
+].every(
   (key) => String(process.env[key] || '').trim(),
 )
 
@@ -42,7 +47,7 @@ if (!skipBackendDotenv) {
   })
 }
 
-const TENANTS = ['mg', 'cg', 'loopc']
+const TENANTS = ['mg', 'cg', 'loopc', 'vb']
 const REPO = process.env.GITHUB_REPOSITORY || 'loopc-business-strategies/ops-dashboard'
 const SECRET_PREFIX = isStaging ? 'STAGING_SMOKE_' : 'SMOKE_'
 const DEFAULT_USER_NAME = isStaging ? 'ops-staging-smoke-probe' : 'ops-smoke-probe'
@@ -297,7 +302,7 @@ async function main() {
       process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
     }
 
-    console.log('Reactivating staging smoke users in mg/cg/loopc (no password change)...')
+    console.log('Reactivating staging smoke users in mg/cg/loopc/vb (no password change)...')
     for (const tenant of TENANTS) {
       const result = await reactivateSmokeUser(tenant)
       console.log(`  ${result.tenant.toUpperCase()} (${result.userName}): ${result.action}${result.id ? ` (${result.id})` : ''}`)
@@ -377,7 +382,7 @@ async function main() {
     throw new Error(`${passwordSecretName} is required to provision tenant users.`)
   }
 
-  console.log(`Provisioning ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc...`)
+  console.log(`Provisioning ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc/vb...`)
   for (const tenant of TENANTS) {
     const tenantPassword = smokePasswordForTenant(tenant, password)
     const result = await upsertSmokeUser(tenant, tenantPassword)

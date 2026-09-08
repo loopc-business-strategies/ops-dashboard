@@ -21,6 +21,15 @@ const ALLOWLIST = Object.freeze({
   // Prints suggested mongo shell snippets containing updateMany; does not call mutators.
   'backend/scripts/audit-exchange-entries.js':
     'Read-only audit; updateMany appears only in printed manual cleanup instructions.',
+  // Additive ERP bootstrap; production-capable with own dry-run/--apply gates (not staging-only).
+  'backend/scripts/bootstrap-new-tenant-erp.js':
+    'Additive tenant ERP upsert; intentional production use with script-owned dry-run/--apply semantics.',
+  // Cross-cluster copy utility; gated by explicit production confirmation flags/env.
+  'scripts/copy-mongo-database.mjs':
+    'Explicit Mongo cross-cluster copy; gated by I_UNDERSTAND production confirmation.',
+  // VB Atlas separation orchestrator; gated by explicit production confirmation.
+  'scripts/apply-vb-atlas-separation.mjs':
+    'VB Atlas separation orchestrator; gated by I_UNDERSTAND production confirmation.',
 })
 
 function toPosix(relPath) {

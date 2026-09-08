@@ -22,6 +22,7 @@ export default function TenantLoginShell({
   setShowPass,
   handleSubmit,
   t,
+  setupNotice,
 }) {
   const [remember, setRemember] = useState(false)
   const [forgotNotice, setForgotNotice] = useState('')
@@ -103,6 +104,7 @@ export default function TenantLoginShell({
             <p className="mg-login__form-sub">{branding.tagline || t('operationsControl')}</p>
 
             {idleNotice && <div className="mg-login__alert mg-login__alert--warn">{idleNotice}</div>}
+            {setupNotice && <div className="mg-login__alert mg-login__alert--info">{setupNotice}</div>}
             {error && <div className="mg-login__alert mg-login__alert--error" role="alert">{error}</div>}
             {forgotNotice && <div className="mg-login__alert mg-login__alert--info">{forgotNotice}</div>}
 

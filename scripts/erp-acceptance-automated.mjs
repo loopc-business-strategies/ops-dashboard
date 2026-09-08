@@ -6,10 +6,11 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { loadCatalogTenantKeys } from './loadCatalogTenantKeys.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const API_BASE = (process.env.SMOKE_API_BASE || 'https://api.loopcstrategies.com').replace(/\/$/, '')
-const TENANTS = ['mg', 'cg', 'loopc']
+const TENANTS = loadCatalogTenantKeys()
 
 function run(cmd, args, cwd = root) {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })

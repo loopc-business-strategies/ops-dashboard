@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="140" viewBox="0 0 360 140" role="img" aria-labelledby="title desc">
+  <title id="title">Venus Bullions Logo</title>
+  <desc id="desc">VB tenant logo placeholder</desc>
+  <rect width="360" height="140" rx="18" fill="#FFFBEB"/>
+  <rect x="10" y="10" width="340" height="120" rx="14" fill="#B45309"/>
+  <text x="180" y="88" text-anchor="middle" font-family="Georgia, serif" font-size="64" font-weight="700" fill="#FFFFFF">VB</text>
+  <circle cx="300" cy="42" r="14" fill="#F59E0B"/>
+</svg>

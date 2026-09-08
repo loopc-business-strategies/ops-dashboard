@@ -226,6 +226,17 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByRole('link', { name: 'Master Settings' })).toBeTruthy()
   })
 
+  it('shows Master Settings in VB tenant sidebar', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'vb', _id: '507f1f77bcf86cd799439011' },
+      company: 'vb',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard()
+    expect(await screen.findByRole('link', { name: 'Master Settings' })).toBeTruthy()
+  })
+
   it('loads ERP supplier margin from URL deep link', async () => {
     renderDashboard('/dashboard?tab=erp-supplier-margin')
     expect(await screen.findByText('erp-tab-focus:supplier-margin')).toBeTruthy()
