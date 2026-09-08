@@ -44,7 +44,6 @@ const BUILTIN_CATALOG = {
   customDomains: {
     'erp.enterprise-demo.com': 'mg',
     'venusbullions.loopcstrategies.com': 'vb',
-    'vb.loopcstrategies.com': 'vb',
   },
 }
 

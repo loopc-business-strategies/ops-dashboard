@@ -1,32 +1,22 @@
 # Venus Bullions (`vb`) tenant
 
-Primary portal: `https://venusbullions.loopcstrategies.com`  
-Alias portal: `https://vb.loopcstrategies.com`  
+Portal: `https://venusbullions.loopcstrategies.com`  
 Company code (mobile): `vb`  
 API env: `MONGO_URI_VB`
 
-## Operator DNS (GoDaddy) — required for browser portal
+## Operator DNS (GoDaddy)
 
-Vercel project `ops-dashboard` has both domains attached. GoDaddy still hosts DNS (`ns19/ns20.domaincontrol.com`) — add:
+Vercel project `ops-dashboard` has `venusbullions.loopcstrategies.com` attached. GoDaddy DNS:
 
 ```
-Type: A
+Type: CNAME
 Name: venusbullions
-Value: 76.76.21.21
-
-Type: A
-Name: vb
-Value: 76.76.21.21
+Value: bce13f01831e157c.vercel-dns-017.com
 ```
 
-Then:
+(Same CNAME target as `cg` / `loopc` / `mg`.)
 
-```bash
-npx vercel domains verify venusbullions.loopcstrategies.com --scope beulah-4360s-projects
-npx vercel domains verify vb.loopcstrategies.com --scope beulah-4360s-projects
-```
-
-Until DNS is live, API tenant `vb` still works via `x-tenant: vb` / mobile company code `vb`.
+Do **not** keep a `vb` subdomain unless you re-add it on purpose.
 
 ## Railway / Mongo (dedicated Atlas)
 
@@ -35,7 +25,7 @@ Until DNS is live, API tenant `vb` still works via `x-tenant: vb` / mobile compa
 - DB user: `business_db_user`
 - Production DB: `ops-dashboard`
 - Staging DB: `ops-dashboard-staging`
-- `CLIENT_URLS` includes both portal URLs above
+- `CLIENT_URLS` includes `https://venusbullions.loopcstrategies.com`
 
 **Network Access:** Venus Bullion project must allow Railway egress (typically `0.0.0.0/0`).
 

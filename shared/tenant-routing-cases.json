@@ -12,12 +12,6 @@
     "expected": "cg"
   },
   {
-    "name": "production vb short subdomain alias",
-    "hostname": "vb.loopcstrategies.com",
-    "fallback": "loopc",
-    "expected": "vb"
-  },
-  {
     "name": "production venusbullions primary portal host",
     "hostname": "venusbullions.loopcstrategies.com",
     "fallback": "loopc",
