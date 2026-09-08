@@ -7,6 +7,11 @@ import ReactDOM from 'react-dom/client'
 import * as Sentry from '@sentry/react'
 import axios from './api/client'
 import App from './App'
+import {
+  installStaleChunkReloadHandlers,
+  isStaleChunkError,
+  reloadOnceForStaleChunk,
+} from './utils/staleChunkReload'
 import './index.css'
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN
@@ -27,6 +32,8 @@ if (sentryDsn) {
     tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0,
   })
 }
+
+installStaleChunkReloadHandlers()
 
 const resolveTenantLocalhostUrl = (rawUrl) => {
   const input = String(rawUrl || '')
@@ -81,30 +88,65 @@ axios.interceptors.request.use((config) => {
   return config
 })
 
+function AppCrashFallback({ error, resetError }) {
+  const stale = isStaleChunkError(error)
+
+  React.useEffect(() => {
+    if (stale) reloadOnceForStaleChunk()
+  }, [stale])
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center text-center p-6">
+      <div>
+        <p className="text-xl font-semibold text-white mb-2">Something went wrong</p>
+        <p className="text-gray-400 text-sm mb-4 max-w-md">{error?.message || 'An unexpected error occurred.'}</p>
+        <button
+          type="button"
+          onClick={() => {
+            if (stale) {
+              window.location.reload()
+              return
+            }
+            resetError?.()
+          }}
+          className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm hover:bg-violet-500"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  )
+}
+
+class LocalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <AppCrashFallback
+          error={this.state.error}
+          resetError={() => this.setState({ error: null })}
+        />
+      )
+    }
+    return this.props.children
+  }
+}
+
+const RootBoundary = sentryDsn ? Sentry.ErrorBoundary : LocalErrorBoundary
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {sentryDsn ? (
-      <Sentry.ErrorBoundary
-        fallback={({ error, resetError }) => (
-          <div className="min-h-screen bg-gray-950 flex items-center justify-center text-center p-6">
-            <div>
-              <p className="text-xl font-semibold text-white mb-2">Something went wrong</p>
-              <p className="text-gray-400 text-sm mb-4 max-w-md">{error?.message || 'An unexpected error occurred.'}</p>
-              <button
-                type="button"
-                onClick={resetError}
-                className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm hover:bg-violet-500"
-              >
-                Try again
-              </button>
-            </div>
-          </div>
-        )}
-      >
-        <App />
-      </Sentry.ErrorBoundary>
-    ) : (
+    <RootBoundary fallback={AppCrashFallback}>
       <App />
-    )}
-  </React.StrictMode>
+    </RootBoundary>
+  </React.StrictMode>,
 )
