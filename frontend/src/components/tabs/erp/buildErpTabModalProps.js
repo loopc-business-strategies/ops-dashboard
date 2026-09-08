@@ -25,6 +25,7 @@ export function buildErpTabModalProps(scope) {
     formatStatementValue: scope.formatStatementValue,
     getSignedColor: scope.getSignedColor,
     formatDirectionalBalance: scope.formatDirectionalBalance,
+    formatSignedDirectionalBalance: scope.formatSignedDirectionalBalance,
     unfixedMetalEntries: scope.unfixedMetalEntries,
     formatStatementDate: scope.formatStatementDate,
     fixedMetalSummary: scope.fixedMetalSummary,

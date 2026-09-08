@@ -12,6 +12,7 @@ import {
   normalizeStatementCurrencyCode,
   resolveStatementDisplayCurrency,
   resolveExposureDirection,
+  withSignedDirectionalPrefix,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
   sortStatementEntriesForExport,
@@ -160,6 +161,13 @@ describe('statement helpers', () => {
     expect(metrics.excess).toBe(-112022.75)
     expect(metrics.marginPercent).toBe(0)
     expect(resolveExposureDirection(metrics.netEquity)).toBe('Credit')
+  })
+
+  test('withSignedDirectionalPrefix adds + for Dr and - for Cr', () => {
+    expect(withSignedDirectionalPrefix('USD 9.00 Dr', 9)).toBe('+USD 9.00 Dr')
+    expect(withSignedDirectionalPrefix('USD 162,131.00 Cr', -162131)).toBe('-USD 162,131.00 Cr')
+    expect(withSignedDirectionalPrefix('USD 0.00', 0)).toBe('USD 0.00')
+    expect(withSignedDirectionalPrefix('+USD 9.00 Dr', 9)).toBe('+USD 9.00 Dr')
   })
 
   test('live enquiry margin metrics move when spot price changes', () => {

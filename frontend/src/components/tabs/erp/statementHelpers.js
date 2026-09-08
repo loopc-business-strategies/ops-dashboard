@@ -149,6 +149,18 @@ export function resolveExposureDirection(value) {
   return 'Flat'
 }
 
+/**
+ * Prefix +/- onto a Dr/Cr directional money string (abs already formatted).
+ * Dr ↔ +, Cr ↔ -. Zero stays unchanged (no sign).
+ */
+export function withSignedDirectionalPrefix(directionalBalanceText, amount) {
+  const text = String(directionalBalanceText || '')
+  const n = Number(amount || 0)
+  if (!Number.isFinite(n) || Math.abs(n) < 0.005) return text
+  if (text.startsWith('+') || text.startsWith('-')) return text
+  return `${n > 0 ? '+' : '-'}${text}`
+}
+
 export function resolveUnfixedBookedExposureSign(entry = {}) {
   const dealSide = String(
     entry?.metalDealType || entry?.sourceTransactionType || entry?.referenceType || '',
