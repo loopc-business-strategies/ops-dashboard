@@ -1,4 +1,5 @@
-const { TENANT_KEYS, getTenantConfig } = require('../config/tenants')
+const { TENANT_KEYS } = require('../config/tenants')
+const { getTenantConfig } = require('../config/tenantRegistry')
 
 const WEAK_JWT_PLACEHOLDERS = new Set([
   'change_this_to_a_strong_random_secret',
