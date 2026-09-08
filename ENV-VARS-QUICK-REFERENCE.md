@@ -55,7 +55,7 @@ When Redis is required and `REDIS_URL` is missing (or Redis/Socket adapter unhea
 ### CORS (frontend origins)
 
 ```
-CLIENT_URLS=https://mg.loopcstrategies.com,https://cg.loopcstrategies.com,https://loopc.loopcstrategies.com,https://app.loopcstrategies.com,https://loopcstrategies.com
+CLIENT_URLS=https://mg.loopcstrategies.com,https://cg.loopcstrategies.com,https://loopc.loopcstrategies.com,https://vb.loopcstrategies.com,https://venusbullions.loopcstrategies.com,https://app.loopcstrategies.com,https://loopcstrategies.com
 CLIENT_URL=https://mg.loopcstrategies.com,https://cg.loopcstrategies.com,https://loopc.loopcstrategies.com,https://loopcstrategies.com
 ```
 
@@ -398,6 +398,8 @@ Name              Type    Value (CNAME Target)
 mg                CNAME   cname.vercel-dns.com (from Vercel)
 cg                CNAME   cname.vercel-dns.com (from Vercel)
 loopc             CNAME   cname.vercel-dns.com (from Vercel)
+vb                CNAME   cname.vercel-dns.com (from Vercel)
+venusbullions     CNAME   cname.vercel-dns.com (from Vercel; brand alias for vb)
 app               CNAME   cname.vercel-dns.com (from Vercel)
 api               CNAME   cname-alias.railway.app (from Railway)
 ```

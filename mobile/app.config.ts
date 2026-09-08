@@ -10,7 +10,12 @@ const APP_VERSION = '1.0.0'
 const NATIVE_SHELL_BACKGROUND = '#F8FAFC'
 const NATIVE_SHELL_ACCENT = '#374151'
 
-const PORTAL_HOSTS = ['mg.loopcstrategies.com', 'cg.loopcstrategies.com', 'loopc.loopcstrategies.com']
+const PORTAL_HOSTS = [
+  'mg.loopcstrategies.com',
+  'cg.loopcstrategies.com',
+  'loopc.loopcstrategies.com',
+  'vb.loopcstrategies.com',
+]
 
 const PROD_API_URL = 'https://api.loopcstrategies.com'
 const easProfile = process.env.EAS_BUILD_PROFILE || ''

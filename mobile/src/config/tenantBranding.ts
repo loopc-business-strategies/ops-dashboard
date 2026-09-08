@@ -99,7 +99,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     companyName: 'Venus Bullions',
     tagline: 'Venus Bullions Operations',
     logoText: 'VB',
-    portalHost: 'venusbullions.loopcstrategies.com',
+    portalHost: 'vb.loopcstrategies.com',
     colors: {
       primary: '#B45309',
       secondary: '#F59E0B',

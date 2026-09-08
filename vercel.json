@@ -37,7 +37,7 @@
     {
       "source": "/api/(.*)",
       "has": [
-        { "type": "host", "value": "(mg|cg|loopc|venusbullions|app)\\.loopcstrategies\\.com" }
+        { "type": "host", "value": "(mg|cg|loopc|vb|venusbullions|app)\\.loopcstrategies\\.com" }
       ],
       "destination": "https://api.loopcstrategies.com/api/$1"
     },

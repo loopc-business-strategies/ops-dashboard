@@ -1,22 +1,25 @@
 # Venus Bullions (`vb`) tenant
 
-Portal: `https://venusbullions.loopcstrategies.com`  
+Portal (primary, same pattern as mg/cg/loopc): `https://vb.loopcstrategies.com`  
+Brand alias: `https://venusbullions.loopcstrategies.com`  
 Company code (mobile): `vb`  
 API env: `MONGO_URI_VB`
 
 ## Operator DNS (GoDaddy)
 
-Vercel project `ops-dashboard` has `venusbullions.loopcstrategies.com` attached. GoDaddy DNS:
+Vercel project `ops-dashboard` has both hosts attached. GoDaddy DNS (same CNAME target as `mg` / `cg` / `loopc`):
 
 ```
+Type: CNAME
+Name: vb
+Value: bce13f01831e157c.vercel-dns-017.com
+
 Type: CNAME
 Name: venusbullions
 Value: bce13f01831e157c.vercel-dns-017.com
 ```
 
-(Same CNAME target as `cg` / `loopc` / `mg`.)
-
-Do **not** keep a `vb` subdomain unless you re-add it on purpose.
+Primary portal host is `vb.loopcstrategies.com`. Keep `venusbullions` only as the brand alias in `customDomains`.
 
 ## Railway / Mongo (dedicated Atlas)
 
@@ -25,7 +28,7 @@ Do **not** keep a `vb` subdomain unless you re-add it on purpose.
 - DB user: `business_db_user`
 - Production DB: `ops-dashboard`
 - Staging DB: `ops-dashboard-staging`
-- `CLIENT_URLS` includes `https://venusbullions.loopcstrategies.com`
+- `CLIENT_URLS` includes `https://vb.loopcstrategies.com` and `https://venusbullions.loopcstrategies.com`
 
 **Network Access:** Venus Bullion project must allow Railway egress (typically `0.0.0.0/0`).
 
