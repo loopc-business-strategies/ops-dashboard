@@ -159,7 +159,7 @@ function registerCustomerRoutes(deps) {
         const silverPosition = roundPosition(metalPosition.silverPosition)
         const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(customer.ledgerAccountId?.accountType)
         const margin = calculateCustomerMargin({
-          totalFunds: net,
+          totalFunds: -Math.abs(net),
           goldPosition,
           silverPosition,
           goldPrice: rates.goldPrice,
