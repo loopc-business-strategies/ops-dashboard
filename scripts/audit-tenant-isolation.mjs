@@ -51,17 +51,31 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`)
 }
 
+function arg(name, fallback = '') {
+  const prefix = `--${name}=`
+  const hit = process.argv.find((a) => a.startsWith(prefix))
+  if (hit) return hit.slice(prefix.length)
+  const idx = process.argv.indexOf(`--${name}`)
+  if (idx >= 0) return process.argv[idx + 1] || fallback
+  return fallback
+}
+
 function loadRailwayVars(environment = 'production') {
-  const r = spawnSync(
-    'railway',
-    ['variable', 'list', '-s', 'ops-dashboard', '-e', environment, '--json'],
-    { encoding: 'utf8', shell: process.platform === 'win32' },
-  )
+  const projectId = arg('railway-project', process.env.RAILWAY_PROJECT_ID || '')
+  const args = ['variable', 'list', '-s', 'ops-dashboard', '-e', environment, '--json']
+  if (projectId) args.push('-p', projectId)
+  const r = spawnSync('railway', args, {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  })
   const raw = `${r.stdout || ''}\n${r.stderr || ''}`
   const start = raw.indexOf('{')
   const end = raw.lastIndexOf('}')
   if (start < 0 || end < 0) {
-    throw new Error(`Failed to load Railway vars (${environment}). Log in with railway CLI or use backend/.env.`)
+    throw new Error(
+      `Failed to load Railway vars (${environment}). `
+      + 'Link the project (`railway link`) or pass --railway-project <id>.',
+    )
   }
   return JSON.parse(raw.slice(start, end + 1))
 }
@@ -104,35 +118,25 @@ function uniqueSample(ids) {
   return [...new Set(ids.filter(Boolean))].slice(0, SAMPLE_LIMIT)
 }
 
-async function loadCollectionDocs(uri, collectionName) {
-  const conn = await mongoose.createConnection(uri, {
+async function openReadOnly(uri) {
+  return mongoose.createConnection(uri, {
     autoIndex: false,
     maxPoolSize: 2,
-    serverSelectionTimeoutMS: 15000,
+    serverSelectionTimeoutMS: 20000,
   }).asPromise()
-  try {
-    const names = (await conn.db.listCollections().toArray()).map((c) => c.name)
-    if (!names.includes(collectionName)) return []
-    return conn.db.collection(collectionName).find({}).project({ password: 0 }).limit(20000).toArray()
-  } finally {
-    await conn.close()
-  }
 }
 
-async function listCollections(uri) {
-  const conn = await mongoose.createConnection(uri, {
-    autoIndex: false,
-    maxPoolSize: 2,
-    serverSelectionTimeoutMS: 15000,
-  }).asPromise()
-  try {
-    return (await conn.db.listCollections().toArray())
-      .map((c) => c.name)
-      .filter((n) => !n.startsWith('system.'))
-      .sort()
-  } finally {
-    await conn.close()
-  }
+async function loadCollectionDocs(conn, collectionName) {
+  const names = (await conn.db.listCollections().toArray()).map((c) => c.name)
+  if (!names.includes(collectionName)) return []
+  return conn.db.collection(collectionName).find({}).project({ password: 0 }).limit(20000).toArray()
+}
+
+async function listCollectionNames(conn) {
+  return (await conn.db.listCollections().toArray())
+    .map((c) => c.name)
+    .filter((n) => !n.startsWith('system.'))
+    .sort()
 }
 
 function compareCollection(name, mgDocs, vbDocs) {
@@ -259,14 +263,23 @@ async function main() {
     skipped = 'MG and VB resolve to the same host/database. Refusing compare (would be a self-scan).'
     console.error(skipped)
   } else {
-    const [mgCols, vbCols] = await Promise.all([listCollections(mg.uri), listCollections(vb.uri)])
-    const names = [...new Set([...mgCols, ...vbCols])].sort()
-    for (const name of names) {
-      const [mgDocs, vbDocs] = await Promise.all([
-        mgCols.includes(name) ? loadCollectionDocs(mg.uri, name) : Promise.resolve([]),
-        vbCols.includes(name) ? loadCollectionDocs(vb.uri, name) : Promise.resolve([]),
+    const mgConn = await openReadOnly(mg.uri)
+    const vbConn = await openReadOnly(vb.uri)
+    try {
+      const [mgCols, vbCols] = await Promise.all([
+        listCollectionNames(mgConn),
+        listCollectionNames(vbConn),
       ])
-      rows.push(compareCollection(name, mgDocs, vbDocs))
+      const names = [...new Set([...mgCols, ...vbCols])].sort()
+      for (const name of names) {
+        const [mgDocs, vbDocs] = await Promise.all([
+          mgCols.includes(name) ? loadCollectionDocs(mgConn, name) : Promise.resolve([]),
+          vbCols.includes(name) ? loadCollectionDocs(vbConn, name) : Promise.resolve([]),
+        ])
+        rows.push(compareCollection(name, mgDocs, vbDocs))
+      }
+    } finally {
+      await Promise.allSettled([mgConn.close(), vbConn.close()])
     }
   }
 
