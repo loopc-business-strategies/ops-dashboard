@@ -30,6 +30,8 @@ describe('tenantRegistry', () => {
     expect(resolveTenantFromHost('vb.loopcstrategies.com')).toBe('vb')
     expect(resolveTenantFromHost('venusbullions.loopcstrategies.com')).toBe('vb')
     expect(resolveTenantFromHost('localhost', 'loopc')).toBe('loopc')
+    expect(resolveTenantFromHost('api.loopcstrategies.com', 'mg')).toBe('mg')
+    expect(resolveTenantFromHost('example.com', 'loopc')).toBeNull()
   })
 
   test('resolves enterprise custom domains from catalog', () => {

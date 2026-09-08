@@ -1,8 +1,9 @@
 require('dotenv').config()
 const mongoose = require('mongoose')
+const { getTenantKeys } = require('../config/tenantRegistry')
 
 async function comprehensiveSearchAllTenants() {
-  const tenants = ['mg', 'cg', 'loopc']
+  const tenants = getTenantKeys()
   
   console.log(`=== Comprehensive OOO/MARK Search Across All Tenants ===\n`)
   

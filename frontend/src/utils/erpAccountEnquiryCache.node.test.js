@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildAccountEnquiryCacheKey,
+  clearAccountEnquiryCache,
   readAccountEnquiryCache,
   writeAccountEnquiryCache,
 } from './erpAccountEnquiryCache'
@@ -8,12 +9,15 @@ import {
 describe('erpAccountEnquiryCache', () => {
   beforeEach(() => {
     const store = new Map()
-    vi.stubGlobal('sessionStorage', {
+    const api = {
       getItem: (key) => (store.has(key) ? store.get(key) : null),
       setItem: (key, value) => { store.set(key, String(value)) },
       removeItem: (key) => { store.delete(key) },
       clear: () => { store.clear() },
-    })
+      key: (index) => [...store.keys()][index] || null,
+      get length() { return store.size },
+    }
+    vi.stubGlobal('sessionStorage', api)
   })
 
   test('buildAccountEnquiryCacheKey includes date window and limit', () => {
@@ -44,5 +48,13 @@ describe('erpAccountEnquiryCache', () => {
       endDate: '',
       statementLimit: 500,
     })?.account?.accountCode).toBe('101002')
+  })
+
+  test('clearAccountEnquiryCache removes tenant-prefixed enquiry keys', () => {
+    writeAccountEnquiryCache('mg', '101002', { account: { accountCode: '101002' } })
+    writeAccountEnquiryCache('vb', '101002', { account: { accountCode: '101002' } })
+    clearAccountEnquiryCache()
+    expect(readAccountEnquiryCache('mg', '101002')).toBeNull()
+    expect(readAccountEnquiryCache('vb', '101002')).toBeNull()
   })
 })

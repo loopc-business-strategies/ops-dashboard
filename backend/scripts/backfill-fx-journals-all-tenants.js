@@ -1,7 +1,8 @@
 require('dotenv').config()
 const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const { resolveStagingMongoUri } = require('../utils/stagingMongoSafety')
-const allTenants = ['mg', 'cg', 'loopc']
+const { getTenantKeys } = require('../config/tenantRegistry')
+const allTenants = getTenantKeys()
 const tenantsWithUri = allTenants.filter((tenant) => resolveStagingMongoUri(tenant))
 assertStagingOnlyScript({
   scriptName: 'backfill-fx-journals-all-tenants.js',
@@ -26,11 +27,10 @@ if (!VALID_MODES.has(MODE)) {
 
 const toMoney = (value) => Number(Number(value || 0).toFixed(2))
 
-const tenantUris = [
-  { name: 'MG', uri: process.env.MONGO_URI_MG },
-  { name: 'CG', uri: process.env.MONGO_URI_CG },
-  { name: 'LoopC', uri: process.env.MONGO_URI_LOOPC },
-].filter((t) => !!t.uri)
+const tenantUris = getTenantKeys().map((key) => ({
+  name: key.toUpperCase(),
+  uri: process.env[`MONGO_URI_${key.toUpperCase()}`],
+})).filter((t) => !!t.uri)
 
 const parseReferenceRate = (voucherMeta) => {
   const line = voucherMeta?.lineItems?.[0] || {}

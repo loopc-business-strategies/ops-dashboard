@@ -23,12 +23,16 @@ describe('dashboard report cache tenant keys', () => {
     expect(mgKey).not.toBe(cgKey)
   })
 
-  test('loopc is isolated from mg', () => {
+  test('loopc is isolated from mg and vb is isolated from both', () => {
     const mgKey = buildDashboardCacheKey({ tenant: 'mg' }, periodStart, periodEnd)
     const loopcKey = buildDashboardCacheKey({ tenant: 'loopc' }, periodStart, periodEnd)
+    const vbKey = buildDashboardCacheKey({ tenant: 'vb' }, periodStart, periodEnd)
 
     expect(loopcKey).not.toBe(mgKey)
     expect(loopcKey.startsWith('loopc:')).toBe(true)
+    expect(vbKey).toBe('vb:2026-06-01T00:00:00.000Z:2026-06-30T23:59:59.999Z')
+    expect(vbKey).not.toBe(mgKey)
+    expect(vbKey).not.toBe(loopcKey)
   })
 
   test('legacy req.user.company does not scope cache (was always default)', () => {

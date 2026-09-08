@@ -180,7 +180,7 @@ async function main() {
   }
   console.log('Target users:', users)
 
-  // Seed empty staging DB structure (optional light copy of currencies only is fine — copy all for parity)
+  // Seed empty staging DB structure (master/config collections only — not operational data)
   console.log('Seed staging DB', redact(targetStaging))
   await copyAll(sourceUri, targetStaging)
 

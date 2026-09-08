@@ -77,11 +77,22 @@ function validateHardenedDeploySecrets() {
     errors.push('UPLOAD_STORAGE_ROOT is not writable — file uploads will fail.')
   }
 
+  const { fingerprintMongoUri, findTenantUriCollisions } = require('./mongoUriFingerprint')
+  const uriEntries = []
   for (const tenant of TENANT_KEYS) {
     const envVar = tenantUriEnvVar(tenant)
-    if (!String(process.env[envVar] || '').trim()) {
+    const uri = String(process.env[envVar] || '').trim()
+    if (!uri) {
       errors.push(`${envVar} is required in production and staging (tenant: ${tenant}).`)
+    } else {
+      uriEntries.push({ tenant, uri })
+      if (!fingerprintMongoUri(uri)) {
+        errors.push(`${envVar} is set but is not a valid Mongo URI (tenant: ${tenant}).`)
+      }
     }
+  }
+  if (uriEntries.length >= 2) {
+    errors.push(...findTenantUriCollisions(uriEntries))
   }
 
   const bridgeToken = String(process.env.METAL_RATES_BRIDGE_TOKEN || '').trim()

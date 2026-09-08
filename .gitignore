@@ -22,6 +22,7 @@ backend/.google-oauth-client.json
 backend/logs/
 backend/uploads/
 backend/reports/
+reports/
 backend/build-meta.json
 mobile/android/.gradle/
 mobile/android/app/build/

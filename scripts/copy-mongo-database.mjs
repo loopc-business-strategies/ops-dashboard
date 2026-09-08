@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * Copy all collections from one MongoDB URI/database to another (additive upsert by _id).
+ * Copy MongoDB collections between URIs (additive upsert by _id).
+ *
+ * Default: master/config collections only (chartofaccounts, accountmappings, currencies).
+ * Operational copy requires --allow-operational-copy and I_UNDERSTAND=COPY-ALL-COLLECTIONS.
  *
  * Usage:
  *   node scripts/copy-mongo-database.mjs --source "$SRC_URI" --target "$DST_URI"
- *   node scripts/copy-mongo-database.mjs --source-env MONGO_URI_MG --source-db ops-dashboard-vb --target-env MONGO_URI_VB
- *
- * DNS: uses 8.8.8.8 / 1.1.1.1 (Windows SRV quirks).
+ *   node scripts/copy-mongo-database.mjs --source-env MONGO_URI_MG --target-env MONGO_URI_VB
  */
 import { createRequire } from 'node:module'
 import dns from 'node:dns'
@@ -66,18 +67,38 @@ function dbNameFromUri(uri) {
   }
 }
 
+const MASTER_COLLECTIONS = new Set(['chartofaccounts', 'accountmappings', 'currencies'])
+
+function fingerprint(uri) {
+  try {
+    const u = new URL(String(uri).replace(/^mongodb(\+srv)?:\/\//, 'https://'))
+    const host = String(u.hostname || '').toLowerCase()
+    const db = String(u.pathname || '').replace(/^\//, '').toLowerCase()
+    return `${host}/${db}`
+  } catch {
+    return ''
+  }
+}
+
 function redact(uri) {
   return String(uri || '').replace(/\/\/([^:]+):([^@]+)@/, '//$1:***@')
 }
 
-async function copyDatabase(sourceUri, targetUri) {
+async function copyDatabase(sourceUri, targetUri, { allowOperational = false } = {}) {
   console.log('Source:', redact(sourceUri))
   console.log('Target:', redact(targetUri))
   const source = await mongoose.createConnection(sourceUri, { autoIndex: false }).asPromise()
   const target = await mongoose.createConnection(targetUri, { autoIndex: false }).asPromise()
   try {
     const collections = await source.db.listCollections().toArray()
-    const names = collections.map((c) => c.name).filter((n) => !n.startsWith('system.'))
+    let names = collections.map((c) => c.name).filter((n) => !n.startsWith('system.'))
+    if (!allowOperational) {
+      const skipped = names.filter((n) => !MASTER_COLLECTIONS.has(n))
+      names = names.filter((n) => MASTER_COLLECTIONS.has(n))
+      if (skipped.length) {
+        console.log(`Skipping operational collections (${skipped.length}): ${skipped.slice(0, 12).join(', ')}${skipped.length > 12 ? '…' : ''}`)
+      }
+    }
     console.log(`Collections: ${names.length}`)
     let totalDocs = 0
     let upserted = 0
@@ -131,14 +152,20 @@ async function main() {
     process.exit(1)
   }
 
-  if (dbNameFromUri(sourceUri) && dbNameFromUri(targetUri)
-    && sourceUri.replace(/\/\/[^@]+@/, '//') === targetUri.replace(/\/\/[^@]+@/, '//')
-    && dbNameFromUri(sourceUri) === dbNameFromUri(targetUri)) {
+  const srcFp = fingerprint(sourceUri)
+  const dstFp = fingerprint(targetUri)
+  if (srcFp && dstFp && srcFp === dstFp) {
     console.error('Refusing to copy a database onto itself')
     process.exit(1)
   }
 
-  await copyDatabase(sourceUri, targetUri)
+  const allowOperational = process.argv.includes('--allow-operational-copy')
+  if (allowOperational && process.env.I_UNDERSTAND !== 'COPY-ALL-COLLECTIONS') {
+    console.error('Operational collection copy requires I_UNDERSTAND=COPY-ALL-COLLECTIONS')
+    process.exit(1)
+  }
+
+  await copyDatabase(sourceUri, targetUri, { allowOperational })
 }
 
 main().catch((err) => {

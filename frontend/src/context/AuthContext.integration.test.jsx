@@ -141,6 +141,7 @@ describe('AuthProvider session integration', () => {
 
     await waitFor(() => expect(screen.getByTestId('auth').textContent).toBe('true'))
 
+    localStorage.setItem('tenantCompany', 'mg')
     const handler = axios.__getResponseErrorHandler()
     await expect(handler({
       response: { status: 401 },
@@ -148,6 +149,7 @@ describe('AuthProvider session integration', () => {
     })).rejects.toBeTruthy()
 
     await waitFor(() => expect(screen.getByTestId('auth').textContent).toBe('false'))
+    expect(localStorage.getItem('tenantCompany')).toBeNull()
     expect(window.location.replace).toHaveBeenCalledWith('/login')
   })
 })
