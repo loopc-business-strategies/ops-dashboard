@@ -87,10 +87,10 @@ export function useErpCustomerMargin({
             silverPrice,
             suppressMetalSpotMtm,
             revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
-            fundsMode: 'customerAbsIfNegative',
+            fundsMode: 'asIs',
           })
-          const excess = metrics.excess < 0 ? Math.abs(metrics.excess) : metrics.excess
-          const equity = metrics.equity < 0 ? Math.abs(metrics.equity) : metrics.equity
+          const excess = metrics.excess
+          const equity = metrics.equity
           return {
             id: customer?._id,
             customerName: String(customer?.name || '-'),
@@ -110,7 +110,7 @@ export function useErpCustomerMargin({
 
         const goldPrice = pickLiveSpotPrice(goldPriceUSD, customer?.metalRates?.goldPrice)
         const silverPrice = pickLiveSpotPrice(silverPriceUSD, customer?.metalRates?.silverPrice)
-        const customerFunds = outstanding < 0 ? Math.abs(outstanding) : outstanding
+        const customerFunds = outstanding
         const isLiabilityCustomerLedger = suppressMetalSpotMtm
         const fallbackRevaluation = isLiabilityCustomerLedger
           ? 0
@@ -123,10 +123,8 @@ export function useErpCustomerMargin({
         })
         const preferLiveFallback = hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
         const marginAmount = preferLiveFallback ? fallbackMargin : Number(customer?.marginAmount ?? fallbackMargin)
-        const rawExcess = preferLiveFallback ? fallbackMetrics.excess : Number(customer?.marginExcess ?? fallbackMetrics.excess)
-        const rawEquity = preferLiveFallback ? fallbackMetrics.netEquity : Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
-        const excess = rawExcess < 0 ? Math.abs(rawExcess) : rawExcess
-        const equity = rawEquity < 0 ? Math.abs(rawEquity) : rawEquity
+        const excess = preferLiveFallback ? fallbackMetrics.excess : Number(customer?.marginExcess ?? fallbackMetrics.excess)
+        const equity = preferLiveFallback ? fallbackMetrics.netEquity : Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
         const marginPercent = preferLiveFallback ? fallbackMetrics.marginPercent : Number(customer?.marginPercent ?? fallbackMetrics.marginPercent)
         const status = String(customer?.marginStatus || (equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
         return {
@@ -205,8 +203,9 @@ export function useErpSupplierMargin({
             revaluationOverride: frozenReval,
             fundsMode: 'asIs',
           })
-          const excess = metrics.excess < 0 ? Math.abs(metrics.excess) : metrics.excess
-          const equity = metrics.equity < 0 ? Math.abs(metrics.equity) : metrics.equity
+          // Keep signed payable equity (do not apply customer favorableCredit abs).
+          const excess = metrics.excess
+          const equity = metrics.equity
           return {
             id: vendor?._id,
             supplierName: String(vendor?.name || '-'),

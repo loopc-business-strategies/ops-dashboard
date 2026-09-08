@@ -46,7 +46,7 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
       silverPrice: silverPriceUSD,
       suppressMetalSpotMtm,
       revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
-      fundsMode: options.favorableCredit ? 'customerAbsIfNegative' : 'asIs',
+      fundsMode: 'asIs',
     })
     rawNet = metrics.equity
     marginAmount = metrics.margin
@@ -54,8 +54,9 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
     marginPercent = metrics.marginPercent
   }
 
-  const net = options.favorableCredit && rawNet < 0 ? Math.abs(rawNet) : rawNet
-  const excess = options.favorableCredit && rawExcess < 0 ? Math.abs(rawExcess) : rawExcess
+  // Signed ledger equity — do not abs customer credit balances.
+  const net = rawNet
+  const excess = rawExcess
   const status = String(row?.status || (net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
   const rawMargin = marginPercent ?? row?.marginPercent
   marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (Math.abs(net) / marginAmount) * 100 : 0)

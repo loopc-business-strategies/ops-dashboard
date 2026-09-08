@@ -14,14 +14,12 @@ describe('mapMarginRow live recalc', () => {
     }
 
     const unchanged = mapMarginRow(baseRow, 'customerName', {
-      favorableCredit: true,
       liveRecalcEnabled: true,
       goldPriceUSD: 20,
       silverPriceUSD: 1,
     })
 
     const repriced = mapMarginRow(baseRow, 'customerName', {
-      favorableCredit: true,
       liveRecalcEnabled: true,
       goldPriceUSD: 25,
       silverPriceUSD: 1,
@@ -69,18 +67,30 @@ describe('mapMarginRow live recalc', () => {
       suppressMetalSpotMtm: true,
     }
     const low = mapMarginRow(baseRow, 'customerName', {
-      favorableCredit: true,
       liveRecalcEnabled: true,
       goldPriceUSD: 10,
       silverPriceUSD: 1,
     })
     const high = mapMarginRow(baseRow, 'customerName', {
-      favorableCredit: true,
       liveRecalcEnabled: true,
       goldPriceUSD: 100,
       silverPriceUSD: 1,
     })
     expect(low.equity).toBe(800)
     expect(high.equity).toBe(800)
+  })
+
+  test('customer credit equity stays signed negative', () => {
+    const mapped = mapMarginRow(
+      {
+        customerName: 'MODERN CAPITAL',
+        equity: -162131,
+        marginAmount: 0,
+        goldPosition: 0,
+        silverPosition: 0,
+      },
+      'customerName',
+    )
+    expect(mapped.equity).toBe(-162131)
   })
 })

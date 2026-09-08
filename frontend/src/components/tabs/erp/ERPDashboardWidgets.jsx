@@ -49,7 +49,8 @@ function MarginsWidget({
     marginLiveRecalc,
     baseCurrencyCode,
   })
-  const customers = rawCustomers.map((row) => mapRow(row, 'customerName', { favorableCredit: true }))
+  // Signed ledger equity: customer credit stays negative (no favorableCredit abs).
+  const customers = rawCustomers.map((row) => mapRow(row, 'customerName'))
   const suppliers = rawSuppliers.map((row) => mapRow(row, 'supplierName', { suppressMetalSpotMtm: true }))
   const activeRows = tab === 'suppliers' ? suppliers : customers
   const activeLabel = tab === 'suppliers' ? 'supplier' : 'customer'
@@ -123,7 +124,12 @@ function MarginsWidget({
               </table>
         }
         </div>
-        <div style={{ marginTop: '0.6rem', textAlign: 'right', flexShrink: 0 }}>
+        <p style={{ margin: '0.45rem 0 0', color: muted, fontSize: '0.68rem', lineHeight: 1.4, flexShrink: 0 }}>
+          {tab === 'suppliers'
+            ? 'Supplier payables show as negative Equity (signed ledger).'
+            : 'Equity uses signed ledger balances (customer credit = negative; receivables = positive).'}
+        </p>
+        <div style={{ marginTop: '0.45rem', textAlign: 'right', flexShrink: 0 }}>
           <button
             onClick={() => {
               if (onNavigate) {
