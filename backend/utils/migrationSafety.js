@@ -8,6 +8,7 @@ const KNOWN_PRODUCTION_MONGO_HOSTS = Object.freeze([
   'cluster0.m5yqfs7.mongodb.net', // MG production
   'cluster0.karzgcd.mongodb.net', // CG production
   'cluster0.fiijdd5.mongodb.net', // LoopC production
+  'cluster0.fiotefu.mongodb.net', // Venus Bullions (vb) production
 ])
 
 const KNOWN_PRODUCTION_URI_MARKERS = Object.freeze([

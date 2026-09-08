@@ -18,16 +18,21 @@ Then verify: `npx vercel domains verify vb.loopcstrategies.com --scope beulah-43
 
 Until DNS is live, API tenant `vb` still works via `x-tenant: vb` / mobile company code `vb`.
 
-## Railway / Mongo
+## Railway / Mongo (dedicated Atlas)
 
-- Production + staging `MONGO_URI_VB` → Atlas DB `ops-dashboard-vb` on the **MG** cluster (`cluster0.m5yqfs7.mongodb.net`), same `mg_db` user (dedicated DB name; migrate to a dedicated Atlas project later if desired)
+- Atlas project: **Venus Bullion**
+- Cluster host: `cluster0.fiotefu.mongodb.net`
+- DB user: `business_db_user`
+- Production DB: `ops-dashboard`
+- Staging DB: `ops-dashboard-staging`
 - `CLIENT_URLS` includes `https://vb.loopcstrategies.com`
 
-## ERP bootstrap (done)
+**Network Access:** Venus Bullion project must allow Railway egress (same as MG — typically `0.0.0.0/0`). Without this, `/api/ready` fails for tenant `vb` and deploys healthcheck.
 
-```bash
-# CoA from mg + currencies + default mappings
-node backend/scripts/bootstrap-new-tenant-erp.js --tenant=vb --source=mg
-```
+Migrate tooling: [`scripts/apply-vb-atlas-separation.mjs`](../scripts/apply-vb-atlas-separation.mjs) (URI in gitignored `scripts/_tmp-vb-atlas-uri.txt`).
 
-First Super Admin was created in DB (`vbadmin`). Prefer rotating password after first login. Portal `/setup` stays disabled in production unless `ENABLE_SETUP` + `SETUP_TOKEN` are intentionally enabled.
+## ERP bootstrap
+
+CoA/currencies/mappings and first admin (`vbadmin`) were seeded and copied to the dedicated cluster.
+
+Portal `/setup` stays disabled in production unless `ENABLE_SETUP` + `SETUP_TOKEN` are intentionally enabled.

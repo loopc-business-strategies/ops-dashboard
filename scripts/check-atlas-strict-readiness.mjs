@@ -35,7 +35,7 @@ if (missingGroupIds.length) {
 if (missing.length || !hasAtlasGroupIdsForTenants(TENANTS)) {
   console.error('ATLAS_BACKUP_PHASE=strict requires Atlas M10+ Cloud Backup and API credentials.')
   console.error('Missing:', missing.length ? missing.join(', ') : 'tenant group ID coverage')
-  console.error('Set ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, and ATLAS_GROUP_ID_MG / CG / LOOPC')
+  console.error('Set ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, and ATLAS_GROUP_ID_MG / CG / LOOPC / VB')
   console.error('(or a shared ATLAS_GROUP_ID that applies to all tenants).')
   console.error('See docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md')
   process.exit(1)

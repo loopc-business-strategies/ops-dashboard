@@ -75,6 +75,7 @@ describe('migrationSafety', () => {
   test('known production Atlas hosts are always rejected', () => {
     const { isKnownProductionMongoHost } = require('../utils/migrationSafety')
     expect(isKnownProductionMongoHost('mongodb+srv://u:p@cluster0.m5yqfs7.mongodb.net/ops')).toBe(true)
+    expect(isKnownProductionMongoHost('mongodb+srv://u:p@cluster0.fiotefu.mongodb.net/ops-dashboard')).toBe(true)
     expect(looksLikeNonProductionUri('mongodb+srv://u:p@cluster0.m5yqfs7.mongodb.net/ops_test')).toBe(false)
     expect(looksLikeNonProductionUri('mongodb+srv://u:p@staging-mg.abcd.mongodb.net/ops')).toBe(true)
   })
