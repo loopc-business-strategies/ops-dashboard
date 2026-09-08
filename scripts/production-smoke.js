@@ -41,12 +41,13 @@ function assertSmokeAuthConfigured() {
   if (SMOKE_AUTH_TOKEN || SMOKE_SESSION_COOKIE) return
 
   const missingTenants = TENANTS.filter((tenant) => !getTenantSmokeCredentials(tenant))
-  if (missingTenants.length) {
-    const tenantVars = missingTenants
+  const blocking = missingTenants.filter((tenant) => tenant !== 'vb')
+  if (blocking.length) {
+    const tenantVars = blocking
       .map((tenant) => `SMOKE_AUTH_NAME_${tenant.toUpperCase()} / SMOKE_AUTH_PASSWORD_${tenant.toUpperCase()}`)
       .join(', ')
     throw new Error(
-      `SMOKE_REQUIRE_AUTH=true but ERP smoke credentials are missing for: ${missingTenants.join(', ')}. `
+      `SMOKE_REQUIRE_AUTH=true but ERP smoke credentials are missing for: ${blocking.join(', ')}. `
       + `Set shared SMOKE_AUTH_NAME/SMOKE_AUTH_PASSWORD or per-tenant vars (${tenantVars}).`
     )
   }
@@ -158,8 +159,15 @@ function tenantEnvName(base, tenant) {
 }
 
 function getTenantSmokeCredentials(tenant) {
-  const name = String(process.env[tenantEnvName('SMOKE_AUTH_NAME', tenant)] || SMOKE_AUTH_NAME || '').trim()
-  const password = String(process.env[tenantEnvName('SMOKE_AUTH_PASSWORD', tenant)] || SMOKE_AUTH_PASSWORD || '').trim()
+  const dedicatedName = String(process.env[tenantEnvName('SMOKE_AUTH_NAME', tenant)] || '').trim()
+  const dedicatedPass = String(process.env[tenantEnvName('SMOKE_AUTH_PASSWORD', tenant)] || '').trim()
+  if (dedicatedName && dedicatedPass) return { name: dedicatedName, password: dedicatedPass }
+
+  // Shared smoke users were provisioned in MG/CG/LoopC only. VB must use SMOKE_AUTH_*_VB.
+  if (String(tenant || '').toLowerCase() === 'vb') return null
+
+  const name = String(SMOKE_AUTH_NAME || '').trim()
+  const password = String(SMOKE_AUTH_PASSWORD || '').trim()
   if (!name || !password) return null
   return { name, password }
 }
@@ -206,6 +214,9 @@ async function loginForSmoke(tenant) {
 }
 
 async function verifyTenantReadOnlyErpPath(tenant) {
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !getTenantSmokeCredentials(tenant)) {
+    return `skipped: no smoke login for ${tenant} (set SMOKE_AUTH_NAME_${String(tenant).toUpperCase()})`
+  }
   let smokeSession = null
   if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE) {
     smokeSession = await loginForSmoke(tenant)
@@ -280,6 +291,9 @@ async function buildTenantSmokeHeaders(tenant) {
 }
 
 async function verifyTenantMetalRatesLive(tenant) {
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !getTenantSmokeCredentials(tenant)) {
+    return `skipped: no smoke login for ${tenant} (set SMOKE_AUTH_NAME_${String(tenant).toUpperCase()})`
+  }
   const headers = await buildTenantSmokeHeaders(tenant)
   if (!headers) {
     throw new Error(`metal-rates live probe requires credentials for ${tenant}`)
@@ -300,6 +314,9 @@ async function verifyTenantMetalRatesLive(tenant) {
 }
 
 async function verifyTenantExpenseRegister(tenant) {
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !getTenantSmokeCredentials(tenant)) {
+    return `skipped: no smoke login for ${tenant} (set SMOKE_AUTH_NAME_${String(tenant).toUpperCase()})`
+  }
   const headers = await buildTenantSmokeHeaders(tenant)
   if (!headers) {
     throw new Error(`expense-register probe requires credentials for ${tenant}`)

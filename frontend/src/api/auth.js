@@ -12,9 +12,19 @@ const cfg = () => ({ withCredentials: true })
 const login = async (name, password, company) =>
   (await axios.post(`${BASE}/login`, { name, password, company }, cfg())).data
 
+const setupStatus = async (company) =>
+  (await axios.get(`${BASE}/setup-status`, { ...cfg(), params: company ? { company } : undefined })).data
+
 // One-time first admin setup (name + password only)
-const setup = async (name, password, company) =>
-  (await axios.post(`${BASE}/setup`, { name, password, company }, cfg())).data
+const setup = async (name, password, company, setupToken) =>
+  (await axios.post(
+    `${BASE}/setup`,
+    { name, password, company, ...(setupToken ? { setupToken } : {}) },
+    {
+      ...cfg(),
+      headers: setupToken ? { 'x-setup-token': setupToken } : undefined,
+    },
+  )).data
 
 // Get my own profile
 const getMe = async () =>
@@ -47,5 +57,5 @@ const deleteUser = async (_token, id, reason = '') =>
 const updatePermissions = async (_token, id, modulePermissions) =>
   (await axios.put(`${BASE}/users/${id}/permissions`, { modulePermissions }, cfg())).data
 
-const authAPI = { login, setup, getMe, logout, getUsers, createUser, updateUserRole, toggleUser, deleteUser, updatePermissions }
+const authAPI = { login, setup, setupStatus, getMe, logout, getUsers, createUser, updateUserRole, toggleUser, deleteUser, updatePermissions }
 export default authAPI

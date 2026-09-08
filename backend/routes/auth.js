@@ -180,39 +180,96 @@ const updateRoleSchema = Joi.object({
   password: Joi.string().min(6).max(128).allow('').optional(),
 })
 
+function enableSetupFlag() {
+  return String(process.env.ENABLE_SETUP || '').trim().toLowerCase()
+}
+
+function providedSetupToken(req) {
+  return String(
+    req.headers['x-setup-token']
+    || req.body?.setupToken
+    || req.query?.setupToken
+    || '',
+  ).trim()
+}
+
+function setupTokenMatches(req) {
+  const expectedToken = String(process.env.SETUP_TOKEN || '').trim()
+  if (!expectedToken) return false
+  return timingSafeEqualString(providedSetupToken(req), expectedToken)
+}
+
+function rejectSetupIfLocked(req, res, { userCount }) {
+  const enable = enableSetupFlag()
+  const tokenConfigured = Boolean(String(process.env.SETUP_TOKEN || '').trim())
+  const emptyTenant = userCount === 0
+
+  if (isProductionEnv()) {
+    if (enable === 'false') {
+      res.status(403).json({ success: false, message: 'Setup is disabled in production.' })
+      return true
+    }
+    if (!emptyTenant) {
+      res.status(403).json({ success: false, message: 'Setup is disabled in production.' })
+      return true
+    }
+    if (tokenConfigured && !setupTokenMatches(req)) {
+      res.status(403).json({ success: false, message: 'Invalid or missing setup token.' })
+      return true
+    }
+    return false
+  }
+
+  if (!isLocalDevEnv() || tokenConfigured) {
+    if (!tokenConfigured || !setupTokenMatches(req)) {
+      res.status(403).json({ success: false, message: 'Invalid or missing setup token.' })
+      return true
+    }
+    return false
+  }
+
+  if (enable !== 'true') {
+    res.status(403).json({
+      success: false,
+      message: 'Setup requires SETUP_TOKEN or ENABLE_SETUP=true in local development.',
+    })
+    return true
+  }
+  return false
+}
+
+// ==========================================
+// GET /api/auth/setup-status
+// Public: whether this tenant still needs a first Super Admin.
+// ==========================================
+router.get('/setup-status', async (req, res) => {
+  try {
+    const tenant = resolveRequestTenant(req, req.query.company)
+    if (!tenant) {
+      return res.status(400).json({ success: false, message: 'Valid company could not be resolved.' })
+    }
+    const TenantUser = await User.getTenantModel(tenant)
+    const count = await TenantUser.countDocuments({ isDeleted: { $ne: true } })
+    return res.json({
+      success: true,
+      tenant,
+      needsSetup: count === 0,
+    })
+  } catch (err) {
+    console.error('setup-status error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
 // ==========================================
 // POST /api/auth/setup
 // Creates the FIRST Super Admin account.
 // Only works when database has zero users.
 // After first use, this endpoint is permanently blocked.
+// Empty production tenants can complete first-admin setup (SETUP_TOKEN if configured).
 // ==========================================
 router.post('/setup', validateBody(setupSchema), async (req, res) => {
   try {
-    if (isProductionEnv()) {
-      const enabled = String(process.env.ENABLE_SETUP || '').trim().toLowerCase() === 'true'
-      if (!enabled) {
-        return res.status(403).json({ success: false, message: 'Setup is disabled in production.' })
-      }
-    }
-
-    if (!isLocalDevEnv() || String(process.env.SETUP_TOKEN || '').trim()) {
-      const expectedToken = String(process.env.SETUP_TOKEN || '').trim()
-      const providedToken = String(
-        req.headers['x-setup-token']
-        || req.body?.setupToken
-        || ''
-      ).trim()
-
-      if (!expectedToken || !timingSafeEqualString(providedToken, expectedToken)) {
-        return res.status(403).json({ success: false, message: 'Invalid or missing setup token.' })
-      }
-    } else if (String(process.env.ENABLE_SETUP || '').trim().toLowerCase() !== 'true') {
-      return res.status(403).json({
-        success: false,
-        message: 'Setup requires SETUP_TOKEN or ENABLE_SETUP=true in local development.',
-      })
-    }
-
     const tenant = resolveRequestTenant(req, req.body.company)
     if (!tenant) {
       return res.status(400).json({ success: false, message: 'Valid company could not be resolved.' })
@@ -226,6 +283,8 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
         message: `Setup already done for ${tenant.toUpperCase()}. Super Admin already exists.`,
       })
     }
+
+    if (rejectSetupIfLocked(req, res, { userCount: count })) return
 
     const { name, password } = req.body
     if (!name || !password)
@@ -273,8 +332,19 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
       isDeleted: { $ne: true },
     }).select('+password')
 
-    if (!user || !(await user.comparePassword(password)))
+    if (!user || !(await user.comparePassword(password))) {
+      if (!user) {
+        const remaining = await TenantUser.countDocuments({ isDeleted: { $ne: true } })
+        if (remaining === 0) {
+          return res.status(401).json({
+            success: false,
+            code: 'TENANT_NEEDS_SETUP',
+            message: 'This company has no admin account yet. Open /setup to create the first Super Admin.',
+          })
+        }
+      }
       return res.status(401).json({ success: false, message: 'Invalid credentials.' })
+    }
 
     if (user.isDeleted)
       return res.status(401).json({ success: false, message: 'User no longer exists.' })

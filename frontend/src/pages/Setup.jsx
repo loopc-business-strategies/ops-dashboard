@@ -9,15 +9,21 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import authAPI from '../api/auth'
 import { useAuth } from '../context/AuthContext'
-import { TENANT_KEYS, getTenantBranding } from '../config/tenantBranding'
+import { TENANT_KEYS, getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 
 function Setup() {
   const navigate = useNavigate()
   const { login } = useAuth()
 
+  const storedTenant = typeof window !== 'undefined' ? (localStorage.getItem('tenantCompany') || 'loopc') : 'loopc'
+  const hostTenant = typeof window !== 'undefined'
+    ? resolveTenantFromSearch(window.location.search, resolveTenantFromHostname(window.location.hostname, storedTenant))
+    : 'loopc'
+  const lockCompany = typeof window !== 'undefined' && !isLocalTenantHost(window.location.hostname)
+
   const [name,     setName]     = useState('')
   const [password, setPassword] = useState('')
-  const [company,  setCompany]  = useState('loopc')
+  const [company,  setCompany]  = useState(hostTenant)
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
@@ -27,7 +33,8 @@ function Setup() {
     if (password.length < 6)   return setError('Password must be at least 6 characters.')
     setLoading(true)
     try {
-      await authAPI.setup(name.trim(), password, company)
+      const setupToken = new URLSearchParams(window.location.search).get('setupToken') || ''
+      await authAPI.setup(name.trim(), password, company, setupToken || undefined)
       // Auto-login after setup
       await login(name.trim(), password, company)
       navigate('/dashboard')
@@ -64,7 +71,7 @@ function Setup() {
             )}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Company</label>
-              <select value={company} onChange={e => setCompany(e.target.value)} className="input-field">
+              <select value={company} onChange={e => setCompany(e.target.value)} className="input-field" disabled={lockCompany}>
                 {TENANT_KEYS.map((key) => (
                   <option key={key} value={key}>
                     {getTenantBranding(key).displayName || key.toUpperCase()}

@@ -14,7 +14,7 @@ Configure under **Settings → Secrets and variables → Actions**:
 | `SMOKE_AUTH_PASSWORD` | Shared login password |
 | `SMOKE_AUTH_NAME_MG` / `SMOKE_AUTH_PASSWORD_MG` | Per-tenant overrides (optional) |
 | `SMOKE_AUTH_NAME_CG` / `SMOKE_AUTH_PASSWORD_CG` | Per-tenant overrides (optional) |
-| `SMOKE_AUTH_NAME_LOOPC` / `SMOKE_AUTH_PASSWORD_LOOPC` | Per-tenant overrides (optional; must be a valid LoopC login) |
+| `SMOKE_AUTH_NAME_VB` / `SMOKE_AUTH_PASSWORD_VB` | Venus Bullions smoke login (required for authenticated VB ERP probes; shared `SMOKE_AUTH_*` is not used for VB) |
 | `SMOKE_AUTH_TOKEN` | Bearer token alternative to password login |
 | `SMOKE_SESSION_COOKIE` | Session cookie alternative |
 

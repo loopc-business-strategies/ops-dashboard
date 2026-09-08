@@ -91,9 +91,11 @@ describe('readiness and setup security', () => {
     process.env.JWT_SECRET = previous
   })
 
-  test('setup is blocked in production without ENABLE_SETUP and SETUP_TOKEN', async () => {
+  test('setup is blocked in production when ENABLE_SETUP is false', async () => {
     const previousNodeEnv = process.env.NODE_ENV
+    const previousEnable = process.env.ENABLE_SETUP
     process.env.NODE_ENV = 'production'
+    process.env.ENABLE_SETUP = 'false'
 
     const res = await request(app)
       .post('/api/auth/setup')
@@ -104,6 +106,38 @@ describe('readiness and setup security', () => {
     expect(res.body.message).toMatch(/disabled in production/i)
 
     process.env.NODE_ENV = previousNodeEnv
+    if (previousEnable === undefined) delete process.env.ENABLE_SETUP
+    else process.env.ENABLE_SETUP = previousEnable
+  })
+
+  test('empty tenant can complete first-admin setup in production when ENABLE_SETUP is unset', async () => {
+    const previousNodeEnv = process.env.NODE_ENV
+    const previousEnable = process.env.ENABLE_SETUP
+    const previousToken = process.env.SETUP_TOKEN
+    process.env.NODE_ENV = 'production'
+    delete process.env.ENABLE_SETUP
+    delete process.env.SETUP_TOKEN
+
+    const statusRes = await request(app)
+      .get('/api/auth/setup-status')
+      .set('x-tenant', 'loopc')
+
+    expect(statusRes.status).toBe(200)
+    expect(statusRes.body.needsSetup).toBe(true)
+
+    const res = await request(app)
+      .post('/api/auth/setup')
+      .set('x-tenant', 'loopc')
+      .send({ name: 'Vb Admin', password: 'Password123!', company: 'loopc' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.user.role).toBe('super_admin')
+
+    process.env.NODE_ENV = previousNodeEnv
+    if (previousEnable === undefined) delete process.env.ENABLE_SETUP
+    else process.env.ENABLE_SETUP = previousEnable
+    if (previousToken === undefined) delete process.env.SETUP_TOKEN
+    else process.env.SETUP_TOKEN = previousToken
   })
 
   test('setup requires matching SETUP_TOKEN when enabled in production', async () => {
