@@ -2,6 +2,12 @@
    TENANT THEME OVERRIDES
    Import LAST in index.css (after design-system.css).
    Uses CSS vars from applyTenantTheme — no hardcoded tenant colors.
+
+   Remaining !important is intentional (beats Tailwind + light remaps):
+   - Login submit / MG CTA contrast (.mg-login__submit, submit:hover)
+   - Soft-plate sidebar active + fg cascade
+   - Light-theme Tailwind gray→light remaps (main .text-white, .bg-gray-*)
+   - Solid sidebar tenant bg/fg against those remaps
 ─────────────────────────────────────────────────────── */
 
 /* ── 1. LOGIN PAGE ──────────────────────────────────────
@@ -62,45 +68,7 @@ button[type="submit"]:hover,
   transform: none !important;
 }
 
-/* ── 2. ACTIVE TABS ───────────────────────────────────── */
-
-.tab.active,
-.tab.on,
-button.tab.active,
-button.tab.on,
-[class*="tab-btn"].active,
-[class*="tab-btn"].on,
-[class*="tabBtn"].active,
-[class*="tabBtn"].on,
-.tabs button.active,
-.tabs button[aria-selected="true"],
-[role="tab"][aria-selected="true"],
-[role="tab"].active {
-  background: transparent !important;
-  background-color: transparent !important;
-  color: var(--brand-dark, var(--brand-primary)) !important;
-  border-bottom: 2px solid var(--brand-primary, var(--brand-primary)) !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-.tab,
-button.tab,
-[class*="tab-btn"],
-.tabs button {
-  background: transparent !important;
-  color: var(--text-muted, #6b7280) !important;
-  border-bottom: 2px solid transparent !important;
-  border-radius: 0 !important;
-}
-
-.tab:hover,
-button.tab:hover,
-[class*="tab-btn"]:hover,
-.tabs button:hover {
-  color: var(--text-secondary, #374151) !important;
-  background: transparent !important;
-}
+/* ── 2. ACTIVE TABS — underline chrome lives in design-system.css ─ */
 
 /* ── 3. CHAT TAB ──────────────────────────────────────── */
 
@@ -198,37 +166,14 @@ button.tab:hover,
 
 /* ── 5. TABLE ACTION BUTTONS / STARS — moved to design-system.css ─ */
 
-/* ── 7. TOPBAR ROLE BADGE (flat solid, no gradient text) ─ */
+/* ── 7. TOPBAR ROLE BADGE — in design-system.css (.topbar .topbar-role-badge) ─ */
 
-.topbar-role-badge,
-[class*="role-badge"],
-[class*="roleBadge"],
-.tb-badge,
-.tb-bg {
-  background: var(--brand-soft) !important;
-  color: var(--brand-on-soft, var(--brand-dark)) !important;
-  -webkit-background-clip: unset !important;
-  -webkit-text-fill-color: unset !important;
-  background-clip: unset !important;
-  border: 1px solid var(--brand-border) !important;
-  padding: 3px 12px !important;
-  border-radius: 999px !important;
-}
-
-/* ── 8. LOGO / BRAND ICON (white plate on brand sidebar) ─ */
-
-.sidebar .sidebar-brand-icon,
-.sidebar .sidebar-logo-plate,
-.sb-logo-icon {
-  background: var(--sidebar-logo-plate, #ffffff) !important;
-  border: none !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
-}
+/* ── 8. LOGO / BRAND ICON — sidebar plate in design-system.css ─ */
 
 .login-logo,
 .mg-login__logo-plate {
-  border-color: rgba(var(--brand-rgb), 0.35) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+  border-color: rgba(var(--brand-rgb), 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 /* ── 9. NOTIFICATIONS PANEL ───────────────────────────── */
@@ -512,8 +457,8 @@ select option, main select option {
   color: #1C2A33;
 }
 main select:focus {
-  border-color: var(--brand-primary) !important;
-  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12) !important;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12);
 }
 main select,
 select.input-field {

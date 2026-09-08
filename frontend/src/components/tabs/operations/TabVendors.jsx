@@ -10,8 +10,8 @@ export default function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHe
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Vendor Contracts" sub={myOnly ? 'Your contract only' : `${vendors.length} vendors registered`}>
-        {(isAdmin || isHead) && <button style={B.pri} onClick={() => showToast('Renewal','Initiate contract renewal form')}>↻ Initiate Renewal</button>}
-        <button style={B.ghost}>⬇ Export</button>
+        {(isAdmin || isHead) && <button className={B.pri} onClick={() => showToast('Renewal','Initiate contract renewal form')}>↻ Initiate Renewal</button>}
+        <button className={B.pri}>⬇ Export</button>
       </SH>
 
       <TableWrap>

@@ -43,7 +43,7 @@ export default function TabProjects({
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
               {tr('opsShowArchived')}
             </label>
-            <button type="button" style={B.pri} onClick={onOpenAdd}>
+            <button type="button" className={B.pri} onClick={onOpenAdd}>
               {tr('opsAddProject')}
             </button>
           </div>

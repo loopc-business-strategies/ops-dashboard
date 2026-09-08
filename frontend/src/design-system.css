@@ -279,11 +279,14 @@ html, body, #root {
   gap: 12px;
   border-bottom: 1px solid var(--sidebar-border);
 }
+.sidebar .sidebar-logo-plate,
+.sidebar .sidebar-brand-icon,
 .sidebar-logo-plate {
   width: 52px;
   height: 52px;
   border-radius: 14px;
   background: var(--sidebar-logo-plate, #ffffff);
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -349,12 +352,15 @@ html, body, #root {
   font-size: 13px; font-weight: 700; color: #fff;
 }
 .topbar-username  { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.topbar .topbar-role-badge,
 .topbar-role-badge {
   font-size: 11px; font-weight: 600;
   background: var(--brand-soft);
-  color: var(--brand-on-soft);
+  color: var(--brand-on-soft, var(--brand-dark));
   border: 1px solid var(--brand-border);
   padding: 3px 12px; border-radius: var(--radius-pill);
+  -webkit-background-clip: unset;
+  background-clip: unset;
   -webkit-text-fill-color: unset;
 }
 .topbar-dropdown {
@@ -445,15 +451,33 @@ html, body, #root {
   overflow-x: auto; scrollbar-width: none;
 }
 .tabs-bar::-webkit-scrollbar { display: none; }
-.tab-btn {
+.tab-btn,
+button.tab,
+.tabs-bar .tab-btn,
+.tabs-bar button[role="tab"] {
   padding: 11px 18px; font-size: 13px; font-weight: 600;
   font-family: var(--font); cursor: pointer; border: none;
   background: transparent; color: var(--text-muted);
   border-bottom: 2px solid transparent; margin-bottom: -1px;
+  border-radius: 0;
   transition: var(--transition); white-space: nowrap; flex-shrink: 0;
 }
-.tab-btn:hover  { color: var(--text-secondary); }
-.tab-btn.active { color: var(--brand-dark, var(--purple)); border-bottom-color: var(--brand-primary, var(--purple)); }
+.tab-btn:hover,
+button.tab:hover,
+.tabs-bar button[role="tab"]:hover {
+  color: var(--text-secondary);
+  background: transparent;
+}
+.tab-btn.active,
+button.tab.active,
+button.tab.on,
+.tabs-bar button[role="tab"].active,
+.tabs-bar button[role="tab"][aria-selected="true"] {
+  background: transparent;
+  color: var(--brand-dark, var(--brand-primary));
+  border-bottom-color: var(--brand-primary);
+  box-shadow: none;
+}
 
 /* ─── Page Content ───────────────────────────────────── */
 .page-content {

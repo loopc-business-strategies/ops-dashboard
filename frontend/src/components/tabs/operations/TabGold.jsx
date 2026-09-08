@@ -13,7 +13,7 @@ export default function TabGold({ gold, setGold: _setGold, canEdit: _canEdit, is
         title={<>Gold Sourcing Channels {limitedView && <span style={{ fontSize:12, color:C.yellow, fontWeight:500 }}> ⚠ Limited View</span>}</>}
         sub={limitedView ? 'Volume and status data only — channel names and contacts are restricted' : 'Confidential — Super Admin & Operations Head full access'}
       >
-        {isAdmin && <button style={B.pri} onClick={() => setModal({ type:'gold-add', data:null })}>+ Add Channel</button>}
+        {isAdmin && <button className={B.pri} onClick={() => setModal({ type:'gold-add', data:null })}>+ Add Channel</button>}
       </SH>
 
       <TableWrap>

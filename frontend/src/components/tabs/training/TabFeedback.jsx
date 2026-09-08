@@ -5,7 +5,7 @@ export default function TabFeedback({ feedback, setFeedback: _setFeedback, canEd
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
         <SH title="Session Feedback" sub="Submit feedback after each completed session">
-          <button style={B.pri} onClick={onOpenFeedback}>⭐ Submit Feedback</button>
+          <button className={B.pri} onClick={onOpenFeedback}>⭐ Submit Feedback</button>
         </SH>
         <div style={{ background:'rgba(var(--purple-rgb),.08)', border:`1px solid ${C.border}`, borderRadius:10, padding:'14px 18px', fontSize:13, color:C.t2 }}>
           You can submit feedback after each completed session. Click <strong style={{ color:C.pur }}>Submit Feedback</strong> above.

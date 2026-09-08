@@ -8,8 +8,8 @@ export default function TabRoutes({ routes, setRoutes, canEdit, isExternal, isMg
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Transport Routes" sub={`${routes.filter(r=>r.st==='Active').length} active · ${routes.filter(r=>r.st!=='Active').length} restricted/suspended`}>
-        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'route-add', data:null })}>+ Add Route</button>}
-        {canEdit && <button style={B.warn} onClick={onOpenIncident}>⚠ Report Incident</button>}
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'route-add', data:null })}>+ Add Route</button>}
+        {canEdit && <button className={B.pri} onClick={onOpenIncident}>⚠ Report Incident</button>}
       </SH>
 
       <TableWrap>

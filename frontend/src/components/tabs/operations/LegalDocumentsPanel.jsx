@@ -485,7 +485,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
         <CardTitle
           right={canEdit ? (
             <label style={{ cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.6 : 1 }}>
-              <span style={{ ...B.sec, ...B.sm }}>＋ Add document</span>
+              <span className={B.sec}>＋ Add document</span>
               <input
                 type="file"
                 accept={LEGAL_DOC_ACCEPT}
@@ -546,7 +546,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
             </button>
           ))}
           {canEdit && !newFolderOpen && (
-            <button type="button" onClick={() => { setNewFolderOpen(true); setNewFolderName('') }} style={{ ...B.ghost, ...B.sm, borderRadius: 999 }}>
+            <button type="button" onClick={() => { setNewFolderOpen(true); setNewFolderName('') }} className={B.ghost}>
               ＋ New folder
             </button>
           )}
@@ -566,14 +566,14 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') onCreateFolder() }}
               />
-              <button type="button" disabled={creatingFolder} onClick={onCreateFolder} style={{ ...B.pri, ...B.sm }}>
+              <button type="button" disabled={creatingFolder} onClick={onCreateFolder} className={B.pri}>
                 {creatingFolder ? '…' : 'Create'}
               </button>
               <button
                 type="button"
                 disabled={creatingFolder}
                 onClick={() => { setNewFolderOpen(false); setNewFolderName('') }}
-                style={{ ...B.ghost, ...B.sm }}
+                className={B.ghost}
               >
                 Cancel
               </button>
@@ -633,7 +633,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                 type="button"
                 disabled={!selectedLegalDocIds.length}
                 onClick={() => { void shareSelectedLegalDocs() }}
-                style={{ ...B.sec, ...B.sm }}
+                className={B.sec}
               >
                 Share
               </button>
@@ -641,12 +641,12 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                 type="button"
                 disabled={!selectedLegalDocIds.length}
                 onClick={() => { void downloadSelectedLegalDocs() }}
-                style={{ ...B.ghost, ...B.sm }}
+                className={B.ghost}
               >
                 Download selected
               </button>
               {selectedLegalDocIds.length > 0 && (
-                <button type="button" onClick={() => setSelectedLegalDocIds([])} style={{ ...B.ghost, ...B.sm }}>
+                <button type="button" onClick={() => setSelectedLegalDocIds([])} className={B.ghost}>
                   Clear selection
                 </button>
               )}
@@ -711,19 +711,19 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                     <button
                       type="button"
                       onClick={() => openPreview(doc)}
-                      style={{ ...B.ghost, ...B.sm }}
+                      className={B.ghost}
                     >
                       View
                     </button>
                     <button
                       type="button"
                       onClick={() => downloadToDisk(doc)}
-                      style={{ ...B.ghost, ...B.sm }}
+                      className={B.ghost}
                     >
                       Download
                     </button>
                     {canEdit && (
-                      <button type="button" onClick={() => onDelete(doc)} style={{ ...B.warn, ...B.sm }}>
+                      <button type="button" onClick={() => onDelete(doc)} className={B.warn}>
                         Delete
                       </button>
                     )}
@@ -888,7 +888,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                   <p style={{ margin: '0 0 12px' }}>In-browser preview is not available for this file type. Download to open it on your device.</p>
                   <button
                     type="button"
-                    style={B.pri}
+                    className={B.pri}
                     onClick={async () => {
                       await downloadToDisk({ _id: preview.docId, originalName: preview.name })
                       closePreview()

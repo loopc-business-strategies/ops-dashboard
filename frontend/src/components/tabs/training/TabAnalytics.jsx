@@ -11,8 +11,8 @@ export default function TabAnalytics({ batches, canEdit: _canEdit, isAdmin, isHe
         <select style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:7, padding:'6px 12px', fontFamily:'inherit', fontSize:12, outline:'none' }}>
           <option>Last 3 Months</option><option>Last 6 Months</option><option>This Year</option>
         </select>
-        <button style={B.ghost}>⬇ PDF</button>
-        <button style={B.ghost}>⬇ Excel</button>
+        <button className={B.pri}>⬇ PDF</button>
+        <button className={B.pri}>⬇ Excel</button>
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>

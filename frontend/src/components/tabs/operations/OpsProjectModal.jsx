@@ -98,7 +98,7 @@ function ModalProject({
         >
           <div style={{ fontSize: 11, color: C.t2, lineHeight: 1.45, marginBottom: 8 }}>{lt('opsArchivedProjectBanner')}</div>
           {onUnarchive && (
-            <button type="button" onClick={() => onUnarchive({ id: f.id, title: f.title })} style={{ ...B.succ, ...B.sm }}>
+            <button type="button" onClick={() => onUnarchive({ id: f.id, title: f.title })} className={B.succ}>
               {lt('opsBtnUnarchive')}
             </button>
           )}
@@ -337,7 +337,7 @@ function ModalProject({
             <button
               type="button"
               onClick={() => setF((p) => ({ ...p, checklist: (p.checklist || []).filter((_c, i) => i !== idx) }))}
-              style={{ ...B.ghost, ...B.sm }}
+              className={B.ghost}
               aria-label={lt('opsModalRemoveChecklistItem')}
             >
               ✕
@@ -352,7 +352,7 @@ function ModalProject({
               checklist: [...(p.checklist || []), { title: '', done: false, order: (p.checklist || []).length }],
             }))
           }
-          style={{ ...B.sec, ...B.sm, alignSelf: 'flex-start' }}
+          className={B.sec}
         >
           {lt('opsModalChecklistAdd')}
         </button>
@@ -518,7 +518,7 @@ function ModalProject({
                       showToast?.(lt('error'), lt('opsModalDeleteFailed'))
                     }
                   }}
-                  style={{ ...B.ghost, ...B.sm }}
+                  className={B.ghost}
                 >
                   {lt('opsModalRemove')}
                 </button>
@@ -529,7 +529,7 @@ function ModalProject({
       )}
       {isEdit && onArchive && !initial?.archivedAt && (
         <div style={{ marginTop: 8 }}>
-          <button type="button" onClick={() => onArchive(f)} style={{ ...B.warn, ...B.sm }}>
+          <button type="button" onClick={() => onArchive(f)} className={B.warn}>
             {lt('opsModalArchive')}
           </button>
         </div>
@@ -557,7 +557,7 @@ function ModalProject({
               type="button"
               disabled={progressBusy || !progressNote.trim()}
               onClick={handleAddProgress}
-              style={{ ...B.pri, ...B.sm, opacity: progressBusy || !progressNote.trim() ? 0.5 : 1 }}
+              className={B.pri}
             >
               {progressBusy ? lt('saving') : lt('opsModalLogProgress')}
             </button>

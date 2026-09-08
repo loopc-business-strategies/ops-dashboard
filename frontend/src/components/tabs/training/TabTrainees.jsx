@@ -6,7 +6,7 @@ export default function TabTrainees({ trainees, setTrainees: _setTrainees, canEd
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Trainee Profiles" sub={isTrainee ? 'Your profile' : `All ${trainees.length} trainees`}>
-        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'trainee', data:null })}>+ Enroll Trainee</button>}
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'trainee', data:null })}>+ Enroll Trainee</button>}
       </SH>
 
       <TableWrap>
@@ -37,9 +37,9 @@ export default function TabTrainees({ trainees, setTrainees: _setTrainees, canEd
                     </div>
                   </td>
                   <td style={TD}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background: t.certs > 0 ? 'rgba(0,200,150,.12)':'rgba(255,255,255,.05)', color: t.certs > 0 ? C.green : C.t3, border:`1px solid ${t.certs > 0 ? 'rgba(0,200,150,.3)':'rgba(255,255,255,.1)'}` }}>{t.certs} cert{t.certs !== 1 ? 's' : ''}</span></td>
-                  <td style={TD}><button onClick={() => onShowProfile(t.name)} style={{ ...B.sec, ...B.sm }}>View Profile</button></td>
+                  <td style={TD}><button onClick={() => onShowProfile(t.name)} className={B.sec}>View Profile</button></td>
                   {canEdit && !isTrainee && <td style={TD}>
-                    <button onClick={() => setModal({ type:'trainee', data:t })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
+                    <button onClick={() => setModal({ type:'trainee', data:t })} className={B.sec}>Edit</button>
                     <button onClick={() => { if (window.confirm(`Delete ${t.name}?`)) { deleteTrainee(t.id); showToast('Deleted', 'Trainee removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                   </td>}
                 </tr>

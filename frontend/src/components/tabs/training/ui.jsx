@@ -1,5 +1,7 @@
 // Shared Training tab UI primitives
 
+import { KIT_BTN } from '../sharedModuleKit'
+
 export const C = {
   grad:   'var(--brand-primary)',
   gbar:   'var(--brand-primary)',
@@ -10,13 +12,7 @@ export const C = {
   card:'#ffffff', card2:'#f8f9fa', inp:'#f8f9fa',
   pur: 'var(--brand-primary)',
 }
-export const B = {
-  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:'var(--brand-primary)', color:'#fff', boxShadow:'none', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--brand-primary)', border:'1px solid var(--brand-primary)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid ${C.border}`, whiteSpace:'nowrap', fontFamily:'inherit' },
-  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#065f46', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sm:    { padding:'5px 11px', fontSize:11 },
-}
+export const B = KIT_BTN
 
 // Seed data lives in ./trainingSeedData.js (imported by tab panels).
 
@@ -81,11 +77,10 @@ export function ProgRow({ label, p, color }) {
 
 export function StatCard({ label, value, sub, dot, bottom }) {
   return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px 16px', position:'relative', overflow:'hidden' }}>
-      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
-      <div style={{ fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', marginBottom:8 }}>{label}</div>
-      <div style={{ fontSize:26, fontWeight:800, color:C.t1, lineHeight:1 }}>{value}</div>
-      {sub && !bottom && <div style={{ fontSize:11, color:C.t3, marginTop:7, display:'flex', alignItems:'center', gap:5 }}>
+    <div className="stat-card">
+      <div className="stat-card-label">{label}</div>
+      <div className="stat-card-value" style={{ fontSize: 26 }}>{value}</div>
+      {sub && !bottom && <div className="stat-card-sub">
         {dot && <span style={{ width:6, height:6, borderRadius:'50%', background:dot, display:'inline-block', flexShrink:0 }} />}
         {sub}
       </div>}
@@ -96,17 +91,16 @@ export function StatCard({ label, value, sub, dot, bottom }) {
 
 export function Card({ children, style = {} }) {
   return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:'16px 18px', position:'relative', overflow:'hidden', ...style }}>
-      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
+    <div className="card" style={style}>
       {children}
     </div>
   )
 }
 export function CardTitle({ children }) {
-  return <div style={{ fontSize:13, fontWeight:800, color:C.t1, marginBottom:14, display:'flex', alignItems:'center', justifyContent:'space-between' }}>{children}</div>
+  return <div className="card-title" style={{ marginBottom: 14 }}>{children}</div>
 }
 export function TableWrap({ children }) {
-  return <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, overflow:'hidden' }}>{children}</div>
+  return <div className="table-wrapper">{children}</div>
 }
 export function TableHead({ title, subtitle, right }) {
   return (

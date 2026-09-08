@@ -56,27 +56,18 @@ const INIT_AGREEMENTS = [
 ]
 
 function Card({ children, style }) {
-  return <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, ...style }}>{children}</div>
+  return <div className="card" style={style}>{children}</div>
 }
 
 function Button({ children, onClick, variant = 'primary', disabled = false }) {
-  const style = variant === 'primary'
-    ? { background: C.primary, color: '#fff', border: '1px solid transparent' }
-    : { background: '#fff', color: C.text, border: `1px solid ${C.borderStrong}` }
+  const cls = variant === 'primary' ? 'btn btn-primary' : 'btn btn-ghost'
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
-      style={{
-        ...style,
-        borderRadius: 8,
-        padding: '8px 12px',
-        fontSize: 12,
-        fontWeight: 700,
-        fontFamily: 'inherit',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.65 : 1,
-      }}
+      className={cls}
+      style={{ opacity: disabled ? 0.65 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
     >
       {children}
     </button>
@@ -86,11 +77,12 @@ function Button({ children, onClick, variant = 'primary', disabled = false }) {
 function Input({ value, onChange, placeholder, type = 'text' }) {
   return (
     <input
+      className="form-input"
       type={type}
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      style={{ width: '100%', border: `1px solid ${C.borderStrong}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#fff' }}
+      style={{ marginBottom: 0 }}
     />
   )
 }

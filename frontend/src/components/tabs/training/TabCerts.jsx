@@ -6,8 +6,8 @@ export default function TabCerts({ certs, setCerts: _setCerts, canEdit, canAppro
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Certification Management" sub={isTrainee ? 'Your certificates' : 'All certifications'}>
-        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'cert', data:null })}>+ Issue Cert</button>}
-        <button style={B.ghost}>⬇ Export List</button>
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'cert', data:null })}>+ Issue Cert</button>}
+        <button className={B.pri}>⬇ Export List</button>
       </SH>
 
       <TableWrap>
@@ -37,7 +37,7 @@ export default function TabCerts({ certs, setCerts: _setCerts, canEdit, canAppro
                         approveCert(c.trainee)
                         showToast('Certificate Approved', `${c.trainee} certificate issued`)
                       }} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Approve</button>}
-                      {canEdit && <button onClick={() => setModal({ type:'cert', data:c })} style={{ ...B.ghost, ...B.sm, marginRight:6 }}>Edit</button>}
+                      {canEdit && <button onClick={() => setModal({ type:'cert', data:c })} className={B.ghost}>Edit</button>}
                       {canEdit && <button onClick={() => { if (window.confirm('Delete this certificate row?')) { deleteCert(c.id); showToast('Deleted', 'Certificate record removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
                     </td>
                   </tr>

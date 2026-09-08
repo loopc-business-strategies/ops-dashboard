@@ -1,3 +1,5 @@
+import { KIT_BTN } from '../sharedModuleKit'
+
 export const OPS_C = {
   grad: 'var(--brand-primary)',
   gbar: 'var(--brand-primary)',
@@ -19,14 +21,7 @@ export const OPS_C = {
   pur: 'var(--brand-primary)',
 }
 
-export const OPS_B = {
-  pri: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'var(--brand-primary)', color: '#fff', boxShadow: 'none', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  sec: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: 'var(--brand-primary)', border: '1px solid var(--brand-primary)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  ghost: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: '#475569', border: '1px solid var(--brand-border)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  warn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'rgba(255,112,67,.15)', color: '#9a3412', border: '1px solid rgba(255,112,67,.3)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  succ: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'rgba(0,200,150,.15)', color: '#065f46', border: '1px solid rgba(0,200,150,.3)', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  sm: { padding: '5px 11px', fontSize: 11 },
-}
+export const OPS_B = KIT_BTN
 
 export const OPS_BADGE_MAP = {
   Completed: { bg: 'rgba(0,200,150,.12)', color: '#065f46', b: 'rgba(0,200,150,.3)' },

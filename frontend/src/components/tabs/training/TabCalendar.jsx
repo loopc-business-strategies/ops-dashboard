@@ -7,7 +7,7 @@ export default function TabCalendar({ sessions, setSessions: _setSessions, canEd
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Training Calendar" sub={`April 2026 — ${isTrainee ? 'Your sessions only' : 'All scheduled sessions'}`}>
-        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'session', data:null })}>+ Add Session</button>}
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'session', data:null })}>+ Add Session</button>}
       </SH>
 
       <div style={{ display:'flex', gap:12, marginBottom:4, fontSize:11 }}>
@@ -59,7 +59,7 @@ export default function TabCalendar({ sessions, setSessions: _setSessions, canEd
                     <td style={TD}>{s.batch}</td>
                     <td style={TD}><Badge s={s.st} /></td>
                     <td style={TD}>
-                      <button onClick={() => setModal({ type:'session', data:s })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
+                      <button onClick={() => setModal({ type:'session', data:s })} className={B.sec}>Edit</button>
                       <button onClick={() => { if (window.confirm('Delete this session?')) { deleteSession(s.id); showToast('Deleted', 'Session removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
                     </td>
                   </tr>

@@ -7,8 +7,8 @@ export default function TabInventory({ inventory, setInventory: _setInventory, s
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Inventory & Stock Tracking" sub={`${inventory.filter(i=>i.st==='Critical').length} critical · ${inventory.filter(i=>i.st==='Low Stock').length} low stock`}>
-        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'inventory-add', data:null })}>+ Add Item</button>}
-        <button style={B.ghost}>⬇ Report</button>
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'inventory-add', data:null })}>+ Add Item</button>}
+        <button className={B.pri}>⬇ Report</button>
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:11 }}>
@@ -40,7 +40,7 @@ export default function TabInventory({ inventory, setInventory: _setInventory, s
                       {canEdit && <button onClick={() => {
                         setSuppliers(p => [...p, { id:Date.now(), name:`Restock: ${i.item}`, cat:'Consumables', od:'Today', ed:'TBD', ad:'—', qty:'Restock order', qr:'0', pay:'Not Paid', qc:'Pending', st:'Not Started', notes:'Auto-created from inventory restock request' }])
                         showToast('Restock Requested', `${i.item} — procurement request sent`)
-                      }} style={{ ...B.sec, ...B.sm }}>Restock</button>}
+                      }} className={B.sec}>Restock</button>}
                       {canEdit && <button onClick={() => onDeleteInventory && onDeleteInventory(i)} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:6 }}>Del</button>}
                       {i.st === 'Critical' && <span style={{ marginLeft:6, fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, background:'rgba(255,71,87,.15)', color:C.red, border:'1px solid rgba(255,71,87,.3)' }}>⚠ URGENT</span>}
                     </td>

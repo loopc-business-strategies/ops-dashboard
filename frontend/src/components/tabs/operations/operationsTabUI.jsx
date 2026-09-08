@@ -34,12 +34,11 @@ export function ProgRow({ label, p, color }) {
 
 export function StatCard({ label, value, sub, dot }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: C.gbar }} />
-      <div style={{ fontSize: 10, fontWeight: 700, color: C.t3, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: C.t1, lineHeight: 1 }}>{value}</div>
+    <div className="stat-card">
+      <div className="stat-card-label">{label}</div>
+      <div className="stat-card-value" style={{ fontSize: 24 }}>{value}</div>
       {sub && (
-        <div style={{ fontSize: 11, color: C.t3, marginTop: 7, display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div className="stat-card-sub">
           {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />}
           {sub}
         </div>
@@ -50,8 +49,7 @@ export function StatCard({ label, value, sub, dot }) {
 
 export function Card({ children, style = {} }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', position: 'relative', overflow: 'hidden', ...style }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: C.gbar }} />
+    <div className="card" style={style}>
       {children}
     </div>
   )

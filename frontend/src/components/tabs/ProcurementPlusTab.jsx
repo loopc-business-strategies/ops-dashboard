@@ -8,10 +8,10 @@ import { formatAmount } from '../../utils/money'
 
 const C = {
   card: '#ffffff',
-  border: '#E2E8F0',
+  border: 'var(--brand-border)',
   ink: '#0F172A',
   inkSoft: '#64748B',
-  primary: 'var(--purple)',
+  primary: 'var(--brand-primary)',
 }
 
 const erpOps = erpUnified.operations
@@ -23,30 +23,20 @@ const TABS = [
 ]
 
 function Card({ children, style }) {
-  return <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, ...style }}>{children}</div>
+  return <div className="card" style={style}>{children}</div>
 }
 
 function Btn({ children, onClick, disabled, variant = 'primary' }) {
-  const style = variant === 'primary'
-    ? { background: C.primary, color: '#fff', border: 'none' }
-    : { background: '#fff', color: C.ink, border: `1px solid ${C.border}` }
+  const cls = variant === 'primary' ? 'btn btn-primary' : 'btn btn-ghost'
   return (
-    <button type="button" onClick={onClick} disabled={disabled} style={{ ...style, borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1 }}>
+    <button type="button" onClick={onClick} disabled={disabled} className={cls} style={{ opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {children}
     </button>
   )
 }
 
 function Input({ value, onChange, placeholder, type = 'text' }) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit' }}
-    />
-  )
+  return <input className="form-input" type={type} value={value} onChange={onChange} placeholder={placeholder} style={{ marginBottom: 0 }} />
 }
 
 export default function ProcurementPlusTab() {
