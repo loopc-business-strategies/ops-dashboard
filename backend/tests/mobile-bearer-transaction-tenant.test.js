@@ -69,6 +69,7 @@ beforeAll(async () => {
   process.env.MONGO_URI_LOOPC = withDbName(baseUri, 'ops_loopc_mobile_tx')
   process.env.MONGO_URI_MG = withDbName(baseUri, 'ops_mg_mobile_tx')
   process.env.MONGO_URI_CG = withDbName(baseUri, 'ops_cg_mobile_tx')
+  process.env.MONGO_URI_VB = withDbName(baseUri, 'ops_vb_mobile_tx')
 
   await mongoose.connect(process.env.MONGO_URI_LOOPC)
   app = createApp()

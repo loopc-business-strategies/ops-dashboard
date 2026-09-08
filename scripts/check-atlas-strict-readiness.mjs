@@ -10,9 +10,10 @@ import {
   hasAtlasGroupIdsForTenants,
   getAtlasGroupIdForTenant,
 } from './lib/atlasAdminApi.mjs'
+import { loadCatalogTenantKeys } from './loadCatalogTenantKeys.mjs'
 
 const phase = String(process.env.ATLAS_BACKUP_PHASE || 'deferred').trim().toLowerCase()
-const TENANTS = ['mg', 'cg', 'loopc']
+const TENANTS = loadCatalogTenantKeys()
 
 if (phase !== 'strict') {
   console.log(`Atlas backup phase: ${phase} — strict readiness check skipped.`)

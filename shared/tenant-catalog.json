@@ -32,6 +32,17 @@
       "brandPrimary": "#2563EB",
       "sharedInboxEmail": "business@loopcstrategies.com",
       "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
+    },
+    "vb": {
+      "key": "vb",
+      "displayName": "Venus Bullions",
+      "companyName": "Venus Bullions",
+      "tagline": "Venus Bullions Operations",
+      "portalHost": "vb.loopcstrategies.com",
+      "envVar": "MONGO_URI_VB",
+      "brandPrimary": "#B45309",
+      "sharedInboxEmail": "",
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     }
   },
   "customDomains": {

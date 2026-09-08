@@ -17,7 +17,9 @@ try {
   // optional
 }
 
-export const TENANTS = ['mg', 'cg', 'loopc']
+import { loadCatalogTenantKeys } from './loadCatalogTenantKeys.mjs'
+
+export const TENANTS = loadCatalogTenantKeys()
 export const AUTO_TEST_MARKER = 'AUTO TEST OPS-'
 const SYSTEM_FX_ADJUSTMENT_DESC_RE = /Exchange (gain|loss) adjustment for transaction /i
 

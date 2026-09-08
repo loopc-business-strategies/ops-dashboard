@@ -44,7 +44,7 @@ function assertStagingMongoTargets(tenants, env = process.env) {
  */
 function mapStagingMongoToProcessEnv(env = process.env) {
   const out = { ...env }
-  for (const tenant of ['mg', 'cg', 'loopc']) {
+  for (const tenant of ['mg', 'cg', 'loopc', 'vb']) {
     const stagingKey = `STAGING_MONGO_URI_${tenant.toUpperCase()}`
     const uri = String(env[stagingKey] || '').trim()
     if (uri) {

@@ -1,5 +1,9 @@
 /* eslint-disable no-console */
-const TENANTS = ['mg', 'cg', 'loopc']
+const fs = require('fs')
+const path = require('path')
+const TENANTS = Object.keys(
+  JSON.parse(fs.readFileSync(path.join(__dirname, '../shared/tenant-catalog.json'), 'utf8')).tenants || {},
+).sort()
 
 const BASE_DOMAIN = process.env.SMOKE_BASE_DOMAIN || 'loopcstrategies.com'
 const API_BASE = (process.env.SMOKE_API_BASE || `https://api.${BASE_DOMAIN}`).replace(/\/$/, '')

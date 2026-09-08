@@ -1,4 +1,4 @@
-const { TENANT_KEYS } = require('../config/tenants')
+const { TENANT_KEYS, getTenantConfig } = require('../config/tenants')
 
 const WEAK_JWT_PLACEHOLDERS = new Set([
   'change_this_to_a_strong_random_secret',
@@ -14,10 +14,9 @@ const WEAK_BRIDGE_PLACEHOLDERS = new Set([
 
 const MIN_PRODUCTION_JWT_LENGTH = 32
 
-const TENANT_URI_ENV = {
-  mg: 'MONGO_URI_MG',
-  cg: 'MONGO_URI_CG',
-  loopc: 'MONGO_URI_LOOPC',
+function tenantUriEnvVar(tenant) {
+  const cfg = getTenantConfig(tenant)
+  return cfg?.envVar || `MONGO_URI_${String(tenant || '').trim().toUpperCase()}`
 }
 
 function normalizeNodeEnv() {
@@ -78,7 +77,7 @@ function validateHardenedDeploySecrets() {
   }
 
   for (const tenant of TENANT_KEYS) {
-    const envVar = TENANT_URI_ENV[tenant]
+    const envVar = tenantUriEnvVar(tenant)
     if (!String(process.env[envVar] || '').trim()) {
       errors.push(`${envVar} is required in production and staging (tenant: ${tenant}).`)
     }

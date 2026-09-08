@@ -7,18 +7,19 @@ require('./destructive/_destructive-guard')({ scriptName: __filename })
  *
  * Usage:
  *   node scripts/copy-chart-of-accounts.js
- *   node scripts/copy-chart-of-accounts.js --source loopc --targets mg,cg,loopc
+ *   node scripts/copy-chart-of-accounts.js --source mg --targets vb
+ *   node scripts/copy-chart-of-accounts.js --source loopc --targets mg,cg,loopc,vb
  *
- * Requires .env with MONGO_URI_MG, MONGO_URI_CG, MONGO_URI_LOOPC
+ * Requires .env MONGO_URI_* for each catalog tenant (via shared/tenant-catalog.json envVar).
  */
 
 require('dotenv').config()
 const dns = require('dns')
 const mongoose = require('mongoose')
+const { getTenantUri, getTenantKeys } = require('../config/tenants')
 
 dns.setServers(['8.8.8.8', '1.1.1.1'])
 
-// --- Parse CLI args ---
 const args = process.argv.slice(2)
 function getArg(name, fallback) {
   const idx = args.indexOf('--' + name)
@@ -26,13 +27,10 @@ function getArg(name, fallback) {
 }
 
 const SOURCE_TENANT = getArg('source', 'loopc')
-const TARGET_TENANTS = getArg('targets', 'mg,cg,loopc').split(',').map(t => t.trim()).filter(Boolean)
-
-const URI_MAP = {
-  mg:    process.env.MONGO_URI_MG,
-  cg:    process.env.MONGO_URI_CG,
-  loopc: process.env.MONGO_URI_LOOPC,
-}
+const TARGET_TENANTS = getArg('targets', getTenantKeys().join(','))
+  .split(',')
+  .map((t) => t.trim())
+  .filter(Boolean)
 
 const COLLECTION = 'chartofaccounts'
 
@@ -57,7 +55,7 @@ async function copyChartOfAccounts(sourceConn, targetConn, targetName) {
     const result = await targetCol.updateOne(
       { accountCode: doc.accountCode },
       { $set: clone },
-      { upsert: true }
+      { upsert: true },
     )
 
     if (result.upsertedCount > 0) {
@@ -71,9 +69,9 @@ async function copyChartOfAccounts(sourceConn, targetConn, targetName) {
 }
 
 async function main() {
-  const sourceUri = URI_MAP[SOURCE_TENANT]
+  const sourceUri = getTenantUri(SOURCE_TENANT)
   if (!sourceUri) {
-    console.error(`ERROR: No MONGO_URI for source tenant "${SOURCE_TENANT}". Check your .env file.`)
+    console.error(`ERROR: No MONGO_URI for source tenant "${SOURCE_TENANT}". Check your .env / catalog envVar.`)
     process.exit(1)
   }
 
@@ -85,9 +83,13 @@ async function main() {
   console.log('  Source connected.\n')
 
   for (const target of TARGET_TENANTS) {
-    const targetUri = URI_MAP[target]
+    if (target === SOURCE_TENANT) {
+      console.log(`  [${target}] SKIPPED — same as source`)
+      continue
+    }
+    const targetUri = getTenantUri(target)
     if (!targetUri) {
-      console.warn(`  [${target}] SKIPPED — no MONGO_URI_${target.toUpperCase()} in .env`)
+      console.warn(`  [${target}] SKIPPED — missing tenant URI in env`)
       continue
     }
 
@@ -104,8 +106,7 @@ async function main() {
   console.log('\nAll done.')
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })
-require('./destructive/_destructive-guard')({ scriptName: __filename })

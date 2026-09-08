@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   smoke-tenants:
-    name: Smoke mg/cg/loopc
+    name: Smoke mg/cg/loopc/vb
     if: >
       github.event_name == 'workflow_dispatch' ||
       (

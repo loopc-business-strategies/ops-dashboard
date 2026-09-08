@@ -123,6 +123,7 @@ Get these from MongoDB Atlas → Your Cluster → Connect → Drivers → Connec
 MONGO_URI_MG=<YOUR-MG-CLUSTER-CONNECTION-STRING>
 MONGO_URI_CG=<YOUR-CG-CLUSTER-CONNECTION-STRING>
 MONGO_URI_LOOPC=<YOUR-LOOPC-CLUSTER-CONNECTION-STRING>
+MONGO_URI_VB=<YOUR-VB-CLUSTER-OR-RAILWAY-MONGO-CONNECTION-STRING>
 ```
 
 **Example format (customize with your values):**
@@ -162,7 +163,7 @@ REQUEST_BODY_LIMIT=100kb
 Use **`CLIENT_URLS`** (preferred) for every browser origin that calls the API, comma-separated, **no trailing slashes**. Include tenant subdomains **and** the apex marketing URL if the SPA is ever loaded from it (otherwise browsers send `Origin: https://yourdomain.com` and the API rejects the request with `CORS: origin not allowed` — see `backend/app.js`).
 
 ```
-CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,https://yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
+CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://vb.yourdomain.com,https://app.yourdomain.com,https://yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173,http://vb.localhost:5173
 ```
 
 Legacy **`CLIENT_URL`** (optional): same list; the server merges both into one allowlist.
