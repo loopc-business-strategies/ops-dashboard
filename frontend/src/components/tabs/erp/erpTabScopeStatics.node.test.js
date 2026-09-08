@@ -43,6 +43,7 @@ describe('erpTabScopeStatics (node)', () => {
       formatStatementValue: () => '',
       getSignedColor: () => '#000',
       formatDirectionalBalance: () => '',
+      formatSignedDirectionalBalance: () => '',
       unfixedMetalEntries: [],
       formatStatementDate: () => '',
       fixedMetalSummary: null,

@@ -13,6 +13,7 @@ import { resolveStatementPrintSettings } from '../documentBranding'
 import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from '../erpPrintHelpers'
 import { useErpExportActions } from '../useErpExportActions'
 import { formatMoney as formatMoneyShared } from '../../../../utils/money'
+import { withSignedDirectionalPrefix } from '../statementHelpers'
 
 
 
@@ -155,6 +156,9 @@ export function useErpTabPresentationSlice(scope) {
     if (absAmount === 0) return formatted
     return `${formatted} ${direction}`
   }
+  const formatSignedDirectionalBalance = (value, options = {}) => (
+    withSignedDirectionalPrefix(formatDirectionalBalance(value, options), value)
+  )
   const getDepartmentBadgeStyle = (department) => {
     const deptValue = String(department || '').trim().toLowerCase()
     if (deptValue === 'finance') return { background: '#DBEAFE', color: '#1D4ED8' }
@@ -365,6 +369,7 @@ export function useErpTabPresentationSlice(scope) {
     buildBrandingLogoTag,
     closeJvModal,
     formatDirectionalBalance,
+    formatSignedDirectionalBalance,
     formatMoney,
     formatMoneyAbs,
     formatReportDirectionalBalance,
