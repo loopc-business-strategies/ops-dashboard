@@ -19,7 +19,7 @@ export default function TabKPI({ suppliers, gold: _gold, routes, incidents, vend
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Operations KPI Overview" sub="Real-time operational status — all departments">
-        <button style={B.ghost}>⬇ Export</button>
+        <button className={B.pri}>⬇ Export</button>
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>

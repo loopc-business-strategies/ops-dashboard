@@ -4,8 +4,8 @@ export default function TabAttendance({ attendance, trainees, canEdit, isTrainee
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Attendance Tracking" sub="Session-wise attendance summary">
-        {canEdit && <button style={B.pri} onClick={onOpenAtt}>📋 Mark Attendance</button>}
-        {!isTrainee && <button style={B.ghost}>⬇ Export</button>}
+        {canEdit && <button className={B.pri} onClick={onOpenAtt}>📋 Mark Attendance</button>}
+        {!isTrainee && <button className={B.pri}>⬇ Export</button>}
       </SH>
 
       <TableWrap>
@@ -34,7 +34,7 @@ export default function TabAttendance({ attendance, trainees, canEdit, isTrainee
                       </div>
                     </td>
                     <td style={TD}>{p < 75 ? <Badge s="Absent" /> : p >= 90 ? <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:'rgba(0,200,150,.12)', color:C.green, border:'1px solid rgba(0,200,150,.3)' }}>Excellent</span> : <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:'rgba(255,214,0,.1)', color:C.yellow, border:'1px solid rgba(255,214,0,.3)' }}>Acceptable</span>}</td>
-                    {canEdit && <td style={TD}><button onClick={() => showToast('Tip', 'Use Mark Attendance to create corrected records')} style={{ ...B.ghost, ...B.sm }}>Amend</button></td>}
+                    {canEdit && <td style={TD}><button onClick={() => showToast('Tip', 'Use Mark Attendance to create corrected records')} className={B.ghost}>Amend</button></td>}
                   </tr>
                 )
               })}

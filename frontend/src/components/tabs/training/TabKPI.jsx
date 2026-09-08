@@ -9,7 +9,7 @@ export default function TabKPI({ batches, certs, sessions }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Training Overview" sub="Programme-wide metrics — April 2026">
-        <button style={B.ghost}>⬇ Export Report</button>
+        <button className={B.pri}>⬇ Export Report</button>
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(6,minmax(0,1fr))', gap:11 }}>

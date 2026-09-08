@@ -13,7 +13,7 @@ export default function TabChecklist({ checklist, setChecklist, canEdit, isExter
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Operational Readiness Checklist" sub={`${done} of ${checklist.length} items complete — ${p}% ready`}>
-        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'checklist-add', data:null })}>+ Add Item</button>}
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'checklist-add', data:null })}>+ Add Item</button>}
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>

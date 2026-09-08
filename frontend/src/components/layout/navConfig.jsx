@@ -9,7 +9,7 @@ export function NavItem({
   href,
   onAfterClick,
   badge,
-  openInNewTab = true,
+  openInNewTab = false,
   onSameTabNavigate,
   onPrefetch,
 }) {

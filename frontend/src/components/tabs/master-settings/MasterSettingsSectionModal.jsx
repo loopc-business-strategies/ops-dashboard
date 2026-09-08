@@ -126,7 +126,8 @@ function MasterSettingsSectionModal({
             width: '16px',
             height: '16px',
             cursor: 'nwse-resize',
-            background: 'linear-gradient(135deg, transparent 50%, #64748B 50%)',
+            background: '#64748B',
+            clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
             borderBottomRightRadius: '0.35rem',
           }}
         />

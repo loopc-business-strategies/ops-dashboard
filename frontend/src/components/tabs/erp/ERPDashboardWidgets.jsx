@@ -197,15 +197,15 @@ function MarginsWidget({
                 ? <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem', fontSize: '0.85rem' }}>No {activeLabel}s found.</p>
                 : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
-                      <tr style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', position: 'sticky', top: 0, zIndex: 1 }}>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>{tab === 'suppliers' ? 'Supplier Name' : 'Customer Name'}</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Gold Position</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Silver Position</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Equity</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Excess</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'center', fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>Status</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin %</th>
+                      <tr style={{ background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', position: 'sticky', top: 0, zIndex: 1 }}>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem' }}>{tab === 'suppliers' ? 'Supplier Name' : 'Customer Name'}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Gold Position</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Silver Position</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Equity</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Excess</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'center', fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem' }}>Status</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin %</th>
                       </tr>
                     </thead>
                     <tbody>

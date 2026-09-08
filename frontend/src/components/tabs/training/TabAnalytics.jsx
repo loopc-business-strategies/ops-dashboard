@@ -11,8 +11,8 @@ export default function TabAnalytics({ batches, canEdit: _canEdit, isAdmin, isHe
         <select style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:7, padding:'6px 12px', fontFamily:'inherit', fontSize:12, outline:'none' }}>
           <option>Last 3 Months</option><option>Last 6 Months</option><option>This Year</option>
         </select>
-        <button style={B.ghost}>⬇ PDF</button>
-        <button style={B.ghost}>⬇ Excel</button>
+        <button className={B.pri}>⬇ PDF</button>
+        <button className={B.pri}>⬇ Excel</button>
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
@@ -21,7 +21,7 @@ export default function TabAnalytics({ batches, canEdit: _canEdit, isAdmin, isHe
           <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:110 }}>
             {batches.filter(b => b.st !== 'On Hold').map(b => (
               <div key={b.id} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
-                <div style={{ height:b.completion, width:'100%', borderRadius:'4px 4px 0 0', background: b.completion === 100 ? 'var(--grad-brand)' : 'linear-gradient(180deg,var(--purple),var(--purple-light))', minHeight:4 }} />
+                <div style={{ height:b.completion, width:'100%', borderRadius:'4px 4px 0 0', background: 'var(--brand-primary)', minHeight:4 }} />
                 <div style={{ fontSize:9, fontWeight:700, color:C.t3 }}>{b.completion}%</div>
                 <div style={{ fontSize:9, color:C.t3 }}>{b.name.split('—')[0].trim().split(' ')[1]}</div>
               </div>

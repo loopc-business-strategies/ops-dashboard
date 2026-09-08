@@ -8,7 +8,7 @@ export default function TabAssessments({ assessments, setAssessments: _setAssess
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Assessments & Scores" sub={isTrainee ? 'Your results only' : 'All assessment results'}>
-        {canEdit && <button style={B.pri} onClick={onOpenAdd}>+ Add Result</button>}
+        {canEdit && <button className={B.pri} onClick={onOpenAdd}>+ Add Result</button>}
       </SH>
 
       {!isTrainee && (
@@ -45,7 +45,7 @@ export default function TabAssessments({ assessments, setAssessments: _setAssess
                   <td style={{ ...TD, color:C.t3 }}>{a.date}</td>
                   <td style={{ ...TD, color: a.attempt > 1 ? C.yellow : C.t3 }}>#{a.attempt}{a.attempt > 1 ? ' (Retest)' : ''}</td>
                   {!isTrainee && canEdit && <td style={TD}>
-                    <button onClick={() => setModal({ type:'assess', data:a })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
+                    <button onClick={() => setModal({ type:'assess', data:a })} className={B.sec}>Edit</button>
                     <button onClick={() => { if (window.confirm('Delete this result?')) { deleteAssessment(a.id); showToast('Deleted', 'Assessment removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
                   </td>}
                 </tr>

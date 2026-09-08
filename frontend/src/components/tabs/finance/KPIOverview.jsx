@@ -57,7 +57,7 @@ export default function KPIOverview({ finRole, can, canEdit, invoices: _invoices
                 <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:4 }}>
                   <div style={{ display:'flex', gap:2, alignItems:'flex-end', width:'100%' }}>
                     <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.r*0.5, background:'var(--grad-brand)' }} />
-                    <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.e*0.5, background:'linear-gradient(180deg,var(--purple),var(--purple-light))' }} />
+                    <div style={{ flex:1, borderRadius:'4px 4px 0 0', height:d.e*0.5, background:'var(--brand-primary)' }} />
                   </div>
                   <div style={{ fontSize:9, color:C.t3, fontWeight:600 }}>{d.m}</div>
                 </div>

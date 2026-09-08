@@ -216,7 +216,7 @@ function KpiCard({ title, value, hint, tone: _tone = 'green', onClick, href, rea
   const cardStyle = { minHeight: 128, padding: '16px 18px', borderRadius: '0.75rem', borderColor: '#e5e7eb', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }
   const content = (
     <>
-      <span aria-hidden className="absolute left-0 top-0 right-0 h-0.5 w-full" style={{ background: 'var(--grad-bar)' }} />
+      <span aria-hidden className="absolute left-0 top-0 right-0 h-0.5 w-full" style={{ background: 'var(--brand-primary)' }} />
       <p className="text-[11px] text-gray-500 tracking-[0.14em] uppercase mt-1.5">{title}</p>
       <p className="text-[32px] sm:text-[36px] leading-[1.08] font-bold text-gray-900 mt-2">{value}</p>
       <p className="text-xs text-gray-600 mt-2">{hint}{readOnly ? ' - read only' : ''}</p>
@@ -255,7 +255,7 @@ function Section({ title, action, children }) {
       className="relative overflow-hidden bg-white border border-gray-200 rounded-xl p-5 sm:p-6"
       style={{ borderRadius: '0.75rem', padding: '18px 20px', borderColor: '#e5e7eb', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}
     >
-      <div aria-hidden className="pointer-events-none absolute left-0 top-0 right-0 h-0.5" style={{ background: 'var(--grad-bar)' }} />
+      <div aria-hidden className="pointer-events-none absolute left-0 top-0 right-0 h-0.5" style={{ background: 'var(--brand-primary)' }} />
       <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 pb-3 border-b border-gray-100">
         <h2 className="text-base sm:text-lg font-bold tracking-tight text-gray-900 leading-tight sm:whitespace-nowrap">{title}</h2>
         {action && <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div>}
@@ -1600,7 +1600,7 @@ function OverviewTab({ onNavigate, buildTabHref }) {
             <div className="border border-gray-200 rounded-xl p-3 bg-white">
               <p className="text-xs text-gray-600 mb-2">Revenue Trend</p>
               <svg viewBox="0 0 240 120" className="w-full h-32">
-                <polyline fill="none" stroke="var(--purple-light)" strokeWidth="3" points="0,90 25,78 50,80 75,70 100,75 125,62 150,55 175,58 200,45 225,35 240,38" />
+                <polyline fill="none" stroke="var(--brand-light)" strokeWidth="3" points="0,90 25,78 50,80 75,70 100,75 125,62 150,55 175,58 200,45 225,35 240,38" />
                 <line x1="0" y1="52" x2="240" y2="52" stroke="#64748b" strokeDasharray="4 4" />
               </svg>
             </div>

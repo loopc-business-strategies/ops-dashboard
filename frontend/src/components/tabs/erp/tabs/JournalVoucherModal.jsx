@@ -134,15 +134,15 @@ export default function JournalVoucherModal({
                 {jvError}
               </div>
             ) : null}
-            <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>
+            <div style={{ background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ color: 'var(--brand-on-soft)', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>
               📒 {jvReadOnly ? `VIEW ${jvModeMeta.badge}` : jvEditEntryIds.length > 0 ? `EDIT ${jvModeMeta.badge}` : jvModeMeta.badge}
             </span>
-            <span style={{ marginLeft: 'auto', color: '#94A3B8', fontSize: '0.75rem' }}>Base: {baseCurrencyCode}</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '0.75rem' }}>Base: {baseCurrencyCode}</span>
           </div>
 
           {jvReadOnly && (
-            <div style={{ padding: '0.45rem 1rem', background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', color: 'var(--purple)', fontSize: '0.78rem', fontWeight: '600' }}>
+            <div style={{ padding: '0.45rem 1rem', background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontWeight: '600' }}>
               View mode — click Edit from the list to modify
             </div>
           )}
@@ -159,9 +159,9 @@ export default function JournalVoucherModal({
                   style={{
                     padding: '0.35rem 0.7rem',
                     borderRadius: '0.35rem',
-                    border: `1px solid ${active ? '#1D4ED8' : '#CBD5E1'}`,
-                    background: active ? '#DBEAFE' : '#F8FAFC',
-                    color: active ? '#1E3A8A' : '#334155',
+                    border: `1px solid ${active ? 'var(--brand-primary)' : '#CBD5E1'}`,
+                    background: active ? 'var(--brand-soft)' : '#F8FAFC',
+                    color: active ? 'var(--brand-on-soft)' : '#334155',
                     fontWeight: '700',
                     cursor: jvFormLocked ? 'not-allowed' : 'pointer',
                     opacity: jvFormLocked ? 0.65 : 1,
@@ -353,7 +353,7 @@ export default function JournalVoucherModal({
         <div
           onMouseDown={beginJvModalResize}
           title="Resize"
-          style={{ position: 'absolute', right: '6px', bottom: '6px', width: '16px', height: '16px', cursor: 'nwse-resize', background: 'linear-gradient(135deg, transparent 50%, #64748B 50%)', borderBottomRightRadius: '0.35rem' }}
+          style={{ position: 'absolute', right: '6px', bottom: '6px', width: '16px', height: '16px', cursor: 'nwse-resize', background: '#64748B', clipPath: 'polygon(100% 0, 100% 100%, 0 100%)', borderBottomRightRadius: '0.35rem' }}
         />
       </div>
     </div>

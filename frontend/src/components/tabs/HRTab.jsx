@@ -279,7 +279,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
             type="submit"
             disabled={loading}
             className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
-            style={{ background: 'var(--grad-brand)', color: 'var(--brand-on-primary, #ffffff)' }}
+            style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
           >
             {loading ? t('saving') : t('saveEmployee')}
           </button>
@@ -348,7 +348,7 @@ function EmployeeList({ token }) {
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex min-h-10 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md"
-            style={{ background: 'var(--grad-brand)', color: 'var(--brand-on-primary, #ffffff)' }}
+            style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
           >
             + Add Employee
           </button>
@@ -371,7 +371,7 @@ function EmployeeList({ token }) {
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '4px solid var(--purple)', borderTopColor: 'transparent' }} />
+          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '4px solid var(--brand-primary)', borderTopColor: 'transparent' }} />
         </div>
       ) : employees.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-gray-800 rounded-2xl">

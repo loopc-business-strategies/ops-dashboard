@@ -7,8 +7,8 @@ export default function TabSecurity({ secVendors, setSecVendors, incidents, setI
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Security Coordination" sub={`${secVendors.length} vendors · ${incidents.length} incidents logged`}>
-        {canEdit && <button style={B.sec} onClick={() => setModal({ type:'secvendor-add', data:null })}>+ Add Vendor</button>}
-        {canEdit && <button style={B.pri} onClick={onOpenIncident}>+ Log Incident</button>}
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'secvendor-add', data:null })}>+ Add Vendor</button>}
+        {canEdit && <button className={B.pri} onClick={onOpenIncident}>+ Log Incident</button>}
       </SH>
 
       <Card>
@@ -64,7 +64,7 @@ export default function TabSecurity({ secVendors, setSecVendors, incidents, setI
 
       <TableWrap>
         <TableHead title="Incident Register" subtitle={`${incidents.length} incidents logged`}
-          right={canEdit && <button style={{ ...B.pri, ...B.sm }} onClick={onOpenIncident}>+ Add Incident</button>} />
+          right={canEdit && <button className={B.pri} onClick={onOpenIncident}>+ Add Incident</button>} />
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
             <thead><tr>

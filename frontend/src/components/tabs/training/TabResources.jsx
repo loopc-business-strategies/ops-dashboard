@@ -6,7 +6,7 @@ export default function TabResources({ resources, setResources: _setResources, c
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Resource Library" sub={isTrainee ? 'Your program materials only' : 'All training materials'}>
-        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'resource', data:null })}>⬆ Upload Material</button>}
+        {canEdit && <button className={B.pri} onClick={() => setModal({ type:'resource', data:null })}>⬆ Upload Material</button>}
       </SH>
 
       <select style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:7, padding:'7px 14px', fontFamily:'inherit', fontSize:12, outline:'none', alignSelf:'flex-start' }}>
@@ -37,8 +37,8 @@ export default function TabResources({ resources, setResources: _setResources, c
                     <td style={{ ...TD, color:C.t3 }}>{r.date}</td>
                     <td style={{ ...TD, color:C.t3 }}>{r.views} views</td>
                     <td style={TD}>
-                      <button onClick={() => showToast('Download', `${r.name} downloaded`)} style={{ ...B.sec, ...B.sm }}>⬇ Download</button>
-                      {canEdit && <button onClick={() => setModal({ type:'resource', data:r })} style={{ ...B.ghost, ...B.sm, marginLeft:6 }}>Edit</button>}
+                      <button onClick={() => showToast('Download', `${r.name} downloaded`)} className={B.sec}>⬇ Download</button>
+                      {canEdit && <button onClick={() => setModal({ type:'resource', data:r })} className={B.ghost}>Edit</button>}
                       {canEdit && <button onClick={() => { deleteResource(r.id); showToast('Deleted', 'File removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:8 }}>Del</button>}
                     </td>
                   </tr>

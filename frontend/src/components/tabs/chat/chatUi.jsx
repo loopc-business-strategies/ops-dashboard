@@ -6,11 +6,11 @@ export const C = {
   sidebarActive: '#e6f5ef',
   main:          '#f8f9fa',
   bubbleIn:      '#f0f2f5',
-  bubbleMe:      'var(--purple)',
+  bubbleMe:      'var(--brand-primary)',
   inputBg:       '#ffffff',
   border:        'rgba(var(--brand-rgb),0.12)',
-  accent:        'var(--purple)',
-  accent2:       'var(--purple)',
+  accent:        'var(--brand-primary)',
+  accent2:       'var(--brand-primary)',
 }
 
 export function msgTime(iso) {

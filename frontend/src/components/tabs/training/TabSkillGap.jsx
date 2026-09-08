@@ -7,7 +7,7 @@ export default function TabSkillGap({ canEdit: _canEdit, isAdmin, isHead, isUser
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Skill Gap Analysis" sub="Required skills vs current levels by department">
-        <button style={B.ghost}>⬇ Export Report</button>
+        <button className={B.pri}>⬇ Export Report</button>
       </SH>
 
       <Card>
@@ -50,7 +50,7 @@ export default function TabSkillGap({ canEdit: _canEdit, isAdmin, isHead, isUser
                     <td style={TD}><Badge s={g.current} /></td>
                     <td style={{ ...TD, color:gapColor, fontWeight:800 }}>{g.gap}%</td>
                     <td style={{ ...TD, color:C.pur }}>{g.prog}</td>
-                    <td style={TD}><button onClick={() => showToast('Program Assigned', `${g.prog} assigned to close ${g.dept} skill gap`)} style={{ ...B.pri, ...B.sm }}>Assign Program</button></td>
+                    <td style={TD}><button onClick={() => showToast('Program Assigned', `${g.prog} assigned to close ${g.dept} skill gap`)} className={B.pri}>Assign Program</button></td>
                   </tr>
                 )
               })}

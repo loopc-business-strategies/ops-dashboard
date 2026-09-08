@@ -44,7 +44,7 @@ export default function ChatGroupModal({
                     autoFocus
                     style={groupModalInputStyle}
                     onFocus={e => e.target.style.borderColor = C.accent}
-                    onBlur={e  => e.target.style.borderColor = 'rgba(var(--purple-rgb),0.2)'}
+                    onBlur={e  => e.target.style.borderColor = 'rgba(var(--brand-rgb),0.2)'}
                   />
                 </div>
                         <label style={{ display:'block', color:'#334155', fontSize:12, fontWeight:700, margin:'16px 0 7px' }}>Department / Scope <span style={{ color:'#EF4444' }}>*</span></label>
@@ -54,7 +54,7 @@ export default function ChatGroupModal({
                     onChange={e => setGroupForm(p => ({ ...p, dept:e.target.value }))}
                     style={groupModalInputStyle}
                     onFocus={e => e.target.style.borderColor = C.accent}
-                    onBlur={e  => e.target.style.borderColor = 'rgba(var(--purple-rgb),0.2)'}
+                    onBlur={e  => e.target.style.borderColor = 'rgba(var(--brand-rgb),0.2)'}
                   >
                     <option value="" style={{ background:'#ffffff' }}>{t('selectDepartmentScope')}</option>
                     {['All Departments','Production & Factory','HR & Hiring','Finance & Accounts','Govt. & Compliance','Sales & Marketing','Operations & Logistics','Training & Dev.'].map(d => (
@@ -80,10 +80,10 @@ export default function ChatGroupModal({
                           <select style={groupModalInputStyle} defaultValue="users"><option value="users">Users</option><option value="heads">Dept Heads</option></select>
                         </div>
                 <div style={{ fontSize:11, color:'#334155', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>{t('addMembers')}</div>
-                <div style={{ maxHeight:160, overflowY:'auto', marginBottom:18, scrollbarWidth:'thin', scrollbarColor:'rgba(var(--purple-rgb),0.3) transparent' }}>
+                <div style={{ maxHeight:160, overflowY:'auto', marginBottom:18, scrollbarWidth:'thin', scrollbarColor:'rgba(var(--brand-rgb),0.3) transparent' }}>
                   {filteredGroupPeople.map(u => (
                     <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', transition:'background .15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background='rgba(var(--purple-rgb),0.06)'}
+                      onMouseEnter={e => e.currentTarget.style.background='rgba(var(--brand-rgb),0.06)'}
                       onMouseLeave={e => e.currentTarget.style.background='transparent'}
                     >
                       <input
@@ -194,7 +194,7 @@ export default function ChatGroupModal({
                     disabled={!groupForm.name.trim()}
                     style={{ minWidth:112, padding:'12px 18px', borderRadius:10, fontSize:13, fontWeight:800, cursor: groupForm.name.trim() ? 'pointer' : 'not-allowed', fontFamily:'inherit', border:'none', background: groupForm.name.trim() ? '#18966F' : '#94A3B8', color:'#fff', transition:'all .2s', boxShadow: groupForm.name.trim() ? '0 10px 20px rgba(24,150,111,0.24)' : 'none' }}
                     onMouseEnter={e => { if (groupForm.name.trim()) e.currentTarget.style.background=C.accent2 }}
-                    onMouseLeave={e => { e.currentTarget.style.background = groupForm.name.trim() ? C.accent : 'rgba(var(--purple-rgb),0.3)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = groupForm.name.trim() ? C.accent : 'rgba(var(--brand-rgb),0.3)' }}
                   >
                     {t('createGroup')}
                   </button>

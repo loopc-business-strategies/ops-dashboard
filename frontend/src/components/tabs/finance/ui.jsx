@@ -1,4 +1,5 @@
 import { formatMoney } from '../../../utils/money'
+import { KIT_BTN } from '../sharedModuleKit'
 
 export const C = {
   grad:   'var(--brand-primary)',
@@ -11,13 +12,7 @@ export const C = {
   card:'#ffffff', inp:'#f8f9fa',
 }
 
-export const B = {
-  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:'var(--brand-primary)', color:'#fff', boxShadow:'none', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--brand-primary)', border:'1px solid var(--brand-primary)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:'1px solid var(--brand-border)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,0.15)', color:'#065f46', border:'1px solid rgba(0,200,150,0.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sm:    { padding:'5px 11px', fontSize:11 },
-}
+export const B = KIT_BTN
 
 export function ML({ children }) {
   return <span style={{ display:'block', fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</span>
@@ -75,10 +70,9 @@ export function Td({ children, style={} }) {
 
 export function Card({ title, titleRight, children, style={} }) {
   return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:'16px 18px', position:'relative', overflow:'hidden', ...style }}>
-      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
+    <div className="card" style={style}>
       {title && (
-        <div style={{ fontSize:13, fontWeight:800, color:C.t1, marginBottom:14, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div className="card-title" style={{ marginBottom: 14 }}>
           <span>{title}</span>{titleRight}
         </div>
       )}
@@ -89,15 +83,14 @@ export function Card({ title, titleRight, children, style={} }) {
 
 export function StatCard({ label, value, sub, color=C.t1, progress, children }) {
   return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 16px', position:'relative', overflow:'hidden', cursor:'default' }}>
-      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
-      <div style={{ fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', marginBottom:8 }}>{label}</div>
-      <div style={{ fontSize:24, fontWeight:800, color, lineHeight:1 }}>{value}</div>
-      {sub && <div style={{ fontSize:11, color:C.t3, marginTop:7, display:'flex', alignItems:'center', gap:5 }}>{sub}</div>}
+    <div className="stat-card" style={{ cursor: 'default' }}>
+      <div className="stat-card-label">{label}</div>
+      <div className="stat-card-value" style={{ color, fontSize: 24 }}>{value}</div>
+      {sub && <div className="stat-card-sub">{sub}</div>}
       {progress !== undefined && (
         <div style={{ marginTop:8, display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ flex:1, height:6, background:'rgba(255,255,255,.06)', borderRadius:999, overflow:'hidden' }}>
-            <div style={{ width:`${progress}%`, height:'100%', borderRadius:999, background:C.gfin }} />
+          <div className="progress-track">
+            <div className="progress-fill progress-fill-brand" style={{ width:`${progress}%` }} />
           </div>
           <span style={{ fontSize:11, fontWeight:700, color:C.t1, width:34, textAlign:'right' }}>{progress}%</span>
         </div>
@@ -175,22 +168,22 @@ export function InlineBar({ value, max, color=C.gfin }) {
 
 export function DataTable({ title, sub, toolbar, headers, children }) {
   return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, overflow:'hidden' }}>
+    <div className="table-wrapper">
       {(title||toolbar) && (
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px 12px', borderBottom:`1px solid ${C.border}` }}>
+        <div className="table-header">
           <div>
-            <div style={{ fontSize:14, fontWeight:800, color:C.t1 }}>{title}</div>
-            {sub && <div style={{ fontSize:12, color:C.t3, marginTop:2 }}>{sub}</div>}
+            <div className="table-title">{title}</div>
+            {sub && <div className="table-subtitle">{sub}</div>}
           </div>
           {toolbar}
         </div>
       )}
-      <div style={{ overflowX:'auto' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+      <div className="table-scroll">
+        <table className="data-table erp-table">
           <thead>
-            <tr style={{ background:'#f0faf5' }}>
+            <tr>
               {headers.map((h,i) => (
-                <th key={i} style={{ fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', padding:'10px 14px', textAlign:'left', borderBottom:`1px solid ${C.border}`, whiteSpace:'nowrap' }}>{h}</th>
+                <th key={i}>{h}</th>
               ))}
             </tr>
           </thead>

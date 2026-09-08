@@ -9,8 +9,8 @@ export default function TabSupply({ suppliers, setSuppliers, canEdit, isExternal
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Supply Chain Tracking" sub={`${suppliers.length} suppliers · ${suppliers.filter(s=>s.st==='Completed').length} completed`}>
-        {canEdit && <button style={B.pri} onClick={onOpenAdd}>+ Add Supplier</button>}
-        <button style={B.ghost}>⬇ Excel</button>
+        {canEdit && <button className={B.pri} onClick={onOpenAdd}>+ Add Supplier</button>}
+        <button className={B.pri}>⬇ Excel</button>
       </SH>
 
       <TableWrap>

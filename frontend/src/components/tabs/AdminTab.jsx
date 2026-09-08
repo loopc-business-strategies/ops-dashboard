@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
 import platformAPI from '../../api/platform'
@@ -74,7 +74,7 @@ const ROLE_COLOR = {
   external: { bg: '#ECFCCB', text: '#3F6212', border: '#BEF264' },
 }
 
-const AVATAR_COLORS = ['#6366F1', '#0EA5E9', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6']
+const AVATAR_COLORS = ['var(--brand-primary)', '#0EA5E9', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6']
 
 const EMPTY_FORM = {
   name: '',
@@ -126,11 +126,11 @@ const ADMIN = {
   border: '#E2E8F0',
   ink: '#0F172A',
   inkSoft: '#64748B',
-  primary: '#6366F1',
-  primaryDark: '#4F46E5',
+  primary: 'var(--brand-primary)',
+  primaryDark: 'var(--brand-dark)',
   green: '#10B981',
   greenSoft: '#ECFDF5',
-  purpleSoft: '#EEF2FF',
+  purpleSoft: 'var(--brand-soft)',
 }
 
 function deptLabel(val) {
@@ -395,8 +395,8 @@ function CreateUserForm({ token, onCreated, onCancel }) {
       <form onSubmit={handleSubmit}>
         <UserFormFields form={form} setForm={setForm} />
         <div style={{ display: 'flex', gap: '0.55rem', marginTop: '1rem' }}>
-          <button type="submit" disabled={loading} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>{loading ? 'Creating…' : 'Create User'}</button>
-          <button type="button" onClick={onCancel} style={{ padding: '0.55rem 1.1rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#fff', color: ADMIN.ink, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+          <button type="submit" disabled={loading} className="btn btn-primary" style={{ opacity: loading ? 0.6 : 1 }}>{loading ? 'Creating…' : 'Create User'}</button>
+          <button type="button" onClick={onCancel} className="btn btn-ghost">Cancel</button>
         </div>
       </form>
     </div>
@@ -462,8 +462,8 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
         {error && <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.85rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#B91C1C', fontSize: '0.84rem' }}>{error}</div>}
         <UserFormFields form={form} setForm={setForm} isEdit />
         <div style={{ display: 'flex', gap: '0.55rem', marginTop: '1rem' }}>
-          <button type="button" onClick={onClose} style={{ flex: 1, padding: '0.65rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#fff', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-          <button type="button" onClick={handleSave} disabled={saving} style={{ flex: 1, padding: '0.65rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save Changes'}</button>
+          <button type="button" onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save Changes'}</button>
         </div>
       </div>
     </div>
@@ -547,7 +547,7 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.84rem', color: ADMIN.inkSoft }}>Manage user accounts, departments, role profiles, and access metadata.</p>
         </div>
         {!showCreate && (
-          <button type="button" onClick={() => setShowCreate(true)} style={{ padding: '0.55rem 1rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>+ Add User</button>
+          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">+ Add User</button>
         )}
       </div>
 
@@ -612,10 +612,10 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
                         <span style={{ fontSize: '0.75rem', color: ADMIN.inkSoft }}>Self account protected</span>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                          <button type="button" onClick={() => setEditUser(u)} style={actionBtn('#6366F1', '#EEF2FF')}>Edit</button>
-                          <button type="button" onClick={() => onOpenPermissions(u._id)} style={actionBtn('#6366F1', '#EEF2FF')}>Permissions</button>
-                          <button type="button" onClick={() => handleToggle(u)} style={actionBtn('#B45309', '#FFFBEB')}>{u.isActive ? 'Deactivate' : 'Activate'}</button>
-                          <button type="button" onClick={() => handleDelete(u)} style={actionBtn('#B91C1C', '#FEF2F2')}>Delete</button>
+                          <button type="button" onClick={() => setEditUser(u)} className="btn btn-outline btn-sm">Edit</button>
+                          <button type="button" onClick={() => onOpenPermissions(u._id)} className="btn btn-outline btn-sm">Permissions</button>
+                          <button type="button" onClick={() => handleToggle(u)} className="btn btn-ghost btn-sm">{u.isActive ? 'Deactivate' : 'Activate'}</button>
+                          <button type="button" onClick={() => handleDelete(u)} className="btn btn-danger btn-sm">Delete</button>
                         </div>
                       )}
                     </td>
@@ -637,10 +637,6 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
       </div>
     </div>
   )
-}
-
-function actionBtn(color, bg) {
-  return { padding: '0.28rem 0.55rem', borderRadius: 6, border: `1px solid ${color}33`, background: bg, color, fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }
 }
 
 function PermissionToggle({ checked, onChange, compact = false }) {
@@ -899,7 +895,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh, usersLoading }
                     <span style={{ display: 'inline-block', marginTop: 2, padding: '0.08rem 0.38rem', borderRadius: 999, background: ADMIN.purpleSoft, color: ADMIN.primary, fontSize: '0.62rem', fontWeight: 700 }}>{roleLabel(selectedUser.role)}</span>
                   </div>
                 </div>
-                <button type="button" onClick={handleSave} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+                <button type="button" onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm" style={{ opacity: saving ? 0.6 : 1 }}>
                   💾 {saving ? 'Saving…' : 'Save Permissions'}
                 </button>
               </div>
@@ -1032,7 +1028,7 @@ function SettingsTab() {
           <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: ADMIN.ink }}>General Settings</h2>
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.84rem', color: ADMIN.inkSoft }}>Configure global application settings and preferences.</p>
         </div>
-        <button type="button" onClick={saveSettings} disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>💾 {loading ? 'Loading…' : 'Save Settings'}</button>
+        <button type="button" onClick={saveSettings} disabled={loading} className="btn btn-primary" style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'wait' : 'pointer' }}>💾 {loading ? 'Loading…' : 'Save Settings'}</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>

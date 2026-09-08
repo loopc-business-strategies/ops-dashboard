@@ -47,9 +47,9 @@ import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 const C = {
   bg: '#f4f7f6',
   card: '#ffffff',
-  border: 'rgba(var(--purple-rgb), 0.14)',
-  borderStrong: 'rgba(var(--purple-rgb), 0.28)',
-  primary: 'var(--purple)',
+  border: 'var(--brand-border)',
+  borderStrong: 'rgba(var(--brand-rgb), 0.35)',
+  primary: 'var(--brand-primary)',
   text: '#1b2a33',
   sub: '#4d5f6d',
   muted: '#7b8b97',
@@ -83,34 +83,25 @@ function sBadge(text) {
 }
 
 function Card({ children, style }) {
-  return <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, ...style }}>{children}</div>
+  return <div className="card" style={style}>{children}</div>
 }
 
 function Button({ children, onClick, variant = 'primary', disabled = false }) {
-  const style = variant === 'primary' ? { background: C.primary, color: '#fff', border: 'none' } : { background: '#fff', color: C.text, border: `1px solid ${C.borderStrong}` }
+  const cls = variant === 'primary' ? 'btn btn-primary' : 'btn btn-ghost'
   return (
-    <button disabled={disabled} onClick={onClick} style={{
-      ...style,
-      borderRadius: 8,
-      padding: '8px 12px',
-      fontSize: 13,
-      fontWeight: 600,
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      opacity: disabled ? 0.6 : 1,
-      fontFamily: 'inherit',
-    }}>
+    <button type="button" disabled={disabled} onClick={onClick} className={cls} style={{ opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {children}
     </button>
   )
 }
 
 function Input({ value, onChange, placeholder, type = 'text' }) {
-  return <input type={type} value={value} onChange={onChange} placeholder={placeholder} style={{ width: '100%', border: `1px solid ${C.borderStrong}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#fff' }} />
+  return <input className="form-input" type={type} value={value} onChange={onChange} placeholder={placeholder} style={{ marginBottom: 0 }} />
 }
 
 function Select({ value, onChange, options }) {
   return (
-    <select value={value} onChange={onChange} style={{ width: '100%', border: `1px solid ${C.borderStrong}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
+    <select className="form-select" value={value} onChange={onChange} style={{ marginBottom: 0 }}>
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
     </select>
   )
@@ -198,7 +189,7 @@ function CsvGuideModal({ kind, onClose }) {
       <div style={{ overflow: 'auto', border: `1px solid ${C.border}`, borderRadius: 10 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 860 }}>
           <thead>
-            <tr style={{ background: 'rgba(var(--purple-rgb),0.06)' }}>
+            <tr style={{ background: 'rgba(var(--brand-rgb),0.06)' }}>
               {guide.headers.map((h) => (
                 <th key={h} style={{ textAlign: 'left', padding: 8, borderBottom: `1px solid ${C.border}`, color: C.text, whiteSpace: 'nowrap' }}>{h}</th>
               ))}
@@ -659,7 +650,7 @@ function FollowupGroups({ followups, onMarkDone, onEdit }) {
       </div>
       <Section title='OVERDUE' rows={overdue} color='rgba(239,68,68,0.35)' />
       <Section title='DUE TODAY' rows={today} color='rgba(234,179,8,0.35)' />
-      <Section title='THIS WEEK' rows={week} color='rgba(var(--purple-rgb),0.28)' />
+      <Section title='THIS WEEK' rows={week} color='rgba(var(--brand-rgb),0.28)' />
       <Section title='UPCOMING' rows={upcoming} color='rgba(100,116,139,0.3)' />
     </div>
   )
@@ -1191,7 +1182,7 @@ export default function SalesTab() {
 
   return (
     <ModuleTabColumn style={{ fontFamily: 'inherit' }}>
-      {msg && <div style={{ marginBottom: 10, background: 'rgba(var(--purple-rgb),0.08)', border: `1px solid ${C.border}`, color: C.primary, padding: '8px 10px', borderRadius: 8, fontSize: 12 }}>{msg}</div>}
+      {msg && <div style={{ marginBottom: 10, background: 'rgba(var(--brand-rgb),0.08)', border: `1px solid ${C.border}`, color: C.primary, padding: '8px 10px', borderRadius: 8, fontSize: 12 }}>{msg}</div>}
 
       <ModuleSubTabRow
         right={(
