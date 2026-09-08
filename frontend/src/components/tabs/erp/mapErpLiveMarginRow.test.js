@@ -94,6 +94,23 @@ describe('mapErpLiveMarginRow', () => {
     expect(mapped.status).toBe('NEGATIVE')
   })
 
+  test('customer receivable equity from API stays negative exposure', () => {
+    const mapped = mapErpLiveMarginRow(
+      {
+        customerName: 'Aneesh',
+        equity: -3411.76,
+        marginAmount: 0,
+        marginExcess: -3411.76,
+        goldPosition: 0,
+        silverPosition: 0,
+      },
+      'customerName',
+    )
+    expect(mapped.equity).toBe(-3411.76)
+    expect(mapped.equityFmt).toBe('-3,411.76')
+    expect(mapped.status).toBe('NEGATIVE')
+  })
+
   test('supplier payable equity stays negative', () => {
     const mapped = mapErpLiveMarginRow(
       {

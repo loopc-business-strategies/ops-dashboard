@@ -11,8 +11,9 @@ function buildCustomerLiveMetrics(customer, goldPriceUSD, silverPriceUSD) {
   const silverPosition = Number(customer?.silverPosition || 0)
   const accountType = customer?.ledgerAccountId?.accountType
   const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
+  const exposureFunds = -Math.abs(outstanding)
   const frozenReval = Number(customer?.marginRevaluation ?? 0)
-  const frozenEquity = Number(customer?.marginEquity ?? outstanding)
+  const frozenEquity = Number(customer?.marginEquity ?? exposureFunds)
   const totalFunds = frozenEquity - frozenReval
   return computeMarginMetricsRaw({
     totalFunds,
@@ -41,6 +42,32 @@ describe('useErpMarginTabs live recalc', () => {
     expect(high.revaluation).toBeGreaterThan(low.revaluation)
     expect(high.equity).toBeGreaterThan(low.equity)
     expect(high.marginPercent).toBeLessThan(low.marginPercent)
+  })
+
+  test('receivable outstanding maps to negative exposure equity', () => {
+    const metrics = computeMarginMetricsRaw({
+      totalFunds: -Math.abs(3411.76),
+      goldPosition: 0,
+      silverPosition: 0,
+      goldPrice: 0,
+      silverPrice: 0,
+      fundsMode: 'asIs',
+    })
+    expect(metrics.equity).toBeCloseTo(-3411.76, 2)
+    expect(metrics.status).toBe('NEGATIVE')
+  })
+
+  test('credit outstanding stays negative exposure equity', () => {
+    const metrics = computeMarginMetricsRaw({
+      totalFunds: -Math.abs(-162131),
+      goldPosition: 0,
+      silverPosition: 0,
+      goldPrice: 0,
+      silverPrice: 0,
+      fundsMode: 'asIs',
+    })
+    expect(metrics.equity).toBe(-162131)
+    expect(metrics.status).toBe('NEGATIVE')
   })
 
   test('liability customer live path uses frozen revaluation override', () => {

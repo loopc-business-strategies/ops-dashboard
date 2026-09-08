@@ -73,11 +73,13 @@ export function useErpCustomerMargin({
         const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
 
         const useLiveSpotMtm = liveRecalcEnabled && hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
+        // Customer Margins exposure: funds always non-positive (-abs of ledger).
+        const exposureFunds = -Math.abs(outstanding)
         if (useLiveSpotMtm) {
           const goldPrice = Number(goldPriceUSD || 0)
           const silverPrice = Number(silverPriceUSD || 0)
           const frozenReval = Number(customer?.marginRevaluation ?? 0)
-          const frozenEquity = Number(customer?.marginEquity ?? outstanding)
+          const frozenEquity = Number(customer?.marginEquity ?? exposureFunds)
           const totalFunds = frozenEquity - frozenReval
           const metrics = computeMarginMetricsRaw({
             totalFunds,
@@ -110,7 +112,7 @@ export function useErpCustomerMargin({
 
         const goldPrice = pickLiveSpotPrice(goldPriceUSD, customer?.metalRates?.goldPrice)
         const silverPrice = pickLiveSpotPrice(silverPriceUSD, customer?.metalRates?.silverPrice)
-        const customerFunds = outstanding
+        const customerFunds = exposureFunds
         const isLiabilityCustomerLedger = suppressMetalSpotMtm
         const fallbackRevaluation = isLiabilityCustomerLedger
           ? 0

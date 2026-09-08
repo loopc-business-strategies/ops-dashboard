@@ -27,6 +27,9 @@ const ALLOWLIST = Object.freeze({
   // Cross-cluster copy utility; gated by explicit production confirmation flags/env.
   'scripts/copy-mongo-database.mjs':
     'Explicit Mongo cross-cluster copy; gated by I_UNDERSTAND production confirmation.',
+  // Gated VB user-id delete; requires I_UNDERSTAND=DELETE-VB-USER-IDS + explicit --ids.
+  'scripts/cleanup-vb-mg-data.mjs':
+    'Gated VB users delete by explicit ids; refuses vbadmin and last-user wipe.',
   // VB Atlas separation orchestrator; gated by explicit production confirmation.
   'scripts/apply-vb-atlas-separation.mjs':
     'VB Atlas separation orchestrator; gated by I_UNDERSTAND production confirmation.',
