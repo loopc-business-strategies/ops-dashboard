@@ -3,7 +3,7 @@
 /**
  * Multi-Tenant Deployment Verification Script
  * 
- * Tests that mg, cg, and loopc subdomains work correctly with proper isolation
+ * Tests that mg, cg, loopc, and vb subdomains work correctly with proper isolation
  * Usage: node scripts/ops-misc/verify-deployment.js
  */
 
@@ -12,11 +12,12 @@ const https = require('https');
 
 const DOMAIN = process.env.DOMAIN || 'yourdomain.com';
 const API_URL = `https://api.${DOMAIN}`;
-const COMPANIES = ['mg', 'cg', 'loopc'];
+const COMPANIES = ['mg', 'cg', 'loopc', 'vb'];
 const COMPANY_BRANDING = {
   mg: { displayName: 'MG', logoText: 'MG', color: 'blue' },
   cg: { displayName: 'CG', logoText: 'CG', color: 'orange' },
   loopc: { displayName: 'LoopC', logoText: 'LC', color: 'green' },
+  vb: { displayName: 'Venus Bullions', logoText: 'VB', color: 'amber' },
 };
 
 function trimProbe(s) {

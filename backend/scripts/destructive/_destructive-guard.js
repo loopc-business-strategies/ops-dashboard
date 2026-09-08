@@ -53,7 +53,9 @@ function requireDestructiveScriptGuard(options = {}) {
     process.exit(1)
   }
 
-  const stagingTenants = tenant === 'all' ? ['mg', 'cg', 'loopc'] : [tenant]
+  const stagingTenants = tenant === 'all'
+    ? [...VALID_TENANTS].filter((key) => key !== 'all')
+    : [tenant]
   try {
     assertStagingOnlyScript({ scriptName, tenants: stagingTenants })
   } catch (error) {

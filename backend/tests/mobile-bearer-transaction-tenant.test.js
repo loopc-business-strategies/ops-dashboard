@@ -75,25 +75,23 @@ beforeAll(async () => {
   app = createApp()
 })
 
+const TENANTS = ['mg', 'cg', 'loopc', 'vb']
+
 afterEach(async () => {
   if (!isMongooseConnected(mongoose)) return
   await Transaction.deleteMany({})
-  for (const tenant of ['mg', 'cg', 'loopc']) {
+  for (const tenant of TENANTS) {
     const conn = await connectTenant(tenant)
     registerAllOnConnection(conn)
     await runWithTenantConnection(conn, tenant, () => Transaction.deleteMany({}))
   }
-  await Promise.all([
-    (await User.getTenantModel('mg')).deleteMany({}),
-    (await User.getTenantModel('cg')).deleteMany({}),
-    (await User.getTenantModel('loopc')).deleteMany({}),
-  ])
+  await Promise.all(TENANTS.map(async (tenant) => (await User.getTenantModel(tenant)).deleteMany({})))
 })
 
 afterAll(async () => {
   if (isMongooseConnected(mongoose)) {
     await Promise.all(
-      ['mg', 'cg', 'loopc'].map((tenant) =>
+      TENANTS.map((tenant) =>
         connectTenant(tenant)
           .then((conn) => conn.close())
           .catch(() => {}),
@@ -205,5 +203,37 @@ describe('Mobile Bearer tenant DB binding for transactions', () => {
     expect(mobileRes.body.success).toBe(true)
     expect(Number(mobileRes.body.summary?.totalCount || 0)).toBe(5)
     expect(mobileRes.body.transactions).toHaveLength(5)
+  })
+
+  test('Bearer mobile client reads VB transactions, not default LoopC DB', async () => {
+    const VbUser = await User.getTenantModel('vb')
+    const vbUser = await VbUser.create({
+      name: 'vb-super',
+      email: 'vb-super@example.com',
+      password: 'password123',
+      role: 'super_admin',
+      allowedModules: ['erp'],
+    })
+
+    const LoopcUser = await User.getTenantModel('loopc')
+    const loopcUser = await LoopcUser.create({
+      name: 'loopc-user-vb',
+      email: 'loopc-user-vb@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+
+    await seedTenantTransactions('vb', vbUser, 11)
+    await Transaction.insertMany([
+      postedReceipt(loopcUser._id, 201),
+      postedReceipt(loopcUser._id, 202),
+    ])
+
+    const mobileRes = await mobileTransactionsRequest('vb', vbUser)
+
+    expect(mobileRes.status).toBe(200)
+    expect(mobileRes.body.success).toBe(true)
+    expect(Number(mobileRes.body.summary?.totalCount || 0)).toBe(11)
+    expect(mobileRes.body.transactions).toHaveLength(11)
   })
 })

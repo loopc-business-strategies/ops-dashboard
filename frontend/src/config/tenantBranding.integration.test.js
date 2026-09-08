@@ -2,7 +2,9 @@ import { describe, expect, test } from 'vitest'
 import tenantRoutingCases from '../../../shared/tenant-routing-cases.json'
 import {
   getTenantBranding,
+  isAccountingPeriodClosingEnabled,
   isErpAdvancedListFiltersEnabled,
+  isVoucher24HourLockEnabled,
   isVoucherKeyboardNavEnabled,
   resolveTenantFromHostname,
   resolveTenantFromSearch,
@@ -76,5 +78,12 @@ describe('tenant branding integration', () => {
     expect(isVoucherKeyboardNavEnabled('mg')).toBe(true)
     expect(isVoucherKeyboardNavEnabled('cg')).toBe(true)
     expect(isVoucherKeyboardNavEnabled('vb')).toBe(true)
+  })
+
+  test('enables period closing and 24h voucher lock for LoopC, MG, CG, and VB', () => {
+    expect(isAccountingPeriodClosingEnabled('vb')).toBe(true)
+    expect(isVoucher24HourLockEnabled('vb')).toBe(true)
+    expect(isAccountingPeriodClosingEnabled('mg')).toBe(true)
+    expect(isVoucher24HourLockEnabled('loopc')).toBe(true)
   })
 })

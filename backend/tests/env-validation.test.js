@@ -13,6 +13,7 @@ describe('envValidation', () => {
   const originalMongoMg = process.env.MONGO_URI_MG
   const originalMongoCg = process.env.MONGO_URI_CG
   const originalMongoLoopc = process.env.MONGO_URI_LOOPC
+  const originalMongoVb = process.env.MONGO_URI_VB
 
   afterEach(() => {
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV
@@ -35,6 +36,8 @@ describe('envValidation', () => {
     else process.env.MONGO_URI_CG = originalMongoCg
     if (originalMongoLoopc === undefined) delete process.env.MONGO_URI_LOOPC
     else process.env.MONGO_URI_LOOPC = originalMongoLoopc
+    if (originalMongoVb === undefined) delete process.env.MONGO_URI_VB
+    else process.env.MONGO_URI_VB = originalMongoVb
   })
 
   test('isWeakJwtSecret rejects placeholders and empty values', () => {
@@ -99,6 +102,7 @@ describe('envValidation', () => {
     process.env.MONGO_URI_MG = 'mongodb://localhost/mg'
     process.env.MONGO_URI_CG = 'mongodb://localhost/cg'
     process.env.MONGO_URI_LOOPC = 'mongodb://localhost/loopc'
+    process.env.MONGO_URI_VB = 'mongodb://localhost/vb'
     delete process.env.EMAIL_OAUTH_STATE_SECRET
     delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
     delete process.env.REQUIRE_REDIS
@@ -133,6 +137,7 @@ describe('envValidation', () => {
     process.env.MONGO_URI_MG = 'mongodb://localhost/mg'
     process.env.MONGO_URI_CG = 'mongodb://localhost/cg'
     process.env.MONGO_URI_LOOPC = 'mongodb://localhost/loopc'
+    process.env.MONGO_URI_VB = 'mongodb://localhost/vb'
     process.env.EMAIL_TOKEN_ENCRYPTION_KEY = 'b'.repeat(64)
     process.env.EXPECTED_REPLICAS = '2'
     delete process.env.REDIS_URL

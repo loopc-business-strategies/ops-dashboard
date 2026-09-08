@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   staging-smoke:
-    name: Smoke staging mg/cg/loopc
+    name: Smoke staging mg/cg/loopc/vb
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

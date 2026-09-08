@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
-import { applyTenantTheme, getTenantBranding, isLocalTenantHost } from '../config/tenantBranding'
+import { applyTenantTheme, getTenantBranding, isLocalTenantHost, TENANT_KEYS } from '../config/tenantBranding'
 import {
   buildDashboardHref,
   buildDashboardTabParam,
@@ -466,7 +466,8 @@ function Dashboard() {
     })
   }, [tenantForHref, includeCompany])
 
-  const metalRatesEnabled = Boolean(token && ['mg', 'cg', 'loopc'].includes(branding.key))
+  const showMetalTickers = TENANT_KEYS.includes(branding.key)
+  const metalRatesEnabled = Boolean(token && showMetalTickers)
   const navItems = getNavItems(perms, t, chatUnread, branding)
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
@@ -850,12 +851,12 @@ function Dashboard() {
 
             {/* Right side of header: tenant metal tickers sit here before notif / language / user */}
             <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0 overflow-visible">
-              {['mg', 'cg', 'loopc'].includes(branding.key) && (
+              {showMetalTickers && (
                 <div className="hidden md:flex items-center shrink min-w-0 overflow-x-auto">
                   <TopbarMetalTickers />
                 </div>
               )}
-              {!['mg', 'cg', 'loopc'].includes(branding.key) && <BuildInfoBadge className="hidden md:inline-flex" />}
+              {!showMetalTickers && <BuildInfoBadge className="hidden md:inline-flex" />}
 
               {/* Read-only badge */}
               {perms.isReadOnly && (

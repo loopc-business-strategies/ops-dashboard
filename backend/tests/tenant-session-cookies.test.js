@@ -15,6 +15,8 @@ describe('tenantSessionCookies', () => {
   test('names cookies per tenant', () => {
     expect(sessionCookieName('mg')).toBe('sessionToken_mg')
     expect(csrfCookieName('loopc')).toBe('csrfToken_loopc')
+    expect(sessionCookieName('vb')).toBe('sessionToken_vb')
+    expect(csrfCookieName('vb')).toBe('csrfToken_vb')
   })
 
   test('reads tenant-specific session cookie for portal tenant', () => {
