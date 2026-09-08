@@ -63,9 +63,24 @@ function isKnownProductionMongoHost(uri) {
 }
 
 function looksLikeNonProductionUri(uri) {
-  // Denylist wins even if URI also contains staging|test keywords.
-  if (isKnownProductionMongoHost(uri)) return false
   if (looksLikeLocalOrEphemeralUri(uri)) return true
+
+  // Known production hosts are rejected unless the database name is explicitly staging
+  // (VB shares Atlas cluster0.fiotefu for prod + ops-dashboard-staging).
+  if (isKnownProductionMongoHost(uri)) {
+    const host = hostnameFromMongoUri(uri)
+    const db = (() => {
+      try {
+        const parsed = new URL(String(uri || '').trim().replace(/^mongodb(\+srv)?:\/\//, 'https://'))
+        return String(parsed.pathname || '').replace(/^\//, '').toLowerCase()
+      } catch {
+        return ''
+      }
+    })()
+    if (host === 'cluster0.fiotefu.mongodb.net' && db.includes('staging')) return true
+    return false
+  }
+
   const lower = String(uri || '').toLowerCase()
   return /staging|preview|test|dev|sandbox|smoke|qa|uat/.test(lower)
 }
