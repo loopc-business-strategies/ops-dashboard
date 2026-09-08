@@ -1,3 +1,4 @@
+const { TENANT_KEYS } = require('../config/tenants')
 const {
   resolveBridgeFanoutTenants,
   upsertBridgeRatesForTenant,
@@ -6,13 +7,14 @@ const {
 
 describe('metal rate bridge fan-out', () => {
   const env = (value) => ({ METAL_RATES_BRIDGE_FANOUT_TENANTS: value })
+  const allCatalogTenants = [...TENANT_KEYS].sort()
 
   test('defaults to all catalog tenants when env unset', () => {
-    expect(resolveBridgeFanoutTenants('mg', {})).toEqual(['cg', 'loopc', 'mg'])
+    expect(resolveBridgeFanoutTenants('mg', {})).toEqual(allCatalogTenants)
   })
 
   test('all expands to every catalog tenant', () => {
-    expect(resolveBridgeFanoutTenants('mg', env('all'))).toEqual(['cg', 'loopc', 'mg'])
+    expect(resolveBridgeFanoutTenants('mg', env('all'))).toEqual(allCatalogTenants)
   })
 
   test('comma list uses explicit tenants and includes source when missing', () => {
