@@ -148,4 +148,22 @@ describe('envValidation', () => {
     delete process.env.EXPECTED_REPLICAS
     delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
   })
+
+  test('validateHardenedDeploySecrets rejects shared MG/VB Mongo fingerprints', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.JWT_SECRET = 'a'.repeat(32)
+    process.env.SERVER_BASE_URL = 'https://api.example.com'
+    process.env.UPLOAD_STORAGE_ROOT = require('os').tmpdir()
+    process.env.EMAIL_TOKEN_ENCRYPTION_KEY = 'b'.repeat(64)
+    process.env.MONGO_URI_MG = 'mongodb://cluster.example.net/ops-dashboard'
+    process.env.MONGO_URI_CG = 'mongodb://cluster.example.net/cg'
+    process.env.MONGO_URI_LOOPC = 'mongodb://cluster.example.net/loopc'
+    process.env.MONGO_URI_VB = 'mongodb://cluster.example.net/ops-dashboard'
+    delete process.env.REQUIRE_REDIS
+    delete process.env.EXPECTED_REPLICAS
+
+    const errors = validateHardenedDeploySecrets()
+    expect(errors.some((e) => e.includes('share the same Mongo host/database'))).toBe(true)
+    delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
+  })
 })

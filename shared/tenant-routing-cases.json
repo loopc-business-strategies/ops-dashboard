@@ -42,10 +42,10 @@
     "expected": "cg"
   },
   {
-    "name": "unknown host keeps fallback tenant",
+    "name": "unknown host does not inherit fallback tenant",
     "hostname": "example.com",
     "fallback": "loopc",
-    "expected": "loopc"
+    "expected": null
   },
   {
     "name": "enterprise custom domain maps to tenant",

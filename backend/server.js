@@ -166,6 +166,8 @@ async function startServer() {
   // Connect to MongoDB after the HTTP server is already accepting traffic.
   if (!mongoUri) return
 
+  // Default mongoose.connect is infrastructure/readiness only.
+  // Tenant business data must use connectTenant / Model.getTenantModel(tenant).
   try {
     await mongoose.connect(mongoUri)
     setPrimaryMongoReady(true)

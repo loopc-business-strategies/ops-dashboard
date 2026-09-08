@@ -41,6 +41,7 @@ beforeAll(async () => {
   process.env.MONGO_URI_LOOPC = mongoUri
   process.env.MONGO_URI_MG = mongoUri
   process.env.MONGO_URI_CG = mongoUri
+  process.env.MONGO_URI_VB = mongoUri
 
   await mongoose.connect(mongoUri)
   app = createApp()
@@ -52,6 +53,7 @@ afterEach(async () => {
     (await User.getTenantModel('loopc')).deleteMany({}),
     (await User.getTenantModel('mg')).deleteMany({}),
     (await User.getTenantModel('cg')).deleteMany({}),
+    (await User.getTenantModel('vb')).deleteMany({}),
   ])
 })
 
@@ -71,6 +73,29 @@ describe('Tenant host/header/session consistency', () => {
 
     expect(res.status).toBe(401)
     expect(String(res.body.message || '')).toMatch(/tenant does not match/i)
+  })
+
+  test('rejects MG token on Venus Bullions host', async () => {
+    const mgUser = await createTenantUser('mg')
+
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Host', 'vb.loopcstrategies.com')
+      .set('Authorization', `Bearer ${tokenFor(mgUser, 'mg')}`)
+
+    expect(res.status).toBe(401)
+    expect(String(res.body.message || '')).toMatch(/tenant does not match/i)
+  })
+
+  test('rejects VB token on MG host', async () => {
+    const vbUser = await createTenantUser('vb')
+
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Host', 'mg.loopcstrategies.com')
+      .set('Authorization', `Bearer ${tokenFor(vbUser, 'vb')}`)
+
+    expect(res.status).toBe(401)
   })
 
   test('allows token tenant when API host is neutral and x-tenant header matches token tenant', async () => {

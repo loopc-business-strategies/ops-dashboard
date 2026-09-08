@@ -29,6 +29,20 @@ export function readAccountEnquiryCache(tenant, accountCode, window = {}) {
   }
 }
 
+export function clearAccountEnquiryCache() {
+  try {
+    const storage = sessionStorage
+    const keys = []
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (key && key.startsWith('erp-account-enquiry:')) keys.push(key)
+    }
+    keys.forEach((key) => storage.removeItem(key))
+  } catch {
+    /* ignore */
+  }
+}
+
 export function writeAccountEnquiryCache(tenant, accountCode, data, window = {}) {
   try {
     sessionStorage.setItem(cacheKey(tenant, accountCode, window), JSON.stringify({

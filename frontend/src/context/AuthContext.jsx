@@ -12,6 +12,7 @@ import authAPI from '../api/auth'
 import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 import { clearStoredActivity, writeStoredActivityAt } from '../hooks/useWebIdleLogout'
 import { ensureWebPushSubscription, teardownWebPush } from '../utils/webPushRegister'
+import { clearAccountEnquiryCache } from '../utils/erpAccountEnquiryCache'
 import WebIdleSessionGuard from '../components/WebIdleSessionGuard'
 
 const AuthContext = createContext(null)
@@ -50,6 +51,8 @@ export function AuthProvider({ children }) {
 
         if (status === 401 && !isAuthExempt) {
           clearStoredActivity()
+          localStorage.removeItem('tenantCompany')
+          clearAccountEnquiryCache()
           setUser(null)
           setToken(null)
           setSessionPolicy(DEFAULT_SESSION_POLICY)
@@ -160,6 +163,8 @@ export function AuthProvider({ children }) {
       // Clear client state even if server session is already invalid.
     }
     clearStoredActivity()
+    localStorage.removeItem('tenantCompany')
+    clearAccountEnquiryCache()
     setToken(null)
     setUser(null)
     setSessionPolicy(DEFAULT_SESSION_POLICY)

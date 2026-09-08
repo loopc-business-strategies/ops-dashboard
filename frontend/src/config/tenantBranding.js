@@ -423,6 +423,18 @@ export function filterTransactionTypesForTenant(tenant, types = []) {
   return types.filter((type) => !disabled.has(String(type || '').trim().toLowerCase()))
 }
 
+function hostAllowsTenantFallback(hostname) {
+  const rawHost = String(hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+  if (!rawHost) return true
+  if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') return true
+  if (rawHost === 'api.loopcstrategies.com') return true
+  if (rawHost.endsWith('.up.railway.app')) return true
+  return false
+}
+
 export function resolveTenantFromHostname(hostname, fallbackTenant = defaultBranding.key) {
   const fallback = normalizeTenantKey(fallbackTenant) || defaultBranding.key
   const rawHost = String(hostname || '')
@@ -436,20 +448,20 @@ export function resolveTenantFromHostname(hostname, fallbackTenant = defaultBran
   if (customMatch) return customMatch
 
   if (normalizeTenantKey(rawHost)) return rawHost
-  if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') return fallback
+  if (hostAllowsTenantFallback(rawHost)) return fallback
 
   const [subdomain] = rawHost.split('.')
-  return normalizeTenantKey(subdomain) || fallback
+  return normalizeTenantKey(subdomain) || null
 }
 
 export function resolveTenantFromSearch(search, fallbackTenant = defaultBranding.key) {
-  const fallback = normalizeTenantKey(fallbackTenant) || defaultBranding.key
+  const fallback = normalizeTenantKey(fallbackTenant) || (fallbackTenant == null ? null : defaultBranding.key)
   const params = new URLSearchParams(String(search || ''))
   const fromCompany = normalizeTenantKey(params.get('company'))
   if (fromCompany) return fromCompany
   const fromTenant = normalizeTenantKey(params.get('tenant'))
   if (fromTenant) return fromTenant
-  return fallback
+  return fallback || null
 }
 
 export function isLocalTenantHost(hostname) {

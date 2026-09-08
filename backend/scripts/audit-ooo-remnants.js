@@ -1,5 +1,6 @@
 require('dotenv').config()
 const mongoose = require('mongoose')
+const { getTenantKeys } = require('../config/tenantRegistry')
 
 const Customer = require('../models/Customer')
 const ChartOfAccount = require('../models/ChartOfAccount')
@@ -79,7 +80,7 @@ async function auditTenant(tenant) {
 }
 
 async function run() {
-  const tenants = ['mg', 'cg', 'loopc']
+  const tenants = getTenantKeys()
   console.log(`=== Comprehensive OOO & MARK Cleanup Audit ===`)
   
   for (const tenant of tenants) {

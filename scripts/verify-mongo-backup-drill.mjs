@@ -8,6 +8,7 @@ import dns from 'node:dns'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { loadCatalogTenantKeys } from './loadCatalogTenantKeys.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -25,11 +26,10 @@ require(path.join(root, 'backend', 'node_modules', 'dotenv')).config({
 
 const mongoose = require(path.join(root, 'backend', 'node_modules', 'mongoose'))
 
-const TENANTS = [
-  { key: 'mg', uriKey: 'MONGO_URI_MG' },
-  { key: 'cg', uriKey: 'MONGO_URI_CG' },
-  { key: 'loopc', uriKey: 'MONGO_URI_LOOPC' },
-]
+const TENANTS = loadCatalogTenantKeys().map((key) => ({
+  key,
+  uriKey: `MONGO_URI_${key.toUpperCase()}`,
+}))
 
 async function probeTenant({ key, uriKey }) {
   const uri = String(process.env[uriKey] || '').trim()

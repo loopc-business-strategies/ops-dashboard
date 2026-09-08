@@ -9,6 +9,8 @@ const Ledger = require('../../models/Ledger')
 const AccountMapping = require('../../models/AccountMapping')
 const DirectDeal = require('../../models/DirectDeal')
 
+const { getTenantKeys } = require('../../config/tenantRegistry')
+
 function buildTenantUri(tenant) {
   const envVar = `MONGO_URI_${tenant.toUpperCase()}`
   const uri = process.env[envVar]
@@ -128,7 +130,7 @@ async function removeMarkFromTenant(tenant) {
 }
 
 async function run() {
-  const tenants = ['mg', 'cg', 'loopc']
+  const tenants = getTenantKeys()
   
   console.log(`\n=== Removing MARK Accounts ===`)
   console.log(`Tenants: ${tenants.join(', ')}`)

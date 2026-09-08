@@ -144,6 +144,18 @@ function resolveTenantFromCustomDomain(hostname) {
   return normalizeTenantKey(customDomains[rawHost])
 }
 
+function hostAllowsTenantFallback(hostname) {
+  const rawHost = String(hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+  if (!rawHost) return true
+  if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') return true
+  if (rawHost === 'api.loopcstrategies.com') return true
+  if (rawHost.endsWith('.up.railway.app')) return true
+  return false
+}
+
 function resolveTenantFromHost(hostname, fallbackTenant = getDefaultTenant()) {
   const fallback = normalizeTenantKey(fallbackTenant) || getDefaultTenant()
   const rawHost = String(hostname || '')
@@ -151,7 +163,7 @@ function resolveTenantFromHost(hostname, fallbackTenant = getDefaultTenant()) {
     .toLowerCase()
     .replace(/:\d+$/, '')
 
-  if (!rawHost) return fallback
+  if (!rawHost) return hostAllowsTenantFallback(rawHost) ? fallback : null
 
   const customMatch = resolveTenantFromCustomDomain(rawHost)
   if (customMatch) return customMatch
@@ -159,12 +171,12 @@ function resolveTenantFromHost(hostname, fallbackTenant = getDefaultTenant()) {
   const directMatch = normalizeTenantKey(rawHost)
   if (directMatch) return directMatch
 
-  if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') {
+  if (hostAllowsTenantFallback(rawHost)) {
     return fallback
   }
 
   const [subdomain] = rawHost.split('.')
-  return normalizeTenantKey(subdomain) || fallback
+  return normalizeTenantKey(subdomain) || null
 }
 
 function getTenantUri(tenant) {
@@ -207,6 +219,7 @@ module.exports = {
   getTenantConfig,
   normalizeTenantKey,
   getDefaultTenant,
+  hostAllowsTenantFallback,
   resolveTenantFromHost,
   resolveTenantFromCustomDomain,
   getTenantUri,
