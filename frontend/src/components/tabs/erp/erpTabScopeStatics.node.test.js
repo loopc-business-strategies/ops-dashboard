@@ -55,7 +55,6 @@ describe('erpTabScopeStatics (node)', () => {
       modalExcessDisplay: 0,
       modalMarginPctDisplay: 0,
       enquirySuppressMetalSpotMtm: false,
-      enquiryUseCustomerMarginFundsSign: false,
       enquiryLiveRecalcEnabled: false,
       hasMetalExposure: false,
       baseCurrencyCode: 'USD',

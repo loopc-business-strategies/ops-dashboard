@@ -43,7 +43,6 @@ export default function AccountEnquiryModal({
   modalExcessDisplay,
   modalMarginPctDisplay,
   enquirySuppressMetalSpotMtm,
-  enquiryUseCustomerMarginFundsSign = false,
   enquiryLiveRecalcEnabled = false,
   hasMetalExposure = false,
   baseCurrencyCode,
@@ -365,9 +364,7 @@ export default function AccountEnquiryModal({
                             modalTotalFundsDisplay,
                             {
                               currencyCode: statementDisplayCurrency,
-                              ...(enquiryUseCustomerMarginFundsSign
-                                ? {}
-                                : { preferredDirection: accountEnquiryData?.balances?.netDirection }),
+                              preferredDirection: accountEnquiryData?.balances?.netDirection,
                             },
                           )}
                         </span>
@@ -385,9 +382,7 @@ export default function AccountEnquiryModal({
                             modalNetEquityDisplay,
                             {
                               currencyCode: statementDisplayCurrency,
-                              ...(enquiryUseCustomerMarginFundsSign
-                                ? {}
-                                : { preferredDirection: accountEnquiryData?.balances?.netDirection }),
+                              preferredDirection: accountEnquiryData?.balances?.netDirection,
                             },
                           )}
                         </span>
@@ -432,36 +427,24 @@ export default function AccountEnquiryModal({
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
                         Customer Margin Equity reflects the signed customer exposure based on the account's underlying accounting direction; supplier payables remain negative.
-                        {enquiryUseCustomerMarginFundsSign && (
-                          <span>
-                            {' '}
-                            For debtor/customer accounts, Total Balance uses the Customer Margin sign (−ledger net) so Net Equity matches margin equity (balance − current value).
-                          </span>
-                        )}
+                        {' '}
+                        Account Summary Total Balance matches the statement ledger running balance (same amount and Dr/Cr).
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}
-                            For creditor/vendor payables, Total Balance uses the ledger payable balance; Current Value uses booked unfixed metal when posted, otherwise live spot on gram position.
+                            For creditor/vendor payables, Current Value uses booked unfixed metal when posted, otherwise live spot on gram position.
                           </span>
                         )}
-                        {!enquirySuppressMetalSpotMtm && !enquiryUseCustomerMarginFundsSign && enquiryLiveRecalcEnabled && hasMetalExposure && (
+                        {!enquirySuppressMetalSpotMtm && enquiryLiveRecalcEnabled && hasMetalExposure && (
                           <span>
                             {' '}
                             Current Value, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams). Total Balance stays on the ledger balance.
                           </span>
                         )}
-                        {!enquirySuppressMetalSpotMtm && enquiryUseCustomerMarginFundsSign && enquiryLiveRecalcEnabled && hasMetalExposure && (
-                          <span>
-                            {' '}
-                            Current Value, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams).
-                          </span>
-                        )}
                         {!enquirySuppressMetalSpotMtm && enquiryLiveRecalcEnabled && !hasMetalExposure && (
                           <span>
                             {' '}
-                            {enquiryUseCustomerMarginFundsSign
-                              ? 'Without metal exposure, Current Value and margin rows stay at 0 while Total Balance still uses the Customer Margin sign (−ledger net).'
-                              : 'Cash-only account: Total Balance stays on the ledger balance; Current Value and margin rows stay at 0 while Position Price still updates with live spot.'}
+                            Cash-only account: Total Balance stays on the ledger balance; Current Value and margin rows stay at 0 while Position Price still updates with live spot.
                           </span>
                         )}
                         {!enquirySuppressMetalSpotMtm && !enquiryLiveRecalcEnabled && (

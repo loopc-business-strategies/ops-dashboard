@@ -34,8 +34,8 @@ export function shouldSuppressSpotMetalMtmForAccountEnquiry(account) {
 }
 
 /**
- * Account enquiry Total Funds / equity: use Customer Margin funds sign (`-ledgerNet`)
- * for debtor/customer accounts. Creditors stay on signed payable ledger net.
+ * Historically used to flip Account Summary funds for debtor enquiry.
+ * Account Summary now uses ledger net as-is; helper kept for Customer Margin cues / tests.
  *
  * @param {{ accountType?: string, accountName?: string, description?: string } | null | undefined} account
  */

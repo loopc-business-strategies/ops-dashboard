@@ -102,17 +102,16 @@ describe('frontend metal margin policy', () => {
     })).toBe(false)
   })
 
-  test('1313-style debtor equity uses -ledgerNet - revaluation', () => {
-    const ledgerNet = 221866.33
+  test('1313-style enquiry equity uses ledgerNet - revaluation (no Customer Margin flip)', () => {
+    // Statement/ledger signed net (Dr positive, Cr negative) feeds Total Balance as-is.
+    const ledgerNet = -221866.33
     const revaluation = 281460.75
-    const account = { accountType: 'Asset', accountName: 'test account (Debtor)' }
-    const funds = shouldUseCustomerMarginFundsSignForAccountEnquiry(account) ? -ledgerNet : ledgerNet
     const metrics = calculateAccountSummaryMetrics({
-      totalFunds: funds,
+      totalFunds: ledgerNet,
       revaluation,
       marginAmount: Math.abs(revaluation) * 0.02,
     })
-    expect(funds).toBeCloseTo(-221866.33, 2)
+    expect(metrics.netEquity).toBeCloseTo(ledgerNet - revaluation, 2)
     expect(metrics.netEquity).toBeCloseTo(-503327.08, 2)
   })
 })

@@ -15,7 +15,7 @@ import {
   resolveStatementMetalCode,
   isMetalStatementEntry,
 } from '../statementHelpers'
-import { shouldSuppressSpotMetalMtmForAccountEnquiry, shouldUseCustomerMarginFundsSignForAccountEnquiry } from '../metalMarginPolicy'
+import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '../metalMarginPolicy'
 import {
   buildAccountEnquiryLiveMetrics,
   hasAccountEnquiryMetalExposure,
@@ -227,11 +227,8 @@ export function useAccountEnquiryStatement({
   const enquiryLiveRecalcEnabled = enquiryComputationEnabled && (goldPriceUSD > 0 || silverPriceUSD > 0)
 
   const ledgerNet = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
-  const enquiryUseCustomerMarginFundsSign = Boolean(
-    accountEnquiryData?.account
-    && shouldUseCustomerMarginFundsSignForAccountEnquiry(accountEnquiryData.account),
-  )
-  const totalFunds = enquiryUseCustomerMarginFundsSign ? -ledgerNet : ledgerNet
+  // Account Summary Total Balance must match statement ledger running balance (amount + Dr/Cr).
+  const totalFunds = ledgerNet
   const modalStatementCurrency = erpBaseCurrencyCode
   const rawUnfixedMetalDedupeKeys = new Set()
   const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
@@ -608,7 +605,6 @@ export function useAccountEnquiryStatement({
     modalExcessDisplay,
     modalMarginPctDisplay,
     enquirySuppressMetalSpotMtm,
-    enquiryUseCustomerMarginFundsSign,
     enquiryLiveRecalcEnabled,
     hasMetalExposure,
   }

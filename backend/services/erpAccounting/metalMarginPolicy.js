@@ -37,8 +37,8 @@ function shouldSuppressSpotMetalMtmForAccountEnquiry(account) {
 }
 
 /**
- * Account enquiry Total Funds / equity: use Customer Margin funds sign (`-ledgerNet`)
- * for debtor/customer accounts. Creditors stay on signed payable ledger net.
+ * Debtor/customer cue helper (Customer Margin exposure). Account Summary Total Balance
+ * uses ledger net as-is and no longer flips via this flag.
  *
  * @param {{ accountType?: string, accountName?: string, description?: string } | null | undefined} account
  * @returns {boolean}
