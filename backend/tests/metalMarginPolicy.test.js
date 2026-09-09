@@ -5,6 +5,7 @@ const {
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
   shouldSuppressSpotMetalMtmForSupplierDashboard,
+  shouldUseCustomerMarginFundsSignForAccountEnquiry,
 } = require('../services/erpAccounting/metalMarginPolicy')
 
 describe('metalMarginPolicy', () => {
@@ -95,6 +96,23 @@ describe('metalMarginPolicy', () => {
       accountType: 'Liability',
       accountName: '2100 Accrued expenses',
       description: 'Accruals',
+    })).toBe(false)
+  })
+
+  test('account enquiry: debtor uses Customer Margin funds sign; creditor does not', () => {
+    expect(shouldUseCustomerMarginFundsSignForAccountEnquiry({
+      accountType: 'Asset',
+      accountName: 'test account (Debtor)',
+    })).toBe(true)
+    expect(shouldUseCustomerMarginFundsSignForAccountEnquiry({
+      accountType: 'Asset',
+      accountName: '1010 Bank USD',
+      description: 'Cash at bank',
+    })).toBe(false)
+    expect(shouldUseCustomerMarginFundsSignForAccountEnquiry({
+      accountType: 'Liability',
+      accountName: '2305 STAFF ACCOMODATION (Creditor)',
+      description: 'Payable account for vendor',
     })).toBe(false)
   })
 

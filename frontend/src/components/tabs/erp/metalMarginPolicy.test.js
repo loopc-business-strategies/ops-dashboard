@@ -4,7 +4,9 @@ import {
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
   shouldSuppressSpotMetalMtmForSupplierDashboard,
+  shouldUseCustomerMarginFundsSignForAccountEnquiry,
 } from './metalMarginPolicy'
+import { calculateAccountSummaryMetrics } from './statementHelpers'
 
 describe('frontend metal margin policy', () => {
   test('suppresses spot MTM for creditor/vendor liability accounts', () => {
@@ -80,5 +82,37 @@ describe('frontend metal margin policy', () => {
     })
     expect(raw.revaluation).toBe(-8)
     expect(raw.equity).toBe(-108)
+  })
+
+  test('account enquiry uses Customer Margin funds sign for debtor accounts', () => {
+    expect(shouldUseCustomerMarginFundsSignForAccountEnquiry({
+      accountType: 'Asset',
+      accountName: 'test account (Debtor)',
+      description: '',
+    })).toBe(true)
+    expect(shouldUseCustomerMarginFundsSignForAccountEnquiry({
+      accountType: 'Asset',
+      accountName: 'Bank USD',
+      description: 'Operating bank',
+    })).toBe(false)
+    expect(shouldUseCustomerMarginFundsSignForAccountEnquiry({
+      accountType: 'Liability',
+      accountName: 'STAFF ACCOMODATION (Creditor)',
+      description: 'Auto-created payable account for vendor STAFF ACCOMODATION',
+    })).toBe(false)
+  })
+
+  test('1313-style debtor equity uses -ledgerNet + revaluation', () => {
+    const ledgerNet = 221866.33
+    const revaluation = 281460.75
+    const account = { accountType: 'Asset', accountName: 'test account (Debtor)' }
+    const funds = shouldUseCustomerMarginFundsSignForAccountEnquiry(account) ? -ledgerNet : ledgerNet
+    const metrics = calculateAccountSummaryMetrics({
+      totalFunds: funds,
+      revaluation,
+      marginAmount: Math.abs(revaluation) * 0.02,
+    })
+    expect(funds).toBeCloseTo(-221866.33, 2)
+    expect(metrics.netEquity).toBeCloseTo(59594.42, 2)
   })
 })

@@ -44,6 +44,7 @@ export default function AccountEnquiryModal({
   modalExcessDisplay,
   modalMarginPctDisplay,
   enquirySuppressMetalSpotMtm,
+  enquiryUseCustomerMarginFundsSign = false,
   enquiryLiveRecalcEnabled = false,
   hasMetalExposure = false,
   excessCurrency,
@@ -364,7 +365,12 @@ export default function AccountEnquiryModal({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
                         <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>
-                          {formatDirectionalBalance(modalTotalFundsDisplay, { preferredDirection: accountEnquiryData?.balances?.netDirection })}
+                          {formatDirectionalBalance(
+                            modalTotalFundsDisplay,
+                            enquiryUseCustomerMarginFundsSign
+                              ? {}
+                              : { preferredDirection: accountEnquiryData?.balances?.netDirection },
+                          )}
                         </span>
                       </div>
                       {/* Revaluation */}
@@ -416,22 +422,36 @@ export default function AccountEnquiryModal({
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
                         Customer Margin Equity reflects the signed customer exposure based on the account's underlying accounting direction; supplier payables remain negative.
+                        {enquiryUseCustomerMarginFundsSign && (
+                          <span>
+                            {' '}
+                            For debtor/customer accounts, Total Funds uses the Customer Margin sign (−ledger net) so Net Equity matches margin equity (funds + revaluation).
+                          </span>
+                        )}
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}
                             For creditor/vendor payables, Total Funds uses the ledger payable balance; revaluation uses booked unfixed metal when posted, otherwise live spot on gram position.
                           </span>
                         )}
-                        {!enquirySuppressMetalSpotMtm && enquiryLiveRecalcEnabled && hasMetalExposure && (
+                        {!enquirySuppressMetalSpotMtm && !enquiryUseCustomerMarginFundsSign && enquiryLiveRecalcEnabled && hasMetalExposure && (
                           <span>
                             {' '}
                             Revaluation, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams). Total Funds stays on the ledger balance.
                           </span>
                         )}
+                        {!enquirySuppressMetalSpotMtm && enquiryUseCustomerMarginFundsSign && enquiryLiveRecalcEnabled && hasMetalExposure && (
+                          <span>
+                            {' '}
+                            Revaluation, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams).
+                          </span>
+                        )}
                         {!enquirySuppressMetalSpotMtm && enquiryLiveRecalcEnabled && !hasMetalExposure && (
                           <span>
                             {' '}
-                            Cash-only account: Total Funds stays on the ledger balance; Revaluation and margin rows stay at 0 while Position Price still updates with live spot.
+                            {enquiryUseCustomerMarginFundsSign
+                              ? 'Without metal exposure, Revaluation and margin rows stay at 0 while Total Funds still uses the Customer Margin sign (−ledger net).'
+                              : 'Cash-only account: Total Funds stays on the ledger balance; Revaluation and margin rows stay at 0 while Position Price still updates with live spot.'}
                           </span>
                         )}
                         {!enquirySuppressMetalSpotMtm && !enquiryLiveRecalcEnabled && (

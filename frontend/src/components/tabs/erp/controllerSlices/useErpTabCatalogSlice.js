@@ -229,6 +229,7 @@ export function useErpTabCatalogSlice(scope) {
     modalExcessDisplay,
     modalMarginPctDisplay,
     enquirySuppressMetalSpotMtm,
+    enquiryUseCustomerMarginFundsSign,
     enquiryLiveRecalcEnabled,
     hasMetalExposure,
   } = useAccountEnquiryStatement({
@@ -475,6 +476,7 @@ export function useErpTabCatalogSlice(scope) {
     enquiryModalDrag,
     enquiryModalOffset,
     enquirySuppressMetalSpotMtm,
+    enquiryUseCustomerMarginFundsSign,
     entryAccountOptions,
     filteredGroupedSummaryAccounts,
     filteredInventoryTableRows,

@@ -37,6 +37,27 @@ function shouldSuppressSpotMetalMtmForAccountEnquiry(account) {
 }
 
 /**
+ * Account enquiry Total Funds / equity: use Customer Margin funds sign (`-ledgerNet`)
+ * for debtor/customer accounts. Creditors stay on signed payable ledger net.
+ *
+ * @param {{ accountType?: string, accountName?: string, description?: string } | null | undefined} account
+ * @returns {boolean}
+ */
+function shouldUseCustomerMarginFundsSignForAccountEnquiry(account) {
+  if (!account || typeof account !== 'object') return false
+  if (shouldSuppressSpotMetalMtmForAccountEnquiry(account)) return false
+  const acctName = String(account.accountName || '')
+  const acctDesc = String(account.description || '')
+  const combined = `${acctName} ${acctDesc}`.toLowerCase()
+  return Boolean(
+    /\(debtor\)/i.test(acctName)
+      || /\bdebtor\b/i.test(acctName)
+      || /\bcustomer\b/i.test(combined)
+      || /receivable account for customer/i.test(combined),
+  )
+}
+
+/**
  * Raw margin math (numbers). Callers apply `toMoney` / formatting.
  *
  * @param {{
@@ -208,6 +229,7 @@ module.exports = {
   shouldSuppressSpotMetalMtmForCustomerDashboard,
   shouldSuppressSpotMetalMtmForSupplierDashboard,
   shouldSuppressSpotMetalMtmForAccountEnquiry,
+  shouldUseCustomerMarginFundsSignForAccountEnquiry,
   computeMarginMetricsRaw,
   computeBookedUnfixedRevaluationFromStatementRows,
   computeBookedUnfixedRevaluationFromTransactions,
