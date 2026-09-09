@@ -616,6 +616,7 @@
   "exampleAccountCode": "напр. 1010",
   "selectType": "Выберите тип...",
   "moduleUnderConstruction": "Модуль в разработке",
+  "comingSoon": "Скоро",
   "plannedSections": "Запланированные разделы",
   "builtAsRequired": "Этот раздел будет создан после подтверждения требований."
 }

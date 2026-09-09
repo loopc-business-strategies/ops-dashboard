@@ -616,6 +616,7 @@
   "exampleAccountCode": "e.g. 1010",
   "selectType": "Select type...",
   "moduleUnderConstruction": "Module Under Construction",
+  "comingSoon": "Coming Soon",
   "plannedSections": "Planned Sections",
   "builtAsRequired": "This section will be built as requirements are confirmed."
 }

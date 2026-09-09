@@ -353,9 +353,10 @@ const tenantBranding = {
       bgTopbar: '#1C1917',
       brandButtonHover: '#451A03',
     }),
-    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'departments', 'erp'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
+      departmentsComingSoon: true,
       procurementPlus: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
@@ -403,6 +404,10 @@ export function isAccountingPeriodClosingEnabled(tenant) {
 
 export function isVoucher24HourLockEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.voucher24HourLock === true
+}
+
+export function isDepartmentsComingSoonEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.departmentsComingSoon === true
 }
 
 export function getDisabledVoucherTypes(tenant) {

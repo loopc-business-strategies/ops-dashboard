@@ -42,6 +42,7 @@ const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
 const ERPTab = lazy(() => import('../components/tabs/ERPTab'))
 const ComplianceTab = lazy(() => import('../components/tabs/ComplianceTab'))
 const ProcurementPlusTab = lazy(() => import('../components/tabs/ProcurementPlusTab'))
+const PlaceholderTab = lazy(() => import('../components/tabs/PlaceholderTab'))
 
 const TAB_CHUNK_PREFETCHERS = {
   overview: () => import('../components/tabs/OverviewTab'),
@@ -57,6 +58,7 @@ const TAB_CHUNK_PREFETCHERS = {
   erp: () => import('../components/tabs/ERPTab'),
   compliance: () => import('../components/tabs/ComplianceTab'),
   'procurement-plus': () => import('../components/tabs/ProcurementPlusTab'),
+  departments: () => import('../components/tabs/PlaceholderTab'),
 }
 
 const prefetchedTabs = new Set()
@@ -125,6 +127,17 @@ function TabLoadingFallback() {
       <div className="skeleton-line" style={{ width: '55%' }} />
       <p style={{ margin: '16px 0 0', fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Loading module...</p>
     </div>
+  )
+}
+
+function DepartmentsComingSoonTab() {
+  const { t } = useLanguage()
+  return (
+    <PlaceholderTab
+      title={t('departments')}
+      description={t('comingSoon')}
+      subTabs={['HR', 'Compliance', 'Production', 'Finance', 'Sales', 'Operations', 'Training']}
+    />
   )
 }
 
@@ -240,8 +253,32 @@ function resolveRealtimeBellErpFields(payload) {
   }
 }
 
+const DEPARTMENT_MODULE_TAB_IDS = new Set([
+  'hr',
+  'compliance',
+  'production',
+  'finance',
+  'sales',
+  'operations',
+  'training',
+  'procurement-plus',
+])
+
 // ── Render the content for each tab ────────────
-function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
+function renderTab(
+  tabId,
+  navigateToTab,
+  buildTabHref,
+  setChatUnread,
+  erpSubTab,
+  chatTabProps = {},
+  erpTabProps = {},
+  { departmentsComingSoon = false } = {},
+) {
+  if (departmentsComingSoon && (tabId === 'departments' || DEPARTMENT_MODULE_TAB_IDS.has(tabId))) {
+    return <DepartmentsComingSoonTab />
+  }
+
   switch (tabId) {
     case 'overview':
       return <OverviewTab onNavigate={navigateToTab} buildTabHref={buildTabHref} />
@@ -262,6 +299,9 @@ function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab,
 
     case 'admin':
       return <AdminTab />
+
+    case 'departments':
+      return <DepartmentsComingSoonTab />
 
     case 'hr':
       return <HRTab />
@@ -311,12 +351,30 @@ function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab,
   }
 }
 
-function renderTabContent(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
+function renderTabContent(
+  tabId,
+  navigateToTab,
+  buildTabHref,
+  setChatUnread,
+  erpSubTab,
+  chatTabProps = {},
+  erpTabProps = {},
+  renderOptions = {},
+) {
   const resetKey = tabId === 'erp' ? `erp:${erpSubTab || 'dashboard'}` : tabId
   return (
     <TabErrorBoundary resetKey={resetKey}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabProps, erpTabProps)}
+        {renderTab(
+          tabId,
+          navigateToTab,
+          buildTabHref,
+          setChatUnread,
+          erpSubTab,
+          chatTabProps,
+          erpTabProps,
+          renderOptions,
+        )}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -469,6 +527,11 @@ function Dashboard() {
   const showMetalTickers = TENANT_KEYS.includes(branding.key)
   const metalRatesEnabled = Boolean(token && showMetalTickers)
   const navItems = getNavItems(perms, t, chatUnread, branding)
+  const departmentsComingSoon = Boolean(branding?.featureFlags?.departmentsComingSoon)
+  const tabRenderOptions = useMemo(
+    () => ({ departmentsComingSoon }),
+    [departmentsComingSoon],
+  )
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
   const consumeErpJumpTransaction = useCallback(() => setPendingErpJumpTransactionId(null), [])
@@ -535,9 +598,17 @@ function Dashboard() {
     const currentItem = navItems.find((item) => item.id === activeTab)
     if (currentItem) return
 
+    if (departmentsComingSoon && DEPARTMENT_MODULE_TAB_IDS.has(activeTab)) {
+      const departmentsItem = navItems.find((item) => item.id === 'departments')
+      if (departmentsItem) {
+        setActiveTab('departments')
+        return
+      }
+    }
+
     setActiveTab(firstAllowed.group === 'erp' ? 'erp' : firstAllowed.id)
     if (firstAllowed.group === 'erp') setErpSubTab(firstAllowed.erpSub)
-  }, [activeTab, erpSubTab, navItems])
+  }, [activeTab, erpSubTab, navItems, departmentsComingSoon])
 
   useEffect(() => {
     return applyTenantTheme(branding.colors)
@@ -1123,7 +1194,7 @@ function Dashboard() {
               }}
               aria-hidden={activeTab !== 'overview'}
             >
-              {renderTabContent('overview', navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              {renderTabContent('overview', navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
             </div>
           )}
           {visitedKeepAliveTabs.has('erp') && (
@@ -1137,17 +1208,17 @@ function Dashboard() {
               }}
               aria-hidden={activeTab !== 'erp'}
             >
-              {renderTabContent('erp', navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              {renderTabContent('erp', navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
             </div>
           )}
           {activeTab !== 'overview' && activeTab !== 'erp' && (
             activeTab === 'chat' ? (
               <div className="flex-1 min-h-0 flex flex-col">
-                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
               </div>
             ) : (
               <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
               </div>
             )
           )}

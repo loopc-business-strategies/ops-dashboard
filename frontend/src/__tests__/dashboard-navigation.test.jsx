@@ -96,6 +96,11 @@ vi.mock('../components/tabs/ComplianceTab', () => ({
 vi.mock('../components/tabs/ProcurementPlusTab', () => ({
   default: () => <div>procurement-plus-tab</div>,
 }))
+vi.mock('../components/tabs/PlaceholderTab', () => ({
+  default: ({ title, description }) => (
+    <div>{`placeholder-tab:${title || ''}:${description || ''}`}</div>
+  ),
+}))
 vi.mock('../components/tabs/ERPTab', () => ({
   default: ({ focusTab, jumpToTransactionId }) => (
     <div>{`erp-tab-focus:${focusTab}`}{jumpToTransactionId ? `|jump:${jumpToTransactionId}` : ''}</div>
@@ -140,12 +145,16 @@ describe('Dashboard navigation behavior', () => {
           training: 'Training',
           adminSection: 'Admin',
           departments: 'Departments',
+          comingSoon: 'Coming Soon',
           erp: 'ERP',
           dashboard: 'Dashboard',
           signOut: 'Sign out',
           controlSystem: 'Control System',
           language: 'Language',
           superAdmin: 'Super Admin',
+          moduleUnderConstruction: 'Module Under Construction',
+          plannedSections: 'Planned Sections',
+          builtAsRequired: 'This section will be built as requirements are confirmed.',
         }
         return map[key] || key
       },
@@ -235,6 +244,35 @@ describe('Dashboard navigation behavior', () => {
     })
     renderDashboard()
     expect(await screen.findByRole('link', { name: 'Master Settings' })).toBeTruthy()
+  })
+
+  it('VB shows Departments Coming Soon instead of HR modules', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'vb', _id: '507f1f77bcf86cd799439011' },
+      company: 'vb',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard()
+
+    const departmentsLink = await screen.findByRole('link', { name: 'Departments' })
+    expect(departmentsLink.getAttribute('href')).toContain('tab=departments')
+    expect(screen.queryByRole('link', { name: 'HR' })).toBeNull()
+
+    fireEvent.click(departmentsLink)
+    expect(await screen.findByText('placeholder-tab:Departments:Coming Soon')).toBeTruthy()
+  })
+
+  it('VB redirects HR deep link away from real department modules', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'vb', _id: '507f1f77bcf86cd799439011' },
+      company: 'vb',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard('/dashboard?tab=hr')
+    expect(screen.queryByText('hr-tab')).toBeNull()
+    expect(await screen.findByText('placeholder-tab:Departments:Coming Soon')).toBeTruthy()
   })
 
   it('loads ERP supplier margin from URL deep link', async () => {

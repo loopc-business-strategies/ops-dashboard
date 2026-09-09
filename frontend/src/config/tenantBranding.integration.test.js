@@ -3,6 +3,7 @@ import tenantRoutingCases from '../../../shared/tenant-routing-cases.json'
 import {
   getTenantBranding,
   isAccountingPeriodClosingEnabled,
+  isDepartmentsComingSoonEnabled,
   isErpAdvancedListFiltersEnabled,
   isVoucher24HourLockEnabled,
   isVoucherKeyboardNavEnabled,
@@ -43,6 +44,11 @@ describe('tenant branding integration', () => {
     expect(vb.logoImage).toBe('/logos/vb-logo.svg')
     expect(mg.enabledTabs).toContain('erp')
     expect(vb.enabledTabs).toContain('erp')
+    expect(vb.enabledTabs).toContain('departments')
+    expect(vb.enabledTabs).not.toContain('hr')
+    expect(vb.featureFlags.departmentsComingSoon).toBe(true)
+    expect(isDepartmentsComingSoonEnabled('vb')).toBe(true)
+    expect(isDepartmentsComingSoonEnabled('mg')).toBe(false)
     expect(mg.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
     expect(vb.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
   })

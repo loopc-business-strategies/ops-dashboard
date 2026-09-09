@@ -616,6 +616,7 @@
   "exampleAccountCode": "e.g. 1010",
   "selectType": "Select type...",
   "moduleUnderConstruction": "الوحدة قيد الإنشاء",
+  "comingSoon": "قريباً",
   "plannedSections": "الأقسام المخطط لها",
   "builtAsRequired": "سيتم بناء هذا القسم بمجرد تأكيد المتطلبات."
 }
