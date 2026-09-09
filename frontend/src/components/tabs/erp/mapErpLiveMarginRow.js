@@ -36,8 +36,8 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
   if (marginLiveRecalc && (goldPriceUSD > 0 || silverPriceUSD > 0)) {
     const frozenEquity = Number(row?.equity ?? row?.netCashFlow ?? 0)
     const frozenReval = Number(row?.marginRevaluation ?? 0)
-    // equity = funds - revaluation ⇒ funds = equity + revaluation
-    const totalFunds = frozenEquity + frozenReval
+    // equity = funds + revaluation ⇒ funds = equity - revaluation
+    const totalFunds = frozenEquity - frozenReval
     const suppressMetalSpotMtm = Boolean(options.suppressMetalSpotMtm ?? row?.suppressMetalSpotMtm)
     const metrics = computeMarginMetricsRaw({
       totalFunds,

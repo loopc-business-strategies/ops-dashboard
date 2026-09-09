@@ -227,7 +227,7 @@ export function useAccountEnquiryStatement({
   const enquiryLiveRecalcEnabled = enquiryComputationEnabled && (goldPriceUSD > 0 || silverPriceUSD > 0)
 
   const ledgerNet = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
-  // Account Summary Total Balance must match statement ledger running balance (amount + Dr/Cr).
+  // Total Balance display = ledger. Margin equity metrics use Credit-positive (−ledgerNet) below.
   const totalFunds = ledgerNet
   const modalStatementCurrency = erpBaseCurrencyCode
   const rawUnfixedMetalDedupeKeys = new Set()
@@ -486,6 +486,8 @@ export function useAccountEnquiryStatement({
   }, 0)
 
   const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
+  // Credit-positive margin funds: Debit ledger → negative, Credit ledger → positive.
+  const marginEquityFundsForMetrics = -(isCashOnHandEnquiry ? visibleStatementNetBalance : totalFunds)
 
   const hasMetalExposure = hasAccountEnquiryMetalExposure(xauBalance, xagBalance)
   const bookedRevaluationTotal = resolveAccountEnquiryBookedRevaluation(
@@ -494,7 +496,7 @@ export function useAccountEnquiryStatement({
   )
 
   const enquiryLiveMetrics = buildAccountEnquiryLiveMetrics({
-    totalFunds: modalTotalFundsDisplay,
+    totalFunds: marginEquityFundsForMetrics,
     goldPosition: xauBalance,
     silverPosition: xagBalance,
     goldPriceUSD,
@@ -523,7 +525,7 @@ export function useAccountEnquiryStatement({
     : convertStatementDisplayAmount(rawMarginAmtDisplay)
 
   const modalDisplayMetrics = calculateAccountSummaryMetrics({
-    totalFunds: convertStatementDisplayAmount(modalTotalFundsDisplay),
+    totalFunds: convertStatementDisplayAmount(marginEquityFundsForMetrics),
     revaluation: modalRevaluationDisplay,
     marginAmount: modalMarginAmtDisplay,
   })

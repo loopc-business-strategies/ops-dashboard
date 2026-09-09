@@ -12,6 +12,7 @@ import {
   normalizeStatementCurrencyCode,
   resolveStatementDisplayCurrency,
   resolveExposureDirection,
+  resolveMarginEquityDirection,
   withSignedDirectionalPrefix,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
@@ -163,6 +164,12 @@ describe('statement helpers', () => {
     expect(resolveExposureDirection(metrics.netEquity)).toBe('Credit')
   })
 
+  test('resolveMarginEquityDirection maps favorable equity to Credit', () => {
+    expect(resolveMarginEquityDirection(31768.5)).toBe('Credit')
+    expect(resolveMarginEquityDirection(-5000)).toBe('Debit')
+    expect(resolveMarginEquityDirection(0)).toBe('Flat')
+  })
+
   test('withSignedDirectionalPrefix adds + for Dr and - for Cr', () => {
     expect(withSignedDirectionalPrefix('USD 9.00 Dr', 9)).toBe('+USD 9.00 Dr')
     expect(withSignedDirectionalPrefix('USD 162,131.00 Cr', -162131)).toBe('-USD 162,131.00 Cr')
@@ -196,8 +203,8 @@ describe('statement helpers', () => {
       revaluation: high.revaluation,
       marginAmount: high.margin,
     })
-    expect(highSummary.netEquity).toBeLessThan(lowSummary.netEquity)
-    expect(highSummary.excess).toBeLessThan(lowSummary.excess)
+    expect(highSummary.netEquity).toBeGreaterThan(lowSummary.netEquity)
+    expect(highSummary.excess).toBeGreaterThan(lowSummary.excess)
     expect(highSummary.marginPercent).toBeLessThan(lowSummary.marginPercent)
   })
 
@@ -284,7 +291,7 @@ describe('statement helpers', () => {
       marginAmount,
     })
 
-    expect(metrics.netEquity).toBeCloseTo(-234.21 - revaluation, 2)
+    expect(metrics.netEquity).toBeCloseTo(-234.21 + revaluation, 2)
     expect(metrics.excess).toBeCloseTo(metrics.netEquity - marginAmount, 2)
     expect(metrics.marginPercent).toBeCloseTo((234.21 / marginAmount) * 100, 1)
   })

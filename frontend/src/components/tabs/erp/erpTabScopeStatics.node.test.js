@@ -6,6 +6,7 @@ const ENQUIRY_MODAL_HELPER_KEYS = [
   'getAccountEnquirySignedMetricColor',
   'formatAccountEnquiryExcessDisplay',
   'resolveExposureDirection',
+  'resolveMarginEquityDirection',
   'isMetalStatementEntry',
 ]
 

@@ -91,7 +91,7 @@ export function computeMarginMetricsRaw({
   }
 
   const margin = Math.abs(revaluation) * 0.02
-  const equity = funds - revaluation
+  const equity = funds + revaluation
   const excess = equity - margin
   const marginPercent = margin > 0 ? (Math.abs(funds) / margin) * 100 : 0
   const status = equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL'

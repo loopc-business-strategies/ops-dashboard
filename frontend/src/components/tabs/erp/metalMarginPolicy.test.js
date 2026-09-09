@@ -51,7 +51,7 @@ describe('frontend metal margin policy', () => {
     })
     expect(raw.revaluation).toBe(100)
     expect(raw.margin).toBe(2)
-    expect(raw.equity).toBe(0)
+    expect(raw.equity).toBe(200)
   })
 
   test('customerAbsIfNegative uses abs(funds) when totalFunds negative', () => {
@@ -81,7 +81,7 @@ describe('frontend metal margin policy', () => {
       fundsMode: 'asIs',
     })
     expect(raw.revaluation).toBe(-8)
-    expect(raw.equity).toBe(-92)
+    expect(raw.equity).toBe(-108)
   })
 
   test('account enquiry uses Customer Margin funds sign for debtor accounts', () => {
@@ -102,16 +102,16 @@ describe('frontend metal margin policy', () => {
     })).toBe(false)
   })
 
-  test('1313-style enquiry equity uses ledgerNet - revaluation (no Customer Margin flip)', () => {
-    // Statement/ledger signed net (Dr positive, Cr negative) feeds Total Balance as-is.
-    const ledgerNet = -221866.33
+  test('1313-style equity uses -ledgerNet + revaluation (Credit-positive)', () => {
+    const ledgerNet = 221866.33
     const revaluation = 281460.75
+    const funds = -ledgerNet
     const metrics = calculateAccountSummaryMetrics({
-      totalFunds: ledgerNet,
+      totalFunds: funds,
       revaluation,
       marginAmount: Math.abs(revaluation) * 0.02,
     })
-    expect(metrics.netEquity).toBeCloseTo(ledgerNet - revaluation, 2)
-    expect(metrics.netEquity).toBeCloseTo(-503327.08, 2)
+    expect(funds).toBeCloseTo(-221866.33, 2)
+    expect(metrics.netEquity).toBeCloseTo(59594.42, 2)
   })
 })

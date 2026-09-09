@@ -73,6 +73,7 @@ export default function AccountEnquiryModal({
   handleExportEnquiryPdf,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
+  resolveMarginEquityDirection,
   isMetalStatementEntry,
 }) {
   const dateRangeRefetchTimerRef = useRef(null)
@@ -382,7 +383,7 @@ export default function AccountEnquiryModal({
                             modalNetEquityDisplay,
                             {
                               currencyCode: statementDisplayCurrency,
-                              preferredDirection: accountEnquiryData?.balances?.netDirection,
+                              preferredDirection: resolveMarginEquityDirection(modalNetEquityDisplay),
                             },
                           )}
                         </span>
@@ -426,9 +427,9 @@ export default function AccountEnquiryModal({
                         </select>
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
-                        Customer Margin Equity reflects the signed customer exposure based on the account's underlying accounting direction; supplier payables remain negative.
+                        Customer Margin Equity uses Credit-positive convention (Credit = +, Debit = −): funds = −ledger net, Net Equity = funds + Current Value. Supplier payables remain negative.
                         {' '}
-                        Account Summary Total Balance matches the statement ledger running balance (same amount and Dr/Cr).
+                        Account Summary Total Balance matches the statement ledger running balance (same amount and Dr/Cr). Net Equity Dr/Cr follows signed equity (positive → Cr).
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}

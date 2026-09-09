@@ -50,7 +50,7 @@ describe('metalMarginPolicy', () => {
     })
     expect(raw.revaluation).toBe(100)
     expect(raw.margin).toBe(2)
-    expect(raw.equity).toBe(0)
+    expect(raw.equity).toBe(200)
   })
 
   test('customerAbsIfNegative uses abs(funds) when totalFunds negative', () => {
@@ -79,7 +79,7 @@ describe('metalMarginPolicy', () => {
       fundsMode: 'asIs',
     })
     expect(raw.revaluation).toBe(-12.5)
-    expect(raw.equity).toBe(-187.5)
+    expect(raw.equity).toBe(-212.5)
     expect(raw.margin).toBeCloseTo(0.25, 5)
   })
 

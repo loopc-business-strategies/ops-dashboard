@@ -71,6 +71,7 @@ export default function ERPTabModals({
   handleExportEnquiryPdf,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
+  resolveMarginEquityDirection,
   isMetalStatementEntry,
   showStatementPreview,
   setShowStatementPreview,
@@ -154,6 +155,7 @@ export default function ERPTabModals({
         handleExportEnquiryPdf={handleExportEnquiryPdf}
         getAccountEnquirySignedMetricColor={getAccountEnquirySignedMetricColor}
         formatAccountEnquiryExcessDisplay={formatAccountEnquiryExcessDisplay}
+        resolveMarginEquityDirection={resolveMarginEquityDirection}
         isMetalStatementEntry={isMetalStatementEntry}
       />
       <StatementPreviewModal
