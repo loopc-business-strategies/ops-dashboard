@@ -5,14 +5,14 @@ import {
   shouldSuppressSpotMetalMtmForSupplierDashboard,
 } from './metalMarginPolicy'
 
-/** Mirrors useErpMarginTabs customer live path: exposureFunds = outstanding (ledger). */
+/** Mirrors useErpMarginTabs customer live path: exposureFunds = -outstanding. */
 function buildCustomerLiveMetrics(customer, goldPriceUSD, silverPriceUSD) {
   const outstanding = Number(customer?.outstandingBalance || 0)
   const goldPosition = Number(customer?.goldPosition || 0)
   const silverPosition = Number(customer?.silverPosition || 0)
   const accountType = customer?.ledgerAccountId?.accountType
   const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
-  const exposureFunds = outstanding
+  const exposureFunds = -outstanding
   const frozenReval = Number(customer?.marginRevaluation ?? 0)
   const frozenEquity = Number(customer?.marginEquity ?? exposureFunds)
   // equity = funds - revaluation ⇒ funds = equity + revaluation
@@ -46,10 +46,10 @@ function buildSupplierLiveMetrics(vendor, goldPriceUSD, silverPriceUSD) {
   })
 }
 
-describe('useErpMarginTabs customer ledger-as-funds', () => {
+describe('useErpMarginTabs customer negated exposure', () => {
   test('margin equity falls when live gold price rises', () => {
     const customer = {
-      outstandingBalance: 1000,
+      outstandingBalance: -1000,
       marginEquity: 800,
       marginRevaluation: 200,
       goldPosition: 50,
@@ -62,20 +62,20 @@ describe('useErpMarginTabs customer ledger-as-funds', () => {
     expect(high.equity).toBeLessThan(low.equity)
   })
 
-  test('credit ledger outstanding maps to negative equity (matches Account Summary Cr)', () => {
+  test('credit ledger outstanding maps to positive equity (Modern Capital–style)', () => {
     const metrics = computeMarginMetricsRaw({
-      totalFunds: -162131,
+      totalFunds: -(-162131),
       goldPosition: 0,
       silverPosition: 0,
       goldPrice: 0,
       silverPrice: 0,
       fundsMode: 'asIs',
     })
-    expect(metrics.equity).toBe(-162131)
-    expect(metrics.status).toBe('NEGATIVE')
+    expect(metrics.equity).toBe(162131)
+    expect(metrics.status).toBe('POSITIVE')
   })
 
-  test('debit ledger outstanding maps to positive equity when Current Value is 0', () => {
+  test('debit ledger outstanding maps to negative equity (Aneesh / CEO–style)', () => {
     const cases = [
       { name: 'CEO CURRENT A/C', outstanding: 276.58 },
       { name: 'Aneesh', outstanding: 3411.76 },
@@ -86,21 +86,21 @@ describe('useErpMarginTabs customer ledger-as-funds', () => {
     ]
     for (const row of cases) {
       const metrics = computeMarginMetricsRaw({
-        totalFunds: row.outstanding,
+        totalFunds: -row.outstanding,
         goldPosition: 0,
         silverPosition: 0,
         goldPrice: 0,
         silverPrice: 0,
         fundsMode: 'asIs',
       })
-      expect(metrics.equity).toBeCloseTo(row.outstanding, 2)
-      expect(metrics.status).toBe('POSITIVE')
+      expect(metrics.equity).toBeCloseTo(-row.outstanding, 2)
+      expect(metrics.status).toBe('NEGATIVE')
     }
   })
 
   test('zero balance remains zero equity', () => {
     const metrics = computeMarginMetricsRaw({
-      totalFunds: 0,
+      totalFunds: -0,
       goldPosition: 0,
       silverPosition: 0,
       goldPrice: 0,
@@ -111,32 +111,32 @@ describe('useErpMarginTabs customer ledger-as-funds', () => {
     expect(metrics.status).toBe('NEUTRAL')
   })
 
-  test('live path uses ledger outstanding without name branching', () => {
+  test('live path uses negated outstanding without name branching', () => {
     const creditCustomer = buildCustomerLiveMetrics({
       outstandingBalance: -5000,
-      marginEquity: -5000,
+      marginEquity: 5000,
       marginRevaluation: 0,
       goldPosition: 0,
       silverPosition: 0,
       ledgerAccountId: { accountType: 'asset' },
     }, 0, 0)
-    expect(creditCustomer.equity).toBe(-5000)
+    expect(creditCustomer.equity).toBe(5000)
 
     const debitCustomer = buildCustomerLiveMetrics({
       outstandingBalance: 1234.5,
-      marginEquity: 1234.5,
+      marginEquity: -1234.5,
       marginRevaluation: 0,
       goldPosition: 0,
       silverPosition: 0,
       ledgerAccountId: { accountType: 'asset' },
     }, 0, 0)
-    expect(debitCustomer.equity).toBeCloseTo(1234.5, 2)
+    expect(debitCustomer.equity).toBeCloseTo(-1234.5, 2)
   })
 
   test('liability customer live path uses frozen revaluation override', () => {
     const customer = {
       outstandingBalance: -50,
-      marginEquity: -50,
+      marginEquity: 50,
       marginRevaluation: 0,
       goldPosition: 10,
       silverPosition: 0,
@@ -144,8 +144,8 @@ describe('useErpMarginTabs customer ledger-as-funds', () => {
     }
     const low = buildCustomerLiveMetrics(customer, 50, 1)
     const high = buildCustomerLiveMetrics(customer, 200, 1)
-    expect(low.equity).toBe(-50)
-    expect(high.equity).toBe(-50)
+    expect(low.equity).toBe(50)
+    expect(high.equity).toBe(50)
     expect(high.revaluation).toBe(0)
   })
 

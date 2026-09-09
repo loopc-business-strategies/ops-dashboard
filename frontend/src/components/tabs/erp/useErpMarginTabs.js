@@ -73,8 +73,8 @@ export function useErpCustomerMargin({
         const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
 
         const useLiveSpotMtm = liveRecalcEnabled && hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
-        // Margin funds = ledger outstanding (same signed net as Account Summary).
-        const exposureFunds = outstanding
+        // Margin exposure = negated accounting outstanding (credit → +, debit → -).
+        const exposureFunds = -outstanding
         if (useLiveSpotMtm) {
           const goldPrice = Number(goldPriceUSD || 0)
           const silverPrice = Number(silverPriceUSD || 0)
