@@ -60,8 +60,6 @@ describe('erpTabScopeStatics (node)', () => {
       enquiryUseCustomerMarginFundsSign: false,
       enquiryLiveRecalcEnabled: false,
       hasMetalExposure: false,
-      excessCurrency: '',
-      setExcessCurrency: () => {},
       baseCurrencyCode: 'USD',
       statementDisplayCurrencyOptions: [],
       filteredStatementEntries: [],

@@ -45,8 +45,6 @@ export default function ERPTabModals({
   enquiryUseCustomerMarginFundsSign,
   enquiryLiveRecalcEnabled,
   hasMetalExposure,
-  excessCurrency,
-  setExcessCurrency,
   baseCurrencyCode,
   statementDisplayCurrencyOptions,
   filteredStatementEntries,
@@ -133,8 +131,6 @@ export default function ERPTabModals({
         enquiryUseCustomerMarginFundsSign={enquiryUseCustomerMarginFundsSign}
         enquiryLiveRecalcEnabled={enquiryLiveRecalcEnabled}
         hasMetalExposure={hasMetalExposure}
-        excessCurrency={excessCurrency}
-        setExcessCurrency={setExcessCurrency}
         baseCurrencyCode={baseCurrencyCode}
         statementDisplayCurrencyOptions={statementDisplayCurrencyOptions}
         filteredStatementEntries={filteredStatementEntries}

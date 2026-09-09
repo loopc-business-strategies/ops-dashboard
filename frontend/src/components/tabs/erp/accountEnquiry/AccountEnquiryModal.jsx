@@ -47,8 +47,6 @@ export default function AccountEnquiryModal({
   enquiryUseCustomerMarginFundsSign = false,
   enquiryLiveRecalcEnabled = false,
   hasMetalExposure = false,
-  excessCurrency,
-  setExcessCurrency,
   baseCurrencyCode,
   statementDisplayCurrencyOptions,
   filteredStatementEntries,
@@ -367,9 +365,12 @@ export default function AccountEnquiryModal({
                         <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>
                           {formatDirectionalBalance(
                             modalTotalFundsDisplay,
-                            enquiryUseCustomerMarginFundsSign
-                              ? {}
-                              : { preferredDirection: accountEnquiryData?.balances?.netDirection },
+                            {
+                              currencyCode: statementDisplayCurrency,
+                              ...(enquiryUseCustomerMarginFundsSign
+                                ? {}
+                                : { preferredDirection: accountEnquiryData?.balances?.netDirection }),
+                            },
                           )}
                         </span>
                       </div>
@@ -382,7 +383,10 @@ export default function AccountEnquiryModal({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
                         <span style={{ color: getAccountEnquirySignedMetricColor(modalNetEquityDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '700', fontSize: '1rem' }}>
-                          {formatSignedDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveMarginEquityDirection(modalNetEquityDisplay) })}
+                          {formatSignedDirectionalBalance(modalNetEquityDisplay, {
+                            preferredDirection: resolveMarginEquityDirection(modalNetEquityDisplay),
+                            currencyCode: statementDisplayCurrency,
+                          })}
                         </span>
                       </div>
                       {/* Margin Amt @ 2% */}
@@ -390,35 +394,38 @@ export default function AccountEnquiryModal({
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
                         <span style={{ color: getSignedColor(modalMarginAmtDisplay), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmtDisplay, 2)}</span>
                       </div>
-                      {/* Excess with Currency Dropdown */}
+                      {/* Excess */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <select
-                            value={excessCurrency || baseCurrencyCode}
-                            onChange={(e) => setExcessCurrency(e.target.value)}
-                            style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}
-                          >
-                            {(statementDisplayCurrencyOptions.length
-                              ? statementDisplayCurrencyOptions
-                              : DEFAULT_STATEMENT_DISPLAY_CURRENCIES).map((currencyCode) => (
-                              <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
-                            ))}
-                          </select>
-                          <span style={{ color: getAccountEnquirySignedMetricColor(modalExcessDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
-                            {formatAccountEnquiryExcessDisplay({
-                              excess: modalExcessDisplay,
-                              marginAmount: modalMarginAmtDisplay,
-                              netDirection: accountEnquiryData?.balances?.netDirection,
-                              formatValue: (value) => formatStatementValue(value, 2),
-                            })}
-                          </span>
-                        </div>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</span>
+                        <span style={{ color: getAccountEnquirySignedMetricColor(modalExcessDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '800', fontSize: '1.05rem', textAlign: 'right' }}>
+                          {formatAccountEnquiryExcessDisplay({
+                            excess: modalExcessDisplay,
+                            marginAmount: modalMarginAmtDisplay,
+                            netDirection: accountEnquiryData?.balances?.netDirection,
+                            formatValue: (value) => formatStatementValue(value, 2),
+                          })}
+                        </span>
                       </div>
                       {/* Margin % */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
                         <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2, { fixed: true })}%</span>
+                      </div>
+                      {/* Display currency — drives summary + statement conversion instantly */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
+                        <label htmlFor="account-summary-display-currency" style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Display currency</label>
+                        <select
+                          id="account-summary-display-currency"
+                          value={statementFilters.showAmountIn || statementDisplayCurrency || baseCurrencyCode}
+                          onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
+                          style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600', minWidth: '5.5rem' }}
+                        >
+                          {(statementDisplayCurrencyOptions.length
+                            ? statementDisplayCurrencyOptions
+                            : DEFAULT_STATEMENT_DISPLAY_CURRENCIES).map((currencyCode) => (
+                            <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
+                          ))}
+                        </select>
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
                         Customer Margin Equity reflects the signed customer exposure based on the account's underlying accounting direction; supplier payables remain negative.

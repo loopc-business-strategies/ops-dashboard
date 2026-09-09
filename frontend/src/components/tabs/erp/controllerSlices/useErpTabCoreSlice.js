@@ -271,7 +271,6 @@ export function useErpTabCoreSlice(props) {
     height: 520,
   })
   const statementAuditPreferenceKey = `${ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
-  const [excessCurrency, setExcessCurrency] = useState('')
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
   const [inventoryProducts, setInventoryProducts] = useState([])
@@ -577,7 +576,6 @@ export function useErpTabCoreSlice(props) {
     erpLiveMetalSnapshot,
     erpSilverPriceUSD,
     error,
-    excessCurrency,
     exportOptionsOpen,
     fixingRegError,
     fixingRegFilter,
@@ -689,7 +687,6 @@ export function useErpTabCoreSlice(props) {
     setEnquiryLoading,
     setEnquiryStatus,
     setError,
-    setExcessCurrency,
     setExportOptionsOpen,
     setFixingRegError,
     setFixingRegFilter,
