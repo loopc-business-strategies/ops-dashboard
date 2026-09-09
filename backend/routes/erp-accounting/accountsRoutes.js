@@ -59,7 +59,7 @@ function registerAccountsRoutes(deps) {
     Customer,
     BASE_CURRENCY_CODE,
     DEFAULT_METAL_RATES,
-    _toMoney,
+    toMoney,
     parsePagination,
     getLatestMetalRate,
     getAccountSummaryScope,
@@ -453,7 +453,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         isMetalTrade,
         isMetalTransfer,
         metalSignedWeight,
-        unfixedVoucherAmount: isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed' ? _toMoney(voucherAmount) : 0,
+        unfixedVoucherAmount: isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed' ? toMoney(voucherAmount) : 0,
         lineNarration,
       }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)

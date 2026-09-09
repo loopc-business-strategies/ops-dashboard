@@ -52,7 +52,6 @@ function registerTransactionRoutes(deps) {
     validateAttachmentContent,
     canAccessReports,
     isSuperAdmin,
-    _toMoney,
     parsePagination,
     canCreateTransactionFor,
     canAccessOperationalTransactions,
