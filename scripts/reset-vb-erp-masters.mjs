@@ -58,22 +58,29 @@ const CURRENCY_DEFAULTS = [
   { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
 ]
 
-/** Clean Venus Bullions starter CoA — no party / MG names. */
+/** Clean Venus Bullions starter CoA — no party / MG names. Includes statutory FX/VAT/P&L. */
 const STARTER_COA = [
   { accountCode: '1000', accountName: 'Cash on Hand', accountType: 'Asset', description: 'Petty and till cash' },
   { accountCode: '1010', accountName: 'Main Bank Account', accountType: 'Asset', description: 'Primary operating bank' },
+  { accountCode: '1020', accountName: 'Petty Cash', accountType: 'Asset', description: 'Small cash float' },
   { accountCode: '1100', accountName: 'Accounts Receivable', accountType: 'Asset', description: 'Trade debtors control' },
+  { accountCode: '1190', accountName: 'VAT Receivable', accountType: 'Asset', description: 'Input VAT to recover from tax authority', parentCode: '1100', department: 'finance' },
   { accountCode: '1200', accountName: 'Inventory - Raw Materials', accountType: 'Asset', description: 'Metal and materials stock' },
   { accountCode: '1210', accountName: 'Metal Inventory', accountType: 'Asset', description: 'Bullion and metal inventory' },
   { accountCode: '1500', accountName: 'Property & Equipment', accountType: 'Asset', description: 'Fixed assets' },
   { accountCode: '2000', accountName: 'Accounts Payable', accountType: 'Liability', description: 'Trade creditors control' },
   { accountCode: '2100', accountName: 'Payroll Payable', accountType: 'Liability', description: 'Salaries and wages payable' },
+  { accountCode: '2190', accountName: 'VAT Payable', accountType: 'Liability', description: 'Output VAT owed to tax authority', parentCode: '2000', department: 'finance' },
   { accountCode: '2200', accountName: 'Tax Payable', accountType: 'Liability', description: 'Taxes payable' },
   { accountCode: '3000', accountName: "Owner's Equity", accountType: 'Equity', description: 'Capital and retained equity' },
+  { accountCode: '3100', accountName: 'Retained Earnings', accountType: 'Equity', description: 'Accumulated retained earnings' },
+  { accountCode: '3200', accountName: 'Current Period Profit/Loss', accountType: 'Equity', description: 'Current period net income' },
   { accountCode: '4000', accountName: 'Sales Revenue', accountType: 'Income', description: 'Trading and sales income' },
   { accountCode: '4100', accountName: 'Other Income', accountType: 'Income', description: 'Non-trading income' },
+  { accountCode: '4190', accountName: 'Exchange Gain', accountType: 'Income', description: 'Foreign exchange gain on settlements', department: 'finance' },
   { accountCode: '5000', accountName: 'Cost of Goods Sold', accountType: 'Expense', description: 'Direct cost of sales' },
   { accountCode: '6100', accountName: 'Operating Expenses', accountType: 'Expense', description: 'General operating expenses' },
+  { accountCode: '5190', accountName: 'Exchange Loss', accountType: 'Expense', description: 'Foreign exchange loss on settlements', parentCode: '6100', department: 'finance' },
   { accountCode: '6200', accountName: 'Payroll Expense', accountType: 'Expense', description: 'Salaries and wages expense' },
 ]
 
@@ -84,6 +91,11 @@ const DIRECT_FALLBACKS = [
   { mappingType: 'payment', debitCode: '2000', creditCode: '1010', department: 'finance', description: 'Default mapping for payment transactions' },
   { mappingType: 'expense', debitCode: '6100', creditCode: '1010', department: 'operations', description: 'Default mapping for expense transactions' },
   { mappingType: 'payroll', debitCode: '6200', creditCode: '2100', department: 'hr', description: 'Default mapping for payroll transactions' },
+  { mappingType: 'exchange_gain', debitCode: '1010', creditCode: '4190', department: 'finance', description: 'FX gain adjustment: Dr Bank / Cr Exchange Gain (Income 4190)' },
+  { mappingType: 'exchange_loss', debitCode: '5190', creditCode: '1010', department: 'finance', description: 'FX loss adjustment: Dr Exchange Loss / Cr Bank' },
+  { mappingType: 'vat_input', debitCode: '1190', creditCode: '2000', department: 'finance', description: 'Input VAT accrual: Dr VAT Receivable / Cr Accounts Payable' },
+  { mappingType: 'vat_output', debitCode: '1100', creditCode: '2190', department: 'finance', description: 'Output VAT accrual: Dr Accounts Receivable / Cr VAT Payable' },
+  { mappingType: 'vat_settlement', debitCode: '2190', creditCode: '1190', department: 'finance', description: 'VAT net-off during tax return period close' },
 ]
 
 function hasFlag(name) {
@@ -181,6 +193,8 @@ async function seedCoa(db) {
   const col = db.collection('chartofaccounts')
   const now = new Date()
   const inserted = []
+  const byCode = new Map()
+
   for (const row of STARTER_COA) {
     const doc = {
       accountCode: row.accountCode,
@@ -192,14 +206,25 @@ async function seedCoa(db) {
       description: row.description || '',
       address: '',
       openingBalance: 0,
-      department: '',
+      department: row.department || '',
       usedInTransactions: false,
       createdAt: now,
       updatedAt: now,
     }
     const result = await col.insertOne(doc)
-    inserted.push({ ...doc, _id: result.insertedId })
+    const saved = { ...doc, _id: result.insertedId, parentCode: row.parentCode || null }
+    inserted.push(saved)
+    byCode.set(row.accountCode, saved)
   }
+
+  for (const row of inserted) {
+    if (!row.parentCode) continue
+    const parent = byCode.get(row.parentCode)
+    if (!parent) continue
+    await col.updateOne({ _id: row._id }, { $set: { parentAccountId: parent._id } })
+    row.parentAccountId = parent._id
+  }
+
   return inserted
 }
 
@@ -318,7 +343,12 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err.message || err)
-  process.exit(1)
-})
+export { STARTER_COA, DIRECT_FALLBACKS, CURRENCY_DEFAULTS }
+
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error(err.message || err)
+    process.exit(1)
+  })
+}

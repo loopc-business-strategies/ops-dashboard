@@ -60,9 +60,11 @@ jobs:
           ATLAS_GROUP_ID_MG: ${{ secrets.ATLAS_GROUP_ID_MG }}
           ATLAS_GROUP_ID_CG: ${{ secrets.ATLAS_GROUP_ID_CG }}
           ATLAS_GROUP_ID_LOOPC: ${{ secrets.ATLAS_GROUP_ID_LOOPC }}
+          ATLAS_GROUP_ID_VB: ${{ secrets.ATLAS_GROUP_ID_VB }}
           MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
           MONGO_URI_LOOPC: ${{ secrets.MONGO_URI_LOOPC }}
+          MONGO_URI_VB: ${{ secrets.MONGO_URI_VB }}
         run: |
           if [ "${{ env.ATLAS_BACKUP_PHASE }}" = "strict" ]; then
             npm run drill:atlas-backup-plan -- --strict-backup

@@ -1,6 +1,6 @@
 # Ops Dashboard
 
-Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
+Multi-tenant operations and ERP platform for mg, cg, loopc, and vb (Venus Bullions) companies.
 
 ## Deployment Docs
 

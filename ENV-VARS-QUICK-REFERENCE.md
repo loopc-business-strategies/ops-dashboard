@@ -131,6 +131,7 @@ MONGO_URI_VB=<YOUR-VB-CLUSTER-OR-RAILWAY-MONGO-CONNECTION-STRING>
 MONGO_URI_MG=mongodb+srv://admin:YourPassword123@ops-dashboard-mg.a1b2c3d.mongodb.net/ops-dashboard?retryWrites=true&w=majority
 MONGO_URI_CG=mongodb+srv://admin:YourPassword123@ops-dashboard-cg.a1b2c3d.mongodb.net/ops-dashboard?retryWrites=true&w=majority
 MONGO_URI_LOOPC=mongodb+srv://admin:YourPassword123@ops-dashboard-loopc.a1b2c3d.mongodb.net/ops-dashboard?retryWrites=true&w=majority
+MONGO_URI_VB=mongodb+srv://admin:YourPassword123@cluster0.fiotefu.mongodb.net/ops-dashboard?retryWrites=true&w=majority
 ```
 
 ### Optional: Sentry (error reporting)
@@ -232,14 +233,15 @@ EXPO_PUBLIC_SENTRY_ENVIRONMENT=production
 
 ### Optional: MT4 live metal top bar
 
-The **mg / cg / loopc** ERP top bars can show live Gold, Silver, and Platinum prices from your connected MT4 terminal. Run the local Expert Advisor in `tools/mt4-price-bridge` and set the same bridge token in MT4 and the backend.
+The **mg / cg / loopc / vb** ERP top bars can show live Gold, Silver, and Platinum prices from your connected MT4 terminal. Run the local Expert Advisor in `tools/mt4-price-bridge` and set the same bridge token in MT4 and the backend.
 
 ```
 METAL_RATES_BRIDGE_TOKEN=<long random secret shared with MT4 EA>
 # METAL_RATES_BRIDGE_FANOUT_TENANTS=all
+# METAL_RATES_BRIDGE_FANOUT_TENANTS=mg,cg,loopc   # exclude vb if operators want tick isolation
 ```
 
-When `METAL_RATES_BRIDGE_FANOUT_TENANTS` is unset or `all` (default), each MT4 bridge POST is replicated to **mg**, **cg**, and **loopc** tenant databases so all portals share the same live tick. Set to a single key (e.g. `mg`) to disable fan-out.
+When `METAL_RATES_BRIDGE_FANOUT_TENANTS` is unset or `all` (default), each MT4 bridge POST is replicated to **mg**, **cg**, **loopc**, and **vb** tenant databases so all portals share the same live tick. Set to a comma-separated subset (e.g. `mg,cg,loopc`) to exclude Venus Bullions, or a single key (e.g. `mg`) to disable multi-tenant fan-out.
 
 The bridge posts to:
 

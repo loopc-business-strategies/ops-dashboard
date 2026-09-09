@@ -3,28 +3,29 @@
 > **Ongoing deploys:** use **[docs/DEPLOY.md](docs/DEPLOY.md)** (push `main` → CI → Vercel/Railway → post-deploy smoke).  
 > This document is for **first-time** Vercel + Railway + MongoDB Atlas + DNS setup.
 
-## Vercel + Railway + MongoDB Atlas for mg, cg, loopc subdomains
+## Vercel + Railway + MongoDB Atlas for mg, cg, loopc, vb subdomains
 
 ---
 
 ## Prerequisites
 - [ ] Your main domain registered (e.g., `yourdomain.com`)
-- [ ] MongoDB Atlas account with three separate clusters created
+- [ ] MongoDB Atlas account with separate clusters created
   - [ ] Cluster 1: `ops-dashboard-mg`
   - [ ] Cluster 2: `ops-dashboard-cg`
   - [ ] Cluster 3: `ops-dashboard-loopc`
+  - [ ] Cluster 4: Venus Bullion / `MONGO_URI_VB` (see [VENUS-BULLIONS-TENANT.md](docs/VENUS-BULLIONS-TENANT.md))
 - [ ] GitHub repo connected to Vercel and Railway
 - [ ] Admin access to DNS provider (registrar or Cloudflare)
 
 ---
 
-## Step 1: Create Three MongoDB Clusters
+## Step 1: Create MongoDB Clusters
 
-### For each cluster (MG, CG, LoopC):
+### For each cluster (MG, CG, LoopC, VB):
 1. Log into MongoDB Atlas
 2. Click **Create Deployment**
 3. Choose **M0 Free** tier or appropriate tier for your scale
-4. Name: `ops-dashboard-mg`, `ops-dashboard-cg`, `ops-dashboard-loopc`
+4. Name: `ops-dashboard-mg`, `ops-dashboard-cg`, `ops-dashboard-loopc` (VB uses its dedicated Atlas project — see Venus Bullions doc)
 5. Choose region closest to your users
 6. Create cluster
 7. Wait for cluster to be ready (green checkmark)
@@ -77,6 +78,7 @@ In Railway dashboard, go to **Variables** and add:
 | `MONGO_URI_MG` | (MongoDB Atlas connection string for MG) | `mongodb+srv://user:pass@cluster-mg.xxxxx.mongodb.net/ops-dashboard?retryWrites=true&w=majority` |
 | `MONGO_URI_CG` | (MongoDB Atlas connection string for CG) | `mongodb+srv://user:pass@cluster-cg.xxxxx.mongodb.net/ops-dashboard?retryWrites=true&w=majority` |
 | `MONGO_URI_LOOPC` | (MongoDB Atlas connection string for LoopC) | `mongodb+srv://user:pass@cluster-loopc.xxxxx.mongodb.net/ops-dashboard?retryWrites=true&w=majority` |
+| `MONGO_URI_VB` | (MongoDB Atlas connection string for Venus Bullions) | `mongodb+srv://user:pass@cluster-vb.xxxxx.mongodb.net/ops-dashboard?retryWrites=true&w=majority` |
 | `RATE_LIMIT_WINDOW_MS` | `900000` | `900000` (15 min) |
 | `RATE_LIMIT_MAX` | `1200` | `1200` requests per window |
 | `AUTH_RATE_LIMIT_MAX` | `25` | `25` login attempts per window |

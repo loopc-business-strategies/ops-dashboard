@@ -80,7 +80,10 @@ export function useErpTabCoreSlice(props) {
     dashExpandedWidget,
     setDashExpandedWidget,
     dashDragSrc,
-  } = useErpDashUiState({ user })
+  } = useErpDashUiState({
+    user,
+    tenantKey: user?.tenant || user?.company || 'default',
+  })
   const activeTabRef = useRef(activeTab)
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])

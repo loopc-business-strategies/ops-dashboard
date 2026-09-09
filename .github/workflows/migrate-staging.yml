@@ -35,9 +35,10 @@ jobs:
           STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
           STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
           STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
         run: |
           missing=0
-          for key in STAGING_MONGO_URI_MG STAGING_MONGO_URI_CG STAGING_MONGO_URI_LOOPC; do
+          for key in STAGING_MONGO_URI_MG STAGING_MONGO_URI_CG STAGING_MONGO_URI_LOOPC STAGING_MONGO_URI_VB; do
             if [ -z "${!key}" ]; then
               echo "::error::Missing required secret $key"
               missing=1
@@ -59,6 +60,7 @@ jobs:
           STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
           STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
           STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
         run: node scripts/migrate-staging.mjs --until=002-backfill-mapping-departments
 
       - name: Apply migration 002 (skip 003)
@@ -68,6 +70,7 @@ jobs:
           STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
           STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
           STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
           MIGRATION_I_HAVE_BACKUP: 'true'
           MIGRATION_CONFIRM_TOKEN: ${{ secrets.MIGRATION_CONFIRM_TOKEN }}
         run: node scripts/migrate-staging.mjs --until=002-backfill-mapping-departments --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }}

@@ -1,7 +1,7 @@
 /**
  * Read-only audit: list active and soft-deleted vendors with VEN codes.
  * Usage (from backend/): node scripts/audit-vendor-codes.js
- * Requires MONGO_URI_MG (or set TENANT=mg|cg|loopc and matching MONGO_URI_* in .env)
+ * Requires MONGO_URI_MG (or set TENANT=mg|cg|loopc|vb and matching MONGO_URI_* in .env)
  */
 require('dotenv').config()
 const dns = require('dns')

@@ -23,7 +23,7 @@ if (match) {
 }
 
 console.log('\nTenant Mongo env vars to verify in Atlas:')
-for (const key of ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC']) {
+for (const key of ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC', 'MONGO_URI_VB']) {
   const set = Boolean(String(process.env[key] || '').trim())
   console.log(`  ${key}: ${set ? 'set locally' : 'not set in this shell'}`)
 }

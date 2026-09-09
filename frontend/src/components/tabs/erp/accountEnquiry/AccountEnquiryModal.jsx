@@ -415,7 +415,7 @@ export default function AccountEnquiryModal({
                         <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2, { fixed: true })}%</span>
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
-                        Customer Margin Equity shows exposure as negative (receivables and credits); supplier payables remain negative.
+                        Customer Margin Equity reflects the signed customer exposure based on the account's underlying accounting direction; supplier payables remain negative.
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}

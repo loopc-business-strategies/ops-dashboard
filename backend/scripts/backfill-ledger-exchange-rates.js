@@ -9,7 +9,7 @@ require('./destructive/_destructive-guard')({ scriptName: __filename })
  * this script sets the correct exchangeRate from the Currency collection.
  *
  * Usage:
- *   node scripts/backfill-ledger-exchange-rates.js [--tenant mg|cg|loopc] [--dry-run]
+ *   node scripts/backfill-ledger-exchange-rates.js [--tenant mg|cg|loopc|vb] [--dry-run]
  *
  * Examples:
  *   node scripts/backfill-ledger-exchange-rates.js --tenant mg
@@ -29,11 +29,10 @@ const tenantArg = args.find((a) => a.startsWith('--tenant'))
 const tenantKey = tenantArg ? tenantArg.split('=')[1] || args[args.indexOf(tenantArg) + 1] : null
 const isDryRun = args.includes('--dry-run')
 
-const TENANT_URIS = {
-  mg: process.env.MONGO_URI_MG,
-  cg: process.env.MONGO_URI_CG,
-  loopc: process.env.MONGO_URI_LOOPC,
-}
+const { getTenantKeys } = require('../config/tenantRegistry')
+const TENANT_URIS = Object.fromEntries(
+  getTenantKeys().map((key) => [key, process.env[`MONGO_URI_${key.toUpperCase()}`]]),
+)
 
 async function backfillTenant(uri, tenantName) {
   console.log(`\n=== Tenant: ${tenantName} ===`)

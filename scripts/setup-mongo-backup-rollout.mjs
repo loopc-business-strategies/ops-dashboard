@@ -3,7 +3,7 @@
  * Mongo backup rollout — Phase 1 drill + Phase 2 R2 mongodump + GitHub secrets/variables.
  *
  * Requires (from backend/.env or environment):
- *   MONGO_URI_MG, MONGO_URI_CG, MONGO_URI_LOOPC
+ *   MONGO_URI_MG, MONGO_URI_CG, MONGO_URI_LOOPC, MONGO_URI_VB
  *   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID  (for R2 bucket creation)
  *   BACKUP_S3_ACCESS_KEY, BACKUP_S3_SECRET_KEY   (R2 S3 API token — or create in dashboard)
  *
@@ -169,6 +169,7 @@ function pushGithubSecrets() {
     'MONGO_URI_MG',
     'MONGO_URI_CG',
     'MONGO_URI_LOOPC',
+    'MONGO_URI_VB',
     'BACKUP_S3_ENDPOINT',
     'BACKUP_S3_BUCKET',
     'BACKUP_S3_ACCESS_KEY',
@@ -224,6 +225,7 @@ function checkStatus() {
     ['MONGO_URI_MG', env('MONGO_URI_MG')],
     ['MONGO_URI_CG', env('MONGO_URI_CG')],
     ['MONGO_URI_LOOPC', env('MONGO_URI_LOOPC')],
+    ['MONGO_URI_VB', env('MONGO_URI_VB')],
     ['CLOUDFLARE_API_TOKEN', env('CLOUDFLARE_API_TOKEN')],
     ['CLOUDFLARE_ACCOUNT_ID', env('CLOUDFLARE_ACCOUNT_ID')],
     ['BACKUP_S3_BUCKET', env('BACKUP_S3_BUCKET') || 'missing'],

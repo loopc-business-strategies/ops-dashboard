@@ -36,7 +36,7 @@ const amounts = (readArg('--amounts') || '5954.65,85.95,8.26')
   .filter((n) => Number.isFinite(n))
 
 async function main() {
-  if (!tenant) throw new Error('--tenant=mg|cg|loopc is required')
+  if (!tenant) throw new Error('--tenant=mg|cg|loopc|vb is required')
 
   const conn = await connectTenant(tenant)
   const db = conn.db

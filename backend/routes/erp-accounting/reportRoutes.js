@@ -1471,7 +1471,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       const goldPosition = roundPosition(rawPosition.goldPosition)
       const silverPosition = roundPosition(rawPosition.silverPosition)
       const marginMetrics = calculateMarginMetrics({
-        totalFunds: -Math.abs(rawOutstanding),
+        // Preserve signed ledger exposure. Do not force -abs (supplier path unchanged below).
+        totalFunds: rawOutstanding,
         goldPosition,
         silverPosition,
         goldPrice: marginRates.goldPrice,

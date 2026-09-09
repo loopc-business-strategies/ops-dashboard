@@ -46,7 +46,7 @@ function main() {
   }
 
   const env = parseEnvFile(envPath)
-  const keys = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC']
+  const keys = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC', 'MONGO_URI_VB']
 
   for (const key of keys) {
     const value = String(env[key] || '').trim()

@@ -22,7 +22,7 @@ Goal: a **second** full stack that mirrors production **URLs and secrets shape**
    - `NODE_ENV=production` (recommended — rate limits, setup tokens, and cleanup guards apply to all non-development environments).
    - Staging with `NODE_ENV=staging` still enforces rate limits and confirmation tokens; only `development` and `test` skip them.
    - `JWT_SECRET` — **different** random value from prod (invalidates tokens between envs).
-   - `MONGO_URI_MG` / `_CG` / `_LOOPC` — **staging** URIs.
+   - `MONGO_URI_MG` / `_CG` / `_LOOPC` / `_VB` — **staging** URIs.
    - `CLIENT_URL` / `CLIENT_URLS` — include **only** staging frontend origins (e.g. `https://staging.yourdomain.com`, `https://*.vercel.app` for preview if you allow it).
    - `SERVER_BASE_URL` — public **staging** API URL (for links and uploads).
    - Optional: `SENTRY_DSN` / `SENTRY_ENVIRONMENT=staging` — separate Sentry project or environment (see [OBSERVABILITY-SENTRY.md](./OBSERVABILITY-SENTRY.md)).

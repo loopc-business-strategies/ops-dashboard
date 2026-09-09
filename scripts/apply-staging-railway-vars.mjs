@@ -42,6 +42,7 @@ const NEVER_TOUCH = new Set([
   'MONGO_URI_MG',
   'MONGO_URI_CG',
   'MONGO_URI_LOOPC',
+  'MONGO_URI_VB',
   'STAGING_SMOKE_AUTH_NAME',
   'STAGING_SMOKE_AUTH_PASSWORD',
   'STAGING_SMOKE_API_BASE',
@@ -136,7 +137,7 @@ function main() {
   console.log('Railway staging ops-dashboard — applying missing security vars only.')
   console.log('Skipping: JWT_SECRET, MONGO_URI_* (already configured for ops-dashboard-staging DBs).')
 
-  const mongoKeys = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC']
+  const mongoKeys = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC', 'MONGO_URI_VB']
   const mongoOk = mongoKeys.every((key) => {
     const line = existingMap[key] || ''
     return /ops-dashboard-staging/i.test(line)
@@ -147,7 +148,7 @@ function main() {
       + 'Verify in Railway dashboard before applying security vars.',
     )
   }
-  console.log('Verified: MONGO_URI_MG/CG/LOOPC already use ops-dashboard-staging databases (unchanged).')
+  console.log('Verified: MONGO_URI_MG/CG/LOOPC/VB already use ops-dashboard-staging databases (unchanged).')
 
   for (const [key, value] of Object.entries(ENSURE_VOLUME_KEYS)) {
     if (existing.has(key)) {

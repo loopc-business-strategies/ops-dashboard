@@ -8,8 +8,11 @@ const path = require('path')
 const { timingSafeEqualString } = require('./timingSafeEqualString')
 const { assertStagingOnlyScript } = require('./assertStagingOnlyScript')
 
+const { getTenantKeys } = require('../config/tenantRegistry')
+
 const AUDIT_LOG_DIR = path.resolve(__dirname, '../logs/cleanup-audit')
-const VALID_TENANTS = new Set(['mg', 'cg', 'loopc', 'vb'])
+const VALID_TENANTS = new Set(getTenantKeys())
+const TENANT_LIST = getTenantKeys().join(', ')
 
 if (!fs.existsSync(AUDIT_LOG_DIR)) {
   fs.mkdirSync(AUDIT_LOG_DIR, { recursive: true })
@@ -89,7 +92,7 @@ function validateExecutionRequest({ tenant, apply, confirmationToken, providedTo
 
   const normalizedTenant = String(tenant || '').trim().toLowerCase()
   if (!normalizedTenant || !VALID_TENANTS.has(normalizedTenant)) {
-    return { ok: false, reason: 'tenant must be one of: mg, cg, loopc' }
+    return { ok: false, reason: `tenant must be one of: ${TENANT_LIST}` }
   }
 
   try {
@@ -119,7 +122,7 @@ function createSafeCleanup(config) {
     throw new Error('tenant and mongoUri are required')
   }
   if (!VALID_TENANTS.has(normalizedTenant)) {
-    throw new Error('tenant must be one of: mg, cg, loopc')
+    throw new Error(`tenant must be one of: ${TENANT_LIST}`)
   }
   if (typeof operation !== 'function') {
     throw new Error('operation function is required')

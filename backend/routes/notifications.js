@@ -10,7 +10,10 @@ const router = express.Router()
 
 router.post('/report-digest/preview', protect, async (req, res) => {
   try {
-    const tenant = String(resolveRequestTenantKey(req) || req.tenant || 'mg')
+    const tenant = String(resolveRequestTenantKey(req) || req.tenant || '').trim()
+    if (!tenant || tenant === 'default') {
+      return res.status(400).json({ success: false, message: 'Tenant context required' })
+    }
     const prefs = mergeNotificationPreferences(req.user.notificationPreferences)
     const text = await buildReportDigestText(tenant, prefs)
     res.json({ success: true, text })
@@ -22,7 +25,10 @@ router.post('/report-digest/preview', protect, async (req, res) => {
 
 router.post('/report-digest/send', protect, async (req, res) => {
   try {
-    const tenant = String(resolveRequestTenantKey(req) || req.tenant || 'mg')
+    const tenant = String(resolveRequestTenantKey(req) || req.tenant || '').trim()
+    if (!tenant || tenant === 'default') {
+      return res.status(400).json({ success: false, message: 'Tenant context required' })
+    }
     const prefs = mergeNotificationPreferences(req.user.notificationPreferences)
     const text = await buildReportDigestText(tenant, prefs)
     const result = await notifyUsers(tenant, [String(req.user._id)], 'report_digest', {

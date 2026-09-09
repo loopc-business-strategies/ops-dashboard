@@ -70,7 +70,7 @@ async function voidOneTransaction({ tx, actor, Ledger, deleteReason }) {
 async function main() {
   const tenant = normalizeTenant(readArgValue('--tenant') || readArgValue('-t'))
   if (!tenant) {
-    console.error('Missing --tenant=mg|cg|loopc')
+    console.error('Missing --tenant=mg|cg|loopc|vb')
     process.exit(1)
   }
 

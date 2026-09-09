@@ -147,6 +147,54 @@ describe('Tenant host/header/session consistency', () => {
     expect(cgMe.body.user.company).toBe('cg')
   })
 
+  test('keeps MG and VB sessions in the same browser cookie jar on API host', async () => {
+    const mgUser = await createTenantUser('mg')
+    const vbUser = await createTenantUser('vb')
+    const agent = request.agent(app)
+
+    const mgLogin = await agent
+      .post('/api/auth/login')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .send({ company: 'mg', name: mgUser.name, password: 'password123' })
+    expect(mgLogin.status).toBe(200)
+
+    const vbLogin = await agent
+      .post('/api/auth/login')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'vb')
+      .send({ company: 'vb', name: vbUser.name, password: 'password123' })
+    expect(vbLogin.status).toBe(200)
+
+    const mgMe = await agent
+      .get('/api/auth/me')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+    expect(mgMe.status).toBe(200)
+    expect(mgMe.body.user.company).toBe('mg')
+
+    const vbMe = await agent
+      .get('/api/auth/me')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'vb')
+    expect(vbMe.status).toBe(200)
+    expect(vbMe.body.user.company).toBe('vb')
+  })
+
+  test('allows VB token on API host when x-tenant matches', async () => {
+    const vbUser = await createTenantUser('vb')
+
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'vb')
+      .set('x-company', 'vb')
+      .set('Authorization', `Bearer ${tokenFor(vbUser, 'vb')}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.user.company).toBe('vb')
+  })
+
   test('legacy sessionToken still works when JWT tenant matches portal', async () => {
     const mgUser = await createTenantUser('mg')
     const token = tokenFor(mgUser, 'mg')

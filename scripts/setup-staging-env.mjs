@@ -90,7 +90,7 @@ function writeGeneratedFile(bundle) {
     '',
     '# GitHub repository secrets (same values):',
     '# STAGING_SMOKE_AUTH_NAME, STAGING_SMOKE_AUTH_PASSWORD',
-    '# STAGING_MONGO_URI_MG, STAGING_MONGO_URI_CG, STAGING_MONGO_URI_LOOPC (from Atlas staging clusters)',
+    '# STAGING_MONGO_URI_MG, STAGING_MONGO_URI_CG, STAGING_MONGO_URI_LOOPC, STAGING_MONGO_URI_VB (from Atlas staging clusters)',
   ]
   writeFileSync(generatedPath, `${lines.join('\n')}\n`, 'utf8')
 }
@@ -186,6 +186,7 @@ function checkGithubSecrets() {
     'STAGING_MONGO_URI_MG',
     'STAGING_MONGO_URI_CG',
     'STAGING_MONGO_URI_LOOPC',
+    'STAGING_MONGO_URI_VB',
   ]
   console.log('\n=== GitHub staging secret status ===\n')
   for (const name of wanted) {

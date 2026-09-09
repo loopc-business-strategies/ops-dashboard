@@ -42,7 +42,7 @@ Workflows: [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml)
 
 **Phase 1 strict / API checks (later):** `ATLAS_PUBLIC_KEY`, `ATLAS_PRIVATE_KEY`, `ATLAS_GROUP_ID_MG`, `ATLAS_GROUP_ID_CG`, `ATLAS_GROUP_ID_LOOPC`
 
-**Phase 2 mongodump:** `MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`
+**Phase 2 mongodump:** `MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`, `MONGO_URI_VB`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`
 
 Local:
 
@@ -54,7 +54,7 @@ npm run backup:mongodump:dry-run                     # check env before enabling
 
 ## MongoDB Atlas (production tenants)
 
-Clusters: one per tenant (`MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`).
+Clusters: one per tenant (`MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`, `MONGO_URI_VB`).
 
 1. Atlas project → **Backup** (or **Cloud Backup**).
 2. Enable **continuous cloud backup** (or snapshot schedule) for **each** cluster.

@@ -18,7 +18,7 @@ const STAGING_SECURITY_VARS = [
   'MIGRATION_CONFIRM_TOKEN',
 ]
 
-const STAGING_MONGO_VARS = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC']
+const STAGING_MONGO_VARS = ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC', 'MONGO_URI_VB']
 
 function loadDotEnv(filePath) {
   if (!existsSync(filePath)) return {}

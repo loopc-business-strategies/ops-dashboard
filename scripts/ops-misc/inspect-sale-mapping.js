@@ -25,7 +25,7 @@ async function run() {
       loopc: process.env.MONGO_URI_LOOPC,
     };
     const uri = uriByTenant[tenant] || process.env.MONGO_URI_LOOPC;
-    if (!uri) throw new Error('Missing tenant Mongo URI (MONGO_URI_MG/MONGO_URI_CG/MONGO_URI_LOOPC).');
+    if (!uri) throw new Error('Missing tenant Mongo URI (MONGO_URI_MG/MONGO_URI_CG/MONGO_URI_LOOPC/MONGO_URI_VB).');
     await mongoose.connect(uri);
     
     // Look for partial 'sale' match

@@ -5,7 +5,7 @@ Scripts in this folder can **modify or delete production data** when run with `-
 ## Before running any script
 
 1. Read the script header comment.
-2. Use **`--tenant=mg|cg|loopc|all`** explicitly.
+2. Use **`--tenant=mg|cg|loopc|vb|all`** explicitly.
 3. Use **`--apply`** only after a dry-run or audit on a copy.
 4. Provide **`--reason="..."`** (10+ characters) when applying in production-like environments.
 5. Never run from an unreviewed CI job.

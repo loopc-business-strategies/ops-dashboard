@@ -49,7 +49,7 @@ function MarginsWidget({
     marginLiveRecalc,
     baseCurrencyCode,
   })
-  // Customer Margins: API equity is exposure (-abs ledger); keep signed display.
+  // Customer Margins: API equity is signed ledger exposure + metal revaluation.
   const customers = rawCustomers.map((row) => mapRow(row, 'customerName'))
   const suppliers = rawSuppliers.map((row) => mapRow(row, 'supplierName', { suppressMetalSpotMtm: true }))
   const activeRows = tab === 'suppliers' ? suppliers : customers
@@ -127,7 +127,7 @@ function MarginsWidget({
         <p style={{ margin: '0.45rem 0 0', color: muted, fontSize: '0.68rem', lineHeight: 1.4, flexShrink: 0 }}>
           {tab === 'suppliers'
             ? 'Supplier payables show as negative Equity (signed ledger).'
-            : 'Customer Equity shows exposure as negative (receivables and credits).'}
+            : 'Customer Equity reflects the signed customer exposure based on the account\'s underlying accounting direction.'}
         </p>
         <div style={{ marginTop: '0.45rem', textAlign: 'right', flexShrink: 0 }}>
           <button

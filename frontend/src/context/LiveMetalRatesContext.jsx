@@ -304,6 +304,12 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     }
   }, [applyRates, enabled, schedulePoll, tenant, token])
 
+  useEffect(() => {
+    resetMetalRatesStoreState()
+    lastSnapshotRef.current = null
+    sourceRef.current = ''
+  }, [tenant])
+
   useEffect(() => () => {
     resetMetalRatesStoreState()
     lastSnapshotRef.current = null

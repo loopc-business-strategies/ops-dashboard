@@ -2,13 +2,7 @@ require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const mongoose = require('mongoose')
 const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
-
-const defaults = [
-  { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
-  { code: 'EUR', name: 'Euro', symbol: 'EUR', exchangeRate: 1.08, baseCurrency: false },
-  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
-  { code: 'UZS', name: 'Uzbekistan Som', symbol: 'UZS', exchangeRate: 0.000078, baseCurrency: false },
-]
+const { getCurrencyMasterForTenant } = require('../services/erpAccounting/currencyBootstrapService')
 
 async function seedTenant(tenant) {
   const uri = getTenantUri(tenant)
@@ -16,6 +10,9 @@ async function seedTenant(tenant) {
     console.log(`[${tenant}] skipped: missing tenant URI`)
     return
   }
+
+  const defaults = getCurrencyMasterForTenant(tenant)
+  const allowedCodes = defaults.map((row) => String(row.code).toUpperCase())
 
   const conn = await mongoose.createConnection(uri).asPromise()
   try {
@@ -42,7 +39,7 @@ async function seedTenant(tenant) {
         )
 
         await col.updateMany(
-          { code: { $ne: 'USD' }, baseCurrency: true },
+          { code: { $ne: currency.code }, baseCurrency: true },
           { $set: { baseCurrency: false }, $currentDate: { updatedAt: true } }
         )
         continue
@@ -79,7 +76,7 @@ async function seedTenant(tenant) {
       )
     }
 
-    const list = await col.find({ code: { $in: ['USD', 'EUR', 'AED', 'UZS'] } })
+    const list = await col.find({ code: { $in: allowedCodes } })
       .project({ _id: 0, code: 1, exchangeRate: 1, baseCurrency: 1, isActive: 1 })
       .sort({ code: 1 })
       .toArray()
@@ -101,4 +98,3 @@ run().catch((error) => {
   console.error(error)
   process.exit(1)
 })
-require('./destructive/_destructive-guard')({ scriptName: __filename })

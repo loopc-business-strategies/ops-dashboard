@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Runs the full Atlas backup drill plan:
- *  1. Direct Mongo probe (MG, CG, LoopC)
+ *  1. Direct Mongo probe (all catalog tenants: mg, cg, loopc, vb, …)
  *  2. Atlas API backup schedule + snapshots (per-tenant project IDs)
  *  3. Optional restore drill cluster verification (ATLAS_RESTORE_DRILL_URI)
  *  4. Record results in ops log
@@ -32,12 +32,20 @@ require(path.join(root, 'backend', 'node_modules', 'dotenv')).config({
 })
 
 const mongoose = require(path.join(root, 'backend', 'node_modules', 'mongoose'))
+const { getTenantKeys, getTenantConfig } = require(path.join(root, 'backend', 'config', 'tenantRegistry'))
 
-const TENANTS = [
-  { key: 'mg', uriKey: 'MONGO_URI_MG', atlasProject: 'MG' },
-  { key: 'cg', uriKey: 'MONGO_URI_CG', atlasProject: 'CG' },
-  { key: 'loopc', uriKey: 'MONGO_URI_LOOPC', atlasProject: 'LoopC' },
-]
+const ATLAS_PROJECT_LABELS = {
+  mg: 'MG',
+  cg: 'CG',
+  loopc: 'LoopC',
+  vb: 'Venus Bullion',
+}
+
+const TENANTS = getTenantKeys().map((key) => ({
+  key,
+  uriKey: getTenantConfig(key)?.envVar || `MONGO_URI_${key.toUpperCase()}`,
+  atlasProject: ATLAS_PROJECT_LABELS[key] || key.toUpperCase(),
+}))
 
 const backupPhase = String(process.env.ATLAS_BACKUP_PHASE || 'deferred').trim().toLowerCase()
 const strictBackup = backupPhase === 'strict' || process.argv.includes('--strict-backup')
@@ -211,7 +219,7 @@ async function main() {
     console.log('\n  Phase: strict — Atlas Cloud Backup schedule + snapshots required.')
   }
 
-  console.log('\nAtlas backup policy (per project: MG, CG, LoopC):')
+  console.log('\nAtlas backup policy (per project: MG, CG, LoopC, Venus Bullion):')
   if (!hasAtlasCredentials()) {
     console.log('  Atlas API keys not set — using ATLAS_UI_BACKUP_CONFIRMED if provided.')
   }
@@ -243,8 +251,8 @@ async function main() {
     if (isDeferred) {
       console.log('  Deferred phase: OK to proceed without Atlas M10+ subscription until you set ATLAS_BACKUP_PHASE=strict.')
     }
-    console.log('  Confirm in Atlas for each project (MG, CG, LoopC): DATABASE → Backup → Cluster0')
-    console.log('  Then set ATLAS_GROUP_ID_* + API keys, or ATLAS_UI_BACKUP_CONFIRMED=mg,cg,loopc')
+    console.log('  Confirm in Atlas for each project (MG, CG, LoopC, Venus Bullion): DATABASE → Backup → Cluster0')
+    console.log('  Then set ATLAS_GROUP_ID_* + API keys, or ATLAS_UI_BACKUP_CONFIRMED=mg,cg,loopc,vb')
     backupAllOk = true
   }
 

@@ -5,7 +5,7 @@
 //   Any component can call: login(), logout()
 //   This avoids passing user data as props through every component.
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import axios from '../api/client'
 import authAPI from '../api/auth'
@@ -13,7 +13,16 @@ import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/te
 import { clearStoredActivity, writeStoredActivityAt } from '../hooks/useWebIdleLogout'
 import { ensureWebPushSubscription, teardownWebPush } from '../utils/webPushRegister'
 import { clearAccountEnquiryCache } from '../utils/erpAccountEnquiryCache'
+import { invalidateCatalogCache } from '../utils/erpCatalogCache'
+import { clearSummaryAccountsCache, clearErpDashLayoutCache } from '../utils/erpSummaryAccountsCache'
 import WebIdleSessionGuard from '../components/WebIdleSessionGuard'
+
+function clearTenantClientCaches({ includeDashLayouts = false } = {}) {
+  invalidateCatalogCache()
+  clearAccountEnquiryCache()
+  clearSummaryAccountsCache()
+  if (includeDashLayouts) clearErpDashLayoutCache()
+}
 
 const AuthContext = createContext(null)
 
@@ -33,10 +42,18 @@ export function AuthProvider({ children }) {
   const [company,   setCompany]   = useState(resolvedTenant)
   const [isLoading, setIsLoading] = useState(true) // checking saved session
   const [sessionPolicy, setSessionPolicy] = useState(DEFAULT_SESSION_POLICY)
+  const previousCompanyRef = useRef(null)
 
   // Always tell the backend which tenant this frontend belongs to
   axios.defaults.headers.common['x-tenant'] = resolvedTenant
   axios.defaults.headers.common['x-company'] = resolvedTenant
+
+  useEffect(() => {
+    if (previousCompanyRef.current != null && previousCompanyRef.current !== company) {
+      clearTenantClientCaches()
+    }
+    previousCompanyRef.current = company
+  }, [company])
 
   useEffect(() => {
     const hasResponseInterceptor = Boolean(axios?.interceptors?.response?.use)
@@ -52,7 +69,7 @@ export function AuthProvider({ children }) {
         if (status === 401 && !isAuthExempt) {
           clearStoredActivity()
           localStorage.removeItem('tenantCompany')
-          clearAccountEnquiryCache()
+          clearTenantClientCaches({ includeDashLayouts: true })
           setUser(null)
           setToken(null)
           setSessionPolicy(DEFAULT_SESSION_POLICY)
@@ -135,6 +152,8 @@ export function AuthProvider({ children }) {
       window.location.search,
       resolveTenantFromHostname(window.location.hostname, selectedCompany || company || resolvedTenant)
     )
+    // Drop prior tenant caches before establishing a new session.
+    clearTenantClientCaches({ includeDashLayouts: true })
     const data = await authAPI.login(name, password, tenant)
     const nextTenant = resolveTenantFromSearch(
       window.location.search,
@@ -164,7 +183,7 @@ export function AuthProvider({ children }) {
     }
     clearStoredActivity()
     localStorage.removeItem('tenantCompany')
-    clearAccountEnquiryCache()
+    clearTenantClientCaches({ includeDashLayouts: true })
     setToken(null)
     setUser(null)
     setSessionPolicy(DEFAULT_SESSION_POLICY)

@@ -6,7 +6,7 @@ Single reference for **how this repo ships**. First-time Vercel/Railway/Mongo se
 
 | Layer | Host | Trigger |
 |-------|------|---------|
-| Web SPA | Vercel (`mg` / `cg` / `loopc` / `app` on `loopcstrategies.com`) | Push to **`main`** |
+| Web SPA | Vercel (`mg` / `cg` / `loopc` / `vb` / `app` on `loopcstrategies.com`) | Push to **`main`** |
 | API | Railway (`https://api.loopcstrategies.com`) | Push to **`main`** |
 | Staging API | Railway staging (`https://ops-dashboard-staging-e6c6.up.railway.app`) | Push to **`staging`** |
 | Staging web | Vercel preview (`staging` branch) | Push to **`staging`** |
@@ -57,6 +57,7 @@ Production URLs:
 https://mg.loopcstrategies.com
 https://cg.loopcstrategies.com
 https://loopc.loopcstrategies.com
+https://vb.loopcstrategies.com
 https://api.loopcstrategies.com/api/health
 https://api.loopcstrategies.com/api/ready
 ```

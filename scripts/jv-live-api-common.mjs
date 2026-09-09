@@ -67,7 +67,7 @@ export function parseTenantArg(argv, defaultTenant = 'mg') {
   const value = String(argv[idx + 1]).trim().toLowerCase()
   if (value === 'all') return 'all'
   if (TENANTS.includes(value)) return value
-  throw new Error(`Invalid --tenant ${value}; use mg, cg, loopc, or all`)
+  throw new Error(`Invalid --tenant ${value}; use ${TENANTS.join(', ')}, or all`)
 }
 
 export function parseTenantList(tenantArg) {

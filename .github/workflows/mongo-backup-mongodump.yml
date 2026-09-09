@@ -52,6 +52,7 @@ jobs:
           MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
           MONGO_URI_LOOPC: ${{ secrets.MONGO_URI_LOOPC }}
+          MONGO_URI_VB: ${{ secrets.MONGO_URI_VB }}
           BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
           BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
           BACKUP_S3_ACCESS_KEY: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
@@ -67,6 +68,7 @@ jobs:
           MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
           MONGO_URI_LOOPC: ${{ secrets.MONGO_URI_LOOPC }}
+          MONGO_URI_VB: ${{ secrets.MONGO_URI_VB }}
           BACKUP_ARTIFACT_DIR: backup-artifacts
         run: npm run backup:mongodump
 
