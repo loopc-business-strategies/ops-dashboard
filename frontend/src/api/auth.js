@@ -33,6 +33,10 @@ const getMe = async () =>
 const logout = async () =>
   (await axios.post(`${BASE}/logout`, {}, cfg())).data
 
+// Change own password (any authenticated user)
+const changePassword = async (currentPassword, newPassword) =>
+  (await axios.put(`${BASE}/change-password`, { currentPassword, newPassword }, cfg())).data
+
 // Get all users (super_admin only)
 const getUsers = async () =>
   (await axios.get(`${BASE}/users`, cfg())).data
@@ -57,5 +61,5 @@ const deleteUser = async (_token, id, reason = '') =>
 const updatePermissions = async (_token, id, modulePermissions) =>
   (await axios.put(`${BASE}/users/${id}/permissions`, { modulePermissions }, cfg())).data
 
-const authAPI = { login, setup, setupStatus, getMe, logout, getUsers, createUser, updateUserRole, toggleUser, deleteUser, updatePermissions }
+const authAPI = { login, setup, setupStatus, getMe, logout, changePassword, getUsers, createUser, updateUserRole, toggleUser, deleteUser, updatePermissions }
 export default authAPI

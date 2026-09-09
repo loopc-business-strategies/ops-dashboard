@@ -18,6 +18,7 @@ type AuthContextValue = {
   login: (name: string, password: string, companyCode: string) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -107,6 +108,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSessionEpoch((epoch) => epoch + 1)
   }, [applySession, resetForLogout, token])
 
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    if (!token) throw new Error('Not signed in.')
+    const data = await authApi.changePassword(token, currentPassword, newPassword)
+    if (!data.token) {
+      throw new Error('Password updated, but no session token was returned. Please sign in again.')
+    }
+    await applySession(data.token, data.user)
+    setSessionEpoch((epoch) => epoch + 1)
+  }, [applySession, token])
+
   useEffect(() => {
     registerUnauthorizedHandler(() => logout())
     return () => registerUnauthorizedHandler(null)
@@ -128,8 +139,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshUser,
+      changePassword,
     }),
-    [user, token, isLoading, sessionEpoch, tenantSessionKey, login, logout, refreshUser],
+    [user, token, isLoading, sessionEpoch, tenantSessionKey, login, logout, refreshUser, changePassword],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

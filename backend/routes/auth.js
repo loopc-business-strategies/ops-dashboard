@@ -8,6 +8,7 @@
 //   POST /api/auth/setup            ← one-time first admin creation
 //   POST /api/auth/login            ← login with name + password
 //   GET  /api/auth/me               ← get my own profile
+//   PUT  /api/auth/change-password  ← change own password (any logged-in user)
 //   POST /api/auth/me/push-token    ← register Expo push token (mobile)
 //   DELETE /api/auth/me/push-token  ← remove Expo push token
 //   POST /api/auth/me/web-push-subscription   ← register Web Push (browser)
@@ -126,6 +127,11 @@ const loginSchema = Joi.object({
   company: Joi.string().trim().valid(...getTenantKeys()).optional(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(1).max(128).required(),
+})
+
+const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().min(1).max(128).required(),
+  newPassword: Joi.string().min(6).max(128).required(),
 })
 
 const expoPushTokenSchema = Joi.object({
@@ -405,6 +411,60 @@ router.get('/me', protect, async (req, res) => {
       createdAt:      req.user.createdAt,
     },
   })
+})
+
+// ==========================================
+// PUT /api/auth/change-password — any authenticated user
+// Requires current password; re-issues session so this device stays signed in
+// while other devices are revoked via sessionInvalidatedAt on password save.
+// ==========================================
+router.put('/change-password', protect, validateBody(changePasswordSchema), async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '')
+    const newPassword = String(req.body.newPassword || '')
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from the current password.',
+      })
+    }
+
+    const passwordError = await validatePasswordForTenant(req.tenant, newPassword)
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError })
+    }
+
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id).select('+password')
+    if (!user || user.isDeleted) {
+      return res.status(404).json({ success: false, message: 'User not found.' })
+    }
+    if (!user.isActive) {
+      return res.status(403).json({ success: false, message: 'Account has been deactivated.' })
+    }
+
+    if (!(await user.comparePassword(currentPassword))) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect.' })
+    }
+
+    user.password = newPassword
+    await user.save()
+
+    // protect() rejects JWTs with iat < ceil(sessionInvalidatedAt). Wait until the
+    // next whole second so the re-issued token is not treated as revoked.
+    const invalidatedAt = user.sessionInvalidatedAt
+    if (invalidatedAt) {
+      const invalidatedAtSec = Math.ceil(invalidatedAt.getTime() / 1000)
+      const waitMs = (invalidatedAtSec * 1000) - Date.now() + 50
+      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
+
+    return sendToken(user, 200, res, req.tenant, req)
+  } catch (err) {
+    console.error('Change password error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
 })
 
 // ==========================================

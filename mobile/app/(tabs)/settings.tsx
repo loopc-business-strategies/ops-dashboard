@@ -77,6 +77,20 @@ function createSettingsStyles(branding: MobileTenantBranding) {
       color: colors.text,
       maxWidth: 120,
     },
+    passwordInput: {
+      marginTop: 6,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: colors.text,
+    },
+    fieldLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 4 },
+    statusOk: { marginTop: 8, fontSize: 13, color: '#047857', fontWeight: '600' },
+    statusErr: { marginTop: 8, fontSize: 13, color: colors.danger, fontWeight: '600' },
     rowBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
     actionBtn: {
       backgroundColor: colors.primary,
@@ -113,7 +127,7 @@ function createSettingsStyles(branding: MobileTenantBranding) {
 }
 
 export default function SettingsScreen() {
-  const { user, token, logout } = useAuth()
+  const { user, token, logout, changePassword } = useAuth()
   const { companyCode, branding } = useTenant()
   const styles = useBrandingStyles(createSettingsStyles)
   const switchTrack = { false: '#CBD5E1', true: branding.colors.primary } as const
@@ -128,6 +142,12 @@ export default function SettingsScreen() {
   const [prefsLoading, setPrefsLoading] = useState(true)
   const [prefsStatus, setPrefsStatus] = useState('')
   const [digestPreview, setDigestPreview] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordStatus, setPasswordStatus] = useState('')
+  const [passwordError, setPasswordError] = useState('')
 
   const refreshPermission = useCallback(async () => {
     const status = await getNotificationPermissionStatus()
@@ -257,6 +277,39 @@ export default function SettingsScreen() {
     }
   }
 
+  const handleChangePassword = useCallback(async () => {
+    setPasswordStatus('')
+    setPasswordError('')
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('All fields are required.')
+      return
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New password and confirmation do not match.')
+      return
+    }
+    if (newPassword === currentPassword) {
+      setPasswordError('New password must be different from the current password.')
+      return
+    }
+    setPasswordSaving(true)
+    try {
+      await changePassword(currentPassword, newPassword)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordStatus('Password updated.')
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : 'Failed to change password.')
+    } finally {
+      setPasswordSaving(false)
+    }
+  }, [changePassword, confirmPassword, currentPassword, newPassword])
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <View style={styles.card}>
@@ -264,6 +317,54 @@ export default function SettingsScreen() {
         <Text style={styles.name}>{user?.fullName || user?.name || 'User'}</Text>
         <Text style={styles.meta}>Role: {user?.role || '—'}</Text>
         <Text style={styles.meta}>Company: {companyCode.toUpperCase()}</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Change password</Text>
+        <Text style={styles.meta}>If you forgot your password, contact a super admin to reset it.</Text>
+        <Text style={styles.fieldLabel}>Current password</Text>
+        <TextInput
+          style={styles.passwordInput}
+          value={currentPassword}
+          onChangeText={setCurrentPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="password"
+          editable={!passwordSaving}
+        />
+        <Text style={styles.fieldLabel}>New password</Text>
+        <TextInput
+          style={styles.passwordInput}
+          value={newPassword}
+          onChangeText={setNewPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
+          placeholder="Min. 8 characters"
+          editable={!passwordSaving}
+        />
+        <Text style={styles.fieldLabel}>Confirm new password</Text>
+        <TextInput
+          style={styles.passwordInput}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
+          editable={!passwordSaving}
+        />
+        <Pressable
+          style={[styles.actionBtn, passwordSaving && styles.actionBtnDisabled]}
+          onPress={() => void handleChangePassword()}
+          disabled={passwordSaving}
+        >
+          <Text style={styles.actionBtnText}>{passwordSaving ? 'Saving…' : 'Update password'}</Text>
+        </Pressable>
+        {passwordError ? <Text style={styles.statusErr}>{passwordError}</Text> : null}
+        {passwordStatus ? <Text style={styles.statusOk}>{passwordStatus}</Text> : null}
       </View>
 
       {showAdmin ? (

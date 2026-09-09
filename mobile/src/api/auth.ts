@@ -47,6 +47,14 @@ export async function logout(token: string) {
   })
 }
 
+export async function changePassword(token: string, currentPassword: string, newPassword: string) {
+  return apiRequest<LoginResponse>('/api/auth/change-password', {
+    method: 'PUT',
+    token,
+    body: { currentPassword, newPassword },
+  })
+}
+
 export async function registerPushToken(sessionToken: string, expoPushToken: string) {
   return apiRequest<{ success: boolean }>('/api/auth/me/push-token', {
     method: 'POST',

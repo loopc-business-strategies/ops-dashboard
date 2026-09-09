@@ -16,6 +16,7 @@ import {
 } from '../utils/dashboardNavigation'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
+import ChangePasswordModal from '../components/ChangePasswordModal'
 import AppShell from '../components/layout/AppShell'
 import AppSidebar from '../components/layout/AppSidebar'
 import { getNavItems } from '../components/layout/navConfig'
@@ -405,6 +406,8 @@ function Dashboard() {
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [passwordChangeNotice, setPasswordChangeNotice] = useState('')
   const [notifications, setNotifications] = useState([])
   const [pendingChatOpenId, setPendingChatOpenId] = useState(null)
   /** Bumped when opening Chat from the bell so the message composer receives focus. */
@@ -1165,6 +1168,13 @@ function Dashboard() {
                       <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{branding.displayName} · {accountRoleLabel}</p>
                     </div>
                     <button
+                      type="button"
+                      onClick={() => { setAccountMenuOpen(false); setChangePasswordOpen(true) }}
+                      className="topbar-dropdown-item w-full box-border text-sm text-left"
+                      style={{ color: '#111827', fontWeight: 600 }}>
+                      Change password
+                    </button>
+                    <button
                       onClick={() => { setAccountMenuOpen(false); handleLogout() }}
                       className="topbar-dropdown-item w-full box-border text-sm text-left"
                       style={{ color: '#b91c1c', fontWeight: 600 }}>
@@ -1227,6 +1237,35 @@ function Dashboard() {
       </div>
       )}
     />
+    {changePasswordOpen && (
+      <ChangePasswordModal
+        onClose={() => setChangePasswordOpen(false)}
+        onSuccess={() => {
+          setPasswordChangeNotice('Password updated.')
+          window.setTimeout(() => setPasswordChangeNotice(''), 3500)
+        }}
+      />
+    )}
+    {passwordChangeNotice ? (
+      <div
+        role="status"
+        style={{
+          position: 'fixed',
+          right: 16,
+          bottom: 16,
+          zIndex: 10001,
+          background: '#065F46',
+          color: '#fff',
+          padding: '10px 14px',
+          borderRadius: 10,
+          fontSize: 13,
+          fontWeight: 700,
+          boxShadow: '0 8px 20px rgba(15,23,42,0.25)',
+        }}
+      >
+        {passwordChangeNotice}
+      </div>
+    ) : null}
     </LiveMetalRatesProvider>
   )
 }
