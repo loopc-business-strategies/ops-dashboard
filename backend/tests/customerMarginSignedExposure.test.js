@@ -1,13 +1,13 @@
 /**
- * Customer Margin must pass signed ledger net into margin math.
+ * Customer Margin funds = -ledgerNet (credit balance → positive exposure).
  * Does not touch Supplier Margin (-abs) or Account Enquiry balance formulas.
  */
 const { computeMarginMetricsRaw } = require('../services/erpAccounting/metalMarginPolicy')
 
 function customerMarginFromLedgerNet(net, { goldPosition = 0, silverPosition = 0, goldPrice = 0, silverPrice = 0 } = {}) {
-  // Mirrors customerRoutes / reportRoutes customerMargins after signed-exposure fix.
+  // Mirrors customerRoutes / reportRoutes customerMargins: totalFunds = -net.
   return computeMarginMetricsRaw({
-    totalFunds: net,
+    totalFunds: -net,
     goldPosition,
     silverPosition,
     goldPrice,
@@ -17,7 +17,6 @@ function customerMarginFromLedgerNet(net, { goldPosition = 0, silverPosition = 0
 }
 
 function supplierMarginFromOutstanding(outstanding) {
-  // Supplier path intentionally unchanged.
   return computeMarginMetricsRaw({
     totalFunds: -Math.abs(outstanding),
     goldPosition: 0,
@@ -29,25 +28,26 @@ function supplierMarginFromOutstanding(outstanding) {
   })
 }
 
-describe('customer margin signed ledger exposure', () => {
-  test('positive accounting net yields positive equity (Modern Capital–style)', () => {
-    const raw = customerMarginFromLedgerNet(162131)
+describe('customer margin negated ledger exposure', () => {
+  test('credit accounting net yields positive equity (Modern Capital–style)', () => {
+    const accountingNet = -162131
+    const raw = customerMarginFromLedgerNet(accountingNet)
     expect(raw.equity).toBe(162131)
     expect(raw.status).toBe('POSITIVE')
   })
 
-  test('negative accounting nets stay negative for listed MG-style fixtures', () => {
+  test('debit accounting nets yield negative equity for listed MG-style fixtures', () => {
     const fixtures = [
-      ['CEO CURRENT A/C', -276.58],
-      ['Aneesh', -3411.76],
-      ['BIJU', -2764.71],
-      ['Sudheesh', -411.76],
-      ['Anil Kumar', -176.47],
-      ['Chandran', -529.41],
+      ['CEO CURRENT A/C', 276.58],
+      ['Aneesh', 3411.76],
+      ['BIJU', 2764.71],
+      ['Sudheesh', 411.76],
+      ['Anil Kumar', 176.47],
+      ['Chandran', 529.41],
     ]
-    for (const [label, net] of fixtures) {
-      const raw = customerMarginFromLedgerNet(net)
-      expect(raw.equity).toBeCloseTo(net, 2)
+    for (const [label, debitNet] of fixtures) {
+      const raw = customerMarginFromLedgerNet(debitNet)
+      expect(raw.equity).toBeCloseTo(-debitNet, 2)
       expect(raw.status).toBe('NEGATIVE')
       expect(label).toBeTruthy()
     }
@@ -59,13 +59,28 @@ describe('customer margin signed ledger exposure', () => {
     expect(raw.status).toBe('NEUTRAL')
   })
 
-  test('metal revaluation still works with positive funds', () => {
-    const raw = customerMarginFromLedgerNet(1000, {
+  test('metal revaluation still adds to negated funds', () => {
+    const raw = customerMarginFromLedgerNet(-1000, {
       goldPosition: 2,
       goldPrice: 50,
     })
+    // funds = -(-1000) = 1000; reval = 100; equity = 1100
+    expect(raw.funds).toBe(1000)
     expect(raw.revaluation).toBe(100)
     expect(raw.equity).toBe(1100)
+  })
+
+  test('test-account style debit net plus large gold MTM is not blindly sign-flipped', () => {
+    const debitNet = 1000
+    const raw = customerMarginFromLedgerNet(debitNet, {
+      goldPosition: 1990,
+      goldPrice: 128,
+    })
+    // funds = -1000; reval = 1990*128; equity can remain positive from metals
+    expect(raw.funds).toBe(-1000)
+    expect(raw.revaluation).toBe(1990 * 128)
+    expect(raw.equity).toBe(-1000 + 1990 * 128)
+    expect(raw.equity).toBeGreaterThan(0)
   })
 
   test('supplier margin still forces non-positive funds via -abs', () => {
@@ -73,18 +88,27 @@ describe('customer margin signed ledger exposure', () => {
     expect(supplierMarginFromOutstanding(-250).equity).toBe(-250)
   })
 
-  test('forcing -abs would incorrectly flip a positive customer net (regression guard)', () => {
-    const net = 162131
-    const broken = computeMarginMetricsRaw({
-      totalFunds: -Math.abs(net),
+  test('raw net and -abs both fail the Modern Capital credit case; -net succeeds', () => {
+    const creditNet = -162131
+    const asIs = computeMarginMetricsRaw({
+      totalFunds: creditNet,
       goldPosition: 0,
       silverPosition: 0,
       goldPrice: 0,
       silverPrice: 0,
       fundsMode: 'asIs',
     })
-    const fixed = customerMarginFromLedgerNet(net)
-    expect(broken.equity).toBe(-162131)
+    const forcedAbs = computeMarginMetricsRaw({
+      totalFunds: -Math.abs(creditNet),
+      goldPosition: 0,
+      silverPosition: 0,
+      goldPrice: 0,
+      silverPrice: 0,
+      fundsMode: 'asIs',
+    })
+    const fixed = customerMarginFromLedgerNet(creditNet)
+    expect(asIs.equity).toBe(-162131)
+    expect(forcedAbs.equity).toBe(-162131)
     expect(fixed.equity).toBe(162131)
   })
 })
