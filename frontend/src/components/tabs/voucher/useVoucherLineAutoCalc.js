@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { resolveLiveVoucherMetalRate } from '../../../utils/liveMetalRates'
 import { parseAmount, roundMoney } from '../../../utils/money'
+import { resolveProductLineVatFields } from './resolveProductLineVat'
 import {
   decodeFullMeta,
   decodeInventoryCategoryMeta,
@@ -129,8 +130,15 @@ export function useVoucherLineAutoCalc({
       ? (pcs > 0 ? unitWeight * pcs : unitWeight)
       : (parseFloat(line.grossWeight) || 0)
     const rawPurity = parseFloat(meta.productPurity || simMeta.purity || '') || 0
-    const productVatPer = parseFloat(meta.vatPercent || '') || 0
     const productTaxType = String(meta.taxType || 'VAT').trim()
+    const { vatType, vatPer } = resolveProductLineVatFields({
+      voucherType,
+      isMetalTransferVoucherType,
+      productTaxType,
+      productVatPercent: meta.vatPercent,
+      lineVatType: line.vatType,
+      lineVatPer: line.vatPer,
+    })
 
     return applyLineAutoCalc({
       ...line,
@@ -138,8 +146,8 @@ export function useVoucherLineAutoCalc({
       productType: productName,
       grossWeight: grossWeight > 0 ? String(Number(grossWeight.toFixed(3))) : line.grossWeight,
       purity: rawPurity > 0 ? String(rawPurity) : line.purity,
-      vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || line.vatType || 'VAT'),
-      vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : line.vatPer),
+      vatType,
+      vatPer,
     })
   }, [applyLineAutoCalc, inventoryProducts, voucherType])
 
@@ -165,7 +173,6 @@ export function useVoucherLineAutoCalc({
     const storedPriceUnit = String(fullMeta.priceUnit || '').trim().toUpperCase()
     const resolvedRateType = normalizeRateType(storedPriceUnit || 'OZ')
     const storedCurrency = String(fullMeta.priceCurrency || product.currency || 'USD').toUpperCase()
-    const productVatPer = parseFloat(fullMeta.vatPercent || '') || 0
     const productTaxType = String(fullMeta.taxType || 'VAT').trim()
     const liveRate = resolveLiveVoucherMetalRate(symbol, mainStock, latestMetalRates, resolvedRateType)
     const storedRate = (voucherType === 'sale' || voucherType === 'metal_payment')
@@ -173,22 +180,32 @@ export function useVoucherLineAutoCalc({
       : Number(product.unitCost || 0)
     const defaultRate = liveRate > 0 ? liveRate : storedRate
 
-    setLineForm((prev) => applyLineAutoCalc({
-      ...prev,
-      inventoryItemId: String(product._id),
-      stockCode: String(product.sku || normalizedStockCode),
-      stockGroup,
-      metalSymbol: symbol,
-      metalName: toTitle(mainStock || meta.metalType || product.name || 'Metal'),
-      location: String(product.wipStage || prev.location || ''),
-      availStock: `${Number(product.quantity || 0).toLocaleString()} ${String(product.unit || '').trim()}`.trim(),
-      purity: String(meta.purity || prev.purity || ''),
-      metalRate: defaultRate > 0 ? String(roundMoney(defaultRate, storedCurrency || resolveLineCurrency(prev))) : prev.metalRate,
-      rateType: resolvedRateType,
-      currCode: storedCurrency,
-      vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || prev.vatType || 'VAT'),
-      vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : prev.vatPer),
-    }))
+    setLineForm((prev) => {
+      const { vatType, vatPer } = resolveProductLineVatFields({
+        voucherType,
+        isMetalTransferVoucherType,
+        productTaxType,
+        productVatPercent: fullMeta.vatPercent,
+        lineVatType: prev.vatType,
+        lineVatPer: prev.vatPer,
+      })
+      return applyLineAutoCalc({
+        ...prev,
+        inventoryItemId: String(product._id),
+        stockCode: String(product.sku || normalizedStockCode),
+        stockGroup,
+        metalSymbol: symbol,
+        metalName: toTitle(mainStock || meta.metalType || product.name || 'Metal'),
+        location: String(product.wipStage || prev.location || ''),
+        availStock: `${Number(product.quantity || 0).toLocaleString()} ${String(product.unit || '').trim()}`.trim(),
+        purity: String(meta.purity || prev.purity || ''),
+        metalRate: defaultRate > 0 ? String(roundMoney(defaultRate, storedCurrency || resolveLineCurrency(prev))) : prev.metalRate,
+        rateType: resolvedRateType,
+        currCode: storedCurrency,
+        vatType,
+        vatPer,
+      })
+    })
   }, [applyLineAutoCalc, inventoryProducts, latestMetalRates, resolveLineCurrency, setLineForm, voucherType])
 
   useEffect(() => {
