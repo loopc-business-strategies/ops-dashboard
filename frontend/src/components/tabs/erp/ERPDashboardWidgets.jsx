@@ -49,7 +49,7 @@ function MarginsWidget({
     marginLiveRecalc,
     baseCurrencyCode,
   })
-  // Customer Margins: API equity is signed ledger exposure + metal revaluation.
+  // Customer Margins: API equity is signed ledger exposure − metal revaluation.
   const customers = rawCustomers.map((row) => mapRow(row, 'customerName'))
   const suppliers = rawSuppliers.map((row) => mapRow(row, 'supplierName', { suppressMetalSpotMtm: true }))
   const activeRows = tab === 'suppliers' ? suppliers : customers

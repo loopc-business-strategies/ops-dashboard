@@ -59,28 +59,28 @@ describe('customer margin negated ledger exposure', () => {
     expect(raw.status).toBe('NEUTRAL')
   })
 
-  test('metal revaluation still adds to negated funds', () => {
+  test('metal revaluation still subtracts from negated funds', () => {
     const raw = customerMarginFromLedgerNet(-1000, {
       goldPosition: 2,
       goldPrice: 50,
     })
-    // funds = -(-1000) = 1000; reval = 100; equity = 1100
+    // funds = -(-1000) = 1000; reval = 100; equity = 900
     expect(raw.funds).toBe(1000)
     expect(raw.revaluation).toBe(100)
-    expect(raw.equity).toBe(1100)
+    expect(raw.equity).toBe(900)
   })
 
-  test('test-account style debit net plus large gold MTM is not blindly sign-flipped', () => {
+  test('test-account style debit net minus large gold MTM stays short', () => {
     const debitNet = 1000
     const raw = customerMarginFromLedgerNet(debitNet, {
       goldPosition: 1990,
       goldPrice: 128,
     })
-    // funds = -1000; reval = 1990*128; equity can remain positive from metals
+    // funds = -1000; reval = 1990*128; equity = funds - reval
     expect(raw.funds).toBe(-1000)
     expect(raw.revaluation).toBe(1990 * 128)
-    expect(raw.equity).toBe(-1000 + 1990 * 128)
-    expect(raw.equity).toBeGreaterThan(0)
+    expect(raw.equity).toBe(-1000 - 1990 * 128)
+    expect(raw.equity).toBeLessThan(0)
   })
 
   test('supplier margin still forces non-positive funds via -abs', () => {

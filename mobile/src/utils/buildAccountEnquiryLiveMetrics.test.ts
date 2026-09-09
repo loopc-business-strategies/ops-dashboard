@@ -7,7 +7,7 @@ import {
 } from './buildAccountEnquiryLiveMetrics'
 
 describe('buildAccountEnquiryLiveMetrics', () => {
-  test('metal exposure: revaluation and net equity rise when spot rises', () => {
+  test('metal exposure: revaluation rises and net equity falls when spot rises', () => {
     const base = {
       totalFunds: 1000,
       goldPosition: 50,
@@ -32,8 +32,8 @@ describe('buildAccountEnquiryLiveMetrics', () => {
       revaluation: high.revaluation,
       marginAmount: high.margin,
     })
-    expect(highSummary.netEquity).toBeGreaterThan(lowSummary.netEquity)
-    expect(highSummary.excess).toBeGreaterThan(lowSummary.excess)
+    expect(highSummary.netEquity).toBeLessThan(lowSummary.netEquity)
+    expect(highSummary.excess).toBeLessThan(lowSummary.excess)
     expect(highSummary.marginPercent).toBeLessThan(lowSummary.marginPercent)
   })
 

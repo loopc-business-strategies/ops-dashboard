@@ -150,17 +150,6 @@ export function resolveExposureDirection(value) {
 }
 
 /**
- * Account Summary Net Equity is a margin composite (not a CoA balance).
- * Favorable (positive) equity reads as Credit; short (negative) as Debit.
- */
-export function resolveMarginEquityDirection(value) {
-  const amount = Number(value || 0)
-  if (amount > 0) return 'Credit'
-  if (amount < 0) return 'Debit'
-  return 'Flat'
-}
-
-/**
  * Prefix +/- onto a Dr/Cr directional money string (abs already formatted).
  * Dr ↔ +, Cr ↔ -. Zero stays unchanged (no sign).
  */
@@ -330,7 +319,7 @@ export function calculateAccountSummaryMetrics({
   const revaluationValue = Number(revaluation || 0)
   const marginValue = Math.abs(Number(marginAmount || 0))
   const fundsExposure = Math.abs(signedFunds)
-  const netEquity = signedFunds + revaluationValue
+  const netEquity = signedFunds - revaluationValue
   const excess = netEquity - marginValue
   const marginPercent = marginValue > 0 ? (fundsExposure / marginValue) * 100 : 0
 

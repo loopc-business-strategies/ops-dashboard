@@ -6,7 +6,6 @@ const ENQUIRY_MODAL_HELPER_KEYS = [
   'getAccountEnquirySignedMetricColor',
   'formatAccountEnquiryExcessDisplay',
   'resolveExposureDirection',
-  'resolveMarginEquityDirection',
   'isMetalStatementEntry',
 ]
 
@@ -44,7 +43,6 @@ describe('erpTabScopeStatics (node)', () => {
       formatStatementValue: () => '',
       getSignedColor: () => '#000',
       formatDirectionalBalance: () => '',
-      formatSignedDirectionalBalance: () => '',
       unfixedMetalEntries: [],
       formatStatementDate: () => '',
       fixedMetalSummary: null,

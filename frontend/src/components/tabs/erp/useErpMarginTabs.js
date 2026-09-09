@@ -80,7 +80,8 @@ export function useErpCustomerMargin({
           const silverPrice = Number(silverPriceUSD || 0)
           const frozenReval = Number(customer?.marginRevaluation ?? 0)
           const frozenEquity = Number(customer?.marginEquity ?? exposureFunds)
-          const totalFunds = frozenEquity - frozenReval
+          // equity = funds - revaluation ⇒ funds = equity + revaluation
+          const totalFunds = frozenEquity + frozenReval
           const metrics = computeMarginMetricsRaw({
             totalFunds,
             goldPosition,

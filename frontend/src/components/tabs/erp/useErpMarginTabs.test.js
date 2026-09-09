@@ -15,7 +15,8 @@ function buildCustomerLiveMetrics(customer, goldPriceUSD, silverPriceUSD) {
   const exposureFunds = -outstanding
   const frozenReval = Number(customer?.marginRevaluation ?? 0)
   const frozenEquity = Number(customer?.marginEquity ?? exposureFunds)
-  const totalFunds = frozenEquity - frozenReval
+  // equity = funds - revaluation ⇒ funds = equity + revaluation
+  const totalFunds = frozenEquity + frozenReval
   return computeMarginMetricsRaw({
     totalFunds,
     goldPosition,
@@ -46,10 +47,10 @@ function buildSupplierLiveMetrics(vendor, goldPriceUSD, silverPriceUSD) {
 }
 
 describe('useErpMarginTabs customer negated exposure', () => {
-  test('margin metrics increase when live gold price rises', () => {
+  test('margin equity falls when live gold price rises', () => {
     const customer = {
       outstandingBalance: -1000,
-      marginEquity: 1200,
+      marginEquity: 800,
       marginRevaluation: 200,
       goldPosition: 50,
       silverPosition: 0,
@@ -58,7 +59,7 @@ describe('useErpMarginTabs customer negated exposure', () => {
     const low = buildCustomerLiveMetrics(customer, 128.4, 1.85)
     const high = buildCustomerLiveMetrics(customer, 129.2, 1.85)
     expect(high.revaluation).toBeGreaterThan(low.revaluation)
-    expect(high.equity).toBeGreaterThan(low.equity)
+    expect(high.equity).toBeLessThan(low.equity)
   })
 
   test('credit ledger outstanding maps to positive equity (Modern Capital–style)', () => {
@@ -157,7 +158,7 @@ describe('useErpMarginTabs customer negated exposure', () => {
     }
     const metrics = buildSupplierLiveMetrics(vendor, 200, 1)
     expect(metrics.funds).toBe(-100)
-    expect(metrics.equity).toBe(-112.5)
+    expect(metrics.equity).toBe(-87.5)
     expect(metrics.revaluation).toBe(-12.5)
   })
 })

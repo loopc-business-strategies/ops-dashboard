@@ -5,7 +5,7 @@ describe('mapErpLiveMarginRow', () => {
   test('recomputes customer equity when live spot rises', () => {
     const row = {
       customerName: 'Acme',
-      equity: 1200,
+      equity: 800,
       marginRevaluation: 200,
       goldPosition: 10,
       silverPosition: 0,
@@ -21,8 +21,8 @@ describe('mapErpLiveMarginRow', () => {
       goldPriceUSD: 25,
       silverPriceUSD: 1,
     })
-    expect(low.equity).toBe(1200)
-    expect(high.equity).toBe(1250)
+    expect(low.equity).toBe(800)
+    expect(high.equity).toBe(750)
     expect(high.marginPercent).toBeCloseTo(20000, 1)
   })
 

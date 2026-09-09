@@ -5,7 +5,7 @@ describe('mapMarginRow live recalc', () => {
   test('recomputes equity and margin percent from live spot prices', () => {
     const baseRow = {
       customerName: 'Acme',
-      equity: 1200,
+      equity: 800,
       marginRevaluation: 200,
       goldPosition: 10,
       silverPosition: 0,
@@ -25,8 +25,8 @@ describe('mapMarginRow live recalc', () => {
       silverPriceUSD: 1,
     })
 
-    expect(unchanged.equity).toBe(1200)
-    expect(repriced.equity).toBe(1250)
+    expect(unchanged.equity).toBe(800)
+    expect(repriced.equity).toBe(750)
     expect(repriced.marginPercent).toBeCloseTo(20000, 1)
   })
 

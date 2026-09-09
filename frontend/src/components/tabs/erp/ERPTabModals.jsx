@@ -29,7 +29,6 @@ export default function ERPTabModals({
   formatStatementValue,
   getSignedColor,
   formatDirectionalBalance,
-  formatSignedDirectionalBalance,
   unfixedMetalEntries,
   formatStatementDate,
   fixedMetalSummary,
@@ -73,7 +72,6 @@ export default function ERPTabModals({
   handleExportEnquiryPdf,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
-  resolveMarginEquityDirection,
   isMetalStatementEntry,
   showStatementPreview,
   setShowStatementPreview,
@@ -115,7 +113,6 @@ export default function ERPTabModals({
         formatStatementValue={formatStatementValue}
         getSignedColor={getSignedColor}
         formatDirectionalBalance={formatDirectionalBalance}
-        formatSignedDirectionalBalance={formatSignedDirectionalBalance}
         unfixedMetalEntries={unfixedMetalEntries}
         formatStatementDate={formatStatementDate}
         fixedMetalSummary={fixedMetalSummary}
@@ -159,7 +156,6 @@ export default function ERPTabModals({
         handleExportEnquiryPdf={handleExportEnquiryPdf}
         getAccountEnquirySignedMetricColor={getAccountEnquirySignedMetricColor}
         formatAccountEnquiryExcessDisplay={formatAccountEnquiryExcessDisplay}
-        resolveMarginEquityDirection={resolveMarginEquityDirection}
         isMetalStatementEntry={isMetalStatementEntry}
       />
       <StatementPreviewModal
