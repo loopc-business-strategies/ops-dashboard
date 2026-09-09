@@ -12,6 +12,7 @@ import {
   normalizeStatementCurrencyCode,
   resolveStatementDisplayCurrency,
   resolveExposureDirection,
+  resolveMarginEquityDirection,
   withSignedDirectionalPrefix,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
@@ -161,6 +162,12 @@ describe('statement helpers', () => {
     expect(metrics.excess).toBe(-112022.75)
     expect(metrics.marginPercent).toBe(0)
     expect(resolveExposureDirection(metrics.netEquity)).toBe('Credit')
+  })
+
+  test('resolveMarginEquityDirection maps favorable equity to Credit', () => {
+    expect(resolveMarginEquityDirection(31768.5)).toBe('Credit')
+    expect(resolveMarginEquityDirection(-5000)).toBe('Debit')
+    expect(resolveMarginEquityDirection(0)).toBe('Flat')
   })
 
   test('withSignedDirectionalPrefix adds + for Dr and - for Cr', () => {

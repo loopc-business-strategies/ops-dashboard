@@ -77,7 +77,7 @@ export default function AccountEnquiryModal({
   handleExportEnquiryPdf,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
-  resolveExposureDirection,
+  resolveMarginEquityDirection,
   isMetalStatementEntry,
 }) {
   const dateRangeRefetchTimerRef = useRef(null)
@@ -382,7 +382,7 @@ export default function AccountEnquiryModal({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
                         <span style={{ color: getAccountEnquirySignedMetricColor(modalNetEquityDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '700', fontSize: '1rem' }}>
-                          {formatSignedDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveExposureDirection(modalNetEquityDisplay) })}
+                          {formatSignedDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveMarginEquityDirection(modalNetEquityDisplay) })}
                         </span>
                       </div>
                       {/* Margin Amt @ 2% */}

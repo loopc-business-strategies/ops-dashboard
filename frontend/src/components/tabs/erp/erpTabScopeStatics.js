@@ -30,6 +30,7 @@ import {
   getAccountEnquirySignedMetricColor,
   isMetalStatementEntry,
   resolveExposureDirection,
+  resolveMarginEquityDirection,
 } from './statementHelpers'
 
 /** Imported constants and pure helpers merged into useErpTabController scope (not slice returns). */
@@ -59,5 +60,6 @@ export const ERP_TAB_SCOPE_STATICS = {
   getTransactionBulkSelectionLabel,
   isMetalStatementEntry,
   resolveExposureDirection,
+  resolveMarginEquityDirection,
   titleCaseWords,
 }

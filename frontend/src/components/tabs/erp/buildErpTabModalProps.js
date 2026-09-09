@@ -72,6 +72,7 @@ export function buildErpTabModalProps(scope) {
     getAccountEnquirySignedMetricColor: scope.getAccountEnquirySignedMetricColor,
     formatAccountEnquiryExcessDisplay: scope.formatAccountEnquiryExcessDisplay,
     resolveExposureDirection: scope.resolveExposureDirection,
+    resolveMarginEquityDirection: scope.resolveMarginEquityDirection,
     isMetalStatementEntry: scope.isMetalStatementEntry,
     showStatementPreview: scope.showStatementPreview,
     setShowStatementPreview: scope.setShowStatementPreview,
