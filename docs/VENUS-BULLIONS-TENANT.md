@@ -35,3 +35,17 @@ Primary portal host is `vb.loopcstrategies.com`. Keep `venusbullions` only as th
 ## ERP bootstrap
 
 CoA/currencies/mappings and first admin (`vbadmin`) are on the dedicated cluster.
+
+**Do not** copy Chart of Accounts from MG (`bootstrap-new-tenant-erp.js --source=mg`). That seeded MG party accounts (e.g. Modern Capital) into VB.
+
+Clean ERP reset + starter CoA (preserves `vbadmin`, wipes CoA/parties/txs/ledgers on VB only):
+
+```bash
+# Dry-run
+npm run reset:vb-erp-masters -- --from-railway
+
+# Apply
+I_UNDERSTAND=RESET-VB-ERP-MASTERS npm run reset:vb-erp-masters -- --from-railway --apply --reason="Remove MG CoA contamination from VB"
+```
+
+Operators then add Venus-specific banks and party accounts in the portal.

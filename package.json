@@ -89,6 +89,7 @@
     "smoke:tenants": "node scripts/smoke-tenants.js",
     "audit:tenant-isolation": "node scripts/audit-tenant-isolation.mjs",
     "cleanup:vb-mg-data": "node scripts/cleanup-vb-mg-data.mjs",
+    "reset:vb-erp-masters": "node scripts/reset-vb-erp-masters.mjs",
     "smoke:expense-portals": "node scripts/verify-expense-portals.js",
     "smoke:erp-acceptance": "node scripts/erp-acceptance-automated.mjs",
     "check:fcm": "node scripts/check-fcm-setup.mjs",
