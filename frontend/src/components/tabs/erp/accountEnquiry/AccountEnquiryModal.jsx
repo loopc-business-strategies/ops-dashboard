@@ -359,9 +359,9 @@ export default function AccountEnquiryModal({
                           <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#059669', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Live MTM</span>
                         </div>
                       )}
-                      {/* Total Funds */}
+                      {/* Total Balance */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Balance</span>
                         <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>
                           {formatDirectionalBalance(
                             modalTotalFundsDisplay,
@@ -374,9 +374,9 @@ export default function AccountEnquiryModal({
                           )}
                         </span>
                       </div>
-                      {/* Revaluation */}
+                      {/* Current Value */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Revaluation</span>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Current Value</span>
                         <span style={{ color: getSignedColor(modalRevaluationDisplay), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluationDisplay, 2)}</span>
                       </div>
                       {/* Net Equity */}
@@ -432,39 +432,39 @@ export default function AccountEnquiryModal({
                         {enquiryUseCustomerMarginFundsSign && (
                           <span>
                             {' '}
-                            For debtor/customer accounts, Total Funds uses the Customer Margin sign (−ledger net) so Net Equity matches margin equity (funds + revaluation).
+                            For debtor/customer accounts, Total Balance uses the Customer Margin sign (−ledger net) so Net Equity matches margin equity (balance + current value).
                           </span>
                         )}
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}
-                            For creditor/vendor payables, Total Funds uses the ledger payable balance; revaluation uses booked unfixed metal when posted, otherwise live spot on gram position.
+                            For creditor/vendor payables, Total Balance uses the ledger payable balance; Current Value uses booked unfixed metal when posted, otherwise live spot on gram position.
                           </span>
                         )}
                         {!enquirySuppressMetalSpotMtm && !enquiryUseCustomerMarginFundsSign && enquiryLiveRecalcEnabled && hasMetalExposure && (
                           <span>
                             {' '}
-                            Revaluation, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams). Total Funds stays on the ledger balance.
+                            Current Value, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams). Total Balance stays on the ledger balance.
                           </span>
                         )}
                         {!enquirySuppressMetalSpotMtm && enquiryUseCustomerMarginFundsSign && enquiryLiveRecalcEnabled && hasMetalExposure && (
                           <span>
                             {' '}
-                            Revaluation, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams).
+                            Current Value, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams).
                           </span>
                         )}
                         {!enquirySuppressMetalSpotMtm && enquiryLiveRecalcEnabled && !hasMetalExposure && (
                           <span>
                             {' '}
                             {enquiryUseCustomerMarginFundsSign
-                              ? 'Without metal exposure, Revaluation and margin rows stay at 0 while Total Funds still uses the Customer Margin sign (−ledger net).'
-                              : 'Cash-only account: Total Funds stays on the ledger balance; Revaluation and margin rows stay at 0 while Position Price still updates with live spot.'}
+                              ? 'Without metal exposure, Current Value and margin rows stay at 0 while Total Balance still uses the Customer Margin sign (−ledger net).'
+                              : 'Cash-only account: Total Balance stays on the ledger balance; Current Value and margin rows stay at 0 while Position Price still updates with live spot.'}
                           </span>
                         )}
                         {!enquirySuppressMetalSpotMtm && !enquiryLiveRecalcEnabled && (
                           <span>
                             {' '}
-                            Revaluation and equity update with live spot when the account has metal exposure (grams). Cash-only accounts show Revaluation 0 while Price still moves.
+                            Current Value and equity update with live spot when the account has metal exposure (grams). Cash-only accounts show Current Value 0 while Price still moves.
                           </span>
                         )}
                       </p>

@@ -33,6 +33,12 @@ const ALLOWLIST = Object.freeze({
   // VB Atlas separation orchestrator; gated by explicit production confirmation.
   'scripts/apply-vb-atlas-separation.mjs':
     'VB Atlas separation orchestrator; gated by I_UNDERSTAND production confirmation.',
+  // VB ERP hard-reset; intentional production VB use with I_UNDERSTAND + --apply.
+  'scripts/reset-vb-erp-masters.mjs':
+    'VB ERP masters hard-reset; gated by I_UNDERSTAND=RESET-VB-ERP-MASTERS + --apply.',
+  // VB statutory CoA upsert; intentional production VB use with I_UNDERSTAND + --apply.
+  'scripts/seed-vb-statutory-coa.mjs':
+    'VB statutory CoA/FX/VAT upsert; gated by I_UNDERSTAND=SEED-VB-STATUTORY-COA + --apply.',
 })
 
 function toPosix(relPath) {
