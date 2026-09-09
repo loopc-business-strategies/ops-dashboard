@@ -36,6 +36,8 @@ Primary portal host is `vb.loopcstrategies.com`. Keep `venusbullions` only as th
 
 CoA/currencies/mappings and first admin (`vbadmin`) are on the dedicated cluster.
 
+**Currency master (VB only):** **USD** (base) and **AED** (foreign). Do not seed EUR/UZS for Venus Bullions.
+
 **Do not** copy Chart of Accounts from MG (`bootstrap-new-tenant-erp.js --source=mg`). That seeded MG party accounts (e.g. Modern Capital) into VB.
 
 Clean ERP reset + starter CoA (preserves `vbadmin`, wipes CoA/parties/txs/ledgers on VB only):

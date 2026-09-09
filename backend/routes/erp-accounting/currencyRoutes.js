@@ -233,7 +233,7 @@ function registerCurrencyRoutes(deps) {
   router.get('/currencies', protect, async (req, res) => {
     try {
       if (!canReadErpReferenceData(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-      await ensureDefaultCurrencyMaster()
+      await ensureDefaultCurrencyMaster({ tenant: req.tenant || normalizeTenant(req.user?.company) })
       const currencies = await Currency.find({}).sort({ baseCurrency: -1, code: 1 })
       res.json({ success: true, currencies, total: currencies.length, page: 1, limit: currencies.length })
     } catch (err) {
@@ -245,7 +245,7 @@ function registerCurrencyRoutes(deps) {
     try {
       if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
-      const result = await ensureDefaultCurrencyMaster()
+      const result = await ensureDefaultCurrencyMaster({ tenant: req.tenant || normalizeTenant(req.user?.company) })
       const currencies = await Currency.find({}).sort({ baseCurrency: -1, code: 1 })
 
       res.json({
@@ -253,6 +253,7 @@ function registerCurrencyRoutes(deps) {
         message: 'Currency master defaults synchronized.',
         createdCount: result.createdCount,
         normalizedCount: result.normalizedCount,
+        removedCount: result.removedCount || 0,
         currencies,
       })
     } catch (err) {

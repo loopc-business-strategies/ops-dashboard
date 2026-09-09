@@ -5,6 +5,20 @@ const DEFAULT_CURRENCY_MASTER = [
   { code: 'UZS', name: 'Uzbekistan Som', symbol: 'UZS', exchangeRate: 0.000078, baseCurrency: false },
 ]
 
+/** Venus Bullions: USD base + AED foreign only. */
+const VB_CURRENCY_MASTER = [
+  { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
+]
+
+function normalizeTenantKey(tenant) {
+  return String(tenant || '').trim().toLowerCase()
+}
+
+function getCurrencyMasterForTenant(tenant) {
+  return normalizeTenantKey(tenant) === 'vb' ? VB_CURRENCY_MASTER : DEFAULT_CURRENCY_MASTER
+}
+
 function createCurrencyBootstrapService({ Currency, BASE_CURRENCY_CODE }) {
   const ensureBaseCurrencyConfig = async () => {
     let base = await Currency.findOne({ baseCurrency: true, isActive: true })
@@ -41,13 +55,17 @@ function createCurrencyBootstrapService({ Currency, BASE_CURRENCY_CODE }) {
     return base
   }
 
-  const ensureDefaultCurrencyMaster = async () => {
+  const ensureDefaultCurrencyMaster = async (options = {}) => {
+    const tenant = normalizeTenantKey(options.tenant)
+    const master = getCurrencyMasterForTenant(tenant)
+    const allowedCodes = new Set(master.map((row) => String(row.code).toUpperCase()))
     const base = await ensureBaseCurrencyConfig()
     const now = new Date()
     let createdCount = 0
     let normalizedCount = 0
+    let removedCount = 0
 
-    for (const preset of DEFAULT_CURRENCY_MASTER) {
+    for (const preset of master) {
       if (preset.baseCurrency) continue
 
       const existing = await Currency.findOne({ code: preset.code })
@@ -95,16 +113,32 @@ function createCurrencyBootstrapService({ Currency, BASE_CURRENCY_CODE }) {
       }
     }
 
-    return { base, createdCount, normalizedCount }
+    // VB (and any restricted master): remove currencies outside the allowed set.
+    if (tenant === 'vb') {
+      const extras = await Currency.find({
+        code: { $nin: [...allowedCodes] },
+      }).select('_id code')
+      if (extras.length) {
+        const result = await Currency.deleteMany({
+          _id: { $in: extras.map((doc) => doc._id) },
+        })
+        removedCount = result.deletedCount || 0
+      }
+    }
+
+    return { base, createdCount, normalizedCount, removedCount, masterCodes: [...allowedCodes] }
   }
 
   return {
     ensureBaseCurrencyConfig,
     ensureDefaultCurrencyMaster,
+    getCurrencyMasterForTenant,
   }
 }
 
 module.exports = {
   DEFAULT_CURRENCY_MASTER,
+  VB_CURRENCY_MASTER,
+  getCurrencyMasterForTenant,
   createCurrencyBootstrapService,
 }

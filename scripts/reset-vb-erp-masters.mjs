@@ -55,9 +55,7 @@ const WIPE_COLLECTIONS = [
 
 const CURRENCY_DEFAULTS = [
   { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
-  { code: 'EUR', name: 'Euro', symbol: 'EUR', exchangeRate: 1.08, baseCurrency: false },
   { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
-  { code: 'UZS', name: 'Uzbekistan Som', symbol: 'UZS', exchangeRate: 0.000078, baseCurrency: false },
 ]
 
 /** Clean Venus Bullions starter CoA — no party / MG names. */
