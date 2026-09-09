@@ -382,7 +382,6 @@ export default function AccountEnquiryModal({
                             modalNetEquityDisplay,
                             {
                               currencyCode: statementDisplayCurrency,
-                              preferredDirection: accountEnquiryData?.balances?.netDirection,
                             },
                           )}
                         </span>
@@ -426,9 +425,11 @@ export default function AccountEnquiryModal({
                         </select>
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
-                        Customer Margin Equity reflects the signed customer exposure based on the account's underlying accounting direction; supplier payables remain negative.
+                        Customer Margin Equity uses the same signed ledger net as Account Summary Total Balance (ledger − Current Value); supplier payables remain negative.
                         {' '}
                         Account Summary Total Balance matches the statement ledger running balance (same amount and Dr/Cr).
+                        {' '}
+                        Net Equity Dr/Cr follows the signed equity amount (not the ledger direction alone).
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}

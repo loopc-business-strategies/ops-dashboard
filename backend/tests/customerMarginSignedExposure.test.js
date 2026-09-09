@@ -1,13 +1,13 @@
 /**
- * Customer Margin funds = -ledgerNet (credit balance → positive exposure).
- * Does not touch Supplier Margin (-abs) or Account Enquiry balance formulas.
+ * Customer Margin funds = ledger net (same signed balance as Account Summary).
+ * equity = funds − revaluation. Supplier Margin still uses -abs.
  */
 const { computeMarginMetricsRaw } = require('../services/erpAccounting/metalMarginPolicy')
 
 function customerMarginFromLedgerNet(net, { goldPosition = 0, silverPosition = 0, goldPrice = 0, silverPrice = 0 } = {}) {
-  // Mirrors customerRoutes / reportRoutes customerMargins: totalFunds = -net.
+  // Mirrors customerRoutes / reportRoutes customerMargins: totalFunds = net.
   return computeMarginMetricsRaw({
-    totalFunds: -net,
+    totalFunds: net,
     goldPosition,
     silverPosition,
     goldPrice,
@@ -28,15 +28,15 @@ function supplierMarginFromOutstanding(outstanding) {
   })
 }
 
-describe('customer margin negated ledger exposure', () => {
-  test('credit accounting net yields positive equity (Modern Capital–style)', () => {
+describe('customer margin ledger-as-funds exposure', () => {
+  test('credit accounting net yields negative equity (matches Account Summary Cr)', () => {
     const accountingNet = -162131
     const raw = customerMarginFromLedgerNet(accountingNet)
-    expect(raw.equity).toBe(162131)
-    expect(raw.status).toBe('POSITIVE')
+    expect(raw.equity).toBe(-162131)
+    expect(raw.status).toBe('NEGATIVE')
   })
 
-  test('debit accounting nets yield negative equity for listed MG-style fixtures', () => {
+  test('debit accounting nets yield positive equity when Current Value is 0', () => {
     const fixtures = [
       ['CEO CURRENT A/C', 276.58],
       ['Aneesh', 3411.76],
@@ -47,8 +47,8 @@ describe('customer margin negated ledger exposure', () => {
     ]
     for (const [label, debitNet] of fixtures) {
       const raw = customerMarginFromLedgerNet(debitNet)
-      expect(raw.equity).toBeCloseTo(-debitNet, 2)
-      expect(raw.status).toBe('NEGATIVE')
+      expect(raw.equity).toBeCloseTo(debitNet, 2)
+      expect(raw.status).toBe('POSITIVE')
       expect(label).toBeTruthy()
     }
   })
@@ -59,27 +59,27 @@ describe('customer margin negated ledger exposure', () => {
     expect(raw.status).toBe('NEUTRAL')
   })
 
-  test('metal revaluation still subtracts from negated funds', () => {
+  test('metal revaluation subtracts from ledger funds', () => {
     const raw = customerMarginFromLedgerNet(-1000, {
       goldPosition: 2,
       goldPrice: 50,
     })
-    // funds = -(-1000) = 1000; reval = 100; equity = 900
-    expect(raw.funds).toBe(1000)
+    // funds = -1000; reval = 100; equity = -1100
+    expect(raw.funds).toBe(-1000)
     expect(raw.revaluation).toBe(100)
-    expect(raw.equity).toBe(900)
+    expect(raw.equity).toBe(-1100)
   })
 
-  test('test-account style debit net minus large gold MTM stays short', () => {
-    const debitNet = 1000
+  test('1313-style debit net minus large gold MTM matches Account Summary short', () => {
+    const debitNet = 250000
+    const revaluation = 281362.22
     const raw = customerMarginFromLedgerNet(debitNet, {
-      goldPosition: 1990,
-      goldPrice: 128,
+      goldPosition: 1,
+      goldPrice: revaluation,
     })
-    // funds = -1000; reval = 1990*128; equity = funds - reval
-    expect(raw.funds).toBe(-1000)
-    expect(raw.revaluation).toBe(1990 * 128)
-    expect(raw.equity).toBe(-1000 - 1990 * 128)
+    expect(raw.funds).toBe(250000)
+    expect(raw.revaluation).toBeCloseTo(281362.22, 2)
+    expect(raw.equity).toBeCloseTo(250000 - 281362.22, 2)
     expect(raw.equity).toBeLessThan(0)
   })
 
@@ -88,7 +88,7 @@ describe('customer margin negated ledger exposure', () => {
     expect(supplierMarginFromOutstanding(-250).equity).toBe(-250)
   })
 
-  test('raw net and -abs both fail the Modern Capital credit case; -net succeeds', () => {
+  test('ledger-as-funds matches asIs credit net (no -net flip)', () => {
     const creditNet = -162131
     const asIs = computeMarginMetricsRaw({
       totalFunds: creditNet,
@@ -98,17 +98,8 @@ describe('customer margin negated ledger exposure', () => {
       silverPrice: 0,
       fundsMode: 'asIs',
     })
-    const forcedAbs = computeMarginMetricsRaw({
-      totalFunds: -Math.abs(creditNet),
-      goldPosition: 0,
-      silverPosition: 0,
-      goldPrice: 0,
-      silverPrice: 0,
-      fundsMode: 'asIs',
-    })
     const fixed = customerMarginFromLedgerNet(creditNet)
     expect(asIs.equity).toBe(-162131)
-    expect(forcedAbs.equity).toBe(-162131)
-    expect(fixed.equity).toBe(162131)
+    expect(fixed.equity).toBe(-162131)
   })
 })

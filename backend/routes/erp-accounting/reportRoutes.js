@@ -1471,8 +1471,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       const goldPosition = roundPosition(rawPosition.goldPosition)
       const silverPosition = roundPosition(rawPosition.silverPosition)
       const marginMetrics = calculateMarginMetrics({
-        // Margin exposure = negated accounting net (credit → +, debit → -). Supplier path unchanged.
-        totalFunds: -rawOutstanding,
+        // Same signed ledger net as Account Summary Total Balance (ledger − Current Value).
+        totalFunds: rawOutstanding,
         goldPosition,
         silverPosition,
         goldPrice: marginRates.goldPrice,
