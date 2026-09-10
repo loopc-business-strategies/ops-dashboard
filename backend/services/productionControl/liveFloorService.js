@@ -120,6 +120,18 @@ async function getLiveFloorSummary() {
     },
   ])
 
+  const weightTotals = await ProductionBatch.aggregate([
+    { $match: { status: { $in: [...ACTIVE_BATCH_STATUSES, 'COMPLETED', 'RETURNED_TO_VAULT'] } } },
+    {
+      $group: {
+        _id: null,
+        scrapTotal: { $sum: '$scrapWeight' },
+        lossTotal: { $sum: '$lossWeight' },
+        recoveredTotal: { $sum: '$recoveredWeight' },
+      },
+    },
+  ])
+
   const statusCounts = await ProductionBatch.aggregate([
     { $match: { status: { $in: [...ACTIVE_BATCH_STATUSES, 'COMPLETED', 'RETURNED_TO_VAULT'] } } },
     { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$currentWeight' } } },
@@ -149,6 +161,9 @@ async function getLiveFloorSummary() {
       passesPending,
       completedToday,
       returnedToday,
+      scrapTotal: weightTotals[0]?.scrapTotal || 0,
+      lossTotal: weightTotals[0]?.lossTotal || 0,
+      recoveredTotal: weightTotals[0]?.recoveredTotal || 0,
     },
     board,
     statusCounts: statusCounts.map((row) => ({

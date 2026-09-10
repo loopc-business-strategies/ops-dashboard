@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import productionControlApi from '../../api/productionControl'
 import { BOARD_COLUMNS, formatGrams, formatKg, formatTime } from './shared'
 import { PccConfirmDialog, PccEmptyState, PccKpiCard, PccSkeleton, PccStatusBadge, PccWeightDisplay } from './primitives'
+import { usePccApi } from './demo/usePccApi'
+import { useDemoMode } from './demo/DemoModeContext'
+import { DEMO_WRITE_MSG } from './demo/pccApiAdapter'
 
 export default function LiveFloorPanel({
   summary,
@@ -11,6 +13,8 @@ export default function LiveFloorPanel({
   onRefresh,
   onToast,
 }) {
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [confirm, setConfirm] = useState(null)
 
   if (loading && !summary) {
@@ -30,9 +34,9 @@ export default function LiveFloorPanel({
     const { action, batch } = confirm
     setConfirm(null)
     try {
-      if (action === 'hold') await productionControlApi.holdBatch(batch._id, {})
-      if (action === 'release') await productionControlApi.releaseBatch(batch._id, {})
-      onToast?.(action === 'hold' ? 'Batch put on hold' : 'Batch released')
+      if (action === 'hold') await pccApi.holdBatch(batch._id, {})
+      if (action === 'release') await pccApi.releaseBatch(batch._id, {})
+      onToast?.(isDemo ? DEMO_WRITE_MSG : (action === 'hold' ? 'Batch put on hold' : 'Batch released'))
       onRefresh?.()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Action failed')
@@ -91,9 +95,16 @@ export default function LiveFloorPanel({
                       <div key={b._id} className="pcc-board-card-wrap">
                         <button type="button" className="pcc-board-card" onClick={() => onSelectBatch?.(b._id)}>
                           <strong>{b.batchNumber}</strong>
-                          <span>{b.metalType}{b.purity ? ` ${b.purity}` : ''}</span>
+                          <span className="pcc-card-primary">
+                            {b.workOrderNumber ? `${b.workOrderNumber} · ` : ''}
+                            {b.product || b.metalType}
+                            {b.purity ? ` ${b.purity}` : ''}
+                          </span>
                           <span><PccWeightDisplay grams={b.currentWeight} /> · {b.currentDepartment || '—'}</span>
-                          <span>{b.currentHolderName || 'Unassigned'} · {b.currentProcess || '—'}</span>
+                          <span className="pcc-card-meta">
+                            {b.currentProcess || '—'} · {b.currentHolderName || 'Unassigned'}
+                            {b.currentMachineName ? ` · ${b.currentMachineName}` : ''}
+                          </span>
                           <PccStatusBadge status={b.status} />
                         </button>
                         <div className="pcc-board-card-actions">

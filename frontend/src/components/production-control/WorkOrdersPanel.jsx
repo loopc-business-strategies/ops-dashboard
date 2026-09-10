@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import workOrdersApi from '../../api/production/workOrders'
-import productionControlApi from '../../api/productionControl'
+import { usePccApi, useWorkOrdersApi } from './demo/usePccApi'
+import { useDemoMode } from './demo/DemoModeContext'
+import { DEMO_WRITE_MSG } from './demo/pccApiAdapter'
 import { formatTime } from './shared'
 import { PccConfirmDialog, PccEmptyState, PccSkeleton, PccStatusBadge } from './primitives'
 
@@ -17,6 +18,9 @@ function useDebounced(value, ms = 300) {
 }
 
 export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
+  const workOrdersApi = useWorkOrdersApi()
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
   const [summaryMap, setSummaryMap] = useState({})
   const [loading, setLoading] = useState(true)
@@ -33,7 +37,7 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
     targetDate: '',
   })
   const [editing, setEditing] = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [confirmArchive, setConfirmArchive] = useState(null)
   const debouncedSearch = useDebounced(search, 350)
 
   const load = useCallback(async () => {
@@ -41,7 +45,7 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
     try {
       const [woRes, sumRes] = await Promise.all([
         workOrdersApi.getWorkOrders({ page, limit: 20, search: debouncedSearch || undefined }),
-        productionControlApi.getWorkOrdersSummary().catch(() => ({ byWorkOrder: [] })),
+        pccApi.getWorkOrdersSummary().catch(() => ({ byWorkOrder: [] })),
       ])
       setRows(woRes.workOrders || [])
       setTotal(woRes.total || 0)
@@ -56,7 +60,7 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
     } finally {
       setLoading(false)
     }
-  }, [page, debouncedSearch, onToast])
+  }, [page, debouncedSearch, onToast, workOrdersApi, pccApi])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [debouncedSearch])
@@ -71,13 +75,13 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
         assignedTo: form.assignedTo,
         targetDate: form.targetDate || null,
       })
-      if (form.product && created?.workOrder?._id) {
+      if (form.product && created?.workOrder?._id && !created?.demo) {
         await workOrdersApi.updateWorkOrder(created.workOrder._id, {
           product: form.product,
           stage: form.stage,
         })
       }
-      onToast?.(created?.message || 'Work order created')
+      onToast?.(isDemo ? DEMO_WRITE_MSG : (created?.message || 'Work order created'))
       setForm({ woNumber: '', product: '', quantity: '1', stage: 'casting', assignedTo: '', targetDate: '' })
       load()
     } catch (err) {
@@ -98,7 +102,7 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
         assignedTo: editing.assignedTo,
         targetDate: editing.targetDate || null,
       })
-      onToast?.('Work order updated')
+      onToast?.(isDemo ? DEMO_WRITE_MSG : 'Work order updated')
       setEditing(null)
       load()
     } catch (err) {
@@ -106,16 +110,16 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
     }
   }
 
-  const doDelete = async () => {
-    if (!confirmDelete) return
-    const id = confirmDelete._id
-    setConfirmDelete(null)
+  const doArchive = async () => {
+    if (!confirmArchive) return
+    const id = confirmArchive._id
+    setConfirmArchive(null)
     try {
       const res = await workOrdersApi.deleteWorkOrder(id)
-      onToast?.(res?.message || 'Work order deleted')
+      onToast?.(isDemo ? DEMO_WRITE_MSG : (res?.message || 'Work order archived'))
       load()
     } catch (err) {
-      onToast?.(err?.response?.data?.message || 'Delete failed')
+      onToast?.(err?.response?.data?.message || 'Archive failed')
     }
   }
 
@@ -161,11 +165,14 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
           <label>Search
             <input
               type="search"
-              placeholder="WO # or assignee…"
+              placeholder="WO #, product, or assignee…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </label>
+          {search && (
+            <button type="button" className="pcc-btn-ghost" onClick={() => setSearch('')}>Clear filters</button>
+          )}
         </div>
         {loading ? <PccSkeleton rows={5} /> : rows.length === 0 ? (
           <PccEmptyState message="No work orders" />
@@ -210,7 +217,7 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
                             })}>
                               Edit
                             </button>
-                            <button type="button" className="pcc-btn-ghost" onClick={() => setConfirmDelete(wo)}>Delete</button>
+                            <button type="button" className="pcc-btn-ghost" onClick={() => setConfirmArchive(wo)}>Archive</button>
                           </>
                         )}
                       </td>
@@ -268,13 +275,13 @@ export default function WorkOrdersPanel({ onToast, onOpenBatches }) {
       )}
 
       <PccConfirmDialog
-        open={!!confirmDelete}
-        title="Delete work order?"
-        message={confirmDelete ? `Soft-delete ${confirmDelete.woNumber}. Linked production batches are not deleted.` : ''}
-        confirmLabel="Delete"
+        open={!!confirmArchive}
+        title="Archive work order?"
+        message={confirmArchive ? `Archive ${confirmArchive.woNumber}. Linked production batches are not deleted.` : ''}
+        confirmLabel="Archive"
         danger
-        onCancel={() => setConfirmDelete(null)}
-        onConfirm={doDelete}
+        onCancel={() => setConfirmArchive(null)}
+        onConfirm={doArchive}
       />
     </div>
   )

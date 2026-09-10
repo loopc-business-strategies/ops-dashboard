@@ -1,18 +1,40 @@
 /** Shared production-control constants and helpers */
 
-export const SECTIONS = [
-  { id: 'live', label: 'Live Floor' },
-  { id: 'overview', label: 'Overview' },
-  { id: 'work-orders', label: 'Work Orders' },
-  { id: 'batches', label: 'Batches' },
-  { id: 'movements', label: 'Material / Movements' },
-  { id: 'passes', label: 'Passes' },
-  { id: 'processes', label: 'Processes' },
-  { id: 'qc', label: 'QC' },
-  { id: 'machines', label: 'Machines' },
-  { id: 'alerts', label: 'Alerts' },
-  { id: 'audit', label: 'Audit' },
+export const SECTION_GROUPS = [
+  {
+    id: 'primary',
+    label: 'PRIMARY',
+    sections: [
+      { id: 'live', label: 'Live Floor' },
+      { id: 'overview', label: 'Overview' },
+      { id: 'work-orders', label: 'Work Orders' },
+      { id: 'batches', label: 'Batches' },
+      { id: 'processes', label: 'Processes' },
+      { id: 'qc', label: 'QC' },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'OPERATIONS',
+    sections: [
+      { id: 'movements', label: 'Material / Movements' },
+      { id: 'passes', label: 'Passes' },
+      { id: 'machines', label: 'Machines' },
+    ],
+  },
+  {
+    id: 'control',
+    label: 'CONTROL',
+    sections: [
+      { id: 'alerts', label: 'Alerts' },
+      { id: 'audit', label: 'Audit' },
+    ],
+  },
 ]
+
+export const SECTIONS = SECTION_GROUPS.flatMap((g) => g.sections)
+
+export const SECTION_IDS = new Set(SECTIONS.map((s) => s.id))
 
 export const BOARD_COLUMNS = [
   { id: 'QUEUED', label: 'QUEUED', statuses: ['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'WAITING'] },
@@ -49,7 +71,7 @@ export function statusTone(status) {
   if (['RUNNING', 'RECEIVED', 'COMPLETED', 'PASS', 'ISSUED', 'APPROVED', 'RETURNED_TO_VAULT'].includes(s)) return 'ok'
   if (['HOLD', 'FAULT', 'FAIL', 'CANCELLED', 'CRITICAL', 'ERROR', 'OFFLINE'].includes(s)) return 'bad'
   if (['WAITING', 'QC', 'REWORK', 'IN_TRANSIT', 'REQUESTED', 'MAINTENANCE', 'PENDING', 'AWAITING_ISSUE'].includes(s)) return 'warn'
-  if (['IN_PROCESS', 'ACTIVE', 'OPEN'].includes(s)) return 'active'
+  if (['IN_PROCESS', 'ACTIVE', 'OPEN', 'IN_PROGRESS'].includes(s)) return 'active'
   return 'muted'
 }
 

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import productionControlApi from '../api/productionControl'
-import { SECTIONS, formatTime } from '../components/production-control/shared'
+import { SECTION_GROUPS, SECTION_IDS, formatTime } from '../components/production-control/shared'
 import LiveFloorPanel from '../components/production-control/LiveFloorPanel'
 import WorkOrdersPanel from '../components/production-control/WorkOrdersPanel'
 import {
@@ -17,15 +16,47 @@ import {
   AuditPanel,
   BatchDetailModal,
 } from '../components/production-control/Panels'
+import { DemoModeProvider, useDemoMode } from '../components/production-control/demo/DemoModeContext'
+import { isProductionDemoEnabled } from '../components/production-control/demo/flags'
+import { usePccApi } from '../components/production-control/demo/usePccApi'
 import './ProductionControlCenter.css'
 
 const RETURN_KEY = 'pcc_returnTo'
+const DEMO_ENABLED = isProductionDemoEnabled()
 
-export default function ProductionControlCenter() {
+function resolveSection(raw) {
+  const id = String(raw || '').trim()
+  return SECTION_IDS.has(id) ? id : 'live'
+}
+
+function ProductionControlCenterInner() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user, company } = useAuth()
-  const [section, setSection] = useState('live')
+  const { isDemo, enterDemo, exitDemo } = useDemoMode()
+  const pccApi = usePccApi()
+
+  const section = resolveSection(searchParams.get('section'))
+  const setSection = useCallback((id) => {
+    const next = resolveSection(id)
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev)
+      p.set('section', next)
+      return p
+    }, { replace: false })
+  }, [setSearchParams])
+
+  useEffect(() => {
+    if (!searchParams.get('section') || !SECTION_IDS.has(String(searchParams.get('section')))) {
+      setSearchParams((prev) => {
+        const p = new URLSearchParams(prev)
+        p.set('section', 'live')
+        return p
+      }, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
+
   const [summary, setSummary] = useState(null)
   const [flow, setFlow] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -44,14 +75,14 @@ export default function ProductionControlCenter() {
     if (!soft) setLoading(true)
     try {
       if (soft && refreshFloorOnly.current) {
-        const floor = await productionControlApi.getLiveFloor()
+        const floor = await pccApi.getLiveFloor()
         setSummary(floor)
         setLastUpdated(new Date())
         return
       }
       const [floor, flowData] = await Promise.all([
-        productionControlApi.getLiveFloor(),
-        productionControlApi.getFlow(),
+        pccApi.getLiveFloor(),
+        pccApi.getFlow(),
       ])
       setSummary(floor)
       setFlow(flowData.flow)
@@ -62,13 +93,18 @@ export default function ProductionControlCenter() {
     } finally {
       if (!soft) setLoading(false)
     }
-  }, [showToast])
+  }, [pccApi, showToast])
 
   useEffect(() => {
+    refreshFloorOnly.current = false
     refresh()
-  }, [refresh])
+  }, [refresh, isDemo])
 
   useEffect(() => {
+    if (isDemo) {
+      setConnection('DEMO')
+      return undefined
+    }
     let socket
     let cancelled = false
     ;(async () => {
@@ -101,7 +137,7 @@ export default function ProductionControlCenter() {
       cancelled = true
       try { socket?.disconnect() } catch { /* ignore */ }
     }
-  }, [company, refresh])
+  }, [company, refresh, isDemo])
 
   const closeWorkspace = () => {
     const fromState = location.state?.returnTo
@@ -111,7 +147,10 @@ export default function ProductionControlCenter() {
     navigate(target)
   }
 
-  const connClass = connection === 'LIVE' ? 'live' : connection === 'RECONNECTING' ? 'reconnecting' : 'offline'
+  const connClass =
+    connection === 'LIVE' || connection === 'DEMO' ? 'live'
+      : connection === 'RECONNECTING' ? 'reconnecting'
+        : 'offline'
 
   const body = useMemo(() => {
     switch (section) {
@@ -119,7 +158,7 @@ export default function ProductionControlCenter() {
         return (
           <OverviewPanel
             summary={summary}
-            onSearch={(q) => productionControlApi.search(q)}
+            onSearch={(q) => pccApi.search(q)}
           />
         )
       case 'live':
@@ -139,7 +178,7 @@ export default function ProductionControlCenter() {
             onToast={showToast}
             onOpenBatches={(wo) => {
               setSection('batches')
-              showToast(wo?.woNumber ? `Filter batches for ${wo.woNumber} from Create form` : 'Opened batches')
+              showToast(wo?.woNumber ? `Opened batches — link WO ${wo.woNumber} when creating` : 'Opened batches')
             }}
           />
         )
@@ -158,18 +197,26 @@ export default function ProductionControlCenter() {
       case 'alerts':
         return <AlertsPanel onToast={showToast} />
       case 'audit':
-        return <AuditPanel />
+        return <AuditPanel onToast={showToast} />
       default:
         return null
     }
-  }, [section, summary, flow, loading, refresh, showToast])
+  }, [section, summary, flow, loading, refresh, showToast, pccApi, setSection])
 
   return (
-    <div className="pcc-root">
+    <div className={`pcc-root${isDemo ? ' pcc-demo-active' : ''}`}>
       <header className="pcc-header">
         <div className="pcc-header-left">
-          <h1>PRODUCTION CONTROL CENTER</h1>
-          <span className="pcc-user">{user?.name || ''}</span>
+          <span className="pcc-mark" aria-hidden="true" />
+          <div className="pcc-header-titles">
+            <h1>PRODUCTION CONTROL CENTER</h1>
+            <span className="pcc-user">
+              {[user?.name, company].filter(Boolean).join(' · ') || '—'}
+            </span>
+          </div>
+          {isDemo && (
+            <span className="pcc-demo-badge" title="Demo data only">DEMO MODE</span>
+          )}
         </div>
         <div className="pcc-header-right">
           {lastUpdated && (
@@ -178,22 +225,48 @@ export default function ProductionControlCenter() {
           <span className={`pcc-live ${connClass}`}>
             <span className="pcc-live-dot" /> {connection}
           </span>
+          <button type="button" className="pcc-btn-ghost" onClick={() => refresh()} aria-label="Refresh production data">
+            Refresh
+          </button>
+          {DEMO_ENABLED && !isDemo && (
+            <button type="button" className="pcc-btn" onClick={() => { enterDemo(); showToast('Demo mode — no production records are modified') }}>
+              Demo View
+            </button>
+          )}
+          {isDemo && (
+            <button type="button" className="pcc-btn-ghost" onClick={() => { exitDemo(); showToast('Exited demo — showing live production data') }}>
+              Exit Demo
+            </button>
+          )}
           <button type="button" className="pcc-close" onClick={closeWorkspace} aria-label="Close production">
             ✕ CLOSE
           </button>
         </div>
       </header>
 
+      {isDemo && (
+        <div className="pcc-demo-banner" role="status">
+          Demo data only — no production records are being modified.
+        </div>
+      )}
+
       <nav className="pcc-nav" aria-label="Production sections">
-        {SECTIONS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={section === s.id ? 'active' : ''}
-            onClick={() => setSection(s.id)}
-          >
-            {s.label}
-          </button>
+        {SECTION_GROUPS.map((group) => (
+          <div key={group.id} className="pcc-nav-group">
+            <span className="pcc-nav-group-label">{group.label}</span>
+            <div className="pcc-nav-group-items">
+              {group.sections.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={section === s.id ? 'active' : ''}
+                  onClick={() => setSection(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
@@ -210,5 +283,13 @@ export default function ProductionControlCenter() {
         onRefreshFloor={() => refresh({ soft: true })}
       />
     </div>
+  )
+}
+
+export default function ProductionControlCenter() {
+  return (
+    <DemoModeProvider>
+      <ProductionControlCenterInner />
+    </DemoModeProvider>
   )
 }

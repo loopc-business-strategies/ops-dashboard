@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import productionControlApi from '../../api/productionControl'
-import workOrdersApi from '../../api/production/workOrders'
+import { usePccApi, useWorkOrdersApi } from './demo/usePccApi'
+import { useDemoMode } from './demo/DemoModeContext'
+import { DEMO_WRITE_MSG } from './demo/pccApiAdapter'
 import { formatGrams, formatTime } from './shared'
 import {
   PccConfirmDialog,
@@ -19,11 +20,21 @@ function useDebounced(value, ms = 300) {
   return v
 }
 
+function toastMsg(isDemo, fallback, res) {
+  if (isDemo) return DEMO_WRITE_MSG
+  return res?.message || fallback
+}
+
 export function BatchesPanel({ onSelectBatch, onToast }) {
+  const pccApi = usePccApi()
+  const workOrdersApi = useWorkOrdersApi()
+  const { isDemo } = useDemoMode()
   const [batches, setBatches] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const [department, setDepartment] = useState('')
   const [workOrders, setWorkOrders] = useState([])
   const [form, setForm] = useState({
     metalType: 'Gold',
@@ -38,8 +49,10 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await productionControlApi.listBatches({
+      const data = await pccApi.listBatches({
         search: debouncedSearch || undefined,
+        status: status || undefined,
+        department: department || undefined,
         limit: 50,
       })
       setBatches(data.batches || [])
@@ -49,7 +62,7 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, onToast])
+  }, [debouncedSearch, status, department, onToast, pccApi])
 
   useEffect(() => { load() }, [load])
 
@@ -57,13 +70,13 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
     workOrdersApi.getWorkOrders({ limit: 50, page: 1 })
       .then((d) => setWorkOrders(d.workOrders || []))
       .catch(() => {})
-  }, [])
+  }, [workOrdersApi])
 
   const create = async (e) => {
     e.preventDefault()
     try {
       const wo = workOrders.find((w) => String(w._id) === form.workOrderId)
-      await productionControlApi.createBatch({
+      await pccApi.createBatch({
         metalType: form.metalType,
         purity: form.purity,
         initialWeight: Number(form.initialWeight),
@@ -73,12 +86,18 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
         workOrderNumber: wo?.woNumber || '',
         idempotencyKey: `ui-batch-${Date.now()}`,
       })
-      onToast?.('Batch created')
+      onToast?.(toastMsg(isDemo, 'Batch created'))
       setForm((f) => ({ ...f, initialWeight: '', product: '', purpose: '', workOrderId: '' }))
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Create failed')
     }
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setStatus('')
+    setDepartment('')
   }
 
   return (
@@ -125,13 +144,22 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
         </div>
         <div className="pcc-toolbar">
           <label>Search
-            <input
-              type="search"
-              placeholder="Batch, WO, product, holder…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <input type="search" placeholder="Batch, WO, product, holder…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </label>
+          <label>Status
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All</option>
+              {['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'IN_TRANSIT', 'RECEIVED', 'IN_PROCESS', 'WAITING', 'QC', 'REWORK', 'HOLD', 'COMPLETED', 'RETURNED_TO_VAULT'].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+          <label>Department
+            <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. polishing" />
+          </label>
+          {(search || status || department) && (
+            <button type="button" className="pcc-btn-ghost" onClick={clearFilters}>Clear filters</button>
+          )}
         </div>
         {loading ? <PccSkeleton rows={4} /> : batches.length === 0 ? (
           <PccEmptyState message="No batches" />
@@ -140,7 +168,7 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
             <table className="pcc-table">
               <thead>
                 <tr>
-                  <th>Batch</th><th>WO</th><th>Metal</th><th>Weight</th><th>Process</th>
+                  <th>Batch</th><th>WO</th><th>Product</th><th>Metal</th><th>Weight</th><th>Process</th>
                   <th>Department</th><th>Operator</th><th>Status</th><th />
                 </tr>
               </thead>
@@ -149,6 +177,7 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
                   <tr key={b._id}>
                     <td>{b.batchNumber}</td>
                     <td>{b.workOrderNumber || '—'}</td>
+                    <td>{b.product || '—'}</td>
                     <td>{b.metalType} {b.purity}</td>
                     <td><PccWeightDisplay grams={b.currentWeight} /></td>
                     <td>{b.currentProcess || '—'}</td>
@@ -168,6 +197,8 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
 }
 
 export function PassesPanel({ onToast }) {
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [passes, setPasses] = useState([])
   const [batches, setBatches] = useState([])
   const [form, setForm] = useState({
@@ -177,8 +208,8 @@ export function PassesPanel({ onToast }) {
 
   const load = async () => {
     const [p, b] = await Promise.all([
-      productionControlApi.listPasses({ limit: 100 }),
-      productionControlApi.listBatches({ limit: 100 }),
+      pccApi.listPasses({ limit: 100 }),
+      pccApi.listBatches({ limit: 100 }),
     ])
     setPasses(p.passes || [])
     setBatches(b.batches || [])
@@ -189,12 +220,12 @@ export function PassesPanel({ onToast }) {
   const create = async (e) => {
     e.preventDefault()
     try {
-      await productionControlApi.createPass({
+      await pccApi.createPass({
         ...form,
         weight: Number(form.weight),
         idempotencyKey: `ui-pass-${Date.now()}`,
       })
-      onToast?.('Pass created')
+      onToast?.(toastMsg(isDemo, 'Pass created'))
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Failed')
@@ -203,12 +234,10 @@ export function PassesPanel({ onToast }) {
 
   const act = async (id, action) => {
     try {
-      if (action === 'approve') await productionControlApi.approvePass(id)
-      if (action === 'issue') await productionControlApi.issuePass(id)
-      if (action === 'receive') await productionControlApi.receivePass(id, { receiveIdempotencyKey: `recv-${id}-${Date.now()}` })
-      onToast?.(action === 'approve' || action === 'issue' || action === 'receive'
-        ? (/* prefer backend message when present */ `Pass ${action} OK`)
-        : 'OK')
+      if (action === 'approve') await pccApi.approvePass(id)
+      if (action === 'issue') await pccApi.issuePass(id)
+      if (action === 'receive') await pccApi.receivePass(id, { receiveIdempotencyKey: `recv-${id}-${Date.now()}` })
+      onToast?.(toastMsg(isDemo, `Pass ${action} OK`))
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Action failed')
@@ -220,8 +249,8 @@ export function PassesPanel({ onToast }) {
     const id = confirmCancel._id
     setConfirmCancel(null)
     try {
-      await productionControlApi.cancelPass(id)
-      onToast?.('Pass cancelled')
+      await pccApi.cancelPass(id)
+      onToast?.(toastMsg(isDemo, 'Pass cancelled'))
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Cancel failed')
@@ -301,9 +330,10 @@ export function PassesPanel({ onToast }) {
 }
 
 export function MovementsPanel({ onToast }) {
+  const pccApi = usePccApi()
   const [rows, setRows] = useState([])
   useEffect(() => {
-    productionControlApi.listMovements({ limit: 100 })
+    pccApi.listMovements({ limit: 100 })
       .then((d) => setRows(d.movements || []))
       .catch((err) => onToast?.(err?.response?.data?.message || 'Failed to load movements'))
   }, [onToast])
@@ -337,6 +367,8 @@ export function MovementsPanel({ onToast }) {
 }
 
 export function ProcessesPanel({ onToast }) {
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
   const [batches, setBatches] = useState([])
   const [machines, setMachines] = useState([])
@@ -345,9 +377,9 @@ export function ProcessesPanel({ onToast }) {
 
   const load = async () => {
     const [p, b, m] = await Promise.all([
-      productionControlApi.listProcesses({ limit: 100 }),
-      productionControlApi.listBatches({ limit: 100 }),
-      productionControlApi.listMachines(),
+      pccApi.listProcesses({ limit: 100 }),
+      pccApi.listBatches({ limit: 100 }),
+      pccApi.listMachines(),
     ])
     setRows(p.processes || [])
     setBatches(b.batches || [])
@@ -362,7 +394,7 @@ export function ProcessesPanel({ onToast }) {
     e.preventDefault()
     try {
       const machine = machines.find((x) => String(x._id) === form.machineId)
-      await productionControlApi.startProcess({
+      await pccApi.startProcess({
         batchId: form.batchId,
         process: form.process,
         department: form.department,
@@ -370,7 +402,7 @@ export function ProcessesPanel({ onToast }) {
         machineId: form.machineId || undefined,
         machineName: machine?.name || '',
       })
-      onToast?.('Process started')
+      onToast?.(toastMsg(isDemo, 'Process started'))
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Start failed')
@@ -380,13 +412,13 @@ export function ProcessesPanel({ onToast }) {
   const finish = async (e) => {
     e.preventDefault()
     try {
-      await productionControlApi.completeProcess(complete.id, {
+      await pccApi.completeProcess(complete.id, {
         outputWeight: Number(complete.outputWeight),
         scrap: Number(complete.scrap) || 0,
         loss: Number(complete.loss) || 0,
         completeIdempotencyKey: `complete-${complete.id}-${Date.now()}`,
       })
-      onToast?.('Process completed')
+      onToast?.(toastMsg(isDemo, 'Process completed'))
       setComplete({ id: '', outputWeight: '', scrap: '0', loss: '0' })
       load()
     } catch (err) {
@@ -483,6 +515,8 @@ export function ProcessesPanel({ onToast }) {
 }
 
 export function QcPanel({ onToast }) {
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
   const [batches, setBatches] = useState([])
   const [form, setForm] = useState({ batchId: '', result: 'PASS', remarks: '' })
@@ -490,8 +524,8 @@ export function QcPanel({ onToast }) {
 
   const load = async () => {
     const [q, b] = await Promise.all([
-      productionControlApi.listQc({ limit: 100 }),
-      productionControlApi.listBatches({ limit: 100 }),
+      pccApi.listQc({ limit: 100 }),
+      pccApi.listBatches({ limit: 100 }),
     ])
     setRows(q.inspections || [])
     setBatches(b.batches || [])
@@ -510,11 +544,11 @@ export function QcPanel({ onToast }) {
 
   const doSubmit = async (payload) => {
     try {
-      const res = await productionControlApi.submitQc({
+      const res = await pccApi.submitQc({
         ...payload,
         idempotencyKey: `qc-${payload.batchId}-${Date.now()}`,
       })
-      onToast?.(res?.message || 'QC submitted')
+      onToast?.(toastMsg(isDemo, res?.message || 'QC submitted'))
       setConfirm(null)
       load()
     } catch (err) {
@@ -580,11 +614,13 @@ export function QcPanel({ onToast }) {
 }
 
 export function MachinesPanel({ onToast }) {
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
   const [form, setForm] = useState({ machineCode: '', name: '', department: '', process: '' })
 
   const load = async () => {
-    const d = await productionControlApi.listMachines()
+    const d = await pccApi.listMachines()
     setRows(d.machines || [])
   }
 
@@ -593,8 +629,8 @@ export function MachinesPanel({ onToast }) {
   const create = async (e) => {
     e.preventDefault()
     try {
-      await productionControlApi.createMachine(form)
-      onToast?.('Machine added')
+      await pccApi.createMachine(form)
+      onToast?.(toastMsg(isDemo, 'Machine added'))
       setForm({ machineCode: '', name: '', department: '', process: '' })
       load()
     } catch (err) {
@@ -604,7 +640,7 @@ export function MachinesPanel({ onToast }) {
 
   const setStatus = async (id, status) => {
     try {
-      await productionControlApi.updateMachineStatus(id, { status })
+      await pccApi.updateMachineStatus(id, { status })
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Status update failed')
@@ -666,16 +702,19 @@ export function MachinesPanel({ onToast }) {
 }
 
 export function AlertsPanel({ onToast }) {
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
   const load = async () => {
-    const d = await productionControlApi.listAlerts({ limit: 100 })
+    const d = await pccApi.listAlerts({ limit: 100 })
     setRows(d.alerts || [])
   }
   useEffect(() => { load().catch(() => {}) }, [])
 
   const resolve = async (id) => {
     try {
-      await productionControlApi.resolveAlert(id)
+      await pccApi.resolveAlert(id)
+      onToast?.(toastMsg(isDemo, 'Alert resolved'))
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Resolve failed')
@@ -703,20 +742,37 @@ export function AlertsPanel({ onToast }) {
   )
 }
 
-export function AuditPanel() {
+export function AuditPanel({ onToast }) {
+  const pccApi = usePccApi()
   const [rows, setRows] = useState([])
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
   useEffect(() => {
-    productionControlApi.listAudit().then((d) => setRows(d.logs || [])).catch(() => {})
-  }, [])
+    setLoading(true)
+    pccApi.listAudit()
+      .then((d) => setRows(d.logs || []))
+      .catch((err) => onToast?.(err?.response?.data?.message || 'Failed to load audit'))
+      .finally(() => setLoading(false))
+  }, [pccApi, onToast])
+  const filtered = search
+    ? rows.filter((r) =>
+      [r.actorName, r.action, r.resource, r.detail].some((x) => String(x || '').toLowerCase().includes(search.toLowerCase())))
+    : rows
   return (
     <div className="pcc-panel">
       <div className="pcc-panel-head"><h2>AUDIT LOG</h2></div>
-      {rows.length === 0 ? <PccEmptyState message="No production audit events" /> : (
+      <div className="pcc-toolbar">
+        <label>Search
+          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="User, action, detail…" />
+        </label>
+        {search && <button type="button" className="pcc-btn-ghost" onClick={() => setSearch('')}>Clear filters</button>}
+      </div>
+      {loading ? <PccSkeleton rows={4} /> : filtered.length === 0 ? <PccEmptyState message="No production audit events" /> : (
         <div className="pcc-table-wrap">
           <table className="pcc-table">
             <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Resource</th><th>Detail</th></tr></thead>
             <tbody>
-              {rows.map((r) => (
+              {filtered.map((r) => (
                 <tr key={r._id}>
                   <td>{formatTime(r.createdAt)}</td>
                   <td>{r.actorName} ({r.actorRole})</td>
@@ -748,13 +804,23 @@ export function OverviewPanel({ summary, onSearch }) {
   const maxStatus = Math.max(1, ...statusCounts.map((s) => s.count || 0))
   const maxMetal = Math.max(1, ...metalByDept.map((r) => Number(r.weight) || 0))
   const kpis = summary?.kpis || {}
+  const rework = statusCounts.find((s) => s.status === 'REWORK')?.count ?? 0
+  const hold = statusCounts.find((s) => s.status === 'HOLD')?.count ?? kpis.onHold ?? 0
 
   return (
     <div className="pcc-stack">
       <div className="pcc-kpi-row">
-        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.activeBatches ?? 0}</div><div className="pcc-kpi-label">Active batches</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.activeBatches ?? 0}</div><div className="pcc-kpi-label">Active WIP</div></div>
         <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.completedToday ?? 0}</div><div className="pcc-kpi-label">Completed today</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.qcPending ?? 0}</div><div className="pcc-kpi-label">QC pending</div></div>
         <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.qcFailed ?? 0}</div><div className="pcc-kpi-label">QC failed</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{rework}</div><div className="pcc-kpi-label">Rework</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{hold}</div><div className="pcc-kpi-label">On hold</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{formatGrams(kpis.metalInProduction)}</div><div className="pcc-kpi-label">Metal WIP</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{formatGrams(kpis.scrapTotal)}</div><div className="pcc-kpi-label">Scrap</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{formatGrams(kpis.lossTotal)}</div><div className="pcc-kpi-label">Loss</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{formatGrams(kpis.recoveredTotal)}</div><div className="pcc-kpi-label">Recovered</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.machinesRunning ?? 0}</div><div className="pcc-kpi-label">Machines running</div></div>
         <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.activeWorkOrders ?? 0}</div><div className="pcc-kpi-label">Active WOs</div></div>
       </div>
 
@@ -863,16 +929,18 @@ export function OverviewPanel({ summary, onSearch }) {
 }
 
 export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) {
+  const pccApi = usePccApi()
+  const { isDemo } = useDemoMode()
   const [detail, setDetail] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [weightForm, setWeightForm] = useState({ adjustment: '', reason: '' })
 
   const reload = useCallback(() => {
     if (!batchId) return
-    productionControlApi.getBatch(batchId)
+    pccApi.getBatch(batchId)
       .then(setDetail)
       .catch((err) => onToast?.(err?.response?.data?.message || 'Failed to load batch'))
-  }, [batchId, onToast])
+  }, [batchId, onToast, pccApi])
 
   useEffect(() => {
     setDetail(null)
@@ -888,23 +956,23 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
     const action = confirm.action
     setConfirm(null)
     try {
-      if (action === 'hold') await productionControlApi.holdBatch(b._id, {})
-      if (action === 'release') await productionControlApi.releaseBatch(b._id, {})
-      if (action === 'return') await productionControlApi.returnToVault(b._id, {})
+      if (action === 'hold') await pccApi.holdBatch(b._id, {})
+      if (action === 'release') await pccApi.releaseBatch(b._id, {})
+      if (action === 'return') await pccApi.returnToVault(b._id, {})
       if (action === 'weight') {
         const adj = Number(weightForm.adjustment)
         const before = Number(b.currentWeight)
         const after = before + adj
-        await productionControlApi.adjustWeight(b._id, {
+        await pccApi.adjustWeight(b._id, {
           field: 'currentWeight',
           adjustment: adj,
           reason: weightForm.reason,
           idempotencyKey: `adj-${b._id}-${Date.now()}`,
         })
-        onToast?.(`Weight adjusted ${before} → ${after} g`)
+        onToast?.(isDemo ? DEMO_WRITE_MSG : `Weight adjusted ${before} → ${after} g`)
         setWeightForm({ adjustment: '', reason: '' })
       } else {
-        onToast?.(action === 'return' ? 'Returned to vault' : action === 'hold' ? 'Batch on hold' : 'Batch released')
+        onToast?.(isDemo ? DEMO_WRITE_MSG : (action === 'return' ? 'Returned to vault' : action === 'hold' ? 'Batch on hold' : 'Batch released'))
       }
       reload()
       onRefreshFloor?.()
