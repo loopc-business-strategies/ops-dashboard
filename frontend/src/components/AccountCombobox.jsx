@@ -15,14 +15,13 @@ import { VirtualScrollList } from './VirtualScrollList'
  */
 const VIRTUALIZE_THRESHOLD = 80
 
-function asTabNavEvent(event) {
+function makeTabNavEvent(target) {
   return {
-    ...event,
     key: 'Tab',
     shiftKey: false,
-    preventDefault: () => event.preventDefault(),
-    stopPropagation: () => event.stopPropagation?.(),
-    target: event.target,
+    target,
+    preventDefault: () => {},
+    stopPropagation: () => {},
   }
 }
 
@@ -45,6 +44,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
   const containerRef = useRef(null)
   const inputRef = useRef(null)
   const listScrollRef = useRef(null)
+  const skipBlurCommitRef = useRef(false)
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
@@ -106,6 +106,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
 
   const handleSelect = useCallback((opt) => {
     if (!opt) return
+    skipBlurCommitRef.current = true
     setInputVal(opt.label)
     setQuery('')
     setOpen(false)
@@ -129,6 +130,11 @@ const AccountCombobox = forwardRef(function AccountCombobox({
 
   const handleBlur = () => {
     setTimeout(() => {
+      if (skipBlurCommitRef.current) {
+        skipBlurCommitRef.current = false
+        setOpen(false)
+        return
+      }
       if (containerRef.current && !containerRef.current.matches(':focus-within')) {
         setOpen(false)
         const matched = allOptions.find((o) =>
@@ -188,8 +194,12 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     if (e.key === 'Enter') {
       if (open && highlightedOpt) {
         e.preventDefault()
+        e.stopPropagation?.()
+        const target = e.target
         handleSelect(highlightedOpt)
-        if (typeof onKeyDown === 'function') onKeyDown(asTabNavEvent(e))
+        window.setTimeout(() => {
+          if (typeof onKeyDown === 'function') onKeyDown(makeTabNavEvent(target))
+        }, 0)
         return
       }
       if (typeof onKeyDown === 'function') onKeyDown(e)
@@ -197,6 +207,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     }
 
     if (e.key === 'Tab') {
+      skipBlurCommitRef.current = true
       commitHighlighted()
       if (typeof onKeyDown === 'function') onKeyDown(e)
       return
