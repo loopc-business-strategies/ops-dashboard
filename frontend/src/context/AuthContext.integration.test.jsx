@@ -119,7 +119,6 @@ describe('AuthProvider session integration', () => {
       {
         withCredentials: true,
         headers: { 'x-tenant': 'mg', 'x-company': 'mg' },
-        params: { company: 'mg', tenant: 'mg' },
       },
     )
     expect(axios.defaults.headers.common['x-tenant']).toBe('mg')

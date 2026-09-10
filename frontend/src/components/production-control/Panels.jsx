@@ -206,16 +206,20 @@ export function PassesPanel({ onToast }) {
   })
   const [confirmCancel, setConfirmCancel] = useState(null)
 
-  const load = async () => {
-    const [p, b] = await Promise.all([
-      pccApi.listPasses({ limit: 100 }),
-      pccApi.listBatches({ limit: 100 }),
-    ])
-    setPasses(p.passes || [])
-    setBatches(b.batches || [])
-  }
+  const load = useCallback(async () => {
+    try {
+      const [p, b] = await Promise.all([
+        pccApi.listPasses({ limit: 100 }),
+        pccApi.listBatches({ limit: 100 }),
+      ])
+      setPasses(p.passes || [])
+      setBatches(b.batches || [])
+    } catch {
+      onToast?.('Failed to load passes')
+    }
+  }, [pccApi, onToast])
 
-  useEffect(() => { load().catch(() => onToast?.('Failed to load passes')) }, [])
+  useEffect(() => { load() }, [load])
 
   const create = async (e) => {
     e.preventDefault()
@@ -336,7 +340,7 @@ export function MovementsPanel({ onToast }) {
     pccApi.listMovements({ limit: 100 })
       .then((d) => setRows(d.movements || []))
       .catch((err) => onToast?.(err?.response?.data?.message || 'Failed to load movements'))
-  }, [onToast])
+  }, [pccApi, onToast])
   return (
     <div className="pcc-panel">
       <div className="pcc-panel-head"><h2>METAL MOVEMENTS</h2></div>
@@ -375,7 +379,7 @@ export function ProcessesPanel({ onToast }) {
   const [form, setForm] = useState({ batchId: '', process: 'Melting', department: 'melting', inputWeight: '', machineId: '' })
   const [complete, setComplete] = useState({ id: '', outputWeight: '', scrap: '0', loss: '0' })
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [p, b, m] = await Promise.all([
       pccApi.listProcesses({ limit: 100 }),
       pccApi.listBatches({ limit: 100 }),
@@ -384,9 +388,9 @@ export function ProcessesPanel({ onToast }) {
     setRows(p.processes || [])
     setBatches(b.batches || [])
     setMachines(m.machines || [])
-  }
+  }, [pccApi])
 
-  useEffect(() => { load().catch(() => {}) }, [])
+  useEffect(() => { load().catch(() => {}) }, [load])
 
   const availableMachines = machines.filter((m) => !['FAULT', 'OFFLINE', 'MAINTENANCE'].includes(m.status))
 
@@ -522,16 +526,16 @@ export function QcPanel({ onToast }) {
   const [form, setForm] = useState({ batchId: '', result: 'PASS', remarks: '' })
   const [confirm, setConfirm] = useState(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [q, b] = await Promise.all([
       pccApi.listQc({ limit: 100 }),
       pccApi.listBatches({ limit: 100 }),
     ])
     setRows(q.inspections || [])
     setBatches(b.batches || [])
-  }
+  }, [pccApi])
 
-  useEffect(() => { load().catch(() => {}) }, [])
+  useEffect(() => { load().catch(() => {}) }, [load])
 
   const submit = async (e) => {
     e.preventDefault()
@@ -619,12 +623,12 @@ export function MachinesPanel({ onToast }) {
   const [rows, setRows] = useState([])
   const [form, setForm] = useState({ machineCode: '', name: '', department: '', process: '' })
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const d = await pccApi.listMachines()
     setRows(d.machines || [])
-  }
+  }, [pccApi])
 
-  useEffect(() => { load().catch(() => {}) }, [])
+  useEffect(() => { load().catch(() => {}) }, [load])
 
   const create = async (e) => {
     e.preventDefault()
@@ -705,11 +709,11 @@ export function AlertsPanel({ onToast }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
-  const load = async () => {
+  const load = useCallback(async () => {
     const d = await pccApi.listAlerts({ limit: 100 })
     setRows(d.alerts || [])
-  }
-  useEffect(() => { load().catch(() => {}) }, [])
+  }, [pccApi])
+  useEffect(() => { load().catch(() => {}) }, [load])
 
   const resolve = async (id) => {
     try {
