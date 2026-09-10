@@ -16,10 +16,8 @@ const minimalProps = {
   applyProductTypeAutoFill: vi.fn(),
   attachmentInputKey: '1',
   baseCurrencyCode: 'USD',
-  canApproveWorkflow: false,
   canCreate: true,
   canDeleteCurrentVoucher: false,
-  canPostWorkflow: false,
   canRejectWorkflow: false,
   canReturnWorkflow: false,
   canRevalueCurrentVoucher: false,
@@ -142,8 +140,6 @@ describe('VoucherEditorPanel workflow', () => {
         editingId="tx1"
         currentVoucherStatus="draft"
         canSubmitWorkflow
-        canApproveWorkflow
-        canPostWorkflow
       />,
     )
     expect(screen.getByRole('button', { name: 'submit' })).toBeTruthy()

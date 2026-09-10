@@ -1171,10 +1171,8 @@ export default function VoucherTab({
   ])
   const canDeleteCurrentVoucher = Boolean(editingId) && !mutateReadOnly && currentVoucherStatus !== 'posted'
   const canSubmitWorkflow = Boolean(editingId) && !mutateReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
-  const canApproveWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && currentVoucherStatus === 'submitted'
   const canReturnWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && ['submitted', 'approved'].includes(currentVoucherStatus)
   const canRejectWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
-  const canPostWorkflow = Boolean(editingId) && !periodLocked && canManageWorkflow && currentVoucherStatus === 'approved'
   const canRevalueCurrentVoucher = Boolean(editingId) && !periodLocked && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
   const currentAttachments = Array.isArray(currentVoucher?.attachments) ? currentVoucher.attachments : []
   const previewableAttachmentMimeTypes = new Set([
@@ -1383,10 +1381,8 @@ export default function VoucherTab({
         attachmentInputKey={attachmentInputKey}
         baseCurrencyCode={baseCurrencyCode}
         keyboardNavEnabled={keyboardNavEnabled}
-        canApproveWorkflow={canApproveWorkflow}
         canCreate={canCreate}
         canDeleteCurrentVoucher={canDeleteCurrentVoucher}
-        canPostWorkflow={canPostWorkflow}
         canRejectWorkflow={canRejectWorkflow}
         canReturnWorkflow={canReturnWorkflow}
         canRevalueCurrentVoucher={canRevalueCurrentVoucher}
