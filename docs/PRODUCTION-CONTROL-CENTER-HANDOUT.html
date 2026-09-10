@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Production Control Center — Client Handout</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #111827;
+      font-size: 10.5pt;
+      line-height: 1.35;
+      background: #fff;
+    }
+    .page {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 8mm 10mm;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 2.5px solid #0f172a;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 16pt;
+      letter-spacing: 0.04em;
+    }
+    .tag {
+      font-size: 9pt;
+      color: #374151;
+      text-align: right;
+    }
+    .pitch {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 10pt;
+    }
+    h2 {
+      margin: 10px 0 4px;
+      font-size: 11pt;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid #d1d5db;
+      padding-bottom: 2px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    ul { margin: 4px 0 0 16px; padding: 0; }
+    li { margin: 1px 0; }
+    .flow {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 8.5pt;
+      background: #f3f4f6;
+      padding: 6px 8px;
+      margin: 4px 0 8px;
+      white-space: nowrap;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+    }
+    th, td {
+      border: 1px solid #d1d5db;
+      padding: 3px 5px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f3f4f6; }
+    .muted { color: #4b5563; font-size: 9pt; }
+    footer {
+      margin-top: 8px;
+      border-top: 1px solid #d1d5db;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8.5pt;
+      color: #6b7280;
+    }
+    @media print {
+      .no-print { display: none !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { padding: 0; }
+    }
+    .actions {
+      margin-bottom: 10px;
+      display: flex;
+      gap: 8px;
+    }
+    .actions button {
+      border: 1px solid #111827;
+      background: #111827;
+      color: #fff;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 11pt;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="actions no-print">
+      <button type="button" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+
+    <header>
+      <div>
+        <h1>PRODUCTION CONTROL CENTER</h1>
+        <div class="muted">Gold &amp; Silver Manufacturing — Floor Command Screen</div>
+      </div>
+      <div class="tag">
+        Client Handout · 1 Page<br />
+        Same ERP login · Full-screen workspace
+      </div>
+    </header>
+
+    <div class="pitch">
+      Know where every gram is: which batch, which department, who holds it, why it moved,
+      what weight went in/out, and who performed every action — from vault issue to vault return.
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <h2>Open &amp; Close</h2>
+        <ul>
+          <li><strong>Open:</strong> ERP sidebar → <strong>Production</strong></li>
+          <li>Opens full-screen Control Center (no ERP sidebar)</li>
+          <li>Header only: title · <strong>LIVE</strong> · <strong>CLOSE</strong></li>
+          <li><strong>Close:</strong> returns to previous ERP screen</li>
+          <li>No second login; session stays active</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Metal Flow</h2>
+        <div class="flow">VAULT → MELT → CAST → ROLL → BANGLE → STAMP → POLISH → QC → PACK → VAULT</div>
+        <ul>
+          <li>Metal leaves vault as a <strong>Batch</strong></li>
+          <li>Moves only with a <strong>Pass</strong> (handover)</li>
+          <li>Work recorded as a <strong>Process</strong></li>
+          <li>Checked in <strong>QC</strong>, then may return to vault</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Menus (what each screen is for)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Menu</th><th>Use it to…</th>
+          <th>Menu</th><th>Use it to…</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Live Floor</strong></td><td>See whole factory now (default screen)</td>
+          <td><strong>Overview</strong></td><td>Search “Where is my metal?” + dept balance</td>
+        </tr>
+        <tr>
+          <td><strong>Batches</strong></td><td>Create / list production lots</td>
+          <td><strong>Passes &amp; Handovers</strong></td><td>Approve, issue, receive metal transfers</td>
+        </tr>
+        <tr>
+          <td><strong>Metal Movement</strong></td><td>Permanent transfer history</td>
+          <td><strong>Processes</strong></td><td>Start/complete melting, rolling, etc.</td>
+        </tr>
+        <tr>
+          <td><strong>Quality Control</strong></td><td>PASS / FAIL / HOLD / REWORK</td>
+          <td><strong>Machines</strong></td><td>Register machines &amp; set status</td>
+        </tr>
+        <tr>
+          <td><strong>Alerts</strong></td><td>Weight / process / machine warnings</td>
+          <td><strong>Audit Log</strong></td><td>Who did what &amp; when (immutable)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid-3" style="margin-top:8px">
+      <div>
+        <h2>Live Floor KPIs</h2>
+        <ul>
+          <li>Active batches · Metal WIP</li>
+          <li>Waiting · QC · Hold</li>
+          <li>Alerts · Machines · Passes</li>
+          <li>Custody list + recent activity</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Daily path (simple)</h2>
+        <ol style="margin:4px 0 0 16px; padding:0">
+          <li>Create Batch</li>
+          <li>Issue from Vault</li>
+          <li>Pass → Approve → Issue → <strong>Receive</strong></li>
+          <li>Start / Complete Process</li>
+          <li>QC → Return to Vault</li>
+        </ol>
+      </div>
+      <div>
+        <h2>Safety rules</h2>
+        <ul>
+          <li>Receive is <strong>manual</strong> (never auto)</li>
+          <li>Weights not silently edited</li>
+          <li>Corrections = adjustment records</li>
+          <li>Empty screens if no real work</li>
+          <li>ERP inventory stays source of truth</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Roles (who does what)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Typical actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Production / Floor Manager</td><td>View all, create batches, approve passes, hold/release, alerts, audit</td></tr>
+        <tr><td>Vault Officer</td><td>Issue metal from vault, receive return to vault, confirm weights</td></tr>
+        <tr><td>Operator / Dept Head</td><td>Receive passes, start/complete process, enter process data</td></tr>
+        <tr><td>QC Inspector</td><td>Inspect and mark PASS / FAIL / HOLD / REWORK</td></tr>
+      </tbody>
+    </table>
+
+    <footer>
+      <span>Ops Dashboard · Production Control Center</span>
+      <span>Print this page → Save as PDF · Companion: Training Checklist (Day 1 / Day 2)</span>
+    </footer>
+  </div>
+</body>
+</html>
