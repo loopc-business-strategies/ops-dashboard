@@ -59,6 +59,7 @@ const employeeRoutes = require('./routes/employees')
 const taskRoutes = require('./routes/tasks')
 const taskTemplateRoutes = require('./routes/taskTemplates')
 const erpRoutes = require('./routes/erp')
+const productionControlRoutes = require('./routes/productionControl')
 const erpAccountingRoutes = require('./routes/erp-accounting')
 const attendanceRoutes = require('./routes/attendance')
 const messageRoutes = require('./routes/messages')
@@ -74,6 +75,7 @@ const integrationsSalesAiRoutes = require('./routes/integrationsSalesAi')
 const emailConnectRoutes = require('./routes/emailConnect')
 const backendPackage = require('./package.json')
 const { isLocalDevEnv, isProductionEnv } = require('./utils/securityEnv')
+const { getTenantPortalOrigins } = require('./config/tenantRegistry')
 
 const readBackendBuildMetaFile = () => {
   try {
@@ -241,7 +243,11 @@ function createApp() {
         'http://127.0.0.1:5175',
       ]
 
-  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins]))
+  const allowedOrigins = Array.from(new Set([
+    ...rawOrigins,
+    ...devOrigins,
+    ...getTenantPortalOrigins(),
+  ]))
 
   app.use(cors({
     origin: (origin, callback) => {
@@ -321,6 +327,7 @@ function createApp() {
   app.use('/api/tasks', taskRoutes) // legacy URL (e.g. stored attachment paths)
   app.use('/api/task-templates', taskTemplateRoutes)
   app.use('/api/erp', erpRoutes)
+  app.use('/api/erp/production-control', productionControlRoutes)
   app.use('/api/erp-accounting', erpAccountingRoutes)
   app.use('/api/attendance', attendanceRoutes)
   app.use('/api/messages', messageRoutes)

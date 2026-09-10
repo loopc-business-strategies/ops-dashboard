@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
-const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
+const { normalizeTenant } = require('../config/tenants')
+const { resolveTenantFromRequest } = require('./requestTenant')
 
 const LEGACY_SESSION_COOKIE = 'sessionToken'
 const LEGACY_CSRF_COOKIE = 'csrfToken'
@@ -29,10 +30,7 @@ function csrfCookieName(tenant) {
 }
 
 function resolvePortalTenant(req, fallbackTenant) {
-  const headerTenant = normalizeTenant(req?.headers?.['x-tenant'] || req?.headers?.['x-company'])
-  const queryTenant = normalizeTenant(req?.query?.tenant || req?.query?.company)
-  const fallback = normalizeTenant(fallbackTenant) || headerTenant || queryTenant
-  return resolveTenantFromHost(req?.hostname, fallback)
+  return resolveTenantFromRequest(req, fallbackTenant)
 }
 
 function decodeSessionTenant(token) {

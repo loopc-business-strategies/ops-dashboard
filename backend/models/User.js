@@ -65,6 +65,21 @@ const userSchema = new mongoose.Schema(
       default: '',
     },
 
+    // Optional additive production-floor role (does not replace User.role).
+    // unset → inferred from role + department in productionControl/permissions.js
+    productionRole: {
+      type: String,
+      enum: [
+        'production_manager',
+        'floor_manager',
+        'department_head',
+        'operator',
+        'qc_inspector',
+        'vault_officer',
+      ],
+      default: undefined,
+    },
+
     // For external users only — which dept modules they can see
     // Example: ['production', 'finance']
     allowedModules: {

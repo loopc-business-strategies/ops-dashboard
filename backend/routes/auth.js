@@ -26,8 +26,9 @@ const { protect, restrictTo } = require('../middleware/auth')
 const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
 const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
-const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('../config/tenants')
+const { normalizeTenant, getDefaultTenant } = require('../config/tenants')
 const { getTenantKeys } = require('../config/tenantRegistry')
+const { resolveTenantFromRequest } = require('../utils/requestTenant')
 const { setCsrfCookie, clearCsrfCookie, generateCsrfToken } = require('../middleware/csrf')
 const {
   clearTenantSessionCookies,
@@ -48,10 +49,7 @@ const { escapeRegex } = require('../utils/escapeRegex')
 const router = express.Router()
 
 function resolveRequestTenant(req, requestedCompany) {
-  // Priority: 1) hostname subdomain, 2) x-tenant header, 3) posted company field, 4) default
-  const headerTenant = normalizeTenant(req.headers['x-tenant'] || req.headers['x-company'])
-  const fallback = normalizeTenant(requestedCompany) || headerTenant || getDefaultTenant()
-  return resolveTenantFromHost(req.hostname, fallback)
+  return resolveTenantFromRequest(req, requestedCompany)
 }
 
 // Helper: create a JWT token for a user

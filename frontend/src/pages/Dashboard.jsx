@@ -463,29 +463,10 @@ function Dashboard() {
     setSearchParams(params, { replace })
   }, [activeTab, erpSubTab, searchParams, tenantForHref, includeCompany, setSearchParams])
 
-  const navigateToTab = useCallback((tabId, options = {}) => {
-    const { erpSub, sub, replace = true } = options
-    const nextActive = tabId
-    const nextErpSub = nextActive === 'erp' ? (erpSub || erpSubTab || 'dashboard') : erpSubTab
-
-    setActiveTab(nextActive)
-    if (nextActive === 'erp') setErpSubTab(nextErpSub)
-
-    writeDashboardUrl({
-      tabId: nextActive,
-      erpSub: nextActive === 'erp' ? nextErpSub : undefined,
-      sub: sub === undefined ? (nextActive === 'erp' ? null : searchParams.get('sub')) : sub,
-      replace,
-    })
-  }, [erpSubTab, searchParams, writeDashboardUrl])
-
-  const handleErpSubTabChange = useCallback((subTab) => {
-    setActiveTab('erp')
-    setErpSubTab(subTab)
-    writeDashboardUrl({ tabId: 'erp', erpSub: subTab, sub: null })
-  }, [writeDashboardUrl])
-
   const buildNavHref = useCallback((item) => {
+    if (item.id === 'production') {
+      return '/production'
+    }
     if (item.external && item.href) {
       return String(item.href).trim()
     }
@@ -508,6 +489,42 @@ function Dashboard() {
       includeCompany,
     })
   }, [tenantForHref, includeCompany, searchParams])
+
+  const openProductionWorkspace = useCallback(() => {
+    const returnTo = `${window.location.pathname}${window.location.search}` || '/dashboard'
+    try {
+      sessionStorage.setItem('pcc_returnTo', returnTo)
+    } catch {
+      /* ignore */
+    }
+    navigate('/production', { state: { returnTo } })
+  }, [navigate])
+
+  const navigateToTab = useCallback((tabId, options = {}) => {
+    if (tabId === 'production') {
+      openProductionWorkspace()
+      return
+    }
+    const { erpSub, sub, replace = true } = options
+    const nextActive = tabId
+    const nextErpSub = nextActive === 'erp' ? (erpSub || erpSubTab || 'dashboard') : erpSubTab
+
+    setActiveTab(nextActive)
+    if (nextActive === 'erp') setErpSubTab(nextErpSub)
+
+    writeDashboardUrl({
+      tabId: nextActive,
+      erpSub: nextActive === 'erp' ? nextErpSub : undefined,
+      sub: sub === undefined ? (nextActive === 'erp' ? null : searchParams.get('sub')) : sub,
+      replace,
+    })
+  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionWorkspace])
+
+  const handleErpSubTabChange = useCallback((subTab) => {
+    setActiveTab('erp')
+    setErpSubTab(subTab)
+    writeDashboardUrl({ tabId: 'erp', erpSub: subTab, sub: null })
+  }, [writeDashboardUrl])
 
   const buildTabHref = useCallback((tabId, options = {}) => {
     const { erpSub, sub } = options

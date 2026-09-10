@@ -7,24 +7,36 @@ import axios, { API_ORIGIN } from './client'
 
 const BASE = `${API_ORIGIN}/api/auth`
 const cfg = () => ({ withCredentials: true })
+const tenantCfg = (company) => {
+  const key = String(company || '').trim().toLowerCase()
+  const headers = key ? { 'x-tenant': key, 'x-company': key } : undefined
+  return {
+    ...cfg(),
+    headers,
+    params: key ? { company: key, tenant: key } : undefined,
+  }
+}
 
 // Login with name + password
 const login = async (name, password, company) =>
-  (await axios.post(`${BASE}/login`, { name, password, company }, cfg())).data
+  (await axios.post(`${BASE}/login`, { name, password, company }, tenantCfg(company))).data
 
 const setupStatus = async (company) =>
-  (await axios.get(`${BASE}/setup-status`, { ...cfg(), params: company ? { company } : undefined })).data
+  (await axios.get(`${BASE}/setup-status`, tenantCfg(company))).data
 
 // One-time first admin setup (name + password only)
-const setup = async (name, password, company, setupToken) =>
-  (await axios.post(
+const setup = async (name, password, company, setupToken) => {
+  const base = tenantCfg(company)
+  const headers = {
+    ...(base.headers || {}),
+    ...(setupToken ? { 'x-setup-token': setupToken } : {}),
+  }
+  return (await axios.post(
     `${BASE}/setup`,
     { name, password, company, ...(setupToken ? { setupToken } : {}) },
-    {
-      ...cfg(),
-      headers: setupToken ? { 'x-setup-token': setupToken } : undefined,
-    },
+    { ...base, headers },
   )).data
+}
 
 // Get my own profile
 const getMe = async () =>

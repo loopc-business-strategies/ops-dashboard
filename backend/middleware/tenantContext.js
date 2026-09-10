@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
-const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
+const { normalizeTenant } = require('../config/tenants')
+const { resolveTenantFromRequest } = require('../utils/requestTenant')
 const { connectTenant } = require('../db/tenantConnections')
 const { registerAllOnConnection } = require('../db/tenantModelRegistry')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
@@ -25,10 +26,7 @@ async function bindTenantContext(req, res, next) {
 
     // Prefer hostname resolution; fall back to tenant hints (needed when all
     // subdomains proxy through a single API domain or EventSource cannot send headers).
-    const requestTenant = normalizeTenant(
-      req.headers['x-tenant'] || req.headers['x-company'] || req.query?.tenant || req.query?.company,
-    )
-    const hostTenant = resolveTenantFromHost(req.hostname, requestTenant || tenant)
+    const hostTenant = resolveTenantFromRequest(req, tenant)
     if (hostTenant !== tenant) {
       // Let users switch tenant portals by logging in again.
       // Without this, a stale session cookie from another tenant blocks /auth/login.

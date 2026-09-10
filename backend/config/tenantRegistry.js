@@ -144,11 +144,12 @@ function resolveTenantFromCustomDomain(hostname) {
   return normalizeTenantKey(customDomains[rawHost])
 }
 
+function stripHostPort(hostname) {
+  return String(hostname || '').trim().toLowerCase().replace(/:\d+$/, '')
+}
+
 function hostAllowsTenantFallback(hostname) {
-  const rawHost = String(hostname || '')
-    .trim()
-    .toLowerCase()
-    .replace(/:\d+$/, '')
+  const rawHost = stripHostPort(hostname)
   if (!rawHost) return true
   if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') return true
   if (rawHost === 'api.loopcstrategies.com') return true
@@ -156,14 +157,10 @@ function hostAllowsTenantFallback(hostname) {
   return false
 }
 
-function resolveTenantFromHost(hostname, fallbackTenant = getDefaultTenant()) {
-  const fallback = normalizeTenantKey(fallbackTenant) || getDefaultTenant()
-  const rawHost = String(hostname || '')
-    .trim()
-    .toLowerCase()
-    .replace(/:\d+$/, '')
-
-  if (!rawHost) return hostAllowsTenantFallback(rawHost) ? fallback : null
+/** Known tenant from hostname, or null. Does not fall back to DEFAULT_TENANT (so `api.` stays null). */
+function resolveTenantFromHostOrNull(hostname) {
+  const rawHost = stripHostPort(hostname)
+  if (!rawHost) return null
 
   const customMatch = resolveTenantFromCustomDomain(rawHost)
   if (customMatch) return customMatch
@@ -171,12 +168,32 @@ function resolveTenantFromHost(hostname, fallbackTenant = getDefaultTenant()) {
   const directMatch = normalizeTenantKey(rawHost)
   if (directMatch) return directMatch
 
-  if (hostAllowsTenantFallback(rawHost)) {
-    return fallback
-  }
+  if (hostAllowsTenantFallback(rawHost)) return null
 
   const [subdomain] = rawHost.split('.')
-  return normalizeTenantKey(subdomain) || null
+  return normalizeTenantKey(subdomain)
+}
+
+function resolveTenantFromHost(hostname, fallbackTenant = getDefaultTenant()) {
+  const fallback = normalizeTenantKey(fallbackTenant) || getDefaultTenant()
+  const known = resolveTenantFromHostOrNull(hostname)
+  if (known) return known
+  if (hostAllowsTenantFallback(hostname)) return fallback
+  return null
+}
+
+function getTenantPortalOrigins() {
+  const { tenants, customDomains } = getTenantCatalog()
+  const origins = new Set()
+  Object.values(tenants || {}).forEach((row) => {
+    const host = stripHostPort(row?.portalHost)
+    if (host) origins.add(`https://${host}`)
+  })
+  Object.keys(customDomains || {}).forEach((host) => {
+    const cleaned = stripHostPort(host)
+    if (cleaned) origins.add(`https://${cleaned}`)
+  })
+  return [...origins]
 }
 
 function getTenantUri(tenant) {
@@ -221,7 +238,9 @@ module.exports = {
   getDefaultTenant,
   hostAllowsTenantFallback,
   resolveTenantFromHost,
+  resolveTenantFromHostOrNull,
   resolveTenantFromCustomDomain,
+  getTenantPortalOrigins,
   getTenantUri,
   getTenantsForApi,
   buildTenantsMapForLegacy,

@@ -113,7 +113,15 @@ describe('AuthProvider session integration', () => {
 
     expect(screen.getByTestId('auth').textContent).toBe('true')
     expect(screen.getByTestId('company').textContent).toBe('mg')
-    expect(axios.post).toHaveBeenCalledWith('/api/auth/login', { name: 'Admin', password: 'secret123', company: 'mg' }, { withCredentials: true })
+    expect(axios.post).toHaveBeenCalledWith(
+      '/api/auth/login',
+      { name: 'Admin', password: 'secret123', company: 'mg' },
+      {
+        withCredentials: true,
+        headers: { 'x-tenant': 'mg', 'x-company': 'mg' },
+        params: { company: 'mg', tenant: 'mg' },
+      },
+    )
     expect(axios.defaults.headers.common['x-tenant']).toBe('mg')
     expect(screen.getByTestId('idle-timeout').textContent).toBe('30')
     const storedActivity = Number(localStorage.getItem(WEB_IDLE_ACTIVITY_STORAGE_KEY))

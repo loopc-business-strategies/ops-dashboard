@@ -92,7 +92,16 @@ function getSocketToken(socket) {
 
 function getSocketHostname(socket) {
   const forwardedHost = String(socket.handshake?.headers?.['x-forwarded-host'] || '').split(',')[0].trim()
-  const host = forwardedHost || String(socket.handshake?.headers?.host || '').trim()
+  if (forwardedHost) return forwardedHost.replace(/:\d+$/, '')
+  const origin = String(socket.handshake?.headers?.origin || '').trim()
+  if (origin) {
+    try {
+      return new URL(origin).hostname
+    } catch {
+      // ignore invalid origin
+    }
+  }
+  const host = String(socket.handshake?.headers?.host || '').trim()
   return host.replace(/:\d+$/, '')
 }
 
@@ -346,6 +355,23 @@ class RealtimeServer {
     })
 
     /**
+     * Production Control Center namespace — live floor updates (additive).
+     */
+    const productionNamespace = this.io.of('/production')
+    productionNamespace.use(this.authMiddleware)
+    productionNamespace.on('connection', (socket) => {
+      socket.on('subscribe:tenant', (tenant) => {
+        try {
+          const subscriptionTenant = resolveSocketTenantSubscription(socket, tenant)
+          socket.join(`production:tenant:${subscriptionTenant}`)
+          socket.emit('subscribed', { namespace: '/production', tenant: subscriptionTenant })
+        } catch {
+          socket.emit('subscription:error', { namespace: '/production', message: 'Tenant subscription denied' })
+        }
+      })
+    })
+
+    /**
      * Notifications namespace: broadcast user notifications
      */
     const notificationsNamespace = this.io.of('/notifications')
@@ -449,6 +475,20 @@ class RealtimeServer {
   }
 
   /**
+   * Broadcast Production Control Center updates to a tenant room.
+   * @param {String} tenant
+   * @param {String} event - e.g. batch.created, pass.received
+   * @param {Object} payload
+   */
+  broadcastProductionUpdate(tenant, event, payload = {}) {
+    this.io.of('/production').to(`production:tenant:${tenant}`).emit('production:update', {
+      event,
+      timestamp: new Date(),
+      ...payload,
+    })
+  }
+
+  /**
    * Broadcast report generation progress
    * @param {String} reportId - Report identifier
    * @param {String} status - 'pending' | 'processing' | 'completed' | 'failed'
@@ -496,13 +536,14 @@ class RealtimeServer {
   getConnectionStats() {
     const namespaceCount = (namespace) => this.io.of(namespace).sockets?.size || 0
     return {
-      total: namespaceCount('/dashboard') + namespaceCount('/reports') + namespaceCount('/ledger') + namespaceCount('/transactions') + namespaceCount('/metal-rates') + namespaceCount('/notifications'),
+      total: namespaceCount('/dashboard') + namespaceCount('/reports') + namespaceCount('/ledger') + namespaceCount('/transactions') + namespaceCount('/metal-rates') + namespaceCount('/notifications') + namespaceCount('/production'),
       dashboard: namespaceCount('/dashboard'),
       reports: namespaceCount('/reports'),
       ledger: namespaceCount('/ledger'),
       transactions: namespaceCount('/transactions'),
       metalRates: namespaceCount('/metal-rates'),
       notifications: namespaceCount('/notifications'),
+      production: namespaceCount('/production'),
     }
   }
 }

@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import './MgLogin.css'
 
-const REMEMBER_KEY = 'enterprise.login.rememberName'
+const rememberKeyFor = (tenant) => {
+  const key = String(tenant || '').trim().toLowerCase()
+  return key ? `enterprise.login.rememberName.${key}` : 'enterprise.login.rememberName'
+}
 
 /**
  * Unified tenant-branded enterprise login shell.
@@ -26,10 +29,11 @@ export default function TenantLoginShell({
 }) {
   const [remember, setRemember] = useState(false)
   const [forgotNotice, setForgotNotice] = useState('')
+  const rememberKey = rememberKeyFor(branding?.key)
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(REMEMBER_KEY)
+      const saved = localStorage.getItem(rememberKey)
       if (saved) {
         setName(saved)
         setRemember(true)
@@ -37,13 +41,13 @@ export default function TenantLoginShell({
     } catch {
       /* ignore */
     }
-  }, [setName])
+  }, [rememberKey, setName])
 
   const onRememberChange = (checked) => {
     setRemember(checked)
     if (!checked) {
       try {
-        localStorage.removeItem(REMEMBER_KEY)
+        localStorage.removeItem(rememberKey)
       } catch {
         /* ignore */
       }
@@ -55,9 +59,9 @@ export default function TenantLoginShell({
     setForgotNotice('')
     try {
       if (remember && name.trim()) {
-        localStorage.setItem(REMEMBER_KEY, name.trim())
+        localStorage.setItem(rememberKey, name.trim())
       } else {
-        localStorage.removeItem(REMEMBER_KEY)
+        localStorage.removeItem(rememberKey)
       }
     } catch {
       /* ignore */

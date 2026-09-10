@@ -3,6 +3,7 @@ const {
   getTenantKeys,
   normalizeTenantKey,
   resolveTenantFromHost,
+  resolveTenantFromHostOrNull,
   resolveTenantFromCustomDomain,
   getTenantsForApi,
   resetTenantCatalogCache,
@@ -32,6 +33,11 @@ describe('tenantRegistry', () => {
     expect(resolveTenantFromHost('localhost', 'loopc')).toBe('loopc')
     expect(resolveTenantFromHost('api.loopcstrategies.com', 'mg')).toBe('mg')
     expect(resolveTenantFromHost('example.com', 'loopc')).toBeNull()
+  })
+
+  test('does not map the shared API host to a tenant without a fallback', () => {
+    expect(resolveTenantFromHostOrNull('api.loopcstrategies.com')).toBeNull()
+    expect(resolveTenantFromHost('api.loopcstrategies.com', 'vb')).toBe('vb')
   })
 
   test('resolves enterprise custom domains from catalog', () => {

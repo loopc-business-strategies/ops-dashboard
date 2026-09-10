@@ -29,6 +29,7 @@ beforeAll(async () => {
   process.env.MONGO_URI_LOOPC = mongoUri
   process.env.MONGO_URI_MG = mongoUri
   process.env.MONGO_URI_CG = mongoUri
+  process.env.MONGO_URI_VB = mongoUri
 
   await mongoose.connect(mongoUri, { maxPoolSize: 1 })
   const registry = require('../db/tenantModelRegistry')
@@ -168,5 +169,15 @@ describe('readiness and setup security', () => {
     process.env.NODE_ENV = previousNodeEnv
     process.env.ENABLE_SETUP = previousEnable
     process.env.SETUP_TOKEN = previousToken
+  })
+
+  test('setup-status on the API host follows VB portal Origin', async () => {
+    const res = await request(app)
+      .get('/api/auth/setup-status')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('Origin', 'https://vb.loopcstrategies.com')
+
+    expect(res.status).toBe(200)
+    expect(res.body.tenant).toBe('vb')
   })
 })
