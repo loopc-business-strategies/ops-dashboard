@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react'
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useMemo, useCallback } from 'react'
 import { VirtualScrollList } from './VirtualScrollList'
 
 /**
@@ -15,6 +15,17 @@ import { VirtualScrollList } from './VirtualScrollList'
  */
 const VIRTUALIZE_THRESHOLD = 80
 
+function asTabNavEvent(event) {
+  return {
+    ...event,
+    key: 'Tab',
+    shiftKey: false,
+    preventDefault: () => event.preventDefault(),
+    stopPropagation: () => event.stopPropagation?.(),
+    target: event.target,
+  }
+}
+
 const AccountCombobox = forwardRef(function AccountCombobox({
   groups = [],
   value = '',
@@ -30,8 +41,10 @@ const AccountCombobox = forwardRef(function AccountCombobox({
   const [inputVal, setInputVal] = useState(labelFor(value))
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [highlightIndex, setHighlightIndex] = useState(0)
   const containerRef = useRef(null)
   const inputRef = useRef(null)
+  const listScrollRef = useRef(null)
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
@@ -68,7 +81,36 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     return rows
   }, [filteredGroups])
 
+  const optionEntries = useMemo(
+    () => flatRows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.type === 'opt'),
+    [flatRows],
+  )
+
   const useVirtual = flatRows.length > VIRTUALIZE_THRESHOLD
+  const optionCount = optionEntries.length
+  const highlighted = optionEntries[Math.min(highlightIndex, Math.max(optionCount - 1, 0))]
+  const highlightedOpt = highlighted?.row?.opt || null
+  const highlightedFlatIndex = highlighted?.index ?? -1
+
+  useEffect(() => {
+    setHighlightIndex(0)
+  }, [query, open])
+
+  useEffect(() => {
+    if (useVirtual || highlightedFlatIndex < 0) return
+    const node = listScrollRef.current?.querySelector(`[data-combobox-flat-index="${highlightedFlatIndex}"]`)
+    node?.scrollIntoView?.({ block: 'nearest' })
+  }, [highlightedFlatIndex, useVirtual, open])
+
+  const handleSelect = useCallback((opt) => {
+    if (!opt) return
+    setInputVal(opt.label)
+    setQuery('')
+    setOpen(false)
+    onChange(opt.value, opt.label)
+  }, [onChange])
 
   const handleInput = (e) => {
     const q = e.target.value
@@ -78,13 +120,6 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     if (!q.trim()) {
       onChange('', '')
     }
-  }
-
-  const handleSelect = (opt) => {
-    setInputVal(opt.label)
-    setQuery('')
-    setOpen(false)
-    onChange(opt.value, opt.label)
   }
 
   const handleFocus = () => {
@@ -111,24 +146,64 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     }, 150)
   }
 
-  const handleInputKeyDown = (e) => {
-    if (e.key === 'Tab') {
-      setOpen(false)
-    }
-    if (typeof onKeyDown === 'function') {
-      onKeyDown(e)
-    }
+  const commitHighlighted = () => {
+    if (!open || !highlightedOpt) return false
+    handleSelect(highlightedOpt)
+    return true
   }
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+  const handleInputKeyDown = (e) => {
+    if (disabled) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (!open) {
+        setOpen(true)
+        return
+      }
+      if (!optionCount) return
+      setHighlightIndex((prev) => (prev + 1) % optionCount)
+      return
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (!open) {
+        setOpen(true)
+        return
+      }
+      if (!optionCount) return
+      setHighlightIndex((prev) => (prev - 1 + optionCount) % optionCount)
+      return
+    }
+
+    if (e.key === 'Escape') {
+      if (open) {
+        e.preventDefault()
         setOpen(false)
       }
+      return
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+
+    if (e.key === 'Enter') {
+      if (open && highlightedOpt) {
+        e.preventDefault()
+        handleSelect(highlightedOpt)
+        if (typeof onKeyDown === 'function') onKeyDown(asTabNavEvent(e))
+        return
+      }
+      if (typeof onKeyDown === 'function') onKeyDown(e)
+      return
+    }
+
+    if (e.key === 'Tab') {
+      commitHighlighted()
+      if (typeof onKeyDown === 'function') onKeyDown(e)
+      return
+    }
+
+    if (typeof onKeyDown === 'function') onKeyDown(e)
+  }
 
   const dropdownStyle = {
     position: 'absolute',
@@ -160,11 +235,11 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     top: 0,
   }
 
-  const optionStyle = (hovered) => ({
+  const optionStyle = (active) => ({
     padding: '7px 14px',
     fontSize: '0.8rem',
     cursor: 'pointer',
-    background: hovered ? 'var(--brand-soft)' : '#fff',
+    background: active ? 'var(--brand-soft)' : '#fff',
     borderBottom: '1px solid #F3F4F6',
     color: '#1F2937',
   })
@@ -175,7 +250,15 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     if (row.type === 'group') {
       return <div style={groupLabelStyle}>{row.label}</div>
     }
-    return <HoverOption opt={row.opt} onSelect={handleSelect} optionStyle={optionStyle} />
+    return (
+      <HoverOption
+        opt={row.opt}
+        highlighted={index === highlightedFlatIndex}
+        onSelect={handleSelect}
+        optionStyle={optionStyle}
+        flatIndex={index}
+      />
+    )
   }
 
   return (
@@ -193,6 +276,9 @@ const AccountCombobox = forwardRef(function AccountCombobox({
         style={style}
         disabled={disabled}
         autoComplete="off"
+        role="combobox"
+        aria-expanded={open}
+        aria-activedescendant={highlightedOpt ? `account-opt-${highlightedOpt.value}` : undefined}
       />
       {open && filteredGroups.length > 0 && (
         useVirtual ? (
@@ -201,17 +287,28 @@ const AccountCombobox = forwardRef(function AccountCombobox({
               count={flatRows.length}
               estimateSize={(i) => (flatRows[i]?.type === 'group' ? 26 : 34)}
               maxHeight={300}
+              scrollToIndex={highlightedFlatIndex}
               renderRow={renderFlatRow}
             />
           </div>
         ) : (
-          <div style={dropdownStyle}>
+          <div ref={listScrollRef} style={dropdownStyle} role="listbox">
             {filteredGroups.map((group) => (
               <div key={group.label}>
                 <div style={groupLabelStyle}>{group.label}</div>
-                {group.options.map((opt) => (
-                  <HoverOption key={opt.value} opt={opt} onSelect={handleSelect} optionStyle={optionStyle} />
-                ))}
+                {group.options.map((opt) => {
+                  const flatIndex = flatRows.findIndex((row) => row.type === 'opt' && row.opt.value === opt.value)
+                  return (
+                    <HoverOption
+                      key={opt.value}
+                      opt={opt}
+                      highlighted={flatIndex === highlightedFlatIndex}
+                      onSelect={handleSelect}
+                      optionStyle={optionStyle}
+                      flatIndex={flatIndex}
+                    />
+                  )
+                })}
               </div>
             ))}
           </div>
@@ -233,14 +330,18 @@ const AccountCombobox = forwardRef(function AccountCombobox({
 
 export default AccountCombobox
 
-function HoverOption({ opt, onSelect, optionStyle }) {
+function HoverOption({ opt, onSelect, optionStyle, highlighted = false, flatIndex = -1 }) {
   const [hovered, setHovered] = useState(false)
   return (
     <div
+      id={`account-opt-${opt.value}`}
+      role="option"
+      aria-selected={highlighted}
+      data-combobox-flat-index={flatIndex}
       onMouseDown={() => onSelect(opt)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={optionStyle(hovered)}
+      style={optionStyle(highlighted || hovered)}
     >
       {opt.label}
     </div>

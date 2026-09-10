@@ -182,16 +182,6 @@ export default function VoucherListPanel({
                             {t('submit')}
                           </button>
                         )}
-                        {!periodLocked && canManageWorkflow && voucher.status === 'submitted' && (
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => handleListWorkflowAction(voucher, 'approve')}
-                            style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#0EA5E9', color: '#FFFFFF' }}
-                          >
-                            {t('approve')}
-                          </button>
-                        )}
                         {!periodLocked && canManageWorkflow && ['submitted', 'approved'].includes(voucher.status) && (
                           <button
                             type="button"
@@ -210,16 +200,6 @@ export default function VoucherListPanel({
                             style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#FEE2E2', color: '#B91C1C' }}
                           >
                             {t('reject')}
-                          </button>
-                        )}
-                        {!periodLocked && canManageWorkflow && voucher.status === 'approved' && (
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => handleListWorkflowAction(voucher, 'post')}
-                            style={{ ...btn('primary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
-                          >
-                            {t('post')}
                           </button>
                         )}
                         {!periodLocked && (isSuperAdmin || isFinance) && voucher.status === 'posted' && (

@@ -1252,7 +1252,7 @@ export default function VoucherEditorPanel({
                       value={workflowNote}
                       onChange={(e) => setWorkflowNote(e.target.value)}
                       rows={3}
-                      placeholder="Optional note for submit / approve / post"
+                      placeholder="Optional note for submit"
                       style={{ ...inputStyle, resize: 'vertical', minHeight: '76px' }}
                       readOnly={isReadOnly || saving}
                     />
@@ -1266,11 +1266,6 @@ export default function VoucherEditorPanel({
                         {t('submit')}
                       </button>
                     )}
-                    {canApproveWorkflow && (
-                      <button type="button" disabled={saving} onClick={() => handleWorkflowAction('approve')} style={{ ...btn('gray'), background: '#0EA5E9', color: '#FFFFFF' }}>
-                        {t('approve')}
-                      </button>
-                    )}
                     {canReturnWorkflow && (
                       <button type="button" disabled={saving} onClick={() => handleWorkflowAction('return')} style={{ ...btn('gray'), background: '#F472B6', color: '#831843' }}>
                         {t('returnForEdit')}
@@ -1281,17 +1276,12 @@ export default function VoucherEditorPanel({
                         {t('reject')}
                       </button>
                     )}
-                    {canPostWorkflow && (
-                      <button type="button" disabled={saving} onClick={() => handleWorkflowAction('post')} style={{ ...btn('primary') }}>
-                        {t('post')}
-                      </button>
-                    )}
                     {canRevalueCurrentVoucher && (
                       <button type="button" disabled={saving} onClick={() => handleRevalueFxJournal(currentVoucher)} style={{ ...btn('gray'), background: '#E0F2FE', color: '#0C4A6E' }}>
                         Revalue FX Journal
                       </button>
                     )}
-                    {!canSubmitWorkflow && !canApproveWorkflow && !canReturnWorkflow && !canRejectWorkflow && !canPostWorkflow && (
+                    {!canSubmitWorkflow && !canReturnWorkflow && !canRejectWorkflow && (
                       <span style={{ color: S.muted, fontSize: '0.82rem' }}>No workflow action available for your role or current status.</span>
                     )}
                   </div>

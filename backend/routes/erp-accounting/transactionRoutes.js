@@ -769,21 +769,59 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
     if (!canCreateTransactionFor(req.user, tx.type)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
-    const result = await applyTransactionWorkflowAction(tx, req.user, 'submit', { comment: req.body?.comment })
+    const postImmediately = Boolean(req.body?.postImmediately)
+    const workflowOptions = {
+      comment: req.body?.comment,
+      postImmediately,
+      mappingOverride: req.body || {},
+    }
+    const result = postImmediately
+      ? await runInTransaction(async (session) => {
+        const freshTx = await Transaction.findById(req.params.id).session(session)
+        if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
+        if (freshTx.status === 'posted') throw new Error('Transaction is already posted.')
+        return applyTransactionWorkflowAction(freshTx, req.user, 'submit', workflowOptions, session)
+      })
+      : await applyTransactionWorkflowAction(tx, req.user, 'submit', workflowOptions)
+
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
+    const posted = String(result.transaction.status || '') === 'posted'
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
-          action: 'submitted',
+          action: posted ? 'posted' : 'submitted',
           transactionId: String(result.transaction._id),
           status: result.transaction.status,
+          type: result.transaction.type,
+          ...(posted
+            ? { ledgerEntryId: String(result.ledgerEntry?._id || result.transaction.journalEntryId || '') }
+            : {}),
+        })
+      }
+      if (posted && typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'created_from_transaction',
+          transactionId: String(result.transaction._id),
+          ledgerEntryId: String(result.ledgerEntry?._id || result.transaction.journalEntryId || ''),
+          referenceType: result.ledgerEntry?.referenceType || result.transaction.type,
+        })
+      }
+      if (posted && typeof realtimeServer.broadcastMetricsUpdate === 'function') {
+        realtimeServer.broadcastMetricsUpdate(tenantKey, {
+          trigger: 'transaction_posted',
+          transactionId: String(result.transaction._id),
           type: result.transaction.type,
         })
       }
     })
-    queueErpVoucherNotify(req, populated, 'voucher_submitted', 'submitted')
-    res.json({ success: true, transaction: populated })
+    if (posted) {
+      invalidateErpReadCaches(tenantKey)
+      queueErpVoucherNotify(req, populated, 'voucher_posted', 'posted')
+    } else {
+      queueErpVoucherNotify(req, populated, 'voucher_submitted', 'submitted')
+    }
+    res.json({ success: true, transaction: populated, ledgerEntry: result.ledgerEntry })
   } catch (e) {
     respondWorkflowError(res, e)
   }

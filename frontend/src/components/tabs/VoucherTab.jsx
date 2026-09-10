@@ -808,13 +808,17 @@ export default function VoucherTab({
         token,
         editingId,
         action,
-        { comment: workflowNote, ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}) },
+        {
+          comment: workflowNote,
+          ...(action === 'submit' ? { postImmediately: true } : {}),
+          ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}),
+        },
       )
 
       try {
         await requestAction(false)
       } catch (e) {
-        const needsAdvanceConfirmation = action === 'post'
+        const needsAdvanceConfirmation = (action === 'post' || action === 'submit')
           && e?.response?.status === 409
           && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
 
@@ -863,13 +867,17 @@ export default function VoucherTab({
         token,
         voucher._id,
         action,
-        { comment, ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}) },
+        {
+          comment,
+          ...(action === 'submit' ? { postImmediately: true } : {}),
+          ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}),
+        },
       )
 
       try {
         await requestAction(false)
       } catch (e) {
-        const needsAdvanceConfirmation = action === 'post'
+        const needsAdvanceConfirmation = (action === 'post' || action === 'submit')
           && e?.response?.status === 409
           && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
 

@@ -133,3 +133,21 @@ describe('VoucherEditorPanel print preview', () => {
     expect(window.print).toHaveBeenCalled()
   })
 })
+
+describe('VoucherEditorPanel workflow', () => {
+  it('shows Submit only and hides Approve and Post', () => {
+    render(
+      <VoucherEditorPanel
+        {...minimalProps}
+        editingId="tx1"
+        currentVoucherStatus="draft"
+        canSubmitWorkflow
+        canApproveWorkflow
+        canPostWorkflow
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'submit' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'approve' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'post' })).toBeNull()
+  })
+})

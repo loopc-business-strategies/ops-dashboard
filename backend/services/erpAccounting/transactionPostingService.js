@@ -55,7 +55,7 @@ function createTransactionPostingService(deps) {
   }
 
   const executePostWorkflowAction = async ({ tx, user, note, fromStatus, options = {}, session = null }) => {
-    if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can post transactions')
+    if (!options.fromSubmit && !canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can post transactions')
     if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
 
     await assertPeriod({ date: resolveTxDate(tx), createdAt: tx.createdAt })

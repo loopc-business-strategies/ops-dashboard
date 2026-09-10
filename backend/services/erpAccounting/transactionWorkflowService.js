@@ -44,8 +44,22 @@ function createTransactionWorkflowAction({
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'submit_note')
       appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note })
-      await tx.save(saveOpts)
-      return { transaction: tx }
+      const postImmediately = Boolean(options.postImmediately)
+      if (!postImmediately) {
+        await tx.save(saveOpts)
+        return { transaction: tx }
+      }
+      tx.status = 'approved'
+      tx.approvedBy = user._id
+      appendTransactionAudit(tx, user, 'approve', { fromStatus: 'submitted', toStatus: 'approved', comment: note })
+      return getTransactionPostingService().executePostWorkflowAction({
+        tx,
+        user,
+        note,
+        fromStatus: 'approved',
+        options: { ...options, fromSubmit: true },
+        session,
+      })
     }
 
     if (action === 'approve') {

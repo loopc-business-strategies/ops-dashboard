@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 /**
@@ -11,6 +11,7 @@ export function VirtualScrollList({
   overscan = 10,
   maxHeight = 300,
   renderRow,
+  scrollToIndex = null,
   style = {},
 }) {
   const parentRef = useRef(null)
@@ -20,6 +21,11 @@ export function VirtualScrollList({
     estimateSize: typeof estimateSize === 'function' ? estimateSize : () => estimateSize,
     overscan,
   })
+
+  useEffect(() => {
+    if (scrollToIndex == null || scrollToIndex < 0) return
+    virtualizer.scrollToIndex(scrollToIndex, { align: 'auto' })
+  }, [scrollToIndex, virtualizer])
 
   return (
     <div
