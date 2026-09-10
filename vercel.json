@@ -4,7 +4,7 @@
   "trailingSlash": false,
   "cleanUrls": false,
   "installCommand": "npm ci --prefix frontend",
-  "buildCommand": "npm run build --prefix frontend",
+  "buildCommand": "VITE_ENABLE_PRODUCTION_DEMO=true npm run build --prefix frontend",
   "outputDirectory": "frontend/dist",
   "headers": [
     {
