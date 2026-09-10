@@ -100,7 +100,7 @@ async function createBatch(req, input = {}) {
  * Issue metal from vault inventory into a batch (creates StockMovement + updates InventoryItem).
  * Never deletes inventory history.
  */
-async function issueFromVault(req, batchId, { inventoryItemId, weight, purpose = '', expectedVersion, idempotencyKey = null } = {}) {
+async function issueFromVault(req, batchId, { inventoryItemId, weight, purpose = '', expectedVersion } = {}) {
   const issueWeight = Number(weight)
   if (!Number.isFinite(issueWeight) || issueWeight <= 0) {
     throw new ProductionError('Issue weight must be positive')
@@ -183,7 +183,6 @@ async function issueFromVault(req, batchId, { inventoryItemId, weight, purpose =
 }
 
 async function holdBatch(req, batchId, { reason = '', expectedVersion } = {}) {
-  const a = actor(req)
   return runInTransaction(async (session) => {
     const batch = await withSession(ProductionBatch.findById(batchId), session)
     if (!batch) throw new ProductionError('Batch not found', 404)
@@ -236,7 +235,7 @@ async function releaseBatch(req, batchId, { toStatus = 'WAITING', expectedVersio
   })
 }
 
-async function returnToVault(req, batchId, { weight, inventoryItemId, expectedVersion, idempotencyKey = null } = {}) {
+async function returnToVault(req, batchId, { weight, inventoryItemId, expectedVersion } = {}) {
   const a = actor(req)
   const returnWeight = weight != null ? Number(weight) : null
 

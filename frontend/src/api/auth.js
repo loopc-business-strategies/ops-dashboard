@@ -7,13 +7,14 @@ import axios, { API_ORIGIN } from './client'
 
 const BASE = `${API_ORIGIN}/api/auth`
 const cfg = () => ({ withCredentials: true })
-const tenantCfg = (company) => {
+/** Tenant headers for auth calls. Query params only for GETs (POST body already carries company). */
+const tenantCfg = (company, { withParams = false } = {}) => {
   const key = String(company || '').trim().toLowerCase()
   const headers = key ? { 'x-tenant': key, 'x-company': key } : undefined
   return {
     ...cfg(),
     headers,
-    params: key ? { company: key, tenant: key } : undefined,
+    ...(withParams && key ? { params: { company: key, tenant: key } } : {}),
   }
 }
 
@@ -22,7 +23,7 @@ const login = async (name, password, company) =>
   (await axios.post(`${BASE}/login`, { name, password, company }, tenantCfg(company))).data
 
 const setupStatus = async (company) =>
-  (await axios.get(`${BASE}/setup-status`, tenantCfg(company))).data
+  (await axios.get(`${BASE}/setup-status`, tenantCfg(company, { withParams: true }))).data
 
 // One-time first admin setup (name + password only)
 const setup = async (name, password, company, setupToken) => {

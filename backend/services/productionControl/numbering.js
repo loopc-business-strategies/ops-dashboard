@@ -32,7 +32,6 @@ async function nextBatchNumber(ProductionBatch, metalType, session) {
 }
 
 async function nextPassNumber(ProductionPass, session) {
-  const prefix = `MP-${dayStamp(new Date())}`
   // Use full year for passes per prompt style MP-20260910-0042
   const ymd = new Date()
   const full = `${ymd.getFullYear()}${pad(ymd.getMonth() + 1, 2)}${pad(ymd.getDate(), 2)}`
