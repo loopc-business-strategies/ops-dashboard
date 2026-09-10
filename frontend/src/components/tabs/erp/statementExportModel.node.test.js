@@ -105,10 +105,20 @@ describe('buildStatementExportModel', () => {
       statementDisplayCurrency: 'UZS',
       statementSelectedMetalCode: 'XAU',
     })
+    expect(model.head[0][2]).toEqual({ content: 'Narration', rowSpan: 2 })
     expect(model.head[0][3]).toEqual({ content: 'Amount (UZS)', colSpan: 3 })
     expect(model.head[0][4]).toEqual({ content: 'XAU(GMS)', colSpan: 3 })
     expect(model.head[1]).toEqual(['Debit', 'Credit', 'Balance', 'Debit', 'Credit', 'Balance'])
     expect(model.body[0]).toEqual(model.tableRows[0].cells)
+    const serialized = JSON.stringify({ head: model.head, body: model.body })
+    expect(serialized).not.toContain('Offset Account')
+  })
+
+  test('export head is Narration and never Offset Account', () => {
+    const model = buildStatementExportModel(baseCtx)
+    expect(model.head[0][2]).toEqual({ content: 'Narration', rowSpan: 2 })
+    expect(JSON.stringify(model.head)).not.toContain('Offset Account')
+    expect(JSON.stringify(model.body)).not.toContain('Offset Account')
   })
 
   test('returns null without account enquiry data', () => {
@@ -181,7 +191,7 @@ describe('buildStatementExportModel', () => {
     expect(entry.cells[2]).not.toContain('BnkJV/2026/0002')
   })
 
-  test('falls back to offset account when narration is only a voucher number', () => {
+  test('leaves narration blank when it is only a voucher number (does not use offset account)', () => {
     const model = buildStatementExportModel({
       ...baseCtx,
       filteredStatementEntries: [{
@@ -198,7 +208,55 @@ describe('buildStatementExportModel', () => {
       resolveStatementReceiptNo: () => 'BnkJV/2026/0001',
     })
     const entry = model.tableRows.find((row) => row.kind === 'entry')
-    expect(entry.cells[2]).toBe('101001 NATIONAL BANK OF UZBEKISTAN-USD')
+    expect(entry.cells[2]).toBe('')
+    expect(entry.cells[2]).not.toContain('101001')
+    expect(entry.cells[2]).not.toContain('NATIONAL BANK')
     expect(entry.cells[2]).not.toBe('BnkJV/2026/0001')
+  })
+
+  test('uses Bank JV ledger/voucher narration instead of offset account', () => {
+    const model = buildStatementExportModel({
+      ...baseCtx,
+      filteredStatementEntries: [{
+        _id: 'bnk2',
+        date: '2026-08-19T12:00:00',
+        description: 'BnkJV/2026/0029 — Transfer to SOMS',
+        notes: 'Transfer to SOMS',
+        debitAmount: 0,
+        creditAmount: 194.4,
+        metalSignedWeight: 0,
+        referenceType: 'bank_jv',
+        sourceTransactionNumber: 'BnkJV/2026/0029',
+        offsetAccountCode: '101002',
+        offsetAccountName: 'NATIONAL BANK OF UZBEKISTAN - SOMS',
+      }],
+      resolveStatementReceiptNo: () => 'BnkJV/2026/0029',
+    })
+    const entry = model.tableRows.find((row) => row.kind === 'entry')
+    expect(entry.cells[0]).toBe('BnkJV/2026/0029')
+    expect(entry.cells[2]).toBe('Transfer to SOMS')
+    expect(entry.cells[2]).not.toContain('101002')
+  })
+
+  test('prefers JV line description over header notes when both exist', () => {
+    const model = buildStatementExportModel({
+      ...baseCtx,
+      filteredStatementEntries: [{
+        _id: 'jv2',
+        date: '2026-05-26T12:00:00',
+        description: 'Jv/2026/0001 — Month-end close — Bank charges',
+        notes: 'Month-end close',
+        debitAmount: 100,
+        creditAmount: 0,
+        metalSignedWeight: 0,
+        referenceType: 'journal',
+        sourceTransactionNumber: 'Jv/2026/0001',
+        offsetAccountCode: '71011',
+        offsetAccountName: 'Bank charges',
+      }],
+      resolveStatementReceiptNo: () => 'Jv/2026/0001',
+    })
+    const entry = model.tableRows.find((row) => row.kind === 'entry')
+    expect(entry.cells[2]).toBe('Bank charges')
   })
 })

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES } from '../statementHelpers'
+import { buildStatementNarration } from '../statementExportModel'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 const linkButtonStyle = {
@@ -638,7 +639,7 @@ export default function AccountEnquiryModal({
                             {showStatementAuditIds && <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Transaction ID</th>}
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Deal</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Fixing</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Offset Account</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700', minWidth: '12rem' }}>Narration</th>
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In {statementDisplayCurrency}</th>
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
                           </tr>
@@ -682,6 +683,7 @@ export default function AccountEnquiryModal({
                               const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
                               const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
                               const balancePureWeight = isMetalRow ? (pureWeightRunningByEntryKey.get(entry._id) ?? null) : null
+                              const narration = buildStatementNarration(entry) || '-'
                               return (
                                 <tr
                                   key={entry._id || `${entry.date}-${index}`}
@@ -703,8 +705,8 @@ export default function AccountEnquiryModal({
                                       </span>
                                     ) : '-'}
                                   </td>
-                                  <td style={{ padding: '0.6rem', color: '#374151' }}>
-                                    {entry.offsetAccountCode ? `${entry.offsetAccountCode}${entry.offsetAccountName ? ` - ${entry.offsetAccountName}` : ''}` : '-'}
+                                  <td style={{ padding: '0.6rem', color: '#374151', maxWidth: '18rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={narration}>
+                                    {narration}
                                   </td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementValue(debitDisplay, 2)}</td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(creditDisplay, 2)}</td>

@@ -64,6 +64,12 @@ describe('statementPrintHtml', () => {
     expect(result?.html).not.toContain('#FFD56A')
   })
 
+  test('table header is Narration and never Offset Account', async () => {
+    const result = await generateStatementHtml(baseCtx)
+    expect(result?.html).toContain('<th rowspan="2">Narration</th>')
+    expect(result?.html).not.toContain('Offset Account')
+  })
+
   test('labels Amount column with statement display currency (not forced USD)', async () => {
     const result = await generateStatementHtml({
       ...baseCtx,

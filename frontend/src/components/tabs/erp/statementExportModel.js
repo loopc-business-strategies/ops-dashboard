@@ -16,6 +16,7 @@ import {
   sortStatementEntriesForExport,
 } from './statementHelpers'
 import { formatAmount } from '../../../utils/money'
+import { extractJvPostingLineDescription } from './journalVoucherHelpers'
 
 export function formatStatementDocDate(value) {
   if (!value) return ''
@@ -83,16 +84,19 @@ export function sanitizeStatementNarrationText(value, docNo = '') {
 
 export function buildStatementNarration(entry) {
   const docNo = String(entry?.sourceTransactionNumber || extractStatementDocNo(entry?.description) || '').trim()
-  const candidates = [entry?.description, entry?.notes, entry?.lineNarration]
+  const notes = String(entry?.notes || '').trim()
+  const lineFromDescription = extractJvPostingLineDescription(entry?.description || '', notes)
+  const candidates = [
+    lineFromDescription,
+    entry?.lineNarration,
+    notes,
+    entry?.description,
+  ]
   for (const candidate of candidates) {
     const cleaned = sanitizeStatementNarrationText(candidate, docNo)
     if (cleaned) return cleaned
   }
-  const offset = entry?.offsetAccountCode
-    ? `${String(entry.offsetAccountCode).trim()}${entry?.offsetAccountName ? ` ${String(entry.offsetAccountName).trim()}` : ''}`
-    : ''
-  if (offset) return offset
-  return 'Statement entry'
+  return ''
 }
 
 /**
