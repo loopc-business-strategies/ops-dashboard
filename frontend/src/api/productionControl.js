@@ -40,6 +40,7 @@ export const productionControlApi = {
   raiseAlert: (body) => post('/alerts', body),
   resolveAlert: (id) => post(`/alerts/${id}/resolve`),
   listAudit: () => get('/audit'),
+  getWorkOrdersSummary: () => get('/work-orders-summary'),
 }
 
 export default productionControlApi

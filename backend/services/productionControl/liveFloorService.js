@@ -7,11 +7,28 @@ const ProductionMachine = require('../../models/ProductionMachine')
 const ProductionAlert = require('../../models/ProductionAlert')
 const AuditLog = require('../../models/AuditLog')
 const WeightAdjustment = require('../../models/WeightAdjustment')
+const WorkOrder = require('../../models/WorkOrder')
 const { ACTIVE_BATCH_STATUSES } = require('./constants')
 const { ensureDefaultFlowConfig } = require('./flowConfigService')
 
+const BOARD_STATUS_MAP = {
+  QUEUED: ['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'WAITING'],
+  IN_PROGRESS: ['IN_TRANSIT', 'RECEIVED', 'IN_PROCESS'],
+  QC: ['QC'],
+  REWORK: ['REWORK'],
+  HOLD: ['HOLD'],
+  COMPLETED: ['COMPLETED', 'RETURNED_TO_VAULT'],
+}
+
+function startOfToday() {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
 async function getLiveFloorSummary() {
   await ensureDefaultFlowConfig()
+  const today = startOfToday()
 
   const [
     activeBatches,
@@ -26,6 +43,11 @@ async function getLiveFloorSummary() {
     custodyAgg,
     recentMovements,
     openAlerts,
+    qcFailed,
+    completedToday,
+    returnedToday,
+    activeWorkOrders,
+    boardBatches,
   ] = await Promise.all([
     ProductionBatch.countDocuments({ status: { $in: ACTIVE_BATCH_STATUSES } }),
     ProductionBatch.countDocuments({ status: 'WAITING' }),
@@ -64,6 +86,28 @@ async function getLiveFloorSummary() {
       .sort({ createdAt: -1 })
       .limit(20)
       .lean(),
+    QcInspection.countDocuments({ result: 'FAIL' }),
+    ProductionBatch.countDocuments({
+      status: 'COMPLETED',
+      updatedAt: { $gte: today },
+    }),
+    ProductionBatch.countDocuments({
+      status: 'RETURNED_TO_VAULT',
+      updatedAt: { $gte: today },
+    }),
+    WorkOrder.countDocuments({
+      isDeleted: { $ne: true },
+      status: { $in: ['pending', 'scheduled', 'in-progress', 'in_progress', 'quality_check', 'on_hold'] },
+    }).catch(() => 0),
+    ProductionBatch.find({
+      $or: [
+        { status: { $in: ACTIVE_BATCH_STATUSES } },
+        { status: { $in: ['COMPLETED', 'RETURNED_TO_VAULT'] }, updatedAt: { $gte: today } },
+      ],
+    })
+      .sort({ updatedAt: -1 })
+      .limit(200)
+      .lean(),
   ])
 
   const metalByDept = await ProductionBatch.aggregate([
@@ -76,17 +120,42 @@ async function getLiveFloorSummary() {
     },
   ])
 
+  const statusCounts = await ProductionBatch.aggregate([
+    { $match: { status: { $in: [...ACTIVE_BATCH_STATUSES, 'COMPLETED', 'RETURNED_TO_VAULT'] } } },
+    { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$currentWeight' } } },
+  ])
+
+  const board = Object.fromEntries(
+    Object.keys(BOARD_STATUS_MAP).map((col) => [col, []]),
+  )
+  for (const batch of boardBatches) {
+    const col = Object.entries(BOARD_STATUS_MAP).find(([, statuses]) =>
+      statuses.includes(batch.status),
+    )?.[0]
+    if (col) board[col].push(batch)
+  }
+
   return {
     kpis: {
+      activeWorkOrders,
       activeBatches,
       metalInProduction: metalAgg[0]?.total || 0,
       waiting,
       qcPending,
+      qcFailed,
       onHold,
       activeAlerts,
       machinesRunning,
       passesPending,
+      completedToday,
+      returnedToday,
     },
+    board,
+    statusCounts: statusCounts.map((row) => ({
+      status: row._id,
+      count: row.count,
+      weight: row.weight,
+    })),
     activeBatches: recentBatches,
     custody: custodyAgg.map((row) => ({
       person: row._id.holder,
@@ -215,8 +284,38 @@ async function getBatchDetail(batchId) {
   }
 }
 
+async function getWorkOrdersSummary() {
+  const rows = await ProductionBatch.aggregate([
+    { $match: { workOrderId: { $ne: null } } },
+    {
+      $group: {
+        _id: '$workOrderId',
+        workOrderNumber: { $first: '$workOrderNumber' },
+        batchCount: { $sum: 1 },
+        activeCount: {
+          $sum: {
+            $cond: [{ $in: ['$status', ACTIVE_BATCH_STATUSES] }, 1, 0],
+          },
+        },
+        metalWeight: { $sum: '$currentWeight' },
+      },
+    },
+  ])
+  return {
+    byWorkOrder: rows.map((r) => ({
+      workOrderId: r._id,
+      workOrderNumber: r.workOrderNumber || '',
+      batchCount: r.batchCount,
+      activeCount: r.activeCount,
+      metalWeight: r.metalWeight,
+    })),
+  }
+}
+
 module.exports = {
   getLiveFloorSummary,
   searchProduction,
   getBatchDetail,
+  getWorkOrdersSummary,
+  BOARD_STATUS_MAP,
 }

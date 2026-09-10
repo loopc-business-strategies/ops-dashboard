@@ -10,7 +10,7 @@
 require('dotenv').config()
 
 const mongoose = require('mongoose')
-const { getTenantKeys, getTenantUri } = require('../config/tenants')
+const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
 
 const LEGACY_COLLECTIONS = [
   'users',
@@ -45,7 +45,7 @@ async function baselineTenant(tenant, uri) {
 }
 
 async function main() {
-  const tenants = getTenantKeys().filter((t) => getTenantUri(t))
+  const tenants = TENANT_KEYS.filter((t) => getTenantUri(t))
   if (!tenants.length) {
     console.log('[integrity-baseline] No tenant URIs configured — skipping (safe no-op).')
     process.exit(0)

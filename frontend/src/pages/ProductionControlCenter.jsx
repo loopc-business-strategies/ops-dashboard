@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import productionControlApi from '../api/productionControl'
-import { SECTIONS } from '../components/production-control/shared'
+import { SECTIONS, formatTime } from '../components/production-control/shared'
 import LiveFloorPanel from '../components/production-control/LiveFloorPanel'
+import WorkOrdersPanel from '../components/production-control/WorkOrdersPanel'
 import {
   OverviewPanel,
   BatchesPanel,
@@ -30,26 +31,36 @@ export default function ProductionControlCenter() {
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [selectedBatchId, setSelectedBatchId] = useState(null)
-  const [live, setLive] = useState(false)
+  const [connection, setConnection] = useState('OFFLINE')
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const refreshFloorOnly = useRef(false)
 
   const showToast = useCallback((msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3500)
   }, [])
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  const refresh = useCallback(async ({ soft = false } = {}) => {
+    if (!soft) setLoading(true)
     try {
+      if (soft && refreshFloorOnly.current) {
+        const floor = await productionControlApi.getLiveFloor()
+        setSummary(floor)
+        setLastUpdated(new Date())
+        return
+      }
       const [floor, flowData] = await Promise.all([
         productionControlApi.getLiveFloor(),
         productionControlApi.getFlow(),
       ])
       setSummary(floor)
       setFlow(flowData.flow)
+      setLastUpdated(new Date())
+      refreshFloorOnly.current = true
     } catch (err) {
       showToast(err?.response?.data?.message || 'Failed to load production floor')
     } finally {
-      setLoading(false)
+      if (!soft) setLoading(false)
     }
   }, [showToast])
 
@@ -57,7 +68,6 @@ export default function ProductionControlCenter() {
     refresh()
   }, [refresh])
 
-  // Subscribe to realtime production updates when socket.io client is available
   useEffect(() => {
     let socket
     let cancelled = false
@@ -70,17 +80,21 @@ export default function ProductionControlCenter() {
           withCredentials: true,
           transports: ['websocket', 'polling'],
           auth: { token: 'browser-session' },
+          reconnection: true,
+          reconnectionAttempts: Infinity,
         })
         socket.on('connect', () => {
-          setLive(true)
+          setConnection('LIVE')
           socket.emit('subscribe:tenant', company || undefined)
         })
-        socket.on('disconnect', () => setLive(false))
+        socket.on('disconnect', () => setConnection('OFFLINE'))
+        socket.io.on('reconnect_attempt', () => setConnection('RECONNECTING'))
+        socket.io.on('reconnect', () => setConnection('LIVE'))
         socket.on('production:update', () => {
-          refresh()
+          refresh({ soft: true })
         })
       } catch {
-        setLive(false)
+        setConnection('OFFLINE')
       }
     })()
     return () => {
@@ -96,6 +110,8 @@ export default function ProductionControlCenter() {
     if (fromStorage) sessionStorage.removeItem(RETURN_KEY)
     navigate(target)
   }
+
+  const connClass = connection === 'LIVE' ? 'live' : connection === 'RECONNECTING' ? 'reconnecting' : 'offline'
 
   const body = useMemo(() => {
     switch (section) {
@@ -113,13 +129,24 @@ export default function ProductionControlCenter() {
             flow={flow}
             loading={loading}
             onSelectBatch={setSelectedBatchId}
-            onRefresh={refresh}
+            onRefresh={() => refresh()}
+            onToast={showToast}
+          />
+        )
+      case 'work-orders':
+        return (
+          <WorkOrdersPanel
+            onToast={showToast}
+            onOpenBatches={(wo) => {
+              setSection('batches')
+              showToast(wo?.woNumber ? `Filter batches for ${wo.woNumber} from Create form` : 'Opened batches')
+            }}
           />
         )
       case 'batches':
         return <BatchesPanel onSelectBatch={setSelectedBatchId} onToast={showToast} />
       case 'movements':
-        return <MovementsPanel />
+        return <MovementsPanel onToast={showToast} />
       case 'passes':
         return <PassesPanel onToast={showToast} />
       case 'processes':
@@ -145,8 +172,11 @@ export default function ProductionControlCenter() {
           <span className="pcc-user">{user?.name || ''}</span>
         </div>
         <div className="pcc-header-right">
-          <span className={`pcc-live ${live ? 'on' : ''}`}>
-            <span className="pcc-live-dot" /> LIVE
+          {lastUpdated && (
+            <span className="pcc-last-updated">Updated {formatTime(lastUpdated)}</span>
+          )}
+          <span className={`pcc-live ${connClass}`}>
+            <span className="pcc-live-dot" /> {connection}
           </span>
           <button type="button" className="pcc-close" onClick={closeWorkspace} aria-label="Close production">
             ✕ CLOSE
@@ -177,6 +207,7 @@ export default function ProductionControlCenter() {
         batchId={selectedBatchId}
         onClose={() => setSelectedBatchId(null)}
         onToast={showToast}
+        onRefreshFloor={() => refresh({ soft: true })}
       />
     </div>
   )

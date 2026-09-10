@@ -19,6 +19,13 @@ const router = express.Router()
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
+function parseListPaging(query) {
+  const limit = Math.min(200, Math.max(1, Number(query.limit) || 50))
+  const skip = Math.max(0, Number(query.skip) || ((Math.max(1, Number(query.page) || 1) - 1) * limit))
+  const search = String(query.search || query.q || '').trim()
+  return { limit, skip, search }
+}
+
 function handleError(res, err) {
   const status = err.status || 500
   if (status >= 500) console.error('[production-control]', err)
@@ -81,6 +88,15 @@ router.get('/live-floor', protect, requireProductionPermission('view'), async (r
   }
 })
 
+router.get('/work-orders-summary', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const summary = await liveFloorService.getWorkOrdersSummary()
+    res.json({ success: true, ...summary })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 router.get('/search', protect, requireProductionPermission('view'), validateQuery(Joi.object({
   batchNumber: Joi.string().trim().allow(''),
   passNumber: Joi.string().trim().allow(''),
@@ -88,7 +104,7 @@ router.get('/search', protect, requireProductionPermission('view'), validateQuer
   employee: Joi.string().trim().allow(''),
   department: Joi.string().trim().allow(''),
   metal: Joi.string().trim().allow(''),
-})), async (req, res) => {
+}).unknown(true)), async (req, res) => {
   try {
     const result = await liveFloorService.searchProduction(req.query)
     res.json({ success: true, ...result })
@@ -100,12 +116,25 @@ router.get('/search', protect, requireProductionPermission('view'), validateQuer
 // ── Batches ────────────────────────────────────────
 router.get('/batches', protect, requireProductionPermission('view'), async (req, res) => {
   try {
+    const { limit, skip, search } = parseListPaging(req.query)
     const filter = {}
     if (req.query.status) filter.status = req.query.status
     if (req.query.department) filter.currentDepartment = req.query.department
     if (req.query.metalType) filter.metalType = req.query.metalType
-    const batches = await ProductionBatch.find(filter).sort({ updatedAt: -1 }).limit(200).lean()
-    res.json({ success: true, batches })
+    if (req.query.workOrderId) filter.workOrderId = req.query.workOrderId
+    if (search) {
+      filter.$or = [
+        { batchNumber: new RegExp(search, 'i') },
+        { workOrderNumber: new RegExp(search, 'i') },
+        { product: new RegExp(search, 'i') },
+        { currentHolderName: new RegExp(search, 'i') },
+      ]
+    }
+    const [batches, total] = await Promise.all([
+      ProductionBatch.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+      ProductionBatch.countDocuments(filter),
+    ])
+    res.json({ success: true, batches, total, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -210,11 +239,15 @@ router.post('/batches/:id/weight-adjustments', protect, requireProductionPermiss
 // ── Passes ─────────────────────────────────────────
 router.get('/passes', protect, requireProductionPermission('view'), async (req, res) => {
   try {
+    const { limit, skip } = parseListPaging(req.query)
     const filter = {}
     if (req.query.status) filter.status = req.query.status
     if (req.query.batchId) filter.batchId = req.query.batchId
-    const passes = await ProductionPass.find(filter).sort({ createdAt: -1 }).limit(200).lean()
-    res.json({ success: true, passes })
+    const [passes, total] = await Promise.all([
+      ProductionPass.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      ProductionPass.countDocuments(filter),
+    ])
+    res.json({ success: true, passes, total, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -287,10 +320,14 @@ router.post('/passes/:id/cancel', protect, requireProductionPermission('approveP
 // ── Movements ──────────────────────────────────────
 router.get('/movements', protect, requireProductionPermission('view'), async (req, res) => {
   try {
+    const { limit, skip } = parseListPaging(req.query)
     const filter = {}
     if (req.query.batchId) filter.batchId = req.query.batchId
-    const movements = await MetalMovement.find(filter).sort({ createdAt: -1 }).limit(200).lean()
-    res.json({ success: true, movements })
+    const [movements, total] = await Promise.all([
+      MetalMovement.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      MetalMovement.countDocuments(filter),
+    ])
+    res.json({ success: true, movements, total, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -299,11 +336,15 @@ router.get('/movements', protect, requireProductionPermission('view'), async (re
 // ── Processes ──────────────────────────────────────
 router.get('/processes', protect, requireProductionPermission('view'), async (req, res) => {
   try {
+    const { limit, skip } = parseListPaging(req.query)
     const filter = {}
     if (req.query.batchId) filter.batchId = req.query.batchId
     if (req.query.status) filter.status = req.query.status
-    const processes = await ProcessRun.find(filter).sort({ createdAt: -1 }).limit(200).lean()
-    res.json({ success: true, processes })
+    const [processes, total] = await Promise.all([
+      ProcessRun.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      ProcessRun.countDocuments(filter),
+    ])
+    res.json({ success: true, processes, total, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -353,10 +394,15 @@ router.post('/processes/:id/complete', protect, requireProductionPermission('com
 // ── QC ─────────────────────────────────────────────
 router.get('/qc', protect, requireProductionPermission('view'), async (req, res) => {
   try {
+    const { limit, skip } = parseListPaging(req.query)
     const filter = {}
     if (req.query.batchId) filter.batchId = req.query.batchId
-    const inspections = await QcInspection.find(filter).sort({ createdAt: -1 }).limit(200).lean()
-    res.json({ success: true, inspections })
+    if (req.query.result) filter.result = req.query.result
+    const [inspections, total] = await Promise.all([
+      QcInspection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      QcInspection.countDocuments(filter),
+    ])
+    res.json({ success: true, inspections, total, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -439,10 +485,14 @@ router.patch('/machines/:id/status', protect, requireProductionPermission('manag
 // ── Alerts ─────────────────────────────────────────
 router.get('/alerts', protect, requireProductionPermission('view'), async (req, res) => {
   try {
+    const { limit, skip } = parseListPaging(req.query)
     const filter = {}
     if (req.query.status) filter.status = req.query.status
-    const alerts = await ProductionAlert.find(filter).sort({ createdAt: -1 }).limit(200).lean()
-    res.json({ success: true, alerts })
+    const [alerts, total] = await Promise.all([
+      ProductionAlert.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      ProductionAlert.countDocuments(filter),
+    ])
+    res.json({ success: true, alerts, total, limit, skip })
   } catch (err) {
     handleError(res, err)
   }

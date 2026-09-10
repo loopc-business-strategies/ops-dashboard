@@ -2,12 +2,15 @@ const ProductionBatch = require('../../models/ProductionBatch')
 const ProcessRun = require('../../models/ProcessRun')
 const QcInspection = require('../../models/QcInspection')
 const WeightAdjustment = require('../../models/WeightAdjustment')
+const ProductionMachine = require('../../models/ProductionMachine')
 const { runInTransaction, withSession, writeOpts } = require('../../utils/mongoTransaction')
 const { writeProductionAudit } = require('./audit')
 const { nextProcessNumber, nextInspectionNumber, nextAdjustmentNumber } = require('./numbering')
 const { AUDIT_ACTIONS, QC_RESULTS } = require('./constants')
 const { ProductionError, raiseWeightVarianceAlert } = require('./batchService')
 const { getActiveFlowConfig } = require('./flowConfigService')
+
+const UNAVAILABLE_MACHINE_STATUSES = ['FAULT', 'OFFLINE', 'MAINTENANCE']
 
 function actor(req) {
   return { id: req.user?._id || null, name: req.user?.name || 'system' }
@@ -45,6 +48,21 @@ async function startProcess(req, input = {}) {
     )
     if (open) throw new ProductionError('Batch already has an in-progress process')
 
+    let resolvedMachineName = machineName
+    if (machineId) {
+      const machine = await withSession(ProductionMachine.findById(machineId), session)
+      if (!machine || machine.isActive === false) {
+        throw new ProductionError('Machine not found or inactive', 400)
+      }
+      if (UNAVAILABLE_MACHINE_STATUSES.includes(machine.status)) {
+        throw new ProductionError(
+          `Cannot assign machine ${machine.name || machine.machineCode} while status is ${machine.status}`,
+          400,
+        )
+      }
+      resolvedMachineName = machineName || machine.name || machine.machineCode || ''
+    }
+
     const iw = inputWeight != null ? Number(inputWeight) : Number(batch.currentWeight)
     if (!Number.isFinite(iw) || iw < 0) throw new ProductionError('Invalid input weight')
 
@@ -58,7 +76,7 @@ async function startProcess(req, input = {}) {
           process,
           department: department || batch.currentDepartment,
           machineId,
-          machineName,
+          machineName: resolvedMachineName,
           operatorId: a.id,
           operatorName: a.name,
           startTime: new Date(),
@@ -75,7 +93,7 @@ async function startProcess(req, input = {}) {
     batch.processInputWeight = Number(batch.processInputWeight || 0) + iw
     if (machineId) {
       batch.currentMachineId = machineId
-      batch.currentMachineName = machineName
+      batch.currentMachineName = resolvedMachineName
     }
     batch.currentHolderId = a.id
     batch.currentHolderName = a.name

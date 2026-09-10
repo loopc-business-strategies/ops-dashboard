@@ -43,6 +43,8 @@ const createUser = async (overrides = {}) => {
 
 async function wipeProductionCollections() {
   if (!isMongooseConnected(mongoose)) return
+  const ProductionMachine = require('../models/ProductionMachine')
+  const ProductionAlert = require('../models/ProductionAlert')
   await Promise.all([
     ProductionBatch.deleteMany({}),
     ProductionPass.deleteMany({}),
@@ -53,6 +55,8 @@ async function wipeProductionCollections() {
     StockMovement.deleteMany({}),
     AuditLog.deleteMany({}),
     WorkOrder.deleteMany({}),
+    ProductionMachine.deleteMany({}),
+    ProductionAlert.deleteMany({}),
     (await User.getTenantModel('loopc')).deleteMany({}),
   ])
 }
@@ -300,8 +304,68 @@ describe('Production Control Center API', () => {
       .set(auth(user))
     expect(floor.status).toBe(200)
     expect(floor.body.kpis.activeBatches).toBe(0)
+    expect(floor.body.board).toBeDefined()
+    expect(floor.body.kpis.qcFailed).toBeDefined()
 
     expect(await InventoryItem.countDocuments()).toBe(before)
     expect((await InventoryItem.findOne({ name: 'Keep Me' })).quantity).toBe(42)
+  })
+
+  test('blocks process start on FAULT/OFFLINE/MAINTENANCE machines and summarizes WO links', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+    const ProductionMachine = require('../models/ProductionMachine')
+
+    const wo = await WorkOrder.create({
+      woNumber: `WO-TEST-${Date.now()}`,
+      quantity: 10,
+      product: 'Bangle',
+      status: 'in_progress',
+    })
+
+    const batchRes = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({
+        metalType: 'Gold',
+        purity: '18K',
+        initialWeight: 100,
+        workOrderId: String(wo._id),
+        workOrderNumber: wo.woNumber,
+      })
+    expect(batchRes.status).toBe(201)
+    const batchId = batchRes.body.batch._id
+
+    const machine = await ProductionMachine.create({
+      machineCode: `M-${Date.now()}`,
+      name: 'Faulty Caster',
+      status: 'FAULT',
+      isActive: true,
+    })
+
+    const denied = await request(app)
+      .post('/api/erp/production-control/processes/start')
+      .set(headers)
+      .send({
+        batchId,
+        process: 'Casting',
+        department: 'casting',
+        machineId: String(machine._id),
+      })
+    expect(denied.status).toBe(400)
+    expect(denied.body.message).toMatch(/FAULT|machine/i)
+
+    const summary = await request(app)
+      .get('/api/erp/production-control/work-orders-summary')
+      .set(headers)
+    expect(summary.status).toBe(200)
+    expect(summary.body.byWorkOrder.some((r) => String(r.workOrderId) === String(wo._id))).toBe(true)
+
+    const list = await request(app)
+      .get('/api/erp/production-control/batches')
+      .query({ search: wo.woNumber, limit: 10 })
+      .set(headers)
+    expect(list.status).toBe(200)
+    expect(list.body.total).toBeGreaterThanOrEqual(1)
   })
 })

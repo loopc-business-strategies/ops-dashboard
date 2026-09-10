@@ -1,42 +1,80 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import productionControlApi from '../../api/productionControl'
-import { EmptyState, StatusPill, formatGrams, formatTime } from './shared'
+import workOrdersApi from '../../api/production/workOrders'
+import { formatGrams, formatTime } from './shared'
+import {
+  PccConfirmDialog,
+  PccEmptyState,
+  PccSkeleton,
+  PccStatusBadge,
+  PccWeightDisplay,
+} from './primitives'
+
+function useDebounced(value, ms = 300) {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return v
+}
 
 export function BatchesPanel({ onSelectBatch, onToast }) {
   const [batches, setBatches] = useState([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [workOrders, setWorkOrders] = useState([])
   const [form, setForm] = useState({
     metalType: 'Gold',
     purity: '18K',
     initialWeight: '',
     product: '',
     purpose: '',
+    workOrderId: '',
   })
+  const debouncedSearch = useDebounced(search, 350)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await productionControlApi.listBatches()
+      const data = await productionControlApi.listBatches({
+        search: debouncedSearch || undefined,
+        limit: 50,
+      })
       setBatches(data.batches || [])
+      setTotal(data.total ?? (data.batches || []).length)
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Failed to load batches')
     } finally {
       setLoading(false)
     }
-  }
+  }, [debouncedSearch, onToast])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    workOrdersApi.getWorkOrders({ limit: 50, page: 1 })
+      .then((d) => setWorkOrders(d.workOrders || []))
+      .catch(() => {})
+  }, [])
 
   const create = async (e) => {
     e.preventDefault()
     try {
+      const wo = workOrders.find((w) => String(w._id) === form.workOrderId)
       await productionControlApi.createBatch({
-        ...form,
+        metalType: form.metalType,
+        purity: form.purity,
         initialWeight: Number(form.initialWeight),
+        product: form.product,
+        purpose: form.purpose,
+        workOrderId: form.workOrderId || null,
+        workOrderNumber: wo?.woNumber || '',
         idempotencyKey: `ui-batch-${Date.now()}`,
       })
       onToast?.('Batch created')
-      setForm((f) => ({ ...f, initialWeight: '', product: '', purpose: '' }))
+      setForm((f) => ({ ...f, initialWeight: '', product: '', purpose: '', workOrderId: '' }))
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Create failed')
@@ -68,20 +106,41 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
           <label>Purpose
             <input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
           </label>
+          <label>Work order (optional)
+            <select value={form.workOrderId} onChange={(e) => setForm({ ...form, workOrderId: e.target.value })}>
+              <option value="">— None —</option>
+              {workOrders.map((wo) => (
+                <option key={wo._id} value={wo._id}>{wo.woNumber}{wo.product ? ` · ${wo.product}` : ''}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <button type="submit" className="pcc-btn">Create batch</button>
       </form>
 
       <div className="pcc-panel">
-        <div className="pcc-panel-head"><h2>BATCHES</h2></div>
-        {loading ? 'Loading…' : batches.length === 0 ? (
-          <EmptyState message="No active batches" />
+        <div className="pcc-panel-head">
+          <h2>BATCHES</h2>
+          <span>{total} total</span>
+        </div>
+        <div className="pcc-toolbar">
+          <label>Search
+            <input
+              type="search"
+              placeholder="Batch, WO, product, holder…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+        </div>
+        {loading ? <PccSkeleton rows={4} /> : batches.length === 0 ? (
+          <PccEmptyState message="No batches" />
         ) : (
           <div className="pcc-table-wrap">
             <table className="pcc-table">
               <thead>
                 <tr>
-                  <th>Batch</th><th>Metal</th><th>Weight</th><th>Process</th>
+                  <th>Batch</th><th>WO</th><th>Metal</th><th>Weight</th><th>Process</th>
                   <th>Department</th><th>Operator</th><th>Status</th><th />
                 </tr>
               </thead>
@@ -89,12 +148,13 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
                 {batches.map((b) => (
                   <tr key={b._id}>
                     <td>{b.batchNumber}</td>
+                    <td>{b.workOrderNumber || '—'}</td>
                     <td>{b.metalType} {b.purity}</td>
-                    <td>{formatGrams(b.currentWeight)}</td>
+                    <td><PccWeightDisplay grams={b.currentWeight} /></td>
                     <td>{b.currentProcess || '—'}</td>
                     <td>{b.currentDepartment}</td>
                     <td>{b.currentHolderName || '—'}</td>
-                    <td><StatusPill status={b.status} /></td>
+                    <td><PccStatusBadge status={b.status} /></td>
                     <td><button type="button" className="pcc-btn-ghost" onClick={() => onSelectBatch(b._id)}>Open</button></td>
                   </tr>
                 ))}
@@ -113,11 +173,12 @@ export function PassesPanel({ onToast }) {
   const [form, setForm] = useState({
     batchId: '', fromDepartment: 'vault', toDepartment: 'melting', weight: '', purpose: '',
   })
+  const [confirmCancel, setConfirmCancel] = useState(null)
 
   const load = async () => {
     const [p, b] = await Promise.all([
-      productionControlApi.listPasses(),
-      productionControlApi.listBatches(),
+      productionControlApi.listPasses({ limit: 100 }),
+      productionControlApi.listBatches({ limit: 100 }),
     ])
     setPasses(p.passes || [])
     setBatches(b.batches || [])
@@ -145,10 +206,25 @@ export function PassesPanel({ onToast }) {
       if (action === 'approve') await productionControlApi.approvePass(id)
       if (action === 'issue') await productionControlApi.issuePass(id)
       if (action === 'receive') await productionControlApi.receivePass(id, { receiveIdempotencyKey: `recv-${id}-${Date.now()}` })
-      onToast?.(`Pass ${action} OK`)
+      onToast?.(action === 'approve' || action === 'issue' || action === 'receive'
+        ? (/* prefer backend message when present */ `Pass ${action} OK`)
+        : 'OK')
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Action failed')
+    }
+  }
+
+  const doCancel = async () => {
+    if (!confirmCancel) return
+    const id = confirmCancel._id
+    setConfirmCancel(null)
+    try {
+      await productionControlApi.cancelPass(id)
+      onToast?.('Pass cancelled')
+      load()
+    } catch (err) {
+      onToast?.(err?.response?.data?.message || 'Cancel failed')
     }
   }
 
@@ -181,7 +257,7 @@ export function PassesPanel({ onToast }) {
 
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>PASSES</h2></div>
-        {passes.length === 0 ? <EmptyState message="No pending passes" /> : (
+        {passes.length === 0 ? <PccEmptyState message="No pending passes" /> : (
           <div className="pcc-table-wrap">
             <table className="pcc-table">
               <thead>
@@ -193,12 +269,15 @@ export function PassesPanel({ onToast }) {
                     <td>{p.passNumber}</td>
                     <td>{p.batchNumber}</td>
                     <td>{p.fromDepartment} → {p.toDepartment}</td>
-                    <td>{formatGrams(p.weight)}</td>
-                    <td><StatusPill status={p.status} /></td>
+                    <td><PccWeightDisplay grams={p.weight} /></td>
+                    <td><PccStatusBadge status={p.status} /></td>
                     <td className="pcc-actions">
                       {p.status === 'REQUESTED' && <button type="button" className="pcc-btn-ghost" onClick={() => act(p._id, 'approve')}>Approve</button>}
                       {['REQUESTED', 'APPROVED'].includes(p.status) && <button type="button" className="pcc-btn-ghost" onClick={() => act(p._id, 'issue')}>Issue</button>}
                       {['ISSUED', 'IN_TRANSIT'].includes(p.status) && <button type="button" className="pcc-btn-ghost" onClick={() => act(p._id, 'receive')}>Receive</button>}
+                      {!['RECEIVED', 'COMPLETED', 'CANCELLED'].includes(p.status) && (
+                        <button type="button" className="pcc-btn-ghost" onClick={() => setConfirmCancel(p)}>Cancel</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -207,19 +286,31 @@ export function PassesPanel({ onToast }) {
           </div>
         )}
       </div>
+
+      <PccConfirmDialog
+        open={!!confirmCancel}
+        title="Cancel pass?"
+        message={confirmCancel ? `Cancel ${confirmCancel.passNumber} for batch ${confirmCancel.batchNumber}?` : ''}
+        confirmLabel="Cancel pass"
+        danger
+        onCancel={() => setConfirmCancel(null)}
+        onConfirm={doCancel}
+      />
     </div>
   )
 }
 
-export function MovementsPanel() {
+export function MovementsPanel({ onToast }) {
   const [rows, setRows] = useState([])
   useEffect(() => {
-    productionControlApi.listMovements().then((d) => setRows(d.movements || [])).catch(() => {})
-  }, [])
+    productionControlApi.listMovements({ limit: 100 })
+      .then((d) => setRows(d.movements || []))
+      .catch((err) => onToast?.(err?.response?.data?.message || 'Failed to load movements'))
+  }, [onToast])
   return (
     <div className="pcc-panel">
       <div className="pcc-panel-head"><h2>METAL MOVEMENTS</h2></div>
-      {rows.length === 0 ? <EmptyState message="No metal movements" /> : (
+      {rows.length === 0 ? <PccEmptyState message="No metal movements" /> : (
         <div className="pcc-table-wrap">
           <table className="pcc-table">
             <thead>
@@ -232,8 +323,8 @@ export function MovementsPanel() {
                   <td>{m.batchNumber}</td>
                   <td>{m.fromDepartment} / {m.fromPersonName || '—'}</td>
                   <td>{m.toDepartment} / {m.toPersonName || '—'}</td>
-                  <td>{formatGrams(m.weight)}</td>
-                  <td><StatusPill status={m.status} /></td>
+                  <td><PccWeightDisplay grams={m.weight} /></td>
+                  <td><PccStatusBadge status={m.status} /></td>
                   <td>{formatTime(m.createdAt)}</td>
                 </tr>
               ))}
@@ -248,26 +339,36 @@ export function MovementsPanel() {
 export function ProcessesPanel({ onToast }) {
   const [rows, setRows] = useState([])
   const [batches, setBatches] = useState([])
-  const [form, setForm] = useState({ batchId: '', process: 'Melting', department: 'melting', inputWeight: '' })
+  const [machines, setMachines] = useState([])
+  const [form, setForm] = useState({ batchId: '', process: 'Melting', department: 'melting', inputWeight: '', machineId: '' })
   const [complete, setComplete] = useState({ id: '', outputWeight: '', scrap: '0', loss: '0' })
 
   const load = async () => {
-    const [p, b] = await Promise.all([
-      productionControlApi.listProcesses(),
-      productionControlApi.listBatches(),
+    const [p, b, m] = await Promise.all([
+      productionControlApi.listProcesses({ limit: 100 }),
+      productionControlApi.listBatches({ limit: 100 }),
+      productionControlApi.listMachines(),
     ])
     setRows(p.processes || [])
     setBatches(b.batches || [])
+    setMachines(m.machines || [])
   }
 
   useEffect(() => { load().catch(() => {}) }, [])
 
+  const availableMachines = machines.filter((m) => !['FAULT', 'OFFLINE', 'MAINTENANCE'].includes(m.status))
+
   const start = async (e) => {
     e.preventDefault()
     try {
+      const machine = machines.find((x) => String(x._id) === form.machineId)
       await productionControlApi.startProcess({
-        ...form,
+        batchId: form.batchId,
+        process: form.process,
+        department: form.department,
         inputWeight: form.inputWeight === '' ? undefined : Number(form.inputWeight),
+        machineId: form.machineId || undefined,
+        machineName: machine?.name || '',
       })
       onToast?.('Process started')
       load()
@@ -314,6 +415,14 @@ export function ProcessesPanel({ onToast }) {
           <label>Department
             <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
           </label>
+          <label>Machine
+            <select value={form.machineId} onChange={(e) => setForm({ ...form, machineId: e.target.value })}>
+              <option value="">— Optional —</option>
+              {availableMachines.map((m) => (
+                <option key={m._id} value={m._id}>{m.name} ({m.status})</option>
+              ))}
+            </select>
+          </label>
           <label>Input weight (g)
             <input type="number" step="0.001" value={form.inputWeight} onChange={(e) => setForm({ ...form, inputWeight: e.target.value })} />
           </label>
@@ -347,7 +456,7 @@ export function ProcessesPanel({ onToast }) {
 
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>PROCESS HISTORY</h2></div>
-        {rows.length === 0 ? <EmptyState message="No process runs" /> : (
+        {rows.length === 0 ? <PccEmptyState message="No process runs" /> : (
           <div className="pcc-table-wrap">
             <table className="pcc-table">
               <thead>
@@ -359,9 +468,9 @@ export function ProcessesPanel({ onToast }) {
                     <td>{r.processNumber}</td>
                     <td>{r.batchNumber}</td>
                     <td>{r.process}</td>
-                    <td>{formatGrams(r.inputWeight)}</td>
-                    <td>{r.outputWeight == null ? '—' : formatGrams(r.outputWeight)}</td>
-                    <td><StatusPill status={r.status} /></td>
+                    <td><PccWeightDisplay grams={r.inputWeight} /></td>
+                    <td>{r.outputWeight == null ? '—' : <PccWeightDisplay grams={r.outputWeight} />}</td>
+                    <td><PccStatusBadge status={r.status} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -377,11 +486,12 @@ export function QcPanel({ onToast }) {
   const [rows, setRows] = useState([])
   const [batches, setBatches] = useState([])
   const [form, setForm] = useState({ batchId: '', result: 'PASS', remarks: '' })
+  const [confirm, setConfirm] = useState(null)
 
   const load = async () => {
     const [q, b] = await Promise.all([
-      productionControlApi.listQc(),
-      productionControlApi.listBatches(),
+      productionControlApi.listQc({ limit: 100 }),
+      productionControlApi.listBatches({ limit: 100 }),
     ])
     setRows(q.inspections || [])
     setBatches(b.batches || [])
@@ -391,12 +501,21 @@ export function QcPanel({ onToast }) {
 
   const submit = async (e) => {
     e.preventDefault()
+    if (['FAIL', 'REWORK'].includes(form.result)) {
+      setConfirm({ ...form })
+      return
+    }
+    await doSubmit(form)
+  }
+
+  const doSubmit = async (payload) => {
     try {
-      await productionControlApi.submitQc({
-        ...form,
-        idempotencyKey: `qc-${form.batchId}-${Date.now()}`,
+      const res = await productionControlApi.submitQc({
+        ...payload,
+        idempotencyKey: `qc-${payload.batchId}-${Date.now()}`,
       })
-      onToast?.('QC submitted')
+      onToast?.(res?.message || 'QC submitted')
+      setConfirm(null)
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'QC failed')
@@ -427,7 +546,7 @@ export function QcPanel({ onToast }) {
       </form>
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>QC HISTORY</h2></div>
-        {rows.length === 0 ? <EmptyState message="No QC pending" /> : (
+        {rows.length === 0 ? <PccEmptyState message="No QC records" /> : (
           <div className="pcc-table-wrap">
             <table className="pcc-table">
               <thead><tr><th>Inspection</th><th>Batch</th><th>Result</th><th>Inspector</th><th>When</th></tr></thead>
@@ -436,7 +555,7 @@ export function QcPanel({ onToast }) {
                   <tr key={r._id}>
                     <td>{r.inspectionNumber}</td>
                     <td>{r.batchNumber}</td>
-                    <td><StatusPill status={r.result} /></td>
+                    <td><PccStatusBadge status={r.result} /></td>
                     <td>{r.inspectorName}</td>
                     <td>{formatTime(r.createdAt)}</td>
                   </tr>
@@ -446,6 +565,16 @@ export function QcPanel({ onToast }) {
           </div>
         )}
       </div>
+
+      <PccConfirmDialog
+        open={!!confirm}
+        title={`Confirm QC ${confirm?.result}?`}
+        message={confirm ? `Mark selected batch as ${confirm.result}. This updates batch status.` : ''}
+        confirmLabel={`Submit ${confirm?.result || 'QC'}`}
+        danger={confirm?.result === 'FAIL'}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => doSubmit(confirm)}
+      />
     </div>
   )
 }
@@ -487,16 +616,28 @@ export function MachinesPanel({ onToast }) {
       <form className="pcc-panel pcc-form" onSubmit={create}>
         <div className="pcc-panel-head"><h2>ADD MACHINE</h2></div>
         <div className="pcc-form-grid">
-          <label>Code<input required value={form.machineCode} onChange={(e) => setForm({ ...form, machineCode: e.target.value })} /></label>
-          <label>Name<input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-          <label>Department<input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} /></label>
-          <label>Process<input value={form.process} onChange={(e) => setForm({ ...form, process: e.target.value })} /></label>
+          <label>
+            Code
+            <input required value={form.machineCode} onChange={(e) => setForm({ ...form, machineCode: e.target.value })} />
+          </label>
+          <label>
+            Name
+            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </label>
+          <label>
+            Department
+            <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+          </label>
+          <label>
+            Process
+            <input value={form.process} onChange={(e) => setForm({ ...form, process: e.target.value })} />
+          </label>
         </div>
         <button type="submit" className="pcc-btn">Add</button>
       </form>
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>MACHINES</h2></div>
-        {rows.length === 0 ? <EmptyState message="No machines registered" /> : (
+        {rows.length === 0 ? <PccEmptyState message="No machines registered" /> : (
           <div className="pcc-table-wrap">
             <table className="pcc-table">
               <thead><tr><th>Code</th><th>Name</th><th>Dept</th><th>Status</th><th>Batch</th><th>Actions</th></tr></thead>
@@ -506,7 +647,7 @@ export function MachinesPanel({ onToast }) {
                     <td>{m.machineCode}</td>
                     <td>{m.name}</td>
                     <td>{m.department || '—'}</td>
-                    <td><StatusPill status={m.status} /></td>
+                    <td><PccStatusBadge status={m.status} /></td>
                     <td>{m.currentBatchNumber || '—'}</td>
                     <td className="pcc-actions">
                       {['RUNNING', 'IDLE', 'STOPPED', 'MAINTENANCE', 'FAULT', 'OFFLINE'].map((s) => (
@@ -527,7 +668,7 @@ export function MachinesPanel({ onToast }) {
 export function AlertsPanel({ onToast }) {
   const [rows, setRows] = useState([])
   const load = async () => {
-    const d = await productionControlApi.listAlerts()
+    const d = await productionControlApi.listAlerts({ limit: 100 })
     setRows(d.alerts || [])
   }
   useEffect(() => { load().catch(() => {}) }, [])
@@ -544,13 +685,13 @@ export function AlertsPanel({ onToast }) {
   return (
     <div className="pcc-panel">
       <div className="pcc-panel-head"><h2>ALERTS</h2></div>
-      {rows.length === 0 ? <EmptyState message="No production alerts" /> : (
+      {rows.length === 0 ? <PccEmptyState message="No production alerts" /> : (
         <ul className="pcc-list">
           {rows.map((a) => (
             <li key={a._id}>
               <strong>{a.alertNumber} · {a.title}</strong>
               <span>{a.message}</span>
-              <span><StatusPill status={a.status} /> {formatTime(a.createdAt)}</span>
+              <span><PccStatusBadge status={a.status} /> {formatTime(a.createdAt)}</span>
               {a.status !== 'RESOLVED' && (
                 <button type="button" className="pcc-btn-ghost" onClick={() => resolve(a._id)}>Resolve</button>
               )}
@@ -570,7 +711,7 @@ export function AuditPanel() {
   return (
     <div className="pcc-panel">
       <div className="pcc-panel-head"><h2>AUDIT LOG</h2></div>
-      {rows.length === 0 ? <EmptyState message="No production audit events" /> : (
+      {rows.length === 0 ? <PccEmptyState message="No production audit events" /> : (
         <div className="pcc-table-wrap">
           <table className="pcc-table">
             <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Resource</th><th>Detail</th></tr></thead>
@@ -593,7 +734,7 @@ export function AuditPanel() {
 }
 
 export function OverviewPanel({ summary, onSearch }) {
-  const [q, setQ] = useState({ batchNumber: '', passNumber: '', employee: '', department: '', metal: '' })
+  const [q, setQ] = useState({ batchNumber: '', passNumber: '', employee: '', department: '', metal: '', workOrder: '' })
   const [results, setResults] = useState([])
 
   const search = async (e) => {
@@ -603,17 +744,47 @@ export function OverviewPanel({ summary, onSearch }) {
   }
 
   const metalByDept = summary?.metalByDepartment || []
+  const statusCounts = summary?.statusCounts || []
+  const maxStatus = Math.max(1, ...statusCounts.map((s) => s.count || 0))
+  const maxMetal = Math.max(1, ...metalByDept.map((r) => Number(r.weight) || 0))
+  const kpis = summary?.kpis || {}
 
   return (
     <div className="pcc-stack">
+      <div className="pcc-kpi-row">
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.activeBatches ?? 0}</div><div className="pcc-kpi-label">Active batches</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.completedToday ?? 0}</div><div className="pcc-kpi-label">Completed today</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.qcFailed ?? 0}</div><div className="pcc-kpi-label">QC failed</div></div>
+        <div className="pcc-kpi"><div className="pcc-kpi-value">{kpis.activeWorkOrders ?? 0}</div><div className="pcc-kpi-label">Active WOs</div></div>
+      </div>
+
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>WHERE IS MY METAL?</h2></div>
-        <form className="pcc-form-grid" onSubmit={search}>
-          <label>Batch<input value={q.batchNumber} onChange={(e) => setQ({ ...q, batchNumber: e.target.value })} /></label>
-          <label>Pass<input value={q.passNumber} onChange={(e) => setQ({ ...q, passNumber: e.target.value })} /></label>
-          <label>Employee<input value={q.employee} onChange={(e) => setQ({ ...q, employee: e.target.value })} /></label>
-          <label>Department<input value={q.department} onChange={(e) => setQ({ ...q, department: e.target.value })} /></label>
-          <label>Metal<input value={q.metal} onChange={(e) => setQ({ ...q, metal: e.target.value })} /></label>
+        <form className="pcc-form pcc-form-grid" onSubmit={search}>
+          <label>
+            Batch
+            <input value={q.batchNumber} onChange={(e) => setQ({ ...q, batchNumber: e.target.value })} />
+          </label>
+          <label>
+            Pass
+            <input value={q.passNumber} onChange={(e) => setQ({ ...q, passNumber: e.target.value })} />
+          </label>
+          <label>
+            Work order
+            <input value={q.workOrder} onChange={(e) => setQ({ ...q, workOrder: e.target.value })} />
+          </label>
+          <label>
+            Employee
+            <input value={q.employee} onChange={(e) => setQ({ ...q, employee: e.target.value })} />
+          </label>
+          <label>
+            Department
+            <input value={q.department} onChange={(e) => setQ({ ...q, department: e.target.value })} />
+          </label>
+          <label>
+            Metal
+            <input value={q.metal} onChange={(e) => setQ({ ...q, metal: e.target.value })} />
+          </label>
           <button type="submit" className="pcc-btn">Search</button>
         </form>
         {results.length > 0 && (
@@ -626,11 +797,11 @@ export function OverviewPanel({ summary, onSearch }) {
                 {results.map((b) => (
                   <tr key={b._id}>
                     <td>{b.batchNumber}</td>
-                    <td>{formatGrams(b.currentWeight)}</td>
+                    <td><PccWeightDisplay grams={b.currentWeight} /></td>
                     <td>{b.currentDepartment}</td>
                     <td>{b.currentHolderName || '—'}</td>
                     <td>{b.currentProcess || '—'}</td>
-                    <td><StatusPill status={b.status} /></td>
+                    <td><PccStatusBadge status={b.status} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -639,15 +810,49 @@ export function OverviewPanel({ summary, onSearch }) {
         )}
       </div>
 
+      <div className="pcc-split">
+        <div className="pcc-panel">
+          <div className="pcc-panel-head"><h2>BATCHES BY STATUS</h2></div>
+          {statusCounts.length === 0 ? <PccEmptyState message="No status aggregates" /> : (
+            <div className="pcc-bars">
+              {statusCounts.map((row) => (
+                <div key={row.status} className="pcc-bar-row">
+                  <span>{row.status}</span>
+                  <div className="pcc-bar-track">
+                    <div className="pcc-bar-fill" style={{ width: `${(row.count / maxStatus) * 100}%` }} />
+                  </div>
+                  <strong>{row.count}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="pcc-panel">
+          <div className="pcc-panel-head"><h2>METAL BY DEPARTMENT</h2></div>
+          {metalByDept.length === 0 ? <PccEmptyState message="No metal in production" /> : (
+            <div className="pcc-bars">
+              {metalByDept.map((row, i) => (
+                <div key={`${row.department}-${row.metalType}-${i}`} className="pcc-bar-row">
+                  <span>{String(row.department || '').toUpperCase()} · {row.metalType}</span>
+                  <div className="pcc-bar-track">
+                    <div className="pcc-bar-fill" style={{ width: `${(Number(row.weight) / maxMetal) * 100}%` }} />
+                  </div>
+                  <strong>{formatGrams(row.weight)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="pcc-panel">
-        <div className="pcc-panel-head"><h2>METAL BALANCE BY DEPARTMENT</h2></div>
-        {metalByDept.length === 0 ? <EmptyState message="No metal in production" /> : (
+        <div className="pcc-panel-head"><h2>CUSTODY SNAPSHOT</h2></div>
+        {(summary?.custody || []).length === 0 ? <PccEmptyState message="No custody rows" /> : (
           <ul className="pcc-list">
-            {metalByDept.map((row, i) => (
-              <li key={`${row.department}-${row.metalType}-${i}`}>
-                <strong>{String(row.department || '').toUpperCase()}</strong>
-                <span>{row.metalType}</span>
-                <span>{formatGrams(row.weight)}</span>
+            {summary.custody.slice(0, 12).map((c, i) => (
+              <li key={`${c.person}-${i}`}>
+                <strong>{c.person}</strong>
+                <span>{c.department} · {formatGrams(c.weight)}</span>
               </li>
             ))}
           </ul>
@@ -657,19 +862,60 @@ export function OverviewPanel({ summary, onSearch }) {
   )
 }
 
-export function BatchDetailModal({ batchId, onClose, onToast }) {
+export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) {
   const [detail, setDetail] = useState(null)
+  const [confirm, setConfirm] = useState(null)
+  const [weightForm, setWeightForm] = useState({ adjustment: '', reason: '' })
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     if (!batchId) return
     productionControlApi.getBatch(batchId)
       .then(setDetail)
       .catch((err) => onToast?.(err?.response?.data?.message || 'Failed to load batch'))
-  }, [batchId])
+  }, [batchId, onToast])
+
+  useEffect(() => {
+    setDetail(null)
+    reload()
+  }, [reload])
 
   if (!batchId) return null
   const b = detail?.batch
   const wr = detail?.weightReconciliation
+
+  const runAction = async () => {
+    if (!confirm || !b) return
+    const action = confirm.action
+    setConfirm(null)
+    try {
+      if (action === 'hold') await productionControlApi.holdBatch(b._id, {})
+      if (action === 'release') await productionControlApi.releaseBatch(b._id, {})
+      if (action === 'return') await productionControlApi.returnToVault(b._id, {})
+      if (action === 'weight') {
+        const adj = Number(weightForm.adjustment)
+        const before = Number(b.currentWeight)
+        const after = before + adj
+        await productionControlApi.adjustWeight(b._id, {
+          field: 'currentWeight',
+          adjustment: adj,
+          reason: weightForm.reason,
+          idempotencyKey: `adj-${b._id}-${Date.now()}`,
+        })
+        onToast?.(`Weight adjusted ${before} → ${after} g`)
+        setWeightForm({ adjustment: '', reason: '' })
+      } else {
+        onToast?.(action === 'return' ? 'Returned to vault' : action === 'hold' ? 'Batch on hold' : 'Batch released')
+      }
+      reload()
+      onRefreshFloor?.()
+    } catch (err) {
+      onToast?.(err?.response?.data?.message || 'Action failed')
+    }
+  }
+
+  const weightBefore = Number(b?.currentWeight || 0)
+  const weightAdj = Number(weightForm.adjustment)
+  const weightAfter = Number.isFinite(weightAdj) ? weightBefore + weightAdj : weightBefore
 
   return (
     <div className="pcc-modal-backdrop" onClick={onClose} role="presentation">
@@ -678,34 +924,70 @@ export function BatchDetailModal({ batchId, onClose, onToast }) {
           <h2>{b?.batchNumber || 'Batch'}</h2>
           <button type="button" className="pcc-btn-ghost" onClick={onClose}>Close</button>
         </div>
-        {!detail ? 'Loading…' : (
+        {!detail ? <PccSkeleton rows={5} /> : (
           <div className="pcc-stack">
             <div className="pcc-meta-grid">
               <div><span>Metal</span><strong>{b.metalType} {b.purity}</strong></div>
-              <div><span>Initial</span><strong>{formatGrams(b.initialWeight)}</strong></div>
-              <div><span>Current</span><strong>{formatGrams(b.currentWeight)}</strong></div>
+              <div><span>Initial</span><strong><PccWeightDisplay grams={b.initialWeight} /></strong></div>
+              <div><span>Current</span><strong><PccWeightDisplay grams={b.currentWeight} /></strong></div>
               <div><span>Department</span><strong>{b.currentDepartment}</strong></div>
               <div><span>Holder</span><strong>{b.currentHolderName || '—'}</strong></div>
               <div><span>Machine</span><strong>{b.currentMachineName || '—'}</strong></div>
               <div><span>Process</span><strong>{b.currentProcess || '—'}</strong></div>
-              <div><span>Status</span><strong><StatusPill status={b.status} /></strong></div>
+              <div><span>WO</span><strong>{b.workOrderNumber || '—'}</strong></div>
+              <div><span>Status</span><strong><PccStatusBadge status={b.status} /></strong></div>
             </div>
+
+            <div className="pcc-actions">
+              {b.status !== 'HOLD' && !['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED'].includes(b.status) && (
+                <button type="button" className="pcc-btn-ghost" onClick={() => setConfirm({ action: 'hold' })}>Hold</button>
+              )}
+              {b.status === 'HOLD' && (
+                <button type="button" className="pcc-btn-ghost" onClick={() => setConfirm({ action: 'release' })}>Release</button>
+              )}
+              {!['RETURNED_TO_VAULT', 'CANCELLED'].includes(b.status) && (
+                <button type="button" className="pcc-btn-ghost" onClick={() => setConfirm({ action: 'return' })}>Return to vault</button>
+              )}
+            </div>
+
+            <form
+              className="pcc-panel pcc-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!weightForm.reason.trim() || !Number.isFinite(Number(weightForm.adjustment)) || Number(weightForm.adjustment) === 0) {
+                  onToast?.('Adjustment and reason are required')
+                  return
+                }
+                setConfirm({ action: 'weight' })
+              }}
+            >
+              <div className="pcc-panel-head"><h3>Weight adjustment</h3></div>
+              <div className="pcc-form-grid">
+                <label>Adjustment (g)
+                  <input type="number" step="0.001" value={weightForm.adjustment} onChange={(e) => setWeightForm({ ...weightForm, adjustment: e.target.value })} />
+                </label>
+                <label>Reason
+                  <input required minLength={3} value={weightForm.reason} onChange={(e) => setWeightForm({ ...weightForm, reason: e.target.value })} />
+                </label>
+              </div>
+              <button type="submit" className="pcc-btn">Adjust weight</button>
+            </form>
 
             <div className="pcc-panel">
               <div className="pcc-panel-head"><h3>Weight Reconciliation</h3></div>
               <div className="pcc-meta-grid">
-                <div><span>Expected</span><strong>{formatGrams(wr?.expectedWeight)}</strong></div>
-                <div><span>Actual</span><strong>{formatGrams(wr?.actualWeight)}</strong></div>
-                <div><span>Difference</span><strong>{formatGrams(wr?.difference)}</strong></div>
+                <div><span>Expected</span><strong><PccWeightDisplay grams={wr?.expectedWeight} /></strong></div>
+                <div><span>Actual</span><strong><PccWeightDisplay grams={wr?.actualWeight} /></strong></div>
+                <div><span>Difference</span><strong><PccWeightDisplay grams={wr?.difference} /></strong></div>
                 <div><span>Variance %</span><strong>{Number(wr?.variancePct || 0).toFixed(2)}%</strong></div>
-                <div><span>Scrap</span><strong>{formatGrams(wr?.scrap)}</strong></div>
-                <div><span>Loss</span><strong>{formatGrams(wr?.loss)}</strong></div>
+                <div><span>Scrap</span><strong><PccWeightDisplay grams={wr?.scrap} /></strong></div>
+                <div><span>Loss</span><strong><PccWeightDisplay grams={wr?.loss} /></strong></div>
               </div>
             </div>
 
             <div className="pcc-panel">
               <div className="pcc-panel-head"><h3>Production Journey</h3></div>
-              {(detail.timeline || []).length === 0 ? <EmptyState message="No timeline events" /> : (
+              {(detail.timeline || []).length === 0 ? <PccEmptyState message="No timeline events" /> : (
                 <ul className="pcc-list">
                   {detail.timeline.map((t, i) => (
                     <li key={`${t.type}-${i}`}>
@@ -718,6 +1000,37 @@ export function BatchDetailModal({ batchId, onClose, onToast }) {
             </div>
           </div>
         )}
+
+        <PccConfirmDialog
+          open={!!confirm}
+          title={
+            confirm?.action === 'hold' ? 'Put batch on hold?'
+              : confirm?.action === 'release' ? 'Release batch?'
+                : confirm?.action === 'return' ? 'Return to vault?'
+                  : 'Confirm weight adjustment?'
+          }
+          message={
+            confirm?.action === 'weight'
+              ? 'This writes an audited weight adjustment.'
+              : confirm?.action === 'return'
+                ? `Return ${b?.batchNumber} metal to vault inventory.`
+                : `${b?.batchNumber || 'Batch'} will change status.`
+          }
+          details={
+            confirm?.action === 'weight' ? (
+              <>
+                <div>Before: {formatGrams(weightBefore)}</div>
+                <div>Adjustment: {formatGrams(weightAdj)}</div>
+                <div>After: {formatGrams(weightAfter)}</div>
+                <div>Reason: {weightForm.reason}</div>
+              </>
+            ) : null
+          }
+          confirmLabel="Confirm"
+          danger={confirm?.action === 'return' || confirm?.action === 'hold' || confirm?.action === 'weight'}
+          onCancel={() => setConfirm(null)}
+          onConfirm={runAction}
+        />
       </div>
     </div>
   )
