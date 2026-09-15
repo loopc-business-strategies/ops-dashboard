@@ -151,12 +151,14 @@ npm run verify:upload-storage
 Complete once per quarter (or after any cluster migration):
 
 - [ ] **Atlas / provider dashboard:** Continuous backup or snapshot schedule is **enabled** for every tenant cluster.
-- [ ] **Retention** documented (minimum 7 days).
-- [ ] **Connectivity drill:** `npm run verify:mongo-backup-drill` passes (or GitHub **Mongo Backup Drill** workflow green).
+- [ ] **Retention** documented (minimum 7 days) — today: GH Actions mongodump artifacts ≈ **7 days** until S3/R2.
+- [x] **Connectivity drill:** `npm run verify:mongo-backup-drill` + GitHub **Mongo Backup Drill** green (2026-09-16, deferred phase).
 - [ ] **Restore drill:** Restore a snapshot to a **non-production** cluster; confirm at least one known document per tenant.
-- [ ] **Upload volume:** `npm run verify:upload-storage` passes for production and staging.
+- [x] **Upload volume:** `npm run verify:upload-storage` passes for production and staging (2026-09-16).
 - [ ] **Runbook:** Restore approver named; RTO/RPO recorded in ops log.
-- [ ] **Destructive scripts:** Confirm [`backend/scripts/destructive/_destructive-guard.js`](../backend/scripts/destructive/_destructive-guard.js) gates before any `--apply` in production.
+- [x] **Destructive scripts:** Confirm [`backend/scripts/destructive/_destructive-guard.js`](../backend/scripts/destructive/_destructive-guard.js) gates before any `--apply` in production (CI `check:destructive-guards`).
+
+**2026-09-16 ops note:** Weekly **Mongo Backup Mongodump** succeeded ([run 35034375429](https://github.com/loopc-business-strategies/ops-dashboard/actions/runs/35034375429)). Durable S3/R2 needs `BACKUP_S3_*` + Cloudflare R2 secrets (`npm run setup:mongo-backup-rollout -- --r2 --github`). Atlas strict still blocked without API keys / M10+.
 
 ## Restore runbook (who / how)
 

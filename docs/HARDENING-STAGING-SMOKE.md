@@ -10,11 +10,12 @@ Use after [PR #62](https://github.com/loopc-business-strategies/ops-dashboard/pu
 
 | Date | Check | Result |
 |------|--------|--------|
-| 2026-09-16 | Staging API `/api/health` SHA | Verified via deploy: matches `main` when staging synced |
-| 2026-09-16 | Demo seed tabs (`VITE_ENABLE_SEED_DATA`) | **N/A** — flag removed from frontend; PCC demo only via `VITE_ENABLE_PRODUCTION_DEMO` |
-| 2026-09-16 | Dashboard Production tab | Redirects to `/production` (PCC); legacy `tabs/production/*` monitors unused |
+| 2026-09-16 | Staging API `/api/health` SHA | Matches `main` (`fd467bec`) |
+| 2026-09-16 | Demo seed tabs (`VITE_ENABLE_SEED_DATA`) | **N/A** — flag removed; PCC demo only via `VITE_ENABLE_PRODUCTION_DEMO` |
+| 2026-09-16 | Dashboard Production tab | Redirects to `/production` (PCC) |
+| 2026-09-16 | **Staging Smoke** workflow | **Passed** — [run 35034340011](https://github.com/loopc-business-strategies/ops-dashboard/actions/runs/35034340011) (mg/cg/loopc/vb) |
 
-Remaining rows below are **operator UI smoke** (login required). Tick when run on staging.
+Remaining rows below are **manual browser UI** (voucher lock, PCC metal). Automated staging smoke covers API/auth/ERP probes.
 
 ---
 

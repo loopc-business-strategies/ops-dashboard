@@ -12,25 +12,31 @@ Production indexes are therefore **ops-owned**: Atlas backup → reviewed apply 
 
 | Check | Result |
 |-------|--------|
-| `/api/health` + `/api/ready` on prod | OK; Redis configured; SHA on `main` after Wave 1 deploy |
-| Tab seed / `VITE_ENABLE_SEED_DATA` | Removed from frontend; PCC demo only via `VITE_ENABLE_PRODUCTION_DEMO` (keep unset in prod) |
+| `/api/health` + `/api/ready` on prod | OK; Redis; SHA `fd467bec` |
+| Tab seed / `VITE_ENABLE_SEED_DATA` | Removed; PCC demo only via `VITE_ENABLE_PRODUCTION_DEMO` (unset in prod) |
 | Dashboard `production` tab | Redirects to PCC (`/production`) |
 | VB migrations | See **VB index strategy** below |
+| **Post-Deploy Tenant Smoke** | **Passed** — [run 35034342762](https://github.com/loopc-business-strategies/ops-dashboard/actions/runs/35034342762) |
+| **Staging Smoke** | **Passed** — [run 35034340011](https://github.com/loopc-business-strategies/ops-dashboard/actions/runs/35034340011) |
+| Upload volumes | Prod + staging `uploadVolumeAligned=true` |
+| Weekly mongodump | **Passed** (GH artifacts) — [run 35034375429](https://github.com/loopc-business-strategies/ops-dashboard/actions/runs/35034375429); S3/R2 not configured yet |
+| Mongo Backup Drill | **Passed** (deferred phase) — [run 35034377877](https://github.com/loopc-business-strategies/ops-dashboard/actions/runs/35034377877) |
 
-Operator UI rows remain for voucher / search / PCC metal window.
+Manual browser rows (voucher UI lock, PCC live metal) remain for a finance operator.
 
 ## Before production deploy confirmation
 
 - [x] Staging indexes applied for mg/cg/loopc (done) and VB path reviewed (001–002 + 005–008; **003 deferred**; **004 record-skipped** — see below)
 - [x] Tab demo seed off on production frontend (code purge; do not enable `VITE_ENABLE_PRODUCTION_DEMO` in prod)
-- [x] Railway/Vercel production deploy tracks `main` (redeploy after Wave 1 merge)
-- [ ] Staging UI smoke done ([HARDENING-STAGING-SMOKE.md](./HARDENING-STAGING-SMOKE.md)) — voucher/PCC/operator rows
-- [ ] Atlas **production** backup / snapshot for each tenant cluster **or** interim weekly mongodump enabled (see [CRITICAL-FIXES-CHECKLIST.md](./CRITICAL-FIXES-CHECKLIST.md) #3)
+- [x] Railway/Vercel production deploy tracks `main`
+- [x] Staging automated smoke done (workflow); manual voucher/PCC UI rows still open in [HARDENING-STAGING-SMOKE.md](./HARDENING-STAGING-SMOKE.md)
+- [x] Interim weekly mongodump enabled (`MONGO_BACKUP_ENABLED=true`); Atlas strict + S3/R2 still pending (see [CRITICAL-FIXES-CHECKLIST.md](./CRITICAL-FIXES-CHECKLIST.md) #3)
 
 ## Production smoke (read-heavy first)
 
 - [x] `/api/health` OK; build SHA matches `main` (re-check after each deploy)
-- [ ] Login + Overview Global Search + Owner Exceptions (no 500s)
+- [x] Authenticated tenant smoke (Post-Deploy) green for mg/cg/loopc/vb
+- [ ] Login + Overview Global Search + Owner Exceptions in browser (no 500s)
 - [ ] Voucher draft → submit (no auto-post); ERP approve → post on a **test** voucher if policy allows
 - [ ] PCC remainder/split/merge/maintenance only on agreed test metal — or skip live metal until scheduled window
 
