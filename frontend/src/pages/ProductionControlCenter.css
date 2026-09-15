@@ -174,17 +174,42 @@
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  padding: 8px 12px 0;
+  overflow-y: hidden;
+  padding: 8px 12px 10px;
   border-bottom: 1px solid var(--pcc-border);
   background: var(--pcc-bg);
   align-items: flex-end;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pcc-border-strong) transparent;
+}
+
+.pcc-nav::-webkit-scrollbar {
+  height: 6px;
+}
+
+.pcc-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pcc-nav::-webkit-scrollbar-thumb {
+  background: var(--pcc-border-strong);
+  border-radius: 999px;
 }
 
 .pcc-nav-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 0;
+  flex-shrink: 0;
+  min-width: max-content;
+  padding-right: 12px;
+  border-right: 1px solid var(--pcc-border);
+}
+
+.pcc-nav-group:last-child {
+  border-right: 0;
+  padding-right: 0;
 }
 
 .pcc-nav-group-label {
@@ -193,11 +218,13 @@
   letter-spacing: 0.1em;
   color: var(--pcc-text-secondary);
   padding: 0 10px;
+  white-space: nowrap;
 }
 
 .pcc-nav-group-items {
   display: flex;
-  gap: 2px;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 
 .pcc-nav button {
@@ -209,6 +236,7 @@
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   border-radius: 0;
 }
