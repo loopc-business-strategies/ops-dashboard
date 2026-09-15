@@ -10,6 +10,7 @@ import {
   PccStatusBadge,
   PccWeightDisplay,
 } from './primitives'
+import { inventoryApi } from '../../api/operations/inventory'
 
 function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value)
@@ -18,6 +19,10 @@ function useDebounced(value, ms = 300) {
     return () => clearTimeout(t)
   }, [value, ms])
   return v
+}
+
+function canIssueGate(batch) {
+  return Boolean(batch && ['CREATED', 'AWAITING_ISSUE'].includes(batch.status))
 }
 
 function toastMsg(isDemo, fallback, res) {
@@ -1179,7 +1184,11 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
   const [detail, setDetail] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [weightForm, setWeightForm] = useState({ adjustment: '', reason: '' })
-  const [issueForm, setIssueForm] = useState({ inventoryItemId: '', weight: '' })
+  const [issueForm, setIssueForm] = useState({ inventoryItemId: '', weight: '', itemLabel: '' })
+  const [invSearch, setInvSearch] = useState('')
+  const debouncedInvSearch = useDebounced(invSearch, 300)
+  const [invResults, setInvResults] = useState([])
+  const [invLoading, setInvLoading] = useState(false)
   const [tab, setTab] = useState('summary')
 
   const reload = useCallback(() => {
@@ -1192,6 +1201,7 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
           setIssueForm({
             inventoryItemId: batch.inventoryItemId ? String(batch.inventoryItemId) : '',
             weight: String(batch.currentWeight || batch.initialWeight || ''),
+            itemLabel: batch.inventoryItemId ? `Linked ${String(batch.inventoryItemId).slice(0, 8)}…` : '',
           })
         }
       })
@@ -1201,8 +1211,52 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
   useEffect(() => {
     setDetail(null)
     setTab('summary')
+    setInvSearch('')
+    setInvResults([])
     reload()
   }, [reload])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!canIssueGate(detail?.batch)) {
+      setInvResults([])
+      return undefined
+    }
+    const q = String(debouncedInvSearch || '').trim()
+    setInvLoading(true)
+    inventoryApi
+      .getInventory({ search: q || undefined, limit: 20, page: 1 })
+      .then((res) => {
+        if (cancelled) return
+        const items = res.items || res.data || []
+        setInvResults(items)
+        if (/^[a-f0-9]{24}$/i.test(q)) {
+          const match = items.find((item) => String(item._id || item.id) === q)
+          if (match) {
+            const unit = match.unit || 'g'
+            const qty = match.quantity ?? 0
+            setIssueForm((prev) => ({
+              ...prev,
+              inventoryItemId: q,
+              itemLabel: `${match.name || 'Item'}${match.sku ? ` · ${match.sku}` : ''} · ${qty} ${unit}`,
+            }))
+          } else if (items.length === 0) {
+            setIssueForm((prev) => ({
+              ...prev,
+              inventoryItemId: q,
+              itemLabel: `Item ${q.slice(0, 8)}…`,
+            }))
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setInvResults([])
+      })
+      .finally(() => {
+        if (!cancelled) setInvLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [debouncedInvSearch, detail?.batch?.status, detail?.batch?._id])
 
   if (!batchId) return null
   const b = detail?.batch
@@ -1310,7 +1364,7 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
                       className="pcc-btn"
                       onClick={() => {
                         if (!issueForm.inventoryItemId || !(Number(issueForm.weight) > 0)) {
-                          onToast?.('Inventory item id and positive weight are required')
+                          onToast?.('Select an inventory item and enter a positive weight')
                           return
                         }
                         setConfirm({ action: 'issue' })
@@ -1334,12 +1388,76 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
                   <div className="pcc-panel pcc-form">
                     <div className="pcc-panel-head"><h3>Issue from vault</h3></div>
                     <div className="pcc-form-grid">
-                      <label>Inventory item ID
+                      <label style={{ gridColumn: '1 / -1' }}>
+                        Inventory item
                         <input
-                          value={issueForm.inventoryItemId}
-                          onChange={(e) => setIssueForm({ ...issueForm, inventoryItemId: e.target.value })}
-                          placeholder="Mongo ObjectId"
+                          value={invSearch}
+                          onChange={(e) => setInvSearch(e.target.value)}
+                          placeholder="Search by name, SKU, or paste Item ID"
+                          autoComplete="off"
                         />
+                        {issueForm.inventoryItemId ? (
+                          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+                            Selected: <strong>{issueForm.itemLabel || issueForm.inventoryItemId}</strong>
+                            {' '}
+                            <button
+                              type="button"
+                              className="pcc-btn-ghost"
+                              style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11 }}
+                              onClick={() => setIssueForm({ ...issueForm, inventoryItemId: '', itemLabel: '' })}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        ) : null}
+                        <div style={{ marginTop: 8, maxHeight: 160, overflowY: 'auto', border: '1px solid var(--pcc-border, #ddd)', borderRadius: 8 }}>
+                          {invLoading ? (
+                            <div style={{ padding: 10, fontSize: 12 }}>Searching…</div>
+                          ) : invResults.length === 0 ? (
+                            <div style={{ padding: 10, fontSize: 12, opacity: 0.7 }}>No matching inventory items</div>
+                          ) : (
+                            invResults.map((item) => {
+                              const id = String(item._id || item.id)
+                              const unit = item.unit || 'g'
+                              const qty = item.quantity ?? 0
+                              const label = `${item.name || 'Item'}${item.sku ? ` · ${item.sku}` : ''} · ${qty} ${unit}`
+                              const selected = issueForm.inventoryItemId === id
+                              return (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  onClick={() => {
+                                    setIssueForm({
+                                      ...issueForm,
+                                      inventoryItemId: id,
+                                      itemLabel: label,
+                                    })
+                                    setInvSearch(item.name || item.sku || id)
+                                  }}
+                                  style={{
+                                    display: 'block',
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '8px 10px',
+                                    border: 'none',
+                                    borderBottom: '1px solid var(--pcc-border, #eee)',
+                                    background: selected ? 'rgba(var(--orange-rgb, 234,88,12), 0.12)' : 'transparent',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 700 }}>{item.name || 'Untitled'}</div>
+                                  <div style={{ opacity: 0.75 }}>
+                                    {item.sku ? `SKU ${item.sku} · ` : ''}
+                                    Available {qty} {unit}
+                                    {item.isMetalLinked ? ' · vault/metal' : ''}
+                                  </div>
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
                       </label>
                       <label>Weight (g)
                         <input

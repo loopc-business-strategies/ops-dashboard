@@ -84,6 +84,8 @@ export default function OperationsTab() {
   const isUser     = perms.isDepartmentUser
   const isExternal = perms.isExternal
   const canEdit    = isAdmin || isHead
+  // Inventory writes match backend canEditInventory (Super Admin or Production Head only)
+  const canEditInventory = isAdmin || (isHead && String(user?.department || '').toLowerCase() === 'production')
   const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
   const [suppliers, setSuppliers] = useState(USE_SEED_DATA ? INIT_SUPPLIERS : [])
@@ -93,26 +95,40 @@ export default function OperationsTab() {
   const [incidents, setIncidents] = useState(USE_SEED_DATA ? INIT_INCIDENTS : [])
   const [vendors,   setVendors]   = useState(USE_SEED_DATA ? INIT_VENDORS : [])
   const [inventory, setInventory] = useState(USE_SEED_DATA ? INIT_INVENTORY : [])
+  const [inventoryTotal, setInventoryTotal] = useState(0)
+  const [inventoryPage, setInventoryPage] = useState(1)
+  const [inventorySearch, setInventorySearch] = useState('')
+  const [inventoryCanEditApi, setInventoryCanEditApi] = useState(canEditInventory)
+  const inventoryLimit = 50
+  const inventoryWriteOk = canEditInventory && inventoryCanEditApi
 
-    const invToRow = item => ({
-      id:    item._id || item.id,
-      item:  item.name || item.item,
-      stock: item.quantity ?? item.stock ?? 0,
-      min:   item.minThreshold ?? item.min ?? 0,
-      sup:   item.supplierName || item.sup || '—',
-      last:  item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : (item.last || '—'),
-      st:    item.quantity === 0 || item.stock === 0 ? 'Critical' : (item.quantity || item.stock || 0) <= (item.minThreshold || item.min || 0) ? 'Low Stock' : 'Sufficient',
-    })
+  const invToRow = (item) => {
+    const qty = item.quantity ?? item.stock ?? 0
+    const min = item.minThreshold ?? item.min ?? 0
+    const unit = item.unit || 'units'
+    const isMetalLinked = Boolean(
+      item.isMetalLinked
+      || /mainStock=/i.test(String(item.category || ''))
+      || /metalType=/i.test(String(item.category || ''))
+      || ['g', 'gm', 'gram', 'grams'].includes(String(unit).toLowerCase()),
+    )
+    return {
+      id: item._id || item.id,
+      item: item.name || item.item,
+      sku: item.sku || '',
+      unit,
+      category: item.category || '',
+      stock: qty,
+      min,
+      sup: item.supplierName || item.sup || '—',
+      last: item.lastRestockedAt
+        ? new Date(item.lastRestockedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : (item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (item.last || '—')),
+      st: qty === 0 ? 'Critical' : qty < min ? 'Low Stock' : 'Sufficient',
+      isMetalLinked,
+    }
+  }
 
-    const loadInventory = useCallback(async () => {
-      try {
-        const res = await inventoryApi.getInventory()
-        const items = res.items || res.data || []
-        if (items.length > 0) setInventory(items.map(invToRow))
-      } catch { /* keep current state */ }
-    }, [])
-
-    useEffect(() => { loadInventory() }, [loadInventory])
   const [tasks, setTasks] = useState([])
   const [showArchivedOpsProjects, setShowArchivedOpsProjects] = useState(false)
   const [taskAssignees, setTaskAssignees] = useState([])
@@ -184,6 +200,28 @@ export default function OperationsTab() {
     clearTimeout(showToast._t)
     showToast._t = setTimeout(() => setToast(null), 3200)
   }
+
+  const loadInventory = useCallback(async () => {
+    try {
+      const res = await inventoryApi.getInventory({
+        page: inventoryPage,
+        limit: inventoryLimit,
+        search: inventorySearch.trim() || undefined,
+      })
+      const items = res.items || res.data || []
+      setInventory(items.map(invToRow))
+      setInventoryTotal(Number(res.total || items.length || 0))
+      if (res.permissions && typeof res.permissions.canEdit === 'boolean') {
+        setInventoryCanEditApi(res.permissions.canEdit)
+      } else {
+        setInventoryCanEditApi(canEditInventory)
+      }
+    } catch {
+      showToast('Error', 'Failed to load inventory')
+    }
+  }, [inventoryPage, inventorySearch, canEditInventory])
+
+  useEffect(() => { loadInventory() }, [loadInventory])
 
   function addSupplier(f) {
     setSuppliers(p => [...p, { id:Date.now(), name:f.name.trim(), cat:f.cat, od:f.od||'—', ed:f.ed||'—', ad:'—', qty:f.qty||'—', qr:'0', pay:'Not Paid', qc:'Pending', st:f.st, notes:f.notes||'—' }])
@@ -354,27 +392,58 @@ export default function OperationsTab() {
     closeModal(); showToast('Vendor Updated', f.name + ' updated')
   }
   function addInventoryItem(f) {
-    const stock = Number(f.stock)||0, min = Number(f.min)||0
+    if (!inventoryWriteOk) {
+      showToast('Restricted', 'Only Super Admin or Production Head can edit inventory.')
+      return
+    }
+    const stock = Number(f.stock) || 0
+    const min = Number(f.min) || 0
     const payload = { name: f.item, quantity: stock, minThreshold: min, supplierName: f.sup || '', unit: 'units' }
     inventoryApi.createInventoryItem(payload)
-      .then(res => { setInventory(p => [...p, invToRow(res.item || res.data || { ...payload, _id: Date.now() })]); closeModal(); showToast('Item Added', f.item + ' added to inventory') })
-      .catch(() => showToast('Error', 'Failed to add inventory item'))
+      .then((res) => {
+        closeModal()
+        showToast('Item Added', `${f.item} added to inventory`)
+        loadInventory()
+        return res
+      })
+      .catch((err) => showToast('Error', err?.response?.data?.message || err?.message || 'Failed to add inventory item'))
   }
   function editInventoryItem(f) {
-    const stock = Number(f.stock)||0, min = Number(f.min)||0
-    const payload = { name: f.item, quantity: stock, minThreshold: min, supplierName: f.sup || '' }
+    if (!inventoryWriteOk) {
+      showToast('Restricted', 'Only Super Admin or Production Head can edit inventory.')
+      return
+    }
+    const stock = Number(f.stock) || 0
+    const min = Number(f.min) || 0
+    const payload = {
+      name: f.item,
+      minThreshold: min,
+      supplierName: f.sup || '',
+    }
+    // Never send quantity overwrite for metal/ERP-linked vault items
+    if (!f.isMetalLinked) {
+      payload.quantity = stock
+    }
     inventoryApi.updateInventoryItem(f.id, payload)
-      .then(() => { setInventory(p => p.map(x => x.id===f.id ? invToRow({ ...x, ...payload, _id: f.id, updatedAt: new Date().toISOString() }) : x)); closeModal(); showToast('Item Updated', f.item + ' updated') })
-      .catch(() => showToast('Error', 'Failed to update inventory item'))
+      .then(() => {
+        closeModal()
+        showToast('Item Updated', `${f.item} updated`)
+        loadInventory()
+      })
+      .catch((err) => showToast('Error', err?.response?.data?.message || err?.message || 'Failed to update inventory item'))
   }
   async function deleteInventoryItem(row) {
+    if (!inventoryWriteOk) {
+      showToast('Restricted', 'Only Super Admin or Production Head can delete inventory.')
+      return
+    }
     if (!window.confirm(`Delete ${row.item}?`)) return
     try {
       await inventoryApi.deleteInventoryItem(row.id)
-      setInventory(p => p.filter(x => x.id !== row.id))
       showToast('Deleted', `${row.item} removed`)
-    } catch {
-      showToast('Error', 'Failed to delete item')
+      loadInventory()
+    } catch (err) {
+      showToast('Error', err?.response?.data?.message || err?.message || 'Failed to delete item')
     }
   }
   function addChecklistItem(f) {
@@ -448,7 +517,17 @@ export default function OperationsTab() {
       )}
       {activeTab === 'inventory' && (
         <Suspense fallback={<OpsSubTabFallback />}>
-          <TabInventory {...shared} onDeleteInventory={deleteInventoryItem} />
+          <TabInventory
+            {...shared}
+            canEdit={inventoryWriteOk}
+            inventoryTotal={inventoryTotal}
+            inventoryPage={inventoryPage}
+            inventoryLimit={inventoryLimit}
+            inventorySearch={inventorySearch}
+            onInventorySearch={(q) => { setInventoryPage(1); setInventorySearch(q) }}
+            onInventoryPageChange={setInventoryPage}
+            onDeleteInventory={deleteInventoryItem}
+          />
         </Suspense>
       )}
       {activeTab === 'legal-docs' && (

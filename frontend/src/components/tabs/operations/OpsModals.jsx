@@ -161,16 +161,22 @@ export function ModalInventoryItem({ initial, onClose, onSave }) {
   const [f, setF] = useState(initial ? { ...initial, stock:String(initial.stock), min:String(initial.min) } : { item:'', stock:'0', min:'0', sup:'', last:'' })
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
   const isEdit = !!initial
+  const metalLocked = Boolean(initial?.isMetalLinked)
+  const unitLabel = initial?.unit || 'units'
   return (
-    <Modal title={isEdit ? 'Edit Inventory Item' : 'Add Inventory Item'} sub="Stock item and supplier details" onClose={onClose} onSave={() => f.item.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Item'}>
+    <Modal title={isEdit ? 'Edit Inventory Item' : 'Add Inventory Item'} sub={metalLocked ? 'Metal / vault item — quantity is managed in ERP Inventory' : 'Ops consumables / tools stock'} onClose={onClose} onSave={() => f.item.trim() && onSave({ ...f, isMetalLinked: metalLocked })} saveLabel={isEdit ? 'Save Changes' : 'Add Item'}>
       <div><ML>Item Name</ML><MI value={f.item} onChange={s('item')} placeholder="Item description" /></div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><ML>Current Stock (units)</ML><MI type="number" value={f.stock} onChange={s('stock')} min="0" /></div>
-        <div><ML>Minimum Level (units)</ML><MI type="number" value={f.min} onChange={s('min')} min="0" /></div>
+        <div>
+          <ML>Current Stock ({unitLabel})</ML>
+          <MI type="number" value={f.stock} onChange={s('stock')} min="0" disabled={metalLocked} />
+          {metalLocked ? <div style={{ fontSize: 11, color: C.t3, marginTop: 4 }}>Quantity protected — use ERP stock in/out or Production return-to-vault</div> : null}
+        </div>
+        <div><ML>Minimum Level ({unitLabel})</ML><MI type="number" value={f.min} onChange={s('min')} min="0" /></div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Supplier</ML><MI value={f.sup} onChange={s('sup')} placeholder="Supplier name" /></div>
-        <div><ML>Last Restocked</ML><input type="date" value={f.last||''} onChange={s('last')} style={IS} /></div>
+        <div><ML>Last Restocked</ML><input type="date" value={f.last||''} onChange={s('last')} style={IS} disabled={metalLocked} title={metalLocked ? 'Not persisted for vault items from Ops' : undefined} /></div>
       </div>
     </Modal>
   )

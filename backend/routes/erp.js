@@ -221,24 +221,39 @@ const getPOAmount = (po) => (po.items || []).reduce((sum, item) => sum + (Number
 
 const buildSearchRegex = (search) => new RegExp(escapeRegex(String(search || '').trim()), 'i')
 
+/** ERP metal products encode meta in category; gram units are vault/metal stock. */
+function isMetalOrErpLinkedInventory(item) {
+  if (!item) return false
+  const cat = String(item.category || '')
+  if (/mainStock=/i.test(cat) || /metalType=/i.test(cat) || /recordType=product/i.test(cat)) return true
+  const unit = String(item.unit || '').trim().toLowerCase()
+  if (['g', 'gm', 'gram', 'grams'].includes(unit)) return true
+  return false
+}
+
 router.get('/inventory', protect, validateQuery(inventoryListQuerySchema), async (req, res) => {
   try {
     const includeCostFields = canViewInventoryCosts(req.user)
     const page = Math.max(1, Number(req.query.page) || 1)
     const limit = Math.min(50, Number(req.query.limit) || 20)
     const skip = (page - 1) * limit
-    const search = String(req.query.search || '').trim().toLowerCase()
+    const searchRaw = String(req.query.search || '').trim()
     const typeFilter = req.query.type
     const lowStockOnly = req.query.lowStockOnly === 'true'
 
     const query = { isDeleted: { $ne: true } }
-    if (search) {
-      const regex = buildSearchRegex(search)
-      query.$or = [
+    if (searchRaw) {
+      const regex = buildSearchRegex(searchRaw)
+      const or = [
         { name: regex },
         { sku: regex },
         { supplierName: regex },
+        { category: regex },
       ]
+      if (/^[a-f0-9]{24}$/i.test(searchRaw)) {
+        or.push({ _id: searchRaw })
+      }
+      query.$or = or
     }
     if (typeFilter) {
       query.type = typeFilter
@@ -259,7 +274,10 @@ router.get('/inventory', protect, validateQuery(inventoryListQuerySchema), async
       total,
       page,
       limit,
-      items: items.map((item) => toInventoryResponse(item, includeCostFields)),
+  items: items.map((item) => ({
+        ...toInventoryResponse(item, includeCostFields),
+        isMetalLinked: isMetalOrErpLinkedInventory(item),
+      })),
       permissions: {
         canEdit: canEditInventory(req.user),
         canViewCosts: includeCostFields,
@@ -325,15 +343,29 @@ router.put('/inventory/:id', protect, validateParams(idParam), validateBody(inve
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Inventory item not found.' })
     }
+    if (existing.isDeleted) {
+      return res.status(400).json({ success: false, message: 'Cannot edit a deleted inventory item.' })
+    }
 
     const oldQty = Number(existing.quantity || 0)
+    const nextQty = req.body.quantity !== undefined ? Number(req.body.quantity) : oldQty
+    if (
+      req.body.quantity !== undefined
+      && Number(nextQty) !== oldQty
+      && isMetalOrErpLinkedInventory(existing)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Metal / ERP-linked vault quantity cannot be overwritten here. Use ERP Inventory stock in/out or Production return-to-vault.',
+      })
+    }
 
     const update = {
       type: req.body.type ?? existing.type,
       name: req.body.name ?? existing.name,
       sku: req.body.sku ?? existing.sku,
       category: req.body.category ?? existing.category,
-      quantity: req.body.quantity !== undefined ? Number(req.body.quantity) : oldQty,
+      quantity: nextQty,
       unit: req.body.unit ?? existing.unit,
       minThreshold: req.body.minThreshold !== undefined ? Number(req.body.minThreshold) : existing.minThreshold,
       unitCost: req.body.unitCost !== undefined ? Number(req.body.unitCost) : existing.unitCost,
