@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: '002-backfill-mapping-departments'
+      tenants:
+        description: Comma-separated tenants (default all staging). Example mg,cg,loopc to skip VB when 003 is pending.
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   group: migrate-staging-${{ github.event.inputs.until || '002' }}-${{ github.event.inputs.apply || 'dry' }}
@@ -72,7 +77,10 @@ jobs:
           STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
           STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
-        run: node scripts/migrate-staging.mjs --until=${{ inputs.until }}
+        run: |
+          EXTRA=""
+          if [ -n "${{ inputs.tenants }}" ]; then EXTRA="--tenants=${{ inputs.tenants }}"; fi
+          node scripts/migrate-staging.mjs --until=${{ inputs.until }} $EXTRA
 
       - name: Guard — refuse apply if JV 003 still pending when until > 002
         if: ${{ inputs.apply == true && inputs.until != '002-backfill-mapping-departments' && inputs.until != '001-baseline' }}
@@ -84,7 +92,9 @@ jobs:
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
         run: |
           set -o pipefail
-          OUT=$(node scripts/migrate-staging.mjs --until=${{ inputs.until }} 2>&1 | tee /dev/stderr)
+          EXTRA=""
+          if [ -n "${{ inputs.tenants }}" ]; then EXTRA="--tenants=${{ inputs.tenants }}"; fi
+          OUT=$(node scripts/migrate-staging.mjs --until=${{ inputs.until }} $EXTRA 2>&1 | tee /dev/stderr)
           if echo "$OUT" | grep -q '003-backfill-jv-ledger-base-to-fc'; then
             echo "::error::003-backfill-jv-ledger-base-to-fc is still pending. Refusing apply through ${{ inputs.until }} so JV data is not mutated."
             exit 1
@@ -100,4 +110,7 @@ jobs:
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
           MIGRATION_I_HAVE_BACKUP: 'true'
           MIGRATION_CONFIRM_TOKEN: ${{ secrets.MIGRATION_CONFIRM_TOKEN }}
-        run: node scripts/migrate-staging.mjs --until=${{ inputs.until }} --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }}
+        run: |
+          EXTRA=""
+          if [ -n "${{ inputs.tenants }}" ]; then EXTRA="--tenants=${{ inputs.tenants }}"; fi
+          node scripts/migrate-staging.mjs --until=${{ inputs.until }} --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }} $EXTRA

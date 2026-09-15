@@ -72,6 +72,12 @@ function resolveUntilMigrationId() {
   return until ? String(until).trim() : ''
 }
 
+function resolveTenantFilter() {
+  const raw = getArgValue('--tenants=')
+  if (!raw) return null
+  return raw.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)
+}
+
 function filterMigrationsByUntil(migrations, untilId) {
   if (!untilId) return migrations
   const untilIndex = migrations.findIndex((migration) => migration.id === untilId)
@@ -95,7 +101,15 @@ async function main() {
     return
   }
 
-  const tenants = TENANT_KEYS.filter((tenant) => resolveTenantUri(tenant))
+  const tenantFilter = resolveTenantFilter()
+  let tenants = TENANT_KEYS.filter((tenant) => resolveTenantUri(tenant))
+  if (tenantFilter) {
+    const unknown = tenantFilter.filter((t) => !TENANT_KEYS.includes(t))
+    if (unknown.length) {
+      throw new Error(`Unknown --tenants value(s): ${unknown.join(', ')}`)
+    }
+    tenants = tenants.filter((tenant) => tenantFilter.includes(tenant))
+  }
   if (!tenants.length) {
     throw new Error('No tenant Mongo URIs configured (MONGO_URI_MG / _CG / _LOOPC)')
   }
