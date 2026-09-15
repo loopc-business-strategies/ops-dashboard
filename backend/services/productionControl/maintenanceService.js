@@ -207,7 +207,7 @@ async function completeMaintenance(req, woId, input = {}) {
 }
 
 /** Raise alerts for overdue preventive maintenance (nextMaintenance / WO due). */
-async function evaluateOverdueMaintenance(req) {
+async function evaluateOverdueMaintenance(_req) {
   const now = new Date()
   const machines = await ProductionMachine.find({
     isActive: { $ne: false },

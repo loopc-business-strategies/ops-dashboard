@@ -1,7 +1,7 @@
 const express = require('express')
 const Joi = require('joi')
 const { protect } = require('../middleware/auth')
-const { validateBody, validateQuery } = require('../middleware/validate')
+const { validateQuery } = require('../middleware/validate')
 const Customer = require('../models/Customer')
 const Vendor = require('../models/Vendor')
 const Employee = require('../models/Employee')
