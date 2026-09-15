@@ -28,12 +28,12 @@ export default function ARAndAP({ finRole, can, canEdit: _canEdit, onToast }) {
   const [receivables, setReceivables] = useState([])
   const [payables, setPayables] = useState([])
   const [source, setSource] = useState('erp')
-
-  if (can('vendor', 'hr_mgr')) return <Restricted msg="Accounts Receivable & Payable is restricted." />
+  const restricted = Boolean(can('vendor', 'hr_mgr'))
   const payOnly = finRole === 'dept_head'
   const recOnly = finRole === 'sales_head'
 
   useEffect(() => {
+    if (restricted) return undefined
     let cancelled = false
     async function load() {
       setLoading(true)
@@ -59,7 +59,9 @@ export default function ARAndAP({ finRole, can, canEdit: _canEdit, onToast }) {
     }
     if (token) load()
     return () => { cancelled = true }
-  }, [token])
+  }, [token, restricted])
+
+  if (restricted) return <Restricted msg="Accounts Receivable & Payable is restricted." />
 
   const totalRec = receivables.reduce((a, r) => a + Number(r.amount || 0), 0)
   const overdueRec = receivables.filter((r) => r.overdue > 0).reduce((a, r) => a + Number(r.amount || 0), 0)
