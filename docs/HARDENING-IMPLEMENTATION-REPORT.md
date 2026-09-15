@@ -75,7 +75,7 @@ See Track A interim + checklist. Hardware: [`docs/HARDWARE-EDGE-GATEWAY.md`](HAR
 1. Backup Atlas (all tenants).
 2. Deploy backend + frontend.
 3. Staging: dry-run then apply migrations with backup tokens.
-4. Smoke: voucher draft→submit; PCC partial select; split; maintenance WO; `/api/search`; `/api/exceptions`.
+4. Smoke: follow [`docs/HARDENING-STAGING-SMOKE.md`](HARDENING-STAGING-SMOKE.md) (voucher draft→submit; PCC partial select; split; maintenance WO; `/api/search`; `/api/exceptions`).
 5. Confirm demo seed flag off in production.
 
 ## 18. Data preservation
