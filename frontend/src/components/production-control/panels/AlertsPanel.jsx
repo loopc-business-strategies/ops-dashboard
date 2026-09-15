@@ -4,7 +4,6 @@ import { useDemoMode } from '../demo/DemoModeContext'
 import { formatTime, canPcc } from '../shared'
 import {
   PccEmptyState,
-  PccSkeleton,
   PccStatusBadge,
 } from '../primitives'
 import { toastMsg } from './panelHelpers'

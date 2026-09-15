@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { usePccApi, useWorkOrdersApi } from '../demo/usePccApi'
+import { usePccApi } from '../demo/usePccApi'
 import { useDemoMode } from '../demo/DemoModeContext'
-import { DEMO_WRITE_MSG } from '../demo/pccApiAdapter'
-import { formatGrams, formatTime, canPcc, na, rowsToCsv, downloadCsv } from '../shared'
+import { formatGrams, canPcc } from '../shared'
 import {
   PccConfirmDialog,
   PccEmptyState,
-  PccSkeleton,
   PccStatusBadge,
   PccWeightDisplay,
 } from '../primitives'
-import { inventoryApi } from '../../../api/operations/inventory'
-import { useDebounced, canIssueGate, toastMsg } from './panelHelpers'
+import { toastMsg } from './panelHelpers'
 
 export default function PassesPanel({ onToast, productionRole }) {
   const pccApi = usePccApi()
@@ -50,7 +47,7 @@ export default function PassesPanel({ onToast, productionRole }) {
         weight: f.weight || String(selectedBatch.currentWeight || ''),
       }))
     }
-  }, [selectedBatch?._id])
+  }, [selectedBatch])
 
   const create = async (e) => {
     e.preventDefault()

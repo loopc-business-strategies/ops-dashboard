@@ -1,17 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
-import { usePccApi, useWorkOrdersApi } from '../demo/usePccApi'
-import { useDemoMode } from '../demo/DemoModeContext'
-import { DEMO_WRITE_MSG } from '../demo/pccApiAdapter'
-import { formatGrams, formatTime, canPcc, na, rowsToCsv, downloadCsv } from '../shared'
+import { useEffect, useState } from 'react'
+import { usePccApi } from '../demo/usePccApi'
+import { formatTime } from '../shared'
 import {
-  PccConfirmDialog,
   PccEmptyState,
-  PccSkeleton,
   PccStatusBadge,
   PccWeightDisplay,
 } from '../primitives'
-import { inventoryApi } from '../../../api/operations/inventory'
-import { useDebounced, canIssueGate, toastMsg } from './panelHelpers'
 
 export default function MovementsPanel({ onToast }) {
   const pccApi = usePccApi()
