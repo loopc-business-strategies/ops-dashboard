@@ -14,6 +14,9 @@ import {
   resolveStatementDisplayCurrency,
   resolveStatementMetalCode,
   isMetalStatementEntry,
+  resolveVisibleStatementClosingBalance,
+  stampStatementRunningBalances,
+  sumStatementSignedAmounts,
 } from '../statementHelpers'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '../metalMarginPolicy'
 import {
@@ -336,21 +339,10 @@ export function useAccountEnquiryStatement({
   const resolveMetalCode = resolveStatementMetalCode
 
   const statementEntries = combineVoucherStatementRows(rawStatementEntries)
-  {
-    const sortStatementNewestFirst = (left, right) => {
-      const leftDate = new Date(left?.date || 0).getTime()
-      const rightDate = new Date(right?.date || 0).getTime()
-      if (rightDate !== leftDate) return rightDate - leftDate
-      return String(right?._id || '').localeCompare(String(left?._id || ''))
-    }
-    const sorted = [...statementEntries].sort(sortStatementNewestFirst)
-    let rb = Number(accountEnquiryData?.balances?.netBalance ?? 0)
-    if (!Number.isFinite(rb)) rb = 0
-    for (const row of sorted) {
-      row.runningBalance = rb
-      rb -= Number(row?.signedAmount || 0)
-    }
-  }
+  stampStatementRunningBalances(
+    statementEntries,
+    Number(accountEnquiryData?.balances?.netBalance ?? 0),
+  )
 
   const statementUnfixedMetalBalances = deriveStatementUnfixedMetalBalances(statementEntries)
   const apiGoldBal = accountEnquiryData ? Number(accountEnquiryData.metals?.goldBalance || 0) : 0
@@ -481,9 +473,15 @@ export function useAccountEnquiryStatement({
     return true
   })
 
-  const visibleStatementNetBalance = filteredStatementEntries.reduce((sum, entry) => {
-    return sum + Number(entry?.signedAmount || 0)
-  }, 0)
+  const visibleStatementNetBalance = sumStatementSignedAmounts(filteredStatementEntries)
+  stampStatementRunningBalances(
+    filteredStatementEntries,
+    resolveVisibleStatementClosingBalance({
+      filteredEntries: filteredStatementEntries,
+      allEntriesCount: statementEntries.length,
+      ledgerNetBalance: accountEnquiryData?.balances?.netBalance ?? 0,
+    }),
+  )
 
   const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
   // Credit-positive margin funds: Debit ledger → negative, Credit ledger → positive.

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
-import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES } from '../statementHelpers'
+import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES, resolveExposureDirection } from '../statementHelpers'
 import { buildStatementNarration } from '../statementExportModel'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
@@ -78,6 +78,10 @@ export default function AccountEnquiryModal({
   isMetalStatementEntry,
 }) {
   const dateRangeRefetchTimerRef = useRef(null)
+  const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
+  const totalBalancePreferredDirection = isCashOnHandEnquiry
+    ? resolveExposureDirection(modalTotalFundsDisplay)
+    : accountEnquiryData?.balances?.netDirection
   const dateRangeInFlightKeyRef = useRef('')
   const statementMeta = accountEnquiryData?.statement?.meta || null
   const statementTruncated = Boolean(statementMeta?.truncated)
@@ -256,6 +260,17 @@ export default function AccountEnquiryModal({
                           {accountEnquiryData.account.description && (
                             <p style={{ margin: '0.4rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>Code: {accountEnquiryData.account.accountCode}</p>
                           )}
+                          {isCashOnHandEnquiry && (
+                            <p style={{ margin: '0.75rem 0 0', color: '#111827', fontWeight: '800', fontSize: '1.05rem' }}>
+                              {formatDirectionalBalance(
+                                modalTotalFundsDisplay,
+                                {
+                                  currencyCode: statementDisplayCurrency,
+                                  preferredDirection: totalBalancePreferredDirection,
+                                },
+                              )}
+                            </p>
+                          )}
                         </div>
                       </div>
                       {/* Metal position (grams) + unfixed activity */}
@@ -366,7 +381,7 @@ export default function AccountEnquiryModal({
                             modalTotalFundsDisplay,
                             {
                               currencyCode: statementDisplayCurrency,
-                              preferredDirection: accountEnquiryData?.balances?.netDirection,
+                              preferredDirection: totalBalancePreferredDirection,
                             },
                           )}
                         </span>

@@ -13,6 +13,9 @@ import {
   resolveStatementDisplayCurrency,
   resolveExposureDirection,
   resolveMarginEquityDirection,
+  resolveVisibleStatementClosingBalance,
+  stampStatementRunningBalances,
+  sumStatementSignedAmounts,
   withSignedDirectionalPrefix,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
@@ -373,5 +376,59 @@ describe('statement helpers', () => {
 
     expect(sorted[0].sourceTransactionType).toBe('purchase')
     expect(sorted[1].sourceTransactionType).toBe('metal_receipt')
+  })
+
+  test('visible cash chain matches debit/credit arithmetic after hidden non-cash rows', () => {
+    // Newest-first order matches screenshot Pay/0067 → Rec/0004 → Rec/0005 → Rec/0003 → Pay/0014
+    const visible = [
+      { _id: 'e5', date: '2026-09-09', signedAmount: -3 },
+      { _id: 'e4', date: '2026-05-13T12:00:00.000Z', signedAmount: -49.59 },
+      { _id: 'e3', date: '2026-05-13T11:00:00.000Z', signedAmount: 198.35 },
+      { _id: 'e2', date: '2026-05-13T10:00:00.000Z', signedAmount: 82.64 },
+      { _id: 'e1', date: '2026-05-10', signedAmount: -85.12 },
+    ]
+    const hiddenFx = { _id: 'fx', date: '2026-09-09T18:00:00.000Z', signedAmount: -95.29 }
+    const allEntries = [hiddenFx, ...visible]
+    const ledgerNet = sumStatementSignedAmounts(allEntries)
+
+    expect(ledgerNet).toBeCloseTo(47.99, 2)
+
+    const closing = resolveVisibleStatementClosingBalance({
+      filteredEntries: visible,
+      allEntriesCount: allEntries.length,
+      ledgerNetBalance: ledgerNet,
+    })
+    expect(closing).toBeCloseTo(143.28, 2)
+
+    stampStatementRunningBalances(visible, closing)
+
+    expect(visible.find((row) => row._id === 'e5').runningBalance).toBeCloseTo(143.28, 2)
+    expect(visible.find((row) => row._id === 'e4').runningBalance).toBeCloseTo(146.28, 2)
+    expect(visible.find((row) => row._id === 'e3').runningBalance).toBeCloseTo(195.87, 2)
+    expect(visible.find((row) => row._id === 'e2').runningBalance).toBeCloseTo(-2.48, 2)
+    expect(visible.find((row) => row._id === 'e1').runningBalance).toBeCloseTo(-85.12, 2)
+  })
+
+  test('keeps full ledger netBalance as seed when no rows are filtered out', () => {
+    const entries = [
+      { _id: 'a', date: '2026-05-10', signedAmount: 10 },
+      { _id: 'b', date: '2026-05-11', signedAmount: -4 },
+    ]
+    const closing = resolveVisibleStatementClosingBalance({
+      filteredEntries: entries,
+      allEntriesCount: entries.length,
+      ledgerNetBalance: 100,
+    })
+    expect(closing).toBe(100)
+
+    stampStatementRunningBalances(entries, closing)
+    expect(entries.find((row) => row._id === 'b').runningBalance).toBe(100)
+    expect(entries.find((row) => row._id === 'a').runningBalance).toBe(104)
+  })
+
+  test('cash Total Balance direction uses exposure of the displayed amount, not full-ledger Credit', () => {
+    const visibleClosing = 143.28
+    expect(resolveExposureDirection(visibleClosing)).toBe('Debit')
+    expect(resolveExposureDirection(-visibleClosing)).toBe('Credit')
   })
 })

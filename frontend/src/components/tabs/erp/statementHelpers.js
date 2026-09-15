@@ -149,6 +149,49 @@ export function resolveExposureDirection(value) {
   return 'Flat'
 }
 
+export function sortStatementNewestFirst(left, right) {
+  const leftDate = new Date(left?.date || 0).getTime()
+  const rightDate = new Date(right?.date || 0).getTime()
+  if (rightDate !== leftDate) return rightDate - leftDate
+  return String(right?._id || '').localeCompare(String(left?._id || ''))
+}
+
+export function sumStatementSignedAmounts(entries = []) {
+  return entries.reduce((sum, entry) => sum + Number(entry?.signedAmount || 0), 0)
+}
+
+/**
+ * Newest-first running balances. Mutates entry.runningBalance in place.
+ * Seed is the closing balance after the newest row.
+ */
+export function stampStatementRunningBalances(entries = [], closingBalance = 0) {
+  const sorted = [...entries].sort(sortStatementNewestFirst)
+  let rb = Number(closingBalance)
+  if (!Number.isFinite(rb)) rb = 0
+  for (const row of sorted) {
+    row.runningBalance = rb
+    rb -= Number(row?.signedAmount || 0)
+  }
+  return sorted
+}
+
+/**
+ * When filters hide rows, seed from the visible signed sum so the Balance column
+ * matches on-screen debit/credit arithmetic. Otherwise keep full ledger netBalance
+ * (opening + full history).
+ */
+export function resolveVisibleStatementClosingBalance({
+  filteredEntries = [],
+  allEntriesCount = 0,
+  ledgerNetBalance = 0,
+} = {}) {
+  if (filteredEntries.length !== Number(allEntriesCount || 0)) {
+    return sumStatementSignedAmounts(filteredEntries)
+  }
+  const net = Number(ledgerNetBalance)
+  return Number.isFinite(net) ? net : 0
+}
+
 /**
  * Margin Net Equity uses Credit-positive convention: favorable (+) → Cr, short (−) → Dr.
  */
