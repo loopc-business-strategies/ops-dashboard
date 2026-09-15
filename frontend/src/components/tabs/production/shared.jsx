@@ -1,4 +1,6 @@
-/** Seed/demo business data is disabled in all environments. */
+/** Deprecated local Production monitors — dashboard Production tab redirects to PCC.
+ * Seed/demo business data stays empty; do not reintroduce fake lines/KPIs here.
+ */
 const USE_SEED_DATA = false
 
 // ── Design tokens ─────────────────────────────────

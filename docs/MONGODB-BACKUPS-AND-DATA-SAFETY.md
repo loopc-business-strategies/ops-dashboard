@@ -2,7 +2,11 @@
 
 Operator checklist for **Atlas backups**, **restore drills**, and **upload persistence** on Railway.
 
-**Last reviewed:** 2026-06-26
+**Last reviewed:** 2026-09-16
+
+## Chosen path (2026-09-16)
+
+Stay on **Phase 1 deferred** for Atlas API strictness until M10+ Cloud Backup + Atlas API secrets exist. Run **Phase 2 interim dumps** in parallel: set GitHub `MONGO_BACKUP_ENABLED=true` and prefer `MONGO_BACKUP_S3_CONFIGURED=true` with R2/S3 so retention is not limited to 7-day Actions artifacts. See [CRITICAL-FIXES-CHECKLIST.md](./CRITICAL-FIXES-CHECKLIST.md) P0 #3.
 
 ## RTO / RPO targets
 

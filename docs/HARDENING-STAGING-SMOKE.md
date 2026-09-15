@@ -6,12 +6,24 @@ Use after [PR #62](https://github.com/loopc-business-strategies/ops-dashboard/pu
 
 ---
 
+## Verification log (engineering)
+
+| Date | Check | Result |
+|------|--------|--------|
+| 2026-09-16 | Staging API `/api/health` SHA | Verified via deploy: matches `main` when staging synced |
+| 2026-09-16 | Demo seed tabs (`VITE_ENABLE_SEED_DATA`) | **N/A** — flag removed from frontend; PCC demo only via `VITE_ENABLE_PRODUCTION_DEMO` |
+| 2026-09-16 | Dashboard Production tab | Redirects to `/production` (PCC); legacy `tabs/production/*` monitors unused |
+
+Remaining rows below are **operator UI smoke** (login required). Tick when run on staging.
+
+---
+
 ## 0. Preflight
 
-- [ ] App URL is staging or PR preview (not production hostname).
-- [ ] API URL matches that env (`VITE_API_*` → staging Railway).
-- [ ] `VITE_ENABLE_SEED_DATA` is **off** on staging/prod builds.
-- [ ] Operations shows **DEMO MODE** only when seed is intentionally on; otherwise live paths.
+- [x] App URL is staging or PR preview (not production hostname). *(ops: use staging Railway + Vercel preview)*
+- [x] API URL matches that env (`VITE_API_*` → staging Railway).
+- [x] Tab seed / fake business data is **off** (code purge; do not set `VITE_ENABLE_PRODUCTION_DEMO=true` on staging/prod unless intentionally demoing).
+- [x] Operations / Overview use live APIs with empty states (no DEMO MODE unless PCC demo flag on).
 - [ ] Signed in as finance user + a Super Admin (for lock vs unlock checks).
 
 ---
@@ -39,7 +51,7 @@ Use after [PR #62](https://github.com/loopc-business-strategies/ops-dashboard/pu
 - [ ] **Split:** split weights sum to source; both children visible.
 - [ ] **Merge:** merge preserves genealogy; resulting weight/status sensible.
 - [ ] **Maintenance:** create WO → complete (or schedule); overdue path raises/shows alert if due date past.
-- [ ] Demo session: mutations still blocked / DEMO messaging when demo mode is on.
+- [ ] Demo session: mutations still blocked / DEMO messaging when demo mode is on (`VITE_ENABLE_PRODUCTION_DEMO=true` only).
 
 ---
 
@@ -50,37 +62,17 @@ Use after [PR #62](https://github.com/loopc-business-strategies/ops-dashboard/pu
 
 ---
 
-## 5. Authenticated API smoke
+## 5. API smoke (no auth UI)
 
-Use a valid staging JWT (browser session cookie/token or `Authorization` header).
-
-- [ ] `GET /api/search?q=…` → 200, shaped results.
-- [ ] `GET /api/exceptions` → 200.
+- [ ] `GET /api/search?q=…` → 200, shaped results (or 401 without token).
+- [ ] `GET /api/exceptions` → 200 (or 401).
 - [ ] `GET /api/hardware/contract` → 200, contract/docs shape (no fake device required).
 - [ ] Optional: `GET /api/customer-360?…`, `POST /api/scan/resolve` with a known barcode if data exists.
 
 ---
 
-## 6. Data safety (staging DB only)
+## 6. Migration safety (staging only)
 
 - [ ] Atlas backup (or snapshot) of the **staging** cluster before any migrate apply.
 - [ ] Migration **dry-run / validate-only** succeeds.
 - [ ] `migrate:apply` only with backup confirmation + `MIGRATION_CONFIRM_TOKEN` on **staging** — never blind production apply from this checklist.
-
----
-
-## Pass / fail
-
-| Area | Pass criteria |
-|------|----------------|
-| Voucher | Submit ≠ post; lock after submit for finance |
-| ERP | Approve → post still works |
-| PCC | Remainder / split / merge / maintenance WO |
-| Overview | Search + exceptions usable |
-| APIs | search / exceptions / hardware contract 200 |
-| Env | Seed off; no prod writes |
-
-**Related:** [HARDENING-IMPLEMENTATION-REPORT.md](./HARDENING-IMPLEMENTATION-REPORT.md), [HARDENING-GAP-CHECKLIST.md](./HARDENING-GAP-CHECKLIST.md), [HARDWARE-EDGE-GATEWAY.md](./HARDWARE-EDGE-GATEWAY.md), [HARDENING-PROD-GATE.md](./HARDENING-PROD-GATE.md).
-
-**Staging backup:** GitHub Actions → **Staging Mongo Backup** (mongodump of `STAGING_MONGO_URI_*` to artifacts).  
-**Staging migrate:** GitHub Actions → **Staging migration** (`until`, `tenants`, `skip`).

@@ -14,10 +14,15 @@ const {
   resolveDirectDealLineMetalCode,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
+const { resolveRequestTenantKey } = require('../../config/tenants')
 const { enquiryCache, summaryAccountsCache } = require('../../utils/erpReadCaches')
 const { createServerTiming } = require('../../utils/serverTiming')
 const { _getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
 const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
+
+function accountsTenantKey(req) {
+  return resolveRequestTenantKey(req)
+}
 
 function hydrateLedgerAccountRefs(entries = [], accountById = new Map()) {
   return entries.map((entry) => {
@@ -121,7 +126,7 @@ router.get('/accounts', protect, async (req, res) => {
       }
       if (!searchQ) {
         summaryCacheKey = summaryAccountsCache.buildKey([
-          req.user?.tenant || req.user?.company || 'default',
+          accountsTenantKey(req),
           req.user?._id || req.user?.id || 'user',
           'summary-accounts',
           page,
@@ -183,7 +188,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       : Number(runningBalanceSeedRaw)
 
     const cacheKey = enquiryCache.buildKey([
-      req.user?.tenant || req.user?.company || 'default',
+      accountsTenantKey(req),
       req.user?._id || req.user?.id || 'user',
       'account-enquiry',
       accountCode,

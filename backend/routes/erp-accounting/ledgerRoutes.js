@@ -472,8 +472,8 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
 
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
-      realtimeServer.broadcastLedgerEntry(String(debitAccountId), entry)
-      realtimeServer.broadcastLedgerEntry(String(creditAccountId), entry)
+      realtimeServer.broadcastLedgerEntry(tenantKey, String(debitAccountId), entry)
+      realtimeServer.broadcastLedgerEntry(tenantKey, String(creditAccountId), entry)
       if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
         realtimeServer.broadcastLedgerUpdate(tenantKey, {
           action: 'created',
@@ -657,8 +657,8 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
 
     for (const entry of createdEntries) {
       emitRealtime(req, (realtimeServer) => {
-        realtimeServer.broadcastLedgerEntry(String(entry.debitAccountId), entry)
-        realtimeServer.broadcastLedgerEntry(String(entry.creditAccountId), entry)
+        realtimeServer.broadcastLedgerEntry(tenantKey, String(entry.debitAccountId), entry)
+        realtimeServer.broadcastLedgerEntry(tenantKey, String(entry.creditAccountId), entry)
         if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
           realtimeServer.broadcastLedgerUpdate(tenantKey, {
             action: 'created',

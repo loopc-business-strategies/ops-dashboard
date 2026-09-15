@@ -21,8 +21,6 @@ import {
 
 const ChatGroupModal = lazy(() => import('./chat/ChatGroupModal'))
 
-const USE_SEED_DATA = false
-
 function senderKeyFromName(name) {
   const raw = String(name || 'member')
     .trim()
@@ -32,22 +30,7 @@ function senderKeyFromName(name) {
   return `name:${raw}`
 }
 
-// Demo roster disabled — chat loads from live APIs only.
-const SEED_USERS = []
-const INITIAL_CHATS = []
-
-const AUTO_REPLIES = [
-  "Got it, thanks! I'll update the dashboard shortly.",
-  "Understood. Will confirm and keep you posted.",
-  "On it! Will send you the details by end of day.",
-  "Thanks for the heads up. Looking into it now.",
-  "Confirmed — will action this now.",
-  "Received. Let me check with the team and get back to you.",
-]
-
 function getUser(id) {
-  const seeded = SEED_USERS.find((u) => u.id === id)
-  if (seeded) return seeded
   if (String(id).startsWith('name:')) {
     const slug = String(id).slice(5)
     const name = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim() || 'Team member'
@@ -64,7 +47,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const onlineUserIds = useOnlineUserIds()
   const chatTranslateEnabled = Boolean(getTenantBranding(user?.company || company)?.featureFlags?.chatTranslate)
 
-  const [chats,         setChats]         = useState(INITIAL_CHATS)
+  const [chats,         setChats]         = useState([])
   const [activeChatId,  setActiveChatId]  = useState(null)
   const chatsRef = useRef(chats)
   useEffect(() => {
@@ -83,7 +66,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const previewTargetRtl = isRtlChatLang(translateTargetLang)
   const originalTextDirection = useMemo(() => detectTextDirection(translateOriginal), [translateOriginal])
   const [showGroupModal,setShowGroupModal]= useState(false)
-  const [typingChatId,  setTypingChatId]  = useState(null)
+  const [typingChatId] = useState(null)
   const [toast,         setToast]         = useState(null)
   const [groupForm,     setGroupForm]     = useState(defaultGroupForm)
   const [groupMemberSearch, setGroupMemberSearch] = useState('')
@@ -133,26 +116,10 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
     myAuthIdRef.current = myAuthId
   }, [myAuthId])
 
-  const myId = USE_SEED_DATA
-    ? (() => {
-        if (perms.isSuperAdmin) return 'sa'
-        if (perms.isManagement) return 'investor'
-        if (perms.isDepartmentHead) {
-          const d = user?.department
-          if (d === 'production') return 'ali'
-          if (d === 'government') return 'sara'
-          if (d === 'hr') return 'fatima'
-          return 'ali'
-        }
-        return 'omar'
-      })()
-    : myAuthId
+  const myId = myAuthId
 
   const senderToSeedId = (senderName = '') => {
-    const byName = SEED_USERS.find((u) => u.name.toLowerCase() === String(senderName).toLowerCase())
-    if (byName) return byName.id
     if ((user?.name || '').toLowerCase() === String(senderName).toLowerCase()) return myId
-    if (USE_SEED_DATA) return 'sa'
     return senderKeyFromName(senderName)
   }
 
@@ -583,26 +550,6 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
       setMsgText(text)
       showToast('Send failed', serverMsg, '#DC2626')
     }
-    if (!USE_SEED_DATA) return
-    const chat = chats.find(c => c.id === chatId)
-    if (chat?.type !== 'direct') return
-    const otherId = chat.otherId
-    const other   = displayUser(otherId)
-    setTypingChatId(chatId)
-    const delay = 1200 + Math.random() * 900
-    setTimeout(() => {
-      setTypingChatId(null)
-      const reply = AUTO_REPLIES[Math.floor(Math.random() * AUTO_REPLIES.length)]
-      const replyMsg = { id:`m${Date.now()}r`, from:otherId, text:reply, time:new Date().toISOString(), file:null }
-      setChats(prev => prev.map(c => {
-        if (c.id !== chatId) return c
-        const isActive = activeChatIdRef.current === chatId
-        return { ...c, messages:[...c.messages, replyMsg], unread: isActive ? 0 : c.unread + 1 }
-      }))
-      if (activeChatIdRef.current !== chatId) {
-        showToast('💬 ' + (other?.name || chat.name), reply, other?.color)
-      }
-    }, delay)
   }
 
   function triggerFilePick() {
@@ -713,7 +660,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const filtered     = chats.filter(c => c.name.toLowerCase().includes(q))
   const groupChats   = filtered.filter(c => c.type === 'group')
   const directChats  = filtered.filter(c => c.type === 'direct')
-  const groupPeople = (participants.length ? participants.map(participantToUser) : SEED_USERS)
+  const groupPeople = participants.map(participantToUser)
     .filter(u => u.id !== myId && u.id !== myAuthId)
   const memberQuery = groupMemberSearch.trim().toLowerCase()
   const filteredGroupPeople = groupPeople.filter((person) => (

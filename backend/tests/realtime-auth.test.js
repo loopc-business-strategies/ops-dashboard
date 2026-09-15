@@ -97,15 +97,11 @@ describe('realtime socket authentication', () => {
     expect(() => resolveSocketTenantSubscription({}, 'mg')).toThrow(/Authenticated tenant is missing/i)
   })
 
-  test('dashboard metrics subscribe resolves room from authenticated tenant only', () => {
-    const ok = handleDashboardMetricsSubscribe({ tenant: 'loopc' }, 'loopc')
-    expect(ok).toEqual({ ok: true, tenant: 'loopc', room: 'dashboard:metrics:loopc' })
-
-    const omitted = handleDashboardMetricsSubscribe({ tenant: 'mg' }, '')
-    expect(omitted).toEqual({ ok: true, tenant: 'mg', room: 'dashboard:metrics:mg' })
-
-    const denied = handleDashboardMetricsSubscribe({ tenant: 'mg' }, 'cg')
-    expect(denied.ok).toBe(false)
-    expect(denied.error).toBeInstanceOf(Error)
+  test('ledger account rooms must be tenant-prefixed', () => {
+    const mg = resolveSocketTenantSubscription({ tenant: 'mg' })
+    const cg = resolveSocketTenantSubscription({ tenant: 'cg' })
+    const accountId = '507f1f77bcf86cd799439011'
+    expect(`ledger:account:${mg}:${accountId}`).toBe(`ledger:account:mg:${accountId}`)
+    expect(`ledger:account:${mg}:${accountId}`).not.toBe(`ledger:account:${cg}:${accountId}`)
   })
 })

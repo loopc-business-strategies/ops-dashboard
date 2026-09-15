@@ -310,13 +310,32 @@ class RealtimeServer {
         }
       })
 
-      // Subscribe to account ledger updates
+      // Subscribe to account ledger updates (tenant-scoped room)
       socket.on('subscribe:account', (accountId) => {
-        socket.join(`ledger:account:${accountId}`)
+        try {
+          const tenant = resolveSocketTenantSubscription(socket)
+          const id = String(accountId || '').trim()
+          if (!id) {
+            socket.emit('subscription:error', { namespace: '/ledger', message: 'Account id required' })
+            return
+          }
+          const room = `ledger:account:${tenant}:${id}`
+          socket.join(room)
+          socket.emit('subscribed', { namespace: '/ledger', accountId: id, tenant, room })
+        } catch {
+          socket.emit('subscription:error', { namespace: '/ledger', message: 'Account subscription denied' })
+        }
       })
 
       socket.on('unsubscribe:account', (accountId) => {
-        socket.leave(`ledger:account:${accountId}`)
+        try {
+          const tenant = resolveSocketTenantSubscription(socket)
+          const id = String(accountId || '').trim()
+          if (!id) return
+          socket.leave(`ledger:account:${tenant}:${id}`)
+        } catch {
+          /* ignore leave errors */
+        }
       })
     })
 
@@ -427,12 +446,16 @@ class RealtimeServer {
   }
 
   /**
-   * Broadcast ledger entry creation
+   * Broadcast ledger entry creation to a tenant-scoped account room.
+   * @param {String} tenant - Tenant key
    * @param {String} accountId - Account ID
    * @param {Object} entry - Ledger entry payload
    */
-  broadcastLedgerEntry(accountId, entry) {
-    this.io.of('/ledger').to(`ledger:account:${accountId}`).emit('entry:created', {
+  broadcastLedgerEntry(tenant, accountId, entry) {
+    const tenantKey = String(tenant || '').trim()
+    const id = String(accountId || '').trim()
+    if (!tenantKey || !id) return
+    this.io.of('/ledger').to(`ledger:account:${tenantKey}:${id}`).emit('entry:created', {
       timestamp: new Date(),
       data: entry,
     })

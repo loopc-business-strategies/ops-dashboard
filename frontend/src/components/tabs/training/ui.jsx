@@ -14,7 +14,7 @@ export const C = {
 }
 export const B = KIT_BTN
 
-// Seed data lives in ./trainingSeedData.js (imported by tab panels).
+// Tab config helpers live in ./trainingSeedData.js (API-backed panels load live data).
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 export function pct(v, t) { return Math.max(0, Math.min(100, Math.round((v / Math.max(t, 1)) * 100))) }

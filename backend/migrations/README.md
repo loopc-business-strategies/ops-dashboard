@@ -57,7 +57,7 @@ MIGRATION_I_HAVE_BACKUP=true MIGRATION_CONFIRM_TOKEN=... npm --prefix backend ru
 
 If `syncIndexes` fails on a unique index, clean duplicate documents first, then re-run. Do **not** re-enable `autoIndex: true` in production/staging.
 
-2. Migrations run in filename order once per tenant (`mg`, `cg`, `loopc`).
+2. Migrations run in filename order once per tenant (`mg`, `cg`, `loopc`, `vb`).
 3. Applied IDs are stored in each tenant DB collection `_migrations`.
 
 ## Safety

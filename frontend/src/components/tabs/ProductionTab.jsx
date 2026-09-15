@@ -1,5 +1,5 @@
-// Legacy Production tab — redirects into the dedicated fullscreen workspace.
-// Keeps deep links (?tab=production) working without showing ERP chrome.
+// Legacy Production tab — redirects into the dedicated fullscreen PCC workspace.
+// Keeps deep links (?tab=production) working. Orphan panels under ./production/ are unused.
 
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
