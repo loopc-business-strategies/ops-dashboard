@@ -46,6 +46,8 @@ export const productionControlApi = {
   releaseBatch: (id, body) => post(`/batches/${id}/release`, body),
   returnToVault: (id, body) => post(`/batches/${id}/return-to-vault`, body),
   adjustWeight: (id, body) => post(`/batches/${id}/weight-adjustments`, body),
+  splitBatch: (id, body) => post(`/batches/${id}/split`, body),
+  mergeBatches: (body) => post('/batches/merge', body),
   listPasses: (params, config) => get('/passes', params, config),
   createPass: (body) => post('/passes', body),
   approvePass: (id) => post(`/passes/${id}/approve`),
@@ -103,6 +105,12 @@ export const productionControlApi = {
   reportWeightVariance: (params, config) => get('/reports/weight-variance', params, config),
   reportMachinePerformance: (params, config) => get('/reports/machine-performance', params, config),
   getTraceability: (params, config) => get('/traceability', params, config),
+
+  listMaintenance: (params, config) => get('/maintenance', params, config),
+  createMaintenance: (body) => post('/maintenance', body),
+  updateMaintenance: (id, body) => patch(`/maintenance/${id}`, body),
+  completeMaintenance: (id, body) => post(`/maintenance/${id}/complete`, body),
+  evaluateMaintenanceOverdue: () => post('/maintenance/evaluate-overdue'),
 }
 
 export default productionControlApi

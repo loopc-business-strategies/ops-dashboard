@@ -65,6 +65,7 @@ async function wipeProductionCollections() {
     ProductionStockStatusEvent.deleteMany({}),
     ProductionShiftConfig.deleteMany({}),
     ProductionFloorSession.deleteMany({}),
+    require('../models/ProductionMaintenanceWorkOrder').deleteMany({}),
     (await User.getTenantModel('loopc')).deleteMany({}),
   ])
 }
@@ -768,5 +769,122 @@ describe('Production Control Center API', () => {
       .send({ reason: 'Customer order' })
     expect(dispatched.status).toBe(200)
     expect(dispatched.body.lot.status).toBe('DISPATCHED')
+  })
+
+  test('partial stock select creates remainder lot with genealogy', async () => {
+    const user = await createUser()
+    const headers = { Authorization: `Bearer ${tokenFor(user)}` }
+
+    const createStock = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({ product: 'Partial Gold', netWeight: 1000, quantity: 10, metalType: 'Gold', purity: '24K' })
+    expect(createStock.status).toBe(201)
+    const lotId = createStock.body.lot._id
+    await request(app).post(`/api/erp/production-control/stock/${lotId}/available`).set(headers).send({})
+
+    const select = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: lotId, weight: 400, quantity: 4, markIssued: true })
+    expect(select.status).toBe(201)
+    expect(select.body.batch.initialWeight).toBe(400)
+    expect(select.body.lot.netWeight).toBe(400)
+    expect(select.body.remainderLot).toBeTruthy()
+    expect(select.body.remainderLot.status).toBe('AVAILABLE')
+    expect(select.body.remainderLot.netWeight).toBe(600)
+    expect(select.body.remainderLot.parentLotId).toBe(String(lotId))
+
+    const rem = await request(app)
+      .get(`/api/erp/production-control/stock/${select.body.remainderLot._id}`)
+      .set(headers)
+    expect(rem.status).toBe(200)
+    expect(rem.body.lot.status).toBe('AVAILABLE')
+  })
+
+  test('batch split and merge preserve genealogy', async () => {
+    const user = await createUser()
+    const headers = { Authorization: `Bearer ${tokenFor(user)}` }
+
+    const a = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({ metalType: 'Gold', purity: '24K', initialWeight: 1000, product: 'SplitMe' })
+    expect(a.status).toBe(201)
+    const parentId = a.body.batch._id
+
+    const split = await request(app)
+      .post(`/api/erp/production-control/batches/${parentId}/split`)
+      .set(headers)
+      .send({ parts: [{ weight: 400 }, { weight: 600 }], reason: 'Line split' })
+    expect(split.status).toBe(201)
+    expect(split.body.parent.status).toBe('SPLIT')
+    expect(split.body.children).toHaveLength(2)
+    expect(Number(split.body.children[0].currentWeight) + Number(split.body.children[1].currentWeight)).toBe(1000)
+
+    const b1 = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({ metalType: 'Gold', purity: '24K', initialWeight: 200, product: 'MergeA' })
+    const b2 = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({ metalType: 'Gold', purity: '24K', initialWeight: 300, product: 'MergeB' })
+
+    const merge = await request(app)
+      .post('/api/erp/production-control/batches/merge')
+      .set(headers)
+      .send({
+        batchIds: [b1.body.batch._id, b2.body.batch._id],
+        reason: 'Combine lots',
+      })
+    expect(merge.status).toBe(201)
+    expect(merge.body.merged.currentWeight).toBe(500)
+    expect(merge.body.parents.every((p) => p.status === 'MERGED')).toBe(true)
+    expect(merge.body.parents.every((p) => String(p.mergedIntoBatchId) === String(merge.body.merged._id))).toBe(true)
+  })
+
+  test('maintenance work orders create complete and evaluate overdue', async () => {
+    const user = await createUser()
+    const headers = { Authorization: `Bearer ${tokenFor(user)}` }
+
+    const machine = await request(app)
+      .post('/api/erp/production-control/machines')
+      .set(headers)
+      .send({ machineCode: `M-${Date.now()}`, name: 'Furnace 1', department: 'melting' })
+    expect(machine.status).toBe(201)
+
+    const create = await request(app)
+      .post('/api/erp/production-control/maintenance')
+      .set(headers)
+      .send({
+        machineId: machine.body.machine._id,
+        type: 'PREVENTIVE',
+        title: 'Quarterly service',
+        technicianName: 'Tech A',
+        scheduledAt: new Date(Date.now() - 86400000).toISOString(),
+        nextMaintenanceAt: new Date(Date.now() + 30 * 86400000).toISOString(),
+        setMachineStatus: 'MAINTENANCE',
+      })
+    expect(create.status).toBe(201)
+    expect(create.body.workOrder.woNumber).toMatch(/^PM-\d{4}-\d{5}$/)
+
+    const list = await request(app).get('/api/erp/production-control/maintenance').set(headers)
+    expect(list.status).toBe(200)
+    expect(list.body.workOrders.length).toBeGreaterThanOrEqual(1)
+
+    const done = await request(app)
+      .post(`/api/erp/production-control/maintenance/${create.body.workOrder._id}/complete`)
+      .set(headers)
+      .send({ downtimeMinutes: 45, cost: 120, machineStatus: 'IDLE' })
+    expect(done.status).toBe(200)
+    expect(done.body.workOrder.status).toBe('COMPLETED')
+
+    const evalRes = await request(app)
+      .post('/api/erp/production-control/maintenance/evaluate-overdue')
+      .set(headers)
+      .send({})
+    expect(evalRes.status).toBe(200)
+    expect(Array.isArray(evalRes.body.alerts)).toBe(true)
   })
 })

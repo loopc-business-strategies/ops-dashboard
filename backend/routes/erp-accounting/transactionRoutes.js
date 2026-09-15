@@ -534,6 +534,16 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
 
+    // After submit/approve, content edits require Super Admin. Use return/reject workflow to reopen.
+    const lockedWorkflowStatuses = new Set(['submitted', 'approved'])
+    if (lockedWorkflowStatuses.has(String(tx.status || '')) && !isSuperAdmin(req.user)) {
+      return res.status(409).json({
+        success: false,
+        message: 'Submitted vouchers cannot be edited. Return the voucher for edit or use an authorized workflow action.',
+        code: 'VOUCHER_SUBMITTED_LOCKED',
+      })
+    }
+
     const wasPosted = tx.status === 'posted'
     const existingDate = resolveTxDate(tx)
     const nextDateCandidate = (() => {

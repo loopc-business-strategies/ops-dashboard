@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildAccountEnquiryCacheKey,
-  clearAccountEnquiryCache,
   readAccountEnquiryCache,
   writeAccountEnquiryCache,
 } from './erpAccountEnquiryCache'

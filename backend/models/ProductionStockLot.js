@@ -5,6 +5,8 @@ const { STOCK_STATUSES, METAL_TYPES } = require('../services/productionControl/c
 const productionStockLotSchema = new mongoose.Schema(
   {
     stockCode: { type: String, required: true, trim: true, uppercase: true },
+    barcode: { type: String, trim: true, default: '' },
+    qrCode: { type: String, trim: true, default: '' },
     purchaseRef: { type: String, trim: true, default: '' },
     supplier: { type: String, trim: true, default: '' },
     purchaseDate: { type: Date, default: null },
@@ -27,6 +29,9 @@ const productionStockLotSchema = new mongoose.Schema(
     inventoryItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem', default: null },
     batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionBatch', default: null },
     batchNumber: { type: String, trim: true, default: '' },
+    /** Genealogy: remainder lots created on partial stock selection */
+    parentLotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionStockLot', default: null },
+    childLotIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ProductionStockLot' }], default: [] },
     attachmentRefs: {
       type: [
         {
@@ -50,6 +55,7 @@ productionStockLotSchema.index({ status: 1, updatedAt: -1 })
 productionStockLotSchema.index({ product: 1, status: 1 })
 productionStockLotSchema.index({ productCode: 1 })
 productionStockLotSchema.index({ batchId: 1 })
+productionStockLotSchema.index({ parentLotId: 1 })
 productionStockLotSchema.index({ inventoryItemId: 1 })
 productionStockLotSchema.index({ supplier: 1, purchaseDate: -1 })
 productionStockLotSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true })

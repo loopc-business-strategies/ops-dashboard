@@ -284,6 +284,13 @@ export function createDemoPccApi() {
       },
     }),
     getTraceability: async () => ({ success: true, report: { journey: [] } }),
+    splitBatch: () => demoWriteOk({ parent: DEMO_BATCHES[0], children: [] }),
+    mergeBatches: () => demoWriteOk({ merged: DEMO_BATCHES[0], parents: [] }),
+    listMaintenance: async () => ({ success: true, workOrders: [] }),
+    createMaintenance: () => demoWriteOk({ workOrder: { woNumber: 'PM-DEMO-00001', status: 'SCHEDULED' } }),
+    updateMaintenance: () => demoWriteOk(),
+    completeMaintenance: () => demoWriteOk({ workOrder: { status: 'COMPLETED' } }),
+    evaluateMaintenanceOverdue: () => demoWriteOk({ alerts: [] }),
   }
 }
 

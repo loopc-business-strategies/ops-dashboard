@@ -42,6 +42,8 @@ const WorkOrderSchema = new mongoose.Schema(
       default: null,
     },
     qcNotes: String,
+    barcode: { type: String, trim: true, default: '' },
+    qrCode: { type: String, trim: true, default: '' },
     createdById: mongoose.Schema.Types.ObjectId,
     createdByName: String,
   },

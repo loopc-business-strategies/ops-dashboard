@@ -3,7 +3,7 @@ const Joi = require('joi')
 const { protect } = require('../middleware/auth')
 const { validateBody, validateQuery, validateParams } = require('../middleware/validate')
 const { requireProductionPermission, resolveProductionRole } = require('../services/productionControl/permissions')
-const { batchService, passService, processService, liveFloorService, machineAlertService, custodyDelayReworkService, flowConfigService, stockService, departmentService, shiftService, floorSessionService, reportService } = require('../services/productionControl')
+const { batchService, passService, processService, liveFloorService, machineAlertService, custodyDelayReworkService, flowConfigService, stockService, departmentService, shiftService, floorSessionService, reportService, maintenanceService } = require('../services/productionControl')
 const ProductionBatch = require('../models/ProductionBatch')
 const ProductionPass = require('../models/ProductionPass')
 const MetalMovement = require('../models/MetalMovement')
@@ -383,6 +383,46 @@ router.post('/batches/:id/weight-adjustments', protect, requireProductionPermiss
   }
 })
 
+router.post('/batches/:id/split', protect, requireProductionPermission('splitMergeBatch'), validateParams(idParam), validateBody(Joi.object({
+  parts: Joi.array().items(Joi.object({
+    weight: Joi.number().positive().required(),
+    product: Joi.string().trim().allow(''),
+    purpose: Joi.string().trim().allow(''),
+    targetQuantity: Joi.number().min(0),
+  })).min(2).required(),
+  reason: Joi.string().trim().allow(''),
+  expectedVersion: Joi.number().integer().min(0),
+})), async (req, res) => {
+  try {
+    const result = await batchService.splitBatch(req, req.params.id, req.body)
+    emitProduction(req, 'batch.split', {
+      batchId: req.params.id,
+      children: (result.children || []).map((c) => c._id),
+    })
+    res.status(201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/batches/merge', protect, requireProductionPermission('splitMergeBatch'), validateBody(Joi.object({
+  batchIds: Joi.array().items(Joi.string().hex().length(24)).min(2).required(),
+  reason: Joi.string().trim().allow(''),
+  product: Joi.string().trim().allow(''),
+  purpose: Joi.string().trim().allow(''),
+})), async (req, res) => {
+  try {
+    const result = await batchService.mergeBatches(req, req.body)
+    emitProduction(req, 'batch.merged', {
+      mergedBatchId: result.merged?._id,
+      parentIds: req.body.batchIds,
+    })
+    res.status(201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 // ── Passes ─────────────────────────────────────────
 router.get('/passes', protect, requireProductionPermission('view'), async (req, res) => {
   try {
@@ -697,6 +737,91 @@ router.post('/alerts/:id/resolve', protect, requireProductionPermission('resolve
   }
 })
 
+// ── Maintenance work orders ────────────────────────
+router.get('/maintenance', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const workOrders = await maintenanceService.listMaintenance(req.query)
+    res.json({ success: true, workOrders })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/maintenance', protect, requireProductionPermission('manageMaintenance'), validateBody(Joi.object({
+  machineId: Joi.string().hex().length(24).required(),
+  type: Joi.string().valid('PREVENTIVE', 'BREAKDOWN', 'CORRECTIVE', 'INSPECTION'),
+  title: Joi.string().trim().allow(''),
+  description: Joi.string().trim().allow(''),
+  technicianName: Joi.string().trim().allow(''),
+  technicianId: Joi.string().hex().length(24).allow(null, ''),
+  parts: Joi.string().trim().allow(''),
+  cost: Joi.number().min(0),
+  downtimeMinutes: Joi.number().min(0),
+  scheduledAt: Joi.date().allow(null),
+  nextMaintenanceAt: Joi.date().allow(null),
+  notes: Joi.string().trim().allow(''),
+  setMachineStatus: Joi.string().valid(...MACHINE_STATUSES).allow(null, ''),
+})), async (req, res) => {
+  try {
+    const body = { ...req.body }
+    if (!body.technicianId) body.technicianId = null
+    const workOrder = await maintenanceService.createMaintenance(req, body)
+    emitProduction(req, 'maintenance.created', { workOrderId: workOrder._id })
+    res.status(201).json({ success: true, workOrder })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.patch('/maintenance/:id', protect, requireProductionPermission('manageMaintenance'), validateParams(idParam), validateBody(Joi.object({
+  title: Joi.string().trim().allow(''),
+  description: Joi.string().trim().allow(''),
+  technicianName: Joi.string().trim().allow(''),
+  technicianId: Joi.string().hex().length(24).allow(null, ''),
+  parts: Joi.string().trim().allow(''),
+  cost: Joi.number().min(0),
+  downtimeMinutes: Joi.number().min(0),
+  scheduledAt: Joi.date().allow(null),
+  startedAt: Joi.date().allow(null),
+  nextMaintenanceAt: Joi.date().allow(null),
+  notes: Joi.string().trim().allow(''),
+  type: Joi.string().valid('PREVENTIVE', 'BREAKDOWN', 'CORRECTIVE', 'INSPECTION'),
+  status: Joi.string().valid('SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'),
+})), async (req, res) => {
+  try {
+    const workOrder = await maintenanceService.updateMaintenance(req, req.params.id, req.body)
+    res.json({ success: true, workOrder })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/maintenance/:id/complete', protect, requireProductionPermission('manageMaintenance'), validateParams(idParam), validateBody(Joi.object({
+  cost: Joi.number().min(0),
+  downtimeMinutes: Joi.number().min(0),
+  parts: Joi.string().trim().allow(''),
+  notes: Joi.string().trim().allow(''),
+  nextMaintenanceAt: Joi.date().allow(null),
+  machineStatus: Joi.string().valid(...MACHINE_STATUSES),
+})), async (req, res) => {
+  try {
+    const workOrder = await maintenanceService.completeMaintenance(req, req.params.id, req.body)
+    emitProduction(req, 'maintenance.completed', { workOrderId: workOrder._id })
+    res.json({ success: true, workOrder })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/maintenance/evaluate-overdue', protect, requireProductionPermission('manageMaintenance'), async (req, res) => {
+  try {
+    const alerts = await maintenanceService.evaluateOverdueMaintenance(req)
+    res.json({ success: true, alerts })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 // ── Audit (production resources only; never deletes) ─
 router.get('/audit', protect, requireProductionPermission('viewAudit'), async (req, res) => {
   try {
@@ -712,6 +837,7 @@ router.get('/audit', protect, requireProductionPermission('viewAudit'), async (r
       'ProductionStockLot',
       'ProductionShiftConfig',
       'ProductionFloorSession',
+      'ProductionMaintenanceWorkOrder',
     ]
     const logs = await AuditLog.find({ resource: { $in: resources } })
       .sort({ createdAt: -1 })
@@ -858,9 +984,13 @@ router.post('/stock/:id/adjust', protect, requireProductionPermission('adjustSto
   weightDelta: Joi.number(),
   reason: Joi.string().trim().min(3).required(),
   expectedVersion: Joi.number().integer().min(0),
+  approvedById: Joi.string().hex().length(24).allow(null, ''),
+  requireDualControl: Joi.boolean(),
 })), async (req, res) => {
   try {
-    const lot = await stockService.adjustStock(req, req.params.id, req.body)
+    const body = { ...req.body }
+    if (!body.approvedById) body.approvedById = null
+    const lot = await stockService.adjustStock(req, req.params.id, body)
     emitProduction(req, 'stock.adjusted', { stockLotId: lot._id })
     res.json({ success: true, lot })
   } catch (err) {

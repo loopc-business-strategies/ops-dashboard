@@ -624,6 +624,65 @@ router.put('/procurement/purchase-orders/:id', protect, validateParams(idParam),
   }
 })
 
+/** Goods receipt → mark received + optional inventory link (no duplicate stock engine). */
+router.post('/procurement/purchase-orders/:id/receive', protect, validateParams(idParam), validateBody(Joi.object({
+  notes: Joi.string().trim().allow('').max(2000),
+  qcPassed: Joi.boolean().allow(null),
+  linkedInventoryItemId: Joi.string().hex().length(24).allow(null, ''),
+  linkedStockLotId: Joi.string().hex().length(24).allow(null, ''),
+})), async (req, res) => {
+  try {
+    if (!canCreatePO(req.user) && !isSuperAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+    const po = await PurchaseOrder.findById(req.params.id)
+    if (!po) return res.status(404).json({ success: false, message: 'Purchase order not found.' })
+    if (['closed'].includes(po.status)) {
+      return res.status(409).json({ success: false, message: `Cannot receive PO in status ${po.status}` })
+    }
+
+    po.status = 'received'
+    po.receivedAt = new Date()
+    po.receivedById = req.user._id
+    po.receivedByName = req.user.name || ''
+    po.receiptNotes = req.body.notes || ''
+    po.receiptQcPassed = req.body.qcPassed == null ? null : Boolean(req.body.qcPassed)
+    if (req.body.linkedInventoryItemId) po.linkedInventoryItemId = req.body.linkedInventoryItemId
+    if (req.body.linkedStockLotId) po.linkedStockLotId = req.body.linkedStockLotId
+
+    if (po.linkedInventoryItemId && Array.isArray(po.items) && po.items[0]) {
+      const item = await InventoryItem.findById(po.linkedInventoryItemId)
+      if (item && !item.isDeleted) {
+        const qty = Number(po.items[0].quantity) || 0
+        const before = Number(item.quantity) || 0
+        item.quantity = before + qty
+        item.updatedBy = req.user._id
+        item.lastRestockedAt = new Date()
+        await item.save()
+        await StockMovement.create({
+          itemId: item._id,
+          itemName: item.name,
+          change: qty,
+          quantityBefore: before,
+          quantityAfter: item.quantity,
+          reason: `po_receive:${po.poNumber}`,
+          actorId: req.user._id,
+          actorName: req.user.name || '',
+        })
+      }
+    }
+
+    await po.save()
+    res.json({
+      success: true,
+      purchaseOrder: { ...po.toObject(), totalAmount: getPOAmount(po) },
+    })
+  } catch (err) {
+    console.error('PO receive error:', err)
+    res.status(500).json({ success: false, message: 'Failed to receive purchase order.' })
+  }
+})
+
 router.delete('/procurement/purchase-orders/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canCreatePO(req.user)) {

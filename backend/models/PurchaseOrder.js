@@ -64,6 +64,14 @@ const purchaseOrderSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    /** Goods receipt / QC handoff (additive P2P) */
+    receivedAt: { type: Date, default: null },
+    receivedById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    receivedByName: { type: String, trim: true, default: '' },
+    receiptNotes: { type: String, trim: true, default: '' },
+    receiptQcPassed: { type: Boolean, default: null },
+    linkedStockLotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionStockLot', default: null },
+    linkedInventoryItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem', default: null },
   },
   { timestamps: true }
 )

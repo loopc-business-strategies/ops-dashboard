@@ -41,6 +41,8 @@ const PERMISSIONS = {
   viewAudit: ['production_manager', 'floor_manager'],
   manageStock: ['production_manager', 'floor_manager', 'vault_officer'],
   selectStock: ['production_manager', 'floor_manager'],
+  splitMergeBatch: ['production_manager', 'floor_manager'],
+  manageMaintenance: ['production_manager', 'floor_manager'],
   dispatchStock: ['production_manager', 'floor_manager', 'vault_officer'],
   adjustStock: ['production_manager'],
   manageShifts: ['production_manager'],

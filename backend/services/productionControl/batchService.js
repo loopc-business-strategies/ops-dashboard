@@ -406,6 +406,211 @@ async function raiseWeightVarianceAlert(req, batch, { expected, actual, variance
   return alert
 }
 
+const SPLIT_MERGE_ALLOWED = new Set([
+  'CREATED',
+  'AWAITING_ISSUE',
+  'ISSUED',
+  'WAITING',
+  'RECEIVED',
+  'HOLD',
+  'RETURNED_TO_VAULT',
+])
+
+/**
+ * Split a batch into child batches. Parent history is preserved (status SPLIT).
+ * parts: [{ weight, product?, purpose? }, ...] — weights must sum to currentWeight.
+ */
+async function splitBatch(req, batchId, { parts = [], reason = '', expectedVersion } = {}) {
+  if (!Array.isArray(parts) || parts.length < 2) {
+    throw new ProductionError('Split requires at least two parts')
+  }
+  const weights = parts.map((p) => Number(p.weight))
+  if (weights.some((w) => !Number.isFinite(w) || w <= 0)) {
+    throw new ProductionError('Each split part must have a positive weight')
+  }
+
+  const a = actor(req)
+  return runInTransaction(async (session) => {
+    const parent = await withSession(ProductionBatch.findById(batchId), session)
+    if (!parent) throw new ProductionError('Batch not found', 404)
+    if (!SPLIT_MERGE_ALLOWED.has(parent.status)) {
+      throw new ProductionError(`Cannot split batch in status ${parent.status}`)
+    }
+    if (expectedVersion != null && parent.version !== Number(expectedVersion)) {
+      throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
+    }
+
+    const parentWeight = Number(parent.currentWeight || parent.initialWeight || 0)
+    const sum = weights.reduce((acc, w) => acc + w, 0)
+    if (Math.abs(sum - parentWeight) > 0.0001) {
+      throw new ProductionError(
+        `Split weights (${sum}g) must equal parent current weight (${parentWeight}g)`,
+      )
+    }
+
+    assertStatusTransition('batch', parent.status, 'SPLIT')
+
+    const children = []
+    for (let i = 0; i < parts.length; i += 1) {
+      const part = parts[i]
+      const w = weights[i]
+      const batchNumber = await nextBatchNumber(ProductionBatch, parent.metalType, session)
+      const [child] = await ProductionBatch.create(
+        [
+          {
+            batchNumber,
+            workOrderId: parent.workOrderId || null,
+            workOrderNumber: parent.workOrderNumber || '',
+            metalType: parent.metalType,
+            purity: parent.purity || '',
+            product: part.product || parent.product || '',
+            purpose: part.purpose || `Split from ${parent.batchNumber}` || parent.purpose || '',
+            targetQuantity: Number(part.targetQuantity) || 0,
+            initialWeight: w,
+            currentWeight: w,
+            lastVerifiedWeight: w,
+            currentDepartment: parent.currentDepartment || 'vault',
+            currentLocation: parent.currentLocation || 'Vault',
+            inventoryItemId: parent.inventoryItemId || null,
+            stockLotId: null,
+            stockCode: '',
+            status: 'AWAITING_ISSUE',
+            parentBatchId: parent._id,
+            parentBatchIds: [parent._id],
+            splitFromBatchNumber: parent.batchNumber,
+            createdById: a.id,
+            createdByName: a.name,
+            version: 0,
+          },
+        ],
+        writeOpts(session),
+      )
+      children.push(child)
+    }
+
+    parent.childBatchIds = children.map((c) => c._id)
+    parent.status = 'SPLIT'
+    parent.currentWeight = 0
+    parent.holdReason = reason || `Split into ${children.map((c) => c.batchNumber).join(', ')}`
+    parent.version = (parent.version || 0) + 1
+    await parent.save(writeOpts(session))
+
+    await writeProductionAudit(req, {
+      resource: 'ProductionBatch',
+      resourceId: parent._id,
+      action: AUDIT_ACTIONS.BATCH_SPLIT,
+      detail: `Batch ${parent.batchNumber} split into ${children.map((c) => c.batchNumber).join(', ')}`,
+      changes: {
+        parentBatchNumber: parent.batchNumber,
+        children: children.map((c) => ({
+          batchNumber: c.batchNumber,
+          weight: c.currentWeight,
+        })),
+        reason: reason || '',
+      },
+      session,
+    })
+
+    return { parent, children }
+  })
+}
+
+/**
+ * Merge multiple batches into a new batch. Parents kept as MERGED with genealogy.
+ */
+async function mergeBatches(req, { batchIds = [], reason = '', product = '', purpose = '' } = {}) {
+  if (!Array.isArray(batchIds) || batchIds.length < 2) {
+    throw new ProductionError('Merge requires at least two batchIds')
+  }
+  const uniqueIds = [...new Set(batchIds.map(String))]
+  if (uniqueIds.length < 2) throw new ProductionError('Merge requires distinct batches')
+
+  const a = actor(req)
+  return runInTransaction(async (session) => {
+    const parents = []
+    for (const id of uniqueIds) {
+      const batch = await withSession(ProductionBatch.findById(id), session)
+      if (!batch) throw new ProductionError(`Batch not found: ${id}`, 404)
+      if (!SPLIT_MERGE_ALLOWED.has(batch.status)) {
+        throw new ProductionError(`Cannot merge batch ${batch.batchNumber} in status ${batch.status}`)
+      }
+      parents.push(batch)
+    }
+
+    const metalType = parents[0].metalType
+    const purity = String(parents[0].purity || '')
+    for (const p of parents) {
+      if (p.metalType !== metalType) {
+        throw new ProductionError('Cannot merge batches with different metal types')
+      }
+      if (String(p.purity || '') !== purity) {
+        throw new ProductionError('Cannot merge batches with different purity')
+      }
+      assertStatusTransition('batch', p.status, 'MERGED')
+    }
+
+    const totalWeight = parents.reduce(
+      (acc, p) => acc + Number(p.currentWeight || p.initialWeight || 0),
+      0,
+    )
+    if (!(totalWeight > 0)) throw new ProductionError('Merged weight must be positive')
+
+    const batchNumber = await nextBatchNumber(ProductionBatch, metalType, session)
+    const [merged] = await ProductionBatch.create(
+      [
+        {
+          batchNumber,
+          metalType,
+          purity,
+          product: product || parents.map((p) => p.product).filter(Boolean).join('+') || '',
+          purpose: purpose || `Merged from ${parents.map((p) => p.batchNumber).join(', ')}`,
+          targetQuantity: parents.reduce((acc, p) => acc + Number(p.targetQuantity || 0), 0),
+          initialWeight: totalWeight,
+          currentWeight: totalWeight,
+          lastVerifiedWeight: totalWeight,
+          currentDepartment: 'vault',
+          currentLocation: 'Vault',
+          inventoryItemId: parents[0].inventoryItemId || null,
+          status: 'AWAITING_ISSUE',
+          parentBatchIds: parents.map((p) => p._id),
+          parentBatchId: parents[0]._id,
+          createdById: a.id,
+          createdByName: a.name,
+          version: 0,
+        },
+      ],
+      writeOpts(session),
+    )
+
+    for (const parent of parents) {
+      parent.status = 'MERGED'
+      parent.mergedIntoBatchId = merged._id
+      parent.mergedIntoBatchNumber = merged.batchNumber
+      parent.currentWeight = 0
+      parent.childBatchIds = [...(parent.childBatchIds || []), merged._id]
+      parent.holdReason = reason || `Merged into ${merged.batchNumber}`
+      parent.version = (parent.version || 0) + 1
+      await parent.save(writeOpts(session))
+    }
+
+    await writeProductionAudit(req, {
+      resource: 'ProductionBatch',
+      resourceId: merged._id,
+      action: AUDIT_ACTIONS.BATCH_MERGED,
+      detail: `Merged ${parents.map((p) => p.batchNumber).join(', ')} into ${merged.batchNumber}`,
+      changes: {
+        parentBatchNumbers: parents.map((p) => p.batchNumber),
+        mergedBatchNumber: merged.batchNumber,
+        totalWeight,
+        reason: reason || '',
+      },
+      session,
+    })
+
+    return { merged, parents }
+  })
+}
+
 module.exports = {
   ProductionError,
   createBatch,
@@ -414,4 +619,6 @@ module.exports = {
   releaseBatch,
   returnToVault,
   raiseWeightVarianceAlert,
+  splitBatch,
+  mergeBatches,
 }

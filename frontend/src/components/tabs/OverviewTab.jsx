@@ -7,6 +7,7 @@ import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
 import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
+import axios, { API_ORIGIN } from '../../api/client'
 import { ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
 import { subscribeRealtimeEvents } from '../../utils/realtimeEventsBus'
@@ -56,9 +57,9 @@ const TAB_BY_DEPT = {
 }
 
 const QUICK_ACTIONS = {
-  super_admin: ['Add Task', 'Add Lead', 'Log Expense', 'Add Supplier', 'Schedule Meeting', 'Add Employee', 'Create Invoice', 'Log Incident', 'Generate Report', 'Global Search'],
-  management: ['Generate Report', 'Global Search'],
-  department_head: ['Add Task', 'Generate Report', 'Schedule Meeting'],
+  super_admin: ['Add Task', 'Create Voucher', 'Add Lead', 'Log Expense', 'Add Supplier', 'Add Customer', 'Add Employee', 'Open Production', 'Owner Exceptions', 'Generate Report', 'Global Search'],
+  management: ['Owner Exceptions', 'Generate Report', 'Global Search', 'Open Production'],
+  department_head: ['Add Task', 'Generate Report', 'Global Search', 'Open Production', 'Owner Exceptions'],
   department_user: ['Add Task', 'Global Search'],
   external: ['Global Search'],
 }
@@ -301,6 +302,13 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all')
   const [attendanceSearch, setAttendanceSearch] = useState('')
   const [ackedAlerts, setAckedAlerts] = useState({})
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [exceptionsOpen, setExceptionsOpen] = useState(false)
+  const [exceptions, setExceptions] = useState([])
+  const [liveAlerts, setLiveAlerts] = useState([])
   const projectsSectionRef = useRef(null)
   const messagesSectionRef = useRef(null)
   const highlightTimerRef = useRef(null)
@@ -892,8 +900,16 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
       onNavigate?.('finance')
       return
     }
+    if (lower.includes('voucher')) {
+      onNavigate?.('vouchers')
+      return
+    }
     if (lower.includes('supplier')) {
       onNavigate?.('erp', { erpSub: 'vendors' })
+      return
+    }
+    if (lower.includes('customer')) {
+      onNavigate?.('erp', { erpSub: 'customers' })
       return
     }
     if (lower.includes('lead') || lower.includes('meeting')) {
@@ -904,7 +920,23 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
       onNavigate?.('operations')
       return
     }
-    showToast(`${name} opened`)
+    if (lower.includes('production') || lower.includes('work order') || lower.includes('batch')) {
+      window.location.assign('/production')
+      return
+    }
+    if (lower.includes('report')) {
+      onNavigate?.('erp', { erpSub: 'reports' })
+      return
+    }
+    if (lower.includes('search')) {
+      setSearchOpen(true)
+      return
+    }
+    if (lower.includes('exception')) {
+      setExceptionsOpen(true)
+      return
+    }
+    showToast(`${name} — use navigation if this action is unavailable`)
   }
 
   const latestFeed = useMemo(() => {
@@ -967,6 +999,15 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
   }, [scopedTasks])
 
   const alertRows = useMemo(() => {
+    if (liveAlerts.length) {
+      return liveAlerts.map((a) => ({
+        id: a.id,
+        severity: a.severity === 'critical' ? 'critical' : 'high',
+        text: a.title || a.message,
+        dept: a.type || 'ops',
+        age: a.createdAt ? fmtDate(a.createdAt) : '',
+      })).slice(0, 7)
+    }
     const byRole = perms.isSuperAdmin || perms.isManagement
       ? STATIC_ALERTS
       : perms.isDepartmentHead
@@ -981,7 +1022,7 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
       .map((t) => ({ id: `ot-${t._id}`, severity: 'high', text: `${t.title} overdue`, dept: t.department || 'general', age: fmtDate(t.dueDate) }))
 
     return [...taskOverdues, ...byRole].slice(0, 7)
-  }, [perms.isSuperAdmin, perms.isManagement, perms.isDepartmentHead, perms.isDepartmentUser, scopedTasks, user?.department, todayStart])
+  }, [liveAlerts, perms.isSuperAdmin, perms.isManagement, perms.isDepartmentHead, perms.isDepartmentUser, scopedTasks, user?.department, todayStart])
 
   const markAttendance = async (row, status) => {
     try {
@@ -1081,11 +1122,117 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
     }
   }
 
+  useEffect(() => {
+    if (!exceptionsOpen || !token) return undefined
+    let cancelled = false
+    axios.get(`${API_ORIGIN}/api/exceptions`)
+      .then((r) => { if (!cancelled) setExceptions(r.data?.exceptions || []) })
+      .catch(() => { if (!cancelled) setExceptions([]) })
+    return () => { cancelled = true }
+  }, [exceptionsOpen, token])
+
+  useEffect(() => {
+    if (!token) return undefined
+    let cancelled = false
+    axios.get(`${API_ORIGIN}/api/exceptions`)
+      .then((r) => { if (!cancelled) setLiveAlerts((r.data?.exceptions || []).slice(0, 8)) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [token])
+
+  const runGlobalSearch = async (e) => {
+    e?.preventDefault?.()
+    const q = String(searchQuery || '').trim()
+    if (q.length < 1) return
+    setSearchLoading(true)
+    try {
+      const r = await axios.get(`${API_ORIGIN}/api/search`, { params: { q, limit: 8 } })
+      setSearchResults(r.data?.results || [])
+    } catch {
+      setSearchResults([])
+      showToast('Search failed')
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
   return (
     <ModuleTabColumn className="pb-2">
       {toast && (
         <div className="fixed top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
+        </div>
+      )}
+
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 pt-20" role="dialog">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Global Search</h3>
+              <button type="button" className="text-sm text-gray-500" onClick={() => setSearchOpen(false)}>Close</button>
+            </div>
+            <form onSubmit={runGlobalSearch} className="flex gap-2">
+              <input
+                className="input-field flex-1"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Customer, batch, voucher, employee…"
+                autoFocus
+              />
+              <button type="submit" className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm">{searchLoading ? '…' : 'Search'}</button>
+            </form>
+            <ul className="max-h-80 overflow-auto divide-y divide-gray-100">
+              {searchResults.map((r) => (
+                <li key={`${r.type}-${r.id}`}>
+                  <button
+                    type="button"
+                    className="w-full text-left py-2 px-1 hover:bg-gray-50"
+                    onClick={() => {
+                      setSearchOpen(false)
+                      if (r.href?.startsWith('/production')) window.location.assign(r.href)
+                      else if (r.href?.includes('tab=')) {
+                        const tab = new URL(r.href, window.location.origin).searchParams.get('tab')
+                        if (tab) onNavigate?.(tab)
+                      }
+                    }}
+                  >
+                    <div className="text-sm font-medium text-gray-900">{r.label} <span className="text-xs text-gray-400">{r.type}</span></div>
+                    <div className="text-xs text-gray-500">{r.subtitle}</div>
+                  </button>
+                </li>
+              ))}
+              {!searchLoading && searchQuery && searchResults.length === 0 && (
+                <li className="py-3 text-sm text-gray-500">No results</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {exceptionsOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 pt-16" role="dialog">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-4 space-y-3 max-h-[80vh] overflow-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Owner Exception Center</h3>
+              <button type="button" className="text-sm text-gray-500" onClick={() => setExceptionsOpen(false)}>Close</button>
+            </div>
+            {!exceptions.length ? (
+              <p className="text-sm text-gray-500">No open exceptions</p>
+            ) : (
+              <ul className="space-y-2">
+                {exceptions.map((ex) => (
+                  <li key={ex.id} className="border border-gray-100 rounded-lg p-3">
+                    <div className="flex justify-between gap-2">
+                      <strong className="text-sm text-gray-900">{ex.title}</strong>
+                      <span className="text-xs uppercase text-red-600">{ex.severity}</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{ex.message}</p>
+                    <p className="text-xs text-gray-400 mt-1">{ex.type} · {ex.status}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 

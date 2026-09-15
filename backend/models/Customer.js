@@ -63,6 +63,12 @@ const customerSchema = new mongoose.Schema(
       ref: 'ChartOfAccount',
       default: null,
     },
+    /** Additive reverse link for Customer 360 */
+    crmContactId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CrmContact',
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -78,5 +84,6 @@ customerSchema.index({ isActive: 1 })
 customerSchema.index({ isActive: 1, name: 1 })
 customerSchema.index({ isActive: 1, createdAt: -1 })
 customerSchema.index({ ledgerAccountId: 1, isActive: 1 })
+customerSchema.index({ crmContactId: 1 })
 
 module.exports = createTenantModel('Customer', customerSchema)
