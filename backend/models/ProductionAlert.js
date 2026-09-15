@@ -35,5 +35,6 @@ const productionAlertSchema = new mongoose.Schema(
 productionAlertSchema.index({ alertNumber: 1 }, { unique: true })
 productionAlertSchema.index({ status: 1, category: 1, createdAt: -1 })
 productionAlertSchema.index({ batchId: 1, createdAt: -1 })
+productionAlertSchema.index({ code: 1, status: 1, batchId: 1 })
 
 module.exports = createTenantModel('ProductionAlert', productionAlertSchema)

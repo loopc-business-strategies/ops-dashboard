@@ -24,5 +24,6 @@ const productionMachineSchema = new mongoose.Schema(
 productionMachineSchema.index({ machineCode: 1 }, { unique: true })
 productionMachineSchema.index({ department: 1, status: 1 })
 productionMachineSchema.index({ status: 1 })
+productionMachineSchema.index({ isActive: 1, status: 1 })
 
 module.exports = createTenantModel('ProductionMachine', productionMachineSchema)

@@ -228,8 +228,119 @@ async function listDepartmentStatuses() {
   return results
 }
 
+/**
+ * Lightweight department tiles for Live Floor / widgets.
+ * Same displayed fields as listDepartmentStatuses, without per-stage full dashboards.
+ */
+async function listDepartmentStatusesLite() {
+  const flow = await getActiveFlowConfig()
+  const stages = (flow.stages || DEFAULT_FLOW_STAGES).filter((s) => s.process)
+  if (!stages.length) return []
+
+  const today = startOfToday()
+  const thresholds = flow.alertThresholds || {}
+  const overload = Number(thresholds.departmentOverloadJobs || 20)
+
+  const deptKeys = stages.map((s) => s.key)
+  const processNames = stages.map((s) => s.process || s.label).filter(Boolean)
+
+  const [waitingRows, holdRows, activeRunRows, completedRows] = await Promise.all([
+    ProductionBatch.aggregate([
+      {
+        $match: {
+          status: { $in: ['WAITING', 'RECEIVED', 'ISSUED'] },
+          currentDepartment: { $in: deptKeys },
+        },
+      },
+      { $group: { _id: '$currentDepartment', count: { $sum: 1 } } },
+    ]),
+    ProductionBatch.aggregate([
+      {
+        $match: {
+          status: 'HOLD',
+          currentDepartment: { $in: deptKeys },
+        },
+      },
+      { $group: { _id: '$currentDepartment', count: { $sum: 1 } } },
+    ]),
+    ProcessRun.aggregate([
+      {
+        $match: {
+          status: 'IN_PROGRESS',
+          $or: [
+            { department: { $in: deptKeys } },
+            { process: { $in: processNames } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: { department: '$department', process: '$process' },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    ProcessRun.aggregate([
+      {
+        $match: {
+          status: 'COMPLETED',
+          endTime: { $gte: today },
+          $or: [
+            { department: { $in: deptKeys } },
+            { process: { $in: processNames } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: { department: '$department', process: '$process' },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+  ])
+
+  const waitingMap = Object.fromEntries(waitingRows.map((r) => [String(r._id).toLowerCase(), r.count]))
+  const holdMap = Object.fromEntries(holdRows.map((r) => [String(r._id).toLowerCase(), r.count]))
+
+  const countForStage = (rows, stage) => {
+    let n = 0
+    for (const row of rows) {
+      const dept = String(row._id?.department || '').toLowerCase()
+      const proc = String(row._id?.process || '').toLowerCase()
+      if (dept === String(stage.key).toLowerCase()) n += row.count
+      else if (proc && proc === String(stage.process || stage.label || '').toLowerCase()) n += row.count
+    }
+    return n
+  }
+
+  return stages.map((stage) => {
+    const waiting = waitingMap[String(stage.key).toLowerCase()] || 0
+    const holdJobs = holdMap[String(stage.key).toLowerCase()] || 0
+    const active = countForStage(activeRunRows, stage)
+    const completedToday = countForStage(completedRows, stage)
+
+    let status = 'IDLE'
+    if (holdJobs > 0 && active === 0) status = 'HOLD'
+    else if (active > 0) status = 'RUNNING'
+    else if (waiting > 0) status = 'WAITING'
+    else if (completedToday > 0 && active === 0) status = 'COMPLETED'
+    if (waiting + active >= overload) status = 'DELAYED'
+
+    return {
+      key: stage.key,
+      label: stage.label,
+      status,
+      waiting,
+      active,
+      completedToday,
+    }
+  })
+}
+
 module.exports = {
   getDepartmentDashboard,
   listDepartmentStatuses,
+  listDepartmentStatusesLite,
   resolveStage,
 }

@@ -47,6 +47,37 @@ export function createDemoPccApi() {
     getFlow: async () => ({ success: true, flow: DEMO_FLOW }),
     updateFlow: () => demoWriteOk(),
     getLiveFloor: async () => getDemoLiveFloor(),
+    getLiveFloorSummary: async () => {
+      const floor = getDemoLiveFloor()
+      return { success: true, kpis: floor.kpis, statusCounts: floor.statusCounts, metalByDepartment: floor.metalByDepartment }
+    },
+    getLiveFloorBoard: async () => {
+      const floor = getDemoLiveFloor()
+      return { success: true, board: floor.board, activeBatches: floor.activeBatches }
+    },
+    getLiveFloorAlerts: async () => {
+      const floor = getDemoLiveFloor()
+      return { success: true, openAlerts: floor.openAlerts, attention: floor.attention, kpis: { activeAlerts: floor.kpis?.activeAlerts } }
+    },
+    getLiveFloorCustody: async () => {
+      const floor = getDemoLiveFloor()
+      return { success: true, custody: floor.custody }
+    },
+    getLiveFloorActivity: async () => {
+      const floor = getDemoLiveFloor()
+      return { success: true, recentActivity: floor.recentActivity }
+    },
+    getLiveFloorWidgets: async () => {
+      const floor = getDemoLiveFloor()
+      return {
+        success: true,
+        stock: floor.stock,
+        currentShift: floor.currentShift,
+        departments: floor.departments,
+        managersPresent: floor.managersPresent,
+        operatorsPresent: floor.operatorsPresent,
+      }
+    },
     search: async (params = {}) => {
       if (!params.passNumber && !params.batchNumber && !params.workOrder && !params.employee && !params.department && !params.metal) {
         return { success: true, batches: [] }

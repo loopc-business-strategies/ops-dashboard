@@ -37,5 +37,6 @@ const metalMovementSchema = new mongoose.Schema(
 metalMovementSchema.index({ movementNumber: 1 }, { unique: true })
 metalMovementSchema.index({ batchId: 1, createdAt: -1 })
 metalMovementSchema.index({ passId: 1 })
+metalMovementSchema.index({ createdAt: -1 })
 
 module.exports = createTenantModel('MetalMovement', metalMovementSchema)

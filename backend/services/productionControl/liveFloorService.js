@@ -10,19 +10,39 @@ const WeightAdjustment = require('../../models/WeightAdjustment')
 const WorkOrder = require('../../models/WorkOrder')
 const { ACTIVE_BATCH_STATUSES, DEFAULT_ALERT_THRESHOLDS } = require('./constants')
 const { ensureDefaultFlowConfig } = require('./flowConfigService')
+const { createReportResponseCache } = require('../../utils/reportResponseCache')
+const { getActiveTenantKey } = require('../../db/tenantModelProxy')
 
 const BOARD_STATUS_MAP = {
   QUEUED: ['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'WAITING'],
   IN_PROGRESS: ['IN_TRANSIT', 'RECEIVED', 'IN_PROCESS'],
-  PACKAGING: [], // filled by currentDepartment === packing (not COMPLETED)
+  PACKAGING: [],
   QC: ['QC', 'QC_FAILED'],
   REWORK: ['REWORK'],
   HOLD: ['HOLD'],
   COMPLETED: ['COMPLETED', 'RETURNED_TO_VAULT'],
 }
 
+const BOARD_SELECT = [
+  '_id',
+  'batchNumber',
+  'stockCode',
+  'workOrderNumber',
+  'product',
+  'metalType',
+  'purity',
+  'currentWeight',
+  'currentDepartment',
+  'status',
+  'currentHolderName',
+  'updatedAt',
+].join(' ')
+
 const ALERT_EVAL_TTL_MS = 5 * 60 * 1000
 let lastAlertEvalAt = 0
+let alertEvalInFlight = null
+
+const liveFloorCache = createReportResponseCache(10_000)
 
 function startOfToday() {
   const d = new Date()
@@ -30,23 +50,48 @@ function startOfToday() {
   return d
 }
 
-async function getLiveFloorSummary() {
+function scheduleAlertEvaluation() {
+  const now = Date.now()
+  if (now - lastAlertEvalAt < ALERT_EVAL_TTL_MS) return
+  if (alertEvalInFlight) return
+  lastAlertEvalAt = now
+  alertEvalInFlight = Promise.resolve()
+    .then(async () => {
+      const { evaluateProductionAlerts } = require('./alertEvaluationService')
+      await evaluateProductionAlerts()
+    })
+    .catch((err) => {
+      console.warn('[live-floor] alert evaluation:', err.message)
+    })
+    .finally(() => {
+      alertEvalInFlight = null
+    })
+}
+
+function bucketBoard(boardBatches) {
+  const board = Object.fromEntries(Object.keys(BOARD_STATUS_MAP).map((col) => [col, []]))
+  for (const batch of boardBatches) {
+    const dept = String(batch.currentDepartment || '').toLowerCase()
+    const isPackagingLane = dept === 'packing'
+      && !['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED'].includes(batch.status)
+    if (isPackagingLane) {
+      board.PACKAGING.push(batch)
+      continue
+    }
+    const col = Object.entries(BOARD_STATUS_MAP).find(([key, statuses]) =>
+      key !== 'PACKAGING' && statuses.includes(batch.status),
+    )?.[0]
+    if (col) board[col].push(batch)
+  }
+  return board
+}
+
+async function getLiveFloorKpisCore() {
   const flow = await ensureDefaultFlowConfig()
   const today = startOfToday()
   const thresholds = { ...DEFAULT_ALERT_THRESHOLDS, ...(flow?.alertThresholds || {}) }
   const delayedCutoff = new Date(Date.now() - Number(thresholds.batchDelayedHours || 24) * 60 * 60 * 1000)
 
-  // Alert evaluation is TTL-gated (5m) — intentional write-on-read; do not expand beyond this gate.
-  const now = Date.now()
-  if (now - lastAlertEvalAt >= ALERT_EVAL_TTL_MS) {
-    lastAlertEvalAt = now
-    try {
-      const { evaluateProductionAlerts } = require('./alertEvaluationService')
-      await evaluateProductionAlerts()
-    } catch (err) {
-      console.warn('[live-floor] alert evaluation:', err.message)
-    }
-  }
   const [
     activeBatches,
     waiting,
@@ -59,15 +104,13 @@ async function getLiveFloorSummary() {
     metalAgg,
     metalInTransitAgg,
     delayedBatches,
-    recentBatches,
-    custodyAgg,
-    recentMovements,
-    openAlerts,
     qcFailed,
     completedToday,
     returnedToday,
     activeWorkOrders,
-    boardBatches,
+    metalByDept,
+    weightTotals,
+    statusCounts,
   ] = await Promise.all([
     ProductionBatch.countDocuments({ status: { $in: ACTIVE_BATCH_STATUSES } }),
     ProductionBatch.countDocuments({ status: 'WAITING' }),
@@ -89,32 +132,6 @@ async function getLiveFloorSummary() {
       status: { $in: ACTIVE_BATCH_STATUSES },
       updatedAt: { $lte: delayedCutoff },
     }),
-    ProductionBatch.find({ status: { $in: ACTIVE_BATCH_STATUSES } })
-      .sort({ updatedAt: -1 })
-      .limit(50)
-      .lean(),
-    ProductionBatch.aggregate([
-      { $match: { status: { $in: ACTIVE_BATCH_STATUSES }, currentHolderName: { $ne: '' } } },
-      {
-        $group: {
-          _id: {
-            holder: '$currentHolderName',
-            department: '$currentDepartment',
-            metalType: '$metalType',
-            purity: '$purity',
-          },
-          weight: { $sum: '$currentWeight' },
-          batches: { $sum: 1 },
-        },
-      },
-      { $sort: { weight: -1 } },
-      { $limit: 40 },
-    ]),
-    MetalMovement.find({}).sort({ createdAt: -1 }).limit(20).lean(),
-    ProductionAlert.find({ status: { $in: ['OPEN', 'ACKNOWLEDGED'] } })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean(),
     ProductionBatch.countDocuments({ status: 'QC_FAILED' }),
     ProductionBatch.countDocuments({
       status: 'COMPLETED',
@@ -128,98 +145,31 @@ async function getLiveFloorSummary() {
       isDeleted: { $ne: true },
       status: { $in: ['pending', 'scheduled', 'in-progress', 'in_progress', 'quality_check', 'on_hold'] },
     }).catch(() => 0),
-    ProductionBatch.find({
-      $or: [
-        { status: { $in: ACTIVE_BATCH_STATUSES } },
-        { status: { $in: ['COMPLETED', 'RETURNED_TO_VAULT'] }, updatedAt: { $gte: today } },
-      ],
-    })
-      .sort({ updatedAt: -1 })
-      .limit(200)
-      .lean(),
-  ])
-
-  const metalByDept = await ProductionBatch.aggregate([
-    { $match: { status: { $in: ACTIVE_BATCH_STATUSES } } },
-    {
-      $group: {
-        _id: { department: '$currentDepartment', metalType: '$metalType' },
-        weight: { $sum: '$currentWeight' },
+    ProductionBatch.aggregate([
+      { $match: { status: { $in: ACTIVE_BATCH_STATUSES } } },
+      {
+        $group: {
+          _id: { department: '$currentDepartment', metalType: '$metalType' },
+          weight: { $sum: '$currentWeight' },
+        },
       },
-    },
-  ])
-
-  const weightTotals = await ProductionBatch.aggregate([
-    { $match: { status: { $in: [...ACTIVE_BATCH_STATUSES, 'COMPLETED', 'RETURNED_TO_VAULT'] } } },
-    {
-      $group: {
-        _id: null,
-        scrapTotal: { $sum: '$scrapWeight' },
-        lossTotal: { $sum: '$lossWeight' },
-        recoveredTotal: { $sum: '$recoveredWeight' },
+    ]),
+    ProductionBatch.aggregate([
+      { $match: { status: { $in: [...ACTIVE_BATCH_STATUSES, 'COMPLETED', 'RETURNED_TO_VAULT'] } } },
+      {
+        $group: {
+          _id: null,
+          scrapTotal: { $sum: '$scrapWeight' },
+          lossTotal: { $sum: '$lossWeight' },
+          recoveredTotal: { $sum: '$recoveredWeight' },
+        },
       },
-    },
+    ]),
+    ProductionBatch.aggregate([
+      { $match: { status: { $in: [...ACTIVE_BATCH_STATUSES, 'COMPLETED', 'RETURNED_TO_VAULT'] } } },
+      { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$currentWeight' } } },
+    ]),
   ])
-
-  const statusCounts = await ProductionBatch.aggregate([
-    { $match: { status: { $in: [...ACTIVE_BATCH_STATUSES, 'COMPLETED', 'RETURNED_TO_VAULT'] } } },
-    { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$currentWeight' } } },
-  ])
-
-  const board = Object.fromEntries(
-    Object.keys(BOARD_STATUS_MAP).map((col) => [col, []]),
-  )
-  for (const batch of boardBatches) {
-    const dept = String(batch.currentDepartment || '').toLowerCase()
-    const isPackagingLane = dept === 'packing'
-      && !['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED'].includes(batch.status)
-    if (isPackagingLane) {
-      board.PACKAGING.push(batch)
-      continue
-    }
-    const col = Object.entries(BOARD_STATUS_MAP).find(([key, statuses]) =>
-      key !== 'PACKAGING' && statuses.includes(batch.status),
-    )?.[0]
-    if (col) board[col].push(batch)
-  }
-
-  let stockOverview = null
-  let currentShift = null
-  let departments = []
-  let managersPresent = []
-  let operatorsPresent = []
-  try {
-    const stockService = require('./stockService')
-    stockOverview = await stockService.getStockOverview()
-  } catch (err) {
-    console.warn('[live-floor] stock overview:', err.message)
-  }
-  try {
-    const shiftService = require('./shiftService')
-    currentShift = await shiftService.getCurrentShift()
-  } catch (err) {
-    console.warn('[live-floor] shift:', err.message)
-  }
-  try {
-    const departmentService = require('./departmentService')
-    departments = await departmentService.listDepartmentStatuses()
-  } catch (err) {
-    console.warn('[live-floor] departments:', err.message)
-  }
-  try {
-    const floorSessionService = require('./floorSessionService')
-    managersPresent = await floorSessionService.getOpenManagers()
-  } catch (err) {
-    console.warn('[live-floor] managers:', err.message)
-  }
-  try {
-    const activeOps = await ProcessRun.find({ status: 'IN_PROGRESS' })
-      .select('operatorName')
-      .lean()
-    operatorsPresent = [...new Set(activeOps.map((o) => o.operatorName).filter(Boolean))]
-  } catch {
-    operatorsPresent = []
-  }
 
   return {
     kpis: {
@@ -244,18 +194,83 @@ async function getLiveFloorSummary() {
       recoveredTotal: weightTotals[0]?.recoveredTotal || 0,
       rework: statusCounts.find((r) => r._id === 'REWORK')?.count || 0,
     },
-    stock: stockOverview,
-    currentShift,
-    departments,
-    managersPresent,
-    operatorsPresent,
-    board,
     statusCounts: statusCounts.map((row) => ({
       status: row._id,
       count: row.count,
       weight: row.weight,
     })),
-    activeBatches: recentBatches,
+    metalByDepartment: metalByDept.map((row) => ({
+      department: row._id.department,
+      metalType: row._id.metalType,
+      weight: row.weight,
+    })),
+  }
+}
+
+async function getLiveFloorSummaryPart({ bypassCache = false } = {}) {
+  if (bypassCache || process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
+    return getLiveFloorKpisCore()
+  }
+  const tenant = getActiveTenantKey() || 'default'
+  const key = liveFloorCache.buildKey(['pcc', 'live-floor', 'summary', tenant])
+  const { payload } = await liveFloorCache.getOrCompute(key, getLiveFloorKpisCore, 10_000)
+  return payload
+}
+
+async function getLiveFloorBoardPart() {
+  const today = startOfToday()
+  const boardBatches = await ProductionBatch.find({
+    $or: [
+      { status: { $in: ACTIVE_BATCH_STATUSES } },
+      { status: { $in: ['COMPLETED', 'RETURNED_TO_VAULT'] }, updatedAt: { $gte: today } },
+    ],
+  })
+    .select(BOARD_SELECT)
+    .sort({ updatedAt: -1 })
+    .limit(200)
+    .lean()
+
+  return {
+    board: bucketBoard(boardBatches),
+    activeBatches: boardBatches.slice(0, 50),
+  }
+}
+
+async function getLiveFloorAlertsPart() {
+  scheduleAlertEvaluation()
+  const [openAlerts, activeAlerts] = await Promise.all([
+    ProductionAlert.find({ status: { $in: ['OPEN', 'ACKNOWLEDGED'] } })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean(),
+    ProductionAlert.countDocuments({ status: { $in: ['OPEN', 'ACKNOWLEDGED'] } }),
+  ])
+  return {
+    openAlerts,
+    attention: openAlerts,
+    kpis: { activeAlerts },
+  }
+}
+
+async function getLiveFloorCustodyPart() {
+  const custodyAgg = await ProductionBatch.aggregate([
+    { $match: { status: { $in: ACTIVE_BATCH_STATUSES }, currentHolderName: { $ne: '' } } },
+    {
+      $group: {
+        _id: {
+          holder: '$currentHolderName',
+          department: '$currentDepartment',
+          metalType: '$metalType',
+          purity: '$purity',
+        },
+        weight: { $sum: '$currentWeight' },
+        batches: { $sum: 1 },
+      },
+    },
+    { $sort: { weight: -1 } },
+    { $limit: 40 },
+  ])
+  return {
     custody: custodyAgg.map((row) => ({
       person: row._id.holder,
       department: row._id.department,
@@ -264,16 +279,108 @@ async function getLiveFloorSummary() {
       weight: row.weight,
       batches: row.batches,
     })),
-    metalByDepartment: metalByDept.map((row) => ({
-      department: row._id.department,
-      metalType: row._id.metalType,
-      weight: row.weight,
-    })),
-    // Alias both shapes so Live Floor + Floor Manager Exceptions First share one payload.
-    attention: openAlerts,
-    openAlerts,
-    recentActivity: recentMovements,
   }
+}
+
+async function getLiveFloorActivityPart() {
+  const recentMovements = await MetalMovement.find({})
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean()
+  return { recentActivity: recentMovements }
+}
+
+async function getLiveFloorWidgetsPart() {
+  const departmentService = require('./departmentService')
+  const [
+    stockOverview,
+    currentShift,
+    departments,
+    managersPresent,
+    activeOps,
+  ] = await Promise.all([
+    (async () => {
+      try {
+        return await require('./stockService').getStockOverview()
+      } catch (err) {
+        console.warn('[live-floor] stock overview:', err.message)
+        return null
+      }
+    })(),
+    (async () => {
+      try {
+        return await require('./shiftService').getCurrentShift()
+      } catch (err) {
+        console.warn('[live-floor] shift:', err.message)
+        return null
+      }
+    })(),
+    (async () => {
+      try {
+        return await departmentService.listDepartmentStatusesLite()
+      } catch (err) {
+        console.warn('[live-floor] departments:', err.message)
+        return []
+      }
+    })(),
+    (async () => {
+      try {
+        return await require('./floorSessionService').getOpenManagers()
+      } catch (err) {
+        console.warn('[live-floor] managers:', err.message)
+        return []
+      }
+    })(),
+    ProcessRun.find({ status: 'IN_PROGRESS' }).select('operatorName').lean().catch(() => []),
+  ])
+
+  return {
+    stock: stockOverview,
+    currentShift,
+    departments,
+    managersPresent,
+    operatorsPresent: [...new Set((activeOps || []).map((o) => o.operatorName).filter(Boolean))],
+  }
+}
+
+/**
+ * Full live-floor payload (same shape as before). Alert eval is non-blocking.
+ */
+async function getLiveFloorSummary() {
+  scheduleAlertEvaluation()
+
+  const [summary, board, alerts, custody, activity, widgets] = await Promise.all([
+    getLiveFloorSummaryPart({ bypassCache: true }),
+    getLiveFloorBoardPart(),
+    getLiveFloorAlertsPart(),
+    getLiveFloorCustodyPart(),
+    getLiveFloorActivityPart(),
+    getLiveFloorWidgetsPart(),
+  ])
+
+  return {
+    kpis: {
+      ...summary.kpis,
+      activeAlerts: alerts.kpis?.activeAlerts ?? summary.kpis.activeAlerts,
+    },
+    stock: widgets.stock,
+    currentShift: widgets.currentShift,
+    departments: widgets.departments,
+    managersPresent: widgets.managersPresent,
+    operatorsPresent: widgets.operatorsPresent,
+    board: board.board,
+    statusCounts: summary.statusCounts,
+    activeBatches: board.activeBatches,
+    custody: custody.custody,
+    metalByDepartment: summary.metalByDepartment,
+    attention: alerts.attention,
+    openAlerts: alerts.openAlerts,
+    recentActivity: activity.recentActivity,
+  }
+}
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function searchProduction(q = {}) {
@@ -294,43 +401,44 @@ async function searchProduction(q = {}) {
 
   const search = String(freeText || q.search || '').trim()
   const batchFilter = {}
-  if (batchNumber) batchFilter.batchNumber = new RegExp(String(batchNumber).trim(), 'i')
-  if (stockCode) batchFilter.stockCode = new RegExp(String(stockCode).trim(), 'i')
-  if (product) batchFilter.product = new RegExp(String(product).trim(), 'i')
+  if (batchNumber) batchFilter.batchNumber = new RegExp(escapeRegex(String(batchNumber).trim()), 'i')
+  if (stockCode) batchFilter.stockCode = new RegExp(escapeRegex(String(stockCode).trim()), 'i')
+  if (product) batchFilter.product = new RegExp(escapeRegex(String(product).trim()), 'i')
   if (status) batchFilter.status = String(status).trim().toUpperCase()
   if (workOrder) {
     batchFilter.$or = [
-      { workOrderNumber: new RegExp(String(workOrder).trim(), 'i') },
+      { workOrderNumber: new RegExp(escapeRegex(String(workOrder).trim()), 'i') },
     ]
   }
-  if (employee) batchFilter.currentHolderName = new RegExp(String(employee).trim(), 'i')
-  if (department) batchFilter.currentDepartment = new RegExp(String(department).trim(), 'i')
-  if (metal) batchFilter.metalType = new RegExp(String(metal).trim(), 'i')
-  if (machine) batchFilter.currentMachineName = new RegExp(String(machine).trim(), 'i')
-  if (design) batchFilter.product = new RegExp(String(design).trim(), 'i')
+  if (employee) batchFilter.currentHolderName = new RegExp(escapeRegex(String(employee).trim()), 'i')
+  if (department) batchFilter.currentDepartment = new RegExp(escapeRegex(String(department).trim()), 'i')
+  if (metal) batchFilter.metalType = new RegExp(escapeRegex(String(metal).trim()), 'i')
+  if (machine) batchFilter.currentMachineName = new RegExp(escapeRegex(String(machine).trim()), 'i')
+  if (design) batchFilter.product = new RegExp(escapeRegex(String(design).trim()), 'i')
 
   let batches = []
   let stockLots = []
 
   if (passNumber) {
     const passes = await ProductionPass.find({
-      passNumber: new RegExp(String(passNumber).trim(), 'i'),
+      passNumber: new RegExp(escapeRegex(String(passNumber).trim()), 'i'),
     }).limit(20).lean()
     const ids = passes.map((p) => p.batchId)
     batches = await ProductionBatch.find({ _id: { $in: ids } }).limit(50).lean()
   } else if (Object.keys(batchFilter).length) {
     batches = await ProductionBatch.find(batchFilter).sort({ updatedAt: -1 }).limit(50).lean()
   } else if (search) {
+    const re = new RegExp(escapeRegex(search), 'i')
     batches = await ProductionBatch.find({
       $or: [
-        { batchNumber: new RegExp(search, 'i') },
-        { stockCode: new RegExp(search, 'i') },
-        { product: new RegExp(search, 'i') },
-        { workOrderNumber: new RegExp(search, 'i') },
-        { currentHolderName: new RegExp(search, 'i') },
-        { currentMachineName: new RegExp(search, 'i') },
-        { currentDepartment: new RegExp(search, 'i') },
-        { status: new RegExp(search, 'i') },
+        { batchNumber: re },
+        { stockCode: re },
+        { product: re },
+        { workOrderNumber: re },
+        { currentHolderName: re },
+        { currentMachineName: re },
+        { currentDepartment: re },
+        { status: re },
       ],
     }).sort({ updatedAt: -1 }).limit(50).lean()
   }
@@ -338,18 +446,19 @@ async function searchProduction(q = {}) {
   try {
     const ProductionStockLot = require('../../models/ProductionStockLot')
     const stockFilter = {}
-    if (stockCode) stockFilter.stockCode = new RegExp(String(stockCode).trim(), 'i')
-    if (product) stockFilter.product = new RegExp(String(product).trim(), 'i')
-    if (design) stockFilter.designNumber = new RegExp(String(design).trim(), 'i')
+    if (stockCode) stockFilter.stockCode = new RegExp(escapeRegex(String(stockCode).trim()), 'i')
+    if (product) stockFilter.product = new RegExp(escapeRegex(String(product).trim()), 'i')
+    if (design) stockFilter.designNumber = new RegExp(escapeRegex(String(design).trim()), 'i')
     if (status && !batchNumber) stockFilter.status = String(status).trim().toUpperCase()
     if (search) {
+      const re = new RegExp(escapeRegex(search), 'i')
       stockLots = await ProductionStockLot.find({
         $or: [
-          { stockCode: new RegExp(search, 'i') },
-          { product: new RegExp(search, 'i') },
-          { productCode: new RegExp(search, 'i') },
-          { designNumber: new RegExp(search, 'i') },
-          { batchNumber: new RegExp(search, 'i') },
+          { stockCode: re },
+          { product: re },
+          { productCode: re },
+          { designNumber: re },
+          { batchNumber: re },
         ],
       }).limit(50).lean()
     } else if (Object.keys(stockFilter).length) {
@@ -362,78 +471,103 @@ async function searchProduction(q = {}) {
   return { batches, stockLots }
 }
 
-async function getBatchDetail(batchId) {
+async function getBatchDetail(batchId, options = {}) {
+  const include = String(options.include || 'all')
+  const wantAll = include === 'all' || include === ''
+  const want = (key) => wantAll || include.split(',').map((s) => s.trim()).includes(key)
+  const childLimit = Math.min(200, Math.max(1, Number(options.limit) || 50))
+
   const batch = await ProductionBatch.findById(batchId).lean()
   if (!batch) return null
 
   const [movements, passes, processes, qc, adjustments, audits, alerts] = await Promise.all([
-    MetalMovement.find({ batchId }).sort({ createdAt: 1 }).lean(),
-    ProductionPass.find({ batchId }).sort({ createdAt: 1 }).lean(),
-    ProcessRun.find({ batchId }).sort({ createdAt: 1 }).lean(),
-    QcInspection.find({ batchId }).sort({ createdAt: 1 }).lean(),
-    WeightAdjustment.find({ batchId }).sort({ createdAt: 1 }).lean(),
-    AuditLog.find({
-      $or: [
-        { resource: 'ProductionBatch', resourceId: batch._id },
-        { 'changes.batchNumber': batch.batchNumber },
-      ],
-    })
-      .sort({ createdAt: 1 })
-      .limit(200)
-      .lean(),
-    ProductionAlert.find({ batchId }).sort({ createdAt: -1 }).limit(50).lean(),
+    want('movements') || want('timeline')
+      ? MetalMovement.find({ batchId }).sort({ createdAt: 1 }).limit(childLimit).lean()
+      : Promise.resolve([]),
+    want('passes') || want('timeline')
+      ? ProductionPass.find({ batchId }).sort({ createdAt: 1 }).limit(childLimit).lean()
+      : Promise.resolve([]),
+    want('processes') || want('timeline')
+      ? ProcessRun.find({ batchId }).sort({ createdAt: 1 }).limit(childLimit).lean()
+      : Promise.resolve([]),
+    want('qc') || want('timeline')
+      ? QcInspection.find({ batchId }).sort({ createdAt: 1 }).limit(childLimit).lean()
+      : Promise.resolve([]),
+    want('adjustments') || want('timeline')
+      ? WeightAdjustment.find({ batchId }).sort({ createdAt: 1 }).limit(childLimit).lean()
+      : Promise.resolve([]),
+    want('audits')
+      ? AuditLog.find({
+        $or: [
+          { resource: 'ProductionBatch', resourceId: batch._id },
+          { 'changes.batchNumber': batch.batchNumber },
+        ],
+      })
+        .sort({ createdAt: 1 })
+        .limit(Math.min(200, childLimit))
+        .lean()
+      : Promise.resolve([]),
+    want('alerts')
+      ? ProductionAlert.find({ batchId }).sort({ createdAt: -1 }).limit(Math.min(50, childLimit)).lean()
+      : Promise.resolve([]),
   ])
 
   let stockLot = null
   let stockEvents = []
-  try {
-    const ProductionStockLot = require('../../models/ProductionStockLot')
-    const ProductionStockStatusEvent = require('../../models/ProductionStockStatusEvent')
-    if (batch.stockLotId) {
-      stockLot = await ProductionStockLot.findById(batch.stockLotId).lean()
-      stockEvents = await ProductionStockStatusEvent.find({ stockLotId: batch.stockLotId })
-        .sort({ createdAt: 1 })
-        .lean()
-    } else if (batch.stockCode) {
-      stockLot = await ProductionStockLot.findOne({ stockCode: batch.stockCode }).lean()
-      if (stockLot) {
-        stockEvents = await ProductionStockStatusEvent.find({ stockLotId: stockLot._id })
+  if (want('stock') || want('timeline')) {
+    try {
+      const ProductionStockLot = require('../../models/ProductionStockLot')
+      const ProductionStockStatusEvent = require('../../models/ProductionStockStatusEvent')
+      if (batch.stockLotId) {
+        stockLot = await ProductionStockLot.findById(batch.stockLotId).lean()
+        stockEvents = await ProductionStockStatusEvent.find({ stockLotId: batch.stockLotId })
           .sort({ createdAt: 1 })
+          .limit(childLimit)
           .lean()
+      } else if (batch.stockCode) {
+        stockLot = await ProductionStockLot.findOne({ stockCode: batch.stockCode }).lean()
+        if (stockLot) {
+          stockEvents = await ProductionStockStatusEvent.find({ stockLotId: stockLot._id })
+            .sort({ createdAt: 1 })
+            .limit(childLimit)
+            .lean()
+        }
       }
+    } catch {
+      /* stock models may not be synced yet */
     }
-  } catch {
-    /* stock models may not be synced yet */
   }
 
   const timeline = []
-  for (const e of stockEvents) {
-    timeline.push({
-      at: e.createdAt,
-      type: 'stock_status',
-      label: `Stock ${e.fromStatus || '—'} → ${e.toStatus}`,
-      data: e,
-    })
+  if (want('timeline') || wantAll) {
+    for (const e of stockEvents) {
+      timeline.push({
+        at: e.createdAt,
+        type: 'stock_status',
+        label: `Stock ${e.fromStatus || '—'} → ${e.toStatus}`,
+        data: e,
+      })
+    }
+    for (const p of passes) {
+      timeline.push({ at: p.createdAt, type: 'pass', label: `Pass ${p.passNumber} ${p.status}`, data: p })
+      if (p.issuedAt) timeline.push({ at: p.issuedAt, type: 'pass_issued', label: `Pass ${p.passNumber} issued`, data: p })
+      if (p.receivedAt) timeline.push({ at: p.receivedAt, type: 'pass_received', label: `Pass ${p.passNumber} received`, data: p })
+    }
+    for (const m of movements) {
+      timeline.push({ at: m.createdAt, type: 'movement', label: `Movement ${m.movementNumber}`, data: m })
+    }
+    for (const r of processes) {
+      if (r.startTime) timeline.push({ at: r.startTime, type: 'process_start', label: `${r.process} started`, data: r })
+      if (r.endTime) timeline.push({ at: r.endTime, type: 'process_end', label: `${r.process} completed`, data: r })
+    }
+    for (const q of qc) {
+      timeline.push({ at: q.createdAt, type: 'qc', label: `QC ${q.result}`, data: q })
+    }
+    for (const a of adjustments) {
+      timeline.push({ at: a.createdAt, type: 'weight', label: `Weight ${a.field} adjusted`, data: a })
+    }
+    timeline.sort((x, y) => new Date(x.at) - new Date(y.at))
   }
-  for (const p of passes) {
-    timeline.push({ at: p.createdAt, type: 'pass', label: `Pass ${p.passNumber} ${p.status}`, data: p })
-    if (p.issuedAt) timeline.push({ at: p.issuedAt, type: 'pass_issued', label: `Pass ${p.passNumber} issued`, data: p })
-    if (p.receivedAt) timeline.push({ at: p.receivedAt, type: 'pass_received', label: `Pass ${p.passNumber} received`, data: p })
-  }
-  for (const m of movements) {
-    timeline.push({ at: m.createdAt, type: 'movement', label: `Movement ${m.movementNumber}`, data: m })
-  }
-  for (const r of processes) {
-    if (r.startTime) timeline.push({ at: r.startTime, type: 'process_start', label: `${r.process} started`, data: r })
-    if (r.endTime) timeline.push({ at: r.endTime, type: 'process_end', label: `${r.process} completed`, data: r })
-  }
-  for (const q of qc) {
-    timeline.push({ at: q.createdAt, type: 'qc', label: `QC ${q.result}`, data: q })
-  }
-  for (const a of adjustments) {
-    timeline.push({ at: a.createdAt, type: 'weight', label: `Weight ${a.field} adjusted`, data: a })
-  }
-  timeline.sort((x, y) => new Date(x.at) - new Date(y.at))
 
   const expectedWeight = Number(batch.initialWeight || 0) - Number(batch.lossWeight || 0)
   const actualWeight = Number(batch.currentWeight || 0)
@@ -500,12 +634,14 @@ async function getBatchDetail(batchId) {
       difference,
       variancePct,
     },
+    meta: {
+      childLimit,
+      include: wantAll ? 'all' : include,
+      hasMoreHint: true,
+    },
   }
 }
 
-/**
- * Operator-facing task queue derived from open passes, in-progress processes, QC-needed batches.
- */
 async function getMyTasks(user) {
   if (!user?._id) {
     return { tasks: [], counts: { receive: 0, process: 0, qc: 0, handover: 0, total: 0 } }
@@ -657,9 +793,16 @@ async function getWorkOrdersSummary() {
 
 module.exports = {
   getLiveFloorSummary,
+  getLiveFloorSummaryPart,
+  getLiveFloorBoardPart,
+  getLiveFloorAlertsPart,
+  getLiveFloorCustodyPart,
+  getLiveFloorActivityPart,
+  getLiveFloorWidgetsPart,
   searchProduction,
   getBatchDetail,
   getWorkOrdersSummary,
   getMyTasks,
   BOARD_STATUS_MAP,
+  scheduleAlertEvaluation,
 }

@@ -33,6 +33,8 @@ const processRunSchema = new mongoose.Schema(
 processRunSchema.index({ processNumber: 1 }, { unique: true })
 processRunSchema.index({ batchId: 1, createdAt: -1 })
 processRunSchema.index({ status: 1, process: 1 })
+processRunSchema.index({ status: 1, startTime: 1 })
+processRunSchema.index({ department: 1, createdAt: -1 })
 processRunSchema.index({ completeIdempotencyKey: 1 }, { unique: true, sparse: true })
 
 module.exports = createTenantModel('ProcessRun', processRunSchema)

@@ -49,6 +49,7 @@ const productionBatchSchema = new mongoose.Schema(
 productionBatchSchema.index({ batchNumber: 1 }, { unique: true })
 productionBatchSchema.index({ workOrderId: 1, createdAt: -1 })
 productionBatchSchema.index({ status: 1, currentDepartment: 1 })
+productionBatchSchema.index({ status: 1, updatedAt: -1 })
 productionBatchSchema.index({ currentHolderId: 1, status: 1 })
 productionBatchSchema.index({ metalType: 1, status: 1 })
 productionBatchSchema.index({ stockLotId: 1 })

@@ -31,54 +31,105 @@ async function dailyProduction(query = {}) {
   const shift = await getCurrentShift(date)
   const deptFilter = query.department ? { department: query.department } : {}
 
-  const runs = await ProcessRun.find({
+  const match = {
     ...deptFilter,
     $or: [
       { startTime: { $gte: from, $lte: to } },
       { endTime: { $gte: from, $lte: to } },
     ],
-  }).lean()
+  }
 
-  const completed = runs.filter((r) => r.status === 'COMPLETED')
-  const pending = runs.filter((r) => r.status !== 'COMPLETED' && r.status !== 'CANCELLED')
+  const [summaryRows, byDeptRows] = await Promise.all([
+    ProcessRun.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: null,
+          jobs: { $sum: 1 },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] },
+          },
+          pending: {
+            $sum: {
+              $cond: [
+                { $and: [{ $ne: ['$status', 'COMPLETED'] }, { $ne: ['$status', 'CANCELLED'] }] },
+                1,
+                0,
+              ],
+            },
+          },
+          weightIn: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'COMPLETED'] }, { $ifNull: ['$inputWeight', 0] }, 0],
+            },
+          },
+          weightOut: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'COMPLETED'] }, { $ifNull: ['$outputWeight', 0] }, 0],
+            },
+          },
+          scrap: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'COMPLETED'] }, { $ifNull: ['$scrap', 0] }, 0],
+            },
+          },
+          loss: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'COMPLETED'] }, { $ifNull: ['$loss', 0] }, 0],
+            },
+          },
+        },
+      },
+    ]),
+    ProcessRun.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $ifNull: ['$department', { $ifNull: ['$process', 'unknown'] }] },
+          jobs: { $sum: 1 },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] },
+          },
+          pending: {
+            $sum: {
+              $cond: [{ $ne: ['$status', 'COMPLETED'] }, 1, 0],
+            },
+          },
+          weightIn: { $sum: { $ifNull: ['$inputWeight', 0] } },
+          weightOut: { $sum: { $ifNull: ['$outputWeight', 0] } },
+          scrap: { $sum: { $ifNull: ['$scrap', 0] } },
+          loss: { $sum: { $ifNull: ['$loss', 0] } },
+        },
+      },
+    ]),
+  ])
 
-  const byDept = {}
-  for (const r of runs) {
-    const key = r.department || r.process || 'unknown'
-    if (!byDept[key]) {
-      byDept[key] = {
-        department: key,
-        jobs: 0,
-        completed: 0,
-        pending: 0,
-        weightIn: 0,
-        weightOut: 0,
-        scrap: 0,
-        loss: 0,
-      }
-    }
-    byDept[key].jobs += 1
-    if (r.status === 'COMPLETED') byDept[key].completed += 1
-    else byDept[key].pending += 1
-    byDept[key].weightIn += Number(r.inputWeight || 0)
-    byDept[key].weightOut += Number(r.outputWeight || 0)
-    byDept[key].scrap += Number(r.scrap || 0)
-    byDept[key].loss += Number(r.loss || 0)
+  const summaryRow = summaryRows[0] || {
+    jobs: 0, completed: 0, pending: 0, weightIn: 0, weightOut: 0, scrap: 0, loss: 0,
   }
 
   return {
     date: from.toISOString().slice(0, 10),
     shift: { name: shift.name, startTime: shift.startTime, endTime: shift.endTime },
     summary: {
-      jobs: runs.length,
-      completed: completed.length,
-      pending: pending.length,
-      weightIn: completed.reduce((s, r) => s + Number(r.inputWeight || 0), 0),
-      weightOut: completed.reduce((s, r) => s + Number(r.outputWeight || 0), 0),
-      scrap: completed.reduce((s, r) => s + Number(r.scrap || 0), 0),
-      loss: completed.reduce((s, r) => s + Number(r.loss || 0), 0),
+      jobs: summaryRow.jobs,
+      completed: summaryRow.completed,
+      pending: summaryRow.pending,
+      weightIn: summaryRow.weightIn,
+      weightOut: summaryRow.weightOut,
+      scrap: summaryRow.scrap,
+      loss: summaryRow.loss,
     },
-    byDepartment: Object.values(byDept),
+    byDepartment: byDeptRows.map((r) => ({
+      department: r._id,
+      jobs: r.jobs,
+      completed: r.completed,
+      pending: r.pending,
+      weightIn: r.weightIn,
+      weightOut: r.weightOut,
+      scrap: r.scrap,
+      loss: r.loss,
+    })),
   }
 }
 
@@ -117,34 +168,20 @@ async function stockMovementReport(query = {}) {
   }
 }
 
+const { departmentRowsFromRuns } = require('./reportMath')
+
 async function departmentPerformance(query = {}) {
   const from = query.fromDate ? startOfDay(new Date(query.fromDate)) : startOfDay(new Date(Date.now() - 7 * 86400000))
   const to = query.toDate ? endOfDay(new Date(query.toDate)) : endOfDay(new Date())
   const flow = await getActiveFlowConfig()
   const stages = (flow.stages || DEFAULT_FLOW_STAGES).filter((s) => s.process)
 
-  const rows = []
-  for (const stage of stages) {
-    const runs = await ProcessRun.find({
-      $or: [{ department: stage.key }, { process: stage.process }],
-      createdAt: { $gte: from, $lte: to },
-    }).lean()
-    const completed = runs.filter((r) => r.status === 'COMPLETED' && r.startTime && r.endTime)
-    const durations = completed.map((r) => (new Date(r.endTime) - new Date(r.startTime)) / 60000)
-    const avg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0
-    rows.push({
-      department: stage.label,
-      key: stage.key,
-      jobs: runs.length,
-      completed: completed.length,
-      pending: runs.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'PENDING').length,
-      weight: completed.reduce((s, r) => s + Number(r.outputWeight || 0), 0),
-      scrap: completed.reduce((s, r) => s + Number(r.scrap || 0), 0),
-      loss: completed.reduce((s, r) => s + Number(r.loss || 0), 0),
-      averageProcessingMinutes: Math.round(avg * 10) / 10,
-    })
-  }
-  return { from, to, rows }
+  // Single date-range query (was N+1 ProcessRun.find per stage) — same stage filters in memory.
+  const allRuns = await ProcessRun.find({
+    createdAt: { $gte: from, $lte: to },
+  }).lean()
+
+  return { from, to, rows: departmentRowsFromRuns(stages, allRuns) }
 }
 
 async function qcReport(query = {}) {

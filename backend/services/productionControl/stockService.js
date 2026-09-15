@@ -168,9 +168,10 @@ async function createStock(req, input = {}) {
 }
 
 async function listStock(query = {}) {
-  const limit = Math.min(200, Math.max(1, Number(query.limit) || 50))
+  const limit = Math.min(200, Math.max(1, Number(query.limit) || 40))
   const skip = Math.max(0, Number(query.skip) || ((Math.max(1, Number(query.page) || 1) - 1) * limit))
   const search = String(query.search || query.q || '').trim()
+  const includeCount = query.includeCount === '1' || query.includeCount === 1 || query.includeCount === true
   const filter = {}
 
   if (query.status) {
@@ -192,23 +193,26 @@ async function listStock(query = {}) {
     if (query.toDate) filter.createdAt.$lte = new Date(query.toDate)
   }
   if (search) {
+    const re = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
     filter.$or = [
-      { stockCode: new RegExp(search, 'i') },
-      { product: new RegExp(search, 'i') },
-      { productCode: new RegExp(search, 'i') },
-      { category: new RegExp(search, 'i') },
-      { designNumber: new RegExp(search, 'i') },
-      { supplier: new RegExp(search, 'i') },
-      { batchNumber: new RegExp(search, 'i') },
-      { purchaseRef: new RegExp(search, 'i') },
+      { stockCode: re },
+      { product: re },
+      { productCode: re },
+      { category: re },
+      { designNumber: re },
+      { supplier: re },
+      { batchNumber: re },
+      { purchaseRef: re },
     ]
   }
 
-  const [lots, total] = await Promise.all([
-    ProductionStockLot.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
-    ProductionStockLot.countDocuments(filter),
-  ])
-  return { lots, total, limit, skip }
+  const rows = await ProductionStockLot.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit + 1).lean()
+  const hasMore = rows.length > limit
+  const lots = hasMore ? rows.slice(0, limit) : rows
+  const total = includeCount
+    ? await ProductionStockLot.countDocuments(filter)
+    : skip + lots.length + (hasMore ? 1 : 0)
+  return { lots, total, hasMore, limit, skip }
 }
 
 async function getStockOverview() {

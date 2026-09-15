@@ -41,10 +41,24 @@ router.use((req, res, next) => {
 })
 
 function parseListPaging(query) {
-  const limit = Math.min(200, Math.max(1, Number(query.limit) || 50))
+  const limit = Math.min(200, Math.max(1, Number(query.limit) || 40))
   const skip = Math.max(0, Number(query.skip) || ((Math.max(1, Number(query.page) || 1) - 1) * limit))
   const search = String(query.search || query.q || '').trim()
-  return { limit, skip, search }
+  const includeCount = query.includeCount === '1' || query.includeCount === 1 || query.includeCount === true
+  return { limit, skip, search, includeCount }
+}
+
+async function listWithHasMore(Model, filter, { limit, skip, includeCount, sort }) {
+  const rows = await Model.find(filter).sort(sort).skip(skip).limit(limit + 1).lean()
+  const hasMore = rows.length > limit
+  const items = hasMore ? rows.slice(0, limit) : rows
+  let total
+  if (includeCount) {
+    total = await Model.countDocuments(filter)
+  } else {
+    total = skip + items.length + (hasMore ? 1 : 0)
+  }
+  return { items, total, hasMore, limit, skip }
 }
 
 function handleError(res, err) {
@@ -107,6 +121,61 @@ router.get('/live-floor', protect, requireProductionPermission('view'), async (r
   try {
     const summary = await liveFloorService.getLiveFloorSummary()
     res.json({ success: true, ...summary })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/live-floor/summary', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    liveFloorService.scheduleAlertEvaluation()
+    const part = await liveFloorService.getLiveFloorSummaryPart()
+    res.json({ success: true, ...part })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/live-floor/board', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const part = await liveFloorService.getLiveFloorBoardPart()
+    res.json({ success: true, ...part })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/live-floor/alerts', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const part = await liveFloorService.getLiveFloorAlertsPart()
+    res.json({ success: true, ...part })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/live-floor/custody', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const part = await liveFloorService.getLiveFloorCustodyPart()
+    res.json({ success: true, ...part })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/live-floor/activity', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const part = await liveFloorService.getLiveFloorActivityPart()
+    res.json({ success: true, ...part })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/live-floor/widgets', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const part = await liveFloorService.getLiveFloorWidgetsPart()
+    res.json({ success: true, ...part })
   } catch (err) {
     handleError(res, err)
   }
@@ -183,25 +252,25 @@ router.get('/search', protect, requireProductionPermission('view'), validateQuer
 // ── Batches ────────────────────────────────────────
 router.get('/batches', protect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const { limit, skip, search } = parseListPaging(req.query)
+    const { limit, skip, search, includeCount } = parseListPaging(req.query)
     const filter = {}
     if (req.query.status) filter.status = req.query.status
     if (req.query.department) filter.currentDepartment = req.query.department
     if (req.query.metalType) filter.metalType = req.query.metalType
     if (req.query.workOrderId) filter.workOrderId = req.query.workOrderId
     if (search) {
+      const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
       filter.$or = [
-        { batchNumber: new RegExp(search, 'i') },
-        { workOrderNumber: new RegExp(search, 'i') },
-        { product: new RegExp(search, 'i') },
-        { currentHolderName: new RegExp(search, 'i') },
+        { batchNumber: re },
+        { workOrderNumber: re },
+        { product: re },
+        { currentHolderName: re },
       ]
     }
-    const [batches, total] = await Promise.all([
-      ProductionBatch.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
-      ProductionBatch.countDocuments(filter),
-    ])
-    res.json({ success: true, batches, total, limit, skip })
+    const { items: batches, total, hasMore } = await listWithHasMore(ProductionBatch, filter, {
+      limit, skip, includeCount, sort: { updatedAt: -1 },
+    })
+    res.json({ success: true, batches, total, hasMore, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -209,7 +278,10 @@ router.get('/batches', protect, requireProductionPermission('view'), async (req,
 
 router.get('/batches/:id', protect, requireProductionPermission('view'), validateParams(idParam), async (req, res) => {
   try {
-    const detail = await liveFloorService.getBatchDetail(req.params.id)
+    const detail = await liveFloorService.getBatchDetail(req.params.id, {
+      include: req.query.include,
+      limit: req.query.childLimit || req.query.limit,
+    })
     if (!detail) return res.status(404).json({ success: false, message: 'Batch not found' })
     res.json({ success: true, ...detail })
   } catch (err) {
@@ -314,15 +386,14 @@ router.post('/batches/:id/weight-adjustments', protect, requireProductionPermiss
 // ── Passes ─────────────────────────────────────────
 router.get('/passes', protect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const { limit, skip } = parseListPaging(req.query)
+    const { limit, skip, includeCount } = parseListPaging(req.query)
     const filter = {}
     if (req.query.status) filter.status = req.query.status
     if (req.query.batchId) filter.batchId = req.query.batchId
-    const [passes, total] = await Promise.all([
-      ProductionPass.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      ProductionPass.countDocuments(filter),
-    ])
-    res.json({ success: true, passes, total, limit, skip })
+    const { items: passes, total, hasMore } = await listWithHasMore(ProductionPass, filter, {
+      limit, skip, includeCount, sort: { createdAt: -1 },
+    })
+    res.json({ success: true, passes, total, hasMore, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -403,14 +474,13 @@ router.post('/passes/:id/cancel', protect, requireProductionPermission('approveP
 // ── Movements ──────────────────────────────────────
 router.get('/movements', protect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const { limit, skip } = parseListPaging(req.query)
+    const { limit, skip, includeCount } = parseListPaging(req.query)
     const filter = {}
     if (req.query.batchId) filter.batchId = req.query.batchId
-    const [movements, total] = await Promise.all([
-      MetalMovement.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      MetalMovement.countDocuments(filter),
-    ])
-    res.json({ success: true, movements, total, limit, skip })
+    const { items: movements, total, hasMore } = await listWithHasMore(MetalMovement, filter, {
+      limit, skip, includeCount, sort: { createdAt: -1 },
+    })
+    res.json({ success: true, movements, total, hasMore, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -419,15 +489,14 @@ router.get('/movements', protect, requireProductionPermission('view'), async (re
 // ── Processes ──────────────────────────────────────
 router.get('/processes', protect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const { limit, skip } = parseListPaging(req.query)
+    const { limit, skip, includeCount } = parseListPaging(req.query)
     const filter = {}
     if (req.query.batchId) filter.batchId = req.query.batchId
     if (req.query.status) filter.status = req.query.status
-    const [processes, total] = await Promise.all([
-      ProcessRun.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      ProcessRun.countDocuments(filter),
-    ])
-    res.json({ success: true, processes, total, limit, skip })
+    const { items: processes, total, hasMore } = await listWithHasMore(ProcessRun, filter, {
+      limit, skip, includeCount, sort: { createdAt: -1 },
+    })
+    res.json({ success: true, processes, total, hasMore, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -479,15 +548,14 @@ router.post('/processes/:id/complete', protect, requireProductionPermission('com
 // ── QC ─────────────────────────────────────────────
 router.get('/qc', protect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const { limit, skip } = parseListPaging(req.query)
+    const { limit, skip, includeCount } = parseListPaging(req.query)
     const filter = {}
     if (req.query.batchId) filter.batchId = req.query.batchId
     if (req.query.result) filter.result = req.query.result
-    const [inspections, total] = await Promise.all([
-      QcInspection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      QcInspection.countDocuments(filter),
-    ])
-    res.json({ success: true, inspections, total, limit, skip })
+    const { items: inspections, total, hasMore } = await listWithHasMore(QcInspection, filter, {
+      limit, skip, includeCount, sort: { createdAt: -1 },
+    })
+    res.json({ success: true, inspections, total, hasMore, limit, skip })
   } catch (err) {
     handleError(res, err)
   }
@@ -588,14 +656,13 @@ router.patch('/machines/:id', protect, requireProductionPermission('manageMachin
 // ── Alerts ─────────────────────────────────────────
 router.get('/alerts', protect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const { limit, skip } = parseListPaging(req.query)
+    const { limit, skip, includeCount } = parseListPaging(req.query)
     const filter = {}
     if (req.query.status) filter.status = req.query.status
-    const [alerts, total] = await Promise.all([
-      ProductionAlert.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      ProductionAlert.countDocuments(filter),
-    ])
-    res.json({ success: true, alerts, total, limit, skip })
+    const { items: alerts, total, hasMore } = await listWithHasMore(ProductionAlert, filter, {
+      limit, skip, includeCount, sort: { createdAt: -1 },
+    })
+    res.json({ success: true, alerts, total, hasMore, limit, skip })
   } catch (err) {
     handleError(res, err)
   }

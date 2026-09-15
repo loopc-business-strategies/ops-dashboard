@@ -7,7 +7,7 @@ const { nextAlertNumber } = require('./numbering')
 const { ACTIVE_BATCH_STATUSES, DEFAULT_ALERT_THRESHOLDS } = require('./constants')
 const { getActiveFlowConfig } = require('./flowConfigService')
 const { getCurrentShift } = require('./shiftService')
-const { listDepartmentStatuses } = require('./departmentService')
+const { listDepartmentStatusesLite } = require('./departmentService')
 
 /**
  * Raise a deduped alert if none open with same code+entity in last window.
@@ -103,7 +103,7 @@ async function evaluateProductionAlerts() {
 
   // Department overload
   try {
-    const depts = await listDepartmentStatuses()
+    const depts = await listDepartmentStatusesLite()
     for (const d of depts) {
       if ((d.waiting || 0) + (d.active || 0) >= Number(t.departmentOverloadJobs || 20)) {
         const a = await raiseIfMissing({
