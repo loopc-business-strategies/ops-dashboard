@@ -238,15 +238,8 @@ async function completeProcess(req, processRunId, input = {}) {
     batch.version = (batch.version || 0) + 1
 
     const packing = isPackingProcess(run.process)
-    if (packing) {
-      batch.status = 'COMPLETED'
-      batch.currentDepartment = 'packing'
-      batch.currentProcess = run.process
-      batch.completedAt = new Date()
-    } else {
-      batch.status = 'WAITING'
-    }
 
+    // Variance / auto-hold before COMPLETED/FINISHED so we never end HOLD + FINISHED.
     let alert = null
     if (variancePct > Number(cfg.weightTolerancePct || 0)) {
       alert = await raiseWeightVarianceAlert(
@@ -255,6 +248,18 @@ async function completeProcess(req, processRunId, input = {}) {
         { expected, actual: ow, variancePct },
         session,
       )
+    }
+
+    const heldForVariance = batch.status === 'HOLD'
+    if (packing) {
+      batch.currentDepartment = 'packing'
+      batch.currentProcess = run.process
+      if (!heldForVariance) {
+        batch.status = 'COMPLETED'
+        batch.completedAt = new Date()
+      }
+    } else if (!heldForVariance) {
+      batch.status = 'WAITING'
     }
 
     await batch.save(writeOpts(session))
@@ -272,11 +277,18 @@ async function completeProcess(req, processRunId, input = {}) {
         recovery: recoveryN,
         variancePct,
         completedBy: a.name,
+        autoHeld: heldForVariance,
       },
       session,
     })
 
-    if (packing) {
+    if (heldForVariance) {
+      await syncStockSafe(req, batch, 'HOLD', {
+        reason: batch.holdReason || 'Weight variance auto-hold',
+        processRunId: run._id,
+        session,
+      })
+    } else if (packing) {
       await syncStockSafe(req, batch, 'FINISHED', {
         reason: 'Packaging completed',
         processRunId: run._id,
@@ -345,34 +357,33 @@ async function submitQc(req, input = {}) {
     }
 
     const inspectionNumber = await nextInspectionNumber(QcInspection, session)
+    const inspectionDoc = {
+      inspectionNumber,
+      batchId: batch._id,
+      batchNumber: batch.batchNumber,
+      process,
+      processRunId,
+      inspectorId: a.id,
+      inspectorName: a.name,
+      weight: weight != null ? Number(weight) : batch.currentWeight,
+      purity: purity || batch.purity,
+      dimensions,
+      finish,
+      stamp,
+      visualQuality,
+      sop,
+      result,
+      remarks,
+      failureReason: failureReason || (result === 'FAIL' ? remarks : ''),
+      reworkReason,
+      stockCode: batch.stockCode || '',
+      stockLotId: batch.stockLotId || null,
+      authorizedById: a.id,
+      authorizedByName: a.name,
+    }
+    if (idempotencyKey) inspectionDoc.idempotencyKey = idempotencyKey
     const [inspection] = await QcInspection.create(
-      [
-        {
-          inspectionNumber,
-          batchId: batch._id,
-          batchNumber: batch.batchNumber,
-          process,
-          processRunId,
-          inspectorId: a.id,
-          inspectorName: a.name,
-          weight: weight != null ? Number(weight) : batch.currentWeight,
-          purity: purity || batch.purity,
-          dimensions,
-          finish,
-          stamp,
-          visualQuality,
-          sop,
-          result,
-          remarks,
-          failureReason: failureReason || (result === 'FAIL' ? remarks : ''),
-          reworkReason,
-          stockCode: batch.stockCode || '',
-          stockLotId: batch.stockLotId || null,
-          authorizedById: a.id,
-          authorizedByName: a.name,
-          idempotencyKey: idempotencyKey || null,
-        },
-      ],
+      [inspectionDoc],
       writeOpts(session),
     )
 
@@ -387,10 +398,11 @@ async function submitQc(req, input = {}) {
       action = AUDIT_ACTIONS.QC_PASSED
       stockStatus = 'QC_PASSED'
     } else if (result === 'FAIL') {
-      batch.status = 'QC'
+      batch.status = 'QC_FAILED'
       action = AUDIT_ACTIONS.QC_FAILED
       stockStatus = 'QC_FAILED'
     } else if (result === 'HOLD') {
+      batch.statusBeforeHold = from
       batch.status = 'HOLD'
       batch.holdReason = remarks || failureReason || 'QC HOLD'
       action = AUDIT_ACTIONS.BATCH_HOLD

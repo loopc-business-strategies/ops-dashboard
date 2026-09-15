@@ -158,6 +158,9 @@ export default function LiveFloorPanel({
                             {b.purity ? ` ${b.purity}` : ''}
                           </span>
                           <span><PccWeightDisplay grams={b.currentWeight} /> · {b.currentDepartment || '—'}</span>
+                          {String(b.currentDepartment || '').toLowerCase() === 'packing' && b.status !== 'COMPLETED' && (
+                            <span className="pcc-card-meta">Packaging ready</span>
+                          )}
                           <span className="pcc-card-meta">
                             {b.currentProcess || '—'} · {b.currentHolderName || 'Unassigned'}
                             {b.currentMachineName ? ` · ${b.currentMachineName}` : ''}

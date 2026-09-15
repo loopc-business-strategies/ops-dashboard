@@ -14,11 +14,15 @@ const { ensureDefaultFlowConfig } = require('./flowConfigService')
 const BOARD_STATUS_MAP = {
   QUEUED: ['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'WAITING'],
   IN_PROGRESS: ['IN_TRANSIT', 'RECEIVED', 'IN_PROCESS'],
-  QC: ['QC'],
+  PACKAGING: [], // filled by currentDepartment === packing (not COMPLETED)
+  QC: ['QC', 'QC_FAILED'],
   REWORK: ['REWORK'],
   HOLD: ['HOLD'],
   COMPLETED: ['COMPLETED', 'RETURNED_TO_VAULT'],
 }
+
+const ALERT_EVAL_TTL_MS = 5 * 60 * 1000
+let lastAlertEvalAt = 0
 
 function startOfToday() {
   const d = new Date()
@@ -30,11 +34,15 @@ async function getLiveFloorSummary() {
   await ensureDefaultFlowConfig()
   const today = startOfToday()
 
-  try {
-    const { evaluateProductionAlerts } = require('./alertEvaluationService')
-    await evaluateProductionAlerts()
-  } catch (err) {
-    console.warn('[live-floor] alert evaluation:', err.message)
+  const now = Date.now()
+  if (now - lastAlertEvalAt >= ALERT_EVAL_TTL_MS) {
+    lastAlertEvalAt = now
+    try {
+      const { evaluateProductionAlerts } = require('./alertEvaluationService')
+      await evaluateProductionAlerts()
+    } catch (err) {
+      console.warn('[live-floor] alert evaluation:', err.message)
+    }
   }
   const [
     activeBatches,
@@ -92,7 +100,7 @@ async function getLiveFloorSummary() {
       .sort({ createdAt: -1 })
       .limit(20)
       .lean(),
-    QcInspection.countDocuments({ result: 'FAIL' }),
+    ProductionBatch.countDocuments({ status: 'QC_FAILED' }),
     ProductionBatch.countDocuments({
       status: 'COMPLETED',
       updatedAt: { $gte: today },
@@ -147,8 +155,15 @@ async function getLiveFloorSummary() {
     Object.keys(BOARD_STATUS_MAP).map((col) => [col, []]),
   )
   for (const batch of boardBatches) {
-    const col = Object.entries(BOARD_STATUS_MAP).find(([, statuses]) =>
-      statuses.includes(batch.status),
+    const dept = String(batch.currentDepartment || '').toLowerCase()
+    const isPackagingLane = dept === 'packing'
+      && !['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED'].includes(batch.status)
+    if (isPackagingLane) {
+      board.PACKAGING.push(batch)
+      continue
+    }
+    const col = Object.entries(BOARD_STATUS_MAP).find(([key, statuses]) =>
+      key !== 'PACKAGING' && statuses.includes(batch.status),
     )?.[0]
     if (col) board[col].push(batch)
   }

@@ -6,7 +6,7 @@ const { runInTransaction, withSession, writeOpts } = require('../../utils/mongoT
 const { writeProductionAudit } = require('./audit')
 const { nextBatchNumber, nextAlertNumber } = require('./numbering')
 const { getActiveFlowConfig } = require('./flowConfigService')
-const { AUDIT_ACTIONS, METAL_TYPES } = require('./constants')
+const { AUDIT_ACTIONS, METAL_TYPES, BATCH_STATUSES } = require('./constants')
 
 class ProductionError extends Error {
   constructor(message, status = 400) {
@@ -20,6 +20,15 @@ function actor(req) {
   return {
     id: req.user?._id || null,
     name: req.user?.name || 'system',
+  }
+}
+
+async function syncStockSafe(req, batch, toStatus, opts = {}) {
+  try {
+    const stockService = require('./stockService')
+    await stockService.syncStockStatusForBatch(req, batch, toStatus, opts)
+  } catch (err) {
+    console.warn('[production-control] stock sync:', err.message)
   }
 }
 
@@ -102,12 +111,23 @@ async function createBatch(req, input = {}) {
 
 /**
  * Issue metal from vault inventory into a batch (creates StockMovement + updates InventoryItem).
- * Never deletes inventory history.
+ * Never deletes inventory history. Idempotent via issueIdempotencyKey.
  */
-async function issueFromVault(req, batchId, { inventoryItemId, weight, purpose = '', expectedVersion } = {}) {
+async function issueFromVault(req, batchId, {
+  inventoryItemId,
+  weight,
+  purpose = '',
+  expectedVersion,
+  idempotencyKey = null,
+} = {}) {
   const issueWeight = Number(weight)
   if (!Number.isFinite(issueWeight) || issueWeight <= 0) {
     throw new ProductionError('Issue weight must be positive')
+  }
+
+  if (idempotencyKey) {
+    const existing = await ProductionBatch.findOne({ issueIdempotencyKey: idempotencyKey })
+    if (existing) return { batch: existing, reused: true }
   }
 
   const a = actor(req)
@@ -115,8 +135,15 @@ async function issueFromVault(req, batchId, { inventoryItemId, weight, purpose =
   const result = await runInTransaction(async (session) => {
     const batch = await withSession(ProductionBatch.findById(batchId), session)
     if (!batch) throw new ProductionError('Batch not found', 404)
-    if (['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED'].includes(batch.status)) {
-      throw new ProductionError(`Cannot issue metal for batch in status ${batch.status}`)
+
+    if (idempotencyKey && batch.issueIdempotencyKey === idempotencyKey) {
+      return { batch, reused: true }
+    }
+
+    if (!['CREATED', 'AWAITING_ISSUE'].includes(batch.status)) {
+      throw new ProductionError(
+        `Cannot issue metal for batch in status ${batch.status}. Only AWAITING_ISSUE (or CREATED) is allowed.`,
+      )
     }
     if (expectedVersion != null && batch.version !== Number(expectedVersion)) {
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
@@ -163,6 +190,7 @@ async function issueFromVault(req, batchId, { inventoryItemId, weight, purpose =
     batch.currentLocation = 'Vault'
     batch.purpose = purpose || batch.purpose
     batch.startedAt = batch.startedAt || new Date()
+    if (idempotencyKey) batch.issueIdempotencyKey = idempotencyKey
     batch.version = (batch.version || 0) + 1
     await batch.save(writeOpts(session))
 
@@ -180,7 +208,7 @@ async function issueFromVault(req, batchId, { inventoryItemId, weight, purpose =
       session,
     })
 
-    return batch
+    return { batch, reused: false }
   })
 
   return result
@@ -196,6 +224,7 @@ async function holdBatch(req, batchId, { reason = '', expectedVersion } = {}) {
     if (batch.status === 'HOLD') return batch
 
     const from = batch.status
+    batch.statusBeforeHold = from
     batch.status = 'HOLD'
     batch.holdReason = reason || 'Held by floor'
     batch.version = (batch.version || 0) + 1
@@ -209,11 +238,13 @@ async function holdBatch(req, batchId, { reason = '', expectedVersion } = {}) {
       changes: { fromState: from, toState: 'HOLD', reason: batch.holdReason },
       session,
     })
+
+    await syncStockSafe(req, batch, 'HOLD', { reason: batch.holdReason, session })
     return batch
   })
 }
 
-async function releaseBatch(req, batchId, { toStatus = 'WAITING', expectedVersion } = {}) {
+async function releaseBatch(req, batchId, { toStatus, expectedVersion } = {}) {
   return runInTransaction(async (session) => {
     const batch = await withSession(ProductionBatch.findById(batchId), session)
     if (!batch) throw new ProductionError('Batch not found', 404)
@@ -222,8 +253,16 @@ async function releaseBatch(req, batchId, { toStatus = 'WAITING', expectedVersio
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
     }
 
-    batch.status = toStatus
+    const resolved = toStatus
+      || batch.statusBeforeHold
+      || 'WAITING'
+    if (!BATCH_STATUSES.includes(resolved) || ['HOLD', 'CANCELLED'].includes(resolved)) {
+      throw new ProductionError(`Invalid release status: ${resolved}`)
+    }
+
+    batch.status = resolved
     batch.holdReason = ''
+    batch.statusBeforeHold = ''
     batch.version = (batch.version || 0) + 1
     await batch.save(writeOpts(session))
 
@@ -231,10 +270,16 @@ async function releaseBatch(req, batchId, { toStatus = 'WAITING', expectedVersio
       resource: 'ProductionBatch',
       resourceId: batch._id,
       action: AUDIT_ACTIONS.BATCH_RELEASED,
-      detail: `Batch ${batch.batchNumber} released to ${toStatus}`,
-      changes: { fromState: 'HOLD', toState: toStatus },
+      detail: `Batch ${batch.batchNumber} released to ${resolved}`,
+      changes: { fromState: 'HOLD', toState: resolved },
       session,
     })
+
+    const stockStatus = resolved === 'REWORK' ? 'REWORK'
+      : resolved === 'QC_FAILED' ? 'QC_FAILED'
+        : resolved === 'QC' ? 'QC_PENDING'
+          : 'UNDER_PROCESSING'
+    await syncStockSafe(req, batch, stockStatus, { reason: `Released to ${resolved}`, session })
     return batch
   })
 }
@@ -247,6 +292,11 @@ async function returnToVault(req, batchId, { weight, inventoryItemId, expectedVe
     const batch = await withSession(ProductionBatch.findById(batchId), session)
     if (!batch) throw new ProductionError('Batch not found', 404)
     if (batch.status === 'RETURNED_TO_VAULT') return batch
+    if (['COMPLETED', 'CANCELLED'].includes(batch.status)) {
+      throw new ProductionError(
+        `Cannot return batch to vault in status ${batch.status}. Completed/packaged lots must use finished-stock / dispatch flow.`,
+      )
+    }
     if (expectedVersion != null && batch.version !== Number(expectedVersion)) {
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
     }
@@ -302,6 +352,11 @@ async function returnToVault(req, batchId, { weight, inventoryItemId, expectedVe
       session,
     })
 
+    await syncStockSafe(req, batch, 'AVAILABLE', {
+      reason: 'Returned to vault',
+      session,
+    })
+
     return batch
   })
 }
@@ -338,6 +393,7 @@ async function raiseWeightVarianceAlert(req, batch, { expected, actual, variance
   })
 
   if (cfg.autoHoldOnVariance && batch.status !== 'HOLD') {
+    batch.statusBeforeHold = batch.status
     batch.status = 'HOLD'
     batch.holdReason = `Auto-hold: weight variance ${variancePct.toFixed(2)}%`
   }

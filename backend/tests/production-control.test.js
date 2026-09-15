@@ -548,4 +548,225 @@ describe('Production Control Center API', () => {
     expect(ok.status).toBe(200)
     expect(ok.body.lot.netWeight).toBe(49)
   })
+
+  test('issue-from-vault is idempotent and rejects re-issue after ISSUED', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+    const item = await InventoryItem.create({
+      name: 'Idem Gold',
+      type: 'raw_material',
+      quantity: 5000,
+      unit: 'g',
+      weight: 5000,
+    })
+    const createRes = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({
+        metalType: 'Gold',
+        purity: '22K',
+        initialWeight: 100,
+        inventoryItemId: String(item._id),
+      })
+    const batchId = createRes.body.batch._id
+    const key = `issue-once-${batchId}`
+
+    const first = await request(app)
+      .post(`/api/erp/production-control/batches/${batchId}/issue-from-vault`)
+      .set(headers)
+      .send({ inventoryItemId: String(item._id), weight: 100, idempotencyKey: key })
+    expect(first.status).toBe(200)
+    expect(first.body.batch.status).toBe('ISSUED')
+    expect(first.body.reused).toBe(false)
+
+    const second = await request(app)
+      .post(`/api/erp/production-control/batches/${batchId}/issue-from-vault`)
+      .set(headers)
+      .send({ inventoryItemId: String(item._id), weight: 100, idempotencyKey: key })
+    expect(second.status).toBe(200)
+    expect(second.body.reused).toBe(true)
+
+    const qty = await InventoryItem.findById(item._id)
+    expect(qty.quantity).toBeCloseTo(4900, 3)
+
+    const rejected = await request(app)
+      .post(`/api/erp/production-control/batches/${batchId}/issue-from-vault`)
+      .set(headers)
+      .send({ inventoryItemId: String(item._id), weight: 50, idempotencyKey: `${key}-2` })
+    expect(rejected.status).toBe(400)
+  })
+
+  test('return-to-vault blocked after COMPLETED; cancel pass reverts IN_TRANSIT', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+
+    const stock = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({ product: 'Chain', netWeight: 80, metalType: 'Gold', quantity: 8 })
+    const lotId = stock.body.lot._id
+    await request(app).post(`/api/erp/production-control/stock/${lotId}/available`).set(headers).send({})
+    const allocated = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: lotId, weight: 80, markIssued: true })
+    const batchId = allocated.body.batch._id
+
+    await request(app).post('/api/erp/production-control/qc').set(headers).send({ batchId, result: 'PASS' })
+    const start = await request(app)
+      .post('/api/erp/production-control/processes/start')
+      .set(headers)
+      .send({ batchId, process: 'Packing', department: 'packing', inputWeight: 80 })
+    await request(app)
+      .post(`/api/erp/production-control/processes/${start.body.processRun._id}/complete`)
+      .set(headers)
+      .send({
+        outputWeight: 80,
+        scrap: 0,
+        loss: 0,
+        details: { packagingType: 'box', packageNumber: 'PKG-R', recovery: 0 },
+      })
+
+    const blocked = await request(app)
+      .post(`/api/erp/production-control/batches/${batchId}/return-to-vault`)
+      .set(headers)
+      .send({})
+    expect(blocked.status).toBe(400)
+
+    const item = await InventoryItem.create({
+      name: 'Transit Gold',
+      type: 'raw_material',
+      quantity: 1000,
+      unit: 'g',
+      weight: 1000,
+    })
+    const createRes = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({ metalType: 'Gold', purity: '18K', initialWeight: 50, inventoryItemId: String(item._id) })
+    const transitBatchId = createRes.body.batch._id
+    await request(app)
+      .post(`/api/erp/production-control/batches/${transitBatchId}/issue-from-vault`)
+      .set(headers)
+      .send({ inventoryItemId: String(item._id), weight: 50 })
+    const passRes = await request(app)
+      .post('/api/erp/production-control/passes')
+      .set(headers)
+      .send({
+        batchId: transitBatchId,
+        fromDepartment: 'vault',
+        toDepartment: 'melting',
+        weight: 50,
+      })
+    const passId = passRes.body.pass._id
+    await request(app).post(`/api/erp/production-control/passes/${passId}/approve`).set(headers)
+    await request(app).post(`/api/erp/production-control/passes/${passId}/issue`).set(headers)
+
+    const inTransit = await ProductionBatch.findById(transitBatchId)
+    expect(inTransit.status).toBe('IN_TRANSIT')
+
+    const cancelled = await request(app)
+      .post(`/api/erp/production-control/passes/${passId}/cancel`)
+      .set(headers)
+      .send({ reason: 'Wrong destination' })
+    expect(cancelled.status).toBe(200)
+    expect(cancelled.body.batch.status).toBe('WAITING')
+    expect(cancelled.body.batch.currentDepartment).toBe('vault')
+  })
+
+  test('QC FAIL uses QC_FAILED; packing variance holds without FINISHED; dispatch works', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+
+    const stockFail = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({ product: 'FailLot', netWeight: 40, metalType: 'Gold', quantity: 4 })
+    const failLotId = stockFail.body.lot._id
+    await request(app).post(`/api/erp/production-control/stock/${failLotId}/available`).set(headers).send({})
+    const failAlloc = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: failLotId, weight: 40, markIssued: true })
+    const failBatchId = failAlloc.body.batch._id
+
+    const failQc = await request(app)
+      .post('/api/erp/production-control/qc')
+      .set(headers)
+      .send({ batchId: failBatchId, result: 'FAIL', failureReason: 'Purity off' })
+    expect(failQc.status).toBe(201)
+    expect(failQc.body.batch.status).toBe('QC_FAILED')
+
+    const floor = await request(app).get('/api/erp/production-control/live-floor').set(headers)
+    expect(floor.status).toBe(200)
+    expect(floor.body.kpis.qcPending).toBe(0)
+    expect(floor.body.kpis.qcFailed).toBeGreaterThanOrEqual(1)
+    expect((floor.body.board.PACKAGING || []).some((b) => String(b._id) === String(failBatchId))).toBe(false)
+
+    const stockPack = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({ product: 'VarLot', netWeight: 100, metalType: 'Gold', quantity: 10 })
+    const packLotId = stockPack.body.lot._id
+    await request(app).post(`/api/erp/production-control/stock/${packLotId}/available`).set(headers).send({})
+    const packAlloc = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: packLotId, weight: 100, markIssued: true })
+    const packBatchId = packAlloc.body.batch._id
+    await request(app).post('/api/erp/production-control/qc').set(headers).send({ batchId: packBatchId, result: 'PASS' })
+    const start = await request(app)
+      .post('/api/erp/production-control/processes/start')
+      .set(headers)
+      .send({ batchId: packBatchId, process: 'Packing', department: 'packing', inputWeight: 100 })
+    const varianceDone = await request(app)
+      .post(`/api/erp/production-control/processes/${start.body.processRun._id}/complete`)
+      .set(headers)
+      .send({
+        outputWeight: 70,
+        scrap: 0,
+        loss: 0,
+        details: { packagingType: 'box', packageNumber: 'PKG-V', recovery: 0 },
+      })
+    expect(varianceDone.status).toBe(200)
+    expect(varianceDone.body.batch.status).toBe('HOLD')
+    const heldLot = await request(app).get(`/api/erp/production-control/stock/${packLotId}`).set(headers)
+    expect(heldLot.body.lot.status).toBe('HOLD')
+    expect(heldLot.body.lot.status).not.toBe('FINISHED')
+
+    const stockOk = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({ product: 'ShipLot', netWeight: 60, metalType: 'Gold', quantity: 6 })
+    const okLotId = stockOk.body.lot._id
+    await request(app).post(`/api/erp/production-control/stock/${okLotId}/available`).set(headers).send({})
+    const okAlloc = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: okLotId, weight: 60, markIssued: true })
+    const okBatchId = okAlloc.body.batch._id
+    await request(app).post('/api/erp/production-control/qc').set(headers).send({ batchId: okBatchId, result: 'PASS' })
+    const startOk = await request(app)
+      .post('/api/erp/production-control/processes/start')
+      .set(headers)
+      .send({ batchId: okBatchId, process: 'Packing', department: 'packing', inputWeight: 60 })
+    await request(app)
+      .post(`/api/erp/production-control/processes/${startOk.body.processRun._id}/complete`)
+      .set(headers)
+      .send({
+        outputWeight: 60,
+        scrap: 0,
+        loss: 0,
+        details: { packagingType: 'box', packageNumber: 'PKG-S', recovery: 0 },
+      })
+    const finished = await request(app).get(`/api/erp/production-control/stock/${okLotId}`).set(headers)
+    expect(finished.body.lot.status).toBe('FINISHED')
+
+    const dispatched = await request(app)
+      .post(`/api/erp/production-control/stock/${okLotId}/dispatch`)
+      .set(headers)
+      .send({ reason: 'Customer order' })
+    expect(dispatched.status).toBe(200)
+    expect(dispatched.body.lot.status).toBe('DISPATCHED')
+  })
 })

@@ -548,6 +548,35 @@ async function getStockHistory(query = {}) {
   return { events, total, limit, skip }
 }
 
+async function dispatchStock(req, stockLotId, { reason = '', expectedVersion } = {}) {
+  return runInTransaction(async (session) => {
+    const lot = await withSession(ProductionStockLot.findById(stockLotId), session)
+    if (!lot) throw new ProductionError('Stock lot not found', 404)
+    if (expectedVersion != null && lot.version !== Number(expectedVersion)) {
+      throw new ProductionError('Stock lot was updated by another user. Refresh and retry.', 409)
+    }
+    if (lot.status === 'DISPATCHED') return lot
+    if (lot.status !== 'FINISHED') {
+      throw new ProductionError(`Cannot dispatch stock in status ${lot.status}. Only FINISHED lots can be dispatched.`)
+    }
+    await transitionStock(req, lot, 'DISPATCHED', {
+      reason: reason || 'Dispatched from finished stock',
+      batchId: lot.batchId || null,
+      batchNumber: lot.batchNumber || '',
+      session,
+    })
+    await writeProductionAudit(req, {
+      resource: 'ProductionStockLot',
+      resourceId: lot._id,
+      action: AUDIT_ACTIONS.STOCK_STATUS_CHANGED,
+      detail: `Stock ${lot.stockCode} dispatched`,
+      changes: { fromStatus: 'FINISHED', toStatus: 'DISPATCHED', reason: reason || 'Dispatched from finished stock' },
+      session,
+    })
+    return lot
+  })
+}
+
 module.exports = {
   createStock,
   listStock,
@@ -557,6 +586,7 @@ module.exports = {
   updateStock,
   selectAndAllocate,
   adjustStock,
+  dispatchStock,
   transitionStock,
   syncStockStatusForBatch,
   getStockHistory,

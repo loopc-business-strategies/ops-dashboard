@@ -52,6 +52,7 @@ export const productionControlApi = {
   markStockAvailable: (id, body) => post(`/stock/${id}/available`, body),
   selectStock: (body) => post('/stock/select', body),
   adjustStock: (id, body) => post(`/stock/${id}/adjust`, body),
+  dispatchStock: (id, body) => post(`/stock/${id}/dispatch`, body),
 
   // Departments / shifts / floor / reports
   listDepartments: () => get('/departments'),

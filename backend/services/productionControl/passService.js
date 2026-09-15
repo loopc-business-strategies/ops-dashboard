@@ -314,6 +314,7 @@ async function cancelPass(req, passId, { reason = '' } = {}) {
     if (['RECEIVED', 'COMPLETED', 'CANCELLED'].includes(pass.status)) {
       throw new ProductionError(`Cannot cancel pass in status ${pass.status}`)
     }
+    const priorPassStatus = pass.status
     pass.status = 'CANCELLED'
     await pass.save(writeOpts(session))
 
@@ -325,15 +326,44 @@ async function cancelPass(req, passId, { reason = '' } = {}) {
       }
     }
 
+    let batch = null
+    if (pass.batchId) {
+      batch = await withSession(ProductionBatch.findById(pass.batchId), session)
+      if (batch && batch.status === 'IN_TRANSIT') {
+        const fromStatus = batch.status
+        // Revert custody to the sending department (pre-transit).
+        batch.status = 'WAITING'
+        batch.currentDepartment = pass.fromDepartment || batch.currentDepartment
+        batch.currentLocation = pass.fromDepartment || batch.currentLocation
+        batch.version = (batch.version || 0) + 1
+        await batch.save(writeOpts(session))
+
+        await writeProductionAudit(req, {
+          resource: 'ProductionBatch',
+          resourceId: batch._id,
+          action: AUDIT_ACTIONS.PASS_CANCELLED,
+          detail: `Batch ${batch.batchNumber} reverted to WAITING at ${batch.currentDepartment} after pass cancel`,
+          changes: {
+            fromState: fromStatus,
+            toState: 'WAITING',
+            passId: String(pass._id),
+            priorPassStatus,
+            reason,
+          },
+          session,
+        })
+      }
+    }
+
     await writeProductionAudit(req, {
       resource: 'ProductionPass',
       resourceId: pass._id,
       action: AUDIT_ACTIONS.PASS_CANCELLED,
       detail: `Pass ${pass.passNumber} cancelled${reason ? `: ${reason}` : ''}`,
-      changes: { reason },
+      changes: { reason, priorPassStatus, batchReverted: Boolean(batch && batch.status === 'WAITING') },
       session,
     })
-    return pass
+    return { pass, batch }
   })
 }
 

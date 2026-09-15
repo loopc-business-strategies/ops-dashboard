@@ -219,7 +219,7 @@ function ProductionControlCenterInner() {
       case 'processes':
         return <ProcessesPanel onToast={showToast} />
       case 'qc':
-        return <QcPanel onToast={showToast} />
+        return <QcPanel onToast={showToast} onNavigate={setSection} />
       case 'machines':
         return <MachinesPanel onToast={showToast} />
       case 'alerts':
@@ -258,6 +258,7 @@ function ProductionControlCenterInner() {
           <StockListPanel
             title="FINISHED STOCK"
             statusFilter="FINISHED,DISPATCHED"
+            dispatchable
             onToast={showToast}
           />
         )

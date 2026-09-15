@@ -19,7 +19,7 @@ export default function ProductionTab() {
     } catch {
       /* ignore */
     }
-    navigate('/production', { replace: true, state: { returnTo: '/dashboard?tab=overview' } })
+    navigate('/production', { replace: true, state: { returnTo: returnTo.includes('tab=') ? returnTo : '/dashboard?tab=overview' } })
   }, [navigate, location.pathname, location.search])
 
   return (

@@ -192,9 +192,12 @@ router.post('/batches/:id/issue-from-vault', protect, requireProductionPermissio
   idempotencyKey: Joi.string().trim().allow('', null),
 })), async (req, res) => {
   try {
-    const batch = await batchService.issueFromVault(req, req.params.id, req.body)
-    emitProduction(req, 'batch.issued', { batchId: batch._id, batchNumber: batch.batchNumber })
-    res.json({ success: true, batch })
+    const body = { ...req.body }
+    if (!body.inventoryItemId) body.inventoryItemId = null
+    if (!body.idempotencyKey) body.idempotencyKey = null
+    const { batch, reused } = await batchService.issueFromVault(req, req.params.id, body)
+    if (!reused) emitProduction(req, 'batch.issued', { batchId: batch._id, batchNumber: batch.batchNumber })
+    res.json({ success: true, batch, reused: Boolean(reused) })
   } catch (err) {
     handleError(res, err)
   }
@@ -320,8 +323,10 @@ router.post('/passes/:id/receive', protect, requireProductionPermission('receive
 
 router.post('/passes/:id/cancel', protect, requireProductionPermission('approvePass'), validateParams(idParam), async (req, res) => {
   try {
-    const pass = await passService.cancelPass(req, req.params.id, req.body || {})
-    res.json({ success: true, pass })
+    const result = await passService.cancelPass(req, req.params.id, req.body || {})
+    const pass = result?.pass || result
+    const batch = result?.batch || null
+    res.json({ success: true, pass, batch })
   } catch (err) {
     handleError(res, err)
   }
@@ -692,6 +697,19 @@ router.post('/stock/:id/adjust', protect, requireProductionPermission('adjustSto
   try {
     const lot = await stockService.adjustStock(req, req.params.id, req.body)
     emitProduction(req, 'stock.adjusted', { stockLotId: lot._id })
+    res.json({ success: true, lot })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/stock/:id/dispatch', protect, requireProductionPermission('dispatchStock'), validateParams(idParam), validateBody(Joi.object({
+  reason: Joi.string().trim().allow(''),
+  expectedVersion: Joi.number().integer().min(0),
+})), async (req, res) => {
+  try {
+    const lot = await stockService.dispatchStock(req, req.params.id, req.body || {})
+    emitProduction(req, 'stock.dispatched', { stockLotId: lot._id, stockCode: lot.stockCode })
     res.json({ success: true, lot })
   } catch (err) {
     handleError(res, err)

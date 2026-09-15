@@ -24,7 +24,7 @@ const processRunSchema = new mongoose.Schema(
     status: { type: String, enum: PROCESS_STATUSES, default: 'PENDING' },
     // Process-specific optional capture (additive Mixed — never overwrites history)
     details: { type: mongoose.Schema.Types.Mixed, default: {} },
-    completeIdempotencyKey: { type: String, trim: true, default: null },
+    completeIdempotencyKey: { type: String, trim: true },
   },
   { timestamps: true },
 )

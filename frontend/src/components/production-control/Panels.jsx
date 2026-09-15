@@ -149,7 +149,7 @@ export function BatchesPanel({ onSelectBatch, onToast }) {
           <label>Status
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">All</option>
-              {['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'IN_TRANSIT', 'RECEIVED', 'IN_PROCESS', 'WAITING', 'QC', 'REWORK', 'HOLD', 'COMPLETED', 'RETURNED_TO_VAULT'].map((s) => (
+              {['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'IN_TRANSIT', 'RECEIVED', 'IN_PROCESS', 'WAITING', 'QC', 'QC_FAILED', 'REWORK', 'HOLD', 'COMPLETED', 'RETURNED_TO_VAULT'].map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -518,13 +518,14 @@ export function ProcessesPanel({ onToast }) {
   )
 }
 
-export function QcPanel({ onToast }) {
+export function QcPanel({ onToast, onNavigate }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
   const [batches, setBatches] = useState([])
-  const [form, setForm] = useState({ batchId: '', result: 'PASS', remarks: '' })
+  const [form, setForm] = useState({ batchId: '', result: 'PASS', remarks: '', failureReason: '' })
   const [confirm, setConfirm] = useState(null)
+  const [lastPassBatchId, setLastPassBatchId] = useState(null)
 
   const load = useCallback(async () => {
     const [q, b] = await Promise.all([
@@ -550,10 +551,15 @@ export function QcPanel({ onToast }) {
     try {
       const res = await pccApi.submitQc({
         ...payload,
+        failureReason: payload.result === 'FAIL' ? (payload.failureReason || payload.remarks) : payload.failureReason,
         idempotencyKey: `qc-${payload.batchId}-${Date.now()}`,
       })
       onToast?.(toastMsg(isDemo, res?.message || 'QC submitted'))
       setConfirm(null)
+      if (payload.result === 'PASS') {
+        setLastPassBatchId(payload.batchId)
+        onToast?.(isDemo ? DEMO_WRITE_MSG : 'QC PASS — batch sent to Packaging')
+      }
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'QC failed')
@@ -579,8 +585,22 @@ export function QcPanel({ onToast }) {
           <label>Remarks
             <input value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
           </label>
+          {form.result === 'FAIL' && (
+            <label>Failure reason
+              <input value={form.failureReason} onChange={(e) => setForm({ ...form, failureReason: e.target.value })} />
+            </label>
+          )}
         </div>
         <button type="submit" className="pcc-btn">Submit QC</button>
+        {lastPassBatchId && (
+          <button
+            type="button"
+            className="pcc-btn-ghost"
+            onClick={() => onNavigate?.('dept-packing')}
+          >
+            Open Packaging
+          </button>
+        )}
       </form>
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>QC HISTORY</h2></div>
@@ -938,11 +958,21 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
   const [detail, setDetail] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [weightForm, setWeightForm] = useState({ adjustment: '', reason: '' })
+  const [issueForm, setIssueForm] = useState({ inventoryItemId: '', weight: '' })
 
   const reload = useCallback(() => {
     if (!batchId) return
     pccApi.getBatch(batchId)
-      .then(setDetail)
+      .then((d) => {
+        setDetail(d)
+        const batch = d?.batch
+        if (batch && ['CREATED', 'AWAITING_ISSUE'].includes(batch.status)) {
+          setIssueForm({
+            inventoryItemId: batch.inventoryItemId ? String(batch.inventoryItemId) : '',
+            weight: String(batch.currentWeight || batch.initialWeight || ''),
+          })
+        }
+      })
       .catch((err) => onToast?.(err?.response?.data?.message || 'Failed to load batch'))
   }, [batchId, onToast, pccApi])
 
@@ -954,6 +984,8 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
   if (!batchId) return null
   const b = detail?.batch
   const wr = detail?.weightReconciliation
+  const canIssue = b && ['CREATED', 'AWAITING_ISSUE'].includes(b.status)
+  const canReturn = b && !['RETURNED_TO_VAULT', 'CANCELLED', 'COMPLETED'].includes(b.status)
 
   const runAction = async () => {
     if (!confirm || !b) return
@@ -963,6 +995,14 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
       if (action === 'hold') await pccApi.holdBatch(b._id, {})
       if (action === 'release') await pccApi.releaseBatch(b._id, {})
       if (action === 'return') await pccApi.returnToVault(b._id, {})
+      if (action === 'issue') {
+        await pccApi.issueFromVault(b._id, {
+          inventoryItemId: issueForm.inventoryItemId || undefined,
+          weight: Number(issueForm.weight),
+          idempotencyKey: `issue-${b._id}-${Number(issueForm.weight)}`,
+        })
+        onToast?.(isDemo ? DEMO_WRITE_MSG : 'Issued from vault')
+      }
       if (action === 'weight') {
         const adj = Number(weightForm.adjustment)
         const before = Number(b.currentWeight)
@@ -975,7 +1015,7 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
         })
         onToast?.(isDemo ? DEMO_WRITE_MSG : `Weight adjusted ${before} → ${after} g`)
         setWeightForm({ adjustment: '', reason: '' })
-      } else {
+      } else if (action !== 'issue') {
         onToast?.(isDemo ? DEMO_WRITE_MSG : (action === 'return' ? 'Returned to vault' : action === 'hold' ? 'Batch on hold' : 'Batch released'))
       }
       reload()
@@ -1011,16 +1051,55 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
             </div>
 
             <div className="pcc-actions">
+              {canIssue && (
+                <button
+                  type="button"
+                  className="pcc-btn"
+                  onClick={() => {
+                    if (!issueForm.inventoryItemId || !(Number(issueForm.weight) > 0)) {
+                      onToast?.('Inventory item id and positive weight are required')
+                      return
+                    }
+                    setConfirm({ action: 'issue' })
+                  }}
+                >
+                  Issue from vault
+                </button>
+              )}
               {b.status !== 'HOLD' && !['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED'].includes(b.status) && (
                 <button type="button" className="pcc-btn-ghost" onClick={() => setConfirm({ action: 'hold' })}>Hold</button>
               )}
               {b.status === 'HOLD' && (
                 <button type="button" className="pcc-btn-ghost" onClick={() => setConfirm({ action: 'release' })}>Release</button>
               )}
-              {!['RETURNED_TO_VAULT', 'CANCELLED'].includes(b.status) && (
+              {canReturn && (
                 <button type="button" className="pcc-btn-ghost" onClick={() => setConfirm({ action: 'return' })}>Return to vault</button>
               )}
             </div>
+
+            {canIssue && (
+              <div className="pcc-panel pcc-form">
+                <div className="pcc-panel-head"><h3>Issue from vault</h3></div>
+                <div className="pcc-form-grid">
+                  <label>Inventory item ID
+                    <input
+                      value={issueForm.inventoryItemId}
+                      onChange={(e) => setIssueForm({ ...issueForm, inventoryItemId: e.target.value })}
+                      placeholder="Mongo ObjectId"
+                    />
+                  </label>
+                  <label>Weight (g)
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={issueForm.weight}
+                      onChange={(e) => setIssueForm({ ...issueForm, weight: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
 
             <form
               className="pcc-panel pcc-form"
@@ -1079,14 +1158,17 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
             confirm?.action === 'hold' ? 'Put batch on hold?'
               : confirm?.action === 'release' ? 'Release batch?'
                 : confirm?.action === 'return' ? 'Return to vault?'
-                  : 'Confirm weight adjustment?'
+                  : confirm?.action === 'issue' ? 'Issue from vault?'
+                    : 'Confirm weight adjustment?'
           }
           message={
             confirm?.action === 'weight'
               ? 'This writes an audited weight adjustment.'
               : confirm?.action === 'return'
                 ? `Return ${b?.batchNumber} metal to vault inventory.`
-                : `${b?.batchNumber || 'Batch'} will change status.`
+                : confirm?.action === 'issue'
+                  ? `Debit vault inventory and mark ${b?.batchNumber} as ISSUED.`
+                  : `${b?.batchNumber || 'Batch'} will change status.`
           }
           details={
             confirm?.action === 'weight' ? (
@@ -1096,9 +1178,14 @@ export function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) 
                 <div>After: {formatGrams(weightAfter)}</div>
                 <div>Reason: {weightForm.reason}</div>
               </>
+            ) : confirm?.action === 'issue' ? (
+              <>
+                <div>Inventory item: {issueForm.inventoryItemId}</div>
+                <div>Weight: {formatGrams(Number(issueForm.weight))}</div>
+              </>
             ) : null
           }
-          confirmLabel="Confirm"
+          confirmLabel={confirm?.action === 'issue' ? 'Issue' : 'Confirm'}
           danger={confirm?.action === 'return' || confirm?.action === 'hold' || confirm?.action === 'weight'}
           onCancel={() => setConfirm(null)}
           onConfirm={runAction}

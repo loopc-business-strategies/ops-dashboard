@@ -79,7 +79,7 @@ export function StockOverviewPanel({ onToast, onNavigate }) {
   )
 }
 
-function StockTable({ lots, onSelect, empty }) {
+function StockTable({ lots, onSelect, onDispatch, empty }) {
   if (!lots?.length) return <PccEmptyState message={empty || 'No stock lots'} />
   return (
     <div className="pcc-table-wrap">
@@ -107,9 +107,14 @@ function StockTable({ lots, onSelect, empty }) {
               <td>{lot.supplier || '—'}</td>
               <td>{lot.batchNumber || '—'}</td>
               <td>
-                {onSelect && (
-                  <button type="button" className="pcc-btn-ghost" onClick={() => onSelect(lot)}>Select</button>
-                )}
+                <div className="pcc-row-actions">
+                  {onSelect && (
+                    <button type="button" className="pcc-btn-ghost" onClick={() => onSelect(lot)}>Select</button>
+                  )}
+                  {onDispatch && lot.status === 'FINISHED' && (
+                    <button type="button" className="pcc-btn-ghost" onClick={() => onDispatch(lot)}>Dispatch</button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
@@ -119,7 +124,7 @@ function StockTable({ lots, onSelect, empty }) {
   )
 }
 
-export function StockListPanel({ title, statusFilter, onToast, selectable, onAllocated }) {
+export function StockListPanel({ title, statusFilter, onToast, selectable, dispatchable, onAllocated }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
   const [lots, setLots] = useState([])
@@ -165,6 +170,16 @@ export function StockListPanel({ title, statusFilter, onToast, selectable, onAll
     }
   }
 
+  const dispatch = async (lot) => {
+    try {
+      await pccApi.dispatchStock(lot._id, { reason: 'Dispatched from finished stock' })
+      onToast?.(isDemo ? DEMO_WRITE_MSG : `Dispatched ${lot.stockCode}`)
+      load()
+    } catch (err) {
+      onToast?.(err?.response?.data?.message || 'Dispatch failed')
+    }
+  }
+
   return (
     <div className="pcc-panel">
       <div className="pcc-panel-head">
@@ -186,6 +201,7 @@ export function StockListPanel({ title, statusFilter, onToast, selectable, onAll
             weight: lot.netWeight || lot.grossWeight || '',
             markIssued: false,
           }) : undefined}
+          onDispatch={dispatchable ? dispatch : undefined}
         />
       )}
       {selectForm && (

@@ -40,6 +40,8 @@ const productionBatchSchema = new mongoose.Schema(
     createdByName: { type: String, trim: true, default: '' },
     version: { type: Number, default: 0 },
     idempotencyKey: { type: String, trim: true },
+    issueIdempotencyKey: { type: String, trim: true },
+    statusBeforeHold: { type: String, trim: true, default: '' },
   },
   { timestamps: true },
 )
@@ -52,5 +54,6 @@ productionBatchSchema.index({ metalType: 1, status: 1 })
 productionBatchSchema.index({ stockLotId: 1 })
 productionBatchSchema.index({ stockCode: 1 }, { sparse: true })
 productionBatchSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true })
+productionBatchSchema.index({ issueIdempotencyKey: 1 }, { unique: true, sparse: true })
 
 module.exports = createTenantModel('ProductionBatch', productionBatchSchema)

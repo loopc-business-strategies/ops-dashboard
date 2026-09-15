@@ -39,7 +39,7 @@ async function getDepartmentDashboard(departmentKey) {
 
   const [
     waitingJobs,
-    activeJobs,
+    _activeJobsCount,
     completedToday,
     holdJobs,
     activeRuns,

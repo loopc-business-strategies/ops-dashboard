@@ -138,6 +138,7 @@ export function createDemoPccApi() {
     markStockAvailable: () => demoWriteOk(),
     selectStock: () => demoWriteOk({ lot: {}, batch: DEMO_BATCHES[0] }),
     adjustStock: () => demoWriteOk(),
+    dispatchStock: () => demoWriteOk(),
     listDepartments: async () => ({ success: true, departments: [] }),
     getDepartment: async (key) => ({
       success: true,

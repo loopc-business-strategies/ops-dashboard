@@ -80,7 +80,8 @@ export const DEPT_SECTION_MAP = Object.fromEntries(
 export const BOARD_COLUMNS = [
   { id: 'QUEUED', label: 'QUEUED', statuses: ['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'WAITING'] },
   { id: 'IN_PROGRESS', label: 'IN PROGRESS', statuses: ['IN_TRANSIT', 'RECEIVED', 'IN_PROCESS'] },
-  { id: 'QC', label: 'QC', statuses: ['QC'] },
+  { id: 'PACKAGING', label: 'PACKAGING', statuses: [] },
+  { id: 'QC', label: 'QC', statuses: ['QC', 'QC_FAILED'] },
   { id: 'REWORK', label: 'REWORK', statuses: ['REWORK'] },
   { id: 'HOLD', label: 'HOLD', statuses: ['HOLD'] },
   { id: 'COMPLETED', label: 'COMPLETED', statuses: ['COMPLETED', 'RETURNED_TO_VAULT'] },

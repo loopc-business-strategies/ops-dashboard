@@ -26,7 +26,7 @@ const qcInspectionSchema = new mongoose.Schema(
     stockLotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionStockLot', default: null },
     authorizedById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     authorizedByName: { type: String, trim: true, default: '' },
-    idempotencyKey: { type: String, trim: true, default: null },
+    idempotencyKey: { type: String, trim: true },
   },
   { timestamps: true },
 )
