@@ -48,13 +48,13 @@ describe('ERPTab smoke', () => {
     useLanguageMock.mockReturnValue({ t: (key) => key })
   })
 
-  it('renders ERP shell without throwing', () => {
+  it('renders ERP shell without throwing', async () => {
     render(
       <MemoryRouter>
         <ERPTab focusTab="dashboard" />
       </MemoryRouter>,
     )
-    expect(screen.getByText('erp-dashboard')).toBeTruthy()
+    expect(await screen.findByText('erp-dashboard')).toBeTruthy()
     expect(screen.queryByText('moduleFailedLoad')).toBeNull()
   })
 

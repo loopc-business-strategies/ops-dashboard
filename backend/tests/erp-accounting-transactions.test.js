@@ -2031,7 +2031,7 @@ describe('ERP accounting transactions workflow', () => {
 
     const limitedRes = await request(app)
       .get('/api/erp-accounting/accounts/enquiry')
-      .query({ accountCode: '1502', statementLimit: 5 })
+      .query({ accountCode: '1502', statementLimit: 5, includeCount: 1 })
       .set(authHeader(financeUser))
 
     expect(limitedRes.status).toBe(200)
@@ -2186,7 +2186,7 @@ describe('ERP accounting transactions workflow', () => {
 
     const res = await request(app)
       .get('/api/erp-accounting/accounts/enquiry')
-      .query({ accountCode: '1601', statementLimit: 2, refresh: '1' })
+      .query({ accountCode: '1601', statementLimit: 2, refresh: '1', includeCount: 1 })
       .set(authHeader(financeUser))
 
     expect(res.status).toBe(200)

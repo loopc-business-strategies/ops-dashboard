@@ -217,7 +217,7 @@ export default function OperationsTab() {
         setInventoryCanEditApi(canEditInventory)
       }
     } catch {
-      showToast('Error', 'Failed to load inventory')
+      setToast({ title: 'Error', msg: 'Failed to load inventory' })
     }
   }, [inventoryPage, inventorySearch, canEditInventory])
 
