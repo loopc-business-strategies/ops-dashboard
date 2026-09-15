@@ -39,6 +39,12 @@ const ALLOWLIST = Object.freeze({
   // VB statutory CoA upsert; intentional production VB use with I_UNDERSTAND + --apply.
   'scripts/seed-vb-statutory-coa.mjs':
     'VB statutory CoA/FX/VAT upsert; gated by I_UNDERSTAND=SEED-VB-STATUTORY-COA + --apply.',
+  // Nan super-admin upsert; intentional production use with I_UNDERSTAND + --apply (staging via --staging).
+  'backend/scripts/upsert-nan-super-admin.js':
+    'Upsert Nan super_admin; gated by I_UNDERSTAND=UPSERT-NAN-SUPER-ADMIN + --apply.',
+  // VB ops wipe; intentional production VB use with I_UNDERSTAND + --apply (staging via --staging).
+  'backend/scripts/wipe-vb-ops-data.js':
+    'VB ops hard-wipe (tx/ledgers/movements); gated by I_UNDERSTAND=WIPE-VB-OPS-DATA + --apply.',
 })
 
 function toPosix(relPath) {
