@@ -1,77 +1,98 @@
 import { OPS_C as C } from './operationsTabTokens'
-import { B, Card, CardTitle, SH, Restrict } from './operationsTabUI'
+import { Card, CardTitle, SH, Restrict } from './operationsTabUI'
+import { opsPct as pct } from './operationsSeedData'
 
-export default function TabAnalytics({ canEdit: _canEdit, isAdmin, isHead, isMgmt, isExternal: _isExternal }) {
-  if (!isAdmin && !isHead && !isMgmt) return <Restrict text="Operations Analytics is restricted to Super Admin, Operations Head and Management." />
-
-  const barData = [
-    { label:'Fulfillment Rate', bars:[{m:'Nov',v:88},{m:'Dec',v:91},{m:'Jan',v:85},{m:'Feb',v:92},{m:'Mar',v:94},{m:'Apr',v:72}], color:'rgba(0,180,216,.5)', suffix:'%' },
-  ]
-  const incData = [{m:'Nov',v:0},{m:'Dec',v:1},{m:'Jan',v:0},{m:'Feb',v:0},{m:'Mar',v:2},{m:'Apr',v:1}]
-  const goldData = [{m:'Nov',t:250,a:238},{m:'Dec',t:250,a:261},{m:'Jan',t:250,a:244},{m:'Feb',t:250,a:257},{m:'Mar',t:250,a:248},{m:'Apr',t:250,a:96}]
-  const readData = [{m:'Jan',v:45},{m:'Feb',v:52},{m:'Mar',v:61},{m:'Apr 1',v:68},{m:'Apr 7',v:73},{m:'Apr 13',v:72}]
-
+function EmptyBlock({ title, message }) {
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
-      <SH title="Operations Analytics & Reports" sub="Performance trends and data insights">
-        <select style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:7, padding:'6px 12px', fontFamily:'inherit', fontSize:12, outline:'none' }}>
-          <option>Last 6 Months</option><option>Last 12 Months</option><option>This Year</option>
-        </select>
-        <button className={B.pri}>⬇ PDF</button>
-        <button className={B.pri}>⬇ Excel</button>
-      </SH>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-        <Card>
-          <CardTitle>Supply Chain Fulfillment Rate (%)</CardTitle>
-          <BarChart bars={barData[0].bars.map(d => ({ label:d.m, value:d.v, max:100, color:'rgba(0,180,216,.5)', valLabel:`${d.v}%` }))} height={100} />
-        </Card>
-        <Card>
-          <CardTitle>Gold Volume Sourced vs Target (kg)</CardTitle>
-          <div style={{ display:'flex', alignItems:'flex-end', gap:5, height:100 }}>
-            {goldData.map((d,i) => (
-              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
-                <div style={{ display:'flex', gap:2, alignItems:'flex-end', width:'100%' }}>
-                  <div style={{ height:d.t*.38, background:'rgba(245,158,11,.3)', flex:1, borderRadius:'3px 3px 0 0' }} />
-                  <div style={{ height:d.a*.38, background:'rgba(245,158,11,.7)', flex:1, borderRadius:'3px 3px 0 0' }} />
-                </div>
-                <div style={{ fontSize:9, color:C.t3 }}>{d.m}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display:'flex', gap:12, marginTop:8, fontSize:11 }}>
-            <span><span style={{ display:'inline-block', width:10, height:10, background:'rgba(245,158,11,.3)', marginRight:4, borderRadius:2 }} />Target</span>
-            <span><span style={{ display:'inline-block', width:10, height:10, background:'rgba(245,158,11,.7)', marginRight:4, borderRadius:2 }} />Actual</span>
-          </div>
-        </Card>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-        <Card>
-          <CardTitle>Security Incidents Trend</CardTitle>
-          <BarChart bars={incData.map(d => ({ label:d.m, value:d.v, max:3, color:d.v>1?'rgba(255,71,87,.6)':d.v>0?'rgba(255,112,67,.5)':'rgba(0,200,150,.3)', valLabel:`${d.v}` }))} height={100} />
-        </Card>
-        <Card>
-          <CardTitle>Operational Readiness Trend</CardTitle>
-          <BarChart bars={readData.map(d => ({ label:d.m, value:d.v, max:100, color:d.v>=70?'rgba(0,200,150,.6)':'rgba(255,214,0,.5)', valLabel:`${d.v}%` }))} height={80} />
-        </Card>
-      </div>
+    <div style={{
+      border: `1px dashed ${C.border}`,
+      borderRadius: 10,
+      padding: '20px 14px',
+      textAlign: 'center',
+      background: 'rgba(0,0,0,0.02)',
+    }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>{title}</div>
+      {message ? <div style={{ fontSize: 12, color: C.t3, marginTop: 4 }}>{message}</div> : null}
     </div>
   )
 }
-function BarChart({ bars, height }) {
-  const maxV = Math.max(...bars.map(b => b.max || b.value), 1)
+
+export default function TabAnalytics({
+  suppliers = [],
+  gold = [],
+  routes = [],
+  incidents = [],
+  vendors = [],
+  inventory = [],
+  isAdmin,
+  isHead,
+  isMgmt,
+}) {
+  if (!isAdmin && !isHead && !isMgmt) {
+    return <Restrict text="Operations Analytics is restricted to Super Admin, Operations Head and Management." />
+  }
+
+  const done = suppliers.filter((s) => s.st === 'Completed').length
+  const fulfillment = suppliers.length ? pct(done, suppliers.length) : null
+  const goldActual = gold.reduce((sum, g) => sum + (Number(g.actual) || 0), 0)
+  const goldTarget = gold.reduce((sum, g) => sum + (Number(g.vol) || 0), 0)
+  const unresolved = incidents.filter((i) => i.st !== 'Resolved').length
+  const activeRoutes = routes.filter((r) => r.st === 'Active').length
+  const signedVendors = vendors.filter((v) => v.signed === 'Yes').length
+  const lowStock = inventory.filter((i) => i.st === 'Critical' || i.st === 'Low Stock' || i.stock === 0).length
+
+  const hasAny = suppliers.length || gold.length || routes.length || incidents.length || vendors.length || inventory.length
+
   return (
-    <div style={{ display:'flex', alignItems:'flex-end', gap:5, height }}>
-      {bars.map((b, i) => (
-        <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
-          <div style={{ height: Math.max(4, (b.value/maxV)*height*0.85), width:'100%', background:b.color, borderRadius:'4px 4px 0 0', minHeight:4 }} />
-          <div style={{ fontSize:9, fontWeight:700, color:C.t3 }}>{b.valLabel}</div>
-          <div style={{ fontSize:9, color:C.t3 }}>{b.label}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <SH title="Operations Analytics" sub="Snapshot from current operational records (not historical demo trends)" />
+
+      {!hasAny ? (
+        <EmptyBlock
+          title="No operational data available"
+          message="Analytics will appear once suppliers, routes, inventory, or related records exist."
+        />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
+          <Card>
+            <CardTitle>Supply Completion</CardTitle>
+            <div style={{ fontSize: 28, fontWeight: 700, color: C.cyan }}>
+              {fulfillment == null ? '—' : `${fulfillment}%`}
+            </div>
+            <div style={{ fontSize: 12, color: C.t3, marginTop: 6 }}>{done}/{suppliers.length} completed</div>
+          </Card>
+          <Card>
+            <CardTitle>Gold Volume</CardTitle>
+            <div style={{ fontSize: 28, fontWeight: 700, color: C.gold }}>
+              {gold.length ? `${goldActual} kg` : '—'}
+            </div>
+            <div style={{ fontSize: 12, color: C.t3, marginTop: 6 }}>
+              {goldTarget ? `Target ${goldTarget} kg` : 'No gold channels'}
+            </div>
+          </Card>
+          <Card>
+            <CardTitle>Active Routes</CardTitle>
+            <div style={{ fontSize: 28, fontWeight: 700, color: C.green }}>{activeRoutes}/{routes.length}</div>
+            <div style={{ fontSize: 12, color: C.t3, marginTop: 6 }}>Currently active</div>
+          </Card>
+          <Card>
+            <CardTitle>Open Incidents</CardTitle>
+            <div style={{ fontSize: 28, fontWeight: 700, color: unresolved ? C.red : C.green }}>{unresolved}</div>
+            <div style={{ fontSize: 12, color: C.t3, marginTop: 6 }}>{incidents.length} total recorded</div>
+          </Card>
+          <Card>
+            <CardTitle>Signed Vendors</CardTitle>
+            <div style={{ fontSize: 28, fontWeight: 700, color: C.t1 }}>{signedVendors}/{vendors.length}</div>
+            <div style={{ fontSize: 12, color: C.t3, marginTop: 6 }}>Contracts signed</div>
+          </Card>
+          <Card>
+            <CardTitle>Inventory Alerts</CardTitle>
+            <div style={{ fontSize: 28, fontWeight: 700, color: lowStock ? C.yellow : C.green }}>{lowStock}</div>
+            <div style={{ fontSize: 12, color: C.t3, marginTop: 6 }}>{inventory.length} items tracked</div>
+          </Card>
         </div>
-      ))}
+      )}
     </div>
   )
 }
-
-// ─── TAB: Projects ────────────────────────────────────────────────────────────

@@ -11,18 +11,7 @@ import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
-import {
-  getOpsTabs,
-  INIT_SUPPLIERS,
-  INIT_GOLD,
-  INIT_ROUTES,
-  INIT_SEC_VENDORS,
-  INIT_INCIDENTS,
-  INIT_VENDORS,
-  INIT_INVENTORY,
-  INIT_CHECKLIST,
-  INIT_NOTIFS,
-} from './operations/operationsSeedData'
+import { getOpsTabs } from './operations/operationsSeedData'
 import { OPS_C as C } from './operations/operationsTabTokens'
 import { Toast } from './operations/operationsTabUI'
 import {
@@ -86,16 +75,14 @@ export default function OperationsTab() {
   const canEdit    = isAdmin || isHead
   // Inventory writes match backend canEditInventory (Super Admin or Production Head only)
   const canEditInventory = isAdmin || (isHead && String(user?.department || '').toLowerCase() === 'production')
-  const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
-  const DEMO_MODE = USE_SEED_DATA
 
-  const [suppliers, setSuppliers] = useState(USE_SEED_DATA ? INIT_SUPPLIERS : [])
-  const [gold,      setGold]      = useState(USE_SEED_DATA ? INIT_GOLD : [])
-  const [routes,    setRoutes]    = useState(USE_SEED_DATA ? INIT_ROUTES : [])
-  const [secVendors,setSecVendors]= useState(USE_SEED_DATA ? INIT_SEC_VENDORS : [])
-  const [incidents, setIncidents] = useState(USE_SEED_DATA ? INIT_INCIDENTS : [])
-  const [vendors,   setVendors]   = useState(USE_SEED_DATA ? INIT_VENDORS : [])
-  const [inventory, setInventory] = useState(USE_SEED_DATA ? INIT_INVENTORY : [])
+  const [suppliers, setSuppliers] = useState([])
+  const [gold,      setGold]      = useState([])
+  const [routes,    setRoutes]    = useState([])
+  const [secVendors,setSecVendors]= useState([])
+  const [incidents, setIncidents] = useState([])
+  const [vendors,   setVendors]   = useState([])
+  const [inventory, setInventory] = useState([])
   const [inventoryTotal, setInventoryTotal] = useState(0)
   const [inventoryPage, setInventoryPage] = useState(1)
   const [inventorySearch, setInventorySearch] = useState('')
@@ -188,8 +175,8 @@ export default function OperationsTab() {
     if (!taskAssignees.length) return []
     return [{ label: 'Team', options: taskAssignees.map((a) => ({ value: String(a.id), label: a.name })) }]
   }, [taskAssignees])
-  const [checklist, setChecklist] = useState(USE_SEED_DATA ? INIT_CHECKLIST : [])
-  const [notifs,    setNotifs]    = useState(USE_SEED_DATA ? INIT_NOTIFS : [])
+  const [checklist, setChecklist] = useState([])
+  const [notifs,    setNotifs]    = useState([])
   const [modal,     setModal]     = useState({ type:null, data:null })
   const [notifOpen, setNotifOpen] = useState(false)
   const [toast,     setToast]     = useState(null)
@@ -457,24 +444,6 @@ export default function OperationsTab() {
 
   return (
     <ModuleTabColumn style={{ fontFamily: 'inherit', color: C.t1 }}>
-      {DEMO_MODE && (
-        <div
-          role="status"
-          style={{
-            marginBottom: 12,
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: '1px solid #f59e0b',
-            background: 'rgba(245,158,11,0.12)',
-            color: '#92400e',
-            fontWeight: 700,
-            fontSize: 13,
-            letterSpacing: 0.3,
-          }}
-        >
-          DEMO MODE — seed data is active (VITE_ENABLE_SEED_DATA). Not production records.
-        </div>
-      )}
       <style>{`
         @keyframes tabPingOps { 0%,100%{opacity:1} 50%{opacity:.5} }
       `}</style>
