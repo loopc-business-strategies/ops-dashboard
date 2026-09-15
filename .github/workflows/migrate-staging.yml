@@ -1,23 +1,28 @@
-name: Staging migration (002 only)
+name: Staging migration
 
 on:
   workflow_dispatch:
     inputs:
       apply:
-        description: Apply pending migrations up to 002 (requires backup + confirm token)
+        description: Apply pending migrations (requires Atlas backup + confirm token). Default false = dry-run only.
         required: false
         type: boolean
         default: false
+      until:
+        description: Stop after this migration id. Use 002 to skip JV 003; use 008 for hardening indexes.
+        required: false
+        type: string
+        default: '002-backfill-mapping-departments'
 
 concurrency:
-  group: migrate-staging-002
+  group: migrate-staging-${{ github.event.inputs.until || '002' }}-${{ github.event.inputs.apply || 'dry' }}
   cancel-in-progress: false
 
 jobs:
   migrate:
-    name: Migration 002 on staging tenants
+    name: Staging migration dry-run/apply
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -49,11 +54,17 @@ jobs:
             exit 1
           fi
 
+      - name: Refuse apply of JV migration 003 via this workflow
+        if: ${{ inputs.apply == true && inputs.until == '003-backfill-jv-ledger-base-to-fc' }}
+        run: |
+          echo "::error::Refusing apply of 003-backfill-jv-ledger-base-to-fc (mutates JV ledger). Use dedicated reviewed process."
+          exit 1
+
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
 
-      - name: Dry-run migration 002 (skip 003)
+      - name: Dry-run staging migrations
         if: ${{ inputs.apply != true }}
         env:
           APP_ENV: staging
@@ -61,9 +72,25 @@ jobs:
           STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
           STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
-        run: node scripts/migrate-staging.mjs --until=002-backfill-mapping-departments
+        run: node scripts/migrate-staging.mjs --until=${{ inputs.until }}
 
-      - name: Apply migration 002 (skip 003)
+      - name: Guard — refuse apply if JV 003 still pending when until > 002
+        if: ${{ inputs.apply == true && inputs.until != '002-backfill-mapping-departments' && inputs.until != '001-baseline' }}
+        env:
+          APP_ENV: staging
+          STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
+        run: |
+          set -o pipefail
+          OUT=$(node scripts/migrate-staging.mjs --until=${{ inputs.until }} 2>&1 | tee /dev/stderr)
+          if echo "$OUT" | grep -q '003-backfill-jv-ledger-base-to-fc'; then
+            echo "::error::003-backfill-jv-ledger-base-to-fc is still pending. Refusing apply through ${{ inputs.until }} so JV data is not mutated."
+            exit 1
+          fi
+
+      - name: Apply staging migrations
         if: ${{ inputs.apply == true }}
         env:
           APP_ENV: staging
@@ -73,4 +100,4 @@ jobs:
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
           MIGRATION_I_HAVE_BACKUP: 'true'
           MIGRATION_CONFIRM_TOKEN: ${{ secrets.MIGRATION_CONFIRM_TOKEN }}
-        run: node scripts/migrate-staging.mjs --until=002-backfill-mapping-departments --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }}
+        run: node scripts/migrate-staging.mjs --until=${{ inputs.until }} --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }}

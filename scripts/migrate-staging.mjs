@@ -19,7 +19,14 @@ const rootDir = path.resolve(__dirname, '..')
 const backendDir = path.join(rootDir, 'backend')
 const stagingLocalPath = path.join(backendDir, '.env.staging.local')
 
-const dotenv = require('dotenv')
+// Prefer backend-installed dotenv (workflow often runs `npm ci` only under backend/).
+const backendRequire = createRequire(path.join(backendDir, 'package.json'))
+let dotenv
+try {
+  dotenv = backendRequire('dotenv')
+} catch {
+  dotenv = require('dotenv')
+}
 dotenv.config({ path: stagingLocalPath })
 const {
   mapStagingMongoToProcessEnv,
