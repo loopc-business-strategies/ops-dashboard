@@ -30,31 +30,6 @@ function getComplianceTabs(t) {
   ]
 }
 
-const INIT_ELIGIBILITY = [
-  { id: 'EL-1001', entity: 'Factory Site A', permit: 'Operating License', status: 'Eligible', lastReview: '2026-03-15', owner: 'Gov Team', notes: 'All prerequisites validated' },
-  { id: 'EL-1002', entity: 'Export Unit B', permit: 'Export Clearance', status: 'Under Review', lastReview: '2026-04-03', owner: 'Compliance Ops', notes: 'Awaiting customs confirmation' },
-]
-
-const INIT_APPROVALS = [
-  { id: 'AP-1101', authority: 'Trade Authority', filing: 'Quarterly Production Return', dueDate: '2026-04-25', submittedDate: '2026-04-17', status: 'Submitted', refNo: 'TA-APR-6628' },
-  { id: 'AP-1102', authority: 'Customs', filing: 'Precious Metals Export Notice', dueDate: '2026-04-30', submittedDate: '—', status: 'Pending', refNo: '—' },
-]
-
-const INIT_DOCS = [
-  { id: 'DC-2101', name: 'Environmental Compliance Certificate', category: 'Certificate', owner: 'Compliance Ops', version: 'v2', expiry: '2026-11-15', status: 'Active' },
-  { id: 'DC-2102', name: 'Site Safety Registration', category: 'Registration', owner: 'Gov Team', version: 'v1', expiry: '2026-07-01', status: 'Expiring Soon' },
-]
-
-const INIT_UPDATES = [
-  { id: 'RU-3101', title: 'New assay reporting format', source: 'Mining Regulator Circular 17', effective: '2026-05-01', impact: 'Medium', actionOwner: 'Compliance Ops', status: 'In Progress' },
-  { id: 'RU-3102', title: 'Transport chain-of-custody logs mandatory', source: 'Customs Bulletin 4/2026', effective: '2026-06-01', impact: 'High', actionOwner: 'Operations', status: 'Planned' },
-]
-
-const INIT_AGREEMENTS = [
-  { id: 'AG-4101', partner: 'National Refinery Board', type: 'Supply Compliance Agreement', start: '2025-07-01', end: '2026-06-30', value: 480000, status: 'Active' },
-  { id: 'AG-4102', partner: 'Precious Metals Council', type: 'Audit Cooperation MoU', start: '2025-01-15', end: '2026-05-15', value: 120000, status: 'Renewal Required' },
-]
-
 function Card({ children, style }) {
   return <div className="card" style={style}>{children}</div>
 }
@@ -158,17 +133,13 @@ function ComplianceTab() {
     'eligibility',
     company,
   )
-  const USE_SEED_DATA =
-    !import.meta.env.PROD
-    && import.meta.env.DEV
-    && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
   const [toast, setToast] = useState('')
-  const [eligibility, setEligibility] = useState(USE_SEED_DATA ? INIT_ELIGIBILITY : [])
-  const [approvals, setApprovals] = useState(USE_SEED_DATA ? INIT_APPROVALS : [])
-  const [docs, setDocs] = useState(USE_SEED_DATA ? INIT_DOCS : [])
-  const [updates, setUpdates] = useState(USE_SEED_DATA ? INIT_UPDATES : [])
-  const [agreements, setAgreements] = useState(USE_SEED_DATA ? INIT_AGREEMENTS : [])
+  const [eligibility, setEligibility] = useState([])
+  const [approvals, setApprovals] = useState([])
+  const [docs, setDocs] = useState([])
+  const [updates, setUpdates] = useState([])
+  const [agreements, setAgreements] = useState([])
 
   const [eModal, setEModal] = useState({ open: false, editId: '' })
   const [aModal, setAModal] = useState({ open: false, editId: '' })

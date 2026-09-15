@@ -9,6 +9,13 @@ function LiveMonitor({ canEdit: _canEdit, showToast: _showToast }) {
     <div className="space-y-5">
       <SectionHeader title="Live Production Monitor" sub="Real-time status across all production lines" />
 
+      {linesForUi.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-900/40 px-4 py-10 text-center">
+          <p className="text-sm font-medium text-white">No production data available</p>
+          <p className="text-xs text-gray-500 mt-1">Open Production Control Center for live floor monitoring.</p>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {linesForUi.map(line => {
           const sc = STATE_COLORS[line.state]

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
-  USE_SEED_DATA, C, Badge, SectionHeader, Modal, Field,
-  linesForUi, DEFAULT_QC, QC_STATUS,
+  C, Badge, SectionHeader, Modal, Field,
+  linesForUi, QC_STATUS,
 } from './shared'
 
 // ── Quality Control ───────────────────────────────
 function QualityControl({ canEdit, showToast }) {
-  const [checks, setChecks] = useState(USE_SEED_DATA ? DEFAULT_QC : [])
+  const [checks, setChecks] = useState([])
   const [modal, setModal]   = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ product: '', line: 'L1', batch: '', inspector: '', passed: '', failed: '' })

@@ -1,7 +1,5 @@
-const USE_SEED_DATA =
-  !import.meta.env.PROD
-  && import.meta.env.DEV
-  && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
+/** Seed/demo business data is disabled in all environments. */
+const USE_SEED_DATA = false
 
 // ── Design tokens ─────────────────────────────────
 const C = {
@@ -13,15 +11,15 @@ const C = {
 
 function getProductionTabs(t) {
   return [
-    { id: 'kpi',         label: `📊 ${t('kpiOverview')}` },
-    { id: 'monitor',     label: `📺 ${t('liveMonitor')}` },
-    { id: 'equipment',   label: `⚙️ ${t('equipment')}` },
-    { id: 'maintenance', label: `🔧 ${t('maintenance')}` },
-    { id: 'quality',     label: `🔍 ${t('qualityControl')}` },
-    { id: 'shifts',      label: `👥 ${t('shiftManagement')}` },
-    { id: 'planning',    label: `📅 ${t('planning')}` },
-    { id: 'alerts',      label: `🚨 ${t('alertsReports')}` },
-    { id: 'costs',       label: `💰 ${t('costTracking')}` },
+    { id: 'kpi',         label: t('kpiOverview'), group: 'command' },
+    { id: 'monitor',     label: t('liveMonitor'), group: 'command' },
+    { id: 'alerts',      label: t('alertsReports'), group: 'command' },
+    { id: 'planning',    label: t('planning'), group: 'work' },
+    { id: 'equipment',   label: t('equipment'), group: 'factory' },
+    { id: 'maintenance', label: t('maintenance'), group: 'factory' },
+    { id: 'quality',     label: t('qualityControl'), group: 'quality' },
+    { id: 'shifts',      label: t('shiftManagement'), group: 'factory' },
+    { id: 'costs',       label: t('costTracking'), group: 'reporting' },
   ]
 }
 
@@ -145,15 +143,9 @@ function Field({ label, required, children }) {
   )
 }
 
-// ── Seed data ─────────────────────────────────────
-const LINES = [
-  { id: 'L1', name: 'Line 1 — Gold Casting',    state: 'running',     oee: 84, output: 1240, target: 1400, quality: 98.2, speed: 94, temp: 1083, operator: 'Ahmed Karimi' },
-  { id: 'L2', name: 'Line 2 — Silver Refinery', state: 'maintenance', oee: 0,  output: 890,  target: 1200, quality: 97.5, speed: 0,  temp: 961,  operator: 'Sara Nouri' },
-  { id: 'L3', name: 'Line 3 — Alloy Pressing',  state: 'running',     oee: 71, output: 2100, target: 2600, quality: 96.8, speed: 82, temp: 450,  operator: 'Reza Ahmadi' },
-  { id: 'L4', name: 'Line 4 — Finishing',       state: 'idle',        oee: 0,  output: 560,  target: 800,  quality: 99.1, speed: 0,  temp: 25,   operator: 'Mina Hosseini' },
-]
-
-const linesForUi = USE_SEED_DATA ? LINES : []
+// ── Seed data (purged — live/API only; keep empty shells for exports) ──
+const LINES = []
+const linesForUi = []
 
 const STATE_COLORS = {
   running:     { badge: 'green',  label: '● Running' },
@@ -162,14 +154,7 @@ const STATE_COLORS = {
   idle:        { badge: 'gray',   label: '○ Idle' },
 }
 
-const DEFAULT_EQUIPMENT = [
-  { id: 1, name: 'Gold Refinery Unit A',    line: 'L1', type: 'Refinery',     status: 'operational', lastMaint: '2026-03-20', nextMaint: '2026-06-20', age: '2y 3m' },
-  { id: 2, name: 'CNC Milling Machine #1',  line: 'L1', type: 'CNC',          status: 'operational', lastMaint: '2026-04-01', nextMaint: '2026-07-01', age: '1y 8m' },
-  { id: 3, name: 'Silver Furnace B2',       line: 'L2', type: 'Furnace',       status: 'maintenance', lastMaint: '2026-04-10', nextMaint: '2026-04-17', age: '3y 1m' },
-  { id: 4, name: 'Alloy Press P4',          line: 'L3', type: 'Press',         status: 'operational', lastMaint: '2026-03-15', nextMaint: '2026-06-15', age: '4y 0m' },
-  { id: 5, name: 'Polishing Station #3',    line: 'L4', type: 'Polisher',      status: 'idle',        lastMaint: '2026-02-28', nextMaint: '2026-05-28', age: '1y 1m' },
-  { id: 6, name: 'Quality Testing Bench',   line: 'L4', type: 'QC Equipment', status: 'operational', lastMaint: '2026-04-05', nextMaint: '2026-07-05', age: '0y 9m' },
-]
+const DEFAULT_EQUIPMENT = []
 
 const EQUIP_STATUS = {
   operational: { badge: 'green',  label: 'Operational' },
@@ -178,12 +163,7 @@ const EQUIP_STATUS = {
   decommissioned: { badge: 'red', label: 'Decommissioned' },
 }
 
-const DEFAULT_WORK_ORDERS = [
-  { id: 'WO-001', equipment: 'Silver Furnace B2',     type: 'corrective', priority: 'high',   status: 'open',       assignee: 'Maint Team A', reported: '2026-04-10', scheduled: '2026-04-15', desc: 'Temperature fluctuation detected during shift 2.' },
-  { id: 'WO-002', equipment: 'CNC Milling Machine #1', type: 'preventive', priority: 'medium', status: 'in-progress', assignee: 'Maint Team B', reported: '2026-04-08', scheduled: '2026-04-14', desc: 'Scheduled quarterly lubrication and calibration.' },
-  { id: 'WO-003', equipment: 'Alloy Press P4',         type: 'predictive', priority: 'low',    status: 'approved',   assignee: 'Maint Team A', reported: '2026-04-05', scheduled: '2026-04-20', desc: 'Vibration sensor alert — bearing inspection.' },
-  { id: 'WO-004', equipment: 'Gold Refinery Unit A',   type: 'preventive', priority: 'medium', status: 'closed',     assignee: 'Maint Team C', reported: '2026-03-28', scheduled: '2026-04-02', desc: 'Monthly filter replacement completed.' },
-]
+const DEFAULT_WORK_ORDERS = []
 
 const WO_STATUS = {
   open:        { badge: 'violet', label: 'Open' },
@@ -198,12 +178,7 @@ const WO_PRIORITY = {
   low:    { badge: 'gray',   label: 'Low' },
 }
 
-const DEFAULT_QC = [
-  { id: 1, product: 'Gold Bar 99.99%',    line: 'L1', batch: 'B-2406-001', inspector: 'QC Team A', date: '2026-04-13', passed: 142, failed: 3,  defectRate: 2.1, status: 'approved' },
-  { id: 2, product: 'Silver Grain 99.9%', line: 'L2', batch: 'B-2406-002', inspector: 'QC Team B', date: '2026-04-12', passed: 890, failed: 22, defectRate: 2.4, status: 'approved' },
-  { id: 3, product: 'Alloy Rod 14K',      line: 'L3', batch: 'B-2406-003', inspector: 'QC Team A', date: '2026-04-13', passed: 510, failed: 18, defectRate: 3.4, status: 'review' },
-  { id: 4, product: 'Polished Ring Blank', line: 'L4', batch: 'B-2406-004', inspector: 'QC Team C', date: '2026-04-11', passed: 200, failed: 1,  defectRate: 0.5, status: 'approved' },
-]
+const DEFAULT_QC = []
 
 const QC_STATUS = {
   approved: { badge: 'green',  label: 'Approved' },
@@ -214,20 +189,9 @@ const QC_STATUS = {
 const SHIFTS = ['Morning (06–14)', 'Afternoon (14–22)', 'Night (22–06)']
 const DAYS   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-const DEFAULT_SHIFT_GRID = {
-  'L1': { Mon: 0, Tue: 0, Wed: 1, Thu: 0, Fri: 1, Sat: 2, Sun: null },
-  'L2': { Mon: 1, Tue: 2, Wed: 0, Thu: 1, Fri: 0, Sat: null, Sun: null },
-  'L3': { Mon: 0, Tue: 0, Wed: 0, Thu: 2, Fri: 0, Sat: 0, Sun: 1 },
-  'L4': { Mon: null, Tue: 1, Wed: 1, Thu: null, Fri: 1, Sat: null, Sun: null },
-}
+const DEFAULT_SHIFT_GRID = {}
 
-const DEFAULT_ALERTS = [
-  { id: 1, type: 'critical', category: 'equipment',   line: 'L2', title: 'Furnace B2 Temperature Spike', msg: 'Temperature exceeded 1050°C threshold. Line stopped automatically.', time: '2026-04-13 09:14', ack: false },
-  { id: 2, type: 'warning',  category: 'quality',     line: 'L3', title: 'Defect Rate Above Target',     msg: 'Batch B-2406-003 defect rate at 3.4%, above 2.5% threshold.', time: '2026-04-13 08:50', ack: false },
-  { id: 3, type: 'info',     category: 'maintenance', line: 'L1', title: 'Preventive Maintenance Due',    msg: 'CNC Machine #1 scheduled maintenance in 3 days.', time: '2026-04-13 07:00', ack: true },
-  { id: 4, type: 'warning',  category: 'production',  line: 'L3', title: 'Output Below Target',           msg: 'Line 3 at 81% of daily target with 4 hours remaining.', time: '2026-04-12 18:30', ack: true },
-  { id: 5, type: 'critical', category: 'quality',     line: 'L2', title: 'Batch Hold — Silver Grain',     msg: 'QC batch B-2406-002 placed on hold pending senior review.', time: '2026-04-12 15:45', ack: false },
-]
+const DEFAULT_ALERTS = []
 
 const ALERT_TYPES = {
   critical: { badge: 'red',    icon: '🔴' },
@@ -235,12 +199,7 @@ const ALERT_TYPES = {
   info:     { badge: 'blue',   icon: '🔵' },
 }
 
-const DEFAULT_ORDERS = [
-  { id: 'PO-2406-01', product: 'Gold Bar 99.99%',    quantity: 500,  unit: 'pcs', line: 'L1', startDate: '2026-04-14', dueDate: '2026-04-21', status: 'scheduled', progress: 0 },
-  { id: 'PO-2406-02', product: 'Silver Grain 99.9%', quantity: 2000, unit: 'kg',  line: 'L2', startDate: '2026-04-08', dueDate: '2026-04-16', status: 'in-progress', progress: 62 },
-  { id: 'PO-2406-03', product: 'Alloy Rod 14K',      quantity: 1200, unit: 'pcs', line: 'L3', startDate: '2026-04-10', dueDate: '2026-04-18', status: 'in-progress', progress: 79 },
-  { id: 'PO-2406-04', product: 'Ring Blank Set',     quantity: 300,  unit: 'sets', line: 'L4', startDate: '2026-04-01', dueDate: '2026-04-10', status: 'completed',  progress: 100 },
-]
+const DEFAULT_ORDERS = []
 
 const ORDER_STATUS = {
   scheduled:    { badge: 'violet', label: 'Scheduled' },
@@ -250,90 +209,9 @@ const ORDER_STATUS = {
   cancelled:    { badge: 'red',    label: 'Cancelled' },
 }
 
-const NOTIFICATIONS_DATA = [
-  {
-    id: 'N001', level: 'crit', read: false,
-    title: '🔴 Line 2 Stopped Unexpectedly',
-    desc: 'Drive belt failure detected at 10:32 AM. Emergency work order WO-001 created. Maintenance team dispatched.',
-    meta: 'Line 2 · Equipment · Work Order: WO-001',
-    time: '5 min ago',
-    roles: ['superadmin', 'prod_mgr', 'shift_sup', 'maint_eng'],
-  },
-  {
-    id: 'N002', level: 'high', read: false,
-    title: '🟠 Quality Score Alert — Line 3',
-    desc: 'Quality score dropped to 91% on Line 3 (threshold: 95%). Batch B-2406-003 has been held for review.',
-    meta: 'Line 3 · Quality · Inspector: QC Team A',
-    time: '1 hr ago',
-    roles: ['superadmin', 'prod_mgr', 'shift_sup', 'quality'],
-  },
-  {
-    id: 'N003', level: 'med', read: false,
-    title: '🟡 Spare Parts Critically Low — Drive Belt',
-    desc: 'Drive Belt stock is at 2 units (minimum: 3). Automatic procurement request raised.',
-    meta: 'Warehouse · Spare Parts · Part ID: SP-001',
-    time: '2 hrs ago',
-    roles: ['superadmin', 'prod_mgr', 'maint_eng'],
-  },
-  {
-    id: 'N004', level: 'med', read: false,
-    title: '🟡 Line 3 Output Below Target',
-    desc: 'Line 3 output is at 81% of daily target due to maintenance downtime.',
-    meta: 'Line 3 · Production · Shift 2',
-    time: '3 hrs ago',
-    roles: ['superadmin', 'prod_mgr', 'shift_sup'],
-  },
-  {
-    id: 'N005', level: 'info', read: true,
-    title: '🔵 Shift Handover Completed',
-    desc: 'Shift 1 → Shift 2 handover logged at 14:00. All line statuses acknowledged.',
-    meta: 'All Lines · Shift Handover',
-    time: '4 hrs ago',
-    roles: ['superadmin', 'prod_mgr', 'shift_sup', 'operator'],
-  },
-  {
-    id: 'N006', level: 'success', read: true,
-    title: '🟢 Production Order PO-2406-04 Completed',
-    desc: '300 Ring Blank Sets completed. Final quality score: 99.1%. Delivered on schedule.',
-    meta: 'Line 4 · Production Order PO-2406-04',
-    time: 'Yesterday',
-    roles: ['superadmin', 'prod_mgr'],
-  },
-  {
-    id: 'N007', level: 'info', read: true,
-    title: '🔵 Daily Cost Report Auto-Generated',
-    desc: "Today's production cost summary is available in Cost Tracking tab.",
-    meta: 'System · Scheduled Report · 08:00 AM',
-    time: 'Yesterday',
-    roles: ['superadmin', 'prod_mgr', 'finance'],
-  },
-  {
-    id: 'N008', level: 'med', read: true,
-    title: '🟡 Preventive Maintenance Due — Line 1',
-    desc: 'Scheduled lubrication service for Line 1 is due on Apr 15. Work order should be created.',
-    meta: 'Line 1 · Preventive Maintenance',
-    time: '2 days ago',
-    roles: ['superadmin', 'prod_mgr', 'maint_eng'],
-  },
-  {
-    id: 'N009', level: 'crit', read: true,
-    title: '🔴 Temperature Alert — Line 2 Resolved',
-    desc: 'Temperature on Furnace B2 exceeded 1050°C threshold. Issue resolved after cooling cycle.',
-    meta: 'Line 2 · Temperature · Resolved',
-    time: '2 days ago',
-    roles: ['superadmin', 'prod_mgr', 'shift_sup', 'maint_eng'],
-  },
-]
+const NOTIFICATIONS_DATA = []
 
-const COST_DATA = [
-  { category: 'Raw Materials',    budget: 280000, actual: 263400, variance: -6.0 },
-  { category: 'Labor',            budget: 95000,  actual: 97200,  variance:  2.3 },
-  { category: 'Energy',           budget: 42000,  actual: 38750,  variance: -7.7 },
-  { category: 'Maintenance',      budget: 28000,  actual: 31500,  variance: 12.5 },
-  { category: 'Consumables',      budget: 15000,  actual: 14200,  variance: -5.3 },
-  { category: 'Depreciation',     budget: 22000,  actual: 22000,  variance:  0.0 },
-  { category: 'Overhead',         budget: 18000,  actual: 19400,  variance:  7.8 },
-]
+const COST_DATA = []
 
 export {
   USE_SEED_DATA,

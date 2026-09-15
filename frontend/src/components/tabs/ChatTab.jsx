@@ -21,10 +21,7 @@ import {
 
 const ChatGroupModal = lazy(() => import('./chat/ChatGroupModal'))
 
-const USE_SEED_DATA =
-  !import.meta.env.PROD
-  && import.meta.env.DEV
-  && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
+const USE_SEED_DATA = false
 
 function senderKeyFromName(name) {
   const raw = String(name || 'member')
@@ -35,73 +32,9 @@ function senderKeyFromName(name) {
   return `name:${raw}`
 }
 
-// ─────────────────────────────────────────────────────────
-// Optional demo roster / chats (VITE_ENABLE_SEED_DATA=true in dev only)
-// ─────────────────────────────────────────────────────────
-const SEED_USERS = USE_SEED_DATA ? [
-  { id: 'sa',       name: 'Admin',        dept: 'Admin',      color: 'var(--purple)', initials: 'SA' },
-  { id: 'ali',      name: 'Ali Hassan',   dept: 'Production', color: '#60a5fa', initials: 'AH' },
-  { id: 'sara',     name: 'Sara Ahmed',   dept: 'Compliance', color: '#c084fc', initials: 'SA' },
-  { id: 'fatima',   name: 'Fatima Noor',  dept: 'HR',         color: '#2dd4bf', initials: 'FN' },
-  { id: 'omar',     name: 'Omar Khan',    dept: 'Operations', color: '#fbbf24', initials: 'OK' },
-  { id: 'investor', name: 'Mr. Investor', dept: 'Management', color: '#94a3b8', initials: 'MI' },
-] : []
-
-const T = Date.now()
-const INITIAL_CHATS = USE_SEED_DATA ? [
-  {
-    id: 'g1', type: 'group', name: 'All Departments', dept: 'All',
-    members: ['sa','ali','sara','fatima','omar'], unread: 2, muted: false,
-    messages: [
-      { id:'m1', from:'ali',    text:'Machine installation update: Crusher Unit A is now fully operational ✅', time: new Date(T - 90*60000).toISOString(),  file: null },
-      { id:'m2', from:'fatima', text:'3 new hires onboarded today. Orientation session starts tomorrow morning.', time: new Date(T - 75*60000).toISOString(), file: null },
-      { id:'m3', from:'sa',     text:'Great progress team! Keep the activity logs updated on the dashboard.', time: new Date(T - 70*60000).toISOString(),    file: null },
-      { id:'m4', from:'sara',   text:'Ministry requested additional documents for eligibility. Working on it.', time: new Date(T - 20*60000).toISOString(),   file: null },
-    ],
-  },
-  {
-    id: 'g2', type: 'group', name: 'Production Team', dept: 'Production',
-    members: ['sa','ali','omar'], unread: 1, muted: false,
-    messages: [
-      { id:'m5', from:'ali',  text:"Conveyor belt is stuck in customs — Almaty port.",                        time: new Date(T - 26*3600000).toISOString(), file: null },
-      { id:'m6', from:'sa',   text:"Escalate immediately. I'll contact the logistics agent today.",           time: new Date(T - 25*3600000).toISOString(), file: null },
-      { id:'m7', from:'omar', text:"Here's the customs clearance document they're requesting",                time: new Date(T - 24*3600000).toISOString(), file: { name:'customs_clearance.pdf', size:'245 KB', ext:'pdf' } },
-    ],
-  },
-  {
-    id: 'd1', type: 'direct', name: 'Ali Hassan', otherId: 'ali',
-    unread: 0, muted: false,
-    messages: [
-      { id:'m8',  from:'sa',  text:'Ali, how is the installation progress on the conveyor belt?',                    time: new Date(T - 4*3600000).toISOString(),   file: null },
-      { id:'m9',  from:'ali', text:"It's delayed due to customs. I've filed the paperwork. Should arrive in ~10 days.", time: new Date(T - 3.9*3600000).toISOString(), file: null },
-      { id:'m10', from:'ali', text:"I'll send you the updated logistics report",                                      time: new Date(T - 3.8*3600000).toISOString(), file: { name:'logistics_report_apr.docx', size:'128 KB', ext:'docx' } },
-    ],
-  },
-  {
-    id: 'd2', type: 'direct', name: 'Sara Ahmed', otherId: 'sara',
-    unread: 2, muted: false,
-    messages: [
-      { id:'m11', from:'sara', text:'The eligibility criteria approval is taking longer than expected.',         time: new Date(T - 3*3600000).toISOString(),   file: null },
-      { id:'m12', from:'sara', text:"I've attached the ministry correspondence for your review.",                time: new Date(T - 2.9*3600000).toISOString(), file: { name:'ministry_letter_apr10.pdf', size:'312 KB', ext:'pdf' } },
-    ],
-  },
-  {
-    id: 'd3', type: 'direct', name: 'Fatima Noor', otherId: 'fatima',
-    unread: 0, muted: false,
-    messages: [
-      { id:'m13', from:'fatima', text:'HR update: Visa for 2 foreign specialists is still pending.',   time: new Date(T - 28*3600000).toISOString(), file: null },
-      { id:'m14', from:'sa',     text:'Keep following up. We need them on site by June.',              time: new Date(T - 27.5*3600000).toISOString(), file: null },
-    ],
-  },
-  {
-    id: 'd4', type: 'direct', name: 'Mr. Investor', otherId: 'investor',
-    unread: 0, muted: true,
-    messages: [
-      { id:'m15', from:'investor', text:'Can you share the latest project health report?',                              time: new Date(T - 3*86400000).toISOString(), file: null },
-      { id:'m16', from:'sa',       text:"Of course — dashboard access has been updated. You can view all reports.",     time: new Date(T - 3*86400000 + 600000).toISOString(), file: null },
-    ],
-  },
-] : []
+// Demo roster disabled — chat loads from live APIs only.
+const SEED_USERS = []
+const INITIAL_CHATS = []
 
 const AUTO_REPLIES = [
   "Got it, thanks! I'll update the dashboard shortly.",

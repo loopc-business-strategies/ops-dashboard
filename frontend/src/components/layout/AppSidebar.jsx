@@ -58,19 +58,24 @@ export default function AppSidebar({
       </div>
 
       <nav className="sidebar-nav flex-1 overflow-y-auto" aria-label="Modules">
-        {mainItems.map((item) => (
-          <NavItem
-            key={item.id}
-            {...item}
-            href={buildNavHref(item)}
-            active={activeTab === item.id}
-            onSameTabNavigate={() => onModuleNavigate?.(item.id)}
-            onAfterClick={sidebarLinkAfterClick}
-            onPrefetch={() => prefetchTabChunk(item.id)}
-          />
-        ))}
+        {mainItems.length > 0 ? (
+          <p className="sidebar-section-label" id="sidebar-workspace-label">Workspace</p>
+        ) : null}
+        <div role="group" aria-labelledby={mainItems.length ? 'sidebar-workspace-label' : undefined}>
+          {mainItems.map((item) => (
+            <NavItem
+              key={item.id}
+              {...item}
+              href={buildNavHref(item)}
+              active={activeTab === item.id}
+              onSameTabNavigate={() => onModuleNavigate?.(item.id)}
+              onAfterClick={sidebarLinkAfterClick}
+              onPrefetch={() => prefetchTabChunk(item.id)}
+            />
+          ))}
+        </div>
 
-        {adminItems.length > 0 && <div className="sidebar-divider" />}
+        {adminItems.length > 0 && <div className="sidebar-divider" role="separator" />}
 
         {adminItems.length > 0 && (
           <>
@@ -78,9 +83,10 @@ export default function AppSidebar({
               type="button"
               className="sidebar-section-title w-full"
               onClick={() => setAdminOpen((v) => !v)}
+              aria-expanded={adminOpen}
             >
               <span>{t('adminSection')}</span>
-              <span className="section-chevron">{adminOpen ? '▴' : '▾'}</span>
+              <span className="section-chevron" aria-hidden="true">{adminOpen ? '▴' : '▾'}</span>
             </button>
             {adminOpen && adminItems.map((item) => (
               <NavItem
@@ -96,7 +102,7 @@ export default function AppSidebar({
           </>
         )}
 
-        {deptItems.length > 0 && <div className="sidebar-divider" />}
+        {deptItems.length > 0 && <div className="sidebar-divider" role="separator" />}
 
         {deptItems.length > 0 && (
           <>
@@ -104,9 +110,10 @@ export default function AppSidebar({
               type="button"
               className="sidebar-section-title w-full"
               onClick={() => setDeptOpen((v) => !v)}
+              aria-expanded={deptOpen}
             >
               <span>{t('departments')}</span>
-              <span className="section-chevron">{deptOpen ? '▴' : '▾'}</span>
+              <span className="section-chevron" aria-hidden="true">{deptOpen ? '▴' : '▾'}</span>
             </button>
             {deptOpen && deptItems.map((item) => (
               <NavItem
@@ -122,7 +129,7 @@ export default function AppSidebar({
           </>
         )}
 
-        {erpItems.length > 0 && <div className="sidebar-divider" />}
+        {erpItems.length > 0 && <div className="sidebar-divider" role="separator" />}
 
         {erpItems.length > 0 && (
           <>
@@ -130,9 +137,10 @@ export default function AppSidebar({
               type="button"
               className="sidebar-section-title w-full"
               onClick={() => setErpOpen((v) => !v)}
+              aria-expanded={erpOpen}
             >
               <span>ERP</span>
-              <span className="section-chevron">{erpOpen ? '▴' : '▾'}</span>
+              <span className="section-chevron" aria-hidden="true">{erpOpen ? '▴' : '▾'}</span>
             </button>
             {erpOpen && erpItems.map((item) => (
               <NavItem

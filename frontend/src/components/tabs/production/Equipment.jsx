@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
-  USE_SEED_DATA, C, Badge, SectionHeader, Modal, Field,
-  linesForUi, DEFAULT_EQUIPMENT, EQUIP_STATUS,
+  C, Badge, SectionHeader, Modal, Field,
+  linesForUi, EQUIP_STATUS,
 } from './shared'
 
 // ── Equipment ─────────────────────────────────────
 function Equipment({ canEdit, showToast }) {
-  const [equipment, setEquipment] = useState(USE_SEED_DATA ? DEFAULT_EQUIPMENT : [])
+  const [equipment, setEquipment] = useState([])
   const [modal, setModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [form, setForm] = useState({ name: '', line: 'L1', type: '', status: 'operational', lastMaint: '', nextMaint: '', age: '' })

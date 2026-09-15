@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
-  USE_SEED_DATA, C, Badge, SectionHeader, Modal, Field,
-  DEFAULT_WORK_ORDERS, DEFAULT_EQUIPMENT, WO_STATUS, WO_PRIORITY,
+  C, Badge, SectionHeader, Modal, Field,
+  DEFAULT_EQUIPMENT, WO_STATUS, WO_PRIORITY,
 } from './shared'
 
 // ── Maintenance ───────────────────────────────────
 function Maintenance({ canEdit, showToast }) {
-  const [orders, setOrders] = useState(USE_SEED_DATA ? DEFAULT_WORK_ORDERS : [])
+  const [orders, setOrders] = useState([])
   const [modal, setModal]   = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ equipment: '', type: 'preventive', priority: 'medium', status: 'open', assignee: '', scheduled: '', desc: '' })

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
-  USE_SEED_DATA, C, Badge, SectionHeader, Modal, Field,
-  linesForUi, DEFAULT_ALERTS, ALERT_TYPES,
+  C, Badge, SectionHeader, Modal, Field,
+  linesForUi, ALERT_TYPES,
 } from './shared'
 
 // ── Alerts & Reports ──────────────────────────────
 function AlertsReports({ canEdit, showToast }) {
-  const [alerts, setAlerts] = useState(USE_SEED_DATA ? DEFAULT_ALERTS : [])
+  const [alerts, setAlerts] = useState([])
   const [filter, setFilter] = useState('all')
   const [modal, setModal]   = useState(false)
   const [editId, setEditId] = useState(null)

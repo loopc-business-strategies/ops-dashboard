@@ -11,18 +11,7 @@ import erpAccountingAPI from '../../api/erp-accounting'
 import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { BudgetModal, ExpenseModal, InvoiceModal, PayrollModal } from './finance/FinanceModals'
 import { C, fmtFull, setFinanceBaseCurrencyCode } from './finance/ui'
-import {
-  getFinanceTabs,
-  INIT_INVOICES,
-  INIT_EXPENSES,
-  INIT_PAYROLL,
-  BUDGETS,
-  RECEIVABLES,
-  PAYABLES,
-  TAXES,
-  INIT_AUDIT,
-  INIT_NOTIFS,
-} from './finance/financeSeedData'
+import { getFinanceTabs } from './finance/financeSeedData'
 import { NotificationsPanel } from './finance/NotificationsPanel'
 
 const KPIOverview = lazy(() => import('./finance/KPIOverview'))
@@ -79,20 +68,16 @@ export default function FinanceTab() {
 
   const can     = (...roles) => roles.includes(finRole)
   const canEdit = ()         => can('superadmin','fin_mgr')
-  const USE_SEED_DATA =
-    !import.meta.env.PROD
-    && import.meta.env.DEV
-    && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
-  const [invoices,     setInvoices]     = useState(USE_SEED_DATA ? INIT_INVOICES : [])
-  const [expenses,     setExpenses]     = useState(USE_SEED_DATA ? INIT_EXPENSES : [])
-  const [payroll,      setPayroll]      = useState(USE_SEED_DATA ? INIT_PAYROLL : [])
-  const [budgets,      setBudgets]      = useState(USE_SEED_DATA ? BUDGETS : [])
-  const [taxes,        setTaxes]        = useState(USE_SEED_DATA ? TAXES : [])
-  const [receivables,  setReceivables]  = useState(USE_SEED_DATA ? RECEIVABLES : [])
-  const [payables,     setPayables]     = useState(USE_SEED_DATA ? PAYABLES : [])
-  const [auditLog,     setAuditLog]     = useState(USE_SEED_DATA ? INIT_AUDIT : [])
-  const [notifications,setNotifications]= useState(USE_SEED_DATA ? INIT_NOTIFS : [])
+  const [invoices,     setInvoices]     = useState([])
+  const [expenses,     setExpenses]     = useState([])
+  const [payroll,      setPayroll]      = useState([])
+  const [budgets,      setBudgets]      = useState([])
+  const [taxes,        setTaxes]        = useState([])
+  const [receivables,  setReceivables]  = useState([])
+  const [payables,     setPayables]     = useState([])
+  const [auditLog,     setAuditLog]     = useState([])
+  const [notifications,setNotifications]= useState([])
   const [toast,        setToast]        = useState(null)
   const [modal,        setModal]        = useState(null)   // 'invoice'|'expense'|'payroll'|'budget'|null
   const [notifOpen,    setNotifOpen]    = useState(false)

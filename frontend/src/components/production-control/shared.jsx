@@ -6,19 +6,25 @@ export const SECTION_GROUPS = [
     label: 'COMMAND',
     sections: [
       { id: 'live', label: 'Live Floor' },
-      { id: 'overview', label: 'Overview' },
+      { id: 'overview', label: 'Production Overview' },
       { id: 'my-tasks', label: 'My Tasks' },
       { id: 'alerts', label: 'Alerts' },
-      { id: 'delay-monitor', label: 'Delay Monitor' },
+      { id: 'delay-monitor', label: 'Delays' },
     ],
   },
   {
-    id: 'production',
-    label: 'PRODUCTION',
+    id: 'work',
+    label: 'WORK',
     sections: [
       { id: 'work-orders', label: 'Work Orders' },
       { id: 'batches', label: 'Batches' },
       { id: 'processes', label: 'Processes' },
+    ],
+  },
+  {
+    id: 'departments',
+    label: 'DEPARTMENTS',
+    sections: [
       { id: 'dept-melting', label: 'Melting', deptKey: 'melting' },
       { id: 'dept-casting', label: 'Casting', deptKey: 'casting' },
       { id: 'dept-rolling', label: 'Rolling', deptKey: 'rolling' },
@@ -64,8 +70,8 @@ export const SECTION_GROUPS = [
     ],
   },
   {
-    id: 'management',
-    label: 'MANAGEMENT',
+    id: 'reporting',
+    label: 'REPORTING',
     sections: [
       { id: 'reports', label: 'Reports' },
       { id: 'audit', label: 'Audit' },

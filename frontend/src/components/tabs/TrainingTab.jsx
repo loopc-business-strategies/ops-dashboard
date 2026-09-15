@@ -8,18 +8,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import trainingAPI from '../../api/training'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
-import {
-  getTrainingTabs,
-  INIT_SESSIONS,
-  INIT_BATCHES,
-  INIT_ATTENDANCE,
-  INIT_RESOURCES,
-  INIT_ASSESSMENTS,
-  INIT_CERTS,
-  INIT_FEEDBACK,
-  INIT_TRAINEES,
-  INIT_NOTIFS,
-} from './training/trainingSeedData'
+import { getTrainingTabs } from './training/trainingSeedData'
 import { C, Toast } from './training/ui'
 import {
   ModalSession,
@@ -78,17 +67,15 @@ export default function TrainingTab() {
   // For display purposes: trainers see trainer view, trainees see self-only view
   const isTrainee = isExternal
   const isTrainer = isUser && !isMgmt
-  const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
-
-  const [sessions,    setSessions]    = useState(USE_SEED_DATA ? INIT_SESSIONS : [])
-  const [batches,     setBatches]     = useState(USE_SEED_DATA ? INIT_BATCHES : [])
-  const [attendance,  setAttendance]  = useState(USE_SEED_DATA ? INIT_ATTENDANCE : [])
-  const [resources,   setResources]   = useState(USE_SEED_DATA ? INIT_RESOURCES : [])
-  const [assessments, setAssessments] = useState(USE_SEED_DATA ? INIT_ASSESSMENTS : [])
-  const [certs,       setCerts]       = useState(USE_SEED_DATA ? INIT_CERTS : [])
-  const [feedback,    setFeedback]    = useState(USE_SEED_DATA ? INIT_FEEDBACK : [])
-  const [trainees,    setTrainees]    = useState(USE_SEED_DATA ? INIT_TRAINEES : [])
-  const [notifs,      setNotifs]      = useState(USE_SEED_DATA ? INIT_NOTIFS : [])
+  const [sessions,    setSessions]    = useState([])
+  const [batches,     setBatches]     = useState([])
+  const [attendance,  setAttendance]  = useState([])
+  const [resources,   setResources]   = useState([])
+  const [assessments, setAssessments] = useState([])
+  const [certs,       setCerts]       = useState([])
+  const [feedback,    setFeedback]    = useState([])
+  const [trainees,    setTrainees]    = useState([])
+  const [notifs,      setNotifs]      = useState([])
 
   const [modal,     setModal]     = useState({ type:null, data:null })
   const [sessDet,   setSessDet]   = useState(null)

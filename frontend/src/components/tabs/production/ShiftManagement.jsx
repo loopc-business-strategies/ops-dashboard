@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import {
-  USE_SEED_DATA, SectionHeader, linesForUi, SHIFTS, DAYS, DEFAULT_SHIFT_GRID,
+  SectionHeader, linesForUi, SHIFTS, DAYS,
 } from './shared'
 
 // ── Shift Management ──────────────────────────────
 function ShiftManagement({ canEdit, showToast }) {
-  const [grid, setGrid] = useState(USE_SEED_DATA ? DEFAULT_SHIFT_GRID : {})
+  const [grid, setGrid] = useState({})
 
   const shiftColor = s => s === 0 ? 'bg-blue-500/20 text-blue-400' : s === 1 ? 'bg-green-500/20 text-green-400' : s === 2 ? 'bg-violet-500/20 text-violet-400' : 'bg-gray-800/50 text-gray-600'
   const shiftLabel = s => s === null ? 'Off' : SHIFTS[s].split(' ')[0]
@@ -52,6 +52,13 @@ function ShiftManagement({ canEdit, showToast }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
+            {linesForUi.length === 0 ? (
+              <tr>
+                <td colSpan={DAYS.length + 1} className="py-8 text-center text-sm text-gray-500">
+                  No production lines available for shift planning.
+                </td>
+              </tr>
+            ) : null}
             {linesForUi.map(line => (
               <tr key={line.id}>
                 <td className="py-3 pr-4">
