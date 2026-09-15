@@ -8,8 +8,9 @@ export function buildAccountEnquiryCacheKey(tenant, accountCode, window = {}) {
   const code = String(accountCode || '').trim().toUpperCase()
   const startDate = normalizeWindowPart(window.startDate)
   const endDate = normalizeWindowPart(window.endDate)
-  const statementLimit = Number(window.statementLimit) || 500
-  return `erp-account-enquiry:${String(tenant || 'default').toLowerCase()}:${code}:${startDate}:${endDate}:${statementLimit}`
+  const statementLimit = Number(window.statementLimit) || 40
+  const phase = normalizeWindowPart(window.phase) || 'full'
+  return `erp-account-enquiry:${String(tenant || 'default').toLowerCase()}:${code}:${startDate}:${endDate}:${statementLimit}:${phase}`
 }
 
 function cacheKey(tenant, accountCode, window) {

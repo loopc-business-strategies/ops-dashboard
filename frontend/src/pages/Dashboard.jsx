@@ -274,7 +274,7 @@ function renderTab(
   erpSubTab,
   chatTabProps = {},
   erpTabProps = {},
-  { departmentsComingSoon = false } = {},
+  { departmentsComingSoon = false, overviewIsActive = true } = {},
 ) {
   if (departmentsComingSoon && (tabId === 'departments' || DEPARTMENT_MODULE_TAB_IDS.has(tabId))) {
     return <DepartmentsComingSoonTab />
@@ -282,7 +282,7 @@ function renderTab(
 
   switch (tabId) {
     case 'overview':
-      return <OverviewTab onNavigate={navigateToTab} buildTabHref={buildTabHref} />
+      return <OverviewTab onNavigate={navigateToTab} buildTabHref={buildTabHref} isActive={overviewIsActive} />
 
     case 'chat':
       return (
@@ -549,8 +549,11 @@ function Dashboard() {
   const navItems = getNavItems(perms, t, chatUnread, branding)
   const departmentsComingSoon = Boolean(branding?.featureFlags?.departmentsComingSoon)
   const tabRenderOptions = useMemo(
-    () => ({ departmentsComingSoon }),
-    [departmentsComingSoon],
+    () => ({
+      departmentsComingSoon,
+      overviewIsActive: activeTab === 'overview',
+    }),
+    [departmentsComingSoon, activeTab],
   )
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])

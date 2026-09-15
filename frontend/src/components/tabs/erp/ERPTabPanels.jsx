@@ -4,8 +4,8 @@ import {
   ERPAccountsTabContainer,
   ERPVouchersTabContainer,
 } from './ERPTabContainers'
-import ERPDashboardTab from './tabs/ERPDashboardTab'
-import ErpEditRecordModal from './ErpEditRecordModal'
+const ERPDashboardTab = lazy(() => import('./tabs/ERPDashboardTab'))
+const ErpEditRecordModal = lazy(() => import('./ErpEditRecordModal'))
 
 const ChartOfAccountsTree = lazy(() => import('../ChartOfAccountsTree'))
 const DirectDealsTab = lazy(() => import('../DirectDealsTab'))
@@ -410,6 +410,7 @@ export default function ERPTabPanels({
   return (
     <>
       {activeTab === 'dashboard' && (
+      <Suspense fallback={<ErpSubTabFallback />}>
       <ERPDashboardTab
         activeTab={activeTab}
         C={C}
@@ -439,6 +440,7 @@ export default function ERPTabPanels({
         setLedgerFilters={setLedgerFilters}
         baseCurrencyCode={baseCurrencyCode}
       />
+      </Suspense>
       )}
       {/* CHART OF ACCOUNTS TAB */}
       {activeTab === 'accounts' && (
@@ -953,17 +955,19 @@ export default function ERPTabPanels({
           />
         </Suspense>
       )}
-      <ErpEditRecordModal
-        editState={editState}
-        setEditState={setEditState}
-        accounts={accounts}
-        ledgerDepartments={LEDGER_DEPARTMENTS}
-        erpBaseCurrencyCode={erpBaseCurrencyCode}
-        saving={saving}
-        onClose={closeEditModal}
-        onSubmit={handleSaveEdit}
-        colors={C}
-      />
+      <Suspense fallback={null}>
+        <ErpEditRecordModal
+          editState={editState}
+          setEditState={setEditState}
+          accounts={accounts}
+          ledgerDepartments={LEDGER_DEPARTMENTS}
+          erpBaseCurrencyCode={erpBaseCurrencyCode}
+          saving={saving}
+          onClose={closeEditModal}
+          onSubmit={handleSaveEdit}
+          colors={C}
+        />
+      </Suspense>
       {/* VOUCHERS TAB */}
       {(activeTab === 'vouchers' || jumpToVoucher) && (
       <ERPVouchersTabContainer activeTab={activeTab}>

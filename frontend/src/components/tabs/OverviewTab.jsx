@@ -265,7 +265,7 @@ function Section({ title, action, children }) {
   )
 }
 
-function OverviewTab({ onNavigate, buildTabHref }) {
+function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
   const { user, token } = useAuth()
   const perms = usePermissions()
   const { t } = useLanguage()
@@ -463,12 +463,12 @@ function OverviewTab({ onNavigate, buildTabHref }) {
   }, [loadTasks])
 
   useEffect(() => {
-    if (!token) return
+    if (!token || !isActive) return
     const id = window.setInterval(() => {
       loadTasks()
     }, 120000)
     return () => window.clearInterval(id)
-  }, [token, loadTasks])
+  }, [token, loadTasks, isActive])
 
   useEffect(() => {
     if (!token) return
@@ -551,14 +551,14 @@ function OverviewTab({ onNavigate, buildTabHref }) {
   }
 
   useEffect(() => {
-    if (!token) return
+    if (!token || !isActive) return
     loadAttendanceAndMessages()
     const id = window.setInterval(() => {
       loadAttendanceAndMessages()
     }, 120000)
     return () => window.clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [token, isActive])
 
   useEffect(() => {
     if (!token) return undefined

@@ -15,8 +15,29 @@ const {
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { enquiryCache, summaryAccountsCache } = require('../../utils/erpReadCaches')
+const { createServerTiming } = require('../../utils/serverTiming')
 const { _getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
 const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
+
+function hydrateLedgerAccountRefs(entries = [], accountById = new Map()) {
+  return entries.map((entry) => {
+    const debitRaw = entry?.debitAccountId
+    const creditRaw = entry?.creditAccountId
+    const debitId = String(debitRaw?._id || debitRaw || '')
+    const creditId = String(creditRaw?._id || creditRaw || '')
+    const debitAcc = debitId ? accountById.get(debitId) : null
+    const creditAcc = creditId ? accountById.get(creditId) : null
+    return {
+      ...entry,
+      debitAccountId: debitAcc
+        ? { _id: debitAcc._id, accountCode: debitAcc.accountCode, accountName: debitAcc.accountName }
+        : debitRaw,
+      creditAccountId: creditAcc
+        ? { _id: creditAcc._id, accountCode: creditAcc.accountCode, accountName: creditAcc.accountName }
+        : creditRaw,
+    }
+  })
+}
 
 function parseEnquiryStartDate(value) {
   const raw = String(value || '').trim()
@@ -78,23 +99,37 @@ router.get('/accounts', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
     const summaryMaxLimit = 500
-    const { page, limit, skip } = parsePagination(req.query, 50, isSummaryScope ? summaryMaxLimit : 5000)
+    const searchMaxLimit = 50
+    const searchQ = String(req.query.q || req.query.search || '').trim()
+    const defaultLimit = searchQ ? 30 : 50
+    const maxLimit = searchQ ? searchMaxLimit : (isSummaryScope ? summaryMaxLimit : 5000)
+    const { page, limit, skip } = parsePagination(req.query, defaultLimit, maxLimit)
     const query = { isActive: true }
+    if (searchQ) {
+      const escaped = searchQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const rx = new RegExp(escaped, 'i')
+      query.$or = [
+        { accountCode: rx },
+        { accountName: rx },
+      ]
+    }
     let summaryCacheKey = null
     if (isSummaryScope) {
       const scopedIds = await getAccountSummaryScope(req.user)
       if (Array.isArray(scopedIds)) {
         query._id = { $in: scopedIds }
       }
-      summaryCacheKey = summaryAccountsCache.buildKey([
-        req.user?.tenant || req.user?.company || 'default',
-        req.user?._id || req.user?.id || 'user',
-        'summary-accounts',
-        page,
-        limit,
-      ])
-      const cached = summaryAccountsCache.get(summaryCacheKey)
-      if (cached) return res.json(cached)
+      if (!searchQ) {
+        summaryCacheKey = summaryAccountsCache.buildKey([
+          req.user?.tenant || req.user?.company || 'default',
+          req.user?._id || req.user?.id || 'user',
+          'summary-accounts',
+          page,
+          limit,
+        ])
+        const cached = await summaryAccountsCache.getShared(summaryCacheKey)
+        if (cached) return res.json(cached)
+      }
     }
     const accountQuery = ChartOfAccount.find(query)
       .select('accountCode accountName accountType openingBalance currency isActive')
@@ -110,8 +145,8 @@ router.get('/accounts', protect, async (req, res) => {
       ChartOfAccount.countDocuments(query),
     ])
     const payload = { success: true, accounts, total, page, limit }
-    if (isSummaryScope && summaryCacheKey) {
-      summaryAccountsCache.set(summaryCacheKey, payload)
+    if (summaryCacheKey) {
+      await summaryAccountsCache.setShared(summaryCacheKey, payload)
     }
     res.json(payload)
   } catch (err) {
@@ -123,27 +158,55 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
   try {
     if (!canViewAccountSummary(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
+    const timing = createServerTiming()
+    timing.start('db')
+
     const accountCode = String(req.query.accountCode || '').trim()
     if (!accountCode) {
       return res.status(400).json({ success: false, message: 'Account number is required' })
     }
-    const rawStatementLimit = Number(req.query.statementLimit || 150)
-    const statementLimit = Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 150, 1), 500)
+    const includeStatement = String(req.query.includeStatement ?? '1').trim() !== '0'
+    const includeCount = String(req.query.includeCount || '').trim() === '1'
+    const defaultPageLimit = includeStatement ? 40 : 0
+    const rawStatementLimit = Number(req.query.statementLimit ?? defaultPageLimit)
+    const statementLimit = includeStatement
+      ? Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 40, 1), 500)
+      : 0
     const statementStartDate = parseEnquiryStartDate(req.query.startDate)
     const statementEndDate = parseEnquiryEndDate(req.query.endDate)
+    const beforeDateRaw = String(req.query.beforeDate || '').trim()
+    const beforeDate = beforeDateRaw ? parseEnquiryStartDate(beforeDateRaw) : null
+    const beforeId = String(req.query.beforeId || '').trim()
+    const runningBalanceSeedRaw = req.query.runningBalanceSeed
+    const runningBalanceSeed = runningBalanceSeedRaw === undefined || runningBalanceSeedRaw === ''
+      ? null
+      : Number(runningBalanceSeedRaw)
 
     const cacheKey = enquiryCache.buildKey([
       req.user?.tenant || req.user?.company || 'default',
       req.user?._id || req.user?.id || 'user',
       'account-enquiry',
       accountCode,
+      includeStatement ? 'stmt' : 'summary',
       statementLimit,
+      includeCount ? 'count' : 'nocount',
+      beforeDate ? beforeDate.toISOString() : '',
+      beforeId,
+      Number.isFinite(runningBalanceSeed) ? String(runningBalanceSeed) : '',
       statementStartDate ? statementStartDate.toISOString() : '',
       statementEndDate ? statementEndDate.toISOString() : '',
     ])
     const skipEnquiryCache = String(req.query.refresh || req.query.nocache || '').trim() === '1'
-    const cached = skipEnquiryCache ? null : enquiryCache.get(cacheKey)
-    if (cached) return res.json(cached)
+    const cached = skipEnquiryCache ? null : await enquiryCache.getShared(cacheKey)
+    if (cached) {
+      timing.end('db')
+      timing.apply(res)
+      try {
+        res.setHeader('X-Enquiry-Cache', 'HIT')
+        res.setHeader('X-Enquiry-Row-Count', String(cached?.statement?.entries?.length || 0))
+      } catch { /* ignore */ }
+      return res.json(cached)
+    }
 
     const scopedIds = await getAccountSummaryScope(req.user)
     const accountQuery = { accountCode }
@@ -290,23 +353,59 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       if (statementStartDate) ledgerStatementMatch.date.$gte = statementStartDate
       if (statementEndDate) ledgerStatementMatch.date.$lte = statementEndDate
     }
+    if (includeStatement && beforeDate && beforeId && mongoose.Types.ObjectId.isValid(beforeId)) {
+      const beforeOid = new mongoose.Types.ObjectId(beforeId)
+      ledgerStatementMatch.$and = [
+        ...(ledgerStatementMatch.$and || []),
+        {
+          $or: [
+            { date: { $lt: beforeDate } },
+            { date: beforeDate, _id: { $lt: beforeOid } },
+          ],
+        },
+      ]
+    }
 
-    const matchingLedgerCount = await Ledger.countDocuments(ledgerStatementMatch)
-    const ledgerEntries = await Ledger.find(ledgerStatementMatch)
-      .select('date referenceType referenceId description amount exchangeRate currency debitAccountId creditAccountId createdAt notes department')
-      .populate('debitAccountId', 'accountCode accountName')
-      .populate('creditAccountId', 'accountCode accountName')
-      .sort({ date: -1, createdAt: -1 })
-      .limit(statementLimit)
-      .lean()
+    let matchingLedgerCount = null
+    let ledgerEntries = []
+    if (includeStatement) {
+      const countPromise = includeCount
+        ? Ledger.countDocuments(ledgerStatementMatch)
+        : Promise.resolve(null)
+      const [countResult, rawLedgerEntries] = await Promise.all([
+        countPromise,
+        Ledger.find(ledgerStatementMatch)
+          .select('date referenceType referenceId description amount exchangeRate currency debitAccountId creditAccountId createdAt notes department')
+          .sort({ date: -1, createdAt: -1, _id: -1 })
+          .limit(statementLimit)
+          .lean(),
+      ])
+      matchingLedgerCount = countResult
+      const coaIds = Array.from(new Set(rawLedgerEntries.flatMap((entry) => ([
+        String(entry?.debitAccountId || ''),
+        String(entry?.creditAccountId || ''),
+      ]).filter(Boolean))))
+      const coaRows = coaIds.length
+        ? await ChartOfAccount.find({ _id: { $in: coaIds } }).select('accountCode accountName').lean()
+        : []
+      const accountById = new Map(coaRows.map((row) => [String(row._id), row]))
+      ledgerEntries = hydrateLedgerAccountRefs(rawLedgerEntries, accountById)
+    }
 
-    const transferMetalTxsForStatement = transferMetalTxs.filter((tx) => {
-      const entryDate = statementEntryDate(tx.voucherMeta?.valueDate || tx.date)
-      if (!entryDate) return !(statementStartDate || statementEndDate)
-      if (statementStartDate && entryDate < statementStartDate) return false
-      if (statementEndDate && entryDate > statementEndDate) return false
-      return true
-    })
+    const transferMetalTxsForStatement = includeStatement
+      ? transferMetalTxs.filter((tx) => {
+        const entryDate = statementEntryDate(tx.voucherMeta?.valueDate || tx.date)
+        if (!entryDate) return !(statementStartDate || statementEndDate)
+        if (statementStartDate && entryDate < statementStartDate) return false
+        if (statementEndDate && entryDate > statementEndDate) return false
+        if (beforeDate && beforeId) {
+          const txId = String(tx._id || '')
+          if (entryDate > beforeDate) return false
+          if (entryDate.getTime() === beforeDate.getTime() && txId >= beforeId) return false
+        }
+        return true
+      })
+      : []
 
     const ledgerIds = ledgerEntries.map((entry) => entry._id)
     const referenceIds = ledgerEntries.map((entry) => entry.referenceId).filter(Boolean)
@@ -867,12 +966,22 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       return String(right._id).localeCompare(String(left._id))
     })
 
-    const matchingStatementCount = matchingLedgerCount + transferMetalTxsForStatement.length
-    const truncated = matchingStatementCount > statementLimit
-    const limitedStatementRows = combinedStatementRows.slice(0, statementLimit)
+    const matchingStatementCount = includeCount && matchingLedgerCount != null
+      ? matchingLedgerCount + transferMetalTxsForStatement.length
+      : null
+    const truncated = includeStatement
+      ? (matchingStatementCount != null
+        ? matchingStatementCount > statementLimit
+        : combinedStatementRows.length >= statementLimit)
+      : false
+    const limitedStatementRows = includeStatement
+      ? combinedStatementRows.slice(0, statementLimit)
+      : []
 
     let runningBalance = netBalance
-    if (statementEndDate) {
+    if (includeStatement && Number.isFinite(runningBalanceSeed)) {
+      runningBalance = runningBalanceSeed
+    } else if (includeStatement && statementEndDate) {
       const asOfMatch = {
         ...ledgerExclusionMatch,
         date: { ...(ledgerExclusionMatch.date || {}), $lte: statementEndDate },
@@ -900,6 +1009,15 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       runningBalance -= signedAmount
       return nextRow
     })
+    const oldestEntry = statementEntries.length ? statementEntries[statementEntries.length - 1] : null
+    const nextCursor = oldestEntry
+      ? {
+          beforeDate: oldestEntry.date || null,
+          beforeId: String(oldestEntry._id || ''),
+          runningBalanceSeed: Number(oldestEntry.runningBalance || 0) - Number(oldestEntry.signedAmount || 0),
+        }
+      : null
+    const hasMore = Boolean(includeStatement && truncated)
 
     const bookedUnfixedRevaluation = suppressMetalSpotMtm
       ? computeBookedUnfixedRevaluationFromStatementRows(limitedStatementRows)
@@ -977,8 +1095,12 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         meta: {
           returned: statementEntries.length,
           limit: statementLimit,
-          truncated,
+          truncated: hasMore,
+          hasMore,
           matchingCount: matchingStatementCount,
+          countStatus: includeCount ? 'ready' : (includeStatement ? 'pending' : 'skipped'),
+          includeStatement,
+          nextCursor,
           oldestDate: statementEntries.length
             ? statementEntries[statementEntries.length - 1]?.date || null
             : null,
@@ -988,7 +1110,15 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       },
       positions,
     }
-    if (!skipEnquiryCache) enquiryCache.set(cacheKey, enquiryPayload)
+    timing.end('db')
+    timing.start('transform')
+    timing.end('transform')
+    if (!skipEnquiryCache) await enquiryCache.setShared(cacheKey, enquiryPayload)
+    timing.apply(res)
+    try {
+      res.setHeader('X-Enquiry-Cache', 'MISS')
+      res.setHeader('X-Enquiry-Row-Count', String(statementEntries.length))
+    } catch { /* ignore */ }
     res.json(enquiryPayload)
   } catch (e) {
     console.error('Account enquiry error:', e)

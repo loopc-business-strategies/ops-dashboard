@@ -19,6 +19,7 @@ export function buildErpTabModalProps(scope) {
     setEnquiryStatus: scope.setEnquiryStatus,
     fetchAccountEnquiryByCode: scope.fetchAccountEnquiryByCode,
     refetchEnquiryForDateRange: scope.refetchEnquiryForDateRange,
+    loadMoreStatementEntries: scope.loadMoreStatementEntries,
     enquiryStatus: scope.enquiryStatus,
     accountEnquiryData: scope.accountEnquiryData,
     modalPositionRows: scope.modalPositionRows,

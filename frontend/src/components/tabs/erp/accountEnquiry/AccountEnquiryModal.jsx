@@ -26,6 +26,7 @@ export default function AccountEnquiryModal({
   setEnquiryStatus,
   fetchAccountEnquiryByCode,
   refetchEnquiryForDateRange,
+  loadMoreStatementEntries,
   enquiryStatus,
   accountEnquiryData,
   modalPositionRows,
@@ -84,8 +85,9 @@ export default function AccountEnquiryModal({
     : accountEnquiryData?.balances?.netDirection
   const dateRangeInFlightKeyRef = useRef('')
   const statementMeta = accountEnquiryData?.statement?.meta || null
-  const statementTruncated = Boolean(statementMeta?.truncated)
+  const statementTruncated = Boolean(statementMeta?.truncated || statementMeta?.hasMore)
   const statementLimit = Number(statementMeta?.limit || 0)
+  const statementHasMore = Boolean(statementMeta?.hasMore || statementMeta?.truncated)
   const statementColCount = showStatementAuditIds ? 13 : 12
   const {
     scrollRef: statementVirtScrollRef,
@@ -481,8 +483,28 @@ export default function AccountEnquiryModal({
                         <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#6B7280' }}>{filteredStatementEntries.length} entries shown</p>
                         {statementTruncated && (
                           <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: '#B45309', fontWeight: '600' }}>
-                            Showing newest {statementLimit || filteredStatementEntries.length} lines. Set Date From to load older months (e.g. February).
+                            Showing newest {filteredStatementEntries.length} loaded lines
+                            {statementLimit ? ` (page size ${statementLimit})` : ''}. Load more for older history, or set Date From.
                           </p>
+                        )}
+                        {statementHasMore && typeof loadMoreStatementEntries === 'function' && (
+                          <button
+                            type="button"
+                            onClick={() => { loadMoreStatementEntries() }}
+                            style={{
+                              marginTop: '0.45rem',
+                              padding: '0.35rem 0.7rem',
+                              borderRadius: '0.4rem',
+                              border: '1px solid #CBD5E0',
+                              background: '#FFFFFF',
+                              color: '#1F2937',
+                              fontWeight: 700,
+                              fontSize: '0.8rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Load more statement rows
+                          </button>
                         )}
                       </div>
                       {recentPaymentReceiptEntry && (

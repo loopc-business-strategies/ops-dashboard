@@ -23,6 +23,7 @@ export default function ERPTabModals({
   setEnquiryStatus,
   fetchAccountEnquiryByCode,
   refetchEnquiryForDateRange,
+  loadMoreStatementEntries,
   enquiryStatus,
   accountEnquiryData,
   modalPositionRows,
@@ -107,6 +108,7 @@ export default function ERPTabModals({
         setEnquiryStatus={setEnquiryStatus}
         fetchAccountEnquiryByCode={fetchAccountEnquiryByCode}
         refetchEnquiryForDateRange={refetchEnquiryForDateRange}
+        loadMoreStatementEntries={loadMoreStatementEntries}
         enquiryStatus={enquiryStatus}
         accountEnquiryData={accountEnquiryData}
         modalPositionRows={modalPositionRows}

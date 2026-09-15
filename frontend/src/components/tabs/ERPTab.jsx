@@ -1,6 +1,8 @@
+import { lazy, Suspense } from 'react'
 import ERPTabPanels from './erp/ERPTabPanels'
-import ERPTabModals from './erp/ERPTabModals'
 import { useErpTabController } from './erp/useErpTabController'
+
+const ERPTabModals = lazy(() => import('./erp/ERPTabModals'))
 
 function ERPTab(props) {
   const {
@@ -41,7 +43,9 @@ function ERPTab(props) {
       {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>}
       {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{success}</div>}
       <ERPTabPanels {...panelProps} />
-      <ERPTabModals {...modalProps} />
+      <Suspense fallback={null}>
+        <ERPTabModals {...modalProps} />
+      </Suspense>
     </div>
   )
 }

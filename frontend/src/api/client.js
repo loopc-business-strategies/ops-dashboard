@@ -73,9 +73,10 @@ const apiUrl = (path) => {
   return `${API_ORIGIN}${normalizedPath}`
 }
 
-const withAuth = (params = null) => {
+const withAuth = (params = null, options = {}) => {
   const config = { withCredentials: true }
   if (params) config.params = params
+  if (options?.signal) config.signal = options.signal
   return config
 }
 

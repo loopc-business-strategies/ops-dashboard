@@ -4,9 +4,20 @@ import messagesAPI from '../../../api/messages'
 import { formatDateInputLocal } from './erpTabPresentation'
 
 const reportSoftCache = new Map()
+const REPORT_SOFT_TTL_MS = 90 * 1000
 
 function reportCacheKey(tenant, from, to) {
   return `${tenant || '_'}|${from}|${to}`
+}
+
+function readReportSoftCache(key) {
+  const row = reportSoftCache.get(key)
+  if (!row) return null
+  if (Date.now() - Number(row.savedAt || 0) > REPORT_SOFT_TTL_MS) {
+    reportSoftCache.delete(key)
+    return null
+  }
+  return row.data
 }
 
 /**
@@ -36,7 +47,7 @@ export function useErpDashWidgetData({
     if (!canLoadDashboard || !token) return
     const seq = ++reportSeqRef.current
     const key = reportCacheKey(tenantKey, dashDateFrom, dashDateTo)
-    const soft = reportSoftCache.get(key)
+    const soft = readReportSoftCache(key)
     if (soft) {
       setDashboard(soft)
       setDashboardLoading(false)
@@ -49,7 +60,7 @@ export function useErpDashWidgetData({
         endDate: dashDateTo,
       })
       if (seq !== reportSeqRef.current) return
-      reportSoftCache.set(key, data)
+      reportSoftCache.set(key, { data, savedAt: Date.now() })
       setDashboard(data)
       setError('')
     } catch (e) {

@@ -1,10 +1,19 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { enquiryDeepLinkKey } from '../../../utils/dashboardNavigation'
 import { readAccountEnquiryCache, writeAccountEnquiryCache } from '../../../utils/erpAccountEnquiryCache'
+import { markEnquiry, measureEnquiry } from '../../../utils/enquiryPerf'
 import { ENQUIRY_HISTORY_STORAGE_KEY } from '../erpTabConstants'
 
-export const ACCOUNT_ENQUIRY_STATEMENT_LIMIT = 500
+/** Initial statement page size — full history remains available via load-more / date filters. */
+export const ACCOUNT_ENQUIRY_STATEMENT_LIMIT = 40
+
+function isAbortError(error) {
+  return error?.name === 'CanceledError'
+    || error?.name === 'AbortError'
+    || error?.code === 'ERR_CANCELED'
+    || Boolean(error?.__ABORT__)
+}
 
 export function useErpAccountEnquiryController({
   user,
@@ -29,6 +38,10 @@ export function useErpAccountEnquiryController({
   lastEnquiryDeepLinkKeyRef,
   setActiveTabGuarded,
 }) {
+  const enquiryAbortRef = useRef(null)
+  const enquirySeqRef = useRef(0)
+  const statementLoadingRef = useRef(false)
+
   const formatSummaryAccountLabel = useCallback((account) => {
     const code = String(account?.accountCode || '').trim()
     const name = String(account?.accountName || '').trim()
@@ -80,6 +93,16 @@ export function useErpAccountEnquiryController({
     persistEnquiryHistory([nextItem, ...deduped].slice(0, 10))
   }, [enquiryHistory, persistEnquiryHistory])
 
+  const beginEnquiryRequest = useCallback(() => {
+    if (enquiryAbortRef.current) {
+      try { enquiryAbortRef.current.abort() } catch { /* ignore */ }
+    }
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+    enquiryAbortRef.current = controller
+    const seq = ++enquirySeqRef.current
+    return { controller, seq, signal: controller?.signal }
+  }, [])
+
   const fetchAccountEnquiryByCode = useCallback(async (accountCode, options = {}) => {
     const cleanCode = resolveAccountEnquiryCodeInput(accountCode)
     const shouldOpenModal = Boolean(options.openModal)
@@ -88,7 +111,7 @@ export function useErpAccountEnquiryController({
     const startDate = String(options.startDate || '').trim()
     const endDate = String(options.endDate || '').trim()
     const statementLimit = Number(options.statementLimit) || ACCOUNT_ENQUIRY_STATEMENT_LIMIT
-    const cacheWindow = { startDate, endDate, statementLimit }
+    const cacheWindow = { startDate, endDate, statementLimit, phase: 'summary' }
     if (!cleanCode) {
       setError('Please enter account number')
       setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
@@ -112,21 +135,55 @@ export function useErpAccountEnquiryController({
       if (shouldOpenModal) setShowEnquiryModal(true)
       if (options.openStatementPreview) setPendingStatementPreview(true)
       setEnquiryStatus({ type: 'success', message: `Account ${cached.account?.accountCode || cleanCode} summary loaded from cache` })
-      return
+      // Background refresh summary+statement
     }
+    const { seq, signal } = beginEnquiryRequest()
     try {
       if (shouldOpenModal) setShowEnquiryModal(true)
-      setEnquiryLoading(true)
+      if (!cached) setEnquiryLoading(true)
       setShowEnquiryLookupMenu(false)
-      setEnquiryStatus({ type: '', message: '' })
-      const enquiryParams = { statementLimit }
-      if (startDate) enquiryParams.startDate = startDate
-      if (endDate) enquiryParams.endDate = endDate
-      if (forceRefresh) enquiryParams.refresh = '1'
-      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, enquiryParams)
+      if (!cached) setEnquiryStatus({ type: '', message: '' })
+      markEnquiry('open')
+      const summaryParams = {
+        statementLimit: 0,
+        includeStatement: '0',
+      }
+      if (startDate) summaryParams.startDate = startDate
+      if (endDate) summaryParams.endDate = endDate
+      if (forceRefresh) summaryParams.refresh = '1'
+      const summaryData = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, summaryParams, { signal })
+      if (seq !== enquirySeqRef.current) return
+      markEnquiry('summary')
+      measureEnquiry('summary-paint', 'open', 'summary')
       setAccountEnquiryCode(cleanCode)
-      setAccountEnquiryData(data)
-      writeAccountEnquiryCache(tenantKey, cleanCode, data, cacheWindow)
+      setAccountEnquiryData(summaryData)
+      writeAccountEnquiryCache(tenantKey, cleanCode, summaryData, cacheWindow)
+      setEnquiryLoading(false)
+      setEnquiryStatus({ type: 'success', message: `Account ${summaryData.account.accountCode} summary loaded successfully` })
+
+      const statementParams = {
+        statementLimit,
+        includeStatement: '1',
+        includeCount: '0',
+      }
+      if (startDate) statementParams.startDate = startDate
+      if (endDate) statementParams.endDate = endDate
+      if (forceRefresh) statementParams.refresh = '1'
+      const statementData = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, statementParams, { signal })
+      if (seq !== enquirySeqRef.current) return
+      markEnquiry('statement')
+      measureEnquiry('statement-paint', 'summary', 'statement')
+      const merged = {
+        ...summaryData,
+        ...statementData,
+        account: statementData.account || summaryData.account,
+        balances: statementData.balances || summaryData.balances,
+        metals: statementData.metals || summaryData.metals,
+        positions: statementData.positions || summaryData.positions,
+        statement: statementData.statement,
+      }
+      setAccountEnquiryData(merged)
+      writeAccountEnquiryCache(tenantKey, cleanCode, merged, { ...cacheWindow, phase: 'full' })
       if (!preserveFilters) {
         setStatementFilters({
           startDate: '',
@@ -140,17 +197,17 @@ export function useErpAccountEnquiryController({
         })
         setStatementMetalCommodityEnabled(false)
       }
-      pushEnquiryHistory(data.account)
+      pushEnquiryHistory(merged.account)
       setError('')
-      setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
       lastEnquiryDeepLinkKeyRef.current = deepLinkKey
       syncEnquiryUrl({
-        account: data.account.accountCode,
+        account: merged.account.accountCode,
         view: options.openStatementPreview ? 'statement' : null,
       })
       if (options.openStatementPreview) setPendingStatementPreview(true)
-      if (!preserveFilters) showNotification('✅ Account summary loaded')
+      if (!preserveFilters && !cached) showNotification('✅ Account summary loaded')
     } catch (e) {
+      if (isAbortError(e) || seq !== enquirySeqRef.current) return
       if (lastEnquiryDeepLinkKeyRef.current === deepLinkKey) {
         lastEnquiryDeepLinkKeyRef.current = ''
       }
@@ -159,9 +216,10 @@ export function useErpAccountEnquiryController({
       setError(msg)
       setEnquiryStatus({ type: 'error', message: msg })
     } finally {
-      setEnquiryLoading(false)
+      if (seq === enquirySeqRef.current) setEnquiryLoading(false)
     }
   }, [
+    beginEnquiryRequest,
     lastEnquiryDeepLinkKeyRef,
     pushEnquiryHistory,
     resolveAccountEnquiryCodeInput,
@@ -180,6 +238,65 @@ export function useErpAccountEnquiryController({
     token,
     user?.company,
     user?.tenant,
+  ])
+
+  const loadMoreStatementEntries = useCallback(async () => {
+    const cleanCode = String(accountEnquiryData?.account?.accountCode || accountEnquiryCode || '').trim()
+    const meta = accountEnquiryData?.statement?.meta || {}
+    const nextCursor = meta.nextCursor
+    if (!cleanCode || !nextCursor || statementLoadingRef.current) return
+    if (!meta.hasMore && !meta.truncated) return
+    statementLoadingRef.current = true
+    const { seq, signal } = beginEnquiryRequest()
+    try {
+      const params = {
+        statementLimit: ACCOUNT_ENQUIRY_STATEMENT_LIMIT,
+        includeStatement: '1',
+        includeCount: '0',
+        beforeDate: nextCursor.beforeDate,
+        beforeId: nextCursor.beforeId,
+        runningBalanceSeed: nextCursor.runningBalanceSeed,
+      }
+      const startDate = String(meta.startDate || '').trim()
+      const endDate = String(meta.endDate || '').trim()
+      if (startDate) params.startDate = startDate
+      if (endDate) params.endDate = endDate
+      const pageData = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, params, { signal })
+      if (seq !== enquirySeqRef.current) return
+      const newEntries = pageData?.statement?.entries || []
+      setAccountEnquiryData((prev) => {
+        if (!prev) return pageData
+        const prevEntries = prev?.statement?.entries || []
+        const seen = new Set(prevEntries.map((row) => String(row?._id || '')))
+        const appended = newEntries.filter((row) => !seen.has(String(row?._id || '')))
+        return {
+          ...prev,
+          statement: {
+            ...prev.statement,
+            ...pageData.statement,
+            entries: [...prevEntries, ...appended],
+            entryCount: prevEntries.length + appended.length,
+            meta: {
+              ...(pageData.statement?.meta || {}),
+              returned: prevEntries.length + appended.length,
+            },
+          },
+        }
+      })
+    } catch (e) {
+      if (isAbortError(e) || seq !== enquirySeqRef.current) return
+      const msg = e.response?.data?.message || 'Failed to load more statement rows'
+      setEnquiryStatus({ type: 'error', message: msg })
+    } finally {
+      statementLoadingRef.current = false
+    }
+  }, [
+    accountEnquiryCode,
+    accountEnquiryData,
+    beginEnquiryRequest,
+    setAccountEnquiryData,
+    setEnquiryStatus,
+    token,
   ])
 
   const refetchEnquiryForDateRange = useCallback(async (startDate, endDate) => {
@@ -214,6 +331,7 @@ export function useErpAccountEnquiryController({
     loadEnquiryHistory,
     fetchAccountEnquiryByCode,
     refetchEnquiryForDateRange,
+    loadMoreStatementEntries,
     handleOpenAccountSummaryFromTree,
     handleAccountEnquiry,
   }

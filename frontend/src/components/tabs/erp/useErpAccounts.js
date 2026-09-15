@@ -56,8 +56,8 @@ export function useErpAccounts({
         const data = await fetchCatalogCached(
           CATALOG_KINDS.accounts,
           token,
-          { ...params, page: 1, limit: 5000 },
-          () => erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 }),
+          { ...params, page: 1, limit: 500 },
+          () => erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 500 }),
         )
         if (seq !== loadSeqRef.current) return
         const rows = filterActiveAccounts(data.accounts || [])

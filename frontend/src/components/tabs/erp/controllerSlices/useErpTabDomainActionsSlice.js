@@ -486,6 +486,7 @@ export function useErpTabDomainActionsSlice(scope) {
     loadEnquiryHistory,
     fetchAccountEnquiryByCode,
     refetchEnquiryForDateRange,
+    loadMoreStatementEntries,
     handleOpenAccountSummaryFromTree,
     handleAccountEnquiry,
   } = useErpAccountEnquiryController({
@@ -560,6 +561,7 @@ export function useErpTabDomainActionsSlice(scope) {
     editingTransactionId,
     fetchAccountEnquiryByCode,
     refetchEnquiryForDateRange,
+    loadMoreStatementEntries,
     getTransactionValidationMessage: _getTransactionValidationMessage,
     handleAccountEnquiry,
     handleAddTransactionComment,

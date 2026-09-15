@@ -335,9 +335,11 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
     }
 
     const entries = await Ledger.find(query)
+      .select('date referenceType referenceId description amount exchangeRate currency debitAccountId creditAccountId createdAt notes department')
       .populate('debitAccountId', 'accountName accountCode')
       .populate('creditAccountId', 'accountName accountCode')
       .sort({ date: 1, createdAt: 1 })
+      .lean()
 
     const targetAccountId = String(accountId)
     let runningBalance = 0

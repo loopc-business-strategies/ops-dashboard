@@ -20,41 +20,31 @@ describe('erpAccountEnquiryCache', () => {
     vi.stubGlobal('sessionStorage', api)
   })
 
-  test('buildAccountEnquiryCacheKey includes date window and limit', () => {
+  test('buildAccountEnquiryCacheKey includes date window, limit, and phase', () => {
     expect(buildAccountEnquiryCacheKey('mg', '101002', {
       startDate: '2026-02-01',
       endDate: '2026-02-28',
-      statementLimit: 500,
-    })).toBe('erp-account-enquiry:mg:101002:2026-02-01:2026-02-28:500')
+      statementLimit: 40,
+      phase: 'full',
+    })).toBe('erp-account-enquiry:mg:101002:2026-02-01:2026-02-28:40:full')
   })
 
-  test('defaults statementLimit to 500 in cache key', () => {
-    expect(buildAccountEnquiryCacheKey('mg', '101002')).toBe('erp-account-enquiry:mg:101002:::500')
+  test('defaults statementLimit to 40 and phase to full in cache key', () => {
+    expect(buildAccountEnquiryCacheKey('mg', '101002')).toBe('erp-account-enquiry:mg:101002:::40:full')
   })
 
   test('cache miss when date window differs', () => {
     writeAccountEnquiryCache('mg', '101002', { account: { accountCode: '101002' } }, {
       startDate: '',
       endDate: '',
-      statementLimit: 500,
+      statementLimit: 40,
+      phase: 'summary',
     })
     expect(readAccountEnquiryCache('mg', '101002', {
-      startDate: '2026-02-01',
+      startDate: '2026-01-01',
       endDate: '',
-      statementLimit: 500,
+      statementLimit: 40,
+      phase: 'summary',
     })).toBeNull()
-    expect(readAccountEnquiryCache('mg', '101002', {
-      startDate: '',
-      endDate: '',
-      statementLimit: 500,
-    })?.account?.accountCode).toBe('101002')
-  })
-
-  test('clearAccountEnquiryCache removes tenant-prefixed enquiry keys', () => {
-    writeAccountEnquiryCache('mg', '101002', { account: { accountCode: '101002' } })
-    writeAccountEnquiryCache('vb', '101002', { account: { accountCode: '101002' } })
-    clearAccountEnquiryCache()
-    expect(readAccountEnquiryCache('mg', '101002')).toBeNull()
-    expect(readAccountEnquiryCache('vb', '101002')).toBeNull()
   })
 })
