@@ -13,8 +13,9 @@ import {
   getDemoLiveFloor,
   getDemoWorkOrdersSummary,
 } from './productionDemoData'
+import { DEMO_WRITE_MSG } from './demoConstants'
 
-export const DEMO_WRITE_MSG = 'Demo mode — no production records are modified'
+export { DEMO_WRITE_MSG }
 
 function demoWriteOk(extra = {}) {
   return Promise.resolve({ success: true, demo: true, message: DEMO_WRITE_MSG, ...extra })

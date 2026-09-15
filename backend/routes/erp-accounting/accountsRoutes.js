@@ -24,6 +24,12 @@ function accountsTenantKey(req) {
   return resolveRequestTenantKey(req)
 }
 
+/** Never share enquiry/summary cache under unresolved tenant key. */
+function canCacheAccountsRead(tenantKey) {
+  const key = String(tenantKey || '').trim()
+  return Boolean(key) && key !== 'default'
+}
+
 function hydrateLedgerAccountRefs(entries = [], accountById = new Map()) {
   return entries.map((entry) => {
     const debitRaw = entry?.debitAccountId
@@ -125,15 +131,18 @@ router.get('/accounts', protect, async (req, res) => {
         query._id = { $in: scopedIds }
       }
       if (!searchQ) {
-        summaryCacheKey = summaryAccountsCache.buildKey([
-          accountsTenantKey(req),
-          req.user?._id || req.user?.id || 'user',
-          'summary-accounts',
-          page,
-          limit,
-        ])
-        const cached = await summaryAccountsCache.getShared(summaryCacheKey)
-        if (cached) return res.json(cached)
+        const tenantKey = accountsTenantKey(req)
+        if (canCacheAccountsRead(tenantKey)) {
+          summaryCacheKey = summaryAccountsCache.buildKey([
+            tenantKey,
+            req.user?._id || req.user?.id || 'user',
+            'summary-accounts',
+            page,
+            limit,
+          ])
+          const cached = await summaryAccountsCache.getShared(summaryCacheKey)
+          if (cached) return res.json(cached)
+        }
       }
     }
     const accountQuery = ChartOfAccount.find(query)
@@ -187,22 +196,25 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       ? null
       : Number(runningBalanceSeedRaw)
 
-    const cacheKey = enquiryCache.buildKey([
-      accountsTenantKey(req),
-      req.user?._id || req.user?.id || 'user',
-      'account-enquiry',
-      accountCode,
-      includeStatement ? 'stmt' : 'summary',
-      statementLimit,
-      includeCount ? 'count' : 'nocount',
-      beforeDate ? beforeDate.toISOString() : '',
-      beforeId,
-      Number.isFinite(runningBalanceSeed) ? String(runningBalanceSeed) : '',
-      statementStartDate ? statementStartDate.toISOString() : '',
-      statementEndDate ? statementEndDate.toISOString() : '',
-    ])
+    const tenantKey = accountsTenantKey(req)
+    const cacheKey = canCacheAccountsRead(tenantKey)
+      ? enquiryCache.buildKey([
+        tenantKey,
+        req.user?._id || req.user?.id || 'user',
+        'account-enquiry',
+        accountCode,
+        includeStatement ? 'stmt' : 'summary',
+        statementLimit,
+        includeCount ? 'count' : 'nocount',
+        beforeDate ? beforeDate.toISOString() : '',
+        beforeId,
+        Number.isFinite(runningBalanceSeed) ? String(runningBalanceSeed) : '',
+        statementStartDate ? statementStartDate.toISOString() : '',
+        statementEndDate ? statementEndDate.toISOString() : '',
+      ])
+      : null
     const skipEnquiryCache = String(req.query.refresh || req.query.nocache || '').trim() === '1'
-    const cached = skipEnquiryCache ? null : await enquiryCache.getShared(cacheKey)
+    const cached = (!cacheKey || skipEnquiryCache) ? null : await enquiryCache.getShared(cacheKey)
     if (cached) {
       timing.end('db')
       timing.apply(res)
@@ -1118,7 +1130,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     timing.end('db')
     timing.start('transform')
     timing.end('transform')
-    if (!skipEnquiryCache) await enquiryCache.setShared(cacheKey, enquiryPayload)
+    if (cacheKey && !skipEnquiryCache) await enquiryCache.setShared(cacheKey, enquiryPayload)
     timing.apply(res)
     try {
       res.setHeader('X-Enquiry-Cache', 'MISS')

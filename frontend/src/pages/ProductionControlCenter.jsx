@@ -522,6 +522,7 @@ function ProductionControlCenterInner() {
 }
 
 export default function ProductionControlCenter() {
+  // DemoModeProvider stays light; demoApi/productionDemoData load only after Demo View.
   return (
     <DemoModeProvider>
       <ProductionControlCenterInner />

@@ -60,4 +60,11 @@ describe('ERP accounts cache tenant keys', () => {
     expect(withCompanyOnly).toMatch(/^default:/)
     expect(withCompanyOnly).not.toBe(withTenant)
   })
+
+  test('default tenant keys must not be used for shared account caches', () => {
+    const key = resolveRequestTenantKey({ user: { company: 'cg' } })
+    expect(key).toBe('default')
+    const canCache = Boolean(key) && key !== 'default'
+    expect(canCache).toBe(false)
+  })
 })
