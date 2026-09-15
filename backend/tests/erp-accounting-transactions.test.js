@@ -197,6 +197,36 @@ describe('ERP accounting transactions workflow', () => {
     }
   })
 
+  test('submit without postImmediately leaves submitted status, does not post ledger, and locks edits', async () => {
+    const financeUser = await createUser()
+    const tx = await createDraftTransaction(financeUser, { description: 'Submit-only voucher' })
+
+    const submitRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${tx._id}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Ready for review' })
+
+    expect(submitRes.status).toBe(200)
+    expect(submitRes.body.transaction.status).toBe('submitted')
+    expect(submitRes.body.ledgerEntry).toBeFalsy()
+    expect(submitRes.body.transaction.auditTrail.some((entry) => entry.action === 'submit')).toBe(true)
+
+    const ledgerCount = await Ledger.countDocuments({ referenceId: tx._id, isDeleted: { $ne: true } })
+    expect(ledgerCount).toBe(0)
+
+    const lockRes = await request(app)
+      .put(`/api/erp-accounting/transactions/${tx._id}`)
+      .set(authHeader(financeUser))
+      .send({ description: 'Should not update after submit' })
+
+    expect(lockRes.status).toBe(409)
+    expect(lockRes.body.code).toBe('VOUCHER_SUBMITTED_LOCKED')
+
+    const unchanged = await Transaction.findById(tx._id)
+    expect(unchanged.description).toBe('Submit-only voucher')
+    expect(unchanged.status).toBe('submitted')
+  })
+
   test('uploads attachments and tracks return/reject reasons in audit trail', async () => {
     const financeUser = await createUser({ name: 'Finance Lead' })
     const tx = await createDraftTransaction(financeUser, { description: 'Vendor settlement' })

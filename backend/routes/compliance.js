@@ -131,4 +131,76 @@ crudRoutes(router, '/docs',        ComplianceDoc,         docSchema)
 crudRoutes(router, '/updates',     ComplianceUpdate,      updateSchema)
 crudRoutes(router, '/agreements',  ComplianceAgreement,   agreementSchema)
 
+/** Compliance calendar — due/expiry items for reminders */
+router.get('/calendar', protect, async (req, res) => {
+  try {
+    const days = Math.min(365, Math.max(1, Number(req.query.days) || 60))
+    const now = new Date()
+    const until = new Date(now.getTime() + days * 86400000)
+    const parse = (v) => {
+      const d = new Date(v)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+
+    const [approvals, docs, agreements] = await Promise.all([
+      (await ComplianceApproval.getTenantModel(req.tenant)).find({ isDeleted: { $ne: true } }).limit(300).lean(),
+      (await ComplianceDoc.getTenantModel(req.tenant)).find({ isDeleted: { $ne: true } }).limit(300).lean(),
+      (await ComplianceAgreement.getTenantModel(req.tenant)).find({ isDeleted: { $ne: true } }).limit(300).lean(),
+    ])
+
+    const items = []
+    for (const a of approvals) {
+      const due = parse(a.dueDate)
+      if (due && due <= until) {
+        items.push({
+          type: 'approval',
+          id: String(a._id),
+          title: a.filing || a.refId || 'Approval',
+          authority: a.authority || '',
+          owner: '',
+          dueDate: a.dueDate,
+          status: a.status,
+          risk: due < now ? 'overdue' : 'upcoming',
+        })
+      }
+    }
+    for (const d of docs) {
+      const due = parse(d.expiry)
+      if (due && due <= until) {
+        items.push({
+          type: 'document',
+          id: String(d._id),
+          title: d.name || d.refId || 'Document',
+          authority: d.category || '',
+          owner: d.owner || '',
+          dueDate: d.expiry,
+          status: d.status,
+          risk: due < now ? 'overdue' : 'upcoming',
+        })
+      }
+    }
+    for (const g of agreements) {
+      const due = parse(g.end)
+      if (due && due <= until) {
+        items.push({
+          type: 'agreement',
+          id: String(g._id),
+          title: g.partner || g.refId || 'Agreement',
+          authority: g.type || '',
+          owner: '',
+          dueDate: g.end,
+          status: g.status,
+          risk: due < now ? 'overdue' : 'upcoming',
+        })
+      }
+    }
+
+    items.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+    res.json({ success: true, days, count: items.length, items })
+  } catch (err) {
+    console.error('[compliance] calendar error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
 module.exports = router

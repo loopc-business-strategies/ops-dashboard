@@ -50,6 +50,8 @@ const crmContactSchema = new mongoose.Schema({
     documents:      [kycDocSchema],
   },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  /** Additive link to ERP Customer (Customer 360) */
+  erpCustomerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
   isDeleted: { type: Boolean, default: false },
 }, { timestamps: true })
 
@@ -57,5 +59,6 @@ crmContactSchema.index({ email: 1 })
 crmContactSchema.index({ contactType: 1, status: 1 })
 crmContactSchema.index({ assignedRep: 1 })
 crmContactSchema.index({ isDeleted: 1, companyId: 1 })
+crmContactSchema.index({ erpCustomerId: 1 })
 
 module.exports = createTenantModel('CrmContact', crmContactSchema)

@@ -14,4 +14,5 @@ module.exports = {
   floorSessionService: require('./floorSessionService'),
   reportService: require('./reportService'),
   alertEvaluationService: require('./alertEvaluationService'),
+  maintenanceService: require('./maintenanceService'),
 }

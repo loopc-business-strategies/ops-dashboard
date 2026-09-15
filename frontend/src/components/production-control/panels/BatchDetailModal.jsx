@@ -25,6 +25,7 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
   const [invResults, setInvResults] = useState([])
   const [invLoading, setInvLoading] = useState(false)
   const [tab, setTab] = useState('summary')
+  const [splitForm, setSplitForm] = useState({ w1: '', w2: '', reason: '' })
 
   const reload = useCallback(() => {
     if (!batchId) return
@@ -97,7 +98,8 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
   const b = detail?.batch
   const wr = detail?.weightReconciliation
   const canIssue = b && ['CREATED', 'AWAITING_ISSUE'].includes(b.status)
-  const canReturn = b && !['RETURNED_TO_VAULT', 'CANCELLED', 'COMPLETED'].includes(b.status)
+  const canReturn = b && !['RETURNED_TO_VAULT', 'CANCELLED', 'COMPLETED', 'SPLIT', 'MERGED'].includes(b.status)
+  const canSplit = b && ['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'WAITING', 'RECEIVED', 'HOLD', 'RETURNED_TO_VAULT'].includes(b.status)
 
   const runAction = async () => {
     if (!confirm || !b) return
@@ -107,6 +109,16 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
       if (action === 'hold') await pccApi.holdBatch(b._id, {})
       if (action === 'release') await pccApi.releaseBatch(b._id, {})
       if (action === 'return') await pccApi.returnToVault(b._id, {})
+      if (action === 'split') {
+        const w1 = Number(splitForm.w1)
+        const w2 = Number(splitForm.w2)
+        await pccApi.splitBatch(b._id, {
+          parts: [{ weight: w1 }, { weight: w2 }],
+          reason: splitForm.reason || 'Batch split',
+        })
+        onToast?.(isDemo ? DEMO_WRITE_MSG : 'Batch split')
+        setSplitForm({ w1: '', w2: '', reason: '' })
+      }
       if (action === 'issue') {
         await pccApi.issueFromVault(b._id, {
           inventoryItemId: issueForm.inventoryItemId || undefined,
@@ -127,7 +139,7 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
         })
         onToast?.(isDemo ? DEMO_WRITE_MSG : `Weight adjusted ${before} → ${after} g`)
         setWeightForm({ adjustment: '', reason: '' })
-      } else if (action !== 'issue') {
+      } else if (action !== 'issue' && action !== 'split') {
         onToast?.(isDemo ? DEMO_WRITE_MSG : (action === 'return' ? 'Returned to vault' : action === 'hold' ? 'Batch on hold' : 'Batch released'))
       }
       reload()
@@ -218,6 +230,57 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
                     <button type="button" className="pcc-btn-ghost" onClick={() => setConfirm({ action: 'return' })}>Return to vault</button>
                   )}
                 </div>
+
+                {canSplit && (
+                  <div className="pcc-panel pcc-form">
+                    <div className="pcc-panel-head"><h3>Split batch</h3></div>
+                    <p className="pcc-muted">Split into two child batches. Weights must equal current weight ({formatGrams(b.currentWeight)}).</p>
+                    <div className="pcc-form-grid">
+                      <label>
+                        Part 1 (g)
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={splitForm.w1}
+                          onChange={(e) => setSplitForm((s) => ({ ...s, w1: e.target.value }))}
+                        />
+                      </label>
+                      <label>
+                        Part 2 (g)
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={splitForm.w2}
+                          onChange={(e) => setSplitForm((s) => ({ ...s, w2: e.target.value }))}
+                        />
+                      </label>
+                      <label className="pcc-span-2">
+                        Reason
+                        <input
+                          value={splitForm.reason}
+                          onChange={(e) => setSplitForm((s) => ({ ...s, reason: e.target.value }))}
+                          placeholder="Optional reason"
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="pcc-btn"
+                      onClick={() => {
+                        const w1 = Number(splitForm.w1)
+                        const w2 = Number(splitForm.w2)
+                        const total = Number(b.currentWeight || 0)
+                        if (!(w1 > 0) || !(w2 > 0) || Math.abs(w1 + w2 - total) > 0.0001) {
+                          onToast?.(`Split weights must be positive and sum to ${total}g`)
+                          return
+                        }
+                        setConfirm({ action: 'split' })
+                      }}
+                    >
+                      Split batch
+                    </button>
+                  </div>
+                )}
 
                 {canIssue && (
                   <div className="pcc-panel pcc-form">

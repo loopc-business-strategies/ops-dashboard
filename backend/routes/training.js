@@ -165,4 +165,32 @@ crudRoutes(router, '/certs',       TrainingCert,       certSchema)
 crudRoutes(router, '/feedback',    TrainingFeedback,   feedbackSchema)
 crudRoutes(router, '/trainees',    TrainingTrainee,    traineeSchema)
 
+/** Expiring / expired certifications for Floor Manager / Dept Head visibility */
+router.get('/certs/expiring', protect, async (req, res) => {
+  try {
+    const days = Math.min(365, Math.max(1, Number(req.query.days) || 30))
+    const TenantModel = await TrainingCert.getTenantModel(req.tenant)
+    const rows = await TenantModel.find({ isDeleted: { $ne: true } }).limit(500).lean()
+    const now = new Date()
+    const until = new Date(now.getTime() + days * 86400000)
+    const parse = (v) => {
+      const d = new Date(v)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const expiring = rows
+      .map((r) => ({ ...r, expiryDate: parse(r.expiry) }))
+      .filter((r) => r.expiryDate && r.expiryDate <= until)
+      .sort((a, b) => a.expiryDate - b.expiryDate)
+      .map((r) => ({
+        ...r,
+        expired: r.expiryDate < now,
+        daysRemaining: Math.ceil((r.expiryDate - now) / 86400000),
+      }))
+    res.json({ success: true, days, count: expiring.length, data: expiring })
+  } catch (err) {
+    console.error('[training] certs expiring error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
 module.exports = router

@@ -32,8 +32,17 @@ const productionBatchSchema = new mongoose.Schema(
     inventoryItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem', default: null },
     stockLotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionStockLot', default: null },
     stockCode: { type: String, trim: true, default: '' },
+    barcode: { type: String, trim: true, default: '' },
+    qrCode: { type: String, trim: true, default: '' },
     status: { type: String, enum: BATCH_STATUSES, default: 'CREATED' },
     holdReason: { type: String, trim: true, default: '' },
+    /** Genealogy for split/merge — never delete parent history */
+    parentBatchId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionBatch', default: null },
+    parentBatchIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ProductionBatch' }], default: [] },
+    childBatchIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ProductionBatch' }], default: [] },
+    splitFromBatchNumber: { type: String, trim: true, default: '' },
+    mergedIntoBatchId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionBatch', default: null },
+    mergedIntoBatchNumber: { type: String, trim: true, default: '' },
     startedAt: { type: Date, default: null },
     completedAt: { type: Date, default: null },
     createdById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -53,6 +62,7 @@ productionBatchSchema.index({ status: 1, updatedAt: -1 })
 productionBatchSchema.index({ currentHolderId: 1, status: 1 })
 productionBatchSchema.index({ metalType: 1, status: 1 })
 productionBatchSchema.index({ stockLotId: 1 })
+productionBatchSchema.index({ parentBatchId: 1 })
 productionBatchSchema.index({ stockCode: 1 }, { sparse: true })
 productionBatchSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true })
 productionBatchSchema.index({ issueIdempotencyKey: 1 }, { unique: true, sparse: true })

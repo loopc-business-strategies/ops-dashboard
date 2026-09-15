@@ -53,6 +53,24 @@ const employeeSchema = new mongoose.Schema(
       max: 5,
       default: 3,
     },
+
+    // Additive HR master fields (backward compatible)
+    photoUrl: { type: String, trim: true, default: '' },
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    emergencyContactName: { type: String, trim: true, default: '' },
+    emergencyContactPhone: { type: String, trim: true, default: '' },
+    joiningDate: { type: Date, default: null },
+    position: { type: String, trim: true, default: '' },
+    managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', default: null },
+    managerName: { type: String, trim: true, default: '' },
+    shift: { type: String, trim: true, default: '' },
+    status: {
+      type: String,
+      enum: ['ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'],
+      default: 'ACTIVE',
+    },
+    contractRef: { type: String, trim: true, default: '' },
+    salaryRef: { type: String, trim: true, default: '' },
   },
   {
     timestamps: true,

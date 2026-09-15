@@ -87,6 +87,7 @@ export default function OperationsTab() {
   // Inventory writes match backend canEditInventory (Super Admin or Production Head only)
   const canEditInventory = isAdmin || (isHead && String(user?.department || '').toLowerCase() === 'production')
   const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
+  const DEMO_MODE = USE_SEED_DATA
 
   const [suppliers, setSuppliers] = useState(USE_SEED_DATA ? INIT_SUPPLIERS : [])
   const [gold,      setGold]      = useState(USE_SEED_DATA ? INIT_GOLD : [])
@@ -456,6 +457,24 @@ export default function OperationsTab() {
 
   return (
     <ModuleTabColumn style={{ fontFamily: 'inherit', color: C.t1 }}>
+      {DEMO_MODE && (
+        <div
+          role="status"
+          style={{
+            marginBottom: 12,
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: '1px solid #f59e0b',
+            background: 'rgba(245,158,11,0.12)',
+            color: '#92400e',
+            fontWeight: 700,
+            fontSize: 13,
+            letterSpacing: 0.3,
+          }}
+        >
+          DEMO MODE — seed data is active (VITE_ENABLE_SEED_DATA). Not production records.
+        </div>
+      )}
       <style>{`
         @keyframes tabPingOps { 0%,100%{opacity:1} 50%{opacity:.5} }
       `}</style>

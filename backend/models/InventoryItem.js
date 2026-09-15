@@ -18,6 +18,16 @@ const inventoryItemSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    barcode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    qrCode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     category: {
       type: String,
       trim: true,
@@ -95,6 +105,8 @@ const inventoryItemSchema = new mongoose.Schema(
 )
 
 inventoryItemSchema.index({ sku: 1 })
+inventoryItemSchema.index({ barcode: 1 }, { sparse: true })
+inventoryItemSchema.index({ qrCode: 1 }, { sparse: true })
 inventoryItemSchema.index({ isDeleted: 1, category: 1 })
 
 module.exports = createTenantModel('InventoryItem', inventoryItemSchema)

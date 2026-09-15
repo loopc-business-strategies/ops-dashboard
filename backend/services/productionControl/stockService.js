@@ -358,11 +358,102 @@ async function selectAndAllocate(req, input = {}) {
     if (!Number.isFinite(selectWeight) || selectWeight <= 0) {
       throw new ProductionError('Select weight must be positive')
     }
-    if (Number(lot.netWeight || 0) > 0 && selectWeight > Number(lot.netWeight) + 0.0001) {
+    const lotNet = Number(lot.netWeight || 0)
+    const lotGross = Number(lot.grossWeight || 0)
+    const lotQty = Number(lot.quantity || 0)
+    if (lotNet > 0 && selectWeight > lotNet + 0.0001) {
       throw new ProductionError('Selected weight exceeds available net weight')
     }
-    if (Number(lot.quantity || 0) > 0 && selectQty > Number(lot.quantity) + 0.0001) {
+    if (lotQty > 0 && selectQty > lotQty + 0.0001) {
       throw new ProductionError('Selected quantity exceeds available quantity')
+    }
+
+    const isPartial = (lotNet > 0 && selectWeight < lotNet - 0.0001)
+      || (lotQty > 0 && selectQty < lotQty - 0.0001)
+
+    let remainderLot = null
+    if (isPartial) {
+      const remWeight = Math.max(0, (lotNet > 0 ? lotNet : selectWeight) - selectWeight)
+      const remQty = Math.max(0, lotQty - selectQty)
+      const remGross = lotGross > 0 && lotNet > 0
+        ? Math.max(0, Number((lotGross * (remWeight / lotNet)).toFixed(6)))
+        : Math.max(0, lotGross - selectWeight)
+      const selectedGross = lotGross > 0 && lotNet > 0
+        ? Math.max(0, Number((lotGross * (selectWeight / lotNet)).toFixed(6)))
+        : selectWeight
+
+      const remCode = await nextStockCode(ProductionStockLot, session)
+      const [rem] = await ProductionStockLot.create(
+        [
+          {
+            stockCode: remCode,
+            purchaseRef: lot.purchaseRef || '',
+            supplier: lot.supplier || '',
+            purchaseDate: lot.purchaseDate || null,
+            product: lot.product || '',
+            productCode: lot.productCode || '',
+            category: lot.category || '',
+            designNumber: lot.designNumber || '',
+            quantity: remQty,
+            allocatedQuantity: 0,
+            grossWeight: remGross,
+            netWeight: remWeight,
+            allocatedWeight: 0,
+            metalType: lot.metalType,
+            purity: lot.purity || '',
+            size: lot.size || '',
+            remarks: `Remainder from ${lot.stockCode} after partial select`,
+            receivedById: lot.receivedById || null,
+            receivedByName: lot.receivedByName || '',
+            status: 'AVAILABLE',
+            inventoryItemId: lot.inventoryItemId || null,
+            batchId: null,
+            batchNumber: '',
+            parentLotId: lot._id,
+            attachmentRefs: [],
+            createdById: a.id,
+            createdByName: a.name,
+            version: 0,
+          },
+        ],
+        writeOpts(session),
+      )
+      remainderLot = rem
+
+      lot.quantity = selectQty
+      lot.netWeight = selectWeight
+      lot.grossWeight = selectedGross
+      const prevChildren = Array.isArray(lot.childLotIds) ? lot.childLotIds : []
+      lot.childLotIds = [...prevChildren, rem._id]
+
+      await writeProductionAudit(req, {
+        resource: 'ProductionStockLot',
+        resourceId: rem._id,
+        action: AUDIT_ACTIONS.STOCK_REMAINDER_CREATED,
+        detail: `Remainder lot ${remCode} (${remWeight}g) from ${lot.stockCode}`,
+        changes: {
+          parentLotId: String(lot._id),
+          parentStockCode: lot.stockCode,
+          remainderStockCode: remCode,
+          remainderWeight: remWeight,
+          remainderQuantity: remQty,
+          selectedWeight: selectWeight,
+          selectedQuantity: selectQty,
+        },
+        session,
+      })
+      await writeProductionAudit(req, {
+        resource: 'ProductionStockLot',
+        resourceId: lot._id,
+        action: AUDIT_ACTIONS.STOCK_UPDATED,
+        detail: `Stock ${lot.stockCode} reduced for partial select; remainder ${remCode}`,
+        changes: {
+          netWeight: selectWeight,
+          quantity: selectQty,
+          childLotId: String(rem._id),
+        },
+        session,
+      })
     }
 
     await transitionStock(req, lot, 'SELECTED', {
@@ -421,6 +512,7 @@ async function selectAndAllocate(req, input = {}) {
           metalType: lot.metalType,
           initialWeight: selectWeight,
           status: batch.status,
+          remainderStockCode: remainderLot?.stockCode || null,
         },
       },
       session,
@@ -453,11 +545,12 @@ async function selectAndAllocate(req, input = {}) {
         batchNumber: batch.batchNumber,
         quantity: selectQty,
         weight: selectWeight,
+        remainderLotId: remainderLot ? String(remainderLot._id) : null,
       },
       session,
     })
 
-    return { lot, batch }
+    return { lot, batch, remainderLot }
   })
 }
 
@@ -467,6 +560,7 @@ async function adjustStock(req, lotId, input = {}) {
     weightDelta = 0,
     reason,
     expectedVersion,
+    approvedById = null,
   } = input
   if (!reason || String(reason).trim().length < 3) {
     throw new ProductionError('Adjustment reason is required (min 3 characters)')
@@ -476,6 +570,25 @@ async function adjustStock(req, lotId, input = {}) {
   if (qd === 0 && wd === 0) throw new ProductionError('quantityDelta or weightDelta required')
 
   const a = actor(req)
+  const { resolveApprovalPolicy, assertMakerChecker } = require('../permissions/approvalPolicy')
+  const policy = resolveApprovalPolicy('stock_adjust', input.approvalSettings || {})
+  const enforceDual = Boolean(input.requireDualControl) || policy.dualControl
+  if (enforceDual) {
+    if (!approvedById) {
+      throw new ProductionError(
+        'Stock adjustments require dual-control approval (approvedById of a different user)',
+        403,
+      )
+    }
+    const check = assertMakerChecker({
+      policy: { ...policy, dualControl: true, requireApproval: true },
+      creatorId: a.id,
+      approverId: approvedById,
+      amount: Math.abs(wd) || Math.abs(qd),
+    })
+    if (check) throw new ProductionError(check, 403)
+  }
+
   return runInTransaction(async (session) => {
     const lot = await withSession(ProductionStockLot.findById(lotId), session)
     if (!lot) throw new ProductionError('Stock lot not found', 404)
@@ -511,7 +624,13 @@ async function adjustStock(req, lotId, input = {}) {
       resourceId: lot._id,
       action: AUDIT_ACTIONS.STOCK_ADJUSTED,
       detail: `Stock ${lot.stockCode} adjusted: qty ${before.quantity}→${nextQty}, weight ${before.netWeight}→${nextNet}`,
-      changes: { before, after: { quantity: nextQty, netWeight: nextNet, grossWeight: nextGross }, reason: String(reason).trim(), by: a.name },
+      changes: {
+        before,
+        after: { quantity: nextQty, netWeight: nextNet, grossWeight: nextGross },
+        reason: String(reason).trim(),
+        by: a.name,
+        approvedById: approvedById ? String(approvedById) : null,
+      },
       session,
     })
     return lot
