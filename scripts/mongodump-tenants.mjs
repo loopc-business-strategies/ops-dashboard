@@ -122,7 +122,9 @@ async function main() {
   }
 
   run('mongodump', ['--version'])
-  run('aws', ['--version'])
+  if (!artifactDir) {
+    run('aws', ['--version'])
+  }
 
   const dateStamp = new Date().toISOString().slice(0, 10)
   const tmpRoot = artifactDir || fs.mkdtempSync(path.join(os.tmpdir(), 'ops-mongodump-'))

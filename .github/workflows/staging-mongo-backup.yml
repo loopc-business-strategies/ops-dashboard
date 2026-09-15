@@ -1,0 +1,71 @@
+name: Staging Mongo Backup
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: staging-mongo-backup
+  cancel-in-progress: false
+
+jobs:
+  mongodump-staging:
+    name: mongodump staging tenants to artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Require staging Mongo secrets
+        env:
+          STAGING_MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
+        run: |
+          missing=0
+          for key in STAGING_MONGO_URI_MG STAGING_MONGO_URI_CG STAGING_MONGO_URI_LOOPC STAGING_MONGO_URI_VB; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing required secret $key"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install MongoDB Database Tools
+        run: |
+          wget -qO - https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+          echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools
+
+      - name: Mongodump staging DBs
+        env:
+          APP_ENV: staging
+          MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
+          BACKUP_ARTIFACT_DIR: staging-backup-artifacts
+        run: npm run backup:mongodump
+
+      - name: Upload staging backup artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-mongo-backup-${{ github.run_id }}
+          path: staging-backup-artifacts/*.archive.gz
+          retention-days: 14

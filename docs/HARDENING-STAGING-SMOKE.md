@@ -80,4 +80,7 @@ Use a valid staging JWT (browser session cookie/token or `Authorization` header)
 | APIs | search / exceptions / hardware contract 200 |
 | Env | Seed off; no prod writes |
 
-**Related:** [HARDENING-IMPLEMENTATION-REPORT.md](./HARDENING-IMPLEMENTATION-REPORT.md), [HARDENING-GAP-CHECKLIST.md](./HARDENING-GAP-CHECKLIST.md), [HARDWARE-EDGE-GATEWAY.md](./HARDWARE-EDGE-GATEWAY.md).
+**Related:** [HARDENING-IMPLEMENTATION-REPORT.md](./HARDENING-IMPLEMENTATION-REPORT.md), [HARDENING-GAP-CHECKLIST.md](./HARDENING-GAP-CHECKLIST.md), [HARDWARE-EDGE-GATEWAY.md](./HARDWARE-EDGE-GATEWAY.md), [HARDENING-PROD-GATE.md](./HARDENING-PROD-GATE.md).
+
+**Staging backup:** GitHub Actions → **Staging Mongo Backup** (mongodump of `STAGING_MONGO_URI_*` to artifacts).  
+**Staging migrate:** GitHub Actions → **Staging migration** (`until`, `tenants`, `skip`).

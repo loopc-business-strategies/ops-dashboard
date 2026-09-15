@@ -78,6 +78,12 @@ function resolveTenantFilter() {
   return raw.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)
 }
 
+function resolveSkipIds() {
+  const raw = getArgValue('--skip=')
+  if (!raw) return new Set()
+  return new Set(raw.split(',').map((id) => id.trim()).filter(Boolean))
+}
+
 function filterMigrationsByUntil(migrations, untilId) {
   if (!untilId) return migrations
   const untilIndex = migrations.findIndex((migration) => migration.id === untilId)
@@ -87,14 +93,39 @@ function filterMigrationsByUntil(migrations, untilId) {
   return migrations.slice(0, untilIndex + 1)
 }
 
+async function markSkipped(db, migration, reason) {
+  await db.collection(COLLECTION).updateOne(
+    { id: migration.id },
+    {
+      $set: {
+        id: migration.id,
+        file: migration.file,
+        appliedAt: new Date(),
+        skipped: true,
+        skipReason: reason || 'explicit --skip',
+      },
+    },
+    { upsert: true },
+  )
+}
+
 async function main() {
   const apply = hasArg('--apply')
   const validateOnly = hasArg('--validate-only')
   const untilId = resolveUntilMigrationId()
+  const skipIds = resolveSkipIds()
   const confirm = getArgValue('--confirm=')
   const expectedToken = String(process.env.MIGRATION_CONFIRM_TOKEN || '').trim()
 
-  const migrations = filterMigrationsByUntil(loadMigrationFiles(), untilId)
+  let migrations = filterMigrationsByUntil(loadMigrationFiles(), untilId)
+  if (skipIds.size) {
+    const allIds = new Set(loadMigrationFiles().map((m) => m.id))
+    for (const id of skipIds) {
+      if (!allIds.has(id)) {
+        throw new Error(`Unknown --skip migration id: ${id}`)
+      }
+    }
+  }
   if (validateOnly) {
     console.log(`Migration validate-only — ${migrations.length} registered`)
     console.log(migrations.map((migration) => `  • ${migration.id} (${migration.file})`).join('\n'))
@@ -129,6 +160,7 @@ async function main() {
 
   console.log(`Migration runner — mode: ${apply ? 'apply' : 'dry-run'}`)
   if (untilId) console.log(`Until: ${untilId} (later migrations skipped)`)
+  if (skipIds.size) console.log(`Skip (record on apply): ${[...skipIds].join(', ')}`)
   console.log(`Tenants: ${tenants.join(', ')}`)
   console.log(`Registered migrations: ${migrations.length}`)
 
@@ -149,6 +181,13 @@ async function main() {
     console.log(`[${tenant}] pending: ${pending.map((m) => m.id).join(', ')}`)
 
     for (const migration of pending) {
+      if (skipIds.has(migration.id)) {
+        console.log(`[${tenant}] ${apply ? 'SKIP-RECORD' : 'SKIP'} ${migration.id} (${migration.file})`)
+        if (apply) {
+          await markSkipped(db, migration, 'explicit --skip (deferred; not executed)')
+        }
+        continue
+      }
       console.log(`[${tenant}] ${apply ? 'APPLY' : 'DRY-RUN'} ${migration.id} (${migration.file})`)
       if (apply) {
         await runWithTenantConnection(connection, tenant, () => migration.up({ db, tenant, mongoose, connection }))

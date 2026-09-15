@@ -14,13 +14,18 @@ on:
         type: string
         default: '002-backfill-mapping-departments'
       tenants:
-        description: Comma-separated tenants (default all staging). Example mg,cg,loopc to skip VB when 003 is pending.
+        description: Comma-separated tenants (default all staging). Example mg,cg,loopc or vb.
+        required: false
+        type: string
+        default: ''
+      skip:
+        description: Comma-separated migration ids to record-skip on apply (e.g. 003-backfill-jv-ledger-base-to-fc).
         required: false
         type: string
         default: ''
 
 concurrency:
-  group: migrate-staging-${{ github.event.inputs.until || '002' }}-${{ github.event.inputs.apply || 'dry' }}
+  group: migrate-staging-${{ github.event.inputs.until || '002' }}-${{ github.event.inputs.apply || 'dry' }}-${{ github.event.inputs.tenants || 'all' }}
   cancel-in-progress: false
 
 jobs:
@@ -59,7 +64,7 @@ jobs:
             exit 1
           fi
 
-      - name: Refuse apply of JV migration 003 via this workflow
+      - name: Refuse apply of JV migration 003 as until target
         if: ${{ inputs.apply == true && inputs.until == '003-backfill-jv-ledger-base-to-fc' }}
         run: |
           echo "::error::Refusing apply of 003-backfill-jv-ledger-base-to-fc (mutates JV ledger). Use dedicated reviewed process."
@@ -69,6 +74,14 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Build migrate args
+        id: args
+        run: |
+          EXTRA=""
+          if [ -n "${{ inputs.tenants }}" ]; then EXTRA="$EXTRA --tenants=${{ inputs.tenants }}"; fi
+          if [ -n "${{ inputs.skip }}" ]; then EXTRA="$EXTRA --skip=${{ inputs.skip }}"; fi
+          echo "extra=$EXTRA" >> "$GITHUB_OUTPUT"
+
       - name: Dry-run staging migrations
         if: ${{ inputs.apply != true }}
         env:
@@ -77,12 +90,9 @@ jobs:
           STAGING_MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
           STAGING_MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
-        run: |
-          EXTRA=""
-          if [ -n "${{ inputs.tenants }}" ]; then EXTRA="--tenants=${{ inputs.tenants }}"; fi
-          node scripts/migrate-staging.mjs --until=${{ inputs.until }} $EXTRA
+        run: node scripts/migrate-staging.mjs --until=${{ inputs.until }} ${{ steps.args.outputs.extra }}
 
-      - name: Guard — refuse apply if JV 003 still pending when until > 002
+      - name: Guard — refuse apply if JV 003 still pending without --skip
         if: ${{ inputs.apply == true && inputs.until != '002-backfill-mapping-departments' && inputs.until != '001-baseline' }}
         env:
           APP_ENV: staging
@@ -92,12 +102,18 @@ jobs:
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
         run: |
           set -o pipefail
-          EXTRA=""
-          if [ -n "${{ inputs.tenants }}" ]; then EXTRA="--tenants=${{ inputs.tenants }}"; fi
-          OUT=$(node scripts/migrate-staging.mjs --until=${{ inputs.until }} $EXTRA 2>&1 | tee /dev/stderr)
-          if echo "$OUT" | grep -q '003-backfill-jv-ledger-base-to-fc'; then
-            echo "::error::003-backfill-jv-ledger-base-to-fc is still pending. Refusing apply through ${{ inputs.until }} so JV data is not mutated."
-            exit 1
+          SKIP_CSV="${{ inputs.skip }}"
+          OUT=$(node scripts/migrate-staging.mjs --until=${{ inputs.until }} ${{ steps.args.outputs.extra }} 2>&1 | tee /dev/stderr)
+          if echo "$OUT" | grep -E 'pending:.*003-backfill-jv-ledger-base-to-fc' >/dev/null; then
+            case ",${SKIP_CSV}," in
+              *,003-backfill-jv-ledger-base-to-fc,*)
+                echo "003 is pending but listed in --skip; will record-skip (not execute)."
+                ;;
+              *)
+                echo "::error::003-backfill-jv-ledger-base-to-fc is still pending. Pass skip=003-backfill-jv-ledger-base-to-fc or stop before 003."
+                exit 1
+                ;;
+            esac
           fi
 
       - name: Apply staging migrations
@@ -110,7 +126,4 @@ jobs:
           STAGING_MONGO_URI_VB: ${{ secrets.STAGING_MONGO_URI_VB }}
           MIGRATION_I_HAVE_BACKUP: 'true'
           MIGRATION_CONFIRM_TOKEN: ${{ secrets.MIGRATION_CONFIRM_TOKEN }}
-        run: |
-          EXTRA=""
-          if [ -n "${{ inputs.tenants }}" ]; then EXTRA="--tenants=${{ inputs.tenants }}"; fi
-          node scripts/migrate-staging.mjs --until=${{ inputs.until }} --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }} $EXTRA
+        run: node scripts/migrate-staging.mjs --until=${{ inputs.until }} --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }} ${{ steps.args.outputs.extra }}
