@@ -33,4 +33,9 @@ Only after Atlas backup, using **production** URIs in a **manual** secured sessi
 
 ## VB note
 
-Staging VB may have `003` **record-skipped** (deferred). Production VB must get the same review before any JV backfill.
+Staging VB:
+- Applied `001`–`002`, then `005`–`008`.
+- **Record-skipped** `003` (JV FX backfill — deferred on purpose).
+- **Record-skipped** `004` (`syncIndexes` failed on unsupported voucher partial index `$ne` / `$not` on this cluster). Hardening indexes `006`–`008` still applied.
+
+Production VB must get the same review before any JV backfill or full `004` sync.
