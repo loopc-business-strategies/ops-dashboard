@@ -1,26 +1,28 @@
-/* Production Control Center — scoped orange/black enterprise theme */
+/* Production Control Center — scoped theme remapped to ERP light design-system tokens */
 
 .pcc-root {
-  --pcc-bg: #0a0a0a;
-  --pcc-surface: #141414;
-  --pcc-elevated: #1c1c1c;
-  --pcc-border: #2a2a2a;
-  --pcc-border-strong: #3d3d3d;
-  --pcc-text: #f5f5f5;
-  --pcc-text-secondary: #c4c4c4;
-  --pcc-text-muted: #a3a3a3;
-  --pcc-orange: #f97316;
-  --pcc-orange-hover: #fb923c;
-  --pcc-orange-dim: rgba(249, 115, 22, 0.16);
-  --pcc-success: #22c55e;
-  --pcc-warning: #eab308;
-  --pcc-danger: #ef4444;
-  --pcc-info: #38bdf8;
+  --pcc-bg: var(--bg-base);
+  --pcc-surface: var(--bg-card);
+  --pcc-elevated: var(--bg-table-row);
+  --pcc-border: var(--border);
+  --pcc-border-strong: var(--border-input);
+  --pcc-text: var(--text-primary);
+  --pcc-text-secondary: var(--text-secondary);
+  --pcc-text-muted: var(--text-muted);
+  /* Production orange accent (title, active nav, KPI bar, primary actions) */
+  --pcc-orange: var(--orange, #EA580C);
+  --pcc-orange-hover: #F97316;
+  --pcc-orange-dim: rgba(234, 88, 12, 0.12);
+  --pcc-success: var(--success);
+  --pcc-warning: var(--warning);
+  --pcc-danger: var(--danger);
+  --pcc-info: var(--info);
 
   min-height: 100vh;
   background: var(--pcc-bg);
   color: var(--pcc-text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-family: var(--font);
+  font-size: 13px;
 }
 
 .pcc-header {
@@ -31,6 +33,7 @@
   padding: 14px 20px;
   border-bottom: 1px solid var(--pcc-border);
   background: var(--pcc-surface);
+  box-shadow: var(--shadow-topbar);
 }
 
 .pcc-header h1 {
@@ -167,7 +170,7 @@
 
 .pcc-close:hover {
   border-color: var(--pcc-danger);
-  color: #fecaca;
+  color: var(--pcc-danger);
 }
 
 .pcc-nav {
@@ -177,7 +180,7 @@
   overflow-y: hidden;
   padding: 8px 12px 10px;
   border-bottom: 1px solid var(--pcc-border);
-  background: var(--pcc-bg);
+  background: var(--pcc-surface);
   align-items: flex-end;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
@@ -267,7 +270,8 @@
   gap: 14px;
 }
 
-.pcc-kpi-row {
+.pcc-kpi-row,
+.pcc-kpi-strip {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 8px;
@@ -278,7 +282,8 @@
   border: 1px solid var(--pcc-border);
   border-top: 2px solid var(--pcc-orange);
   padding: 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
 }
 
 .pcc-kpi-value {
@@ -312,7 +317,8 @@
   padding: 12px;
   border: 1px solid var(--pcc-border);
   background: var(--pcc-surface);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
 }
 
 .pcc-flow-stage {
@@ -332,7 +338,8 @@
   background: var(--pcc-surface);
   border: 1px solid var(--pcc-border);
   padding: 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
 }
 
 .pcc-panel-head {
@@ -383,7 +390,8 @@
 }
 
 .pcc-table th {
-  color: var(--pcc-text-muted);
+  color: var(--brand-on-soft, var(--pcc-text-muted));
+  background: var(--brand-soft, var(--pcc-elevated));
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -438,7 +446,7 @@
 }
 
 .pcc-pill-ok { color: var(--pcc-success); border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); }
-.pcc-pill-bad { color: #f87171; border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.1); }
+.pcc-pill-bad { color: var(--pcc-danger); border-color: rgba(220, 38, 38, 0.35); background: rgba(220, 38, 38, 0.08); }
 .pcc-pill-warn { color: var(--pcc-warning); border-color: rgba(234, 179, 8, 0.4); background: rgba(234, 179, 8, 0.08); }
 .pcc-pill-active { color: var(--pcc-orange); border-color: rgba(249, 115, 22, 0.45); background: var(--pcc-orange-dim); }
 .pcc-pill-muted { color: var(--pcc-text-muted); }
@@ -446,12 +454,12 @@
 .pcc-btn,
 .pcc-btn-ghost {
   border: 1px solid var(--pcc-border-strong);
-  background: var(--pcc-elevated);
+  background: var(--pcc-surface);
   color: var(--pcc-text);
   padding: 8px 12px;
   font-size: 12px;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .pcc-btn {
@@ -549,9 +557,9 @@
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
-  background: var(--pcc-bg);
+  background: var(--bg-input, var(--pcc-surface));
   border: 1px solid var(--pcc-border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--pcc-text);
   padding: 10px 12px;
   font-size: 13px;
@@ -591,6 +599,30 @@
   color: var(--pcc-text-muted);
 }
 
+/* Standalone light inputs (class used across PCC panels) */
+.pcc-root .pcc-input,
+.pcc-root .pcc-form-inline input,
+.pcc-root .pcc-form-inline select,
+.pcc-root .pcc-toolbar .pcc-input {
+  box-sizing: border-box;
+  background: var(--bg-input, var(--pcc-surface));
+  border: 1px solid var(--pcc-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--pcc-text);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pcc-root .pcc-input:focus,
+.pcc-root .pcc-form-inline input:focus,
+.pcc-root .pcc-form-inline select:focus {
+  border-color: var(--pcc-orange);
+  box-shadow: 0 0 0 3px var(--pcc-orange-dim);
+}
+
 .pcc-actions {
   display: flex;
   flex-wrap: wrap;
@@ -601,20 +633,21 @@
   position: fixed;
   right: 16px;
   bottom: 16px;
-  background: var(--pcc-elevated);
+  background: var(--pcc-surface);
   border: 1px solid var(--pcc-orange);
   color: var(--pcc-text);
   padding: 12px 14px;
   font-size: 13px;
   z-index: 60;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card-hover);
   max-width: min(420px, calc(100vw - 32px));
 }
 
 .pcc-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 23, 42, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -629,7 +662,8 @@
   background: var(--pcc-surface);
   border: 1px solid var(--pcc-border);
   padding: 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .pcc-confirm {
@@ -698,8 +732,8 @@
 
 .pcc-skeleton-row {
   height: 36px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--pcc-elevated), #262626, var(--pcc-elevated));
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--pcc-elevated), var(--pcc-border), var(--pcc-elevated));
   background-size: 200% 100%;
   animation: pcc-shimmer 1.2s linear infinite;
 }
@@ -727,7 +761,7 @@
 .pcc-board-col {
   background: var(--pcc-bg);
   border: 1px solid var(--pcc-border);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   min-height: 220px;
   display: flex;
   flex-direction: column;
@@ -764,7 +798,8 @@
   border-left: 3px solid var(--pcc-orange);
   padding: 10px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
   display: grid;
   gap: 4px;
   text-align: left;
