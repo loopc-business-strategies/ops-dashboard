@@ -20,6 +20,7 @@ const processRunSchema = new mongoose.Schema(
     scrap: { type: Number, default: 0, min: 0 },
     loss: { type: Number, default: 0, min: 0 },
     sopFollowed: { type: Boolean, default: null },
+    sopReason: { type: String, trim: true, default: '' },
     remarks: { type: String, trim: true, default: '' },
     status: { type: String, enum: PROCESS_STATUSES, default: 'PENDING' },
     // Process-specific optional capture (additive Mixed — never overwrites history)

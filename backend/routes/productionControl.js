@@ -19,6 +19,27 @@ const router = express.Router()
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
+/**
+ * Defense-in-depth: reject mutations when client signals demo mode.
+ * Demo UI already isolates writes; this prevents accidental live writes.
+ */
+function rejectDemoMutations(req, res, next) {
+  const flag = String(req.get('x-pcc-demo') || req.get('X-PCC-Demo') || '').trim()
+  if (flag === '1' || flag.toLowerCase() === 'true') {
+    return res.status(403).json({
+      success: false,
+      message: 'DEMO MODE — mutations to live production data are not allowed',
+      demo: true,
+    })
+  }
+  return next()
+}
+
+router.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next()
+  return rejectDemoMutations(req, res, next)
+})
+
 function parseListPaging(query) {
   const limit = Math.min(200, Math.max(1, Number(query.limit) || 50))
   const skip = Math.max(0, Number(query.skip) || ((Math.max(1, Number(query.page) || 1) - 1) * limit))
@@ -86,6 +107,15 @@ router.get('/live-floor', protect, requireProductionPermission('view'), async (r
   try {
     const summary = await liveFloorService.getLiveFloorSummary()
     res.json({ success: true, ...summary })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/my-tasks', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await liveFloorService.getMyTasks(req.user)
+    res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }
@@ -239,9 +269,14 @@ router.post('/batches/:id/weight-adjustments', protect, requireProductionPermiss
   reason: Joi.string().trim().min(3).required(),
   idempotencyKey: Joi.string().trim().allow('', null),
   expectedVersion: Joi.number().integer().min(0),
+  expectedBatchVersion: Joi.number().integer().min(0),
 })), async (req, res) => {
   try {
-    const result = await processService.adjustWeight(req, req.params.id, req.body)
+    const body = { ...req.body }
+    if (body.expectedBatchVersion == null && body.expectedVersion != null) {
+      body.expectedBatchVersion = body.expectedVersion
+    }
+    const result = await processService.adjustWeight(req, req.params.id, body)
     emitProduction(req, 'weight.adjusted', { batchId: req.params.id })
     res.status(result.reused ? 200 : 201).json({ success: true, ...result })
   } catch (err) {
@@ -268,7 +303,7 @@ router.get('/passes', protect, requireProductionPermission('view'), async (req, 
 
 router.post('/passes', protect, requireProductionPermission('createPass'), validateBody(Joi.object({
   batchId: Joi.string().hex().length(24).required(),
-  fromDepartment: Joi.string().trim().required(),
+  fromDepartment: Joi.string().trim().allow(''),
   toDepartment: Joi.string().trim().required(),
   toPersonId: Joi.string().hex().length(24).allow(null, ''),
   toPersonName: Joi.string().trim().allow(''),
@@ -310,10 +345,16 @@ router.post('/passes/:id/issue', protect, requireProductionPermission('issueMeta
 router.post('/passes/:id/receive', protect, requireProductionPermission('receivePass'), validateParams(idParam), validateBody(Joi.object({
   receivedWeight: Joi.number().min(0),
   expectedBatchVersion: Joi.number().integer().min(0),
+  expectedVersion: Joi.number().integer().min(0),
   receiveIdempotencyKey: Joi.string().trim().allow('', null),
+  varianceReason: Joi.string().trim().allow(''),
 }).unknown(true)), async (req, res) => {
   try {
-    const result = await passService.receivePass(req, req.params.id, req.body || {})
+    const body = { ...req.body }
+    if (body.expectedBatchVersion == null && body.expectedVersion != null) {
+      body.expectedBatchVersion = body.expectedVersion
+    }
+    const result = await passService.receivePass(req, req.params.id, body)
     if (!result.reused) emitProduction(req, 'pass.received', { passId: result.pass._id, batchId: result.batch?._id })
     res.json({ success: true, ...result })
   } catch (err) {
@@ -389,10 +430,12 @@ router.post('/processes/:id/complete', protect, requireProductionPermission('com
   scrap: Joi.number().min(0),
   loss: Joi.number().min(0),
   sopFollowed: Joi.boolean().allow(null),
+  sopReason: Joi.string().trim().allow(''),
   remarks: Joi.string().trim().allow(''),
   details: Joi.object().unknown(true),
   completeIdempotencyKey: Joi.string().trim().allow('', null),
   expectedBatchVersion: Joi.number().integer().min(0),
+  expectedVersion: Joi.number().integer().min(0),
 })), async (req, res) => {
   try {
     const result = await processService.completeProcess(req, req.params.id, req.body)
@@ -438,8 +481,11 @@ router.post('/qc', protect, requireProductionPermission('submitQc'), validateBod
   remarks: Joi.string().trim().allow(''),
   reworkReason: Joi.string().trim().allow(''),
   failureReason: Joi.string().trim().allow(''),
+  reworkOf: Joi.string().hex().length(24).allow(null, ''),
+  previousInspectionId: Joi.string().hex().length(24).allow(null, ''),
   idempotencyKey: Joi.string().trim().allow('', null),
   expectedBatchVersion: Joi.number().integer().min(0),
+  expectedVersion: Joi.number().integer().min(0),
 })), async (req, res) => {
   try {
     const result = await processService.submitQc(req, req.body)
@@ -523,9 +569,20 @@ router.post('/alerts', protect, requireProductionPermission('raiseAlert'), async
   }
 })
 
+router.post('/alerts/:id/acknowledge', protect, requireProductionPermission('resolveAlert'), validateParams(idParam), async (req, res) => {
+  try {
+    const alert = await machineAlertService.acknowledgeAlert(req, req.params.id)
+    emitProduction(req, 'alert.acknowledged', { alertId: alert._id })
+    res.json({ success: true, alert })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 router.post('/alerts/:id/resolve', protect, requireProductionPermission('resolveAlert'), validateParams(idParam), async (req, res) => {
   try {
     const alert = await machineAlertService.resolveAlert(req, req.params.id)
+    emitProduction(req, 'alert.resolved', { alertId: alert._id })
     res.json({ success: true, alert })
   } catch (err) {
     handleError(res, err)

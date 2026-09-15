@@ -7,8 +7,10 @@ const { runInTransaction, withSession, writeOpts } = require('../../utils/mongoT
 const { writeProductionAudit } = require('./audit')
 const { nextProcessNumber, nextInspectionNumber, nextAdjustmentNumber } = require('./numbering')
 const { AUDIT_ACTIONS, QC_RESULTS } = require('./constants')
-const { ProductionError, raiseWeightVarianceAlert } = require('./batchService')
+const { ProductionError } = require('./errors')
+const { raiseWeightVarianceAlert } = require('./batchService')
 const { getActiveFlowConfig } = require('./flowConfigService')
+const { assertStatusTransition } = require('./statusTransitions')
 
 const UNAVAILABLE_MACHINE_STATUSES = ['FAULT', 'OFFLINE', 'MAINTENANCE']
 
@@ -19,13 +21,38 @@ function isPackingProcess(name) {
     || /^pack(ing|aging)?$/i.test(String(name || ''))
 }
 
+function isFiniteNonNeg(n) {
+  return Number.isFinite(n) && n >= 0 && !Number.isNaN(n)
+}
+
 function actor(req) {
   return { id: req.user?._id || null, name: req.user?.name || 'system' }
 }
 
+function resolveExpectedVersion(input = {}) {
+  if (input.expectedBatchVersion != null) return input.expectedBatchVersion
+  if (input.expectedVersion != null) return input.expectedVersion
+  return undefined
+}
+
 function validateProcessDetails(processName, details = {}) {
-  const d = details && typeof details === 'object' ? details : {}
+  const d = details && typeof details === 'object' ? { ...details } : {}
   const name = String(processName || '').toLowerCase()
+
+  const numericOptional = [
+    'recovery', 'alloyWeight', 'purityBefore', 'purityAfter', 'inputWeight', 'outputWeight', 'scrap', 'loss',
+  ]
+  for (const key of numericOptional) {
+    if (d[key] != null && d[key] !== '') {
+      const n = Number(d[key])
+      if (!Number.isFinite(n) || Number.isNaN(n) || !Number.isFinite(n)) {
+        throw new ProductionError(`Invalid numeric value for ${key}`)
+      }
+      if (n < 0) throw new ProductionError(`${key} cannot be negative`)
+      d[key] = n
+    }
+  }
+
   if (name.includes('bangle') && d.pieces != null && Number(d.pieces) < 0) {
     throw new ProductionError('Number of pieces cannot be negative')
   }
@@ -41,6 +68,14 @@ function validateProcessDetails(processName, details = {}) {
   if (d.recovery != null && Number(d.recovery) < 0) {
     throw new ProductionError('Recovery cannot be negative')
   }
+
+  // Melting-specific soft validation (additive; never required on old records)
+  if (name.includes('melt')) {
+    if (d.alloyAdded === true && (d.alloyWeight == null || Number(d.alloyWeight) < 0)) {
+      throw new ProductionError('alloyWeight is required when alloy was added')
+    }
+  }
+
   return d
 }
 
@@ -62,8 +97,8 @@ async function startProcess(req, input = {}) {
     machineName = '',
     inputWeight,
     details = {},
-    expectedBatchVersion,
   } = input
+  const expectedBatchVersion = resolveExpectedVersion(input)
 
   if (!batchId || !process) throw new ProductionError('batchId and process are required')
   const a = actor(req)
@@ -102,7 +137,9 @@ async function startProcess(req, input = {}) {
     }
 
     const iw = inputWeight != null ? Number(inputWeight) : Number(batch.currentWeight)
-    if (!Number.isFinite(iw) || iw < 0) throw new ProductionError('Invalid input weight')
+    if (!isFiniteNonNeg(iw)) throw new ProductionError('Invalid input weight')
+
+    assertStatusTransition('batch', batch.status, 'IN_PROCESS')
 
     const processNumber = await nextProcessNumber(ProcessRun, session)
     const [run] = await ProcessRun.create(
@@ -164,11 +201,12 @@ async function completeProcess(req, processRunId, input = {}) {
     scrap = 0,
     loss = 0,
     sopFollowed = null,
+    sopReason = '',
     remarks = '',
     details = {},
     completeIdempotencyKey = null,
-    expectedBatchVersion,
   } = input
+  const expectedBatchVersion = resolveExpectedVersion(input)
 
   if (completeIdempotencyKey) {
     const existing = await ProcessRun.findOne({ completeIdempotencyKey })
@@ -198,11 +236,19 @@ async function completeProcess(req, processRunId, input = {}) {
     }
 
     const ow = Number(outputWeight)
-    if (!Number.isFinite(ow) || ow < 0) throw new ProductionError('outputWeight must be a non-negative number')
-    const scrapN = Number(scrap) || 0
-    const lossN = Number(loss) || 0
+    if (!isFiniteNonNeg(ow)) throw new ProductionError('outputWeight must be a non-negative number')
+    const scrapN = Number(scrap)
+    const lossN = Number(loss)
+    if (!isFiniteNonNeg(scrapN)) throw new ProductionError('scrap must be a non-negative number')
+    if (!isFiniteNonNeg(lossN)) throw new ProductionError('loss must be a non-negative number')
+
+    if (sopFollowed === false && (!sopReason || String(sopReason).trim().length < 3)) {
+      throw new ProductionError('SOP reason is required when SOP was not followed')
+    }
+
     const safeDetails = validateProcessDetails(run.process, { ...(run.details || {}), ...(details || {}) })
     const recoveryN = Number(safeDetails.recovery) || 0
+    if (!isFiniteNonNeg(recoveryN)) throw new ProductionError('recovery must be a non-negative number')
 
     const batch = await withSession(ProductionBatch.findById(run.batchId), session)
     if (!batch) throw new ProductionError('Batch not found', 404)
@@ -210,8 +256,23 @@ async function completeProcess(req, processRunId, input = {}) {
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
     }
 
+    const inputW = Number(run.inputWeight) || 0
+    if (scrapN + lossN > inputW + recoveryN + 1e-9) {
+      throw new ProductionError(
+        `scrap (${scrapN}) + loss (${lossN}) cannot exceed input (${inputW}) + recovery (${recoveryN})`,
+      )
+    }
+
+    // Output cannot exceed input + recovery when scrap and loss are both zero
+    // (physically impossible without accounting for recovery/alloy).
+    if (ow > inputW + recoveryN + 1e-9 && scrapN === 0 && lossN === 0) {
+      throw new ProductionError(
+        `outputWeight (${ow}) cannot exceed input (${inputW}) + recovery (${recoveryN}) when scrap and loss are zero`,
+      )
+    }
+
     const cfg = await getActiveFlowConfig(session)
-    const expected = Number(run.inputWeight) - scrapN - lossN + recoveryN
+    const expected = inputW - scrapN - lossN + recoveryN
     const varianceAbs = Math.abs(ow - expected)
     const variancePct = expected > 0 ? (varianceAbs / expected) * 100 : (ow === expected ? 0 : 100)
 
@@ -219,6 +280,7 @@ async function completeProcess(req, processRunId, input = {}) {
     run.scrap = scrapN
     run.loss = lossN
     run.sopFollowed = sopFollowed
+    run.sopReason = sopFollowed === false ? String(sopReason).trim() : (sopReason || '')
     run.remarks = remarks || ''
     run.details = safeDetails
     run.endTime = new Date()
@@ -239,9 +301,15 @@ async function completeProcess(req, processRunId, input = {}) {
 
     const packing = isPackingProcess(run.process)
 
-    // Variance / auto-hold before COMPLETED/FINISHED so we never end HOLD + FINISHED.
     let alert = null
     if (variancePct > Number(cfg.weightTolerancePct || 0)) {
+      // Prefer explicit remarks; fall back to structured default so auto-hold still works
+      const reasonText = (remarks && String(remarks).trim().length >= 3)
+        ? String(remarks).trim()
+        : `Weight variance ${variancePct.toFixed(2)}% (expected ${expected}g, actual ${ow}g)`
+      if (!remarks || String(remarks).trim().length < 3) {
+        run.remarks = reasonText
+      }
       alert = await raiseWeightVarianceAlert(
         req,
         batch,
@@ -255,10 +323,12 @@ async function completeProcess(req, processRunId, input = {}) {
       batch.currentDepartment = 'packing'
       batch.currentProcess = run.process
       if (!heldForVariance) {
+        assertStatusTransition('batch', 'IN_PROCESS', 'COMPLETED')
         batch.status = 'COMPLETED'
         batch.completedAt = new Date()
       }
     } else if (!heldForVariance) {
+      assertStatusTransition('batch', 'IN_PROCESS', 'WAITING')
       batch.status = 'WAITING'
     }
 
@@ -276,6 +346,8 @@ async function completeProcess(req, processRunId, input = {}) {
         loss: lossN,
         recovery: recoveryN,
         variancePct,
+        sopFollowed,
+        sopReason: run.sopReason,
         completedBy: a.name,
         autoHeld: heldForVariance,
       },
@@ -328,12 +400,27 @@ async function submitQc(req, input = {}) {
     remarks = '',
     reworkReason = '',
     failureReason = '',
+    reworkOf = null,
+    previousInspectionId = null,
     idempotencyKey = null,
-    expectedBatchVersion,
   } = input
+  const expectedBatchVersion = resolveExpectedVersion(input)
 
   if (!batchId || !QC_RESULTS.includes(result)) {
     throw new ProductionError('batchId and valid QC result are required')
+  }
+
+  if (result === 'FAIL') {
+    const reason = failureReason || remarks
+    if (!reason || String(reason).trim().length < 3) {
+      throw new ProductionError('failureReason is required for QC FAIL')
+    }
+  }
+  if (result === 'REWORK') {
+    const reason = reworkReason || remarks
+    if (!reason || String(reason).trim().length < 3) {
+      throw new ProductionError('reworkReason is required for QC REWORK')
+    }
   }
 
   if (idempotencyKey) {
@@ -356,6 +443,15 @@ async function submitQc(req, input = {}) {
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
     }
 
+    const priorLink = reworkOf || previousInspectionId || null
+    if (priorLink) {
+      const prior = await withSession(QcInspection.findById(priorLink), session)
+      if (!prior) throw new ProductionError('Previous QC inspection not found', 404)
+      if (String(prior.batchId) !== String(batch._id)) {
+        throw new ProductionError('Previous QC inspection does not belong to this batch')
+      }
+    }
+
     const inspectionNumber = await nextInspectionNumber(QcInspection, session)
     const inspectionDoc = {
       inspectionNumber,
@@ -375,7 +471,9 @@ async function submitQc(req, input = {}) {
       result,
       remarks,
       failureReason: failureReason || (result === 'FAIL' ? remarks : ''),
-      reworkReason,
+      reworkReason: reworkReason || (result === 'REWORK' ? remarks : ''),
+      reworkOf: priorLink,
+      previousInspectionId: priorLink,
       stockCode: batch.stockCode || '',
       stockLotId: batch.stockLotId || null,
       authorizedById: a.id,
@@ -390,27 +488,42 @@ async function submitQc(req, input = {}) {
     const from = batch.status
     let action = AUDIT_ACTIONS.QC_SUBMITTED
     let stockStatus = null
+    let nextStatus = from
+    if (result === 'PASS') {
+      nextStatus = 'WAITING'
+      action = AUDIT_ACTIONS.QC_PASSED
+      stockStatus = 'QC_PASSED'
+    } else if (result === 'FAIL') {
+      nextStatus = 'QC_FAILED'
+      action = AUDIT_ACTIONS.QC_FAILED
+      stockStatus = 'QC_FAILED'
+    } else if (result === 'HOLD') {
+      nextStatus = 'HOLD'
+      action = AUDIT_ACTIONS.BATCH_HOLD
+      stockStatus = 'HOLD'
+    } else if (result === 'REWORK') {
+      nextStatus = 'REWORK'
+      action = AUDIT_ACTIONS.REWORK_STARTED
+      stockStatus = 'REWORK'
+    }
+
+    if (nextStatus !== from) {
+      assertStatusTransition('batch', from, nextStatus)
+    }
+
     if (result === 'PASS') {
       batch.status = 'WAITING'
       batch.currentDepartment = 'packing'
       batch.currentProcess = 'Packing'
       batch.currentLocation = 'Packaging'
-      action = AUDIT_ACTIONS.QC_PASSED
-      stockStatus = 'QC_PASSED'
     } else if (result === 'FAIL') {
       batch.status = 'QC_FAILED'
-      action = AUDIT_ACTIONS.QC_FAILED
-      stockStatus = 'QC_FAILED'
     } else if (result === 'HOLD') {
       batch.statusBeforeHold = from
       batch.status = 'HOLD'
       batch.holdReason = remarks || failureReason || 'QC HOLD'
-      action = AUDIT_ACTIONS.BATCH_HOLD
-      stockStatus = 'HOLD'
     } else if (result === 'REWORK') {
       batch.status = 'REWORK'
-      action = AUDIT_ACTIONS.REWORK_STARTED
-      stockStatus = 'REWORK'
     }
     batch.version = (batch.version || 0) + 1
     await batch.save(writeOpts(session))
@@ -420,7 +533,15 @@ async function submitQc(req, input = {}) {
       resourceId: inspection._id,
       action,
       detail: `QC ${result} on ${batch.batchNumber}`,
-      changes: { fromState: from, toState: batch.status, result, remarks, failureReason },
+      changes: {
+        fromState: from,
+        toState: batch.status,
+        result,
+        remarks,
+        failureReason: inspection.failureReason,
+        reworkReason: inspection.reworkReason,
+        reworkOf: priorLink ? String(priorLink) : null,
+      },
       session,
     })
 
@@ -449,14 +570,14 @@ async function adjustWeight(req, batchId, input = {}) {
     adjustment,
     reason,
     idempotencyKey = null,
-    expectedBatchVersion,
   } = input
+  const expectedBatchVersion = resolveExpectedVersion(input)
 
   if (!reason || String(reason).trim().length < 3) {
     throw new ProductionError('Adjustment reason is required')
   }
   const adj = Number(adjustment)
-  if (!Number.isFinite(adj) || adj === 0) {
+  if (!Number.isFinite(adj) || adj === 0 || Number.isNaN(adj)) {
     throw new ProductionError('adjustment must be a non-zero number')
   }
 

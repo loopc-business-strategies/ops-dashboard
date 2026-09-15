@@ -144,6 +144,33 @@ async function raiseAlert(req, input = {}) {
   })
 }
 
+async function acknowledgeAlert(req, alertId) {
+  const a = actor(req)
+  return runInTransaction(async (session) => {
+    const alert = await withSession(ProductionAlert.findById(alertId), session)
+    if (!alert) throw new ProductionError('Alert not found', 404)
+    if (alert.status === 'RESOLVED') {
+      throw new ProductionError('Cannot acknowledge a resolved alert')
+    }
+    if (alert.status === 'ACKNOWLEDGED') return alert
+    alert.status = 'ACKNOWLEDGED'
+    alert.acknowledgedAt = alert.acknowledgedAt || new Date()
+    alert.acknowledgedById = a.id
+    alert.acknowledgedByName = a.name
+    await alert.save(writeOpts(session))
+
+    await writeProductionAudit(req, {
+      resource: 'ProductionAlert',
+      resourceId: alert._id,
+      action: AUDIT_ACTIONS.ALERT_ACKNOWLEDGED,
+      detail: `Alert ${alert.alertNumber} acknowledged`,
+      changes: { status: 'ACKNOWLEDGED' },
+      session,
+    })
+    return alert
+  })
+}
+
 async function resolveAlert(req, alertId) {
   const a = actor(req)
   return runInTransaction(async (session) => {
@@ -172,5 +199,6 @@ module.exports = {
   createMachine,
   updateMachineStatus,
   raiseAlert,
+  acknowledgeAlert,
   resolveAlert,
 }

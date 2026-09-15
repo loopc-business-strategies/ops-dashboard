@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { usePccApi } from './demo/usePccApi'
 import { useDemoMode } from './demo/DemoModeContext'
 import { DEMO_WRITE_MSG } from './demo/pccApiAdapter'
-import { formatGrams, formatMinutes, formatTime } from './shared'
+import { formatGrams, formatMinutes, formatTime, na, rowsToCsv, downloadCsv } from './shared'
 import { PccEmptyState, PccKpiCard, PccSkeleton, PccStatusBadge } from './primitives'
 
 export function FloorManagerPanel({ summary, onToast, onNavigate }) {
@@ -91,6 +91,57 @@ export function FloorManagerPanel({ summary, onToast, onNavigate }) {
         <PccKpiCard label="Metal WIP" value={formatGrams(kpis.metalInProduction)} />
         <PccKpiCard label="Available stock" value={stock.available?.count ?? 0} />
         <PccKpiCard label="Under processing" value={stock.underProcessing?.count ?? 0} />
+      </div>
+
+      <div className="pcc-panel">
+        <div className="pcc-panel-head"><h2>EXCEPTIONS FIRST</h2></div>
+        <div className="pcc-split">
+          <div>
+            <h3 className="pcc-muted">CRITICAL</h3>
+            <ul className="pcc-list">
+              {(summary?.openAlerts || []).filter((a) => a.severity === 'critical').slice(0, 8).map((a) => (
+                <li key={a._id}>
+                  <strong>{a.title}</strong>
+                  <span>{a.message || a.code}</span>
+                </li>
+              ))}
+              {(kpis.qcFailed || 0) > 0 && (
+                <li><strong>QC failures</strong><span>{kpis.qcFailed} batch(es)</span>
+                  <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('qc')}>Open QC</button>
+                </li>
+              )}
+              {(summary?.openAlerts || []).filter((a) => a.severity === 'critical').length === 0 && !(kpis.qcFailed > 0) && (
+                <li className="pcc-muted">No critical exceptions</li>
+              )}
+            </ul>
+          </div>
+          <div>
+            <h3 className="pcc-muted">ATTENTION</h3>
+            <ul className="pcc-list">
+              {(summary?.attention || []).slice(0, 8).map((item, i) => (
+                <li key={item.id || item.batchNumber || i}>
+                  <strong>{item.title || item.batchNumber || item.type || 'Attention'}</strong>
+                  <span>{item.message || item.reason || item.status || ''}</span>
+                </li>
+              ))}
+              {(kpis.waiting || 0) > 0 && (
+                <li><strong>Waiting jobs</strong><span>{kpis.waiting}</span></li>
+              )}
+              {(summary?.attention || []).length === 0 && !(kpis.waiting > 0) && (
+                <li className="pcc-muted">No attention items</li>
+              )}
+            </ul>
+          </div>
+          <div>
+            <h3 className="pcc-muted">NORMAL</h3>
+            <ul className="pcc-list">
+              <li><strong>Active production</strong><span>{kpis.activeBatches ?? 0} batches</span>
+                <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('live')}>Live Floor</button>
+              </li>
+              <li><strong>In transit</strong><span>{formatGrams(kpis.metalInTransit) || 'N/A'}</span></li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       <div className="pcc-panel">
@@ -225,13 +276,29 @@ export function ReportsPanel({ onToast }) {
     }
   }
 
+  const r = report || {}
+  const summary = r.summary || r.kpis || r.totals || {}
+  const rows =
+    r.rows || r.movements || r.departments || r.inspections || r.batches || r.items || r.byDepartment || []
+  const kpiEntries = Object.entries(summary).filter(([, v]) => v == null || typeof v !== 'object').slice(0, 12)
+
+  const exportCsv = () => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      onToast?.('No tabular rows to export')
+      return
+    }
+    const keys = Object.keys(rows[0] || {}).slice(0, 12)
+    const columns = keys.map((k) => ({ key: k, label: k, value: (row) => row[k] }))
+    downloadCsv(`pcc-report-${tab}.csv`, rowsToCsv(rows, columns))
+  }
+
   return (
     <div className="pcc-stack">
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>PRODUCTION REPORTS</h2></div>
         <div className="pcc-row-actions">
           {[
-            ['daily', 'Daily'],
+            ['daily', 'Daily Production'],
             ['stock', 'Stock Movement'],
             ['dept', 'Department'],
             ['qc', 'QC'],
@@ -241,6 +308,7 @@ export function ReportsPanel({ onToast }) {
               {label}
             </button>
           ))}
+          <button type="button" className="pcc-btn-ghost" onClick={exportCsv}>Export CSV</button>
         </div>
         <form className="pcc-form-inline" onSubmit={runTrace} style={{ marginTop: 12 }}>
           <input className="pcc-input" placeholder="Trace STK-… or batch number" value={traceQuery}
@@ -248,11 +316,44 @@ export function ReportsPanel({ onToast }) {
           <button type="submit" className="pcc-btn">Traceability</button>
         </form>
       </div>
-      <div className="pcc-panel">
-        {loading ? <PccSkeleton rows={6} /> : (
-          <pre className="pcc-pre">{report ? JSON.stringify(report, null, 2) : 'No report data'}</pre>
-        )}
-      </div>
+
+      {loading ? <PccSkeleton rows={6} /> : (
+        <>
+          <div className="pcc-kpi-row">
+            {kpiEntries.length === 0 ? (
+              <PccKpiCard label="Status" value="N/A" />
+            ) : kpiEntries.map(([k, v]) => (
+              <PccKpiCard key={k} label={k} value={typeof v === 'number' ? v : na(v)} />
+            ))}
+          </div>
+
+          <div className="pcc-panel">
+            <div className="pcc-panel-head"><h2>{String(tab).toUpperCase()} DETAIL</h2></div>
+            {!Array.isArray(rows) || rows.length === 0 ? (
+              <PccEmptyState message="No report rows for this period" />
+            ) : (
+              <div className="pcc-table-wrap">
+                <table className="pcc-table">
+                  <thead>
+                    <tr>
+                      {Object.keys(rows[0]).slice(0, 8).map((k) => <th key={k}>{k}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.slice(0, 100).map((row, i) => (
+                      <tr key={row._id || row.id || i}>
+                        {Object.keys(rows[0]).slice(0, 8).map((k) => (
+                          <td key={k}>{typeof row[k] === 'object' && row[k] !== null ? JSON.stringify(row[k]) : na(row[k], '—')}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

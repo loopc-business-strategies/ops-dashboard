@@ -15,6 +15,7 @@ import {
   AlertsPanel,
   AuditPanel,
   BatchDetailModal,
+  MyTasksPanel,
 } from '../components/production-control/Panels'
 import {
   StockOverviewPanel,
@@ -76,6 +77,7 @@ function ProductionControlCenterInner() {
 
   const [summary, setSummary] = useState(null)
   const [flow, setFlow] = useState(null)
+  const [productionRole, setProductionRole] = useState(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [selectedBatchId, setSelectedBatchId] = useState(null)
@@ -97,12 +99,14 @@ function ProductionControlCenterInner() {
         setLastUpdated(new Date())
         return
       }
-      const [floor, flowData] = await Promise.all([
+      const [floor, flowData, meData] = await Promise.all([
         pccApi.getLiveFloor(),
         pccApi.getFlow(),
+        pccApi.me().catch(() => null),
       ])
       setSummary(floor)
       setFlow(flowData.flow)
+      if (meData?.productionRole) setProductionRole(meData.productionRole)
       setLastUpdated(new Date())
       refreshFloorOnly.current = true
     } catch (err) {
@@ -200,6 +204,14 @@ function ProductionControlCenterInner() {
             onNavigate={setSection}
           />
         )
+      case 'my-tasks':
+        return (
+          <MyTasksPanel
+            onToast={showToast}
+            onNavigate={setSection}
+            onSelectBatch={setSelectedBatchId}
+          />
+        )
       case 'work-orders':
         return (
           <WorkOrdersPanel
@@ -215,7 +227,7 @@ function ProductionControlCenterInner() {
       case 'movements':
         return <MovementsPanel onToast={showToast} />
       case 'passes':
-        return <PassesPanel onToast={showToast} />
+        return <PassesPanel onToast={showToast} productionRole={productionRole} />
       case 'processes':
         return <ProcessesPanel onToast={showToast} />
       case 'qc':
@@ -283,7 +295,7 @@ function ProductionControlCenterInner() {
       default:
         return null
     }
-  }, [section, summary, flow, loading, refresh, showToast, pccApi, setSection])
+  }, [section, summary, flow, loading, refresh, showToast, pccApi, setSection, productionRole])
 
   return (
     <div className={`pcc-root${isDemo ? ' pcc-demo-active' : ''}`}>

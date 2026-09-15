@@ -6,7 +6,7 @@ import { formatGrams, formatTime } from './shared'
 import { PccEmptyState, PccKpiCard, PccSkeleton, PccStatusBadge } from './primitives'
 
 const DETAIL_FIELDS = {
-  melting: ['recovery', 'metalType', 'purity'],
+  melting: ['recovery', 'metalType', 'purity', 'alloyAdded', 'alloyWeight', 'purityBefore', 'purityAfter', 'furnace'],
   casting: ['recovery'],
   rolling: ['thickness', 'recovery'],
   bangle_division: ['bangleType', 'size', 'pieces', 'recovery'],

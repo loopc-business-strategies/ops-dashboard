@@ -418,8 +418,39 @@ async function getBatchDetail(batchId) {
   const difference = actualWeight - expectedWeight
   const variancePct = expectedWeight > 0 ? (Math.abs(difference) / expectedWeight) * 100 : 0
 
+  const openPassStatuses = ['REQUESTED', 'APPROVED', 'ISSUED', 'IN_TRANSIT']
+  const openPasses = passes.filter((p) => openPassStatuses.includes(p.status))
+  const reservedWeight = openPasses.reduce((sum, p) => sum + Number(p.weight || 0), 0)
+  const availableTransferableWeight = Math.max(0, actualWeight - reservedWeight)
+
+  const lastMovement = movements.length ? movements[movements.length - 1] : null
+  const lastPass = passes.length ? passes[passes.length - 1] : null
+
   return {
     batch,
+    custody: {
+      where: batch.currentLocation || batch.currentDepartment || null,
+      department: batch.currentDepartment || null,
+      holderId: batch.currentHolderId || null,
+      holderName: batch.currentHolderName || null,
+      weight: batch.currentWeight,
+      reservedWeight,
+      availableTransferableWeight,
+      why: batch.currentProcess || batch.purpose || null,
+      status: batch.status,
+      machineId: batch.currentMachineId || null,
+      machineName: batch.currentMachineName || null,
+      workOrderId: batch.workOrderId || null,
+      workOrderNumber: batch.workOrderNumber || null,
+      process: batch.currentProcess || null,
+      lastMovedAt: lastMovement?.updatedAt || lastMovement?.createdAt || lastPass?.receivedAt || lastPass?.issuedAt || null,
+      lastIssuedBy: lastPass?.issuedByName || lastMovement?.issuedByName || null,
+      lastReceivedBy: lastPass?.receivedByName || lastMovement?.receivedByName || null,
+      fromDepartment: lastPass?.fromDepartment || lastMovement?.fromDepartment || null,
+      toDepartment: lastPass?.toDepartment || lastMovement?.toDepartment || null,
+      passNumber: lastPass?.passNumber || null,
+      movementNumber: lastMovement?.movementNumber || null,
+    },
     stockLot,
     stockEvents,
     movements,
@@ -439,10 +470,136 @@ async function getBatchDetail(batchId) {
       loss: batch.lossWeight,
       recovered: batch.recoveredWeight,
       currentWeight: batch.currentWeight,
+      reservedWeight,
+      availableTransferableWeight,
       expectedWeight,
       actualWeight,
       difference,
       variancePct,
+    },
+  }
+}
+
+/**
+ * Operator-facing task queue derived from open passes, in-progress processes, QC-needed batches.
+ */
+async function getMyTasks(user) {
+  if (!user?._id) {
+    return { tasks: [], counts: { receive: 0, process: 0, qc: 0, handover: 0, total: 0 } }
+  }
+  const uid = user._id
+  const name = String(user.name || '').trim()
+
+  const [inboundPasses, outboundPasses, openProcesses, qcBatches, alerts] = await Promise.all([
+    ProductionPass.find({
+      status: { $in: ['ISSUED', 'IN_TRANSIT'] },
+      $or: [{ toPersonId: uid }, ...(name ? [{ toPersonName: name }] : [])],
+    })
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .lean(),
+    ProductionPass.find({
+      status: { $in: ['REQUESTED', 'APPROVED'] },
+      $or: [{ fromPersonId: uid }, { issuedById: uid }],
+    })
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .lean(),
+    ProcessRun.find({
+      status: 'IN_PROGRESS',
+      operatorId: uid,
+    })
+      .sort({ startTime: -1 })
+      .limit(50)
+      .lean(),
+    ProductionBatch.find({
+      status: { $in: ['WAITING', 'QC', 'QC_FAILED'] },
+      currentHolderId: uid,
+    })
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .lean(),
+    ProductionAlert.find({
+      status: { $in: ['OPEN', 'ACKNOWLEDGED'] },
+      severity: { $in: ['critical', 'warning'] },
+    })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean(),
+  ])
+
+  const tasks = []
+  for (const p of inboundPasses) {
+    tasks.push({
+      id: `receive-${p._id}`,
+      type: 'receive_pass',
+      priority: 'attention',
+      title: `Receive ${p.passNumber}`,
+      subtitle: `${p.batchNumber || ''} · ${p.fromDepartment} → ${p.toDepartment} · ${p.weight}g`,
+      passId: p._id,
+      batchId: p.batchId,
+      status: p.status,
+    })
+  }
+  for (const p of outboundPasses) {
+    tasks.push({
+      id: `handover-${p._id}`,
+      type: 'handover_pending',
+      priority: 'attention',
+      title: `Handover pending ${p.passNumber}`,
+      subtitle: `${p.status} · ${p.fromDepartment} → ${p.toDepartment}`,
+      passId: p._id,
+      batchId: p.batchId,
+      status: p.status,
+    })
+  }
+  for (const r of openProcesses) {
+    tasks.push({
+      id: `process-${r._id}`,
+      type: 'complete_process',
+      priority: 'normal',
+      title: `Complete ${r.process}`,
+      subtitle: `${r.batchNumber || ''} · input ${r.inputWeight}g`,
+      processRunId: r._id,
+      batchId: r.batchId,
+      status: r.status,
+    })
+  }
+  for (const b of qcBatches) {
+    tasks.push({
+      id: `qc-${b._id}`,
+      type: 'qc_pending',
+      priority: b.status === 'QC_FAILED' ? 'critical' : 'attention',
+      title: b.status === 'QC_FAILED' ? `QC failed ${b.batchNumber}` : `QC pending ${b.batchNumber}`,
+      subtitle: `${b.currentDepartment || ''} · ${b.currentWeight}g`,
+      batchId: b._id,
+      status: b.status,
+    })
+  }
+  for (const a of alerts.slice(0, 10)) {
+    tasks.push({
+      id: `alert-${a._id}`,
+      type: 'alert',
+      priority: a.severity === 'critical' ? 'critical' : 'attention',
+      title: a.title,
+      subtitle: a.message || a.alertNumber,
+      alertId: a._id,
+      batchId: a.batchId,
+      status: a.status,
+    })
+  }
+
+  const priorityRank = { critical: 0, attention: 1, normal: 2 }
+  tasks.sort((x, y) => (priorityRank[x.priority] ?? 9) - (priorityRank[y.priority] ?? 9))
+
+  return {
+    tasks,
+    counts: {
+      receive: inboundPasses.length,
+      process: openProcesses.length,
+      qc: qcBatches.length,
+      handover: outboundPasses.length,
+      total: tasks.length,
     },
   }
 }
@@ -480,5 +637,6 @@ module.exports = {
   searchProduction,
   getBatchDetail,
   getWorkOrdersSummary,
+  getMyTasks,
   BOARD_STATUS_MAP,
 }

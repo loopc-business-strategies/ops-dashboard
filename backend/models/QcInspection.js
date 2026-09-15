@@ -22,6 +22,8 @@ const qcInspectionSchema = new mongoose.Schema(
     remarks: { type: String, trim: true, default: '' },
     failureReason: { type: String, trim: true, default: '' },
     reworkReason: { type: String, trim: true, default: '' },
+    reworkOf: { type: mongoose.Schema.Types.ObjectId, ref: 'QcInspection', default: null },
+    previousInspectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'QcInspection', default: null },
     stockCode: { type: String, trim: true, default: '' },
     stockLotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionStockLot', default: null },
     authorizedById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -34,6 +36,7 @@ const qcInspectionSchema = new mongoose.Schema(
 qcInspectionSchema.index({ inspectionNumber: 1 }, { unique: true })
 qcInspectionSchema.index({ batchId: 1, createdAt: -1 })
 qcInspectionSchema.index({ result: 1, createdAt: -1 })
+qcInspectionSchema.index({ reworkOf: 1 }, { sparse: true })
 qcInspectionSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true })
 
 module.exports = createTenantModel('QcInspection', qcInspectionSchema)

@@ -7,14 +7,8 @@ const { writeProductionAudit } = require('./audit')
 const { nextBatchNumber, nextAlertNumber } = require('./numbering')
 const { getActiveFlowConfig } = require('./flowConfigService')
 const { AUDIT_ACTIONS, METAL_TYPES, BATCH_STATUSES } = require('./constants')
-
-class ProductionError extends Error {
-  constructor(message, status = 400) {
-    super(message)
-    this.status = status
-    this.name = 'ProductionError'
-  }
-}
+const { ProductionError } = require('./errors')
+const { assertStatusTransition } = require('./statusTransitions')
 
 function actor(req) {
   return {
@@ -145,9 +139,16 @@ async function issueFromVault(req, batchId, {
         `Cannot issue metal for batch in status ${batch.status}. Only AWAITING_ISSUE (or CREATED) is allowed.`,
       )
     }
+    if (Number(batch.issuedWeight || 0) > 0) {
+      throw new ProductionError(
+        `Batch ${batch.batchNumber} has already been issued (${batch.issuedWeight}g). Duplicate vault issue is not allowed.`,
+      )
+    }
     if (expectedVersion != null && batch.version !== Number(expectedVersion)) {
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
     }
+
+    assertStatusTransition('batch', batch.status, 'ISSUED')
 
     const itemId = inventoryItemId || batch.inventoryItemId
     if (!itemId) throw new ProductionError('inventoryItemId is required to issue from vault')
@@ -224,6 +225,7 @@ async function holdBatch(req, batchId, { reason = '', expectedVersion } = {}) {
     if (batch.status === 'HOLD') return batch
 
     const from = batch.status
+    assertStatusTransition('batch', from, 'HOLD')
     batch.statusBeforeHold = from
     batch.status = 'HOLD'
     batch.holdReason = reason || 'Held by floor'
@@ -259,6 +261,7 @@ async function releaseBatch(req, batchId, { toStatus, expectedVersion } = {}) {
     if (!BATCH_STATUSES.includes(resolved) || ['HOLD', 'CANCELLED'].includes(resolved)) {
       throw new ProductionError(`Invalid release status: ${resolved}`)
     }
+    assertStatusTransition('batch', 'HOLD', resolved)
 
     batch.status = resolved
     batch.holdReason = ''
@@ -332,6 +335,7 @@ async function returnToVault(req, batchId, { weight, inventoryItemId, expectedVe
     }
 
     const from = batch.status
+    assertStatusTransition('batch', from, 'RETURNED_TO_VAULT')
     batch.status = 'RETURNED_TO_VAULT'
     batch.currentDepartment = 'vault'
     batch.currentLocation = 'Vault'
@@ -393,6 +397,7 @@ async function raiseWeightVarianceAlert(req, batch, { expected, actual, variance
   })
 
   if (cfg.autoHoldOnVariance && batch.status !== 'HOLD') {
+    assertStatusTransition('batch', batch.status, 'HOLD')
     batch.statusBeforeHold = batch.status
     batch.status = 'HOLD'
     batch.holdReason = `Auto-hold: weight variance ${variancePct.toFixed(2)}%`

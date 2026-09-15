@@ -4,11 +4,25 @@ const MetalMovement = require('../../models/MetalMovement')
 const { runInTransaction, withSession, writeOpts } = require('../../utils/mongoTransaction')
 const { writeProductionAudit } = require('./audit')
 const { nextPassNumber, nextMovementNumber } = require('./numbering')
-const { AUDIT_ACTIONS } = require('./constants')
-const { ProductionError } = require('./batchService')
+const { AUDIT_ACTIONS, OPEN_PASS_STATUSES } = require('./constants')
+const { ProductionError } = require('./errors')
+const { assertStatusTransition, departmentsMatch } = require('./statusTransitions')
+const { getActiveFlowConfig } = require('./flowConfigService')
+const { raiseWeightVarianceAlert } = require('./batchService')
 
 function actor(req) {
   return { id: req.user?._id || null, name: req.user?.name || 'system' }
+}
+
+async function sumReservedPassWeight(batchId, session, { excludePassId = null } = {}) {
+  const filter = {
+    batchId,
+    status: { $in: OPEN_PASS_STATUSES },
+  }
+  if (excludePassId) filter._id = { $ne: excludePassId }
+
+  const passes = await withSession(ProductionPass.find(filter).select('weight'), session)
+  return passes.reduce((sum, p) => sum + Number(p.weight || 0), 0)
 }
 
 async function createPass(req, input = {}) {
@@ -25,8 +39,8 @@ async function createPass(req, input = {}) {
     idempotencyKey = null,
   } = input
 
-  if (!batchId || !fromDepartment || !toDepartment) {
-    throw new ProductionError('batchId, fromDepartment, and toDepartment are required')
+  if (!batchId || !toDepartment) {
+    throw new ProductionError('batchId and toDepartment are required')
   }
   const w = Number(weight)
   if (!Number.isFinite(w) || w <= 0) throw new ProductionError('Pass weight must be positive')
@@ -44,8 +58,38 @@ async function createPass(req, input = {}) {
     if (['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED', 'HOLD'].includes(batch.status)) {
       throw new ProductionError(`Cannot create pass for batch in status ${batch.status}`)
     }
-    if (w > Number(batch.currentWeight) + 1e-9) {
-      throw new ProductionError(`Pass weight ${w} exceeds batch current weight ${batch.currentWeight}`)
+
+    // Derive/verify source department from batch custody — do not trust client alone.
+    const actualFrom = batch.currentDepartment || batch.currentLocation || 'vault'
+    if (fromDepartment && !departmentsMatch(fromDepartment, actualFrom)) {
+      // Write outside the transaction session so the rejection remains auditable after abort.
+      await writeProductionAudit(req, {
+        resource: 'ProductionPass',
+        resourceId: batch._id,
+        action: AUDIT_ACTIONS.PASS_REJECTED,
+        detail: `Rejected pass: fromDepartment "${fromDepartment}" does not match batch location "${actualFrom}"`,
+        changes: {
+          attemptedFrom: fromDepartment,
+          actualFrom,
+          toDepartment,
+          weight: w,
+          batchId: String(batch._id),
+        },
+      })
+      throw new ProductionError(
+        `fromDepartment must match the batch's current department/location (${actualFrom}). Received: ${fromDepartment}`,
+      )
+    }
+    const resolvedFrom = actualFrom
+
+    const reserved = await sumReservedPassWeight(batch._id, session)
+    const current = Number(batch.currentWeight) || 0
+    const available = current - reserved
+    if (w > available + 1e-9) {
+      throw new ProductionError(
+        `Pass weight ${w}g exceeds available transferable weight ${available}g `
+        + `(current ${current}g − reserved by open passes ${reserved}g)`,
+      )
     }
 
     const passNumber = await nextPassNumber(ProductionPass, session)
@@ -55,7 +99,7 @@ async function createPass(req, input = {}) {
           passNumber,
           batchId: batch._id,
           batchNumber: batch.batchNumber,
-          fromDepartment,
+          fromDepartment: resolvedFrom,
           toDepartment,
           fromPersonId: batch.currentHolderId || a.id,
           fromPersonName: batch.currentHolderName || a.name,
@@ -80,8 +124,15 @@ async function createPass(req, input = {}) {
       resource: 'ProductionPass',
       resourceId: pass._id,
       action: AUDIT_ACTIONS.PASS_CREATED,
-      detail: `Pass ${passNumber} created ${fromDepartment} → ${toDepartment} for ${batch.batchNumber}`,
-      changes: { passNumber, fromDepartment, toDepartment, weight: w },
+      detail: `Pass ${passNumber} created ${resolvedFrom} → ${toDepartment} for ${batch.batchNumber}`,
+      changes: {
+        passNumber,
+        fromDepartment: resolvedFrom,
+        toDepartment,
+        weight: w,
+        reservedBefore: reserved,
+        availableAfter: available - w,
+      },
       session,
     })
 
@@ -103,6 +154,7 @@ async function approvePass(req, passId) {
       throw new ProductionError(`Cannot approve pass in status ${pass.status}`)
     }
 
+    assertStatusTransition('pass', pass.status, 'APPROVED')
     pass.status = 'APPROVED'
     pass.approvedById = a.id
     pass.approvedByName = a.name
@@ -138,6 +190,20 @@ async function issuePass(req, passId, { expectedBatchVersion } = {}) {
     if (batch.status === 'HOLD') throw new ProductionError('Batch is on HOLD')
     if (expectedBatchVersion != null && batch.version !== Number(expectedBatchVersion)) {
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
+    }
+
+    // Re-check reservation at issue time (other passes may have been created)
+    const reserved = await sumReservedPassWeight(batch._id, session, { excludePassId: pass._id })
+    const available = Number(batch.currentWeight) - reserved
+    if (Number(pass.weight) > available + 1e-9) {
+      throw new ProductionError(
+        `Cannot issue pass: weight ${pass.weight}g exceeds available ${available}g after other open reservations`,
+      )
+    }
+
+    assertStatusTransition('pass', pass.status, 'IN_TRANSIT')
+    if (batch.status !== 'IN_TRANSIT') {
+      assertStatusTransition('batch', batch.status, 'IN_TRANSIT')
     }
 
     const movementNumber = await nextMovementNumber(MetalMovement, session)
@@ -200,11 +266,13 @@ async function issuePass(req, passId, { expectedBatchVersion } = {}) {
 
 /**
  * Explicit receive — never auto-receive. Idempotent via receiveIdempotencyKey.
+ * Validates received weight vs issued; raises variance alert / optional HOLD.
  */
 async function receivePass(req, passId, {
   receivedWeight,
   expectedBatchVersion,
   receiveIdempotencyKey = null,
+  varianceReason = '',
 } = {}) {
   const a = actor(req)
 
@@ -239,8 +307,32 @@ async function receivePass(req, passId, {
       throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
     }
 
-    const rw = receivedWeight != null ? Number(receivedWeight) : Number(pass.weight)
-    if (!Number.isFinite(rw) || rw < 0) throw new ProductionError('Invalid received weight')
+    const issuedW = Number(pass.weight)
+    const rw = receivedWeight != null ? Number(receivedWeight) : issuedW
+    if (!Number.isFinite(rw) || rw < 0 || Number.isNaN(rw)) {
+      throw new ProductionError('Invalid received weight')
+    }
+    if (!Number.isFinite(rw) || !Number.isFinite(issuedW)) {
+      throw new ProductionError('Invalid weight values')
+    }
+
+    const varianceAbs = Math.abs(rw - issuedW)
+    const variancePct = issuedW > 0 ? (varianceAbs / issuedW) * 100 : (rw === issuedW ? 0 : 100)
+
+    const cfg = await getActiveFlowConfig(session)
+    const tolerance = Number(cfg.weightTolerancePct || 0)
+    const overTolerance = variancePct > tolerance
+
+    if (overTolerance && (!varianceReason || String(varianceReason).trim().length < 3)) {
+      throw new ProductionError(
+        `Received weight variance ${variancePct.toFixed(2)}% exceeds tolerance ${tolerance}%. A variance reason is required.`,
+      )
+    }
+
+    assertStatusTransition('pass', pass.status, 'RECEIVED')
+    if (batch.status !== 'RECEIVED') {
+      assertStatusTransition('batch', batch.status, 'RECEIVED')
+    }
 
     const now = new Date()
     if (pass.movementId) {
@@ -254,11 +346,15 @@ async function receivePass(req, passId, {
       }
     }
 
+    // Preserve original issued weight on pass.weight permanently.
     pass.status = 'RECEIVED'
     pass.receivedAt = now
     pass.receivedById = a.id
     pass.receivedByName = a.name
     pass.receivedWeight = rw
+    pass.varianceAbs = varianceAbs
+    pass.variancePct = variancePct
+    pass.varianceReason = overTolerance ? String(varianceReason).trim() : (varianceReason || '')
     if (receiveIdempotencyKey) pass.receiveIdempotencyKey = receiveIdempotencyKey
     await pass.save(writeOpts(session))
 
@@ -276,16 +372,32 @@ async function receivePass(req, passId, {
       batch.currentMachineName = pass.machineName
     }
     batch.version = (batch.version || 0) + 1
+
+    let alert = null
+    if (overTolerance) {
+      alert = await raiseWeightVarianceAlert(
+        req,
+        batch,
+        { expected: issuedW, actual: rw, variancePct },
+        session,
+      )
+    }
+
     await batch.save(writeOpts(session))
 
     await writeProductionAudit(req, {
       resource: 'ProductionPass',
       resourceId: pass._id,
       action: AUDIT_ACTIONS.PASS_RECEIVED,
-      detail: `Pass ${pass.passNumber} received by ${a.name} (${rw}g)`,
+      detail: `Pass ${pass.passNumber} received by ${a.name} (${rw}g; issued ${issuedW}g)`,
       changes: {
         weightBefore,
         weightAfter: rw,
+        issuedWeight: issuedW,
+        receivedWeight: rw,
+        varianceAbs,
+        variancePct,
+        varianceReason: pass.varianceReason,
         toDepartment: pass.toDepartment,
         holder: a.name,
       },
@@ -297,11 +409,16 @@ async function receivePass(req, passId, {
       resourceId: batch._id,
       action: AUDIT_ACTIONS.METAL_RECEIVED,
       detail: `Batch ${batch.batchNumber} received in ${pass.toDepartment}`,
-      changes: { fromState: 'IN_TRANSIT', toState: 'RECEIVED', weightBefore, weightAfter: rw },
+      changes: {
+        fromState: 'IN_TRANSIT',
+        toState: batch.status,
+        weightBefore,
+        weightAfter: rw,
+      },
       session,
     })
 
-    return { pass, batch, reused: false }
+    return { pass, batch, alert, reused: false }
   })
 
   return result
@@ -315,6 +432,7 @@ async function cancelPass(req, passId, { reason = '' } = {}) {
       throw new ProductionError(`Cannot cancel pass in status ${pass.status}`)
     }
     const priorPassStatus = pass.status
+    assertStatusTransition('pass', priorPassStatus, 'CANCELLED')
     pass.status = 'CANCELLED'
     await pass.save(writeOpts(session))
 
@@ -331,7 +449,8 @@ async function cancelPass(req, passId, { reason = '' } = {}) {
       batch = await withSession(ProductionBatch.findById(pass.batchId), session)
       if (batch && batch.status === 'IN_TRANSIT') {
         const fromStatus = batch.status
-        // Revert custody to the sending department (pre-transit).
+        assertStatusTransition('batch', fromStatus, 'WAITING')
+        // Revert custody to the sending department (pre-transit). Reservation freed by CANCELLED status.
         batch.status = 'WAITING'
         batch.currentDepartment = pass.fromDepartment || batch.currentDepartment
         batch.currentLocation = pass.fromDepartment || batch.currentLocation
@@ -373,4 +492,5 @@ module.exports = {
   issuePass,
   receivePass,
   cancelPass,
+  sumReservedPassWeight,
 }

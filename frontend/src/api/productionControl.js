@@ -38,9 +38,11 @@ export const productionControlApi = {
   updateMachineStatus: (id, body) => patch(`/machines/${id}/status`, body),
   listAlerts: (params) => get('/alerts', params),
   raiseAlert: (body) => post('/alerts', body),
+  acknowledgeAlert: (id) => post(`/alerts/${id}/acknowledge`),
   resolveAlert: (id) => post(`/alerts/${id}/resolve`),
   listAudit: () => get('/audit'),
   getWorkOrdersSummary: () => get('/work-orders-summary'),
+  getMyTasks: () => get('/my-tasks'),
 
   // Stock
   getStockOverview: () => get('/stock/overview'),

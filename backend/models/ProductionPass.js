@@ -30,6 +30,9 @@ const productionPassSchema = new mongoose.Schema(
     approvedAt: { type: Date, default: null },
     receivedAt: { type: Date, default: null },
     receivedWeight: { type: Number, default: null },
+    varianceAbs: { type: Number, default: null },
+    variancePct: { type: Number, default: null },
+    varianceReason: { type: String, trim: true, default: '' },
     movementId: { type: mongoose.Schema.Types.ObjectId, ref: 'MetalMovement', default: null },
     idempotencyKey: { type: String, trim: true, default: null },
     receiveIdempotencyKey: { type: String, trim: true, default: null },
@@ -39,6 +42,7 @@ const productionPassSchema = new mongoose.Schema(
 
 productionPassSchema.index({ passNumber: 1 }, { unique: true })
 productionPassSchema.index({ batchId: 1, createdAt: -1 })
+productionPassSchema.index({ batchId: 1, status: 1 })
 productionPassSchema.index({ status: 1, toDepartment: 1 })
 productionPassSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true })
 productionPassSchema.index({ receiveIdempotencyKey: 1 }, { unique: true, sparse: true })

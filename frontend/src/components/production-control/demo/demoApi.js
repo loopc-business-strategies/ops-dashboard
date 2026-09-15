@@ -115,8 +115,22 @@ export function createDemoPccApi() {
       return { success: true, alerts: rows, total, limit, skip }
     },
     raiseAlert: () => demoWriteOk(),
+    acknowledgeAlert: () => demoWriteOk(),
     resolveAlert: () => demoWriteOk(),
     listAudit: async () => ({ success: true, logs: DEMO_AUDIT }),
+    getMyTasks: async () => ({
+      success: true,
+      tasks: [
+        {
+          id: 'demo-recv-1',
+          type: 'receive_pass',
+          priority: 'attention',
+          title: 'Receive PASS-DEMO-001',
+          subtitle: 'vault → melting · 500g',
+        },
+      ],
+      counts: { receive: 1, process: 0, qc: 0, handover: 0, total: 1 },
+    }),
     getWorkOrdersSummary: async () => getDemoWorkOrdersSummary(),
 
     getStockOverview: async () => ({
