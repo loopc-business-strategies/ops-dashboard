@@ -41,15 +41,29 @@ function validateProcessDetails(processName, details = {}) {
 
   const numericOptional = [
     'recovery', 'alloyWeight', 'purityBefore', 'purityAfter', 'inputWeight', 'outputWeight', 'scrap', 'loss',
+    'thickness', 'width', 'passes', 'pieces', 'rejectedPieces', 'scrapPieces', 'castTemperature',
   ]
   for (const key of numericOptional) {
     if (d[key] != null && d[key] !== '') {
       const n = Number(d[key])
-      if (!Number.isFinite(n) || Number.isNaN(n) || !Number.isFinite(n)) {
+      if (!Number.isFinite(n) || Number.isNaN(n)) {
         throw new ProductionError(`Invalid numeric value for ${key}`)
       }
       if (n < 0) throw new ProductionError(`${key} cannot be negative`)
       d[key] = n
+    }
+  }
+
+  const stringOptional = [
+    'metalType', 'purity', 'alloyAdded', 'furnace', 'mouldType', 'bangleType', 'size',
+    'stampType', 'designCode', 'polishType', 'media', 'packagingType', 'packageNumber',
+    'labelCode', 'remarks',
+  ]
+  for (const key of stringOptional) {
+    if (d[key] != null && typeof d[key] !== 'boolean') {
+      const s = String(d[key])
+      if (s.length > 200) throw new ProductionError(`${key} exceeds 200 characters`)
+      d[key] = s
     }
   }
 

@@ -32,6 +32,12 @@ import {
   ReportsPanel,
   SettingsPanel,
 } from '../components/production-control/FloorManagerPanels'
+import {
+  MetalCustodyPanel,
+  DelayMonitorPanel,
+  ReworkQueuePanel,
+  MaintenancePanel,
+} from '../components/production-control/OpsPanels'
 import { DemoModeProvider, useDemoMode } from '../components/production-control/demo/DemoModeContext'
 import { isProductionDemoEnabled } from '../components/production-control/demo/flags'
 import { usePccApi } from '../components/production-control/demo/usePccApi'
@@ -232,8 +238,22 @@ function ProductionControlCenterInner() {
         return <ProcessesPanel onToast={showToast} />
       case 'qc':
         return <QcPanel onToast={showToast} onNavigate={setSection} />
+      case 'rework':
+        return (
+          <ReworkQueuePanel
+            onToast={showToast}
+            onSelectBatch={setSelectedBatchId}
+            onNavigate={setSection}
+          />
+        )
+      case 'metal-custody':
+        return <MetalCustodyPanel onToast={showToast} onSelectBatch={setSelectedBatchId} />
+      case 'delay-monitor':
+        return <DelayMonitorPanel onToast={showToast} onSelectBatch={setSelectedBatchId} />
       case 'machines':
         return <MachinesPanel onToast={showToast} />
+      case 'maintenance':
+        return <MaintenancePanel onToast={showToast} />
       case 'alerts':
         return <AlertsPanel onToast={showToast} />
       case 'audit':

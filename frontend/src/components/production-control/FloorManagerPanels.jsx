@@ -238,6 +238,58 @@ export function ReportsPanel({ onToast }) {
   const [traceQuery, setTraceQuery] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const KPI_LABELS = {
+    daily: [
+      ['jobs', 'Jobs'],
+      ['completed', 'Completed'],
+      ['pending', 'Pending'],
+      ['weightIn', 'Weight In'],
+      ['weightOut', 'Weight Out'],
+      ['scrap', 'Scrap'],
+      ['loss', 'Loss'],
+    ],
+    stock: [
+      ['movements', 'Movements'],
+    ],
+    dept: [
+      ['departments', 'Departments'],
+    ],
+    qc: [
+      ['PASS', 'Pass'],
+      ['FAIL', 'Fail'],
+      ['HOLD', 'Hold'],
+      ['REWORK', 'Rework'],
+    ],
+    shift: [
+      ['processRuns', 'Process Runs'],
+      ['completed', 'Completed'],
+      ['weight', 'Weight'],
+      ['holds', 'Holds'],
+    ],
+    custody: [
+      ['vaultCount', 'Vault Batches'],
+      ['vaultWeight', 'Vault Weight'],
+      ['wipCount', 'WIP Batches'],
+      ['transitCount', 'In Transit'],
+      ['totalBatches', 'Total Batches'],
+    ],
+    variance: [
+      ['batchesReviewed', 'Batches Reviewed'],
+      ['overToleranceCount', 'Over Tolerance'],
+      ['avgVariancePct', 'Avg Variance %'],
+      ['tolerancePct', 'Tolerance %'],
+      ['totalDifference', 'Total Diff (g)'],
+    ],
+    machines: [
+      ['machinesActive', 'Active Machines'],
+      ['machinesFaultOrMaintenance', 'Fault / Maint'],
+      ['totalJobs', 'Jobs'],
+      ['totalCompleted', 'Completed'],
+      ['totalWeightOut', 'Weight Out'],
+      ['totalRunMinutes', 'Run Minutes'],
+    ],
+  }
+
   const load = useCallback(async (type) => {
     setLoading(true)
     setReport(null)
@@ -248,6 +300,9 @@ export function ReportsPanel({ onToast }) {
       else if (type === 'dept') data = await pccApi.reportDepartmentPerformance({})
       else if (type === 'qc') data = await pccApi.reportQc({})
       else if (type === 'shift') data = await pccApi.reportShift({})
+      else if (type === 'custody') data = await pccApi.reportMetalCustody({})
+      else if (type === 'variance') data = await pccApi.reportWeightVariance({})
+      else if (type === 'machines') data = await pccApi.reportMachinePerformance({})
       setReport(data.report || data)
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Report failed')
@@ -277,10 +332,24 @@ export function ReportsPanel({ onToast }) {
   }
 
   const r = report || {}
-  const summary = r.summary || r.kpis || r.totals || {}
+  const summary = r.summary || r.kpis || r.totals || r.production || {}
   const rows =
     r.rows || r.movements || r.departments || r.inspections || r.batches || r.items || r.byDepartment || []
-  const kpiEntries = Object.entries(summary).filter(([, v]) => v == null || typeof v !== 'object').slice(0, 12)
+
+  const curated = KPI_LABELS[tab]
+  const kpiCards = curated
+    ? curated.map(([key, label]) => {
+      let value = summary[key]
+      if (value == null && tab === 'stock') value = Array.isArray(rows) ? rows.length : null
+      if (value == null && tab === 'dept') value = Array.isArray(rows) ? rows.length : null
+      if (value == null && tab === 'shift' && r.production) value = r.production[key]
+      if (value == null && tab === 'shift' && key === 'holds') value = r.holds
+      return { key, label, value: value == null || value === '' ? 'N/A' : value }
+    })
+    : Object.entries(summary)
+      .filter(([, v]) => v == null || typeof v !== 'object')
+      .slice(0, 12)
+      .map(([k, v]) => ({ key: k, label: k, value: v == null ? 'N/A' : v }))
 
   const exportCsv = () => {
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -303,6 +372,9 @@ export function ReportsPanel({ onToast }) {
             ['dept', 'Department'],
             ['qc', 'QC'],
             ['shift', 'Shift'],
+            ['custody', 'Metal Custody'],
+            ['variance', 'Weight Variance'],
+            ['machines', 'Machine Performance'],
           ].map(([id, label]) => (
             <button key={id} type="button" className={tab === id ? 'pcc-btn' : 'pcc-btn-ghost'} onClick={() => setTab(id)}>
               {label}
@@ -320,10 +392,10 @@ export function ReportsPanel({ onToast }) {
       {loading ? <PccSkeleton rows={6} /> : (
         <>
           <div className="pcc-kpi-row">
-            {kpiEntries.length === 0 ? (
+            {kpiCards.length === 0 ? (
               <PccKpiCard label="Status" value="N/A" />
-            ) : kpiEntries.map(([k, v]) => (
-              <PccKpiCard key={k} label={k} value={typeof v === 'number' ? v : na(v)} />
+            ) : kpiCards.map((c) => (
+              <PccKpiCard key={c.key} label={c.label} value={typeof c.value === 'number' ? c.value : na(c.value, 'N/A')} />
             ))}
           </div>
 

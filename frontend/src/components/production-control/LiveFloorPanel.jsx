@@ -31,6 +31,27 @@ export default function LiveFloorPanel({
   const board = summary?.board || {}
   const stock = summary?.stock || {}
   const shift = summary?.currentShift
+  const openAlerts = summary?.openAlerts || summary?.attention || []
+  const attentionItems = summary?.attention || summary?.openAlerts || []
+  const criticalAlerts = openAlerts.filter((a) => String(a.severity || '').toLowerCase() === 'critical')
+  const attentionAlerts = attentionItems.filter((a) => String(a.severity || '').toLowerCase() !== 'critical')
+
+  const openException = (item) => {
+    if (item?.batchId) {
+      onSelectBatch?.(item.batchId)
+      return
+    }
+    const code = String(item?.code || item?.category || '').toUpperCase()
+    if (code.includes('MACHINE') || item?.machineId) {
+      onNavigate?.('machines')
+      return
+    }
+    if (code.includes('PASS') || item?.passId) {
+      onNavigate?.('passes')
+      return
+    }
+    onNavigate?.('alerts')
+  }
 
   const runConfirmed = async () => {
     if (!confirm) return
@@ -48,6 +69,89 @@ export default function LiveFloorPanel({
 
   return (
     <div className="pcc-stack">
+      <div className="pcc-panel">
+        <div className="pcc-panel-head"><h2>EXCEPTIONS FIRST</h2></div>
+        <div className="pcc-split">
+          <div>
+            <h3 className="pcc-muted">CRITICAL</h3>
+            <ul className="pcc-list">
+              {criticalAlerts.slice(0, 8).map((a) => (
+                <li key={a._id || a.id}>
+                  <button type="button" className="pcc-link" onClick={() => openException(a)}>
+                    <strong>{a.title || a.code || 'Critical'}</strong>
+                  </button>
+                  <span>{a.message || a.code || ''}</span>
+                </li>
+              ))}
+              {(kpis.qcFailed || 0) > 0 && (
+                <li>
+                  <strong>QC failures</strong>
+                  <span>{kpis.qcFailed} batch(es)</span>
+                  <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('qc')}>Open QC</button>
+                </li>
+              )}
+              {(kpis.machinesFaulted || 0) > 0 && (
+                <li>
+                  <strong>Machines faulted / maintenance</strong>
+                  <span>{kpis.machinesFaulted}</span>
+                  <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('maintenance')}>Maintenance</button>
+                </li>
+              )}
+              {criticalAlerts.length === 0 && !(kpis.qcFailed > 0) && !(kpis.machinesFaulted > 0) && (
+                <li className="pcc-muted">No critical issues</li>
+              )}
+            </ul>
+          </div>
+          <div>
+            <h3 className="pcc-muted">ATTENTION</h3>
+            <ul className="pcc-list">
+              {attentionAlerts.slice(0, 8).map((item, i) => (
+                <li key={item._id || item.id || item.batchNumber || i}>
+                  <button type="button" className="pcc-link" onClick={() => openException(item)}>
+                    <strong>{item.title || item.batchNumber || item.type || 'Attention'}</strong>
+                  </button>
+                  <span>{item.message || item.reason || item.status || ''}</span>
+                </li>
+              ))}
+              {(kpis.waiting || 0) > 0 && (
+                <li>
+                  <strong>Waiting jobs</strong>
+                  <span>{kpis.waiting}</span>
+                </li>
+              )}
+              {(kpis.delayedBatches || 0) > 0 && (
+                <li>
+                  <strong>Delayed batches</strong>
+                  <span>{kpis.delayedBatches}</span>
+                  <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('delay-monitor')}>Delay Monitor</button>
+                </li>
+              )}
+              {attentionAlerts.length === 0 && !(kpis.waiting > 0) && !(kpis.delayedBatches > 0) && (
+                <li className="pcc-muted">No attention items</li>
+              )}
+            </ul>
+          </div>
+          <div>
+            <h3 className="pcc-muted">NORMAL</h3>
+            <ul className="pcc-list">
+              <li>
+                <strong>Active production</strong>
+                <span>{kpis.activeBatches ?? 0} batches</span>
+              </li>
+              <li>
+                <strong>Metal in transit</strong>
+                <span>{formatKg(kpis.metalInTransit)}</span>
+                <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('passes')}>Passes</button>
+              </li>
+              <li>
+                <strong>Machines running</strong>
+                <span>{kpis.machinesRunning ?? 0}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {shift && (
         <div className="pcc-panel pcc-shift-banner">
           <div>
@@ -73,13 +177,16 @@ export default function LiveFloorPanel({
         <PccKpiCard label="Active WOs" value={kpis.activeWorkOrders ?? 0} />
         <PccKpiCard label="Active batches" value={kpis.activeBatches ?? 0} />
         <PccKpiCard label="Metal WIP" value={formatKg(kpis.metalInProduction)} />
+        <PccKpiCard label="In transit" value={formatKg(kpis.metalInTransit)} />
+        <PccKpiCard label="Delayed" value={kpis.delayedBatches ?? 0} />
         <PccKpiCard label="Waiting" value={kpis.waiting ?? 0} />
         <PccKpiCard label="QC pending" value={kpis.qcPending ?? 0} />
         <PccKpiCard label="QC failed" value={kpis.qcFailed ?? 0} />
         <PccKpiCard label="On hold" value={kpis.onHold ?? 0} />
         <PccKpiCard label="Rework" value={kpis.rework ?? 0} />
         <PccKpiCard label="Alerts" value={kpis.activeAlerts ?? 0} />
-        <PccKpiCard label="Machines" value={kpis.machinesRunning ?? 0} />
+        <PccKpiCard label="Machines run" value={kpis.machinesRunning ?? 0} />
+        <PccKpiCard label="Machines fault" value={kpis.machinesFaulted ?? 0} />
         <PccKpiCard label="Pending passes" value={kpis.passesPending ?? 0} />
         <PccKpiCard label="Completed today" value={kpis.completedToday ?? 0} />
       </div>
@@ -199,7 +306,10 @@ export default function LiveFloorPanel({
 
       <div className="pcc-split">
         <div className="pcc-panel">
-          <div className="pcc-panel-head"><h2>METAL CUSTODY</h2></div>
+          <div className="pcc-panel-head">
+            <h2>METAL CUSTODY</h2>
+            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('metal-custody')}>Full view</button>
+          </div>
           {(summary?.custody || []).length === 0 ? (
             <PccEmptyState message="No current metal custody" />
           ) : (
@@ -215,38 +325,21 @@ export default function LiveFloorPanel({
           )}
         </div>
         <div className="pcc-panel">
-          <div className="pcc-panel-head"><h2>ATTENTION REQUIRED</h2></div>
-          {(summary?.attention || []).length === 0 ? (
-            <PccEmptyState message="No production alerts" />
+          <div className="pcc-panel-head"><h2>RECENT ACTIVITY</h2></div>
+          {(summary?.recentActivity || []).length === 0 ? (
+            <PccEmptyState message="No recent movements" />
           ) : (
             <ul className="pcc-list">
-              {summary.attention.map((a) => (
-                <li key={a._id}>
-                  <strong>{a.title}</strong>
-                  <span>{a.message}</span>
-                  <PccStatusBadge status={a.severity || a.status} />
+              {summary.recentActivity.map((m) => (
+                <li key={m._id}>
+                  <strong>{m.movementNumber}</strong>
+                  <span>{m.fromDepartment} → {m.toDepartment} · {formatGrams(m.weight)}</span>
+                  <span>{formatTime(m.createdAt)}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
-      </div>
-
-      <div className="pcc-panel">
-        <div className="pcc-panel-head"><h2>RECENT ACTIVITY</h2></div>
-        {(summary?.recentActivity || []).length === 0 ? (
-          <PccEmptyState message="No recent movements" />
-        ) : (
-          <ul className="pcc-list">
-            {summary.recentActivity.map((m) => (
-              <li key={m._id}>
-                <strong>{m.movementNumber}</strong>
-                <span>{m.fromDepartment} → {m.toDepartment} · {formatGrams(m.weight)}</span>
-                <span>{formatTime(m.createdAt)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       <PccConfirmDialog

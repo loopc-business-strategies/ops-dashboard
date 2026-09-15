@@ -712,7 +712,7 @@
 /* Kanban */
 .pcc-board {
   display: grid;
-  grid-template-columns: repeat(6, minmax(180px, 1fr));
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 4px;
@@ -720,7 +720,7 @@
 
 @media (max-width: 1200px) {
   .pcc-board {
-    grid-template-columns: repeat(6, minmax(200px, 220px));
+    grid-template-columns: repeat(7, minmax(200px, 220px));
   }
 }
 
@@ -800,6 +800,73 @@
   display: flex;
   gap: 4px;
   margin-top: 4px;
+}
+
+/* Tablet: denser board card meta stacking */
+@media (max-width: 1024px) {
+  .pcc-board-card {
+    padding: 8px;
+    gap: 2px;
+  }
+
+  .pcc-board-card strong {
+    font-size: 11px;
+  }
+
+  .pcc-board-card span {
+    font-size: 10px;
+    display: block;
+    line-height: 1.25;
+  }
+
+  .pcc-board-card .pcc-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .pcc-board-card-actions {
+    margin-top: 2px;
+    flex-wrap: wrap;
+  }
+}
+
+/* Modal tabs */
+.pcc-modal-wide {
+  max-width: min(960px, 96vw);
+}
+
+.pcc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--pcc-border);
+  padding-bottom: 8px;
+}
+
+.pcc-tab {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--pcc-text-secondary);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.pcc-tab:hover {
+  color: var(--pcc-text);
+  background: var(--pcc-elevated);
+}
+
+.pcc-tab-active {
+  color: var(--pcc-orange);
+  border-color: var(--pcc-border);
+  background: var(--pcc-elevated);
 }
 
 /* Overview bars */

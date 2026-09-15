@@ -6,6 +6,7 @@ module.exports = {
   processService: require('./processService'),
   liveFloorService: require('./liveFloorService'),
   machineAlertService: require('./machineAlertService'),
+  custodyDelayReworkService: require('./custodyDelayReworkService'),
   flowConfigService: require('./flowConfigService'),
   stockService: require('./stockService'),
   departmentService: require('./departmentService'),

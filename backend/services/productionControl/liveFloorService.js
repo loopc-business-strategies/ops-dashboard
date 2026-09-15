@@ -8,7 +8,7 @@ const ProductionAlert = require('../../models/ProductionAlert')
 const AuditLog = require('../../models/AuditLog')
 const WeightAdjustment = require('../../models/WeightAdjustment')
 const WorkOrder = require('../../models/WorkOrder')
-const { ACTIVE_BATCH_STATUSES } = require('./constants')
+const { ACTIVE_BATCH_STATUSES, DEFAULT_ALERT_THRESHOLDS } = require('./constants')
 const { ensureDefaultFlowConfig } = require('./flowConfigService')
 
 const BOARD_STATUS_MAP = {
@@ -31,9 +31,12 @@ function startOfToday() {
 }
 
 async function getLiveFloorSummary() {
-  await ensureDefaultFlowConfig()
+  const flow = await ensureDefaultFlowConfig()
   const today = startOfToday()
+  const thresholds = { ...DEFAULT_ALERT_THRESHOLDS, ...(flow?.alertThresholds || {}) }
+  const delayedCutoff = new Date(Date.now() - Number(thresholds.batchDelayedHours || 24) * 60 * 60 * 1000)
 
+  // Alert evaluation is TTL-gated (5m) — intentional write-on-read; do not expand beyond this gate.
   const now = Date.now()
   if (now - lastAlertEvalAt >= ALERT_EVAL_TTL_MS) {
     lastAlertEvalAt = now
@@ -51,8 +54,11 @@ async function getLiveFloorSummary() {
     onHold,
     activeAlerts,
     machinesRunning,
+    machinesFaulted,
     passesPending,
     metalAgg,
+    metalInTransitAgg,
+    delayedBatches,
     recentBatches,
     custodyAgg,
     recentMovements,
@@ -69,11 +75,20 @@ async function getLiveFloorSummary() {
     ProductionBatch.countDocuments({ status: 'HOLD' }),
     ProductionAlert.countDocuments({ status: { $in: ['OPEN', 'ACKNOWLEDGED'] } }),
     ProductionMachine.countDocuments({ status: 'RUNNING', isActive: true }),
+    ProductionMachine.countDocuments({ status: { $in: ['FAULT', 'MAINTENANCE'] }, isActive: true }),
     ProductionPass.countDocuments({ status: { $in: ['REQUESTED', 'APPROVED', 'ISSUED', 'IN_TRANSIT'] } }),
     ProductionBatch.aggregate([
       { $match: { status: { $in: ACTIVE_BATCH_STATUSES } } },
       { $group: { _id: null, total: { $sum: '$currentWeight' } } },
     ]),
+    ProductionBatch.aggregate([
+      { $match: { status: 'IN_TRANSIT' } },
+      { $group: { _id: null, total: { $sum: '$currentWeight' }, count: { $sum: 1 } } },
+    ]),
+    ProductionBatch.countDocuments({
+      status: { $in: ACTIVE_BATCH_STATUSES },
+      updatedAt: { $lte: delayedCutoff },
+    }),
     ProductionBatch.find({ status: { $in: ACTIVE_BATCH_STATUSES } })
       .sort({ updatedAt: -1 })
       .limit(50)
@@ -211,12 +226,16 @@ async function getLiveFloorSummary() {
       activeWorkOrders,
       activeBatches,
       metalInProduction: metalAgg[0]?.total || 0,
+      metalInTransit: metalInTransitAgg[0]?.total || 0,
+      metalInTransitCount: metalInTransitAgg[0]?.count || 0,
+      delayedBatches,
       waiting,
       qcPending,
       qcFailed,
       onHold,
       activeAlerts,
       machinesRunning,
+      machinesFaulted,
       passesPending,
       completedToday,
       returnedToday,
@@ -250,7 +269,9 @@ async function getLiveFloorSummary() {
       metalType: row._id.metalType,
       weight: row.weight,
     })),
+    // Alias both shapes so Live Floor + Floor Manager Exceptions First share one payload.
     attention: openAlerts,
+    openAlerts,
     recentActivity: recentMovements,
   }
 }
@@ -345,7 +366,7 @@ async function getBatchDetail(batchId) {
   const batch = await ProductionBatch.findById(batchId).lean()
   if (!batch) return null
 
-  const [movements, passes, processes, qc, adjustments, audits] = await Promise.all([
+  const [movements, passes, processes, qc, adjustments, audits, alerts] = await Promise.all([
     MetalMovement.find({ batchId }).sort({ createdAt: 1 }).lean(),
     ProductionPass.find({ batchId }).sort({ createdAt: 1 }).lean(),
     ProcessRun.find({ batchId }).sort({ createdAt: 1 }).lean(),
@@ -360,6 +381,7 @@ async function getBatchDetail(batchId) {
       .sort({ createdAt: 1 })
       .limit(200)
       .lean(),
+    ProductionAlert.find({ batchId }).sort({ createdAt: -1 }).limit(50).lean(),
   ])
 
   let stockLot = null
@@ -459,6 +481,7 @@ async function getBatchDetail(batchId) {
     qc,
     adjustments,
     audits,
+    alerts,
     timeline,
     weightReconciliation: {
       initialWeight: batch.initialWeight,

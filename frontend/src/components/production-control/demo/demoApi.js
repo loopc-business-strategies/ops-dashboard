@@ -110,6 +110,7 @@ export function createDemoPccApi() {
     listMachines: async () => ({ success: true, machines: DEMO_MACHINES }),
     createMachine: () => demoWriteOk(),
     updateMachineStatus: () => demoWriteOk(),
+    updateMachine: () => demoWriteOk(),
     listAlerts: async (params) => {
       const { rows, total, limit, skip } = filterList(DEMO_ALERTS, params, ['alertNumber', 'title', 'message'])
       return { success: true, alerts: rows, total, limit, skip }
@@ -132,6 +133,35 @@ export function createDemoPccApi() {
       counts: { receive: 1, process: 0, qc: 0, handover: 0, total: 1 },
     }),
     getWorkOrdersSummary: async () => getDemoWorkOrdersSummary(),
+
+    getMetalCustody: async () => ({
+      success: true,
+      batches: [],
+      total: 0,
+      limit: 100,
+      skip: 0,
+      totals: {
+        vault: { count: 0, weight: 0 },
+        wip: { count: 0, weight: 0 },
+        transit: { count: 0, weight: 0 },
+        qc: { count: 0, weight: 0 },
+        hold: { count: 0, weight: 0 },
+        finished: { count: 0, weight: 0 },
+        rework: { count: 0, weight: 0 },
+      },
+    }),
+    getDelays: async () => ({
+      success: true,
+      thresholds: { batchDelayedHours: 24, processOverdueHours: 8 },
+      delays: [],
+      total: 0,
+    }),
+    getReworkQueue: async () => ({
+      success: true,
+      items: [],
+      total: 0,
+      limit: 50,
+    }),
 
     getStockOverview: async () => ({
       success: true,
@@ -182,6 +212,46 @@ export function createDemoPccApi() {
     reportDepartmentPerformance: async () => ({ success: true, report: { rows: [] } }),
     reportQc: async () => ({ success: true, report: { summary: {}, rows: [] } }),
     reportShift: async () => ({ success: true, report: {} }),
+    reportMetalCustody: async () => ({
+      success: true,
+      report: {
+        summary: {
+          vaultCount: null,
+          vaultWeight: null,
+          wipCount: null,
+          transitCount: null,
+          totalBatches: null,
+        },
+        rows: [],
+      },
+    }),
+    reportWeightVariance: async () => ({
+      success: true,
+      report: {
+        summary: {
+          batchesReviewed: null,
+          overToleranceCount: null,
+          avgVariancePct: null,
+          tolerancePct: null,
+          totalDifference: null,
+        },
+        rows: [],
+      },
+    }),
+    reportMachinePerformance: async () => ({
+      success: true,
+      report: {
+        summary: {
+          machinesActive: null,
+          machinesFaultOrMaintenance: null,
+          totalJobs: null,
+          totalCompleted: null,
+          totalWeightOut: null,
+          totalRunMinutes: null,
+        },
+        rows: [],
+      },
+    }),
     getTraceability: async () => ({ success: true, report: { journey: [] } }),
   }
 }

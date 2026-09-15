@@ -91,6 +91,55 @@ async function updateMachineStatus(req, machineId, { status, expectedStatus } = 
   })
 }
 
+async function updateMachine(req, machineId, input = {}) {
+  const allowed = {}
+  if (Object.prototype.hasOwnProperty.call(input, 'lastMaintenance')) {
+    allowed.lastMaintenance = input.lastMaintenance == null || input.lastMaintenance === ''
+      ? null
+      : new Date(input.lastMaintenance)
+    if (allowed.lastMaintenance && Number.isNaN(allowed.lastMaintenance.getTime())) {
+      throw new ProductionError('Invalid lastMaintenance date')
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'nextMaintenance')) {
+    allowed.nextMaintenance = input.nextMaintenance == null || input.nextMaintenance === ''
+      ? null
+      : new Date(input.nextMaintenance)
+    if (allowed.nextMaintenance && Number.isNaN(allowed.nextMaintenance.getTime())) {
+      throw new ProductionError('Invalid nextMaintenance date')
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'notes')) {
+    allowed.notes = String(input.notes || '').slice(0, 2000)
+  }
+  if (!Object.keys(allowed).length) {
+    throw new ProductionError('No maintenance fields to update')
+  }
+
+  return runInTransaction(async (session) => {
+    const machine = await withSession(ProductionMachine.findById(machineId), session)
+    if (!machine) throw new ProductionError('Machine not found', 404)
+    const before = {
+      lastMaintenance: machine.lastMaintenance,
+      nextMaintenance: machine.nextMaintenance,
+      notes: machine.notes,
+    }
+    Object.assign(machine, allowed)
+    await machine.save(writeOpts(session))
+
+    await writeProductionAudit(req, {
+      resource: 'ProductionMachine',
+      resourceId: machine._id,
+      action: AUDIT_ACTIONS.MACHINE_UPDATED,
+      detail: `Machine ${machine.machineCode} maintenance fields updated`,
+      changes: { before, after: allowed },
+      session,
+    })
+
+    return machine
+  })
+}
+
 async function raiseAlert(req, input = {}) {
   const {
     category = 'process',
@@ -198,6 +247,7 @@ async function resolveAlert(req, alertId) {
 module.exports = {
   createMachine,
   updateMachineStatus,
+  updateMachine,
   raiseAlert,
   acknowledgeAlert,
   resolveAlert,

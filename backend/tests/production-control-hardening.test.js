@@ -333,4 +333,89 @@ describe('PCC hardening — metal integrity', () => {
     expect(ok.status).toBe(201)
     expect(ok.body.batch.currentWeight).toBe(19)
   })
+
+  test('metal-custody totals shape', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+    await issuedBatch(headers, 100)
+
+    const res = await request(app).get('/api/erp/production-control/metal-custody').set(headers)
+    expect(res.status).toBe(200)
+    expect(res.body.totals).toBeDefined()
+    for (const key of ['vault', 'wip', 'transit', 'qc', 'hold', 'finished', 'rework']) {
+      expect(res.body.totals[key]).toEqual(expect.objectContaining({
+        count: expect.any(Number),
+        weight: expect.any(Number),
+      }))
+    }
+    expect(Array.isArray(res.body.batches)).toBe(true)
+    expect(typeof res.body.total).toBe('number')
+  })
+
+  test('delays include threshold hours', async () => {
+    const user = await createUser({ productionRole: 'floor_manager' })
+    const headers = auth(user)
+    const { batchId } = await issuedBatch(headers, 50)
+
+    // Force batch past delay threshold
+    await ProductionBatch.updateOne(
+      { _id: batchId },
+      { $set: { updatedAt: new Date(Date.now() - 48 * 60 * 60 * 1000) } },
+      { timestamps: false },
+    )
+
+    const res = await request(app).get('/api/erp/production-control/delays').set(headers)
+    expect(res.status).toBe(200)
+    expect(res.body.thresholds).toEqual(expect.objectContaining({
+      batchDelayedHours: expect.any(Number),
+      processOverdueHours: expect.any(Number),
+    }))
+    expect(Array.isArray(res.body.delays)).toBe(true)
+    const batchDelay = res.body.delays.find((d) => String(d.batchId) === String(batchId) && d.type === 'batch')
+    expect(batchDelay).toBeDefined()
+    expect(batchDelay.thresholdHours).toBe(res.body.thresholds.batchDelayedHours)
+    expect(batchDelay.elapsedHours).toBeGreaterThanOrEqual(res.body.thresholds.batchDelayedHours)
+  })
+
+  test('rework-queue lineage', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+    const stock = await request(app).post('/api/erp/production-control/stock').set(headers)
+      .send({ product: 'ReworkLot', netWeight: 30, metalType: 'Gold', quantity: 3 })
+    const lotId = stock.body.lot._id
+    await request(app).post(`/api/erp/production-control/stock/${lotId}/available`).set(headers).send({})
+    const alloc = await request(app).post('/api/erp/production-control/stock/select').set(headers)
+      .send({ stockLotId: lotId, weight: 30, markIssued: true })
+    const batchId = alloc.body.batch._id
+
+    const fail = await request(app).post('/api/erp/production-control/qc').set(headers)
+      .send({ batchId, result: 'FAIL', failureReason: 'Scratch' })
+    expect(fail.status).toBe(201)
+    const priorId = fail.body.inspection._id
+
+    const rework = await request(app).post('/api/erp/production-control/qc').set(headers)
+      .send({ batchId, result: 'REWORK', reworkReason: 'Buff again', reworkOf: priorId })
+    expect(rework.status).toBe(201)
+
+    const queue = await request(app).get('/api/erp/production-control/rework-queue').set(headers)
+    expect(queue.status).toBe(200)
+    expect(Array.isArray(queue.body.items)).toBe(true)
+    const item = queue.body.items.find((i) => String(i.batchId) === String(batchId))
+    expect(item).toBeDefined()
+    expect(item.latestQc).toBeTruthy()
+    expect(String(item.latestQc.reworkOf || item.latestQc.previousInspectionId)).toBe(String(priorId))
+    expect(item.originalQc).toBeTruthy()
+    expect(String(item.originalQc._id)).toBe(String(priorId))
+  })
+
+  test('demo guard still blocks mutations', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = { ...auth(user), 'X-PCC-Demo': '1' }
+    const res = await request(app)
+      .patch('/api/erp/production-control/machines/000000000000000000000001')
+      .set(headers)
+      .send({ notes: 'should block' })
+    expect(res.status).toBe(403)
+    expect(res.body.demo).toBe(true)
+  })
 })

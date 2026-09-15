@@ -3,7 +3,7 @@ const Joi = require('joi')
 const { protect } = require('../middleware/auth')
 const { validateBody, validateQuery, validateParams } = require('../middleware/validate')
 const { requireProductionPermission, resolveProductionRole } = require('../services/productionControl/permissions')
-const { batchService, passService, processService, liveFloorService, machineAlertService, flowConfigService, stockService, departmentService, shiftService, floorSessionService, reportService } = require('../services/productionControl')
+const { batchService, passService, processService, liveFloorService, machineAlertService, custodyDelayReworkService, flowConfigService, stockService, departmentService, shiftService, floorSessionService, reportService } = require('../services/productionControl')
 const ProductionBatch = require('../models/ProductionBatch')
 const ProductionPass = require('../models/ProductionPass')
 const MetalMovement = require('../models/MetalMovement')
@@ -125,6 +125,33 @@ router.get('/work-orders-summary', protect, requireProductionPermission('view'),
   try {
     const summary = await liveFloorService.getWorkOrdersSummary()
     res.json({ success: true, ...summary })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/metal-custody', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await custodyDelayReworkService.getMetalCustody(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/delays', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await custodyDelayReworkService.getDelays()
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/rework-queue', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await custodyDelayReworkService.getReworkQueue(req.query)
+    res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }
@@ -544,6 +571,20 @@ router.patch('/machines/:id/status', protect, requireProductionPermission('manag
   }
 })
 
+router.patch('/machines/:id', protect, requireProductionPermission('manageMachines'), validateParams(idParam), validateBody(Joi.object({
+  lastMaintenance: Joi.date().iso().allow(null),
+  nextMaintenance: Joi.date().iso().allow(null),
+  notes: Joi.string().trim().allow('').max(2000),
+}).min(1)), async (req, res) => {
+  try {
+    const machine = await machineAlertService.updateMachine(req, req.params.id, req.body)
+    emitProduction(req, 'machine.updated', { machineId: machine._id })
+    res.json({ success: true, machine })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 // ── Alerts ─────────────────────────────────────────
 router.get('/alerts', protect, requireProductionPermission('view'), async (req, res) => {
   try {
@@ -914,6 +955,33 @@ router.get('/reports/qc', protect, requireProductionPermission('viewReports'), a
 router.get('/reports/shift', protect, requireProductionPermission('viewReports'), async (req, res) => {
   try {
     const report = await reportService.shiftReport(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/reports/metal-custody', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.metalCustodySummary(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/reports/weight-variance', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.weightVarianceReport(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/reports/machine-performance', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.machinePerformanceReport(req.query)
     res.json({ success: true, report })
   } catch (err) {
     handleError(res, err)

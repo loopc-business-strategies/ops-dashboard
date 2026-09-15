@@ -313,6 +313,154 @@ async function traceabilityReport({ stockCode, batchNumber, batchId } = {}) {
   }
 }
 
+async function metalCustodySummary(query = {}) {
+  const { getMetalCustody } = require('./custodyDelayReworkService')
+  const custody = await getMetalCustody(query)
+  const totals = custody.totals || {}
+  return {
+    summary: {
+      vaultCount: totals.vault?.count ?? null,
+      vaultWeight: totals.vault?.weight ?? null,
+      wipCount: totals.wip?.count ?? null,
+      wipWeight: totals.wip?.weight ?? null,
+      transitCount: totals.transit?.count ?? null,
+      transitWeight: totals.transit?.weight ?? null,
+      qcCount: totals.qc?.count ?? null,
+      holdCount: totals.hold?.count ?? null,
+      finishedCount: totals.finished?.count ?? null,
+      reworkCount: totals.rework?.count ?? null,
+      totalBatches: custody.total ?? null,
+    },
+    totals,
+    rows: (custody.batches || []).map((b) => ({
+      batchNumber: b.batchNumber,
+      status: b.status,
+      metalType: b.metalType,
+      currentWeight: b.currentWeight,
+      currentDepartment: b.currentDepartment,
+      currentHolderName: b.currentHolderName,
+      updatedAt: b.updatedAt,
+    })),
+  }
+}
+
+async function weightVarianceReport(query = {}) {
+  const flow = await getActiveFlowConfig()
+  const tolerancePct = Number(flow?.weightTolerancePct ?? 0.5)
+  const limit = Math.min(500, Math.max(1, Number(query.limit) || 100))
+  const filter = {}
+  if (query.status) filter.status = String(query.status).trim().toUpperCase()
+  if (query.metalType) filter.metalType = new RegExp(String(query.metalType).trim(), 'i')
+
+  const batches = await ProductionBatch.find(filter)
+    .sort({ updatedAt: -1 })
+    .limit(limit)
+    .select('batchNumber status metalType purity initialWeight currentWeight lossWeight scrapWeight processInputWeight processOutputWeight currentDepartment updatedAt')
+    .lean()
+
+  const rows = batches.map((b) => {
+    const expected = Number(b.initialWeight || 0) - Number(b.lossWeight || 0)
+    const actual = Number(b.currentWeight || 0)
+    const difference = actual - expected
+    const variancePct = expected > 0 ? (Math.abs(difference) / expected) * 100 : 0
+    return {
+      batchNumber: b.batchNumber,
+      status: b.status,
+      metalType: b.metalType,
+      department: b.currentDepartment || '',
+      initialWeight: b.initialWeight,
+      currentWeight: b.currentWeight,
+      scrap: b.scrapWeight,
+      loss: b.lossWeight,
+      expectedWeight: expected,
+      actualWeight: actual,
+      difference,
+      variancePct: Math.round(variancePct * 100) / 100,
+      overTolerance: variancePct > tolerancePct,
+      updatedAt: b.updatedAt,
+    }
+  })
+
+  const over = rows.filter((r) => r.overTolerance)
+  return {
+    summary: {
+      batchesReviewed: rows.length,
+      overToleranceCount: over.length,
+      avgVariancePct: rows.length
+        ? Math.round((rows.reduce((s, r) => s + Number(r.variancePct || 0), 0) / rows.length) * 100) / 100
+        : null,
+      tolerancePct,
+      totalDifference: rows.reduce((s, r) => s + Number(r.difference || 0), 0),
+    },
+    rows,
+  }
+}
+
+async function machinePerformanceReport(query = {}) {
+  const ProductionMachine = require('../../models/ProductionMachine')
+  const from = query.fromDate ? startOfDay(new Date(query.fromDate)) : startOfDay(new Date(Date.now() - 7 * 86400000))
+  const to = query.toDate ? endOfDay(new Date(query.toDate)) : endOfDay(new Date())
+
+  const machines = await ProductionMachine.find({ isActive: true }).sort({ name: 1 }).lean()
+  const runs = await ProcessRun.find({
+    startTime: { $gte: from, $lte: to },
+  }).lean()
+
+  const byMachine = new Map()
+  for (const r of runs) {
+    const key = r.machineId ? String(r.machineId) : (r.machineName || 'unassigned')
+    if (!byMachine.has(key)) {
+      byMachine.set(key, { jobs: 0, completed: 0, weightIn: 0, weightOut: 0, scrap: 0, loss: 0, minutes: 0 })
+    }
+    const row = byMachine.get(key)
+    row.jobs += 1
+    if (r.status === 'COMPLETED') row.completed += 1
+    row.weightIn += Number(r.inputWeight || 0)
+    row.weightOut += Number(r.outputWeight || 0)
+    row.scrap += Number(r.scrap || 0)
+    row.loss += Number(r.loss || 0)
+    if (r.startTime && r.endTime) {
+      row.minutes += Math.max(0, (new Date(r.endTime) - new Date(r.startTime)) / 60000)
+    }
+  }
+
+  const rows = machines.map((m) => {
+    const stats = byMachine.get(String(m._id)) || byMachine.get(m.name) || {
+      jobs: 0, completed: 0, weightIn: 0, weightOut: 0, scrap: 0, loss: 0, minutes: 0,
+    }
+    return {
+      machineCode: m.machineCode,
+      name: m.name,
+      department: m.department || '',
+      status: m.status,
+      lastMaintenance: m.lastMaintenance || null,
+      nextMaintenance: m.nextMaintenance || null,
+      jobs: stats.jobs,
+      completed: stats.completed,
+      weightIn: stats.weightIn,
+      weightOut: stats.weightOut,
+      scrap: stats.scrap,
+      loss: stats.loss,
+      runMinutes: Math.round(stats.minutes * 10) / 10,
+    }
+  })
+
+  const faulted = machines.filter((m) => m.status === 'FAULT' || m.status === 'MAINTENANCE').length
+  return {
+    from,
+    to,
+    summary: {
+      machinesActive: machines.length,
+      machinesFaultOrMaintenance: faulted,
+      totalJobs: rows.reduce((s, r) => s + r.jobs, 0),
+      totalCompleted: rows.reduce((s, r) => s + r.completed, 0),
+      totalWeightOut: rows.reduce((s, r) => s + r.weightOut, 0),
+      totalRunMinutes: rows.reduce((s, r) => s + r.runMinutes, 0),
+    },
+    rows,
+  }
+}
+
 module.exports = {
   dailyProduction,
   stockMovementReport,
@@ -320,4 +468,7 @@ module.exports = {
   qcReport,
   shiftReport,
   traceabilityReport,
+  metalCustodySummary,
+  weightVarianceReport,
+  machinePerformanceReport,
 }

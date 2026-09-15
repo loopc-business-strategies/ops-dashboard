@@ -9,6 +9,7 @@ export const SECTION_GROUPS = [
       { id: 'overview', label: 'Overview' },
       { id: 'my-tasks', label: 'My Tasks' },
       { id: 'alerts', label: 'Alerts' },
+      { id: 'delay-monitor', label: 'Delay Monitor' },
     ],
   },
   {
@@ -41,6 +42,7 @@ export const SECTION_GROUPS = [
       { id: 'stock-adjustments', label: 'Stock Adjustments' },
       { id: 'movements', label: 'Metal Movement' },
       { id: 'passes', label: 'Passes / Handovers' },
+      { id: 'metal-custody', label: 'Metal Custody' },
     ],
   },
   {
@@ -48,6 +50,7 @@ export const SECTION_GROUPS = [
     label: 'QUALITY',
     sections: [
       { id: 'qc', label: 'QC' },
+      { id: 'rework', label: 'Rework' },
     ],
   },
   {
@@ -55,8 +58,9 @@ export const SECTION_GROUPS = [
     label: 'FACTORY',
     sections: [
       { id: 'machines', label: 'Machines' },
+      { id: 'maintenance', label: 'Maintenance' },
       { id: 'floor-manager', label: 'Floor Manager' },
-      { id: 'floor-attendance', label: 'FM Attendance' },
+      { id: 'floor-attendance', label: 'Floor Manager Sessions' },
     ],
   },
   {

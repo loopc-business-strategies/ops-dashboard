@@ -36,6 +36,7 @@ export const productionControlApi = {
   listMachines: () => get('/machines'),
   createMachine: (body) => post('/machines', body),
   updateMachineStatus: (id, body) => patch(`/machines/${id}/status`, body),
+  updateMachine: (id, body) => patch(`/machines/${id}`, body),
   listAlerts: (params) => get('/alerts', params),
   raiseAlert: (body) => post('/alerts', body),
   acknowledgeAlert: (id) => post(`/alerts/${id}/acknowledge`),
@@ -43,6 +44,10 @@ export const productionControlApi = {
   listAudit: () => get('/audit'),
   getWorkOrdersSummary: () => get('/work-orders-summary'),
   getMyTasks: () => get('/my-tasks'),
+
+  getMetalCustody: (params) => get('/metal-custody', params),
+  getDelays: (params) => get('/delays', params),
+  getReworkQueue: (params) => get('/rework-queue', params),
 
   // Stock
   getStockOverview: () => get('/stock/overview'),
@@ -71,6 +76,9 @@ export const productionControlApi = {
   reportDepartmentPerformance: (params) => get('/reports/department-performance', params),
   reportQc: (params) => get('/reports/qc', params),
   reportShift: (params) => get('/reports/shift', params),
+  reportMetalCustody: (params) => get('/reports/metal-custody', params),
+  reportWeightVariance: (params) => get('/reports/weight-variance', params),
+  reportMachinePerformance: (params) => get('/reports/machine-performance', params),
   getTraceability: (params) => get('/traceability', params),
 }
 

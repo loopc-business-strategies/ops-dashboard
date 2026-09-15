@@ -7,12 +7,12 @@ import { PccEmptyState, PccKpiCard, PccSkeleton, PccStatusBadge } from './primit
 
 const DETAIL_FIELDS = {
   melting: ['recovery', 'metalType', 'purity', 'alloyAdded', 'alloyWeight', 'purityBefore', 'purityAfter', 'furnace'],
-  casting: ['recovery'],
-  rolling: ['thickness', 'recovery'],
-  bangle_division: ['bangleType', 'size', 'pieces', 'recovery'],
-  stamping: ['stampType', 'rejectedPieces'],
-  polishing: ['rejectedPieces'],
-  packing: ['packagingType', 'packageNumber'],
+  casting: ['mouldType', 'castTemperature', 'pieces', 'recovery', 'remarks'],
+  rolling: ['thickness', 'width', 'passes', 'recovery'],
+  bangle_division: ['bangleType', 'size', 'pieces', 'recovery', 'scrapPieces'],
+  stamping: ['stampType', 'designCode', 'pieces', 'rejectedPieces'],
+  polishing: ['polishType', 'media', 'rejectedPieces', 'recovery'],
+  packing: ['packagingType', 'packageNumber', 'pieces', 'labelCode'],
   quality_control: [],
 }
 
