@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { SECTION_GROUPS, SECTION_IDS, formatTime } from '../components/production-control/shared'
+import { DEPT_SECTION_MAP, SECTION_GROUPS, SECTION_IDS, formatTime } from '../components/production-control/shared'
 import LiveFloorPanel from '../components/production-control/LiveFloorPanel'
 import WorkOrdersPanel from '../components/production-control/WorkOrdersPanel'
 import {
@@ -16,6 +16,21 @@ import {
   AuditPanel,
   BatchDetailModal,
 } from '../components/production-control/Panels'
+import {
+  StockOverviewPanel,
+  StockListPanel,
+  NewStockInPanel,
+  StockHistoryPanel,
+  StockAdjustmentsPanel,
+  MarkAvailableHelper,
+} from '../components/production-control/StockPanels'
+import DepartmentPanel from '../components/production-control/DepartmentPanel'
+import {
+  FloorManagerPanel,
+  FloorAttendancePanel,
+  ReportsPanel,
+  SettingsPanel,
+} from '../components/production-control/FloorManagerPanels'
 import { DemoModeProvider, useDemoMode } from '../components/production-control/demo/DemoModeContext'
 import { isProductionDemoEnabled } from '../components/production-control/demo/flags'
 import { usePccApi } from '../components/production-control/demo/usePccApi'
@@ -23,6 +38,8 @@ import './ProductionControlCenter.css'
 
 const RETURN_KEY = 'pcc_returnTo'
 const DEMO_ENABLED = isProductionDemoEnabled()
+
+const PROCESSING_STATUSES = 'ALLOCATED,UNDER_PROCESSING,DEPARTMENT_PROCESSING,QC_PENDING,QC_PASSED,QC_FAILED,REWORK,HOLD,PACKAGING'
 
 function resolveSection(raw) {
   const id = String(raw || '').trim()
@@ -153,6 +170,16 @@ function ProductionControlCenterInner() {
         : 'offline'
 
   const body = useMemo(() => {
+    if (DEPT_SECTION_MAP[section]) {
+      return (
+        <DepartmentPanel
+          deptKey={DEPT_SECTION_MAP[section]}
+          onToast={showToast}
+          onSelectBatch={setSelectedBatchId}
+        />
+      )
+    }
+
     switch (section) {
       case 'overview':
         return (
@@ -170,6 +197,7 @@ function ProductionControlCenterInner() {
             onSelectBatch={setSelectedBatchId}
             onRefresh={() => refresh()}
             onToast={showToast}
+            onNavigate={setSection}
           />
         )
       case 'work-orders':
@@ -198,6 +226,59 @@ function ProductionControlCenterInner() {
         return <AlertsPanel onToast={showToast} />
       case 'audit':
         return <AuditPanel onToast={showToast} />
+      case 'stock-overview':
+        return <StockOverviewPanel onToast={showToast} onNavigate={setSection} />
+      case 'stock-in':
+        return (
+          <>
+            <MarkAvailableHelper onToast={showToast} />
+            <NewStockInPanel onToast={showToast} />
+          </>
+        )
+      case 'stock-selection':
+        return (
+          <StockListPanel
+            title="STOCK SELECTION — AVAILABLE"
+            statusFilter="AVAILABLE"
+            selectable
+            onToast={showToast}
+            onAllocated={() => refresh({ soft: true })}
+          />
+        )
+      case 'stock-processing':
+        return (
+          <StockListPanel
+            title="UNDER PROCESSING"
+            statusFilter={PROCESSING_STATUSES}
+            onToast={showToast}
+          />
+        )
+      case 'stock-finished':
+        return (
+          <StockListPanel
+            title="FINISHED STOCK"
+            statusFilter="FINISHED,DISPATCHED"
+            onToast={showToast}
+          />
+        )
+      case 'stock-history':
+        return <StockHistoryPanel onToast={showToast} />
+      case 'stock-adjustments':
+        return <StockAdjustmentsPanel onToast={showToast} />
+      case 'floor-manager':
+        return (
+          <FloorManagerPanel
+            summary={summary}
+            onToast={showToast}
+            onNavigate={setSection}
+          />
+        )
+      case 'floor-attendance':
+        return <FloorAttendancePanel onToast={showToast} />
+      case 'reports':
+        return <ReportsPanel onToast={showToast} />
+      case 'settings':
+        return <SettingsPanel onToast={showToast} />
       default:
         return null
     }

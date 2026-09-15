@@ -7,7 +7,7 @@ const productionAlertSchema = new mongoose.Schema(
     alertNumber: { type: String, required: true, trim: true },
     category: {
       type: String,
-      enum: ['weight', 'process', 'machine', 'quality', 'security'],
+      enum: ['weight', 'process', 'machine', 'quality', 'security', 'stock', 'shift', 'department'],
       required: true,
     },
     code: { type: String, required: true, trim: true },

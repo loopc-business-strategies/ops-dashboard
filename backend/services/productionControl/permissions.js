@@ -39,6 +39,12 @@ const PERMISSIONS = {
   raiseAlert: ['production_manager', 'floor_manager', 'department_head', 'operator', 'qc_inspector', 'vault_officer'],
   resolveAlert: ['production_manager', 'floor_manager'],
   viewAudit: ['production_manager', 'floor_manager'],
+  manageStock: ['production_manager', 'floor_manager', 'vault_officer'],
+  selectStock: ['production_manager', 'floor_manager'],
+  adjustStock: ['production_manager'],
+  manageShifts: ['production_manager'],
+  viewReports: ['production_manager', 'floor_manager'],
+  floorSession: ['production_manager', 'floor_manager'],
 }
 
 function hasProductionPermission(user, permission) {

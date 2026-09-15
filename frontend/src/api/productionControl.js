@@ -41,6 +41,34 @@ export const productionControlApi = {
   resolveAlert: (id) => post(`/alerts/${id}/resolve`),
   listAudit: () => get('/audit'),
   getWorkOrdersSummary: () => get('/work-orders-summary'),
+
+  // Stock
+  getStockOverview: () => get('/stock/overview'),
+  listStock: (params) => get('/stock', params),
+  getStock: (id) => get(`/stock/${id}`),
+  getStockHistory: (params) => get('/stock/history', params),
+  createStock: (body) => post('/stock', body),
+  updateStock: (id, body) => patch(`/stock/${id}`, body),
+  markStockAvailable: (id, body) => post(`/stock/${id}/available`, body),
+  selectStock: (body) => post('/stock/select', body),
+  adjustStock: (id, body) => post(`/stock/${id}/adjust`, body),
+
+  // Departments / shifts / floor / reports
+  listDepartments: () => get('/departments'),
+  getDepartment: (key) => get(`/departments/${key}`),
+  listShifts: () => get('/shifts'),
+  getCurrentShift: () => get('/shifts/current'),
+  upsertShift: (body) => post('/shifts', body),
+  floorLogin: (body) => post('/floor-sessions/login', body),
+  floorLogout: (body) => post('/floor-sessions/logout', body),
+  floorHeartbeat: () => post('/floor-sessions/heartbeat'),
+  listFloorSessions: (params) => get('/floor-sessions', params),
+  reportDaily: (params) => get('/reports/daily', params),
+  reportStockMovement: (params) => get('/reports/stock-movement', params),
+  reportDepartmentPerformance: (params) => get('/reports/department-performance', params),
+  reportQc: (params) => get('/reports/qc', params),
+  reportShift: (params) => get('/reports/shift', params),
+  getTraceability: (params) => get('/traceability', params),
 }
 
 export default productionControlApi

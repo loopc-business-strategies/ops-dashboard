@@ -12,8 +12,45 @@ const { getActiveFlowConfig } = require('./flowConfigService')
 
 const UNAVAILABLE_MACHINE_STATUSES = ['FAULT', 'OFFLINE', 'MAINTENANCE']
 
+const PACKING_PROCESS_NAMES = new Set(['packing', 'packaging', 'Packing', 'Packaging'])
+
+function isPackingProcess(name) {
+  return PACKING_PROCESS_NAMES.has(String(name || ''))
+    || /^pack(ing|aging)?$/i.test(String(name || ''))
+}
+
 function actor(req) {
   return { id: req.user?._id || null, name: req.user?.name || 'system' }
+}
+
+function validateProcessDetails(processName, details = {}) {
+  const d = details && typeof details === 'object' ? details : {}
+  const name = String(processName || '').toLowerCase()
+  if (name.includes('bangle') && d.pieces != null && Number(d.pieces) < 0) {
+    throw new ProductionError('Number of pieces cannot be negative')
+  }
+  if (name.includes('stamp') && d.rejectedPieces != null && Number(d.rejectedPieces) < 0) {
+    throw new ProductionError('Rejected pieces cannot be negative')
+  }
+  if (name.includes('polish') && d.rejectedPieces != null && Number(d.rejectedPieces) < 0) {
+    throw new ProductionError('Rejected pieces cannot be negative')
+  }
+  if (isPackingProcess(processName) && d.packageNumber != null && String(d.packageNumber).length > 80) {
+    throw new ProductionError('Package number too long')
+  }
+  if (d.recovery != null && Number(d.recovery) < 0) {
+    throw new ProductionError('Recovery cannot be negative')
+  }
+  return d
+}
+
+async function syncStockSafe(req, batch, toStatus, opts = {}) {
+  try {
+    const stockService = require('./stockService')
+    await stockService.syncStockStatusForBatch(req, batch, toStatus, opts)
+  } catch (err) {
+    console.warn('[production-control] stock sync:', err.message)
+  }
 }
 
 async function startProcess(req, input = {}) {
@@ -30,6 +67,7 @@ async function startProcess(req, input = {}) {
 
   if (!batchId || !process) throw new ProductionError('batchId and process are required')
   const a = actor(req)
+  const safeDetails = validateProcessDetails(process, details)
 
   return runInTransaction(async (session) => {
     const batch = await withSession(ProductionBatch.findById(batchId), session)
@@ -81,7 +119,7 @@ async function startProcess(req, input = {}) {
           operatorName: a.name,
           startTime: new Date(),
           inputWeight: iw,
-          details: details || {},
+          details: safeDetails || {},
           status: 'IN_PROGRESS',
         },
       ],
@@ -90,6 +128,7 @@ async function startProcess(req, input = {}) {
 
     batch.status = 'IN_PROCESS'
     batch.currentProcess = process
+    if (department) batch.currentDepartment = department
     batch.processInputWeight = Number(batch.processInputWeight || 0) + iw
     if (machineId) {
       batch.currentMachineId = machineId
@@ -106,6 +145,12 @@ async function startProcess(req, input = {}) {
       action: AUDIT_ACTIONS.PROCESS_STARTED,
       detail: `${process} started on ${batch.batchNumber}`,
       changes: { process, inputWeight: iw, processNumber },
+      session,
+    })
+
+    await syncStockSafe(req, batch, 'DEPARTMENT_PROCESSING', {
+      reason: `${process} started`,
+      processRunId: run._id,
       session,
     })
 
@@ -156,6 +201,8 @@ async function completeProcess(req, processRunId, input = {}) {
     if (!Number.isFinite(ow) || ow < 0) throw new ProductionError('outputWeight must be a non-negative number')
     const scrapN = Number(scrap) || 0
     const lossN = Number(loss) || 0
+    const safeDetails = validateProcessDetails(run.process, { ...(run.details || {}), ...(details || {}) })
+    const recoveryN = Number(safeDetails.recovery) || 0
 
     const batch = await withSession(ProductionBatch.findById(run.batchId), session)
     if (!batch) throw new ProductionError('Batch not found', 404)
@@ -164,7 +211,7 @@ async function completeProcess(req, processRunId, input = {}) {
     }
 
     const cfg = await getActiveFlowConfig(session)
-    const expected = Number(run.inputWeight) - scrapN - lossN
+    const expected = Number(run.inputWeight) - scrapN - lossN + recoveryN
     const varianceAbs = Math.abs(ow - expected)
     const variancePct = expected > 0 ? (varianceAbs / expected) * 100 : (ow === expected ? 0 : 100)
 
@@ -173,7 +220,7 @@ async function completeProcess(req, processRunId, input = {}) {
     run.loss = lossN
     run.sopFollowed = sopFollowed
     run.remarks = remarks || ''
-    run.details = { ...(run.details || {}), ...(details || {}) }
+    run.details = safeDetails
     run.endTime = new Date()
     run.status = 'COMPLETED'
     if (completeIdempotencyKey) run.completeIdempotencyKey = completeIdempotencyKey
@@ -184,9 +231,21 @@ async function completeProcess(req, processRunId, input = {}) {
     batch.processOutputWeight = Number(batch.processOutputWeight || 0) + ow
     batch.scrapWeight = Number(batch.scrapWeight || 0) + scrapN
     batch.lossWeight = Number(batch.lossWeight || 0) + lossN
+    if (recoveryN > 0) {
+      batch.recoveredWeight = Number(batch.recoveredWeight || 0) + recoveryN
+    }
     batch.lastVerifiedWeight = ow
-    batch.status = 'WAITING'
     batch.version = (batch.version || 0) + 1
+
+    const packing = isPackingProcess(run.process)
+    if (packing) {
+      batch.status = 'COMPLETED'
+      batch.currentDepartment = 'packing'
+      batch.currentProcess = run.process
+      batch.completedAt = new Date()
+    } else {
+      batch.status = 'WAITING'
+    }
 
     let alert = null
     if (variancePct > Number(cfg.weightTolerancePct || 0)) {
@@ -203,18 +262,39 @@ async function completeProcess(req, processRunId, input = {}) {
     await writeProductionAudit(req, {
       resource: 'ProcessRun',
       resourceId: run._id,
-      action: AUDIT_ACTIONS.PROCESS_COMPLETED,
+      action: packing ? AUDIT_ACTIONS.PACKAGING_COMPLETED : AUDIT_ACTIONS.PROCESS_COMPLETED,
       detail: `${run.process} completed on ${batch.batchNumber} (${run.inputWeight}g → ${ow}g)`,
       changes: {
         weightBefore,
         weightAfter: ow,
         scrap: scrapN,
         loss: lossN,
+        recovery: recoveryN,
         variancePct,
         completedBy: a.name,
       },
       session,
     })
+
+    if (packing) {
+      await syncStockSafe(req, batch, 'FINISHED', {
+        reason: 'Packaging completed',
+        processRunId: run._id,
+        session,
+      })
+    } else if (/quality\s*control/i.test(String(run.process))) {
+      await syncStockSafe(req, batch, 'QC_PENDING', {
+        reason: 'QC process completed',
+        processRunId: run._id,
+        session,
+      })
+    } else {
+      await syncStockSafe(req, batch, 'UNDER_PROCESSING', {
+        reason: `${run.process} completed`,
+        processRunId: run._id,
+        session,
+      })
+    }
 
     return { processRun: run, batch, alert, reused: false }
   })
@@ -235,6 +315,7 @@ async function submitQc(req, input = {}) {
     sop = null,
     remarks = '',
     reworkReason = '',
+    failureReason = '',
     idempotencyKey = null,
     expectedBatchVersion,
   } = input
@@ -283,7 +364,10 @@ async function submitQc(req, input = {}) {
           sop,
           result,
           remarks,
+          failureReason: failureReason || (result === 'FAIL' ? remarks : ''),
           reworkReason,
+          stockCode: batch.stockCode || '',
+          stockLotId: batch.stockLotId || null,
           authorizedById: a.id,
           authorizedByName: a.name,
           idempotencyKey: idempotencyKey || null,
@@ -294,20 +378,27 @@ async function submitQc(req, input = {}) {
 
     const from = batch.status
     let action = AUDIT_ACTIONS.QC_SUBMITTED
+    let stockStatus = null
     if (result === 'PASS') {
-      batch.status = 'QC'
-      batch.currentProcess = 'Quality Control'
+      batch.status = 'WAITING'
+      batch.currentDepartment = 'packing'
+      batch.currentProcess = 'Packing'
+      batch.currentLocation = 'Packaging'
       action = AUDIT_ACTIONS.QC_PASSED
+      stockStatus = 'QC_PASSED'
     } else if (result === 'FAIL') {
       batch.status = 'QC'
       action = AUDIT_ACTIONS.QC_FAILED
+      stockStatus = 'QC_FAILED'
     } else if (result === 'HOLD') {
       batch.status = 'HOLD'
-      batch.holdReason = remarks || 'QC HOLD'
+      batch.holdReason = remarks || failureReason || 'QC HOLD'
       action = AUDIT_ACTIONS.BATCH_HOLD
+      stockStatus = 'HOLD'
     } else if (result === 'REWORK') {
       batch.status = 'REWORK'
       action = AUDIT_ACTIONS.REWORK_STARTED
+      stockStatus = 'REWORK'
     }
     batch.version = (batch.version || 0) + 1
     await batch.save(writeOpts(session))
@@ -317,9 +408,24 @@ async function submitQc(req, input = {}) {
       resourceId: inspection._id,
       action,
       detail: `QC ${result} on ${batch.batchNumber}`,
-      changes: { fromState: from, toState: batch.status, result, remarks },
+      changes: { fromState: from, toState: batch.status, result, remarks, failureReason },
       session,
     })
+
+    if (stockStatus) {
+      await syncStockSafe(req, batch, stockStatus, {
+        reason: `QC ${result}`,
+        processRunId,
+        session,
+      })
+      if (result === 'PASS') {
+        await syncStockSafe(req, batch, 'PACKAGING', {
+          reason: 'QC passed — sent to packaging',
+          processRunId,
+          session,
+        })
+      }
+    }
 
     return { inspection, batch, reused: false }
   })
@@ -423,4 +529,6 @@ module.exports = {
   completeProcess,
   submitQc,
   adjustWeight,
+  validateProcessDetails,
+  isPackingProcess,
 }

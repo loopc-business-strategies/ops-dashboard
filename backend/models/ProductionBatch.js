@@ -30,6 +30,8 @@ const productionBatchSchema = new mongoose.Schema(
     currentMachineId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionMachine', default: null },
     currentMachineName: { type: String, trim: true, default: '' },
     inventoryItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem', default: null },
+    stockLotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductionStockLot', default: null },
+    stockCode: { type: String, trim: true, default: '' },
     status: { type: String, enum: BATCH_STATUSES, default: 'CREATED' },
     holdReason: { type: String, trim: true, default: '' },
     startedAt: { type: Date, default: null },
@@ -37,7 +39,7 @@ const productionBatchSchema = new mongoose.Schema(
     createdById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     createdByName: { type: String, trim: true, default: '' },
     version: { type: Number, default: 0 },
-    idempotencyKey: { type: String, trim: true, default: null },
+    idempotencyKey: { type: String, trim: true },
   },
   { timestamps: true },
 )
@@ -47,6 +49,8 @@ productionBatchSchema.index({ workOrderId: 1, createdAt: -1 })
 productionBatchSchema.index({ status: 1, currentDepartment: 1 })
 productionBatchSchema.index({ currentHolderId: 1, status: 1 })
 productionBatchSchema.index({ metalType: 1, status: 1 })
+productionBatchSchema.index({ stockLotId: 1 })
+productionBatchSchema.index({ stockCode: 1 }, { sparse: true })
 productionBatchSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true })
 
 module.exports = createTenantModel('ProductionBatch', productionBatchSchema)

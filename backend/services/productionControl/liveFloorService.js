@@ -30,6 +30,12 @@ async function getLiveFloorSummary() {
   await ensureDefaultFlowConfig()
   const today = startOfToday()
 
+  try {
+    const { evaluateProductionAlerts } = require('./alertEvaluationService')
+    await evaluateProductionAlerts()
+  } catch (err) {
+    console.warn('[live-floor] alert evaluation:', err.message)
+  }
   const [
     activeBatches,
     waiting,
@@ -147,6 +153,44 @@ async function getLiveFloorSummary() {
     if (col) board[col].push(batch)
   }
 
+  let stockOverview = null
+  let currentShift = null
+  let departments = []
+  let managersPresent = []
+  let operatorsPresent = []
+  try {
+    const stockService = require('./stockService')
+    stockOverview = await stockService.getStockOverview()
+  } catch (err) {
+    console.warn('[live-floor] stock overview:', err.message)
+  }
+  try {
+    const shiftService = require('./shiftService')
+    currentShift = await shiftService.getCurrentShift()
+  } catch (err) {
+    console.warn('[live-floor] shift:', err.message)
+  }
+  try {
+    const departmentService = require('./departmentService')
+    departments = await departmentService.listDepartmentStatuses()
+  } catch (err) {
+    console.warn('[live-floor] departments:', err.message)
+  }
+  try {
+    const floorSessionService = require('./floorSessionService')
+    managersPresent = await floorSessionService.getOpenManagers()
+  } catch (err) {
+    console.warn('[live-floor] managers:', err.message)
+  }
+  try {
+    const activeOps = await ProcessRun.find({ status: 'IN_PROGRESS' })
+      .select('operatorName')
+      .lean()
+    operatorsPresent = [...new Set(activeOps.map((o) => o.operatorName).filter(Boolean))]
+  } catch {
+    operatorsPresent = []
+  }
+
   return {
     kpis: {
       activeWorkOrders,
@@ -164,7 +208,13 @@ async function getLiveFloorSummary() {
       scrapTotal: weightTotals[0]?.scrapTotal || 0,
       lossTotal: weightTotals[0]?.lossTotal || 0,
       recoveredTotal: weightTotals[0]?.recoveredTotal || 0,
+      rework: statusCounts.find((r) => r._id === 'REWORK')?.count || 0,
     },
+    stock: stockOverview,
+    currentShift,
+    departments,
+    managersPresent,
+    operatorsPresent,
     board,
     statusCounts: statusCounts.map((row) => ({
       status: row._id,
@@ -198,10 +248,20 @@ async function searchProduction(q = {}) {
     employee,
     department,
     metal,
+    stockCode,
+    product,
+    design,
+    machine,
+    status,
+    q: freeText,
   } = q
 
+  const search = String(freeText || q.search || '').trim()
   const batchFilter = {}
   if (batchNumber) batchFilter.batchNumber = new RegExp(String(batchNumber).trim(), 'i')
+  if (stockCode) batchFilter.stockCode = new RegExp(String(stockCode).trim(), 'i')
+  if (product) batchFilter.product = new RegExp(String(product).trim(), 'i')
+  if (status) batchFilter.status = String(status).trim().toUpperCase()
   if (workOrder) {
     batchFilter.$or = [
       { workOrderNumber: new RegExp(String(workOrder).trim(), 'i') },
@@ -210,8 +270,12 @@ async function searchProduction(q = {}) {
   if (employee) batchFilter.currentHolderName = new RegExp(String(employee).trim(), 'i')
   if (department) batchFilter.currentDepartment = new RegExp(String(department).trim(), 'i')
   if (metal) batchFilter.metalType = new RegExp(String(metal).trim(), 'i')
+  if (machine) batchFilter.currentMachineName = new RegExp(String(machine).trim(), 'i')
+  if (design) batchFilter.product = new RegExp(String(design).trim(), 'i')
 
   let batches = []
+  let stockLots = []
+
   if (passNumber) {
     const passes = await ProductionPass.find({
       passNumber: new RegExp(String(passNumber).trim(), 'i'),
@@ -220,9 +284,46 @@ async function searchProduction(q = {}) {
     batches = await ProductionBatch.find({ _id: { $in: ids } }).limit(50).lean()
   } else if (Object.keys(batchFilter).length) {
     batches = await ProductionBatch.find(batchFilter).sort({ updatedAt: -1 }).limit(50).lean()
+  } else if (search) {
+    batches = await ProductionBatch.find({
+      $or: [
+        { batchNumber: new RegExp(search, 'i') },
+        { stockCode: new RegExp(search, 'i') },
+        { product: new RegExp(search, 'i') },
+        { workOrderNumber: new RegExp(search, 'i') },
+        { currentHolderName: new RegExp(search, 'i') },
+        { currentMachineName: new RegExp(search, 'i') },
+        { currentDepartment: new RegExp(search, 'i') },
+        { status: new RegExp(search, 'i') },
+      ],
+    }).sort({ updatedAt: -1 }).limit(50).lean()
   }
 
-  return { batches }
+  try {
+    const ProductionStockLot = require('../../models/ProductionStockLot')
+    const stockFilter = {}
+    if (stockCode) stockFilter.stockCode = new RegExp(String(stockCode).trim(), 'i')
+    if (product) stockFilter.product = new RegExp(String(product).trim(), 'i')
+    if (design) stockFilter.designNumber = new RegExp(String(design).trim(), 'i')
+    if (status && !batchNumber) stockFilter.status = String(status).trim().toUpperCase()
+    if (search) {
+      stockLots = await ProductionStockLot.find({
+        $or: [
+          { stockCode: new RegExp(search, 'i') },
+          { product: new RegExp(search, 'i') },
+          { productCode: new RegExp(search, 'i') },
+          { designNumber: new RegExp(search, 'i') },
+          { batchNumber: new RegExp(search, 'i') },
+        ],
+      }).limit(50).lean()
+    } else if (Object.keys(stockFilter).length) {
+      stockLots = await ProductionStockLot.find(stockFilter).limit(50).lean()
+    }
+  } catch {
+    stockLots = []
+  }
+
+  return { batches, stockLots }
 }
 
 async function getBatchDetail(batchId) {
@@ -246,7 +347,37 @@ async function getBatchDetail(batchId) {
       .lean(),
   ])
 
+  let stockLot = null
+  let stockEvents = []
+  try {
+    const ProductionStockLot = require('../../models/ProductionStockLot')
+    const ProductionStockStatusEvent = require('../../models/ProductionStockStatusEvent')
+    if (batch.stockLotId) {
+      stockLot = await ProductionStockLot.findById(batch.stockLotId).lean()
+      stockEvents = await ProductionStockStatusEvent.find({ stockLotId: batch.stockLotId })
+        .sort({ createdAt: 1 })
+        .lean()
+    } else if (batch.stockCode) {
+      stockLot = await ProductionStockLot.findOne({ stockCode: batch.stockCode }).lean()
+      if (stockLot) {
+        stockEvents = await ProductionStockStatusEvent.find({ stockLotId: stockLot._id })
+          .sort({ createdAt: 1 })
+          .lean()
+      }
+    }
+  } catch {
+    /* stock models may not be synced yet */
+  }
+
   const timeline = []
+  for (const e of stockEvents) {
+    timeline.push({
+      at: e.createdAt,
+      type: 'stock_status',
+      label: `Stock ${e.fromStatus || '—'} → ${e.toStatus}`,
+      data: e,
+    })
+  }
   for (const p of passes) {
     timeline.push({ at: p.createdAt, type: 'pass', label: `Pass ${p.passNumber} ${p.status}`, data: p })
     if (p.issuedAt) timeline.push({ at: p.issuedAt, type: 'pass_issued', label: `Pass ${p.passNumber} issued`, data: p })
@@ -274,6 +405,8 @@ async function getBatchDetail(batchId) {
 
   return {
     batch,
+    stockLot,
+    stockEvents,
     movements,
     passes,
     processes,

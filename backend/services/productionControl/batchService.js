@@ -74,12 +74,16 @@ async function createBatch(req, input = {}) {
           status: 'AWAITING_ISSUE',
           createdById: a.id,
           createdByName: a.name,
-          idempotencyKey: idempotencyKey || null,
           version: 0,
         },
       ],
       writeOpts(session),
     )
+
+    if (idempotencyKey) {
+      batch.idempotencyKey = idempotencyKey
+      await batch.save(writeOpts(session))
+    }
 
     await writeProductionAudit(req, {
       resource: 'ProductionBatch',

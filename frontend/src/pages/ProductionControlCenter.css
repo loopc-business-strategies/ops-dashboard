@@ -812,3 +812,122 @@
   font-size: 12px;
   color: var(--pcc-text-muted);
 }
+
+.pcc-shift-banner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.pcc-shift-card {
+  padding: 10px 12px;
+  border: 1px solid var(--pcc-border);
+  background: var(--pcc-elevated);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pcc-dept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.pcc-dept-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--pcc-border);
+  background: var(--pcc-elevated);
+  border-radius: 8px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.pcc-dept-tile:hover {
+  border-color: var(--pcc-orange, #d97706);
+}
+
+.pcc-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.pcc-form label,
+.pcc-form-inline label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.pcc-form-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.pcc-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pcc-table-wrap {
+  overflow-x: auto;
+}
+
+.pcc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.pcc-table th,
+.pcc-table td {
+  border-bottom: 1px solid var(--pcc-border);
+  padding: 8px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.pcc-pre {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  max-height: 60vh;
+  font-size: 11px;
+  background: var(--pcc-elevated);
+  border: 1px solid var(--pcc-border);
+  border-radius: 8px;
+}
+
+.pcc-link {
+  background: none;
+  border: none;
+  color: var(--pcc-orange, #d97706);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.pcc-check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.pcc-muted {
+  color: var(--pcc-text-muted);
+  font-size: 12px;
+}

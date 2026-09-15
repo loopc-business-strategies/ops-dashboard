@@ -3,7 +3,7 @@ const Joi = require('joi')
 const { protect } = require('../middleware/auth')
 const { validateBody, validateQuery, validateParams } = require('../middleware/validate')
 const { requireProductionPermission, resolveProductionRole } = require('../services/productionControl/permissions')
-const { batchService, passService, processService, liveFloorService, machineAlertService, flowConfigService } = require('../services/productionControl')
+const { batchService, passService, processService, liveFloorService, machineAlertService, flowConfigService, stockService, departmentService, shiftService, floorSessionService, reportService } = require('../services/productionControl')
 const ProductionBatch = require('../models/ProductionBatch')
 const ProductionPass = require('../models/ProductionPass')
 const MetalMovement = require('../models/MetalMovement')
@@ -70,6 +70,9 @@ router.put('/flow', protect, requireProductionPermission('manageFlow'), async (r
     if (req.body.weightTolerancePct != null) flow.weightTolerancePct = Number(req.body.weightTolerancePct)
     if (typeof req.body.autoHoldOnVariance === 'boolean') flow.autoHoldOnVariance = req.body.autoHoldOnVariance
     if (req.body.name) flow.name = String(req.body.name)
+    if (req.body.alertThresholds && typeof req.body.alertThresholds === 'object') {
+      flow.alertThresholds = { ...(flow.alertThresholds || {}), ...req.body.alertThresholds }
+    }
     await flow.save()
     emitProduction(req, 'flow.updated', { flowId: flow._id })
     res.json({ success: true, flow })
@@ -104,6 +107,13 @@ router.get('/search', protect, requireProductionPermission('view'), validateQuer
   employee: Joi.string().trim().allow(''),
   department: Joi.string().trim().allow(''),
   metal: Joi.string().trim().allow(''),
+  stockCode: Joi.string().trim().allow(''),
+  product: Joi.string().trim().allow(''),
+  design: Joi.string().trim().allow(''),
+  machine: Joi.string().trim().allow(''),
+  status: Joi.string().trim().allow(''),
+  q: Joi.string().trim().allow(''),
+  search: Joi.string().trim().allow(''),
 }).unknown(true)), async (req, res) => {
   try {
     const result = await liveFloorService.searchProduction(req.query)
@@ -422,6 +432,7 @@ router.post('/qc', protect, requireProductionPermission('submitQc'), validateBod
   sop: Joi.boolean().allow(null),
   remarks: Joi.string().trim().allow(''),
   reworkReason: Joi.string().trim().allow(''),
+  failureReason: Joi.string().trim().allow(''),
   idempotencyKey: Joi.string().trim().allow('', null),
   expectedBatchVersion: Joi.number().integer().min(0),
 })), async (req, res) => {
@@ -528,6 +539,9 @@ router.get('/audit', protect, requireProductionPermission('viewAudit'), async (r
       'WeightAdjustment',
       'ProductionMachine',
       'ProductionAlert',
+      'ProductionStockLot',
+      'ProductionShiftConfig',
+      'ProductionFloorSession',
     ]
     const logs = await AuditLog.find({ resource: { $in: resources } })
       .sort({ createdAt: -1 })
@@ -545,6 +559,296 @@ router.get('/weight-adjustments', protect, requireProductionPermission('view'), 
     if (req.query.batchId) filter.batchId = req.query.batchId
     const adjustments = await WeightAdjustment.find(filter).sort({ createdAt: -1 }).limit(200).lean()
     res.json({ success: true, adjustments })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Stock Control ──────────────────────────────────
+router.get('/stock/overview', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const overview = await stockService.getStockOverview()
+    res.json({ success: true, overview })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/stock', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await stockService.listStock(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/stock/history', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await stockService.getStockHistory(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/stock/:id', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const detail = await stockService.getStockDetail(req.params.id)
+    if (!detail) return res.status(404).json({ success: false, message: 'Stock not found' })
+    res.json({ success: true, ...detail })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/stock', protect, requireProductionPermission('manageStock'), validateBody(Joi.object({
+  purchaseRef: Joi.string().trim().allow(''),
+  supplier: Joi.string().trim().allow(''),
+  purchaseDate: Joi.date().allow(null, ''),
+  product: Joi.string().trim().allow(''),
+  productCode: Joi.string().trim().allow(''),
+  category: Joi.string().trim().allow(''),
+  designNumber: Joi.string().trim().allow(''),
+  quantity: Joi.number().min(0),
+  grossWeight: Joi.number().min(0),
+  netWeight: Joi.number().min(0),
+  metalType: Joi.string().valid(...METAL_TYPES),
+  purity: Joi.string().trim().allow(''),
+  size: Joi.string().trim().allow(''),
+  remarks: Joi.string().trim().allow(''),
+  inventoryItemId: Joi.string().hex().length(24).allow(null, ''),
+  attachmentRefs: Joi.array().items(Joi.object({
+    name: Joi.string().allow(''),
+    url: Joi.string().allow(''),
+  }).unknown(true)),
+  idempotencyKey: Joi.string().trim().allow('', null),
+})), async (req, res) => {
+  try {
+    const body = { ...req.body }
+    if (!body.inventoryItemId) body.inventoryItemId = null
+    if (!body.purchaseDate) body.purchaseDate = null
+    const { lot, reused } = await stockService.createStock(req, body)
+    if (!reused) emitProduction(req, 'stock.created', { stockLotId: lot._id, stockCode: lot.stockCode })
+    res.status(reused ? 200 : 201).json({ success: true, lot, reused })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.patch('/stock/:id', protect, requireProductionPermission('manageStock'), validateParams(idParam), async (req, res) => {
+  try {
+    const lot = await stockService.updateStock(req, req.params.id, req.body || {})
+    emitProduction(req, 'stock.updated', { stockLotId: lot._id })
+    res.json({ success: true, lot })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/stock/:id/available', protect, requireProductionPermission('manageStock'), validateParams(idParam), async (req, res) => {
+  try {
+    const lot = await stockService.markAvailable(req, req.params.id, req.body || {})
+    emitProduction(req, 'stock.available', { stockLotId: lot._id })
+    res.json({ success: true, lot })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/stock/select', protect, requireProductionPermission('selectStock'), validateBody(Joi.object({
+  stockLotId: Joi.string().hex().length(24).required(),
+  quantity: Joi.number().min(0).allow(null),
+  weight: Joi.number().positive().allow(null),
+  product: Joi.string().trim().allow(''),
+  purpose: Joi.string().trim().allow(''),
+  workOrderId: Joi.string().hex().length(24).allow(null, ''),
+  workOrderNumber: Joi.string().trim().allow(''),
+  markIssued: Joi.boolean(),
+  idempotencyKey: Joi.string().trim().allow('', null),
+  expectedVersion: Joi.number().integer().min(0),
+})), async (req, res) => {
+  try {
+    const body = { ...req.body }
+    if (!body.workOrderId) body.workOrderId = null
+    const result = await stockService.selectAndAllocate(req, body)
+    emitProduction(req, 'stock.allocated', {
+      stockLotId: result.lot._id,
+      batchId: result.batch._id,
+      batchNumber: result.batch.batchNumber,
+    })
+    res.status(201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/stock/:id/adjust', protect, requireProductionPermission('adjustStock'), validateParams(idParam), validateBody(Joi.object({
+  quantityDelta: Joi.number(),
+  weightDelta: Joi.number(),
+  reason: Joi.string().trim().min(3).required(),
+  expectedVersion: Joi.number().integer().min(0),
+})), async (req, res) => {
+  try {
+    const lot = await stockService.adjustStock(req, req.params.id, req.body)
+    emitProduction(req, 'stock.adjusted', { stockLotId: lot._id })
+    res.json({ success: true, lot })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Departments ────────────────────────────────────
+router.get('/departments', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const departments = await departmentService.listDepartmentStatuses()
+    res.json({ success: true, departments })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/departments/:key', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const dashboard = await departmentService.getDepartmentDashboard(req.params.key)
+    res.json({ success: true, ...dashboard })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Shifts ─────────────────────────────────────────
+router.get('/shifts', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const [shifts, current] = await Promise.all([
+      shiftService.listShifts(),
+      shiftService.getCurrentShift(),
+    ])
+    res.json({ success: true, shifts, current })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/shifts/current', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const current = await shiftService.getCurrentShift()
+    res.json({ success: true, current })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/shifts', protect, requireProductionPermission('manageShifts'), validateBody(Joi.object({
+  id: Joi.string().hex().length(24).allow(null, ''),
+  name: Joi.string().trim().required(),
+  startTime: Joi.string().trim().required(),
+  endTime: Joi.string().trim().required(),
+  breakMinutes: Joi.number().min(0),
+  isActive: Joi.boolean(),
+  workingDays: Joi.array().items(Joi.string()),
+  sortOrder: Joi.number(),
+})), async (req, res) => {
+  try {
+    const body = { ...req.body }
+    if (!body.id) body.id = null
+    const shift = await shiftService.upsertShift(req, body)
+    emitProduction(req, 'shift.updated', { shiftId: shift._id })
+    res.json({ success: true, shift })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Floor manager sessions ─────────────────────────
+router.post('/floor-sessions/login', protect, requireProductionPermission('floorSession'), async (req, res) => {
+  try {
+    const result = await floorSessionService.startSession(req, req.body || {})
+    emitProduction(req, 'floor.session_started', { sessionId: result.session._id })
+    res.status(result.reused ? 200 : 201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/floor-sessions/logout', protect, requireProductionPermission('floorSession'), async (req, res) => {
+  try {
+    const session = await floorSessionService.endSession(req)
+    emitProduction(req, 'floor.session_ended', { sessionId: session._id })
+    res.json({ success: true, session })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/floor-sessions/heartbeat', protect, requireProductionPermission('floorSession'), async (req, res) => {
+  try {
+    const session = await floorSessionService.heartbeat(req)
+    res.json({ success: true, session })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/floor-sessions', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await floorSessionService.listSessions(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Reports & traceability ─────────────────────────
+router.get('/reports/daily', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.dailyProduction(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/reports/stock-movement', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.stockMovementReport(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/reports/department-performance', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.departmentPerformance(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/reports/qc', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.qcReport(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/reports/shift', protect, requireProductionPermission('viewReports'), async (req, res) => {
+  try {
+    const report = await reportService.shiftReport(req.query)
+    res.json({ success: true, report })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/traceability', protect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const report = await reportService.traceabilityReport(req.query)
+    res.json({ success: true, report })
   } catch (err) {
     handleError(res, err)
   }

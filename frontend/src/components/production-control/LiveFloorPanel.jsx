@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BOARD_COLUMNS, formatGrams, formatKg, formatTime } from './shared'
+import { BOARD_COLUMNS, formatGrams, formatKg, formatMinutes, formatTime } from './shared'
 import { PccConfirmDialog, PccEmptyState, PccKpiCard, PccSkeleton, PccStatusBadge, PccWeightDisplay } from './primitives'
 import { usePccApi } from './demo/usePccApi'
 import { useDemoMode } from './demo/DemoModeContext'
@@ -12,6 +12,7 @@ export default function LiveFloorPanel({
   onSelectBatch,
   onRefresh,
   onToast,
+  onNavigate,
 }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
@@ -28,6 +29,8 @@ export default function LiveFloorPanel({
   const kpis = summary?.kpis || {}
   const stages = flow?.stages || []
   const board = summary?.board || {}
+  const stock = summary?.stock || {}
+  const shift = summary?.currentShift
 
   const runConfirmed = async () => {
     if (!confirm) return
@@ -45,6 +48,27 @@ export default function LiveFloorPanel({
 
   return (
     <div className="pcc-stack">
+      {shift && (
+        <div className="pcc-panel pcc-shift-banner">
+          <div>
+            <strong>CURRENT SHIFT</strong>
+            <div>{shift.name}</div>
+          </div>
+          <div>
+            <div>Start: {shift.startLabel || shift.startTime}</div>
+            <div>End: {shift.endLabel || shift.endTime}</div>
+          </div>
+          <div>
+            <div>Elapsed: {formatMinutes(shift.timeElapsedMinutes)}</div>
+            <div>Remaining: {formatMinutes(shift.timeRemainingMinutes)}</div>
+          </div>
+          <div>
+            <div>Managers: {(summary?.managersPresent || []).length}</div>
+            <div>Operators: {(summary?.operatorsPresent || []).length}</div>
+          </div>
+        </div>
+      )}
+
       <div className="pcc-kpi-row">
         <PccKpiCard label="Active WOs" value={kpis.activeWorkOrders ?? 0} />
         <PccKpiCard label="Active batches" value={kpis.activeBatches ?? 0} />
@@ -53,11 +77,43 @@ export default function LiveFloorPanel({
         <PccKpiCard label="QC pending" value={kpis.qcPending ?? 0} />
         <PccKpiCard label="QC failed" value={kpis.qcFailed ?? 0} />
         <PccKpiCard label="On hold" value={kpis.onHold ?? 0} />
+        <PccKpiCard label="Rework" value={kpis.rework ?? 0} />
         <PccKpiCard label="Alerts" value={kpis.activeAlerts ?? 0} />
         <PccKpiCard label="Machines" value={kpis.machinesRunning ?? 0} />
         <PccKpiCard label="Pending passes" value={kpis.passesPending ?? 0} />
         <PccKpiCard label="Completed today" value={kpis.completedToday ?? 0} />
-        <PccKpiCard label="Returned today" value={kpis.returnedToday ?? 0} />
+      </div>
+
+      <div className="pcc-panel">
+        <div className="pcc-panel-head"><h2>STOCK</h2></div>
+        <div className="pcc-kpi-row">
+          <PccKpiCard label="New Stock" value={stock.newStock?.count ?? 0} />
+          <PccKpiCard label="Available" value={stock.available?.count ?? 0} />
+          <PccKpiCard label="Selected" value={stock.selected?.count ?? 0} />
+          <PccKpiCard label="Under Processing" value={stock.underProcessing?.count ?? 0} />
+          <PccKpiCard label="Finished" value={stock.finished?.count ?? 0} />
+        </div>
+      </div>
+
+      <div className="pcc-panel">
+        <div className="pcc-panel-head"><h2>DEPARTMENTS</h2></div>
+        <div className="pcc-dept-grid">
+          {(summary?.departments || []).map((d) => (
+            <button
+              key={d.key}
+              type="button"
+              className="pcc-dept-tile"
+              onClick={() => onNavigate?.(`dept-${d.key}`)}
+            >
+              <strong>{d.label}</strong>
+              <PccStatusBadge status={d.status} />
+              <span>{d.active ?? 0} active · {d.waiting ?? 0} wait · {d.completedToday ?? 0} done</span>
+            </button>
+          ))}
+          {!(summary?.departments || []).length && (
+            <PccEmptyState message="Department status will appear when flow is active" />
+          )}
+        </div>
       </div>
 
       <div className="pcc-flow">
@@ -95,6 +151,7 @@ export default function LiveFloorPanel({
                       <div key={b._id} className="pcc-board-card-wrap">
                         <button type="button" className="pcc-board-card" onClick={() => onSelectBatch?.(b._id)}>
                           <strong>{b.batchNumber}</strong>
+                          {b.stockCode && <span className="pcc-card-meta">{b.stockCode}</span>}
                           <span className="pcc-card-primary">
                             {b.workOrderNumber ? `${b.workOrderNumber} · ` : ''}
                             {b.product || b.metalType}

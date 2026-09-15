@@ -45,6 +45,10 @@ async function wipeProductionCollections() {
   if (!isMongooseConnected(mongoose)) return
   const ProductionMachine = require('../models/ProductionMachine')
   const ProductionAlert = require('../models/ProductionAlert')
+  const ProductionStockLot = require('../models/ProductionStockLot')
+  const ProductionStockStatusEvent = require('../models/ProductionStockStatusEvent')
+  const ProductionShiftConfig = require('../models/ProductionShiftConfig')
+  const ProductionFloorSession = require('../models/ProductionFloorSession')
   await Promise.all([
     ProductionBatch.deleteMany({}),
     ProductionPass.deleteMany({}),
@@ -57,6 +61,10 @@ async function wipeProductionCollections() {
     WorkOrder.deleteMany({}),
     ProductionMachine.deleteMany({}),
     ProductionAlert.deleteMany({}),
+    ProductionStockLot.deleteMany({}),
+    ProductionStockStatusEvent.deleteMany({}),
+    ProductionShiftConfig.deleteMany({}),
+    ProductionFloorSession.deleteMany({}),
     (await User.getTenantModel('loopc')).deleteMany({}),
   ])
 }
@@ -367,5 +375,177 @@ describe('Production Control Center API', () => {
       .set(headers)
     expect(list.status).toBe(200)
     expect(list.body.total).toBeGreaterThanOrEqual(1)
+  })
+
+  test('stock in → available → select/allocate → STK linked batch; legacy batches untouched', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+
+    const legacy = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({ metalType: 'Gold', purity: '18K', initialWeight: 200, purpose: 'legacy' })
+    expect(legacy.status).toBe(201)
+    expect(legacy.body.batch.stockCode || '').toBe('')
+
+    const createStock = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({
+        product: 'Bangle 1',
+        productCode: 'BG-1',
+        quantity: 50,
+        netWeight: 250,
+        metalType: 'Gold',
+        purity: '22K',
+        supplier: 'Test Supplier',
+        purchaseRef: 'PO-100',
+        idempotencyKey: 'stock-create-1',
+      })
+    expect(createStock.status).toBe(201)
+    expect(createStock.body.lot.stockCode).toMatch(/^STK-\d{4}-\d{5}$/)
+    expect(createStock.body.lot.status).toBe('NEW_STOCK')
+
+    const reuse = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({
+        product: 'Bangle 1',
+        netWeight: 250,
+        metalType: 'Gold',
+        idempotencyKey: 'stock-create-1',
+      })
+    expect(reuse.status).toBe(200)
+    expect(reuse.body.reused).toBe(true)
+
+    const lotId = createStock.body.lot._id
+    const avail = await request(app)
+      .post(`/api/erp/production-control/stock/${lotId}/available`)
+      .set(headers)
+      .send({})
+    expect(avail.status).toBe(200)
+    expect(avail.body.lot.status).toBe('AVAILABLE')
+
+    const select = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: lotId, weight: 250, quantity: 50, markIssued: true })
+    expect(select.status).toBe(201)
+    expect(select.body.batch.stockCode).toBe(createStock.body.lot.stockCode)
+    expect(select.body.lot.status).toBe('UNDER_PROCESSING')
+
+    const again = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: lotId, weight: 10 })
+    expect(again.status).toBe(400)
+
+    const trace = await request(app)
+      .get('/api/erp/production-control/traceability')
+      .query({ stockCode: createStock.body.lot.stockCode })
+      .set(headers)
+    expect(trace.status).toBe(200)
+    expect(trace.body.report.stock.stockCode).toBe(createStock.body.lot.stockCode)
+    expect(trace.body.report.batch._id).toBe(select.body.batch._id)
+
+    // Legacy batch still present and unchanged
+    const still = await ProductionBatch.findById(legacy.body.batch._id)
+    expect(still).toBeTruthy()
+    expect(still.stockCode || '').toBe('')
+  })
+
+  test('QC PASS routes batch to packaging; packing complete finishes stock', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+
+    const stock = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({ product: 'Ring', netWeight: 100, metalType: 'Gold', quantity: 10 })
+    const lotId = stock.body.lot._id
+    await request(app).post(`/api/erp/production-control/stock/${lotId}/available`).set(headers).send({})
+    const allocated = await request(app)
+      .post('/api/erp/production-control/stock/select')
+      .set(headers)
+      .send({ stockLotId: lotId, weight: 100, markIssued: true })
+    const batchId = allocated.body.batch._id
+
+    const qc = await request(app)
+      .post('/api/erp/production-control/qc')
+      .set(headers)
+      .send({ batchId, result: 'PASS', remarks: 'Good' })
+    expect(qc.status).toBe(201)
+    expect(qc.body.batch.currentDepartment).toBe('packing')
+    expect(qc.body.batch.status).toBe('WAITING')
+
+    const start = await request(app)
+      .post('/api/erp/production-control/processes/start')
+      .set(headers)
+      .send({ batchId, process: 'Packing', department: 'packing', inputWeight: 100 })
+    expect(start.status).toBe(201)
+
+    const done = await request(app)
+      .post(`/api/erp/production-control/processes/${start.body.processRun._id}/complete`)
+      .set(headers)
+      .send({
+        outputWeight: 98,
+        scrap: 1,
+        loss: 1,
+        details: { packagingType: 'box', packageNumber: 'PKG-1', recovery: 0 },
+      })
+    expect(done.status).toBe(200)
+    expect(done.body.batch.status).toBe('COMPLETED')
+
+    const lot = await request(app).get(`/api/erp/production-control/stock/${lotId}`).set(headers)
+    expect(lot.status).toBe(200)
+    expect(lot.body.lot.status).toBe('FINISHED')
+  })
+
+  test('shifts default 09:00–21:00 and floor session login/logout', async () => {
+    const user = await createUser({ productionRole: 'floor_manager' })
+    const headers = auth(user)
+
+    const shifts = await request(app).get('/api/erp/production-control/shifts').set(headers)
+    expect(shifts.status).toBe(200)
+    expect(shifts.body.shifts.length).toBeGreaterThanOrEqual(1)
+    expect(shifts.body.current.name).toBeTruthy()
+    expect(shifts.body.current.startTime).toBe('09:00')
+    expect(shifts.body.current.endTime).toBe('21:00')
+
+    const login = await request(app).post('/api/erp/production-control/floor-sessions/login').set(headers).send({})
+    expect([200, 201]).toContain(login.status)
+    expect(login.body.session.status).toBe('OPEN')
+
+    const logout = await request(app).post('/api/erp/production-control/floor-sessions/logout').set(headers).send({})
+    expect(logout.status).toBe(200)
+    expect(logout.body.session.status).toBe('CLOSED')
+  })
+
+  test('operator cannot adjust stock; manager can with reason', async () => {
+    const mgr = await createUser({ productionRole: 'production_manager', email: `mgr2-${Date.now()}@ex.com` })
+    const op = await createUser({
+      role: 'department_user',
+      department: 'production',
+      productionRole: 'operator',
+      email: `op2-${Date.now()}@ex.com`,
+    })
+    const createStock = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(auth(mgr))
+      .send({ product: 'X', netWeight: 50, metalType: 'Silver' })
+    const lotId = createStock.body.lot._id
+
+    const denied = await request(app)
+      .post(`/api/erp/production-control/stock/${lotId}/adjust`)
+      .set(auth(op))
+      .send({ weightDelta: -1, reason: 'Correction' })
+    expect(denied.status).toBe(403)
+
+    const ok = await request(app)
+      .post(`/api/erp/production-control/stock/${lotId}/adjust`)
+      .set(auth(mgr))
+      .send({ weightDelta: -1, reason: 'Scale correction' })
+    expect(ok.status).toBe(200)
+    expect(ok.body.lot.netWeight).toBe(49)
   })
 })

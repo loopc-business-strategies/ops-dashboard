@@ -29,7 +29,7 @@ module.exports = {
 }
 ```
 
-2. Registered migrations: `001-baseline`, `002-backfill-mapping-departments`, `003-backfill-jv-ledger-base-to-fc`, `004-sync-mongoose-indexes` (apply 003 only after review — updates JV FX rows; apply 004 after backup so hardened envs get schema indexes without `autoIndex`).
+2. Registered migrations: `001-baseline`, `002-backfill-mapping-departments`, `003-backfill-jv-ledger-base-to-fc`, `004-sync-mongoose-indexes` (apply 003 only after review — updates JV FX rows; apply 004 after backup so hardened envs get schema indexes without `autoIndex`), `006-production-stock-shift-indexes` (additive PCC stock/shift indexes + default Shift 1 seed).
 
 ```js
 module.exports = {

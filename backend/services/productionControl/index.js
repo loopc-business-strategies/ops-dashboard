@@ -7,4 +7,10 @@ module.exports = {
   liveFloorService: require('./liveFloorService'),
   machineAlertService: require('./machineAlertService'),
   flowConfigService: require('./flowConfigService'),
+  stockService: require('./stockService'),
+  departmentService: require('./departmentService'),
+  shiftService: require('./shiftService'),
+  floorSessionService: require('./floorSessionService'),
+  reportService: require('./reportService'),
+  alertEvaluationService: require('./alertEvaluationService'),
 }

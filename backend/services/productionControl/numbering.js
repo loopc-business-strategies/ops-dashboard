@@ -80,6 +80,22 @@ async function nextAlertNumber(ProductionAlert, session) {
   return `${p}-${pad(seq)}`
 }
 
+async function nextStockCode(ProductionStockLot, session) {
+  const year = new Date().getFullYear()
+  const prefix = `STK-${year}`
+  const re = new RegExp(`^${prefix}-`)
+  const query = ProductionStockLot.findOne({ stockCode: re }).sort({ stockCode: -1 }).select('stockCode').lean()
+  if (session) query.session(session)
+  const last = await query
+  let seq = 1
+  if (last?.stockCode) {
+    const parts = String(last.stockCode).split('-')
+    const n = parseInt(parts[parts.length - 1], 10)
+    if (Number.isFinite(n)) seq = n + 1
+  }
+  return `${prefix}-${pad(seq, 5)}`
+}
+
 module.exports = {
   nextBatchNumber,
   nextPassNumber,
@@ -88,4 +104,5 @@ module.exports = {
   nextInspectionNumber,
   nextAdjustmentNumber,
   nextAlertNumber,
+  nextStockCode,
 }
