@@ -54,7 +54,14 @@ npm run backup:mongodump:dry-run                     # check env before enabling
 
 ## MongoDB Atlas (production tenants)
 
+**Projects:** use only **MG**, **CG**, **LoopC**, and **Venus Bullion** — see [ATLAS-PROJECTS.md](./ATLAS-PROJECTS.md).  
+**Project 0** is Atlas’s default leftover project name; it is **not** a tenant. Do not merge it (Atlas cannot merge projects). Delete it when empty/unused.
+
 Clusters: one per tenant (`MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`, `MONGO_URI_VB`).
+
+```bash
+npm run atlas:project0:audit   # fingerprint URIs; list/delete Project 0 when Atlas API keys exist
+```
 
 1. Atlas project → **Backup** (or **Cloud Backup**).
 2. Enable **continuous cloud backup** (or snapshot schedule) for **each** cluster.

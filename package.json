@@ -27,6 +27,7 @@
     "check:tenant-branding-parity": "node scripts/check-tenant-branding-parity.mjs",
     "check:locale-parity": "node scripts/check-locale-parity.mjs",
     "check:atlas-strict-readiness": "node scripts/check-atlas-strict-readiness.mjs",
+    "atlas:project0:audit": "node scripts/atlas-project0-audit.mjs",
     "setup:staging": "node scripts/setup-staging-env.mjs",
     "setup:staging:railway": "node scripts/apply-staging-railway-vars.mjs",
     "setup:staging:mongo-local": "node scripts/sync-staging-mongo-local.mjs",
