@@ -9,6 +9,8 @@ import hrAPI from '../../api/hr'
 import { useLanguage } from '../../context/LanguageContext'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModuleTabColumn } from '../layout/ModuleTabChrome'
+import { isStructuredPayrollEnabled } from '../../config/tenantBranding'
+import EmployeeProfileDrawer from './hr/EmployeeProfileDrawer'
 
 function getHRSubTabs(t) {
   return [
@@ -292,11 +294,13 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 }
 
 // ── Employee List sub-tab ────────────────────────
-function EmployeeList({ token }) {
+function EmployeeList({ token, company }) {
   const [employees, setEmployees] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [showForm,  setShowForm]  = useState(false)
   const [error,     setError]     = useState('')
+  const [profileId, setProfileId] = useState(null)
+  const structured = isStructuredPayrollEnabled(company)
 
   const load = useCallback(async (isMounted = () => true) => {
     setLoading(true)
@@ -368,6 +372,16 @@ function EmployeeList({ token }) {
         />
       )}
 
+      {profileId && (
+        <EmployeeProfileDrawer
+          token={token}
+          company={company}
+          employeeId={profileId}
+          onClose={() => setProfileId(null)}
+          onSaved={() => load()}
+        />
+      )}
+
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -397,14 +411,33 @@ function EmployeeList({ token }) {
             <tbody className="divide-y divide-gray-800">
               {employees.map(emp => (
                 <tr key={emp._id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-white whitespace-nowrap leading-tight">{emp.name}</td>
+                  <td className="px-4 py-3 font-medium text-white whitespace-nowrap leading-tight">
+                    {structured ? (
+                      <button
+                        type="button"
+                        onClick={() => setProfileId(emp._id)}
+                        className="text-left hover:underline"
+                      >
+                        {emp.name}
+                      </button>
+                    ) : emp.name}
+                  </td>
                   <td className="px-4 py-3 text-gray-300 font-mono text-xs whitespace-nowrap leading-tight">{emp.employeeCode}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap leading-tight">{emp.idNumber}</td>
                   <td className="px-4 py-3 text-gray-300 text-xs whitespace-nowrap leading-tight">{deptLabel(emp.department)}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap leading-tight">{emp.phoneNumber || '—'}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs max-w-[180px] truncate leading-tight">{emp.address || '—'}</td>
                   <td className="px-4 py-3 text-base whitespace-nowrap">{renderStars(emp.rating)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {structured && (
+                      <button
+                        type="button"
+                        onClick={() => setProfileId(emp._id)}
+                        className="mr-3 text-xs font-medium text-sky-400 hover:text-sky-300"
+                      >
+                        Profile
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(emp._id, emp.name)}
                       className="text-red-400 hover:text-red-300 text-xs font-medium transition-colors"
@@ -459,7 +492,7 @@ export default function HRTab() {
 
   const renderSubTab = () => {
     switch (subTab) {
-      case 'employee_list':   return <EmployeeList token={token} />
+      case 'employee_list':   return <EmployeeList token={token} company={company} />
       case 'labour_law':      return <LabourLaw />
       case 'current_updates': return <CurrentUpdates />
       default:                return null

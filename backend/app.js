@@ -336,6 +336,7 @@ function createApp() {
   app.use('/api/crm', crmRoutes)
   app.use('/api/department-state', departmentStateRoutes)
   app.use('/api/realtime', realtimeRoutes)
+  app.use('/api/finance/payroll-v2', require('./routes/payrollV2'))
   app.use('/api/finance',    financeRoutes)
   app.use('/api/compliance', complianceRoutes)
   app.use('/api/training',   trainingRoutes)

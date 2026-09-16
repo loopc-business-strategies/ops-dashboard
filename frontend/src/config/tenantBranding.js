@@ -329,6 +329,7 @@ const tenantBranding = {
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
       voucher24HourLock: true,
+      structuredPayroll: true,
     },
   },
   vb: {
@@ -420,6 +421,12 @@ export function getDisabledVoucherTypes(tenant) {
 export function isVoucherTypeEnabled(tenant, type) {
   const disabled = new Set(getDisabledVoucherTypes(tenant))
   return !disabled.has(String(type || '').trim().toLowerCase())
+}
+
+/** LoopC-only structured Employee → PayrollRun → Payslip. Mirror of backend tenantCapabilities. */
+export function isStructuredPayrollEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.structuredPayroll === true
+    || String(tenant || '').trim().toLowerCase() === 'loopc'
 }
 
 export function filterTransactionTypesForTenant(tenant, types = []) {
