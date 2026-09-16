@@ -10,7 +10,7 @@
  * Usage:
  *   node backend/scripts/payroll-loopc-aug2026-seed.js
  *
- * Safety: loopc only; no drop/deleteMany; refuses ambiguous name matches.
+ * Safety: loopc only; additive upserts only; refuses ambiguous name matches.
  */
 
 require('dotenv').config()
