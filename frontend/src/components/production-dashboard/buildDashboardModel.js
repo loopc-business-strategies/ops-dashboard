@@ -154,8 +154,6 @@ function timelineState(batch, stages) {
   const dept = String(batch.currentDepartment || batch.currentProcess || '').toLowerCase()
   const stageKeys = (stages || []).map((s) => String(s.key).toLowerCase())
   const meltingIdx = stageKeys.findIndex((k) => k.includes('melt'))
-  const qcIdx = stageKeys.findIndex((k) => k.includes('quality') || k.includes('qc'))
-  const processKeys = stageKeys.filter((k, i) => i !== meltingIdx && i !== qcIdx && !k.includes('pack'))
 
   let current = 'started'
   if (['COMPLETED', 'RETURNED_TO_VAULT'].includes(st)) current = 'completed'
