@@ -5,15 +5,20 @@
  * Usage:
  *   node backend/scripts/payroll-loopc-rename-lopc-to-loopc.js
  *
- * Safety: loopc only; skips docs already using LoopC-; unique-index safe via temp suffix.
+ * Safety: staging-only; loopc tenant; skips docs already using LoopC-; unique-index safe via temp suffix.
  */
 
 require('dotenv').config()
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const mongoose = require('mongoose')
 const { connectTenant } = require('../db/tenantConnections')
 const { isStructuredPayrollEnabled } = require('../config/tenantCapabilities')
 
 const TENANT = 'loopc'
+assertStagingOnlyScript({
+  scriptName: 'payroll-loopc-rename-lopc-to-loopc.js',
+  tenants: [TENANT],
+})
 const FROM = 'LOPC-'
 const TO = 'LoopC-'
 
