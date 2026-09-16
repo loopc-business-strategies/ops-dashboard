@@ -113,7 +113,6 @@ export async function generatePayslipPdf(payslip, tenant) {
     doc.setFontSize(10)
 
     doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
-    doc.text(`Department: ${payslip.department || '—'}`, pageRight, y, { align: 'right' })
     y += 14
     doc.text(`Bank: ${payslip.bankMasked || '****'}`, margin, y)
     y += 16
@@ -130,6 +129,7 @@ export async function generatePayslipPdf(payslip, tenant) {
       body: [
         ['Employee Name', payslip.employeeName || '—'],
         ['Position', payslip.position || '—'],
+        ['Department', payslip.department || '—'],
         ['Joining Date', fmtDate(payslip.joiningDate)],
         ['Payroll Period', displayPeriodRange(payslip)],
         ['No. of Days', payslip.payableDays != null ? String(payslip.payableDays) : '—'],
@@ -167,28 +167,31 @@ export async function generatePayslipPdf(payslip, tenant) {
     doc.setFontSize(11)
     doc.text('Deductions', margin, y)
     y += 6
+    const deductionBody = [
+      ['Current Month Advance Payment Deduction', inrMoney(currentMonthAdvanceDeductionOf(payslip))],
+      // Presentation alias of salaryBalance (unpaid residual) — not a second transaction
+      ['Previous Month Advance Payment Deduction', inrMoney(previousMonthAdvanceDeductionOf(payslip))],
+      ['Other Deductions', inrMoney(otherDeductionsOf(payslip))],
+      ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
+      ['Net Paid / Amount Paid', inrMoney(payslip.amountPaid)],
+    ]
+    const netPaidRowIndex = deductionBody.length - 1
     autoTable(doc, {
       startY: y,
       head: [['Deduction', 'Amount']],
-      body: [
-        ['Current Month Advance Payment Deduction', inrMoney(currentMonthAdvanceDeductionOf(payslip))],
-        // Presentation alias of salaryBalance (unpaid residual) — not a second transaction
-        ['Previous Month Advance Payment Deduction', inrMoney(previousMonthAdvanceDeductionOf(payslip))],
-        ['Other Deductions', inrMoney(otherDeductionsOf(payslip))],
-        ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
-      ],
+      body: deductionBody,
       margin: { left: margin, right: margin },
       styles: TABLE_STYLES,
       columnStyles: colStyles,
       headStyles: { fillColor: HEAD_FILL },
       tableWidth: contentWidth,
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.row.index === netPaidRowIndex) {
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
     })
     y = doc.lastAutoTable.finalY + 16
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.text(`NET PAID / AMOUNT PAID: ${inrMoney(payslip.amountPaid)}`, margin, y)
-    y += 18
 
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
