@@ -1,6 +1,5 @@
 import { getTenantBranding, isStructuredPayrollEnabled } from '../config/tenantBranding'
 import { loadPdfTools } from '../components/tabs/erp/lazyExportLibs'
-import { createLogoRenderAsset } from '../components/tabs/erp/ERPBrandingUtils'
 import {
   money,
   inrMoney,
@@ -70,7 +69,7 @@ function twoColStyles(contentWidth) {
   }
 }
 
-/** Make near-black plate transparent; preserve saturated/navy logo ink. */
+/** Make near-black plate transparent; preserve navy ink and gradient C. */
 function removeNearBlackBackground(ctx, width, height) {
   try {
     const imageData = ctx.getImageData(0, 0, width, height)
@@ -83,8 +82,10 @@ function removeNearBlackBackground(ctx, width, height) {
       if (a === 0) continue
       const max = Math.max(r, g, b)
       const min = Math.min(r, g, b)
-      // Neutral near-black background only (not navy/cyan brand colors).
-      if (max <= 42 && (max - min) <= 14) {
+      const chroma = max - min
+      const navyLike = b > r + 8 && b > g + 8
+      // Flat near-black plate only. Keep navy ink and saturated gradient C.
+      if (!navyLike && max <= 48 && chroma <= 16) {
         data[i + 3] = 0
       }
     }
@@ -94,33 +95,82 @@ function removeNearBlackBackground(ctx, width, height) {
   }
 }
 
-/** Load logo PNG and strip black plate for white PDF pages. */
-async function loadTransparentPayslipLogo(logoUrl, width, height, fit) {
-  const rendered = await createLogoRenderAsset(logoUrl, width, height, fit || 'contain', { renderScale: 2 })
-  if (!rendered || !String(rendered).startsWith('data:image/')) return ''
-  if (typeof document === 'undefined') return rendered
+/** Crop canvas to non-transparent content with a small padding. */
+function cropToOpaqueBounds(sourceCanvas, pad = 4) {
+  const w = sourceCanvas.width
+  const h = sourceCanvas.height
+  const ctx = sourceCanvas.getContext('2d')
+  if (!ctx || !w || !h) return sourceCanvas
+  let imageData
+  try {
+    imageData = ctx.getImageData(0, 0, w, h)
+  } catch {
+    return sourceCanvas
+  }
+  const data = imageData.data
+  let minX = w
+  let minY = h
+  let maxX = -1
+  let maxY = -1
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const a = data[(y * w + x) * 4 + 3]
+      if (a > 8) {
+        if (x < minX) minX = x
+        if (y < minY) minY = y
+        if (x > maxX) maxX = x
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return sourceCanvas
+  const left = Math.max(0, minX - pad)
+  const top = Math.max(0, minY - pad)
+  const right = Math.min(w - 1, maxX + pad)
+  const bottom = Math.min(h - 1, maxY + pad)
+  const cw = right - left + 1
+  const ch = bottom - top + 1
+  const cropped = document.createElement('canvas')
+  cropped.width = cw
+  cropped.height = ch
+  const cctx = cropped.getContext('2d')
+  if (!cctx) return sourceCanvas
+  cctx.clearRect(0, 0, cw, ch)
+  cctx.drawImage(sourceCanvas, left, top, cw, ch, 0, 0, cw, ch)
+  return cropped
+}
+
+/**
+ * Load payslip logo at natural resolution, strip black plate, crop, return PNG data URL.
+ * Does not pre-shrink (avoids blur from createLogoRenderAsset).
+ */
+async function loadTransparentPayslipLogo(logoUrl) {
+  if (!logoUrl || typeof document === 'undefined') return ''
 
   return new Promise((resolve) => {
     const image = new Image()
+    image.crossOrigin = 'anonymous'
     image.onload = () => {
       try {
         const w = image.naturalWidth || image.width
         const h = image.naturalHeight || image.height
+        if (!w || !h) return resolve('')
         const canvas = document.createElement('canvas')
         canvas.width = w
         canvas.height = h
         const ctx = canvas.getContext('2d')
-        if (!ctx) return resolve(rendered)
+        if (!ctx) return resolve('')
         ctx.clearRect(0, 0, w, h)
         ctx.drawImage(image, 0, 0)
         removeNearBlackBackground(ctx, w, h)
-        resolve(canvas.toDataURL('image/png'))
+        const cropped = cropToOpaqueBounds(canvas, 6)
+        resolve(cropped.toDataURL('image/png'))
       } catch {
-        resolve(rendered)
+        resolve('')
       }
     }
-    image.onerror = () => resolve(rendered)
-    image.src = rendered
+    image.onerror = () => resolve('')
+    image.src = logoUrl
   })
 }
 
@@ -142,19 +192,18 @@ export async function generatePayslipPdf(payslip, tenant) {
   let y = margin
 
   if (structured) {
-    const logoW = 130
-    const logoH = 42
-    const fit = branding.logoFit || 'contain'
-    let logoAsset = await loadTransparentPayslipLogo('/logos/loopc-payslip-logo.png', logoW, logoH, fit)
+    const logoW = 170
+    const logoH = 55
+    let logoAsset = await loadTransparentPayslipLogo('/logos/loopc-payslip-logo.png')
     if (!logoAsset || !String(logoAsset).startsWith('data:image/')) {
       const fallback = branding.logoUrl || branding.logoImage || ''
       if (fallback) {
-        logoAsset = await loadTransparentPayslipLogo(fallback, logoW, logoH, fit)
+        logoAsset = await loadTransparentPayslipLogo(fallback)
       }
     }
     if (logoAsset && String(logoAsset).startsWith('data:image/')) {
       try {
-        doc.addImage(logoAsset, 'PNG', pageRight - logoW, margin - 4, logoW, logoH, undefined, 'FAST')
+        doc.addImage(logoAsset, 'PNG', pageRight - logoW, margin - 4, logoW, logoH, undefined, 'NONE')
       } catch {
         // Leave reserved top-right space if embed fails.
       }
