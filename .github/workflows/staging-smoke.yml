@@ -9,7 +9,7 @@ on:
       wait_seconds:
         description: Seconds to wait before running smoke checks
         required: false
-        default: '60'
+        default: '180'
 
 concurrency:
   group: staging-smoke-${{ github.ref_name || github.run_id }}
@@ -25,7 +25,7 @@ jobs:
       SMOKE_API_BASE: ${{ vars.STAGING_SMOKE_API_BASE || 'https://ops-dashboard-staging-e6c6.up.railway.app' }}
       SMOKE_VERCEL_HOSTS: ${{ vars.STAGING_SMOKE_VERCEL_HOSTS }}
       SMOKE_RAILWAY_READINESS_URL: ${{ vars.STAGING_SMOKE_RAILWAY_READINESS_URL }}
-      SMOKE_WAIT_SECONDS: ${{ vars.STAGING_SMOKE_WAIT_SECONDS || '60' }}
+      SMOKE_WAIT_SECONDS: ${{ vars.STAGING_SMOKE_WAIT_SECONDS || '180' }}
       SMOKE_REQUIRE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_AUTH || 'false' }}
       SMOKE_SKIP_FRONTEND: ${{ vars.STAGING_SMOKE_SKIP_FRONTEND || 'true' }}
       STAGING_SMOKE_REQUIRE_MOBILE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_MOBILE_AUTH || 'false' }}
@@ -44,6 +44,26 @@ jobs:
           WAIT_SECONDS="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.wait_seconds || env.SMOKE_WAIT_SECONDS }}"
           echo "Waiting ${WAIT_SECONDS}s for staging deploy propagation..."
           sleep "${WAIT_SECONDS}"
+
+      - name: Wait until API /api/ready reports ready
+        run: |
+          API_BASE="${SMOKE_API_BASE%/}"
+          DEADLINE=$((SECONDS + 120))
+          echo "Polling ${API_BASE}/api/ready until ready=true (up to 120s)..."
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            BODY="$(curl -sS --max-time 10 "${API_BASE}/api/ready" || true)"
+            READY="$(node -e 'const b=process.argv[1]||""; try { const j=JSON.parse(b); process.stdout.write(j && j.ready===true ? "true" : "false") } catch { process.stdout.write("false") }' "$BODY")"
+            if [ "$READY" = "true" ]; then
+              echo "API ready:"
+              echo "$BODY" | node -e 'let s=""; process.stdin.on("data",d=>s+=d); process.stdin.on("end",()=>{ try { const j=JSON.parse(s); console.log("commit=", String(j.commit||j.build?.sha||"").slice(0,7), "redisReady=", j.checks?.redisReady) } catch { console.log(s.slice(0,200)) } })'
+              exit 0
+            fi
+            echo "Not ready yet; retrying in 5s..."
+            sleep 5
+          done
+          echo "API still not ready after 120s:"
+          curl -sS --max-time 10 "${API_BASE}/api/ready" || true
+          exit 1
 
       - name: Run staging smoke
         env:
