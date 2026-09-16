@@ -103,6 +103,10 @@ export default function BatchesPanel({ onSelectBatch, onToast }) {
     setDepartment('')
   }
 
+  const closeCreate = useCallback(() => {
+    if (!submitting) setCreateOpen(false)
+  }, [submitting])
+
   return (
     <div className="pcc-stack">
       <div className="pcc-panel">
@@ -197,7 +201,7 @@ export default function BatchesPanel({ onSelectBatch, onToast }) {
       <PccContextDrawer
         open={createOpen}
         title="Create Batch"
-        onClose={() => !submitting && setCreateOpen(false)}
+        onClose={closeCreate}
       >
         <form className="pcc-form" onSubmit={create}>
           <div className="pcc-form-grid">
@@ -231,7 +235,7 @@ export default function BatchesPanel({ onSelectBatch, onToast }) {
             </label>
           </div>
           <div className="pcc-actions" style={{ marginTop: 12 }}>
-            <button type="button" className="pcc-btn-ghost" disabled={submitting} onClick={() => setCreateOpen(false)}>
+            <button type="button" className="pcc-btn-ghost" disabled={submitting} onClick={closeCreate}>
               Cancel
             </button>
             <button type="submit" className="pcc-btn" disabled={submitting}>

@@ -71,16 +71,28 @@ export function PccContextDrawer({
 }) {
   const titleId = useId()
   const closeRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  const wasOpenRef = useRef(false)
+
+  onCloseRef.current = onClose
 
   useEffect(() => {
-    if (!open) return undefined
-    closeRef.current?.focus?.()
+    if (!open) {
+      wasOpenRef.current = false
+      return undefined
+    }
+    // Focus Close only when the drawer first opens — not when onClose identity changes
+    // (inline onClose handlers would otherwise steal focus from inputs on every keystroke).
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true
+      closeRef.current?.focus?.()
+    }
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.()
+      if (e.key === 'Escape') onCloseRef.current?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
@@ -119,16 +131,26 @@ export function PccConfirmDialog({
 }) {
   const titleId = useId()
   const cancelRef = useRef(null)
+  const onCancelRef = useRef(onCancel)
+  const wasOpenRef = useRef(false)
+
+  onCancelRef.current = onCancel
 
   useEffect(() => {
-    if (!open) return undefined
-    cancelRef.current?.focus?.()
+    if (!open) {
+      wasOpenRef.current = false
+      return undefined
+    }
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true
+      cancelRef.current?.focus?.()
+    }
     const onKey = (e) => {
-      if (e.key === 'Escape') onCancel?.()
+      if (e.key === 'Escape') onCancelRef.current?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
+  }, [open])
 
   if (!open) return null
 
