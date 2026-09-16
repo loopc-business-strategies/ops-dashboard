@@ -1,6 +1,10 @@
 /* eslint-disable no-console */
 const fs = require('fs')
 const path = require('path')
+const {
+  getTenantSmokeCredentials,
+  listTenantSmokeCredentialCandidates,
+} = require('./smoke-credentials')
 const TENANTS = Object.keys(
   JSON.parse(fs.readFileSync(path.join(__dirname, '../shared/tenant-catalog.json'), 'utf8')).tenants || {},
 ).sort()
@@ -154,22 +158,10 @@ async function verifyTenantAuthPath(tenant) {
   return `${response.status} invalid-login probe`
 }
 
-function tenantEnvName(base, tenant) {
-  return `${base}_${tenant.toUpperCase()}`
-}
-
-function getTenantSmokeCredentials(tenant) {
-  const dedicatedName = String(process.env[tenantEnvName('SMOKE_AUTH_NAME', tenant)] || '').trim()
-  const dedicatedPass = String(process.env[tenantEnvName('SMOKE_AUTH_PASSWORD', tenant)] || '').trim()
-  if (dedicatedName && dedicatedPass) return { name: dedicatedName, password: dedicatedPass }
-
-  // Shared smoke users were provisioned in MG/CG/LoopC only. VB must use SMOKE_AUTH_*_VB.
-  if (String(tenant || '').toLowerCase() === 'vb') return null
-
-  const name = String(SMOKE_AUTH_NAME || '').trim()
-  const password = String(SMOKE_AUTH_PASSWORD || '').trim()
-  if (!name || !password) return null
-  return { name, password }
+function isInvalidCredentialsLogin(status, body) {
+  if (Number(status) !== 401) return false
+  const message = String(body?.message || '')
+  return /invalid credentials/i.test(message)
 }
 
 function cookieHeaderFromResponse(response) {
@@ -184,10 +176,7 @@ function cookieHeaderFromResponse(response) {
     .join('; ')
 }
 
-async function loginForSmoke(tenant) {
-  const credentials = getTenantSmokeCredentials(tenant)
-  if (!credentials) return null
-
+async function attemptSmokeLogin(tenant, credentials) {
   const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
     method: 'POST',
     headers: {
@@ -202,15 +191,38 @@ async function loginForSmoke(tenant) {
     }),
   })
   const body = await response.json().catch(() => ({}))
-  if (!response.ok || body.success !== true) {
-    throw new Error(`smoke login returned ${response.status}: ${body.message || 'unexpected response'}`)
+  return { response, body }
+}
+
+async function loginForSmoke(tenant) {
+  const candidates = listTenantSmokeCredentialCandidates(tenant)
+  if (!candidates.length) return null
+
+  const tried = []
+  let lastError = null
+
+  for (const credentials of candidates) {
+    tried.push(credentials.source)
+    const { response, body } = await attemptSmokeLogin(tenant, credentials)
+    if (response.ok && body.success === true) {
+      const cookie = cookieHeaderFromResponse(response)
+      const csrfToken = String(body.csrfToken || response.headers.get('x-csrf-token') || '').trim()
+      if (!cookie) throw new Error('smoke login did not return a session cookie')
+      return { cookie, csrfToken, source: credentials.source }
+    }
+
+    lastError = `smoke login returned ${response.status}: ${body.message || 'unexpected response'}`
+    if (isInvalidCredentialsLogin(response.status, body) && tried.length < candidates.length) {
+      continue
+    }
+    break
   }
 
-  const cookie = cookieHeaderFromResponse(response)
-  const csrfToken = String(body.csrfToken || response.headers.get('x-csrf-token') || '').trim()
-  if (!cookie) throw new Error('smoke login did not return a session cookie')
-
-  return { cookie, csrfToken }
+  const sources = tried.join(' then ')
+  throw new Error(
+    `${lastError || 'smoke login failed'} `
+    + `(tried ${sources} for ${String(tenant).toLowerCase()})`,
+  )
 }
 
 async function verifyTenantReadOnlyErpPath(tenant) {
