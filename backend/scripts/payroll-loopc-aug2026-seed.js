@@ -35,10 +35,10 @@ const AMOUNT_PAID = 50000
 const IDEMPOTENCY_KEY = 'loopc-aug-2026-payroll'
 
 const EMPLOYEES = [
-  { name: 'Aneesh', monthlySalary: 80000, code: 'LOPC-ANEESH', idNumber: 'ID-ANEESH' },
-  { name: 'Biju', monthlySalary: 80000, code: 'LOPC-BIJU', idNumber: 'ID-BIJU' },
-  { name: 'Sudheesh', monthlySalary: 65000, code: 'LOPC-SUDHEESH', idNumber: 'ID-SUDHEESH' },
-  { name: 'Anil', monthlySalary: 65000, code: 'LOPC-ANIL', idNumber: 'ID-ANIL' },
+  { name: 'Aneesh', monthlySalary: 80000, code: 'LoopC-ANEESH', idNumber: 'ID-ANEESH' },
+  { name: 'Biju', monthlySalary: 80000, code: 'LoopC-BIJU', idNumber: 'ID-BIJU' },
+  { name: 'Sudheesh', monthlySalary: 65000, code: 'LoopC-SUDHEESH', idNumber: 'ID-SUDHEESH' },
+  { name: 'Anil', monthlySalary: 65000, code: 'LoopC-ANIL', idNumber: 'ID-ANIL' },
 ]
 
 async function upsertEmployee(TenantEmployee, TenantAsg, spec) {
@@ -91,7 +91,7 @@ async function upsertEmployee(TenantEmployee, TenantAsg, spec) {
         effectiveFrom: JOINING,
         version: (existingAsg.version || 1) + 1,
         isActive: true,
-        notes: 'LOPC Aug 2026 seed',
+        notes: 'LoopC Aug 2026 seed',
         createdByName: 'aug2026-seed',
       })
     }
@@ -104,7 +104,7 @@ async function upsertEmployee(TenantEmployee, TenantAsg, spec) {
       effectiveFrom: JOINING,
       version: 1,
       isActive: true,
-      notes: 'LOPC Aug 2026 seed',
+      notes: 'LoopC Aug 2026 seed',
       createdByName: 'aug2026-seed',
     })
   }
@@ -203,7 +203,7 @@ async function main() {
       defaultCalendarDays: CALENDAR_DAYS,
       idempotencyKey: IDEMPOTENCY_KEY,
       createdByName: 'aug2026-seed',
-      notes: 'LOPC Aug 2026 seed — payable days 24 confirmed',
+      notes: 'LoopC Aug 2026 seed — payable days 24 confirmed',
     })
     console.log('Created payroll run', run._id.toString())
   } else if (['DRAFT', 'CALCULATED', 'UNDER_REVIEW', 'APPROVED'].includes(run.status)) {

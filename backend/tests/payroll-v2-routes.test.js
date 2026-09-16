@@ -193,7 +193,7 @@ describe('structured payroll API', () => {
       .set('x-tenant', LOOPC)
     expect(gen1.status).toBe(200)
     expect(gen1.body.data.created.length).toBe(2)
-    expect(gen1.body.data.created[0].number).toMatch(/^LOPC-PS-2026-04-\d{6}$/)
+    expect(gen1.body.data.created[0].number).toMatch(/^LoopC-PS-2026-04-\d{6}$/)
 
     // Idempotent generate
     const gen2 = await request(app)
@@ -235,7 +235,7 @@ describe('structured payroll API', () => {
 
     const aneesh = await createEmployee(LOOPC, {
       name: 'Aneesh',
-      employeeCode: 'LOPC-ANEESH',
+      employeeCode: 'LoopC-ANEESH',
       joiningDate: new Date('2026-08-07'),
     })
     await request(app)

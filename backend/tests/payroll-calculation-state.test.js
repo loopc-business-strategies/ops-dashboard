@@ -23,7 +23,7 @@ describe('tenantCapabilities structured payroll', () => {
 })
 
 describe('payrollCalculationService', () => {
-  test('LOPC Aug 2026 proration: 80000/31*24 and 65000/31*24', () => {
+  test('LoopC Aug 2026 proration: 80000/31*24 and 65000/31*24', () => {
     expect(prorateMonthly(80000, 31, 24)).toBe(61935.48)
     expect(prorateMonthly(65000, 31, 24)).toBe(50322.58)
   })
@@ -31,7 +31,7 @@ describe('payrollCalculationService', () => {
   test('August earned + paid + salary balance for 80k and 65k', () => {
     const high = calculateLineFromAssignment(
       { earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 80000 }], deductions: [], employerContributions: [] },
-      { name: 'Aneesh', employeeCode: 'LOPC-ANEESH', joiningDate: '2026-08-07' },
+      { name: 'Aneesh', employeeCode: 'LoopC-ANEESH', joiningDate: '2026-08-07' },
       { calendarDays: 31, payableDays: 24, amountPaid: 50000 }
     )
     expect(high.net).toBe(61935.48)
@@ -41,7 +41,7 @@ describe('payrollCalculationService', () => {
 
     const mid = calculateLineFromAssignment(
       { earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 65000 }], deductions: [], employerContributions: [] },
-      { name: 'Sudheesh', employeeCode: 'LOPC-SUDHEESH' },
+      { name: 'Sudheesh', employeeCode: 'LoopC-SUDHEESH' },
       { calendarDays: 31, payableDays: 24, amountPaid: 50000 }
     )
     expect(mid.net).toBe(50322.58)

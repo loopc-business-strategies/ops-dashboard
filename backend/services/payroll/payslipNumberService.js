@@ -1,7 +1,7 @@
 const PayrollSequence = require('../../models/PayrollSequence')
 
 /**
- * Allocate next payslip number: LOPC-PS-YYYY-MM-######
+ * Allocate next payslip number: LoopC-PS-YYYY-MM-######
  * Tenant-scoped via createTenantModel / getTenantModel.
  */
 async function allocatePayslipNumber(tenant, year, month) {
@@ -24,7 +24,7 @@ async function allocatePayslipNumber(tenant, year, month) {
 
   const seq = Number(doc.seq) || 1
   const padded = String(seq).padStart(6, '0')
-  return `LOPC-PS-${y}-${mm}-${padded}`
+  return `LoopC-PS-${y}-${mm}-${padded}`
 }
 
 module.exports = {

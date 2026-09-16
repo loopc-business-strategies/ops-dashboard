@@ -25,7 +25,7 @@ function daysInMonth(year, month) {
 
 /**
  * Prorate monthly salary: monthlySalary / calendarDays × payableDays, rounded to 2dp.
- * LOPC Aug 2026: 80000/31*24 = 61935.48; 65000/31*24 = 50322.58
+ * LoopC Aug 2026: 80000/31*24 = 61935.48; 65000/31*24 = 50322.58
  */
 function prorateMonthly(monthlySalary, calendarDays, payableDays) {
   const monthly = toAmount(monthlySalary)

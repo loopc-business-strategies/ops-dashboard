@@ -1,7 +1,7 @@
 const mongoose = require('mongoose')
 const { createTenantModel } = require('../db/tenantModelProxy')
 
-/** Tenant-scoped counters for payslip numbers (LOPC-PS-YYYY-MM-######). */
+/** Tenant-scoped counters for payslip numbers (LoopC-PS-YYYY-MM-######). */
 const payrollSequenceSchema = new mongoose.Schema(
   {
     key: { type: String, trim: true, required: true, unique: true },

@@ -605,7 +605,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
       {tab === 'settings' && (
         <Card title="Settings">
           <p style={{ fontSize: 13, color: C.t3 }}>
-            Structured payroll is enabled for tenant <strong>{company}</strong>. Payslip numbers use format LOPC-PS-YYYY-MM-######.
+            Structured payroll is enabled for tenant <strong>{company}</strong>. Payslip numbers use format LoopC-PS-YYYY-MM-######.
             August 2026 uses confirmed <strong>24 payable days</strong> (calendar 31). Unpaid earned salary is tracked as
             <strong> Salary Balance / Arrears</strong>, separate from Employee Advances.
           </p>

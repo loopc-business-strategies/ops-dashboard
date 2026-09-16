@@ -33,7 +33,7 @@ export async function generatePayslipPdf(payslip, tenant) {
 
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text(branding.displayName || branding.companyName || 'LOPC', margin, y)
+  doc.text(branding.displayName || branding.companyName || 'LoopC', margin, y)
   y += 18
   doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')

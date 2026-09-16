@@ -21,7 +21,7 @@ Use on tenant **`loopc` only**. Confirm another tenant (e.g. `mg` / `cg`) still 
 - [ ] FINALIZED run cannot change employee selection
 
 ## Payslips
-- [ ] Generate All on FINALIZED run creates numbers `LOPC-PS-YYYY-MM-######`
+- [ ] Generate All on FINALIZED run creates numbers `LoopC-PS-YYYY-MM-######`
 - [ ] Second Generate All skips existing (idempotent)
 - [ ] PDF download works; bank masked; employer section separate from net
 - [ ] Reissue creates new number and marks prior as REISSUED
@@ -39,7 +39,7 @@ Use on tenant **`loopc` only**. Confirm another tenant (e.g. `mg` / `cg`) still 
 - [ ] `mg` / `cg` / `vb` Payroll Management unchanged (demo KPIs + FinancePayroll register)
 - [ ] Existing FinancePayroll rows on LoopC still visible under **Legacy register**
 
-## August 2026 LOPC payroll (confirmed 24 payable days)
+## August 2026 LoopC payroll (confirmed 24 payable days)
 - [ ] Seed: `node backend/scripts/payroll-loopc-aug2026-seed.js` (idempotent; upserts Aneesh/Biju/Sudheesh/Anil by name)
 - [ ] Joining date 07-Aug-2026; monthly salaries 80k / 80k / 65k / 65k (not 50k)
 - [ ] Payable days = **24** (not recalculated to 25)
