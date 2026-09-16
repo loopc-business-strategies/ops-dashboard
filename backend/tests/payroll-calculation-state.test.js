@@ -1,7 +1,8 @@
 const {
   calculateLineFromAssignment,
   calculateRunTotals,
-  sumComponents,
+  prorateMonthly,
+  toAmount,
 } = require('../services/payroll/payrollCalculationService')
 const {
   canTransition,
@@ -22,7 +23,51 @@ describe('tenantCapabilities structured payroll', () => {
 })
 
 describe('payrollCalculationService', () => {
-  test('sums components and computes net', () => {
+  test('LOPC Aug 2026 proration: 80000/31*24 and 65000/31*24', () => {
+    expect(prorateMonthly(80000, 31, 24)).toBe(61935.48)
+    expect(prorateMonthly(65000, 31, 24)).toBe(50322.58)
+  })
+
+  test('August earned + paid + salary balance for 80k and 65k', () => {
+    const high = calculateLineFromAssignment(
+      { earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 80000 }], deductions: [], employerContributions: [] },
+      { name: 'Aneesh', employeeCode: 'LOPC-ANEESH', joiningDate: '2026-08-07' },
+      { calendarDays: 31, payableDays: 24, amountPaid: 50000 }
+    )
+    expect(high.net).toBe(61935.48)
+    expect(high.amountPaid).toBe(50000)
+    expect(high.salaryBalance).toBe(11935.48)
+    expect(high.payableDays).toBe(24)
+
+    const mid = calculateLineFromAssignment(
+      { earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 65000 }], deductions: [], employerContributions: [] },
+      { name: 'Sudheesh', employeeCode: 'LOPC-SUDHEESH' },
+      { calendarDays: 31, payableDays: 24, amountPaid: 50000 }
+    )
+    expect(mid.net).toBe(50322.58)
+    expect(mid.salaryBalance).toBe(322.58)
+
+    const totals = calculateRunTotals([
+      { ...high },
+      { ...high, employeeName: 'Biju' },
+      { ...mid },
+      { ...mid, employeeName: 'Anil' },
+    ])
+    expect(totals.net).toBe(224516.12)
+    expect(totals.paid).toBe(200000)
+    expect(totals.outstanding).toBe(24516.12)
+  })
+
+  test('salary balance is never negative (overpayment clamps)', () => {
+    const line = calculateLineFromAssignment(
+      { earnings: [{ code: 'BASIC', amount: 1000 }], deductions: [], employerContributions: [] },
+      { name: 'X' },
+      { calendarDays: 31, payableDays: 24, amountPaid: 99999 }
+    )
+    expect(line.salaryBalance).toBe(0)
+  })
+
+  test('sums components and computes net without proration', () => {
     const line = calculateLineFromAssignment(
       {
         _id: 'asg1',
@@ -62,17 +107,17 @@ describe('payrollCalculationService', () => {
 
   test('calculateRunTotals aggregates lines', () => {
     const totals = calculateRunTotals([
-      { gross: 100, totalDeductions: 10, net: 90, employerTotal: 5 },
-      { gross: 200, totalDeductions: 20, net: 180, employerTotal: 8 },
+      { gross: 100, totalDeductions: 10, net: 90, employerTotal: 5, amountPaid: 80, salaryBalance: 10 },
+      { gross: 200, totalDeductions: 20, net: 180, employerTotal: 8, amountPaid: 180, salaryBalance: 0 },
     ])
-    expect(totals).toEqual({
-      employeeCount: 2,
-      gross: 300,
-      deductions: 30,
-      net: 270,
-      employerTotal: 13,
-    })
-    expect(sumComponents([{ amount: 1.1 }, { amount: 2.2 }])).toBeCloseTo(3.3, 5)
+    expect(totals.employeeCount).toBe(2)
+    expect(totals.gross).toBe(300)
+    expect(totals.deductions).toBe(30)
+    expect(totals.net).toBe(270)
+    expect(totals.employerTotal).toBe(13)
+    expect(totals.paid).toBe(260)
+    expect(totals.outstanding).toBe(10)
+    expect(toAmount(1.1 + 2.2)).toBeCloseTo(3.3, 5)
   })
 })
 

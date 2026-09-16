@@ -38,3 +38,15 @@ Use on tenant **`loopc` only**. Confirm another tenant (e.g. `mg` / `cg`) still 
 ## Non-regression
 - [ ] `mg` / `cg` / `vb` Payroll Management unchanged (demo KPIs + FinancePayroll register)
 - [ ] Existing FinancePayroll rows on LoopC still visible under **Legacy register**
+
+## August 2026 LOPC payroll (confirmed 24 payable days)
+- [ ] Seed: `node backend/scripts/payroll-loopc-aug2026-seed.js` (idempotent; upserts Aneesh/Biju/Sudheesh/Anil by name)
+- [ ] Joining date 07-Aug-2026; monthly salaries 80k / 80k / 65k / 65k (not 50k)
+- [ ] Payable days = **24** (not recalculated to 25)
+- [ ] Earned: Aneesh/Biju ₹61,935.48; Sudheesh/Anil ₹50,322.58
+- [ ] Paid ₹50,000 each; balances ₹11,935.48 / ₹11,935.48 / ₹322.58 / ₹322.58
+- [ ] Totals: earned ₹224,516.12 · paid ₹200,000 · outstanding ₹24,516.12
+- [ ] Salary Balances tab shows arrears (not advances)
+- [ ] Partial then full balance payment → PARTIALLY_PAID → PAID; August earned unchanged
+- [ ] Employee Advances module separate; creating an advance does not alter Aug balances
+- [ ] Payslip PDF shows monthly, payable days, earned, paid, salary balance (arrears label)

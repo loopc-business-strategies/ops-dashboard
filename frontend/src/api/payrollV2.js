@@ -16,7 +16,6 @@ const payrollV2API = {
   putSalaryAssignment: (employeeId, body) =>
     axios.put(`${BASE}/employees/${employeeId}/salary-assignment`, body, cfg()).then((r) => r.data.data),
 
-  /** HR alias */
   getHrSalaryAssignment: (employeeId) =>
     axios.get(`${HR_BASE}/${employeeId}/salary-assignment`, cfg()).then((r) => r.data.data),
 
@@ -32,6 +31,9 @@ const payrollV2API = {
 
   selectEmployees: (id, employeeIds) =>
     axios.post(`${BASE}/runs/${id}/select-employees`, { employeeIds }, cfg()).then((r) => r.data.data),
+
+  setLinePayment: (id, body) =>
+    axios.patch(`${BASE}/runs/${id}/line-payment`, body, cfg()).then((r) => r.data.data),
 
   calculate: (id, body = {}) =>
     axios.post(`${BASE}/runs/${id}/calculate`, body, cfg()).then((r) => r.data.data),
@@ -64,6 +66,27 @@ const payrollV2API = {
 
   myPayslips: () =>
     axios.get(`${BASE}/my-payslips`, cfg()).then((r) => r.data.data || []),
+
+  listSalaryBalances: (params = {}) =>
+    axios.get(`${BASE}/salary-balances`, { ...cfg(), params }).then((r) => r.data.data || []),
+
+  paySalaryBalance: (id, body) =>
+    axios.post(`${BASE}/salary-balances/${id}/pay`, body, cfg()).then((r) => r.data.data),
+
+  listAdvances: (params = {}) =>
+    axios.get(`${BASE}/advances`, { ...cfg(), params }).then((r) => r.data.data || []),
+
+  createAdvance: (body) =>
+    axios.post(`${BASE}/advances`, body, cfg()).then((r) => r.data.data),
+
+  approveAdvance: (id) =>
+    axios.post(`${BASE}/advances/${id}/approve`, {}, cfg()).then((r) => r.data.data),
+
+  markAdvancePaid: (id) =>
+    axios.post(`${BASE}/advances/${id}/mark-paid`, {}, cfg()).then((r) => r.data.data),
+
+  recoverAdvance: (id, body) =>
+    axios.post(`${BASE}/advances/${id}/recover`, body, cfg()).then((r) => r.data.data),
 }
 
 export default payrollV2API

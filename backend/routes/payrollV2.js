@@ -8,16 +8,24 @@ const Employee = require('../models/Employee')
 const EmployeeSalaryAssignment = require('../models/EmployeeSalaryAssignment')
 const PayrollRun = require('../models/PayrollRun')
 const Payslip = require('../models/Payslip')
+const SalaryBalance = require('../models/SalaryBalance')
+const EmployeeAdvance = require('../models/EmployeeAdvance')
 const {
   calculateLineFromAssignment,
   calculateRunTotals,
   normalizeComponents,
+  daysInMonth,
+  toAmount,
 } = require('../services/payroll/payrollCalculationService')
 const {
   assertTransition,
   assertMutable,
 } = require('../services/payroll/payrollStateMachine')
 const { allocatePayslipNumber } = require('../services/payroll/payslipNumberService')
+const {
+  ensureSalaryBalancesForRun,
+  applySalaryBalancePayment,
+} = require('../services/payroll/salaryBalanceService')
 
 const router = express.Router()
 
@@ -45,6 +53,8 @@ const createRunSchema = Joi.object({
   notes: Joi.string().trim().allow('').max(1000).optional(),
   employeeIds: Joi.array().items(Joi.string().hex().length(24)).optional(),
   idempotencyKey: Joi.string().trim().allow('').max(120).optional(),
+  defaultPayableDays: Joi.number().min(0).max(31).optional(),
+  defaultCalendarDays: Joi.number().integer().min(28).max(31).optional(),
 })
 
 const selectEmployeesSchema = Joi.object({
@@ -57,6 +67,45 @@ const attendancePatchSchema = Joi.object({
   daysAbsent: Joi.number().min(0).allow(null).optional(),
   overtimeHours: Joi.number().min(0).allow(null).optional(),
   attendanceNotes: Joi.string().trim().allow('').max(500).optional(),
+})
+
+const linePaymentSchema = Joi.object({
+  employeeId: Joi.string().hex().length(24).required(),
+  amountPaid: Joi.number().min(0).required(),
+  payableDays: Joi.number().min(0).max(31).optional(),
+})
+
+const calculateBodySchema = Joi.object({
+  idempotencyKey: Joi.string().trim().allow('').max(120).optional(),
+  payableDays: Joi.number().min(0).max(31).optional(),
+  calendarDays: Joi.number().integer().min(28).max(31).optional(),
+  linePayments: Joi.array().items(Joi.object({
+    employeeId: Joi.string().hex().length(24).required(),
+    amountPaid: Joi.number().min(0).required(),
+  })).optional(),
+}).unknown(true)
+
+const balancePaySchema = Joi.object({
+  amount: Joi.number().min(0.01).required(),
+  note: Joi.string().trim().allow('').max(500).optional(),
+  idempotencyKey: Joi.string().trim().allow('').max(120).optional(),
+})
+
+const advanceCreateSchema = Joi.object({
+  employeeId: Joi.string().hex().length(24).required(),
+  amount: Joi.number().min(0.01).required(),
+  reason: Joi.string().trim().allow('').max(500).optional(),
+  requestDate: Joi.date().iso().optional(),
+  recoveryMode: Joi.string().valid('ONE_TIME', 'INSTALLMENT').optional(),
+  installmentAmount: Joi.number().min(0).allow(null).optional(),
+  recoveryStartYear: Joi.number().integer().min(2000).max(2100).allow(null).optional(),
+  recoveryStartMonth: Joi.number().integer().min(1).max(12).allow(null).optional(),
+  notes: Joi.string().trim().allow('').max(500).optional(),
+})
+
+const advanceRecoverSchema = Joi.object({
+  amount: Joi.number().min(0.01).required(),
+  note: Joi.string().trim().allow('').max(500).optional(),
 })
 
 function canReadPayroll(user) {
@@ -232,7 +281,7 @@ router.post('/runs', validateBody(createRunSchema), async (req, res) => {
     }
 
     const TenantRun = await PayrollRun.getTenantModel(req.tenant)
-    const { year, month, label, notes, employeeIds, idempotencyKey } = req.body
+    const { year, month, label, notes, employeeIds, idempotencyKey, defaultPayableDays, defaultCalendarDays } = req.body
 
     if (idempotencyKey) {
       const existing = await TenantRun.findOne({
@@ -257,9 +306,12 @@ router.post('/runs', validateBody(createRunSchema), async (req, res) => {
       })
     }
 
+    const calDays = defaultCalendarDays != null ? Number(defaultCalendarDays) : daysInMonth(year, month)
+    const payDays = defaultPayableDays != null ? Number(defaultPayableDays) : null
+
     let lines = []
     if (Array.isArray(employeeIds) && employeeIds.length) {
-      lines = await buildDraftLines(req.tenant, employeeIds)
+      lines = await buildDraftLines(req.tenant, employeeIds, { calendarDays: calDays, payableDays: payDays })
     }
 
     const run = await TenantRun.create({
@@ -271,6 +323,8 @@ router.post('/runs', validateBody(createRunSchema), async (req, res) => {
       lines,
       totals: calculateRunTotals(lines),
       idempotencyKey: idempotencyKey || '',
+      defaultPayableDays: payDays,
+      defaultCalendarDays: calDays,
       ...actorFields(req.user, 'created'),
     })
 
@@ -304,7 +358,10 @@ router.post('/runs/:id/select-employees', validateParams(idParam), validateBody(
       return res.status(400).json({ success: false, message: 'Employees can only be selected in DRAFT.' })
     }
 
-    const lines = await buildDraftLines(req.tenant, req.body.employeeIds)
+    const lines = await buildDraftLines(req.tenant, req.body.employeeIds, {
+      calendarDays: run.defaultCalendarDays || daysInMonth(run.year, run.month),
+      payableDays: run.defaultPayableDays,
+    })
     run.lines = lines
     run.totals = calculateRunTotals(lines)
     run.version = (run.version || 1) + 1
@@ -352,7 +409,36 @@ router.patch('/runs/:id/attendance', validateParams(idParam), validateBody(atten
   }
 })
 
-router.post('/runs/:id/calculate', validateParams(idParam), async (req, res) => {
+router.patch('/runs/:id/line-payment', validateParams(idParam), validateBody(linePaymentSchema), async (req, res) => {
+  try {
+    if (!canWriteFinanceModule(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantRun = await PayrollRun.getTenantModel(req.tenant)
+    const run = await TenantRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+    if (!run) return res.status(404).json({ success: false, message: 'Payroll run not found.' })
+    assertMutable(run)
+
+    const line = run.lines.find((l) => String(l.employeeId) === String(req.body.employeeId))
+    if (!line) return res.status(404).json({ success: false, message: 'Employee not on this run.' })
+
+    line.amountPaid = toAmount(req.body.amountPaid)
+    if (req.body.payableDays !== undefined) line.payableDays = Number(req.body.payableDays)
+    if (line.net != null && line.amountPaid != null) {
+      line.salaryBalance = toAmount(Math.max(0, toAmount(line.net) - toAmount(line.amountPaid)))
+    }
+    run.totals = calculateRunTotals(run.lines)
+    run.version = (run.version || 1) + 1
+    await run.save()
+    res.json({ success: true, data: run })
+  } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ success: false, message: err.message, code: err.code })
+    console.error('[payroll-v2] line-payment', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/runs/:id/calculate', validateParams(idParam), validateBody(calculateBodySchema), async (req, res) => {
   try {
     if (!canWriteFinanceModule(req.user)) {
       return res.status(403).json({ success: false, message: 'Access denied.' })
@@ -373,6 +459,21 @@ router.post('/runs/:id/calculate', validateParams(idParam), async (req, res) => 
 
     if (!run.lines.length) {
       return res.status(400).json({ success: false, message: 'Select employees before calculating.' })
+    }
+
+    const calendarDays = req.body.calendarDays != null
+      ? Number(req.body.calendarDays)
+      : (run.defaultCalendarDays || daysInMonth(run.year, run.month))
+    const payableDays = req.body.payableDays != null
+      ? Number(req.body.payableDays)
+      : (run.defaultPayableDays != null ? Number(run.defaultPayableDays) : calendarDays)
+
+    run.defaultCalendarDays = calendarDays
+    run.defaultPayableDays = payableDays
+
+    const paymentMap = new Map()
+    for (const lp of req.body.linePayments || []) {
+      paymentMap.set(String(lp.employeeId), toAmount(lp.amountPaid))
     }
 
     const TenantAssignment = await EmployeeSalaryAssignment.getTenantModel(req.tenant)
@@ -397,7 +498,15 @@ router.post('/runs/:id/calculate', validateParams(idParam), async (req, res) => 
         missing.push(line.employeeCode || String(line.employeeId))
         return line
       }
-      const calc = calculateLineFromAssignment(asg, emp)
+      const priorPaid = paymentMap.has(String(line.employeeId))
+        ? paymentMap.get(String(line.employeeId))
+        : (line.amountPaid != null ? toAmount(line.amountPaid) : null)
+      const linePayable = line.payableDays != null ? Number(line.payableDays) : payableDays
+      const calc = calculateLineFromAssignment(asg, emp, {
+        calendarDays,
+        payableDays: linePayable,
+        amountPaid: priorPaid,
+      })
       return {
         ...line.toObject?.() || line,
         ...calc,
@@ -431,7 +540,7 @@ router.post('/runs/:id/calculate', validateParams(idParam), async (req, res) => 
       resource: 'PayrollRun',
       resourceId: run._id,
       action: 'payroll_run_calculated',
-      detail: `totals net=${run.totals.net}`,
+      detail: `totals net=${run.totals.net} paid=${run.totals.paid} outstanding=${run.totals.outstanding}`,
     })
 
     res.json({ success: true, data: run })
@@ -535,14 +644,43 @@ router.post('/runs/:id/finalize', validateParams(idParam), async (req, res) => {
   }
 })
 
-router.post('/runs/:id/mark-paid', validateParams(idParam), (req, res) =>
-  transitionRun(req, res, {
-    fromHint: 'FINALIZED',
-    toStatus: 'PAID',
-    actorPrefix: 'paid',
-    action: 'payroll_run_paid',
-  })
-)
+router.post('/runs/:id/mark-paid', validateParams(idParam), async (req, res) => {
+  try {
+    if (!canWriteFinanceModule(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantRun = await PayrollRun.getTenantModel(req.tenant)
+    const run = await TenantRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+    if (!run) return res.status(404).json({ success: false, message: 'Payroll run not found.' })
+
+    if (run.status === 'PAID') {
+      const balances = await ensureSalaryBalancesForRun(req.tenant, run, req.user)
+      return res.json({ success: true, data: run, balances, idempotent: true })
+    }
+
+    assertTransition(run.status, 'PAID')
+    run.status = 'PAID'
+    run.paidAt = new Date()
+    Object.assign(run, actorFields(req.user, 'paid'))
+    run.version = (run.version || 1) + 1
+    await run.save()
+
+    const balances = await ensureSalaryBalancesForRun(req.tenant, run, req.user)
+
+    await auditLog(req, {
+      resource: 'PayrollRun',
+      resourceId: run._id,
+      action: 'payroll_run_paid',
+      detail: `status → PAID; salaryBalancesCreated=${balances.created.length}`,
+    })
+
+    res.json({ success: true, data: run, balances })
+  } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ success: false, message: err.message, code: err.code })
+    console.error('[payroll-v2] mark-paid', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
 
 // ─── Payslips ────────────────────────────────────────────────────────────────
 
@@ -635,6 +773,10 @@ router.post('/runs/:id/generate-payslips', validateParams(idParam), async (req, 
           employeeCode: line.employeeCode,
           department: line.department,
           position: line.position,
+          joiningDate: line.joiningDate || null,
+          monthlySalary: line.monthlySalary || 0,
+          calendarDays: line.calendarDays,
+          payableDays: line.payableDays,
           earnings: line.earnings,
           deductions: line.deductions,
           employerContributions: line.employerContributions,
@@ -642,6 +784,8 @@ router.post('/runs/:id/generate-payslips', validateParams(idParam), async (req, 
           totalDeductions: line.totalDeductions,
           net: line.net,
           employerTotal: line.employerTotal,
+          amountPaid: line.amountPaid,
+          salaryBalance: line.salaryBalance,
           paymentDate: run.paidAt || null,
           paymentStatus: run.status === 'PAID' ? 'PAID' : 'PENDING',
           bankMasked: '****',
@@ -805,13 +949,18 @@ router.get('/dashboard', async (req, res) => {
     const TenantPayslip = await Payslip.getTenantModel(req.tenant)
     const TenantEmployee = await Employee.getTenantModel(req.tenant)
     const TenantAssignment = await EmployeeSalaryAssignment.getTenantModel(req.tenant)
+    const TenantBalance = await SalaryBalance.getTenantModel(req.tenant)
 
-    const [runCount, latestRun, payslipCount, employeeCount, assignmentCount] = await Promise.all([
+    const [runCount, latestRun, payslipCount, employeeCount, assignmentCount, balanceOutstanding] = await Promise.all([
       TenantRun.countDocuments({ isDeleted: { $ne: true } }),
       TenantRun.findOne({ isDeleted: { $ne: true } }).sort({ year: -1, month: -1 }).select('-lines').lean(),
       TenantPayslip.countDocuments({ isDeleted: { $ne: true } }),
       TenantEmployee.countDocuments({ isDeleted: { $ne: true }, status: { $ne: 'TERMINATED' } }),
       TenantAssignment.countDocuments({ isActive: true, isDeleted: { $ne: true } }),
+      TenantBalance.aggregate([
+        { $match: { isDeleted: { $ne: true }, status: { $ne: 'PAID' } } },
+        { $group: { _id: null, total: { $sum: '$outstandingAmount' }, count: { $sum: 1 } } },
+      ]),
     ])
 
     res.json({
@@ -823,6 +972,10 @@ router.get('/dashboard', async (req, res) => {
         employeeCount,
         assignmentCount,
         totals: latestRun?.totals || null,
+        salaryBalances: {
+          count: balanceOutstanding[0]?.count || 0,
+          outstanding: toAmount(balanceOutstanding[0]?.total || 0),
+        },
       },
     })
   } catch (err) {
@@ -831,7 +984,218 @@ router.get('/dashboard', async (req, res) => {
   }
 })
 
-async function buildDraftLines(tenant, employeeIds) {
+// ─── Salary balances (arrears) ────────────────────────────────────────────────
+
+router.get('/salary-balances', async (req, res) => {
+  try {
+    if (!canReadPayroll(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantBalance = await SalaryBalance.getTenantModel(req.tenant)
+    const filter = { isDeleted: { $ne: true } }
+    if (req.query.status) filter.status = String(req.query.status).toUpperCase()
+    if (req.query.employeeId) filter.employeeId = req.query.employeeId
+    if (req.query.payrollRunId) filter.payrollRunId = req.query.payrollRunId
+    const rows = await TenantBalance.find(filter).sort({ year: -1, month: -1, createdAt: -1 }).limit(500).lean()
+    res.json({ success: true, data: rows })
+  } catch (err) {
+    console.error('[payroll-v2] list salary-balances', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.get('/salary-balances/:id', validateParams(idParam), async (req, res) => {
+  try {
+    if (!canReadPayroll(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantBalance = await SalaryBalance.getTenantModel(req.tenant)
+    const row = await TenantBalance.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean()
+    if (!row) return res.status(404).json({ success: false, message: 'Salary balance not found.' })
+    res.json({ success: true, data: row })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/salary-balances/:id/pay', validateParams(idParam), validateBody(balancePaySchema), async (req, res) => {
+  try {
+    if (!canWriteFinanceModule(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const result = await applySalaryBalancePayment(
+      req.tenant,
+      req.params.id,
+      {
+        amount: req.body.amount,
+        note: req.body.note,
+        idempotencyKey: req.body.idempotencyKey,
+      },
+      req.user,
+      req
+    )
+    res.json({ success: true, data: result.balance, idempotent: result.idempotent })
+  } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ success: false, message: err.message })
+    console.error('[payroll-v2] salary-balance pay', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ─── Employee advances (separate from salary balance) ────────────────────────
+
+router.get('/advances', async (req, res) => {
+  try {
+    if (!canReadPayroll(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantAdvance = await EmployeeAdvance.getTenantModel(req.tenant)
+    const filter = { isDeleted: { $ne: true } }
+    if (req.query.employeeId) filter.employeeId = req.query.employeeId
+    if (req.query.status) filter.status = String(req.query.status).toUpperCase()
+    const rows = await TenantAdvance.find(filter).sort({ createdAt: -1 }).limit(500).lean()
+    res.json({ success: true, data: rows })
+  } catch (err) {
+    console.error('[payroll-v2] list advances', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/advances', validateBody(advanceCreateSchema), async (req, res) => {
+  try {
+    if (!canWriteFinanceModule(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
+    const emp = await TenantEmployee.findOne({ _id: req.body.employeeId, isDeleted: { $ne: true } }).lean()
+    if (!emp) return res.status(404).json({ success: false, message: 'Employee not found.' })
+
+    const amount = toAmount(req.body.amount)
+    const TenantAdvance = await EmployeeAdvance.getTenantModel(req.tenant)
+    const doc = await TenantAdvance.create({
+      employeeId: emp._id,
+      employeeName: emp.name || '',
+      employeeCode: emp.employeeCode || '',
+      amount,
+      remainingBalance: amount,
+      requestDate: req.body.requestDate ? new Date(req.body.requestDate) : new Date(),
+      reason: req.body.reason || '',
+      status: 'PENDING_APPROVAL',
+      recoveryMode: req.body.recoveryMode || 'ONE_TIME',
+      installmentAmount: req.body.installmentAmount != null ? toAmount(req.body.installmentAmount) : null,
+      recoveryStartYear: req.body.recoveryStartYear ?? null,
+      recoveryStartMonth: req.body.recoveryStartMonth ?? null,
+      notes: req.body.notes || '',
+      createdById: req.user._id,
+      createdByName: req.user.name,
+    })
+
+    await auditLog(req, {
+      resource: 'EmployeeAdvance',
+      resourceId: doc._id,
+      action: 'employee_advance_created',
+      detail: `amount=${amount}`,
+    })
+
+    res.status(201).json({ success: true, data: doc })
+  } catch (err) {
+    console.error('[payroll-v2] create advance', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/advances/:id/approve', validateParams(idParam), async (req, res) => {
+  try {
+    if (!canWriteFinanceModule(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantAdvance = await EmployeeAdvance.getTenantModel(req.tenant)
+    const doc = await TenantAdvance.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+    if (!doc) return res.status(404).json({ success: false, message: 'Advance not found.' })
+    if (doc.status === 'APPROVED' || doc.status === 'PAID' || doc.status === 'RECOVERING' || doc.status === 'CLOSED') {
+      return res.json({ success: true, data: doc, idempotent: true })
+    }
+    doc.status = 'APPROVED'
+    doc.approvedAt = new Date()
+    doc.approvedById = req.user._id
+    doc.approvedByName = req.user.name
+    await doc.save()
+    await auditLog(req, {
+      resource: 'EmployeeAdvance',
+      resourceId: doc._id,
+      action: 'employee_advance_approved',
+      detail: '',
+    })
+    res.json({ success: true, data: doc })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/advances/:id/mark-paid', validateParams(idParam), async (req, res) => {
+  try {
+    if (!canWriteFinanceModule(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantAdvance = await EmployeeAdvance.getTenantModel(req.tenant)
+    const doc = await TenantAdvance.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+    if (!doc) return res.status(404).json({ success: false, message: 'Advance not found.' })
+    if (!['APPROVED', 'PAID'].includes(doc.status)) {
+      return res.status(400).json({ success: false, message: 'Advance must be approved before payment.' })
+    }
+    doc.status = 'PAID'
+    doc.paymentDate = new Date()
+    if (toAmount(doc.remainingBalance) > 0) doc.status = 'RECOVERING'
+    await doc.save()
+    await auditLog(req, {
+      resource: 'EmployeeAdvance',
+      resourceId: doc._id,
+      action: 'employee_advance_paid',
+      detail: '',
+    })
+    res.json({ success: true, data: doc })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/advances/:id/recover', validateParams(idParam), validateBody(advanceRecoverSchema), async (req, res) => {
+  try {
+    if (!canWriteFinanceModule(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const TenantAdvance = await EmployeeAdvance.getTenantModel(req.tenant)
+    const doc = await TenantAdvance.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+    if (!doc) return res.status(404).json({ success: false, message: 'Advance not found.' })
+
+    const amt = toAmount(req.body.amount)
+    if (amt > toAmount(doc.remainingBalance) + 0.001) {
+      return res.status(400).json({ success: false, message: 'Recovery exceeds remaining advance balance.' })
+    }
+    doc.recoveries = doc.recoveries || []
+    doc.recoveries.push({
+      amount: amt,
+      recoveredAt: new Date(),
+      note: req.body.note || '',
+      byId: req.user._id,
+      byName: req.user.name,
+    })
+    doc.remainingBalance = toAmount(Math.max(0, toAmount(doc.remainingBalance) - amt))
+    doc.status = doc.remainingBalance <= 0 ? 'CLOSED' : 'RECOVERING'
+    await doc.save()
+    await auditLog(req, {
+      resource: 'EmployeeAdvance',
+      resourceId: doc._id,
+      action: 'employee_advance_recovered',
+      detail: `amount=${amt} remaining=${doc.remainingBalance}`,
+    })
+    res.json({ success: true, data: doc })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+async function buildDraftLines(tenant, employeeIds, options = {}) {
   const TenantEmployee = await Employee.getTenantModel(tenant)
   const TenantAssignment = await EmployeeSalaryAssignment.getTenantModel(tenant)
   const employees = await TenantEmployee.find({
@@ -849,7 +1213,7 @@ async function buildDraftLines(tenant, employeeIds) {
     const asg = asgMap.get(String(emp._id))
     if (asg) {
       return {
-        ...calculateLineFromAssignment(asg, emp),
+        ...calculateLineFromAssignment(asg, emp, options),
         daysWorked: null,
         daysAbsent: null,
         overtimeHours: null,
@@ -862,8 +1226,12 @@ async function buildDraftLines(tenant, employeeIds) {
       employeeName: emp.name || '',
       department: emp.department || '',
       position: emp.position || '',
+      joiningDate: emp.joiningDate || null,
       salaryAssignmentId: null,
       salaryAssignmentVersion: null,
+      monthlySalary: 0,
+      calendarDays: options.calendarDays ?? null,
+      payableDays: options.payableDays ?? null,
       earnings: [],
       deductions: [],
       employerContributions: [],
@@ -871,6 +1239,8 @@ async function buildDraftLines(tenant, employeeIds) {
       totalDeductions: 0,
       net: 0,
       employerTotal: 0,
+      amountPaid: null,
+      salaryBalance: null,
       daysWorked: null,
       daysAbsent: null,
       overtimeHours: null,

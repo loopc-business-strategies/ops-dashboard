@@ -12,6 +12,8 @@ const TABS = [
   { id: 'employees', label: 'Employees' },
   { id: 'structures', label: 'Structures' },
   { id: 'payslips', label: 'Payslips' },
+  { id: 'balances', label: 'Salary Balances' },
+  { id: 'advances', label: 'Employee Advances' },
   { id: 'my_payslips', label: 'My Payslips' },
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Settings' },
@@ -20,6 +22,11 @@ const TABS = [
 
 function money(n) {
   return fmtFull(Number(n) || 0)
+}
+
+function toAmountSafe(n) {
+  const v = Number(n)
+  return Number.isFinite(v) ? v : 0
 }
 
 function LegacyPayrollRegister({ finRole, can, payroll, onToast, openModal }) {
@@ -67,6 +74,8 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
   const [employees, setEmployees] = useState([])
   const [payslips, setPayslips] = useState([])
   const [myPayslips, setMyPayslips] = useState([])
+  const [balances, setBalances] = useState([])
+  const [advances, setAdvances] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [newPeriod, setNewPeriod] = useState(() => {
@@ -75,6 +84,8 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
   })
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([])
   const [payslipQuery, setPayslipQuery] = useState('')
+  const [payAmountByBalance, setPayAmountByBalance] = useState({})
+  const [advanceForm, setAdvanceForm] = useState({ employeeId: '', amount: '', reason: '' })
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -115,6 +126,16 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
     }
   }, [])
 
+  const loadBalances = useCallback(async () => {
+    const data = await payrollV2API.listSalaryBalances()
+    setBalances(data)
+  }, [])
+
+  const loadAdvances = useCallback(async () => {
+    const data = await payrollV2API.listAdvances()
+    setAdvances(data)
+  }, [])
+
   useEffect(() => {
     loadDashboard().catch(() => {})
     loadRuns().catch(() => {})
@@ -124,8 +145,10 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
   useEffect(() => {
     if (tab === 'payslips') loadPayslips().catch(() => {})
     if (tab === 'my_payslips') loadMyPayslips().catch(() => {})
+    if (tab === 'balances') loadBalances().catch(() => {})
+    if (tab === 'advances') loadAdvances().catch(() => {})
     if (tab === 'runs' && selectedRunId) loadRunDetail(selectedRunId).catch(() => {})
-  }, [tab, selectedRunId, loadPayslips, loadMyPayslips, loadRunDetail])
+  }, [tab, selectedRunId, loadPayslips, loadMyPayslips, loadBalances, loadAdvances, loadRunDetail])
 
   const act = async (fn, okMsg) => {
     setBusy(true)
@@ -147,6 +170,8 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
       year: Number(newPeriod.year),
       month: Number(newPeriod.month),
       employeeIds: selectedEmployeeIds.length ? selectedEmployeeIds : undefined,
+      defaultPayableDays: Number(newPeriod.month) === 8 && Number(newPeriod.year) === 2026 ? 24 : undefined,
+      defaultCalendarDays: Number(newPeriod.month) === 8 && Number(newPeriod.year) === 2026 ? 31 : undefined,
     })
     setSelectedRunId(run._id)
     setTab('runs')
@@ -195,11 +220,12 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
       )}
 
       {tab === 'dashboard' && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:11 }}>
           <StatCard label="Employees" value={String(dash?.employeeCount ?? '—')} color={C.t1} sub="Active roster" />
           <StatCard label="Salary structures" value={String(dash?.assignmentCount ?? '—')} color={C.cyan} sub="Active assignments" />
           <StatCard label="Payroll runs" value={String(dash?.runCount ?? '—')} color="var(--purple)" sub={dash?.latestRun ? `${dash.latestRun.year}-${String(dash.latestRun.month).padStart(2,'0')}` : '—'} />
           <StatCard label="Payslips" value={String(dash?.payslipCount ?? '—')} color={C.green} sub={dash?.totals ? `Latest net ${money(dash.totals.net)}` : '—'} />
+          <StatCard label="Salary balances" value={money(dash?.salaryBalances?.outstanding ?? 0)} color={C.yellow || '#b45309'} sub={`${dash?.salaryBalances?.count ?? 0} open (arrears)`} />
         </div>
       )}
 
@@ -242,7 +268,10 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                     if (selectedEmployeeIds.length) {
                       await payrollV2API.selectEmployees(runDetail._id, selectedEmployeeIds)
                     }
-                    await payrollV2API.calculate(runDetail._id)
+                    await payrollV2API.calculate(runDetail._id, {
+                      payableDays: runDetail.defaultPayableDays ?? undefined,
+                      calendarDays: runDetail.defaultCalendarDays ?? undefined,
+                    })
                   }, 'Calculated')}>Calculate</button>
                 )}
                 {can('superadmin','fin_mgr') && runDetail.status === 'CALCULATED' && (
@@ -273,7 +302,8 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                 )}
               </div>
               <div style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>
-                Gross {money(runDetail.totals?.gross)} · Deductions {money(runDetail.totals?.deductions)} · Net {money(runDetail.totals?.net)} · Employer {money(runDetail.totals?.employerTotal)}
+                Gross {money(runDetail.totals?.gross)} · Net earned {money(runDetail.totals?.net)} · Paid {money(runDetail.totals?.paid)} · Balance {money(runDetail.totals?.outstanding)}
+                {runDetail.defaultPayableDays != null ? ` · Payable days ${runDetail.defaultPayableDays}` : ''}
               </div>
               {runDetail.status === 'DRAFT' && (
                 <div style={{ marginBottom: 12 }}>
@@ -304,15 +334,16 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                   </button>
                 </div>
               )}
-              <DataTable title="Lines" headers={['Employee','Dept','Gross','Deductions','Net','Employer']}>
+              <DataTable title="Lines" headers={['Employee','Monthly','Joining','Payable Days','Earned','Paid','Balance']}>
                 {(runDetail.lines || []).map((l, i) => (
                   <tr key={String(l.employeeId) + i}>
                     <Td>{l.employeeName} <span style={{ color: C.t3 }}>({l.employeeCode})</span></Td>
-                    <Td>{l.department}</Td>
-                    <Td>{money(l.gross)}</Td>
-                    <Td style={{ color: C.red }}>{money(l.totalDeductions)}</Td>
+                    <Td>{money(l.monthlySalary)}</Td>
+                    <Td>{l.joiningDate ? String(l.joiningDate).slice(0, 10) : '—'}</Td>
+                    <Td>{l.payableDays ?? '—'}</Td>
                     <Td style={{ fontWeight: 700, color: C.cyan }}>{money(l.net)}</Td>
-                    <Td>{money(l.employerTotal)}</Td>
+                    <Td>{l.amountPaid == null ? '—' : money(l.amountPaid)}</Td>
+                    <Td style={{ color: C.yellow || '#b45309', fontWeight: 700 }}>{l.salaryBalance == null ? '—' : money(l.salaryBalance)}</Td>
                   </tr>
                 ))}
               </DataTable>
@@ -400,6 +431,140 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
         </div>
       )}
 
+      {tab === 'balances' && (
+        <div className="space-y-3">
+          <Card title="Salary Balances / Arrears">
+            <p style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>
+              Earned but unpaid salary. This is <strong>not</strong> an employee advance.
+            </p>
+          </Card>
+          <DataTable title="Open balances" headers={['Employee','Period','Earned','Paid on payroll','Outstanding','Status','Pay']}>
+            {balances.map((b) => (
+              <tr key={b._id}>
+                <Td>{b.employeeName}</Td>
+                <Td>{b.year}-{String(b.month).padStart(2, '0')}</Td>
+                <Td>{money(b.earnedAmount)}</Td>
+                <Td>{money(b.amountPaidFromPayroll)}</Td>
+                <Td style={{ fontWeight: 700, color: C.yellow || '#b45309' }}>{money(b.outstandingAmount)}</Td>
+                <Td><Badge status={b.status} /></Td>
+                <Td>
+                  {can('superadmin','fin_mgr') && b.status !== 'PAID' && (
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        style={{ width: 90, padding: 4 }}
+                        value={payAmountByBalance[b._id] ?? b.outstandingAmount}
+                        onChange={(e) => setPayAmountByBalance((m) => ({ ...m, [b._id]: e.target.value }))}
+                      />
+                      <button
+                        style={{...B.pri,...B.sm}}
+                        disabled={busy}
+                        onClick={() => act(async () => {
+                          await payrollV2API.paySalaryBalance(b._id, {
+                            amount: Number(payAmountByBalance[b._id] ?? b.outstandingAmount),
+                          })
+                          await loadBalances()
+                          await loadDashboard()
+                        }, 'Balance payment recorded')}
+                      >
+                        Pay
+                      </button>
+                    </span>
+                  )}
+                </Td>
+              </tr>
+            ))}
+            {!balances.length && (
+              <tr><Td colSpan={7} style={{ color: C.t3 }}>No salary balances yet. Mark a run PAID with outstanding lines to create arrears.</Td></tr>
+            )}
+          </DataTable>
+        </div>
+      )}
+
+      {tab === 'advances' && (
+        <div className="space-y-3">
+          <Card title="Employee Advances (separate from salary balance)">
+            <p style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>
+              Advances are money paid ahead of earned salary. Do not use this for August unpaid earned amounts.
+            </p>
+            {can('superadmin','fin_mgr') && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                <select
+                  value={advanceForm.employeeId}
+                  onChange={(e) => setAdvanceForm((f) => ({ ...f, employeeId: e.target.value }))}
+                  style={{ padding: 6 }}
+                >
+                  <option value="">Select employee</option>
+                  {employees.map((e) => (
+                    <option key={e._id} value={e._id}>{e.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  placeholder="Amount"
+                  value={advanceForm.amount}
+                  onChange={(e) => setAdvanceForm((f) => ({ ...f, amount: e.target.value }))}
+                  style={{ width: 100, padding: 6 }}
+                />
+                <input
+                  placeholder="Reason"
+                  value={advanceForm.reason}
+                  onChange={(e) => setAdvanceForm((f) => ({ ...f, reason: e.target.value }))}
+                  style={{ flex: 1, minWidth: 140, padding: 6 }}
+                />
+                <button
+                  style={{...B.pri,...B.sm}}
+                  disabled={busy || !advanceForm.employeeId || !advanceForm.amount}
+                  onClick={() => act(async () => {
+                    await payrollV2API.createAdvance({
+                      employeeId: advanceForm.employeeId,
+                      amount: Number(advanceForm.amount),
+                      reason: advanceForm.reason,
+                    })
+                    setAdvanceForm({ employeeId: '', amount: '', reason: '' })
+                    await loadAdvances()
+                  }, 'Advance created')}
+                >
+                  Create advance
+                </button>
+              </div>
+            )}
+          </Card>
+          <DataTable title="Advances" headers={['Employee','Amount','Remaining','Status','Actions']}>
+            {advances.map((a) => (
+              <tr key={a._id}>
+                <Td>{a.employeeName}</Td>
+                <Td>{money(a.amount)}</Td>
+                <Td>{money(a.remainingBalance)}</Td>
+                <Td><Badge status={a.status} /></Td>
+                <Td>
+                  {can('superadmin','fin_mgr') && a.status === 'PENDING_APPROVAL' && (
+                    <button style={{...B.ghost,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.approveAdvance(a._id).then(loadAdvances), 'Approved')}>Approve</button>
+                  )}
+                  {can('superadmin','fin_mgr') && a.status === 'APPROVED' && (
+                    <button style={{...B.ghost,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.markAdvancePaid(a._id).then(loadAdvances), 'Advance paid')}>Mark paid</button>
+                  )}
+                  {can('superadmin','fin_mgr') && (a.status === 'PAID' || a.status === 'RECOVERING') && toAmountSafe(a.remainingBalance) > 0 && (
+                    <button
+                      style={{...B.ghost,...B.sm}}
+                      disabled={busy}
+                      onClick={() => act(() => payrollV2API.recoverAdvance(a._id, { amount: a.remainingBalance }).then(loadAdvances), 'Recovered')}
+                    >
+                      Recover all
+                    </button>
+                  )}
+                </Td>
+              </tr>
+            ))}
+            {!advances.length && (
+              <tr><Td colSpan={5} style={{ color: C.t3 }}>No advances recorded.</Td></tr>
+            )}
+          </DataTable>
+        </div>
+      )}
+
       {tab === 'my_payslips' && (
         <DataTable title="My Payslips (finalized / paid only)" headers={['Number','Period','Net','Status','Download']}>
           {myPayslips.map((p) => (
@@ -444,7 +609,8 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
         <Card title="Settings">
           <p style={{ fontSize: 13, color: C.t3 }}>
             Structured payroll is enabled for tenant <strong>{company}</strong>. Payslip numbers use format LOPC-PS-YYYY-MM-######.
-            Attendance fields on run lines are optional manual inputs and do not auto-adjust pay.
+            August 2026 uses confirmed <strong>24 payable days</strong> (calendar 31). Unpaid earned salary is tracked as
+            <strong> Salary Balance / Arrears</strong>, separate from Employee Advances.
           </p>
         </Card>
       )}

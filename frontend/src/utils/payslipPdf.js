@@ -11,9 +11,18 @@ function periodLabel(year, month) {
   return `${names[(Number(month) || 1) - 1]} ${year}`
 }
 
+function fmtDate(d) {
+  if (!d) return '—'
+  try {
+    return new Date(d).toISOString().slice(0, 10)
+  } catch {
+    return '—'
+  }
+}
+
 /**
  * Generate a LoopC payslip PDF via jspdf + autotable.
- * Bank details are masked; employer contributions are a separate section.
+ * Shows earned vs amount paid vs salary balance (arrears — not advance).
  */
 export async function generatePayslipPdf(payslip, tenant) {
   const { jsPDF, autoTable } = await loadPdfTools()
@@ -24,11 +33,11 @@ export async function generatePayslipPdf(payslip, tenant) {
 
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text(branding.displayName || branding.companyName || 'Company', margin, y)
+  doc.text(branding.displayName || branding.companyName || 'LOPC', margin, y)
   y += 18
   doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
-  doc.text('Payslip', margin, y)
+  doc.text('PAYSLIP', margin, y)
   y += 16
   doc.setFontSize(10)
   doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
@@ -39,7 +48,11 @@ export async function generatePayslipPdf(payslip, tenant) {
   doc.text(`Department: ${payslip.department || '—'}`, margin, y)
   doc.text(`Position: ${payslip.position || '—'}`, 320, y)
   y += 14
-  doc.text(`Bank: ${payslip.bankMasked || '****'}`, margin, y)
+  doc.text(`Joining date: ${fmtDate(payslip.joiningDate)}`, margin, y)
+  doc.text(`Bank: ${payslip.bankMasked || '****'}`, 320, y)
+  y += 14
+  doc.text(`Payable days: ${payslip.payableDays ?? '—'}`, margin, y)
+  doc.text(`Monthly salary: ${money(payslip.monthlySalary)}`, 320, y)
   y += 20
 
   const earningsRows = (payslip.earnings || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
@@ -65,13 +78,21 @@ export async function generatePayslipPdf(payslip, tenant) {
   y = doc.lastAutoTable.finalY + 14
 
   doc.setFont('helvetica', 'bold')
-  doc.text(`Gross: ${money(payslip.gross)}`, margin, y)
-  doc.text(`Deductions: ${money(payslip.totalDeductions)}`, 220, y)
-  doc.text(`Net Pay: ${money(payslip.net)}`, 400, y)
-  y += 22
+  doc.text(`Earned salary: ${money(payslip.net ?? payslip.gross)}`, margin, y)
+  y += 14
+  doc.text(`Amount paid: ${money(payslip.amountPaid)}`, margin, y)
+  y += 14
+  doc.setTextColor(146, 64, 14)
+  doc.text(`Salary balance (arrears): ${money(payslip.salaryBalance)}`, margin, y)
+  doc.setTextColor(0, 0, 0)
+  y += 10
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text('Salary balance is earned but unpaid salary. It is not an employee advance.', margin, y)
+  y += 16
 
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
   doc.text('Employer contributions (not part of net pay)', margin, y)
   y += 8
 
@@ -87,6 +108,9 @@ export async function generatePayslipPdf(payslip, tenant) {
   y = doc.lastAutoTable.finalY + 12
   doc.setFont('helvetica', 'bold')
   doc.text(`Employer total: ${money(payslip.employerTotal)}`, margin, y)
+  y += 14
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Payment date: ${fmtDate(payslip.paymentDate)} · Status: ${payslip.paymentStatus || '—'}`, margin, y)
 
   const filename = `${payslip.number || 'payslip'}.pdf`
   doc.save(filename)

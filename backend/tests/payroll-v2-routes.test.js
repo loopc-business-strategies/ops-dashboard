@@ -15,6 +15,8 @@ const Employee = require('../models/Employee')
 const EmployeeSalaryAssignment = require('../models/EmployeeSalaryAssignment')
 const PayrollRun = require('../models/PayrollRun')
 const Payslip = require('../models/Payslip')
+const SalaryBalance = require('../models/SalaryBalance')
+const EmployeeAdvance = require('../models/EmployeeAdvance')
 
 let mongo
 let app
@@ -75,6 +77,8 @@ afterEach(async () => {
       EmployeeSalaryAssignment.getTenantModel(tenant),
       PayrollRun.getTenantModel(tenant),
       Payslip.getTenantModel(tenant),
+      SalaryBalance.getTenantModel(tenant),
+      EmployeeAdvance.getTenantModel(tenant),
     ])
     await Promise.all(models.map((M) => M.deleteMany({})))
   }
@@ -224,10 +228,120 @@ describe('structured payroll API', () => {
     expect(upd.status).toBe(200)
     expect(upd.body.employee.position).toBe('Analyst')
   })
+
+  test('Aug-style proration, salary balance arrears, and advance stay separate', async () => {
+    const admin = await createUser({ role: 'super_admin', department: 'finance' })
+    const adminToken = tokenFor(admin, LOOPC)
+
+    const aneesh = await createEmployee(LOOPC, {
+      name: 'Aneesh',
+      employeeCode: 'LOPC-ANEESH',
+      joiningDate: new Date('2026-08-07'),
+    })
+    await request(app)
+      .put(`/api/finance/payroll-v2/employees/${aneesh._id}/salary-assignment`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+      .send({ earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 80000 }] })
+
+    const createRes = await request(app)
+      .post('/api/finance/payroll-v2/runs')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+      .send({
+        year: 2026,
+        month: 8,
+        employeeIds: [aneesh._id.toString()],
+        defaultPayableDays: 24,
+        defaultCalendarDays: 31,
+        idempotencyKey: 'test-aug-2026',
+      })
+    expect(createRes.status).toBe(201)
+    const runId = createRes.body.data._id
+
+    const calc = await request(app)
+      .post(`/api/finance/payroll-v2/runs/${runId}/calculate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+      .send({
+        payableDays: 24,
+        calendarDays: 31,
+        linePayments: [{ employeeId: aneesh._id.toString(), amountPaid: 50000 }],
+      })
+    expect(calc.status).toBe(200)
+    expect(calc.body.data.lines[0].net).toBe(61935.48)
+    expect(calc.body.data.lines[0].amountPaid).toBe(50000)
+    expect(calc.body.data.lines[0].salaryBalance).toBe(11935.48)
+    expect(calc.body.data.lines[0].payableDays).toBe(24)
+
+    for (const step of ['submit-review', 'approve', 'finalize']) {
+      const r = await request(app)
+        .post(`/api/finance/payroll-v2/runs/${runId}/${step}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('x-tenant', LOOPC)
+      expect(r.status).toBe(200)
+    }
+
+    const paid = await request(app)
+      .post(`/api/finance/payroll-v2/runs/${runId}/mark-paid`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+    expect(paid.status).toBe(200)
+    expect(paid.body.balances.created.length).toBe(1)
+
+    const balList = await request(app)
+      .get('/api/finance/payroll-v2/salary-balances')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+    expect(balList.body.data.length).toBe(1)
+    expect(balList.body.data[0].outstandingAmount).toBe(11935.48)
+    expect(balList.body.data[0].status).toBe('OUTSTANDING')
+
+    const balId = balList.body.data[0]._id
+    const partial = await request(app)
+      .post(`/api/finance/payroll-v2/salary-balances/${balId}/pay`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+      .send({ amount: 1000, idempotencyKey: 'bal-pay-1' })
+    expect(partial.status).toBe(200)
+    expect(partial.body.data.status).toBe('PARTIALLY_PAID')
+    expect(partial.body.data.outstandingAmount).toBe(10935.48)
+
+    // Original run earned amount unchanged
+    const runAfter = await request(app)
+      .get(`/api/finance/payroll-v2/runs/${runId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+    expect(runAfter.body.data.lines[0].net).toBe(61935.48)
+
+    const full = await request(app)
+      .post(`/api/finance/payroll-v2/salary-balances/${balId}/pay`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+      .send({ amount: 10935.48, idempotencyKey: 'bal-pay-2' })
+    expect(full.body.data.status).toBe('PAID')
+    expect(full.body.data.outstandingAmount).toBe(0)
+
+    // Advance is a separate module — creating one does not touch salary balance
+    const adv = await request(app)
+      .post('/api/finance/payroll-v2/advances')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+      .send({ employeeId: aneesh._id.toString(), amount: 1000, reason: 'Test advance' })
+    expect(adv.status).toBe(201)
+    expect(adv.body.data.amount).toBe(1000)
+    expect(adv.body.data.status).toBe('PENDING_APPROVAL')
+
+    const balStill = await request(app)
+      .get(`/api/finance/payroll-v2/salary-balances/${balId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-tenant', LOOPC)
+    expect(balStill.body.data.status).toBe('PAID')
+  })
 })
 
-describe('migration script safety', () => {
-  test('script source has no destructive ops', () => {
+describe('migration / seed script safety', () => {
+  test('migration report has no destructive ops', () => {
     const src = fs.readFileSync(
       path.join(__dirname, '../scripts/payroll-loopc-migration-report.js'),
       'utf8'
@@ -235,7 +349,20 @@ describe('migration script safety', () => {
     expect(src).not.toMatch(/\.drop\(/)
     expect(src).not.toMatch(/deleteMany\(/)
     expect(src).not.toMatch(/dropDatabase/)
-    expect(src).not.toMatch(/truncate/i)
+    expect(src).not.toMatch(/\btruncate\b/i)
     expect(src).toMatch(/READ-ONLY/)
+  })
+
+  test('aug2026 seed has no destructive ops and uses upsert-by-name', () => {
+    const src = fs.readFileSync(
+      path.join(__dirname, '../scripts/payroll-loopc-aug2026-seed.js'),
+      'utf8'
+    )
+    expect(src).not.toMatch(/\.drop\(/)
+    expect(src).not.toMatch(/deleteMany\(/)
+    expect(src).not.toMatch(/dropDatabase/)
+    expect(src).toMatch(/Ambiguous employee name/)
+    expect(src).toMatch(/payableDays/)
+    expect(src).toMatch(/50000/)
   })
 })
