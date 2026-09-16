@@ -52,6 +52,36 @@ function otherDeductionsOf(payslip) {
   return Math.round((total - adv) * 100) / 100
 }
 
+function numOrZero(n) {
+  const v = Number(n)
+  return Number.isFinite(v) ? v : 0
+}
+
+/** Presentation-only: unpaid residual (salaryBalance) shown as prev-month advance deduction. */
+function previousMonthAdvanceDeductionOf(payslip) {
+  return numOrZero(payslip.salaryBalance)
+}
+
+function currentMonthAdvanceDeductionOf(payslip) {
+  return numOrZero(payslip.advanceDeduction)
+}
+
+/** Display-only total; does not overwrite payslip.totalDeductions. */
+function displayTotalDeductionsOf(payslip) {
+  return Math.round(
+    (currentMonthAdvanceDeductionOf(payslip)
+      + previousMonthAdvanceDeductionOf(payslip)
+      + numOrZero(otherDeductionsOf(payslip))) * 100
+  ) / 100
+}
+
+function inrMoney(n) {
+  if (n == null || n === '') return '—'
+  const v = Number(n)
+  if (!Number.isFinite(v)) return '—'
+  return `INR ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 function salaryCalculatedOf(payslip) {
   if (payslip.salaryCalculated != null) return payslip.salaryCalculated
   const prev = Number(payslip.previousArrears) || 0
@@ -149,19 +179,20 @@ export async function generatePayslipPdf(payslip, tenant) {
       startY: y,
       head: [['Description', 'Amount']],
       body: [
-        ['Monthly Salary', money(payslip.monthlySalary)],
-        ['Salary Calculated', money(salaryCalculatedOf(payslip))],
-        ['Previous Arrears', money(payslip.previousArrears)],
-        ['Gross Amount', money(payslip.gross)],
-        ['Deduction Towards Advance Payment', money(payslip.advanceDeduction)],
-        ['Other Deductions', money(otherDeductionsOf(payslip))],
-        ['Total Deductions', money(payslip.totalDeductions)],
-        ['Net Pay / Amount Paid', money(payslip.amountPaid)],
-        ['Balance', money(payslip.salaryBalance)],
+        ['Monthly Salary', inrMoney(payslip.monthlySalary)],
+        ['Salary Calculated', inrMoney(salaryCalculatedOf(payslip))],
+        ['Previous Arrears', inrMoney(payslip.previousArrears ?? 0)],
+        ['Gross Amount', inrMoney(payslip.gross)],
+        ['Current Month Advance Payment Deduction', inrMoney(currentMonthAdvanceDeductionOf(payslip))],
+        // Presentation alias of stored salaryBalance (unpaid residual) — not a second transaction
+        ['Previous Month Advance Payment Deduction', inrMoney(previousMonthAdvanceDeductionOf(payslip))],
+        ['Other Deductions', inrMoney(otherDeductionsOf(payslip))],
+        ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
+        ['Net Paid / Amount Paid', inrMoney(payslip.amountPaid)],
       ],
       margin: { left: margin, right: margin },
       styles: { fontSize: 9, cellPadding: 4 },
-      columnStyles: { 0: { cellWidth: 280 }, 1: { halign: 'right', cellWidth: 100 } },
+      columnStyles: { 0: { cellWidth: 300 }, 1: { halign: 'right', cellWidth: 110 } },
       headStyles: { fillColor: [30, 41, 59] },
     })
     y = doc.lastAutoTable.finalY + 14

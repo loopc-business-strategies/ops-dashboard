@@ -147,6 +147,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
     if (tab === 'my_payslips') loadMyPayslips().catch(() => {})
     if (tab === 'balances') loadBalances().catch(() => {})
     if (tab === 'advances') loadAdvances().catch(() => {})
+    if (tab === 'reports') loadPayslips().catch(() => {})
     if (tab === 'runs' && selectedRunId) loadRunDetail(selectedRunId).catch(() => {})
   }, [tab, selectedRunId, loadPayslips, loadMyPayslips, loadBalances, loadAdvances, loadRunDetail])
 
@@ -331,7 +332,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                   </button>
                 </div>
               )}
-              <DataTable title="Lines" headers={['Employee','Position','Joining','Period','Days','Monthly','Calculated','Prev Arrears','Adv Ded','Other Ded','Earned','Paid','Balance']}>
+              <DataTable title="Lines" headers={['Employee','Position','Joining','Period','Days','Monthly','Calculated','Prev Arrears','Curr Adv Ded','Prev Mo Adv Ded','Other Ded','Earned','Net Paid']}>
                 {(runDetail.lines || []).map((l, i) => (
                   <tr key={String(l.employeeId) + i}>
                     <Td>{l.employeeName} <span style={{ color: C.t3 }}>({l.employeeCode})</span></Td>
@@ -347,10 +348,10 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                     <Td>{l.salaryCalculated == null ? money(l.net) : money(l.salaryCalculated)}</Td>
                     <Td>{l.previousArrears == null ? '—' : money(l.previousArrears)}</Td>
                     <Td>{l.advanceDeduction == null ? '—' : money(l.advanceDeduction)}</Td>
+                    <Td style={{ color: C.yellow || '#b45309' }}>{l.salaryBalance == null ? '—' : money(l.salaryBalance)}</Td>
                     <Td>{l.otherDeductions == null ? '—' : money(l.otherDeductions)}</Td>
                     <Td style={{ fontWeight: 700, color: C.cyan }}>{money(l.net)}</Td>
-                    <Td>{l.amountPaid == null ? '—' : money(l.amountPaid)}</Td>
-                    <Td style={{ color: C.yellow || '#b45309', fontWeight: 700 }}>{l.salaryBalance == null ? '—' : money(l.salaryBalance)}</Td>
+                    <Td style={{ fontWeight: 700 }}>{l.amountPaid == null ? '—' : money(l.amountPaid)}</Td>
                   </tr>
                 ))}
               </DataTable>
@@ -403,7 +404,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
             />
             <button className={kitBtnClass('ghost','sm')} onClick={() => loadPayslips()}>Search</button>
           </div>
-          <DataTable title="Payslips" headers={['Number','Employee','Position','Period','Days','Monthly','Calculated','Prev Arrears','Adv Ded','Net/Paid','Balance','Status','Actions']}>
+          <DataTable title="Payslips" headers={['Number','Employee','Position','Period','Days','Monthly','Calculated','Prev Arrears','Curr Adv Ded','Prev Mo Adv Ded','Net Paid','Status','Actions']}>
             {payslips.map((p) => (
               <tr key={p._id}>
                 <Td style={{ fontFamily: 'monospace', fontSize: 11 }}>{p.number}</Td>
@@ -419,8 +420,8 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                 <Td>{p.salaryCalculated == null ? money(p.net) : money(p.salaryCalculated)}</Td>
                 <Td>{p.previousArrears == null ? '—' : money(p.previousArrears)}</Td>
                 <Td>{p.advanceDeduction == null ? '—' : money(p.advanceDeduction)}</Td>
+                <Td style={{ color: C.yellow || '#b45309' }}>{p.salaryBalance == null ? '—' : money(p.salaryBalance)}</Td>
                 <Td style={{ fontWeight: 700, color: C.cyan }}>{p.amountPaid == null ? money(p.net) : money(p.amountPaid)}</Td>
-                <Td style={{ color: C.yellow || '#b45309', fontWeight: 700 }}>{p.salaryBalance == null ? '—' : money(p.salaryBalance)}</Td>
                 <Td><Badge status={p.paymentStatus} /></Td>
                 <Td>
                   <button
@@ -615,12 +616,58 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
       )}
 
       {tab === 'reports' && (
-        <Card title="Reports">
-          <p style={{ fontSize: 13, color: C.t3 }}>
-            Latest run totals: Gross {money(dash?.totals?.gross)} · Net {money(dash?.totals?.net)} · Employer {money(dash?.totals?.employerTotal)}.
-            Use Payslips tab for PDF export. Migration inventory is available via the read-only backend script.
-          </p>
-        </Card>
+        <div className="space-y-3">
+          <Card title="Payroll report">
+            <p style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>
+              LoopC presentation view. Prev Mo Adv Ded is the unpaid residual already reflected in Net Paid (not a second deduction).
+            </p>
+          </Card>
+          <DataTable
+            title="Payslip summary"
+            headers={[
+              'Employee',
+              'Period',
+              'Salary Calculated',
+              'Prev Arrears',
+              'Curr Adv Ded',
+              'Prev Mo Adv Ded',
+              'Other Ded',
+              'Total Ded',
+              'Net Paid',
+              'Status',
+            ]}
+          >
+            {payslips.map((p) => {
+              const currAdv = Number(p.advanceDeduction) || 0
+              const prevMoAdv = Number(p.salaryBalance) || 0
+              const other = p.otherDeductions != null
+                ? Number(p.otherDeductions) || 0
+                : Math.max(0, (Number(p.totalDeductions) || 0) - currAdv)
+              const totalDed = Math.round((currAdv + prevMoAdv + other) * 100) / 100
+              return (
+                <tr key={p._id}>
+                  <Td>{p.employeeName}</Td>
+                  <Td>
+                    {p.periodStart && p.periodEnd
+                      ? `${String(p.periodStart).slice(0, 10)} → ${String(p.periodEnd).slice(0, 10)}`
+                      : `${p.year}-${String(p.month).padStart(2, '0')}`}
+                  </Td>
+                  <Td>{p.salaryCalculated == null ? money(p.net) : money(p.salaryCalculated)}</Td>
+                  <Td>{p.previousArrears == null ? money(0) : money(p.previousArrears)}</Td>
+                  <Td>{money(currAdv)}</Td>
+                  <Td style={{ color: C.yellow || '#b45309' }}>{money(prevMoAdv)}</Td>
+                  <Td>{money(other)}</Td>
+                  <Td>{money(totalDed)}</Td>
+                  <Td style={{ fontWeight: 700, color: C.cyan }}>{p.amountPaid == null ? '—' : money(p.amountPaid)}</Td>
+                  <Td><Badge status={p.paymentStatus} /></Td>
+                </tr>
+              )
+            })}
+            {!payslips.length && (
+              <tr><Td colSpan={10} style={{ color: C.t3 }}>No payslips loaded. Open Payslips or wait for refresh.</Td></tr>
+            )}
+          </DataTable>
+        </div>
       )}
 
       {tab === 'settings' && (
