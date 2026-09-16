@@ -10,15 +10,22 @@
  *
  * Usage:
  *   node backend/scripts/payroll-loopc-merge-aneesh-anish.js
+ *
+ * Safety: staging-only guard; soft-delete Anish only; no hard delete; payslip money unchanged.
  */
 
 require('dotenv').config()
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const mongoose = require('mongoose')
 const { connectTenant } = require('../db/tenantConnections')
 const { isStructuredPayrollEnabled } = require('../config/tenantCapabilities')
 const { toAmount } = require('../services/payroll/payrollCalculationService')
 
 const TENANT = 'loopc'
+assertStagingOnlyScript({
+  scriptName: 'payroll-loopc-merge-aneesh-anish.js',
+  tenants: [TENANT],
+})
 const SURVIVOR_CODE = 'LoopC-ANEESH'
 const DUPLICATE_CODE = 'loopc/emp/001'
 
