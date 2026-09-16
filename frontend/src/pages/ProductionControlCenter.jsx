@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { DEPT_SECTION_MAP, SECTION_GROUPS, SECTION_IDS, formatTime } from '../components/production-control/shared'
+import { DEPT_SECTION_MAP, SECTION_GROUPS, SECTION_IDS, SECTIONS, formatClock } from '../components/production-control/shared'
 import { PccSkeleton } from '../components/production-control/primitives'
 import { DemoModeProvider, useDemoMode } from '../components/production-control/demo/DemoModeContext'
 import { isProductionDemoEnabled } from '../components/production-control/demo/flags'
@@ -64,12 +64,20 @@ const ReworkQueuePanel = lazy(() =>
 const MaintenancePanel = lazy(() =>
   import('../components/production-control/OpsPanels').then((m) => ({ default: m.MaintenancePanel })),
 )
+const DepartmentFlowPanel = lazy(() => import('../components/production-control/DepartmentFlowPanel'))
 
 const RETURN_KEY = 'pcc_returnTo'
 const DEMO_ENABLED = isProductionDemoEnabled()
 const PROCESSING_STATUSES = 'ALLOCATED,UNDER_PROCESSING,DEPARTMENT_PROCESSING,QC_PENDING,QC_PASSED,QC_FAILED,REWORK,HOLD,PACKAGING'
-const FLOOR_SUMMARY_SECTIONS = new Set(['live', 'overview', 'floor-manager'])
-const FLOW_SECTIONS = new Set(['live', 'overview', 'settings', ...Object.keys(DEPT_SECTION_MAP)])
+const FLOOR_SUMMARY_SECTIONS = new Set(['live', 'overview', 'floor-manager', 'dept-flow'])
+const FLOW_SECTIONS = new Set(['live', 'overview', 'settings', 'dept-flow', ...Object.keys(DEPT_SECTION_MAP)])
+
+function connectionLabel(connection) {
+  if (connection === 'LIVE') return 'Live data'
+  if (connection === 'DEMO') return 'Demo data'
+  if (connection === 'RECONNECTING') return 'Reconnecting…'
+  return 'Offline — showing last available data'
+}
 
 function resolveSection(raw) {
   const id = String(raw || '').trim()
@@ -120,11 +128,25 @@ function ProductionControlCenterInner() {
   const [selectedBatchId, setSelectedBatchId] = useState(null)
   const [connection, setConnection] = useState('OFFLINE')
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [floorError, setFloorError] = useState(false)
+  const [globalQuery, setGlobalQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchHits, setSearchHits] = useState([])
   const sectionRef = useRef(section)
   const softTimerRef = useRef(null)
   const floorAbortRef = useRef(null)
+  const searchWrapRef = useRef(null)
 
   sectionRef.current = section
+
+  const sectionMeta = useMemo(
+    () => SECTIONS.find((s) => s.id === section) || { id: section, label: section },
+    [section],
+  )
+  const shiftLabel = summary?.currentShift?.name
+    || summary?.currentShift?.label
+    || null
 
   const showToast = useCallback((msg) => {
     setToast(msg)
@@ -149,6 +171,7 @@ function ProductionControlCenterInner() {
       if (ac.signal.aborted) return
       mergeSummary(summaryPart)
       setLastUpdated(new Date())
+      setFloorError(false)
       if (!soft) setLoading(false)
 
       const [board, widgets, alerts, custody, activity] = await Promise.all([
@@ -171,8 +194,10 @@ function ProductionControlCenterInner() {
         },
       })
       setLastUpdated(new Date())
+      setFloorError(false)
     } catch (err) {
       if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || ac.signal.aborted) return
+      setFloorError(true)
       showToast(err?.response?.data?.message || 'Failed to load production floor')
     } finally {
       if (!soft && !ac.signal.aborted) setLoading(false)
@@ -289,6 +314,61 @@ function ProductionControlCenterInner() {
     navigate(target)
   }
 
+  const runGlobalSearch = useCallback(async (e) => {
+    e?.preventDefault?.()
+    const q = String(globalQuery || '').trim()
+    if (q.length < 1) return
+    setSearchLoading(true)
+    setSearchOpen(true)
+    try {
+      const data = await pccApi.search({ q })
+      const batches = (data?.batches || []).map((b) => ({
+        kind: 'batch',
+        id: b._id,
+        label: b.batchNumber || b._id,
+        subtitle: [b.workOrderNumber, b.product || b.metalType, b.currentDepartment, b.status]
+          .filter(Boolean)
+          .join(' · '),
+        batchId: b._id,
+      }))
+      const stockLots = (data?.stockLots || []).map((s) => ({
+        kind: 'stock',
+        id: s._id,
+        label: s.stockCode || s.batchNumber || s._id,
+        subtitle: [s.product, s.status, s.batchNumber].filter(Boolean).join(' · '),
+        section: 'stock-overview',
+      }))
+      setSearchHits([...batches, ...stockLots].slice(0, 12))
+    } catch {
+      setSearchHits([])
+      showToast('Search failed')
+    } finally {
+      setSearchLoading(false)
+    }
+  }, [globalQuery, pccApi, showToast])
+
+  const openSearchHit = useCallback((hit) => {
+    setSearchOpen(false)
+    setGlobalQuery('')
+    setSearchHits([])
+    if (hit.batchId) {
+      setSelectedBatchId(hit.batchId)
+      return
+    }
+    if (hit.section) setSection(hit.section)
+  }, [setSection])
+
+  useEffect(() => {
+    if (!searchOpen) return undefined
+    const onDoc = (ev) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(ev.target)) {
+        setSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [searchOpen])
+
   const connClass =
     connection === 'LIVE' || connection === 'DEMO' ? 'live'
       : connection === 'RECONNECTING' ? 'reconnecting'
@@ -310,7 +390,21 @@ function ProductionControlCenterInner() {
         return (
           <OverviewPanel
             summary={summary}
-            onSearch={(q) => pccApi.search(q)}
+            flow={flow}
+            loading={loading}
+            error={floorError}
+            onRetry={() => loadFloorProgressive({ soft: false })}
+            onNavigate={setSection}
+            onSelectBatch={setSelectedBatchId}
+          />
+        )
+      case 'dept-flow':
+        return (
+          <DepartmentFlowPanel
+            summary={summary}
+            loading={loading}
+            onNavigate={setSection}
+            onRefresh={() => loadFloorProgressive({ soft: false })}
           />
         )
       case 'live':
@@ -430,7 +524,7 @@ function ProductionControlCenterInner() {
       default:
         return null
     }
-  }, [section, summary, flow, loading, refresh, showToast, pccApi, setSection, productionRole, loadFloorProgressive])
+  }, [section, summary, flow, loading, floorError, refresh, showToast, setSection, productionRole, loadFloorProgressive])
 
   return (
     <div className={`pcc-root${isDemo ? ' pcc-demo-active' : ''}`}>
@@ -440,7 +534,9 @@ function ProductionControlCenterInner() {
           <div className="pcc-header-titles">
             <h1>PRODUCTION CONTROL CENTER</h1>
             <span className="pcc-user">
-              {[user?.name, company].filter(Boolean).join(' · ') || '—'}
+              {[sectionMeta.label, shiftLabel ? `Shift ${shiftLabel}` : null, user?.name, company]
+                .filter(Boolean)
+                .join(' · ') || '—'}
             </span>
           </div>
           {isDemo && (
@@ -448,11 +544,47 @@ function ProductionControlCenterInner() {
           )}
         </div>
         <div className="pcc-header-right">
-          {lastUpdated && (
-            <span className="pcc-last-updated">Updated {formatTime(lastUpdated)}</span>
-          )}
+          <div className="pcc-global-search" ref={searchWrapRef}>
+            <form onSubmit={runGlobalSearch} className="pcc-global-search-form">
+              <input
+                type="search"
+                className="pcc-global-search-input"
+                placeholder="Search batch, WO, stock…"
+                value={globalQuery}
+                onChange={(e) => setGlobalQuery(e.target.value)}
+                onFocus={() => { if (searchHits.length) setSearchOpen(true) }}
+                aria-label="Search production"
+              />
+              <button type="submit" className="pcc-btn-ghost" disabled={searchLoading}>
+                {searchLoading ? '…' : 'Search'}
+              </button>
+            </form>
+            {searchOpen && (
+              <div className="pcc-global-search-results" role="listbox">
+                {searchHits.length === 0 && !searchLoading ? (
+                  <div className="pcc-global-search-empty">No matches</div>
+                ) : null}
+                {searchHits.map((hit) => (
+                  <button
+                    key={`${hit.kind}-${hit.id}`}
+                    type="button"
+                    className="pcc-global-search-hit"
+                    onClick={() => openSearchHit(hit)}
+                  >
+                    <strong>{hit.label}</strong>
+                    <span>{hit.subtitle}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span className="pcc-last-updated">
+            {lastUpdated
+              ? `Last successful update: ${formatClock(lastUpdated)}`
+              : 'Last successful update: —'}
+          </span>
           <span className={`pcc-live ${connClass}`}>
-            <span className="pcc-live-dot" /> {connection}
+            <span className="pcc-live-dot" /> {connectionLabel(connection)}
           </span>
           <button type="button" className="pcc-btn-ghost" onClick={() => refresh()} aria-label="Refresh production data">
             Refresh

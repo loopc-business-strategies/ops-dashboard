@@ -98,6 +98,118 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pcc-global-search {
+  position: relative;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.pcc-global-search-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pcc-global-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--pcc-border);
+  background: var(--pcc-elevated);
+  color: var(--pcc-text);
+  font-size: 12px;
+}
+
+.pcc-global-search-input:focus {
+  outline: 2px solid var(--pcc-orange);
+  outline-offset: 1px;
+}
+
+.pcc-global-search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 280px;
+  overflow: auto;
+  background: var(--pcc-surface);
+  border: 1px solid var(--pcc-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.pcc-global-search-hit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--pcc-border);
+  background: transparent;
+  color: var(--pcc-text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.pcc-global-search-hit:hover {
+  background: var(--pcc-elevated);
+}
+
+.pcc-global-search-hit strong {
+  font-size: 12px;
+}
+
+.pcc-global-search-hit span {
+  font-size: 11px;
+  color: var(--pcc-text-muted);
+}
+
+.pcc-global-search-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--pcc-text-muted);
+}
+
+.pcc-flow-clickable {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pcc-flow-stage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--pcc-border);
+  background: var(--pcc-elevated);
+  color: var(--pcc-text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.pcc-flow-stage-btn:hover {
+  border-color: var(--pcc-orange);
+}
+
+.pcc-flow-stage-btn strong {
+  font-size: 13px;
+  color: var(--pcc-orange);
+}
+
+.pcc-text-warn {
+  color: var(--pcc-warning);
+  font-weight: 700;
 }
 
 .pcc-live {

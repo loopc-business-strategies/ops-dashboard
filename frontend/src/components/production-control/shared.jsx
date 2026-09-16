@@ -13,12 +13,13 @@ export const SECTION_GROUPS = [
     ],
   },
   {
-    id: 'work',
-    label: 'WORK',
+    id: 'production',
+    label: 'PRODUCTION',
     sections: [
       { id: 'work-orders', label: 'Work Orders' },
       { id: 'batches', label: 'Batches' },
       { id: 'processes', label: 'Processes' },
+      { id: 'dept-flow', label: 'Department Flow' },
     ],
   },
   {
@@ -66,7 +67,7 @@ export const SECTION_GROUPS = [
       { id: 'machines', label: 'Machines' },
       { id: 'maintenance', label: 'Maintenance' },
       { id: 'floor-manager', label: 'Floor Manager' },
-      { id: 'floor-attendance', label: 'Floor Manager Sessions' },
+      { id: 'floor-attendance', label: 'Floor Attendance' },
     ],
   },
   {
@@ -152,6 +153,16 @@ export function formatTime(value) {
   if (!value) return '—'
   try {
     return new Date(value).toLocaleString()
+  } catch {
+    return '—'
+  }
+}
+
+/** Clock time HH:MM for connection / last-update chrome. */
+export function formatClock(value) {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   } catch {
     return '—'
   }
