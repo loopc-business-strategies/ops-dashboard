@@ -96,6 +96,16 @@ export const DEPT_SECTION_MAP = Object.fromEntries(
   SECTIONS.filter((s) => s.deptKey).map((s) => [s.id, s.deptKey]),
 )
 
+/** Resolve nav breadcrumb trail for a section id. */
+export function getSectionTrail(sectionId) {
+  const id = String(sectionId || '').trim()
+  for (const group of SECTION_GROUPS) {
+    const section = group.sections.find((s) => s.id === id)
+    if (section) return { group, section }
+  }
+  return null
+}
+
 export const BOARD_COLUMNS = [
   { id: 'QUEUED', label: 'QUEUED', statuses: ['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'WAITING'] },
   { id: 'IN_PROGRESS', label: 'IN PROGRESS', statuses: ['IN_TRANSIT', 'RECEIVED', 'IN_PROCESS'] },

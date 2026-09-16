@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { DEPT_SECTION_MAP, SECTION_GROUPS, SECTION_IDS, SECTIONS, formatClock } from '../components/production-control/shared'
+import { DEPT_SECTION_MAP, SECTION_GROUPS, SECTION_IDS, SECTIONS, formatClock, getSectionTrail } from '../components/production-control/shared'
 import { PccSkeleton } from '../components/production-control/primitives'
 import { DemoModeProvider, useDemoMode } from '../components/production-control/demo/DemoModeContext'
 import { isProductionDemoEnabled } from '../components/production-control/demo/flags'
@@ -100,6 +100,8 @@ function ProductionControlCenterInner() {
   const { user, company } = useAuth()
   const { isDemo, enterDemo, exitDemo } = useDemoMode()
   const pccApi = usePccApi()
+  const [navOpen, setNavOpen] = useState(false)
+  const mainRef = useRef(null)
 
   const section = resolveSection(searchParams.get('section'))
   const setSection = useCallback((id) => {
@@ -109,6 +111,7 @@ function ProductionControlCenterInner() {
       p.set('section', next)
       return p
     }, { replace: false })
+    setNavOpen(false)
   }, [setSearchParams])
 
   useEffect(() => {
@@ -145,9 +148,41 @@ function ProductionControlCenterInner() {
     () => SECTIONS.find((s) => s.id === section) || { id: section, label: section },
     [section],
   )
+  const sectionTrail = useMemo(() => getSectionTrail(section), [section])
   const shiftLabel = summary?.currentShift?.name
     || summary?.currentShift?.label
     || null
+
+  useEffect(() => {
+    if (!navOpen) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navOpen])
+
+  useEffect(() => {
+    const root = mainRef.current
+    if (!root || typeof MutationObserver === 'undefined') return undefined
+
+    const applyLabels = () => {
+      root.querySelectorAll('.pcc-table').forEach((table) => {
+        const headers = [...table.querySelectorAll('thead th')].map((th) => String(th.textContent || '').trim())
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+          [...tr.children].forEach((td, i) => {
+            if (!(td instanceof HTMLElement)) return
+            if (headers[i] && !td.dataset.label) td.dataset.label = headers[i]
+          })
+        })
+      })
+    }
+
+    applyLabels()
+    const mo = new MutationObserver(() => applyLabels())
+    mo.observe(root, { childList: true, subtree: true })
+    return () => mo.disconnect()
+  }, [section])
 
   const showToast = useCallback((msg) => {
     setToast(msg)
@@ -535,9 +570,18 @@ function ProductionControlCenterInner() {
   }, [section, summary, flow, loading, floorError, refresh, showToast, setSection, productionRole, loadFloorProgressive])
 
   return (
-    <div className={`pcc-root${isDemo ? ' pcc-demo-active' : ''}`}>
+    <div className={`pcc-root${isDemo ? ' pcc-demo-active' : ''}${navOpen ? ' pcc-nav-open' : ''}`}>
       <header className="pcc-header">
         <div className="pcc-header-left">
+          <button
+            type="button"
+            className="pcc-nav-toggle"
+            aria-expanded={navOpen}
+            aria-controls="pcc-section-nav"
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            {navOpen ? 'Close' : 'Menu'}
+          </button>
           <span className="pcc-mark" aria-hidden="true" />
           <div className="pcc-header-titles">
             <h1>PRODUCTION CONTROL CENTER</h1>
@@ -619,7 +663,35 @@ function ProductionControlCenterInner() {
         </div>
       )}
 
-      <nav className="pcc-nav" aria-label="Production sections">
+      <nav className="pcc-breadcrumb" aria-label="Breadcrumb">
+        <button type="button" onClick={() => setSection('live')}>Production</button>
+        <span className="pcc-breadcrumb-sep" aria-hidden>/</span>
+        {sectionTrail ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setSection(sectionTrail.group.sections[0]?.id || 'live')}
+            >
+              {sectionTrail.group.label}
+            </button>
+            <span className="pcc-breadcrumb-sep" aria-hidden>/</span>
+            <span className="pcc-breadcrumb-current">{sectionTrail.section.label}</span>
+          </>
+        ) : (
+          <span className="pcc-breadcrumb-current">{sectionMeta.label}</span>
+        )}
+      </nav>
+
+      {navOpen ? (
+        <button
+          type="button"
+          className="pcc-nav-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setNavOpen(false)}
+        />
+      ) : null}
+
+      <nav id="pcc-section-nav" className="pcc-nav" aria-label="Production sections">
         {SECTION_GROUPS.map((group) => (
           <div key={group.id} className="pcc-nav-group">
             <span className="pcc-nav-group-label">{group.label}</span>
@@ -639,7 +711,7 @@ function ProductionControlCenterInner() {
         ))}
       </nav>
 
-      <main className="pcc-main">
+      <main className="pcc-main" ref={mainRef}>
         <Suspense fallback={<SectionFallback />}>
           {body}
         </Suspense>

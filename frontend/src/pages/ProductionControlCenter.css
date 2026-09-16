@@ -17,6 +17,15 @@
   --pcc-warning: var(--warning);
   --pcc-danger: var(--danger);
   --pcc-info: var(--info);
+  --pcc-radius-sm: var(--radius-sm);
+  --pcc-radius-md: var(--radius-md);
+  --pcc-radius-lg: var(--radius-lg);
+  --pcc-shadow: var(--shadow-card);
+  --pcc-shadow-hover: var(--shadow-card-hover);
+  --pcc-transition: var(--transition, 0.15s ease);
+  --pcc-space-sm: var(--space-sm, 8px);
+  --pcc-space-md: var(--space-md, 16px);
+  --pcc-focus: var(--brand-focus-ring, rgba(234, 88, 12, 0.45));
 
   min-height: 100vh;
   background: var(--pcc-bg);
@@ -55,7 +64,7 @@
 .pcc-mark {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--pcc-radius-sm);
   flex-shrink: 0;
   background: linear-gradient(135deg, var(--pcc-orange), #c2410c);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12);
@@ -277,7 +286,8 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--pcc-radius-sm);
+  transition: border-color var(--pcc-transition), color var(--pcc-transition);
 }
 
 .pcc-close:hover {
@@ -1376,4 +1386,208 @@
   color: var(--pcc-text-muted);
   margin-bottom: 6px;
   text-transform: uppercase;
+}
+
+/* Track 3 — breadcrumbs, mobile drawer, table→cards */
+.pcc-nav-toggle {
+  display: none;
+  border: 1px solid var(--pcc-border-strong);
+  background: var(--pcc-elevated);
+  color: var(--pcc-text);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: var(--pcc-radius-sm);
+  cursor: pointer;
+}
+
+.pcc-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px var(--pcc-space-md);
+  border-bottom: 1px solid var(--pcc-border);
+  background: var(--pcc-surface);
+  font-size: 12px;
+  color: var(--pcc-text-muted);
+}
+
+.pcc-breadcrumb-sep {
+  color: var(--pcc-border-strong);
+}
+
+.pcc-breadcrumb button {
+  border: 0;
+  background: transparent;
+  color: var(--pcc-text-secondary);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pcc-breadcrumb button:hover {
+  color: var(--pcc-orange);
+}
+
+.pcc-breadcrumb-current {
+  color: var(--pcc-text);
+  font-weight: 700;
+}
+
+.pcc-nav-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .pcc-header {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+  }
+
+  .pcc-global-search {
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 160px;
+  }
+
+  .pcc-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .pcc-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 80;
+    width: min(300px, 88vw);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 16px 12px 24px;
+    border-right: 1px solid var(--pcc-border);
+    border-bottom: 0;
+    box-shadow: var(--pcc-shadow-hover);
+    transform: translateX(-105%);
+    transition: transform var(--pcc-transition);
+  }
+
+  .pcc-root.pcc-nav-open .pcc-nav {
+    transform: translateX(0);
+  }
+
+  .pcc-nav-group {
+    border-right: 0;
+    padding-right: 0;
+    padding-bottom: 12px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--pcc-border);
+    min-width: 0;
+  }
+
+  .pcc-nav-group-items {
+    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .pcc-nav button {
+    text-align: left;
+    border-bottom: 0;
+    border-left: 3px solid transparent;
+    border-radius: var(--pcc-radius-sm);
+    padding: 10px 12px;
+  }
+
+  .pcc-nav button.active {
+    border-left-color: var(--pcc-orange);
+    background: var(--pcc-orange-dim);
+  }
+
+  .pcc-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: rgba(15, 23, 42, 0.45);
+    cursor: pointer;
+  }
+
+  .pcc-main {
+    padding: 12px;
+  }
+
+  /* Tables → stacked cards */
+  .pcc-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .pcc-table,
+  .pcc-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .pcc-table tr {
+    display: block;
+    background: var(--pcc-surface);
+    border: 1px solid var(--pcc-border);
+    border-radius: var(--pcc-radius-md);
+    box-shadow: var(--pcc-shadow);
+    margin-bottom: 10px;
+    padding: 10px 12px;
+  }
+
+  .pcc-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    border-bottom: 0;
+    padding: 6px 0;
+    text-align: right;
+  }
+
+  .pcc-table td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--pcc-text-muted);
+    text-align: left;
+    flex: 0 1 42%;
+  }
+
+  .pcc-table td:empty {
+    display: none;
+  }
+
+  .pcc-gantt-axis,
+  .pcc-gantt-row {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .pcc-gantt-track-col {
+    min-height: 36px;
+  }
+}
+
+.pcc-root.pcc-nav-open {
+  overflow: hidden;
 }
