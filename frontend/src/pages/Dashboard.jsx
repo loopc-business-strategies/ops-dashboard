@@ -35,6 +35,7 @@ const AdminTab = lazy(() => import('../components/tabs/AdminTab'))
 const HRTab = lazy(() => import('../components/tabs/HRTab'))
 const FinanceTab = lazy(() => import('../components/tabs/FinanceTab'))
 const ProductionTab = lazy(() => import('../components/tabs/ProductionTab'))
+const ProductionNewTab = lazy(() => import('../components/tabs/ProductionNewTab'))
 const ChatTab = lazy(() => import('../components/tabs/ChatTab'))
 const MasterSettingsTab = lazy(() => import('../components/tabs/MasterSettingsTab'))
 const TrainingTab = lazy(() => import('../components/tabs/TrainingTab'))
@@ -51,6 +52,7 @@ const TAB_CHUNK_PREFETCHERS = {
   hr: () => import('../components/tabs/HRTab'),
   finance: () => import('../components/tabs/FinanceTab'),
   production: () => import('../components/tabs/ProductionTab'),
+  'production-new': () => import('../components/tabs/ProductionNewTab'),
   chat: () => import('../components/tabs/ChatTab'),
   'master-settings': () => import('../components/tabs/MasterSettingsTab'),
   training: () => import('../components/tabs/TrainingTab'),
@@ -258,6 +260,7 @@ const DEPARTMENT_MODULE_TAB_IDS = new Set([
   'hr',
   'compliance',
   'production',
+  'production-new',
   'finance',
   'sales',
   'operations',
@@ -312,6 +315,9 @@ function renderTab(
 
     case 'production':
       return <ProductionTab />
+
+    case 'production-new':
+      return <ProductionNewTab />
 
     case 'finance':
       return <FinanceTab />
