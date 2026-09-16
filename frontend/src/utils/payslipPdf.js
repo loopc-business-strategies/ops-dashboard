@@ -88,12 +88,17 @@ export async function generatePayslipPdf(payslip, tenant) {
   let y = margin
 
   if (structured) {
-    const logoW = 48
-    const logoH = 48
-    const logoUrl = branding.logoUrl || branding.logoImage || ''
-    const logoAsset = logoUrl
-      ? await createLogoRenderAsset(logoUrl, logoW, logoH, branding.logoFit || 'contain')
-      : ''
+    const logoW = 130
+    const logoH = 42
+    // Dedicated LoopC payslip wordmark; fall back to tenant branding logo if needed.
+    const logoUrl = '/logos/loopc-payslip-logo.png'
+    let logoAsset = await createLogoRenderAsset(logoUrl, logoW, logoH, branding.logoFit || 'contain')
+    if (!logoAsset || !String(logoAsset).startsWith('data:image/')) {
+      const fallback = branding.logoUrl || branding.logoImage || ''
+      if (fallback) {
+        logoAsset = await createLogoRenderAsset(fallback, logoW, logoH, branding.logoFit || 'contain')
+      }
+    }
     if (logoAsset && String(logoAsset).startsWith('data:image/')) {
       try {
         doc.addImage(logoAsset, 'PNG', pageRight - logoW, margin - 4, logoW, logoH, undefined, 'FAST')
