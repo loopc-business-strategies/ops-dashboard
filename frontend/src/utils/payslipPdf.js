@@ -1,5 +1,5 @@
-import { getTenantBranding } from '../../config/tenantBranding'
-import { loadPdfTools } from '../erp/lazyExportLibs'
+import { getTenantBranding } from '../config/tenantBranding'
+import { loadPdfTools } from '../components/tabs/erp/lazyExportLibs'
 
 function money(n) {
   const v = Number(n) || 0

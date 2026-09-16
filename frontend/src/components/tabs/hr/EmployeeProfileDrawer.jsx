@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import hrAPI from '../../api/hr'
-import { isStructuredPayrollEnabled } from '../../config/tenantBranding'
+import hrAPI from '../../../api/hr'
+import { isStructuredPayrollEnabled } from '../../../config/tenantBranding'
 
 const DEPARTMENTS = [
   { value: '',            label: 'Select department' },
