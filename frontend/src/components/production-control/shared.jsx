@@ -20,6 +20,7 @@ export const SECTION_GROUPS = [
       { id: 'planning', label: 'Planning' },
       { id: 'batches', label: 'Batches' },
       { id: 'processes', label: 'Processes' },
+      { id: 'journey', label: 'Production Journey' },
       { id: 'dept-flow', label: 'Department Flow' },
     ],
   },
@@ -92,13 +93,34 @@ export const SECTIONS = SECTION_GROUPS.flatMap((g) => g.sections)
 
 export const SECTION_IDS = new Set(SECTIONS.map((s) => s.id))
 
+/** Legacy / friendly deep-link aliases → canonical SECTION_IDS. */
+export const SECTION_ALIASES = {
+  stock: 'stock-overview',
+  'stock-available': 'stock-selection',
+  custody: 'metal-custody',
+  delays: 'delay-monitor',
+  'metal-control': 'metal-custody',
+  metal: 'metal-custody',
+}
+
+/** Resolve raw ?section= value to a canonical SECTION_IDS member. */
+export function resolveSectionId(raw) {
+  const id = String(raw || '').trim()
+  if (!id) return 'live'
+  const aliased = SECTION_ALIASES[id] || id
+  return SECTION_IDS.has(aliased) ? aliased : 'live'
+}
+
 export const DEPT_SECTION_MAP = Object.fromEntries(
   SECTIONS.filter((s) => s.deptKey).map((s) => [s.id, s.deptKey]),
 )
 
 /** Resolve nav breadcrumb trail for a section id. */
 export function getSectionTrail(sectionId) {
-  const id = String(sectionId || '').trim()
+  const raw = String(sectionId || '').trim()
+  if (!raw) return null
+  const id = SECTION_ALIASES[raw] || raw
+  if (!SECTION_IDS.has(id)) return null
   for (const group of SECTION_GROUPS) {
     const section = group.sections.find((s) => s.id === id)
     if (section) return { group, section }

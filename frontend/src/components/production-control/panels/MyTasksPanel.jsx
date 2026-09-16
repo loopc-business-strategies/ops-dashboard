@@ -28,6 +28,10 @@ export default function MyTasksPanel({ onToast, onNavigate, onSelectBatch }) {
   useEffect(() => { load() }, [load])
 
   const openTask = (t) => {
+    if (t.batchId) {
+      onSelectBatch?.(t.batchId)
+      return
+    }
     if (t.type === 'receive_pass' || t.type === 'handover_pending') {
       onNavigate?.('passes')
       return
@@ -37,7 +41,6 @@ export default function MyTasksPanel({ onToast, onNavigate, onSelectBatch }) {
       return
     }
     if (t.type === 'qc_pending') {
-      if (t.batchId) onSelectBatch?.(t.batchId)
       onNavigate?.('qc')
       return
     }
@@ -62,7 +65,10 @@ export default function MyTasksPanel({ onToast, onNavigate, onSelectBatch }) {
         <div className="pcc-kpi"><div className="pcc-kpi-value">{na(counts?.qc, 0)}</div><div className="pcc-kpi-label">QC</div></div>
       </div>
       {loading ? <PccSkeleton rows={4} /> : tasks.length === 0 ? (
-        <PccEmptyState message="No tasks assigned to you" />
+        <PccEmptyState
+          message="No tasks assigned to you"
+          hint="Receive, process, QC, and alert tasks appear here when action is needed."
+        />
       ) : groups.map((g) => (
         g.items.length === 0 ? null : (
           <div key={g.id} className="pcc-panel">
@@ -72,7 +78,9 @@ export default function MyTasksPanel({ onToast, onNavigate, onSelectBatch }) {
                 <li key={t.id}>
                   <strong>{t.title}</strong>
                   <span>{t.subtitle}</span>
-                  <button type="button" className="pcc-btn-ghost" onClick={() => openTask(t)}>Open</button>
+                  <button type="button" className="pcc-btn-ghost" onClick={() => openTask(t)}>
+                    {t.batchId ? 'Open batch' : 'Open'}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -82,4 +90,3 @@ export default function MyTasksPanel({ onToast, onNavigate, onSelectBatch }) {
     </div>
   )
 }
-

@@ -4,17 +4,19 @@ import { useDemoMode } from '../demo/DemoModeContext'
 import { formatGrams, canPcc } from '../shared'
 import {
   PccConfirmDialog,
+  PccContextDrawer,
   PccEmptyState,
   PccStatusBadge,
   PccWeightDisplay,
 } from '../primitives'
 import { toastMsg } from './panelHelpers'
 
-export default function PassesPanel({ onToast, productionRole }) {
+export default function PassesPanel({ onToast, productionRole, onSelectBatch }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
   const [passes, setPasses] = useState([])
   const [batches, setBatches] = useState([])
+  const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState({
     batchId: '', fromDepartment: '', toDepartment: 'melting', weight: '', purpose: '',
   })
@@ -59,6 +61,10 @@ export default function PassesPanel({ onToast, productionRole }) {
         idempotencyKey: `ui-pass-${Date.now()}`,
       })
       onToast?.(toastMsg(isDemo, 'Pass created'))
+      setCreateOpen(false)
+      setForm({
+        batchId: '', fromDepartment: '', toDepartment: 'melting', weight: '', purpose: '',
+      })
       load()
     } catch (err) {
       onToast?.(err?.response?.data?.message || 'Failed')
@@ -126,44 +132,24 @@ export default function PassesPanel({ onToast, productionRole }) {
 
   return (
     <div className="pcc-stack">
-      {canCreate && (
-        <form className="pcc-panel pcc-form" onSubmit={create}>
-          <div className="pcc-panel-head"><h2>CREATE PASS / HANDOVER</h2></div>
-          <div className="pcc-form-grid">
-            <label>Batch
-              <select required value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })}>
-                <option value="">Select…</option>
-                {batches.map((b) => (
-                  <option key={b._id} value={b._id}>
-                    {b.batchNumber} · {b.currentDepartment || '—'} · {formatGrams(b.currentWeight)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>From (batch location — verified by server)
-              <input
-                value={form.fromDepartment}
-                readOnly
-                title="Derived from batch current department"
-              />
-            </label>
-            <label>To department
-              <input required value={form.toDepartment} onChange={(e) => setForm({ ...form, toDepartment: e.target.value })} />
-            </label>
-            <label>Weight (g)
-              <input type="number" step="0.001" required value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
-            </label>
-            <label>Purpose
-              <input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
-            </label>
-          </div>
-          <button type="submit" className="pcc-btn">Create pass</button>
-        </form>
-      )}
-
       <div className="pcc-panel">
-        <div className="pcc-panel-head"><h2>HANDOVERS</h2></div>
-        {passes.length === 0 ? <PccEmptyState message="No pending handovers" /> : (
+        <div className="pcc-panel-head">
+          <h2>HANDOVERS</h2>
+          <div className="pcc-actions">
+            {canCreate && (
+              <button type="button" className="pcc-btn" onClick={() => setCreateOpen(true)}>
+                + Create handover
+              </button>
+            )}
+            <button type="button" className="pcc-btn-ghost" onClick={load}>Refresh</button>
+          </div>
+        </div>
+        {passes.length === 0 ? (
+          <PccEmptyState
+            message="No pending handovers"
+            hint={canCreate ? 'Create a handover to move metal between departments.' : undefined}
+          />
+        ) : (
           <div className="pcc-table-wrap">
             <table className="pcc-table">
               <thead>
@@ -181,7 +167,13 @@ export default function PassesPanel({ onToast, productionRole }) {
                   return (
                     <tr key={p._id}>
                       <td>{p.passNumber}</td>
-                      <td>{p.batchNumber}</td>
+                      <td>
+                        {p.batchId ? (
+                          <button type="button" className="pcc-link" onClick={() => onSelectBatch?.(p.batchId)}>
+                            {p.batchNumber || 'Open'}
+                          </button>
+                        ) : (p.batchNumber || '—')}
+                      </td>
                       <td>{p.fromDepartment}<div className="pcc-muted">{p.fromPersonName || '—'}</div></td>
                       <td>{p.toDepartment}<div className="pcc-muted">{p.toPersonName || '—'}</div></td>
                       <td><PccWeightDisplay grams={p.weight} /></td>
@@ -210,6 +202,47 @@ export default function PassesPanel({ onToast, productionRole }) {
           </div>
         )}
       </div>
+
+      <PccContextDrawer
+        open={createOpen}
+        title="Create pass / handover"
+        onClose={() => setCreateOpen(false)}
+      >
+        <form className="pcc-form" onSubmit={create}>
+          <div className="pcc-form-grid">
+            <label>Batch
+              <select required value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })}>
+                <option value="">Select…</option>
+                {batches.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.batchNumber} · {b.currentDepartment || '—'} · {formatGrams(b.currentWeight)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>From (batch location — verified by server)
+              <input
+                value={form.fromDepartment}
+                readOnly
+                title="Derived from batch current department"
+              />
+            </label>
+            <label>To department
+              <input required value={form.toDepartment} onChange={(e) => setForm({ ...form, toDepartment: e.target.value })} />
+            </label>
+            <label>Weight (g)
+              <input type="number" step="0.001" required value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
+            </label>
+            <label>Purpose
+              <input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
+            </label>
+          </div>
+          <div className="pcc-actions" style={{ marginTop: 12 }}>
+            <button type="button" className="pcc-btn-ghost" onClick={() => setCreateOpen(false)}>Cancel</button>
+            <button type="submit" className="pcc-btn">Create pass</button>
+          </div>
+        </form>
+      </PccContextDrawer>
 
       <PccConfirmDialog
         open={!!confirmCancel}
@@ -259,4 +292,3 @@ export default function PassesPanel({ onToast, productionRole }) {
     </div>
   )
 }
-

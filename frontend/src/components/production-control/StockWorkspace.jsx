@@ -109,11 +109,15 @@ export default function StockWorkspace({
             <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('stock-adjustments')}>
               Adjust Weight
             </button>
-            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('movements')}>
-              View Movement
+            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('metal-custody')}>
+              Metal Control
             </button>
           </div>
         </div>
+        <p className="pcc-muted pcc-workspace-hint">
+          Flow: New Stock → verify / release to Available → select / allocate → Under Processing → QC → Finished.
+          Release from NEW_STOCK to AVAILABLE is manual when required by your process rules.
+        </p>
         <div className="pcc-subtabs" role="tablist" aria-label="Stock views">
           {STOCK_WORKSPACE_TABS.map((tab) => (
             <button

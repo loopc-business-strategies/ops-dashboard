@@ -3,7 +3,14 @@ import { usePccApi } from './demo/usePccApi'
 import { useDemoMode } from './demo/DemoModeContext'
 import { DEMO_WRITE_MSG } from './demo/pccApiAdapter'
 import { formatGrams, formatTime, na } from './shared'
-import { PccEmptyState, PccKpiCard, PccSkeleton, PccStatusBadge, PccWeightDisplay } from './primitives'
+import {
+  PccContextDrawer,
+  PccEmptyState,
+  PccKpiCard,
+  PccSkeleton,
+  PccStatusBadge,
+  PccWeightDisplay,
+} from './primitives'
 
 export function MetalCustodyPanel({ onSelectBatch, onToast }) {
   const pccApi = usePccApi()
@@ -50,7 +57,7 @@ export function MetalCustodyPanel({ onSelectBatch, onToast }) {
           <div className="pcc-panel">
             <div className="pcc-panel-head"><h2>BATCHES ({data?.total ?? 0})</h2></div>
             {!data?.batches?.length ? (
-              <PccEmptyState message="No batches in custody view" />
+              <PccEmptyState message="No batches in custody view" hint="Custody rows appear when batches hold metal outside the vault." />
             ) : (
               <div className="pcc-table-wrap">
                 <table className="pcc-table">
@@ -129,7 +136,7 @@ export function DelayMonitorPanel({ onSelectBatch, onToast }) {
         <div className="pcc-panel">
           <div className="pcc-panel-head"><h2>DELAYS ({data?.total ?? 0})</h2></div>
           {!data?.delays?.length ? (
-            <PccEmptyState message="No delayed batches or overdue processes" />
+            <PccEmptyState message="No delayed batches or overdue processes" hint="Delays surface when expected completion times are exceeded." />
           ) : (
             <div className="pcc-table-wrap">
               <table className="pcc-table">
@@ -216,7 +223,7 @@ export function ReworkQueuePanel({ onSelectBatch, onNavigate, onToast }) {
         <div className="pcc-panel">
           <div className="pcc-panel-head"><h2>ITEMS ({data?.total ?? 0})</h2></div>
           {!data?.items?.length ? (
-            <PccEmptyState message="No batches in rework" />
+            <PccEmptyState message="No batches in rework" hint="Failed QC inspections route batches here for corrective action." />
           ) : (
             <div className="pcc-table-wrap">
               <table className="pcc-table">
@@ -367,8 +374,8 @@ export function MaintenancePanel({ onToast }) {
         <div className="pcc-panel-head">
           <h2>MAINTENANCE</h2>
           <div className="pcc-actions">
-            <button type="button" className="pcc-btn" onClick={() => setCreateOpen((v) => !v)}>
-              {createOpen ? 'Cancel' : 'New work order'}
+            <button type="button" className="pcc-btn" onClick={() => setCreateOpen(true)}>
+              New work order
             </button>
             <button type="button" className="pcc-btn-ghost" onClick={evaluate}>Evaluate overdue</button>
             <button type="button" className="pcc-btn-ghost" onClick={load}>Refresh</button>
@@ -377,9 +384,58 @@ export function MaintenancePanel({ onToast }) {
         <p className="pcc-muted">Preventive and breakdown work orders. Completing a WO updates machine last/next maintenance.</p>
       </div>
 
-      {createOpen && (
-        <form className="pcc-panel pcc-form" onSubmit={create}>
-          <div className="pcc-panel-head"><h3>New maintenance WO</h3></div>
+      {loading ? <PccSkeleton rows={4} /> : !workOrders.length ? (
+        <div className="pcc-panel">
+          <PccEmptyState
+            message="No maintenance work orders"
+            hint="Create a work order to schedule preventive or breakdown maintenance."
+          />
+        </div>
+      ) : (
+        <div className="pcc-panel">
+          <div className="pcc-table-wrap">
+            <table className="pcc-table">
+              <thead>
+                <tr>
+                  <th>WO</th>
+                  <th>Machine</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Technician</th>
+                  <th>Scheduled</th>
+                  <th>Next</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {workOrders.map((wo) => (
+                  <tr key={wo._id}>
+                    <td>{wo.woNumber}</td>
+                    <td>{wo.machineCode || wo.machineName}</td>
+                    <td>{wo.type}</td>
+                    <td><PccStatusBadge status={wo.status} /></td>
+                    <td>{na(wo.technicianName, '—')}</td>
+                    <td>{formatTime(wo.scheduledAt)}</td>
+                    <td>{formatTime(wo.nextMaintenanceAt)}</td>
+                    <td>
+                      {wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                        <button type="button" className="pcc-btn-ghost" onClick={() => complete(wo._id)}>Complete</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <PccContextDrawer
+        open={createOpen}
+        title="New maintenance WO"
+        onClose={() => setCreateOpen(false)}
+      >
+        <form className="pcc-form" onSubmit={create}>
           <div className="pcc-form-grid">
             <label>
               Machine
@@ -438,50 +494,12 @@ export function MaintenancePanel({ onToast }) {
               <input className="pcc-input" value={form.notes} onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))} />
             </label>
           </div>
-          <button type="submit" className="pcc-btn">Create</button>
-        </form>
-      )}
-
-      {loading ? <PccSkeleton rows={4} /> : !workOrders.length ? (
-        <div className="pcc-panel"><PccEmptyState message="No maintenance work orders" /></div>
-      ) : (
-        <div className="pcc-panel">
-          <div className="pcc-table-wrap">
-            <table className="pcc-table">
-              <thead>
-                <tr>
-                  <th>WO</th>
-                  <th>Machine</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Technician</th>
-                  <th>Scheduled</th>
-                  <th>Next</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {workOrders.map((wo) => (
-                  <tr key={wo._id}>
-                    <td>{wo.woNumber}</td>
-                    <td>{wo.machineCode || wo.machineName}</td>
-                    <td>{wo.type}</td>
-                    <td><PccStatusBadge status={wo.status} /></td>
-                    <td>{na(wo.technicianName, '—')}</td>
-                    <td>{formatTime(wo.scheduledAt)}</td>
-                    <td>{formatTime(wo.nextMaintenanceAt)}</td>
-                    <td>
-                      {wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
-                        <button type="button" className="pcc-btn-ghost" onClick={() => complete(wo._id)}>Complete</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="pcc-actions" style={{ marginTop: 12 }}>
+            <button type="button" className="pcc-btn-ghost" onClick={() => setCreateOpen(false)}>Cancel</button>
+            <button type="submit" className="pcc-btn">Create</button>
           </div>
-        </div>
-      )}
+        </form>
+      </PccContextDrawer>
     </div>
   )
 }

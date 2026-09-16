@@ -1,6 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BOARD_COLUMNS, formatGrams, formatKg, formatMinutes, formatTime } from './shared'
-import { PccConfirmDialog, PccEmptyState, PccKpiCard, PccSkeleton, PccStatusBadge, PccWeightDisplay } from './primitives'
+import {
+  PccConfirmDialog,
+  PccEmptyState,
+  PccKpiCard,
+  PccKpiRow,
+  PccSkeleton,
+  PccStatusBadge,
+  PccWeightDisplay,
+} from './primitives'
 import { usePccApi } from './demo/usePccApi'
 import { useDemoMode } from './demo/DemoModeContext'
 import { DEMO_WRITE_MSG } from './demo/pccApiAdapter'
@@ -13,10 +21,45 @@ export default function LiveFloorPanel({
   onRefresh,
   onToast,
   onNavigate,
+  connection,
+  lastUpdated,
 }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
   const [confirm, setConfirm] = useState(null)
+
+  const kpis = summary?.kpis || {}
+  const stages = flow?.stages || []
+  const board = summary?.board || {}
+  const shift = summary?.currentShift
+  const openAlerts = summary?.openAlerts || summary?.attention || []
+  const attentionItems = summary?.attention || summary?.openAlerts || []
+  const criticalAlerts = openAlerts.filter((a) => String(a.severity || '').toLowerCase() === 'critical')
+  const attentionAlerts = attentionItems.filter((a) => String(a.severity || '').toLowerCase() !== 'critical')
+  const normalAlerts = openAlerts.filter((a) => {
+    const s = String(a.severity || '').toLowerCase()
+    return s && s !== 'critical' && s !== 'warning' && s !== 'attention'
+  })
+
+  const activeBatches = useMemo(() => {
+    const ids = new Set()
+    const list = []
+    for (const col of BOARD_COLUMNS) {
+      for (const b of board[col.id] || []) {
+        if (ids.has(b._id)) continue
+        if (['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED'].includes(b.status)) continue
+        ids.add(b._id)
+        list.push(b)
+      }
+    }
+    return list
+  }, [board])
+
+  const waitingBatches = useMemo(
+    () => activeBatches.filter((b) => ['WAITING', 'AWAITING_ISSUE', 'CREATED', 'QUEUED'].includes(b.status)
+      || String(b.waitReason || b.blockedReason || '').trim()),
+    [activeBatches],
+  )
 
   if (loading && !summary) {
     return (
@@ -25,16 +68,6 @@ export default function LiveFloorPanel({
       </div>
     )
   }
-
-  const kpis = summary?.kpis || {}
-  const stages = flow?.stages || []
-  const board = summary?.board || {}
-  const stock = summary?.stock || {}
-  const shift = summary?.currentShift
-  const openAlerts = summary?.openAlerts || summary?.attention || []
-  const attentionItems = summary?.attention || summary?.openAlerts || []
-  const criticalAlerts = openAlerts.filter((a) => String(a.severity || '').toLowerCase() === 'critical')
-  const attentionAlerts = attentionItems.filter((a) => String(a.severity || '').toLowerCase() !== 'critical')
 
   const openException = (item) => {
     if (item?.batchId) {
@@ -69,6 +102,7 @@ export default function LiveFloorPanel({
 
   return (
     <div className="pcc-stack">
+      {/* A. Exceptions first */}
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>EXCEPTIONS FIRST</h2></div>
         <div className="pcc-split">
@@ -113,20 +147,21 @@ export default function LiveFloorPanel({
                   <span>{item.message || item.reason || item.status || ''}</span>
                 </li>
               ))}
-              {(kpis.waiting || 0) > 0 && (
-                <li>
-                  <strong>Waiting jobs</strong>
-                  <span>{kpis.waiting}</span>
-                </li>
-              )}
               {(kpis.delayedBatches || 0) > 0 && (
                 <li>
                   <strong>Delayed batches</strong>
                   <span>{kpis.delayedBatches}</span>
-                  <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('delay-monitor')}>Delay Monitor</button>
+                  <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('delay-monitor')}>Delays</button>
                 </li>
               )}
-              {attentionAlerts.length === 0 && !(kpis.waiting > 0) && !(kpis.delayedBatches > 0) && (
+              {(kpis.rework || 0) > 0 && (
+                <li>
+                  <strong>Rework</strong>
+                  <span>{kpis.rework}</span>
+                  <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('rework')}>Rework</button>
+                </li>
+              )}
+              {attentionAlerts.length === 0 && !(kpis.delayedBatches > 0) && !(kpis.rework > 0) && (
                 <li className="pcc-muted">No attention items</li>
               )}
             </ul>
@@ -134,6 +169,13 @@ export default function LiveFloorPanel({
           <div>
             <h3 className="pcc-muted">NORMAL</h3>
             <ul className="pcc-list">
+              {normalAlerts.slice(0, 4).map((a) => (
+                <li key={a._id || a.id}>
+                  <button type="button" className="pcc-link" onClick={() => openException(a)}>
+                    <strong>{a.title || a.code || 'Info'}</strong>
+                  </button>
+                </li>
+              ))}
               <li>
                 <strong>Active production</strong>
                 <span>{kpis.activeBatches ?? 0} batches</span>
@@ -141,41 +183,36 @@ export default function LiveFloorPanel({
               <li>
                 <strong>Metal in transit</strong>
                 <span>{formatKg(kpis.metalInTransit)}</span>
-                <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('passes')}>Passes</button>
-              </li>
-              <li>
-                <strong>Machines running</strong>
-                <span>{kpis.machinesRunning ?? 0}</span>
               </li>
             </ul>
           </div>
         </div>
       </div>
 
-      {shift && (
-        <div className="pcc-panel pcc-shift-banner">
-          <div>
-            <strong>CURRENT SHIFT</strong>
-            <div>{shift.name}</div>
-          </div>
-          <div>
-            <div>Start: {shift.startLabel || shift.startTime}</div>
-            <div>End: {shift.endLabel || shift.endTime}</div>
-          </div>
-          <div>
-            <div>Elapsed: {formatMinutes(shift.timeElapsedMinutes)}</div>
-            <div>Remaining: {formatMinutes(shift.timeRemainingMinutes)}</div>
-          </div>
-          <div>
-            <div>Managers: {(summary?.managersPresent || []).length}</div>
-            <div>Operators: {(summary?.operatorsPresent || []).length}</div>
-          </div>
+      {/* B. Current shift */}
+      <div className="pcc-panel pcc-shift-banner">
+        <div>
+          <strong>CURRENT SHIFT</strong>
+          <div>{shift?.name || '—'}{summary?.floorManagerName ? ` · ${summary.floorManagerName}` : ''}</div>
         </div>
-      )}
+        <div>
+          <div>Start: {shift?.startLabel || shift?.startTime || '—'}</div>
+          <div>End: {shift?.endLabel || shift?.endTime || '—'}</div>
+        </div>
+        <div>
+          <div>Elapsed: {formatMinutes(shift?.timeElapsedMinutes)}</div>
+          <div>Remaining: {formatMinutes(shift?.timeRemainingMinutes)}</div>
+        </div>
+        <div>
+          <div>Connection: {connection || '—'}</div>
+          <div>Updated: {lastUpdated ? formatTime(lastUpdated) : '—'}</div>
+        </div>
+      </div>
 
+      {/* C. Active production KPIs */}
       <div className="pcc-panel">
         <div className="pcc-panel-head">
-          <h2>COMMAND KPIs</h2>
+          <h2>ACTIVE PRODUCTION</h2>
           <div className="pcc-actions">
             <button type="button" className="pcc-btn" onClick={() => onNavigate?.('batches')}>+ Create Batch</button>
             <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('stock-selection')}>Issue Metal</button>
@@ -183,38 +220,67 @@ export default function LiveFloorPanel({
             <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('passes')}>Record Handover</button>
           </div>
         </div>
-        <div className="pcc-kpi-row pcc-kpi-row-primary">
+        <PccKpiRow className="pcc-kpi-row-primary">
           <PccKpiCard label="ACTIVE" value={kpis.activeBatches ?? 0} />
           <PccKpiCard label="WAITING" value={kpis.waiting ?? 0} />
           <PccKpiCard label="HOLD" value={kpis.onHold ?? 0} />
           <PccKpiCard label="QC PENDING" value={kpis.qcPending ?? 0} />
-        </div>
-        <div className="pcc-kpi-row pcc-kpi-row-secondary" style={{ marginTop: 10 }}>
-          <PccKpiCard label="Metal WIP" value={formatKg(kpis.metalInProduction)} />
-          <PccKpiCard label="In transit" value={formatKg(kpis.metalInTransit)} />
-          <PccKpiCard label="Delayed" value={kpis.delayedBatches ?? 0} />
-          <PccKpiCard label="Rework" value={kpis.rework ?? 0} />
-          <PccKpiCard label="Alerts" value={kpis.activeAlerts ?? 0} />
-          <PccKpiCard label="Passes pending" value={kpis.passesPending ?? 0} />
-          <PccKpiCard label="Completed today" value={kpis.completedToday ?? 0} />
-          <PccKpiCard label="Active WOs" value={kpis.activeWorkOrders ?? 0} />
-        </div>
+        </PccKpiRow>
       </div>
 
+      {/* D. Active batches */}
       <div className="pcc-panel">
         <div className="pcc-panel-head">
-          <h2>STOCK</h2>
-          <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('stock-overview')}>Open Stock</button>
+          <h2>ACTIVE BATCHES</h2>
+          <button type="button" className="pcc-btn-ghost" onClick={onRefresh}>Refresh</button>
         </div>
-        <div className="pcc-kpi-row pcc-kpi-row-secondary">
-          <PccKpiCard label="New Stock" value={stock.newStock?.count ?? 0} />
-          <PccKpiCard label="Available" value={stock.available?.count ?? 0} />
-          <PccKpiCard label="Selected" value={stock.selected?.count ?? 0} />
-          <PccKpiCard label="Under Processing" value={stock.underProcessing?.count ?? 0} />
-          <PccKpiCard label="Finished" value={stock.finished?.count ?? 0} />
-        </div>
+        {activeBatches.length === 0 ? (
+          <PccEmptyState message="No active batches on the floor" hint="Create or issue a batch to see it here." />
+        ) : (
+          <div className="pcc-table-wrap">
+            <table className="pcc-table">
+              <thead>
+                <tr>
+                  <th>Batch</th>
+                  <th>Product</th>
+                  <th>Metal</th>
+                  <th>Weight</th>
+                  <th>Purity</th>
+                  <th>Department</th>
+                  <th>Process</th>
+                  <th>Holder</th>
+                  <th>Machine</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeBatches.slice(0, 40).map((b) => (
+                  <tr key={b._id}>
+                    <td>
+                      <button type="button" className="pcc-link" onClick={() => onSelectBatch?.(b._id)}>
+                        <strong>{b.batchNumber}</strong>
+                      </button>
+                    </td>
+                    <td>{b.product || '—'}</td>
+                    <td>{b.metalType || '—'}</td>
+                    <td><PccWeightDisplay grams={b.currentWeight} /></td>
+                    <td>{b.purity || '—'}</td>
+                    <td>{b.currentDepartment || '—'}</td>
+                    <td>{b.currentProcess || '—'}</td>
+                    <td>{b.currentHolderName || '—'}</td>
+                    <td>{b.currentMachineName || '—'}</td>
+                    <td><PccStatusBadge status={b.status} /></td>
+                    <td>{formatTime(b.updatedAt || b.lastActivityAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
+      {/* E. Production flow */}
       <div className="pcc-panel">
         <div className="pcc-panel-head">
           <h2>PRODUCTION FLOW</h2>
@@ -237,7 +303,6 @@ export default function LiveFloorPanel({
                   {d.weight != null || d.metalGrams != null ? (
                     <span>{formatKg(d.weight ?? d.metalGrams)}</span>
                   ) : null}
-                  <span className="pcc-muted">Open Department</span>
                 </button>
               ))
               : stages.map((stage) => (
@@ -257,11 +322,82 @@ export default function LiveFloorPanel({
         )}
       </div>
 
+      {/* F. Blocked / waiting */}
       <div className="pcc-panel">
         <div className="pcc-panel-head">
-          <h2>LIVE FLOOR BOARD</h2>
-          <button type="button" className="pcc-btn-ghost" onClick={onRefresh}>Refresh</button>
+          <h2>BLOCKED / WAITING</h2>
+          <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('delay-monitor')}>Delays</button>
         </div>
+        {waitingBatches.length === 0 ? (
+          <PccEmptyState message="Nothing waiting right now" />
+        ) : (
+          <ul className="pcc-list">
+            {waitingBatches.slice(0, 12).map((b) => (
+              <li key={b._id}>
+                <button type="button" className="pcc-link" onClick={() => onSelectBatch?.(b._id)}>
+                  <strong>{b.batchNumber}</strong>
+                </button>
+                <span>
+                  {b.waitReason || b.blockedReason || b.status}
+                  {b.currentDepartment ? ` · ${b.currentDepartment}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* G + H Metal + activity */}
+      <div className="pcc-split">
+        <div className="pcc-panel">
+          <div className="pcc-panel-head">
+            <h2>METAL CONTROL</h2>
+            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('metal-custody')}>Full view</button>
+          </div>
+          {(summary?.custody || []).length === 0 ? (
+            <PccEmptyState message="No current metal custody" />
+          ) : (
+            <ul className="pcc-list">
+              {summary.custody.map((c, i) => (
+                <li key={`${c.person}-${c.department}-${i}`}>
+                  <strong>{c.person}</strong>
+                  <span>{c.department} · {c.metalType} {c.purity}</span>
+                  <span>{formatKg(c.weight)} · {c.batches} batch{c.batches === 1 ? '' : 'es'}</span>
+                  {c.batchId ? (
+                    <button type="button" className="pcc-btn-ghost" onClick={() => onSelectBatch?.(c.batchId)}>Open</button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="pcc-panel">
+          <div className="pcc-panel-head"><h2>RECENT ACTIVITY</h2></div>
+          {(summary?.recentActivity || []).length === 0 ? (
+            <PccEmptyState message="No recent movements" />
+          ) : (
+            <ul className="pcc-list">
+              {summary.recentActivity.map((m) => (
+                <li key={m._id}>
+                  {m.batchId ? (
+                    <button type="button" className="pcc-link" onClick={() => onSelectBatch?.(m.batchId)}>
+                      <strong>{m.movementNumber || m.batchNumber || 'Activity'}</strong>
+                    </button>
+                  ) : (
+                    <strong>{m.movementNumber || 'Activity'}</strong>
+                  )}
+                  <span>{m.fromDepartment} → {m.toDepartment} · {formatGrams(m.weight)}</span>
+                  <span>{formatTime(m.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Compact board for status columns */}
+      <div className="pcc-panel">
+        <div className="pcc-panel-head"><h2>FLOOR BOARD</h2></div>
         <div className="pcc-board">
           {BOARD_COLUMNS.map((col) => {
             const cards = board[col.id] || []
@@ -279,20 +415,7 @@ export default function LiveFloorPanel({
                       <div key={b._id} className="pcc-board-card-wrap">
                         <button type="button" className="pcc-board-card" onClick={() => onSelectBatch?.(b._id)}>
                           <strong>{b.batchNumber}</strong>
-                          {b.stockCode && <span className="pcc-card-meta">{b.stockCode}</span>}
-                          <span className="pcc-card-primary">
-                            {b.workOrderNumber ? `${b.workOrderNumber} · ` : ''}
-                            {b.product || b.metalType}
-                            {b.purity ? ` ${b.purity}` : ''}
-                          </span>
                           <span><PccWeightDisplay grams={b.currentWeight} /> · {b.currentDepartment || '—'}</span>
-                          {String(b.currentDepartment || '').toLowerCase() === 'packing' && b.status !== 'COMPLETED' && (
-                            <span className="pcc-card-meta">Packaging ready</span>
-                          )}
-                          <span className="pcc-card-meta">
-                            {b.currentProcess || '—'} · {b.currentHolderName || 'Unassigned'}
-                            {b.currentMachineName ? ` · ${b.currentMachineName}` : ''}
-                          </span>
                           <PccStatusBadge status={b.status} />
                         </button>
                         <div className="pcc-board-card-actions">
@@ -322,44 +445,6 @@ export default function LiveFloorPanel({
               </div>
             )
           })}
-        </div>
-      </div>
-
-      <div className="pcc-split">
-        <div className="pcc-panel">
-          <div className="pcc-panel-head">
-            <h2>METAL CUSTODY</h2>
-            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('metal-custody')}>Full view</button>
-          </div>
-          {(summary?.custody || []).length === 0 ? (
-            <PccEmptyState message="No current metal custody" />
-          ) : (
-            <ul className="pcc-list">
-              {summary.custody.map((c, i) => (
-                <li key={`${c.person}-${c.department}-${i}`}>
-                  <strong>{c.person}</strong>
-                  <span>{c.department} · {c.metalType} {c.purity}</span>
-                  <span>{formatKg(c.weight)} · {c.batches} batch{c.batches === 1 ? '' : 'es'}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="pcc-panel">
-          <div className="pcc-panel-head"><h2>RECENT ACTIVITY</h2></div>
-          {(summary?.recentActivity || []).length === 0 ? (
-            <PccEmptyState message="No recent movements" />
-          ) : (
-            <ul className="pcc-list">
-              {summary.recentActivity.map((m) => (
-                <li key={m._id}>
-                  <strong>{m.movementNumber}</strong>
-                  <span>{m.fromDepartment} → {m.toDepartment} · {formatGrams(m.weight)}</span>
-                  <span>{formatTime(m.createdAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
 

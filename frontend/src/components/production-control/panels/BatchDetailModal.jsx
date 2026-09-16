@@ -262,25 +262,45 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
   const TABS = [
     ['summary', 'SUMMARY'],
     ['journey', 'JOURNEY'],
-    ['custody', 'METAL CUSTODY'],
-    ['processes', 'PROCESSES'],
-    ['passes', 'PASSES'],
-    ['qc', 'QC'],
-    ['weight', 'WEIGHT RECONCILIATION'],
-    ['alerts', 'ALERTS'],
-    ['audit', 'AUDIT'],
-    ['documents', 'DOCUMENTS'],
+    ['metal', 'METAL & MOVEMENT'],
+    ['quality', 'QUALITY'],
+    ['history', 'HISTORY'],
   ]
+
+  const nextAction = (() => {
+    if (!b) return '—'
+    if (['CREATED', 'AWAITING_ISSUE'].includes(b.status)) return 'Issue metal from vault'
+    if (b.status === 'HOLD') return 'Release hold'
+    if (b.status === 'QC' || b.status === 'QC_FAILED') return 'Complete QC / rework'
+    if (b.status === 'REWORK') return 'Resume process after rework'
+    if (['ISSUED', 'WAITING', 'RECEIVED'].includes(b.status)) return 'Start or continue process'
+    if (b.status === 'IN_PROCESS') return 'Complete process or handover'
+    if (b.status === 'COMPLETED') return 'Return to vault / finished stock'
+    return 'Review batch actions'
+  })()
 
   return (
     <div className="pcc-modal-backdrop pcc-drawer-wide" onClick={onClose} role="presentation">
-      <div className="pcc-modal pcc-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog">
+      <div className="pcc-modal pcc-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={b?.batchNumber || 'Batch detail'}>
         <div className="pcc-panel-head">
           <h2>{b?.batchNumber || 'Batch'}</h2>
-          <button type="button" className="pcc-btn-ghost" onClick={onClose}>Close</button>
+          <button type="button" className="pcc-btn-ghost" onClick={onClose} aria-label="Close batch detail">Close</button>
         </div>
         {!detail ? <PccSkeleton rows={5} /> : (
           <div className="pcc-stack">
+            <div className="pcc-batch-context-header">
+              <div className="pcc-meta-grid">
+                <div><span>Status</span><strong><PccStatusBadge status={b.status} /></strong></div>
+                <div><span>Location</span><strong>{b.currentLocation || b.currentDepartment || '—'}</strong></div>
+                <div><span>Holder</span><strong>{b.currentHolderName || '—'}</strong></div>
+                <div><span>Weight</span><strong><PccWeightDisplay grams={b.currentWeight} /></strong></div>
+                <div><span>Process</span><strong>{b.currentProcess || '—'}</strong></div>
+                <div><span>Department</span><strong>{b.currentDepartment || '—'}</strong></div>
+                <div><span>Machine</span><strong>{b.currentMachineName || '—'}</strong></div>
+                <div><span>Next action</span><strong>{nextAction}</strong></div>
+              </div>
+            </div>
+
             <div className="pcc-tabs" role="tablist">
               {TABS.map(([id, label]) => (
                 <button
@@ -303,31 +323,10 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
                   <div><span>Product</span><strong>{b.product || '—'}</strong></div>
                   <div><span>Initial</span><strong><PccWeightDisplay grams={b.initialWeight} /></strong></div>
                   <div><span>Current</span><strong><PccWeightDisplay grams={b.currentWeight} /></strong></div>
-                  <div><span>Department</span><strong>{b.currentDepartment}</strong></div>
-                  <div><span>Holder / Custody</span><strong>{b.currentHolderName || '—'}</strong></div>
-                  <div><span>Machine</span><strong>{b.currentMachineName || '—'}</strong></div>
-                  <div><span>Process</span><strong>{b.currentProcess || '—'}</strong></div>
                   <div><span>WO</span><strong>{b.workOrderNumber || '—'}</strong></div>
-                  <div><span>Status</span><strong><PccStatusBadge status={b.status} /></strong></div>
                   <div><span>QC</span><strong>{b.qcStatus || b.lastQcResult || '—'}</strong></div>
-                </div>
-
-                <div className="pcc-panel">
-                  <div className="pcc-panel-head"><h3>PROCESS TIMELINE</h3></div>
-                  <ul className="pcc-timeline">
-                    {[
-                      { key: 'issue', label: 'Stock Issued', done: Boolean(b.issuedWeight > 0 || ['ISSUED', 'IN_PROCESS', 'IN_TRANSIT', 'RECEIVED', 'QC', 'COMPLETED', 'RETURNED_TO_VAULT', 'HOLD', 'REWORK'].includes(b.status)) },
-                      { key: 'process', label: b.currentProcess || 'Current process', done: Boolean(b.currentProcess), current: Boolean(b.currentProcess) && !['QC', 'COMPLETED', 'RETURNED_TO_VAULT'].includes(b.status) },
-                      { key: 'dept', label: `Department: ${b.currentDepartment || '—'}`, done: Boolean(b.currentDepartment), current: true },
-                      { key: 'qc', label: 'QC', done: ['QC', 'COMPLETED', 'RETURNED_TO_VAULT'].includes(b.status) || Boolean(b.lastQcResult), current: b.status === 'QC' },
-                      { key: 'vault', label: 'Vault', done: b.status === 'RETURNED_TO_VAULT' },
-                    ].map((step) => (
-                      <li key={step.key} className={step.done ? 'done' : step.current ? 'current' : ''}>
-                        <span>{step.done ? '✓' : step.current ? '●' : '○'}</span>
-                        <span>{step.label}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div><span>Created</span><strong>{formatTime(b.createdAt)}</strong></div>
+                  <div><span>Updated</span><strong>{formatTime(b.updatedAt)}</strong></div>
                 </div>
 
                 <div className="pcc-actions">
@@ -560,83 +559,121 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
               </div>
             )}
 
-            {tab === 'custody' && (
-              <div className="pcc-panel">
-                <div className="pcc-panel-head"><h3>Metal custody</h3></div>
-                {detail.custody ? (
+            {tab === 'metal' && (
+              <div className="pcc-stack">
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>Current custody</h3></div>
+                  {detail.custody ? (
+                    <div className="pcc-meta-grid">
+                      <div><span>Where</span><strong>{detail.custody.where || 'N/A'}</strong></div>
+                      <div><span>Who</span><strong>{detail.custody.holderName || 'N/A'}</strong></div>
+                      <div><span>How much</span><strong><PccWeightDisplay grams={detail.custody.weight} /></strong></div>
+                      <div><span>Available to transfer</span><strong><PccWeightDisplay grams={detail.custody.availableTransferableWeight} /></strong></div>
+                      <div><span>Reserved</span><strong><PccWeightDisplay grams={detail.custody.reservedWeight} /></strong></div>
+                      <div><span>Why</span><strong>{detail.custody.why || 'N/A'}</strong></div>
+                      <div><span>Last issued by</span><strong>{detail.custody.lastIssuedBy || 'N/A'}</strong></div>
+                      <div><span>Last received by</span><strong>{detail.custody.lastReceivedBy || 'N/A'}</strong></div>
+                      <div><span>Pass</span><strong>{detail.custody.passNumber || 'N/A'}</strong></div>
+                    </div>
+                  ) : <PccEmptyState message="No custody snapshot" />}
+                </div>
+
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>Processes</h3></div>
+                  {!(detail.processes || []).length ? <PccEmptyState message="No process runs" /> : (
+                    <div className="pcc-table-wrap">
+                      <table className="pcc-table">
+                        <thead>
+                          <tr><th>Process</th><th>Dept</th><th>Status</th><th>In</th><th>Out</th><th>Start</th><th>End</th></tr>
+                        </thead>
+                        <tbody>
+                          {detail.processes.map((p) => (
+                            <tr key={p._id}>
+                              <td>{p.process}</td>
+                              <td>{p.department || '—'}</td>
+                              <td><PccStatusBadge status={p.status} /></td>
+                              <td><PccWeightDisplay grams={p.inputWeight} /></td>
+                              <td><PccWeightDisplay grams={p.outputWeight} /></td>
+                              <td>{formatTime(p.startTime)}</td>
+                              <td>{formatTime(p.endTime)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>Handovers / passes</h3></div>
+                  {!(detail.passes || []).length ? <PccEmptyState message="No passes" /> : (
+                    <div className="pcc-table-wrap">
+                      <table className="pcc-table">
+                        <thead>
+                          <tr><th>Pass</th><th>From</th><th>To</th><th>Weight</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                          {detail.passes.map((p) => (
+                            <tr key={p._id}>
+                              <td>{p.passNumber}</td>
+                              <td>{p.fromDepartment || '—'}</td>
+                              <td>{p.toDepartment || '—'}</td>
+                              <td><PccWeightDisplay grams={p.weight} /></td>
+                              <td><PccStatusBadge status={p.status} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>Weight reconciliation</h3></div>
                   <div className="pcc-meta-grid">
-                    <div><span>Where</span><strong>{detail.custody.where || 'N/A'}</strong></div>
-                    <div><span>Who</span><strong>{detail.custody.holderName || 'N/A'}</strong></div>
-                    <div><span>How much</span><strong><PccWeightDisplay grams={detail.custody.weight} /></strong></div>
-                    <div><span>Available to transfer</span><strong><PccWeightDisplay grams={detail.custody.availableTransferableWeight} /></strong></div>
-                    <div><span>Reserved</span><strong><PccWeightDisplay grams={detail.custody.reservedWeight} /></strong></div>
-                    <div><span>Why</span><strong>{detail.custody.why || 'N/A'}</strong></div>
-                    <div><span>Last issued by</span><strong>{detail.custody.lastIssuedBy || 'N/A'}</strong></div>
-                    <div><span>Last received by</span><strong>{detail.custody.lastReceivedBy || 'N/A'}</strong></div>
-                    <div><span>Pass</span><strong>{detail.custody.passNumber || 'N/A'}</strong></div>
+                    <div><span>Expected</span><strong><PccWeightDisplay grams={wr?.expectedWeight} /></strong></div>
+                    <div><span>Actual</span><strong><PccWeightDisplay grams={wr?.actualWeight} /></strong></div>
+                    <div><span>Difference</span><strong><PccWeightDisplay grams={wr?.difference} /></strong></div>
+                    <div><span>Variance %</span><strong>{Number(wr?.variancePct || 0).toFixed(2)}%</strong></div>
+                    <div><span>Scrap</span><strong><PccWeightDisplay grams={wr?.scrap} /></strong></div>
+                    <div><span>Loss</span><strong><PccWeightDisplay grams={wr?.loss} /></strong></div>
                   </div>
-                ) : <PccEmptyState message="No custody snapshot" />}
-              </div>
-            )}
-
-            {tab === 'processes' && (
-              <div className="pcc-panel">
-                <div className="pcc-panel-head"><h3>Processes</h3></div>
-                {!(detail.processes || []).length ? <PccEmptyState message="No process runs" /> : (
-                  <div className="pcc-table-wrap">
-                    <table className="pcc-table">
-                      <thead>
-                        <tr><th>Process</th><th>Dept</th><th>Status</th><th>In</th><th>Out</th><th>Start</th><th>End</th></tr>
-                      </thead>
-                      <tbody>
-                        {detail.processes.map((p) => (
-                          <tr key={p._id}>
-                            <td>{p.process}</td>
-                            <td>{p.department || '—'}</td>
-                            <td><PccStatusBadge status={p.status} /></td>
-                            <td><PccWeightDisplay grams={p.inputWeight} /></td>
-                            <td><PccWeightDisplay grams={p.outputWeight} /></td>
-                            <td>{formatTime(p.startTime)}</td>
-                            <td>{formatTime(p.endTime)}</td>
-                          </tr>
+                  {(detail.adjustments || []).length > 0 && (
+                    <>
+                      <div className="pcc-panel-head" style={{ marginTop: 12 }}><h3>Adjustments</h3></div>
+                      <ul className="pcc-list">
+                        {detail.adjustments.map((a) => (
+                          <li key={a._id}>
+                            <strong>{formatTime(a.createdAt)}</strong>
+                            <span>{a.field}: {a.adjustment} — {a.reason}</span>
+                          </li>
                         ))}
-                      </tbody>
-                    </table>
+                      </ul>
+                    </>
+                  )}
+                </div>
+
+                {(detail.movements || []).length > 0 && (
+                  <div className="pcc-panel">
+                    <div className="pcc-panel-head"><h3>Movements</h3></div>
+                    <ul className="pcc-list">
+                      {detail.movements.map((m) => (
+                        <li key={m._id}>
+                          <strong>{m.movementNumber || m.type || 'Movement'}</strong>
+                          <span>{m.fromDepartment} → {m.toDepartment} · <PccWeightDisplay grams={m.weight} /></span>
+                          <span>{formatTime(m.createdAt)}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
             )}
 
-            {tab === 'passes' && (
-              <div className="pcc-panel">
-                <div className="pcc-panel-head"><h3>Passes</h3></div>
-                {!(detail.passes || []).length ? <PccEmptyState message="No passes" /> : (
-                  <div className="pcc-table-wrap">
-                    <table className="pcc-table">
-                      <thead>
-                        <tr><th>Pass</th><th>From</th><th>To</th><th>Weight</th><th>Status</th></tr>
-                      </thead>
-                      <tbody>
-                        {detail.passes.map((p) => (
-                          <tr key={p._id}>
-                            <td>{p.passNumber}</td>
-                            <td>{p.fromDepartment || '—'}</td>
-                            <td>{p.toDepartment || '—'}</td>
-                            <td><PccWeightDisplay grams={p.weight} /></td>
-                            <td><PccStatusBadge status={p.status} /></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {tab === 'qc' && (
+            {tab === 'quality' && (
               <div className="pcc-panel">
                 <div className="pcc-panel-head"><h3>QC</h3></div>
-                {!(detail.qc || []).length ? <PccEmptyState message="No QC inspections" /> : (
+                {!(detail.qc || []).length ? <PccEmptyState message="No QC inspections" hint="QC results appear after inspections are submitted." /> : (
                   <div className="pcc-table-wrap">
                     <table className="pcc-table">
                       <thead>
@@ -659,69 +696,38 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
               </div>
             )}
 
-            {tab === 'weight' && (
-              <div className="pcc-panel">
-                <div className="pcc-panel-head"><h3>Weight Reconciliation</h3></div>
-                <div className="pcc-meta-grid">
-                  <div><span>Expected</span><strong><PccWeightDisplay grams={wr?.expectedWeight} /></strong></div>
-                  <div><span>Actual</span><strong><PccWeightDisplay grams={wr?.actualWeight} /></strong></div>
-                  <div><span>Difference</span><strong><PccWeightDisplay grams={wr?.difference} /></strong></div>
-                  <div><span>Variance %</span><strong>{Number(wr?.variancePct || 0).toFixed(2)}%</strong></div>
-                  <div><span>Scrap</span><strong><PccWeightDisplay grams={wr?.scrap} /></strong></div>
-                  <div><span>Loss</span><strong><PccWeightDisplay grams={wr?.loss} /></strong></div>
-                </div>
-                {(detail.adjustments || []).length > 0 && (
-                  <>
-                    <div className="pcc-panel-head" style={{ marginTop: 12 }}><h3>Adjustments</h3></div>
+            {tab === 'history' && (
+              <div className="pcc-stack">
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>Alerts</h3></div>
+                  {!(detail.alerts || []).length ? <PccEmptyState message="No alerts for this batch" /> : (
                     <ul className="pcc-list">
-                      {detail.adjustments.map((a) => (
+                      {detail.alerts.map((a) => (
                         <li key={a._id}>
-                          <strong>{formatTime(a.createdAt)}</strong>
-                          <span>{a.field}: {a.adjustment} — {a.reason}</span>
+                          <strong><PccStatusBadge status={a.status} /> {a.title}</strong>
+                          <span>{a.message || a.alertNumber} · {formatTime(a.createdAt)}</span>
                         </li>
                       ))}
                     </ul>
-                  </>
-                )}
-              </div>
-            )}
-
-            {tab === 'alerts' && (
-              <div className="pcc-panel">
-                <div className="pcc-panel-head"><h3>Alerts</h3></div>
-                {!(detail.alerts || []).length ? <PccEmptyState message="No alerts for this batch" /> : (
-                  <ul className="pcc-list">
-                    {detail.alerts.map((a) => (
-                      <li key={a._id}>
-                        <strong><PccStatusBadge status={a.status} /> {a.title}</strong>
-                        <span>{a.message || a.alertNumber} · {formatTime(a.createdAt)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {tab === 'audit' && (
-              <div className="pcc-panel">
-                <div className="pcc-panel-head"><h3>Audit</h3></div>
-                {!(detail.audits || []).length ? <PccEmptyState message="No audit entries" /> : (
-                  <ul className="pcc-list">
-                    {detail.audits.map((a) => (
-                      <li key={a._id}>
-                        <strong>{formatTime(a.createdAt)}</strong>
-                        <span>{a.action || a.detail || a.message || '—'}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {tab === 'documents' && (
-              <div className="pcc-panel">
-                <div className="pcc-panel-head"><h3>Documents</h3></div>
-                <PccEmptyState message="No documents" />
+                  )}
+                </div>
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>Audit</h3></div>
+                  {!(detail.audits || []).length ? <PccEmptyState message="No audit entries" /> : (
+                    <ul className="pcc-list">
+                      {detail.audits.map((a) => (
+                        <li key={a._id}>
+                          <strong>{formatTime(a.createdAt)}</strong>
+                          <span>{a.action || a.detail || a.message || '—'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>Documents</h3></div>
+                  <PccEmptyState message="No documents" />
+                </div>
               </div>
             )}
           </div>
@@ -734,7 +740,8 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
               : confirm?.action === 'release' ? 'Release batch?'
                 : confirm?.action === 'return' ? 'Return to vault?'
                   : confirm?.action === 'issue' ? 'Issue from vault?'
-                    : 'Confirm weight adjustment?'
+                    : confirm?.action === 'split' ? 'Split batch?'
+                      : 'Confirm weight adjustment?'
           }
           message={
             confirm?.action === 'weight'

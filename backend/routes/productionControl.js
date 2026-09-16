@@ -505,6 +505,7 @@ router.post('/passes/:id/cancel', protect, requireProductionPermission('approveP
     const result = await passService.cancelPass(req, req.params.id, req.body || {})
     const pass = result?.pass || result
     const batch = result?.batch || null
+    emitProduction(req, 'pass.cancelled', { passId: pass?._id, batchId: batch?._id || pass?.batchId })
     res.json({ success: true, pass, batch })
   } catch (err) {
     handleError(res, err)
@@ -711,6 +712,7 @@ router.get('/alerts', protect, requireProductionPermission('view'), async (req, 
 router.post('/alerts', protect, requireProductionPermission('raiseAlert'), async (req, res) => {
   try {
     const alert = await machineAlertService.raiseAlert(req, req.body || {})
+    emitProduction(req, 'alert.raised', { alertId: alert._id, batchId: alert.batchId, severity: alert.severity })
     res.status(201).json({ success: true, alert })
   } catch (err) {
     handleError(res, err)

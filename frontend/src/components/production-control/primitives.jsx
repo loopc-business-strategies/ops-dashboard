@@ -22,11 +22,27 @@ export function PccKpiCard({ label, value, unit, hint }) {
   )
 }
 
-export function PccEmptyState({ message, action }) {
+export function PccKpiRow({ children, className = '' }) {
+  return <div className={`pcc-kpi-row ${className}`.trim()}>{children}</div>
+}
+
+export function PccEmptyState({ message, action, hint }) {
   return (
-    <div className="pcc-empty">
+    <div className="pcc-empty" role="status">
       <p>{message || 'No records'}</p>
+      {hint ? <p className="pcc-muted">{hint}</p> : null}
       {action || null}
+    </div>
+  )
+}
+
+export function PccErrorState({ message, onRetry }) {
+  return (
+    <div className="pcc-empty pcc-error-state" role="alert">
+      <p>{message || 'Something went wrong'}</p>
+      {onRetry ? (
+        <button type="button" className="pcc-btn-ghost" onClick={onRetry}>Retry</button>
+      ) : null}
     </div>
   )
 }
@@ -43,6 +59,51 @@ export function PccSkeleton({ rows = 4 }) {
 
 export function PccWeightDisplay({ grams, className = '' }) {
   return <span className={`pcc-weight ${className}`.trim()}>{formatGrams(grams)}</span>
+}
+
+export function PccContextDrawer({
+  open,
+  title,
+  onClose,
+  children,
+  wide = false,
+  footer,
+}) {
+  const titleId = useId()
+  const closeRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    closeRef.current?.focus?.()
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return (
+    <div className={`pcc-modal-backdrop${wide ? ' pcc-drawer-wide' : ''}`} onClick={onClose} role="presentation">
+      <div
+        className={`pcc-modal${wide ? ' pcc-modal-wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="pcc-panel-head">
+          <h2 id={titleId}>{title}</h2>
+          <button type="button" className="pcc-btn-ghost" ref={closeRef} onClick={onClose} aria-label="Close dialog">
+            Close
+          </button>
+        </div>
+        <div className="pcc-drawer-body">{children}</div>
+        {footer ? <div className="pcc-drawer-footer">{footer}</div> : null}
+      </div>
+    </div>
+  )
 }
 
 export function PccConfirmDialog({

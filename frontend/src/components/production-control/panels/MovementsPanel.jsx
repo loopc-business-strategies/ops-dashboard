@@ -7,7 +7,7 @@ import {
   PccWeightDisplay,
 } from '../primitives'
 
-export default function MovementsPanel({ onToast }) {
+export default function MovementsPanel({ onToast, onSelectBatch }) {
   const pccApi = usePccApi()
   const [rows, setRows] = useState([])
   useEffect(() => {
@@ -20,7 +20,12 @@ export default function MovementsPanel({ onToast }) {
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>METAL MOVEMENTS</h2></div>
         <p className="pcc-muted">Custody trail of metal between departments and people. History is read-only.</p>
-        {rows.length === 0 ? <PccEmptyState message="No metal movements" /> : (
+        {rows.length === 0 ? (
+          <PccEmptyState
+            message="No metal movements"
+            hint="Movements appear when metal is issued, handed over, or returned."
+          />
+        ) : (
           <>
             <ul className="pcc-timeline" style={{ marginBottom: 16 }}>
               {rows.slice(0, 12).map((m) => (
@@ -33,7 +38,11 @@ export default function MovementsPanel({ onToast }) {
                     {' → '}
                     {m.toDepartment} / {m.toPersonName || '—'}
                     {' · '}
-                    {m.batchNumber}
+                    {m.batchId ? (
+                      <button type="button" className="pcc-link" onClick={() => onSelectBatch?.(m.batchId)}>
+                        {m.batchNumber || 'Batch'}
+                      </button>
+                    ) : (m.batchNumber || '—')}
                     {' · '}
                     {formatTime(m.createdAt)}
                   </span>
@@ -49,7 +58,13 @@ export default function MovementsPanel({ onToast }) {
                   {rows.map((m) => (
                     <tr key={m._id}>
                       <td>{m.movementNumber}</td>
-                      <td>{m.batchNumber}</td>
+                      <td>
+                        {m.batchId ? (
+                          <button type="button" className="pcc-link" onClick={() => onSelectBatch?.(m.batchId)}>
+                            {m.batchNumber || 'Open'}
+                          </button>
+                        ) : (m.batchNumber || '—')}
+                      </td>
                       <td>{m.fromDepartment} / {m.fromPersonName || '—'}</td>
                       <td>{m.toDepartment} / {m.toPersonName || '—'}</td>
                       <td><PccWeightDisplay grams={m.weight} /></td>
@@ -66,4 +81,3 @@ export default function MovementsPanel({ onToast }) {
     </div>
   )
 }
-

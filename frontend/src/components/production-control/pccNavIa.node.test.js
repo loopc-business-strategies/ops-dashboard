@@ -1,20 +1,31 @@
 import { describe, expect, test } from 'vitest'
-import { SECTION_GROUPS, SECTION_IDS, formatClock, getSectionTrail } from './shared'
+import {
+  SECTION_GROUPS,
+  SECTION_IDS,
+  SECTION_ALIASES,
+  formatClock,
+  getSectionTrail,
+  resolveSectionId,
+} from './shared'
 import {
   PCC_SIDEBAR_GROUPS,
   STOCK_SECTION_IDS,
+  METAL_SECTION_IDS,
   isSidebarItemActive,
   isStockSection,
+  isMetalSection,
 } from './pccSidebarConfig'
 
 describe('PCC nav IA', () => {
-  test('PRODUCTION group includes department flow and planning', () => {
+  test('PRODUCTION group includes journey, department flow and planning', () => {
     const production = SECTION_GROUPS.find((g) => g.id === 'production')
     expect(production?.label).toBe('PRODUCTION')
     expect(production?.sections.some((s) => s.id === 'dept-flow')).toBe(true)
     expect(production?.sections.some((s) => s.id === 'planning')).toBe(true)
+    expect(production?.sections.some((s) => s.id === 'journey')).toBe(true)
     expect(SECTION_IDS.has('dept-flow')).toBe(true)
     expect(SECTION_IDS.has('planning')).toBe(true)
+    expect(SECTION_IDS.has('journey')).toBe(true)
   })
 
   test('Floor Attendance keeps stable section id', () => {
@@ -52,9 +63,14 @@ describe('PCC nav IA', () => {
       }
     }
     for (const id of STOCK_SECTION_IDS) sidebarIds.add(id)
+    for (const id of METAL_SECTION_IDS) sidebarIds.add(id)
     for (const id of SECTION_IDS) {
       if (String(id).startsWith('stock-')) {
         expect(isStockSection(id)).toBe(true)
+        continue
+      }
+      if (METAL_SECTION_IDS.includes(id)) {
+        expect(isMetalSection(id)).toBe(true)
         continue
       }
       expect(sidebarIds.has(id) || SECTION_IDS.has(id)).toBe(true)
@@ -68,8 +84,33 @@ describe('PCC nav IA', () => {
     expect(isSidebarItemActive('batches', stockItem)).toBe(false)
   })
 
+  test('metal hub highlights custody movements and passes', () => {
+    const metalItem = { id: 'metal-custody', label: 'Metal Control', metalHub: true }
+    expect(isSidebarItemActive('movements', metalItem)).toBe(true)
+    expect(isSidebarItemActive('passes', metalItem)).toBe(true)
+    expect(isSidebarItemActive('metal-custody', metalItem)).toBe(true)
+    expect(isSidebarItemActive('batches', metalItem)).toBe(false)
+  })
+
+  test('section aliases resolve to canonical ids', () => {
+    expect(resolveSectionId('stock')).toBe('stock-overview')
+    expect(resolveSectionId('stock-available')).toBe('stock-selection')
+    expect(resolveSectionId('custody')).toBe('metal-custody')
+    expect(resolveSectionId('delays')).toBe('delay-monitor')
+    expect(resolveSectionId('metal-control')).toBe('metal-custody')
+    expect(resolveSectionId('live')).toBe('live')
+    expect(resolveSectionId('journey')).toBe('journey')
+    expect(resolveSectionId('nope')).toBe('live')
+    expect(SECTION_ALIASES.stock).toBe('stock-overview')
+  })
+
   test('sidebar groups include COMMAND MATERIAL QUALITY FACTORY REPORTS', () => {
     const labels = PCC_SIDEBAR_GROUPS.map((g) => g.label)
     expect(labels).toEqual(expect.arrayContaining(['COMMAND', 'PRODUCTION', 'MATERIAL', 'QUALITY', 'FACTORY', 'REPORTS', 'ADMIN']))
+  })
+
+  test('sidebar PRODUCTION includes Production Journey', () => {
+    const production = PCC_SIDEBAR_GROUPS.find((g) => g.id === 'production')
+    expect(production?.items.some((i) => i.id === 'journey' && i.label === 'Production Journey')).toBe(true)
   })
 })

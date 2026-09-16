@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePccApi } from '../demo/usePccApi'
 import { useDemoMode } from '../demo/DemoModeContext'
 import { formatTime, canPcc } from '../shared'
@@ -8,7 +8,35 @@ import {
 } from '../primitives'
 import { toastMsg } from './panelHelpers'
 
-export default function AlertsPanel({ onToast }) {
+function openAlert(a, { onSelectBatch, onNavigate }) {
+  if (a?.batchId) {
+    onSelectBatch?.(a.batchId)
+    return
+  }
+  const code = String(a?.code || a?.category || '').toUpperCase()
+  if (code.includes('MACHINE') || a?.machineId) {
+    onNavigate?.('machines')
+    return
+  }
+  if (code.includes('PASS') || a?.passId) {
+    onNavigate?.('passes')
+    return
+  }
+  if (code.includes('DELAY')) {
+    onNavigate?.('delay-monitor')
+    return
+  }
+  onNavigate?.('alerts')
+}
+
+function severityGroup(severity) {
+  const s = String(severity || '').toLowerCase()
+  if (s === 'critical') return 'critical'
+  if (s === 'warning' || s === 'attention') return 'attention'
+  return 'normal'
+}
+
+export default function AlertsPanel({ onToast, onSelectBatch, onNavigate }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
   const [rows, setRows] = useState([])
@@ -26,6 +54,23 @@ export default function AlertsPanel({ onToast }) {
     setRows(d.alerts || [])
   }, [pccApi])
   useEffect(() => { load().catch(() => {}) }, [load])
+
+  const groups = useMemo(() => {
+    const critical = []
+    const attention = []
+    const normal = []
+    for (const a of rows) {
+      const g = severityGroup(a.severity)
+      if (g === 'critical') critical.push(a)
+      else if (g === 'attention') attention.push(a)
+      else normal.push(a)
+    }
+    return [
+      { id: 'critical', label: 'CRITICAL', items: critical },
+      { id: 'attention', label: 'ATTENTION', items: attention },
+      { id: 'normal', label: 'NORMAL', items: normal },
+    ]
+  }, [rows])
 
   const acknowledge = async (id) => {
     try {
@@ -69,6 +114,37 @@ export default function AlertsPanel({ onToast }) {
       onToast?.(err?.response?.data?.message || 'Raise alert failed')
     }
   }
+
+  const renderAlert = (a) => (
+    <li key={a._id}>
+      <button
+        type="button"
+        className="pcc-link"
+        onClick={() => openAlert(a, { onSelectBatch, onNavigate })}
+      >
+        <strong>{a.alertNumber} · {a.title}</strong>
+      </button>
+      <span>{a.message}</span>
+      <span><PccStatusBadge status={a.status} /> {a.severity} · {formatTime(a.createdAt)}</span>
+      <span className="pcc-actions">
+        {(a.batchId || onNavigate) && (
+          <button
+            type="button"
+            className="pcc-btn-ghost"
+            onClick={() => openAlert(a, { onSelectBatch, onNavigate })}
+          >
+            {a.batchId ? 'Open batch' : 'Open'}
+          </button>
+        )}
+        {a.status === 'OPEN' && (
+          <button type="button" className="pcc-btn-ghost" onClick={() => acknowledge(a._id)}>Acknowledge</button>
+        )}
+        {a.status !== 'RESOLVED' && (
+          <button type="button" className="pcc-btn-ghost" onClick={() => resolve(a._id)}>Resolve</button>
+        )}
+      </span>
+    </li>
+  )
 
   return (
     <div className="pcc-stack">
@@ -133,27 +209,23 @@ export default function AlertsPanel({ onToast }) {
         )}
       </div>
 
-      <div className="pcc-panel">
-        {rows.length === 0 ? <PccEmptyState message="No production alerts" /> : (
-          <ul className="pcc-list">
-            {rows.map((a) => (
-              <li key={a._id}>
-                <strong>{a.alertNumber} · {a.title}</strong>
-                <span>{a.message}</span>
-                <span><PccStatusBadge status={a.status} /> {a.severity} · {formatTime(a.createdAt)}</span>
-                <span className="pcc-actions">
-                  {a.status === 'OPEN' && (
-                    <button type="button" className="pcc-btn-ghost" onClick={() => acknowledge(a._id)}>Acknowledge</button>
-                  )}
-                  {a.status !== 'RESOLVED' && (
-                    <button type="button" className="pcc-btn-ghost" onClick={() => resolve(a._id)}>Resolve</button>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {rows.length === 0 ? (
+        <div className="pcc-panel">
+          <PccEmptyState
+            message="No production alerts"
+            hint="Alerts appear when weight variance, machine faults, or QC issues are raised."
+          />
+        </div>
+      ) : groups.map((g) => (
+        g.items.length === 0 ? null : (
+          <div key={g.id} className="pcc-panel">
+            <div className="pcc-panel-head"><h2>{g.label}</h2></div>
+            <ul className="pcc-list">
+              {g.items.map(renderAlert)}
+            </ul>
+          </div>
+        )
+      ))}
     </div>
   )
 }

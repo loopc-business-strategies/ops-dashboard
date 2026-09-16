@@ -19,6 +19,14 @@ export const STOCK_WORKSPACE_TABS = [
   { id: 'stock-adjustments', label: 'Adjustments' },
 ]
 
+export const METAL_SECTION_IDS = ['metal-custody', 'movements', 'passes']
+
+export const METAL_WORKSPACE_TABS = [
+  { id: 'metal-custody', label: 'Current Custody' },
+  { id: 'movements', label: 'Movement History' },
+  { id: 'passes', label: 'Handovers' },
+]
+
 /** Primary sidebar IA. Nested `children` expand under Departments. */
 export const PCC_SIDEBAR_GROUPS = [
   {
@@ -40,6 +48,7 @@ export const PCC_SIDEBAR_GROUPS = [
       { id: 'planning', label: 'Planning' },
       { id: 'batches', label: 'Batches' },
       { id: 'processes', label: 'Processes' },
+      { id: 'journey', label: 'Production Journey' },
       { id: 'dept-flow', label: 'Production Flow' },
     ],
   },
@@ -48,9 +57,7 @@ export const PCC_SIDEBAR_GROUPS = [
     label: 'MATERIAL',
     items: [
       { id: 'stock-overview', label: 'Stock', stockHub: true },
-      { id: 'movements', label: 'Metal Movement' },
-      { id: 'passes', label: 'Handovers' },
-      { id: 'metal-custody', label: 'Metal Custody' },
+      { id: 'metal-custody', label: 'Metal Control', metalHub: true },
     ],
   },
   {
@@ -106,9 +113,14 @@ export function isStockSection(sectionId) {
   return STOCK_SECTION_IDS.includes(String(sectionId || ''))
 }
 
+export function isMetalSection(sectionId) {
+  return METAL_SECTION_IDS.includes(String(sectionId || ''))
+}
+
 export function isSidebarItemActive(sectionId, item) {
   const sid = String(sectionId || '')
   if (item.stockHub) return isStockSection(sid)
+  if (item.metalHub) return isMetalSection(sid)
   if (item.children?.length) {
     if (sid === item.id) return true
     return item.children.some((c) => c.id === sid)

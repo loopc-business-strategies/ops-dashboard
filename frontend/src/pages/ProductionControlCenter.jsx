@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { DEPT_SECTION_MAP, SECTION_IDS, SECTIONS, formatClock, getSectionTrail } from '../components/production-control/shared'
-import { PCC_SIDEBAR_GROUPS, isSidebarItemActive, isStockSection } from '../components/production-control/pccSidebarConfig'
+import { DEPT_SECTION_MAP, SECTIONS, formatClock, getSectionTrail, resolveSectionId } from '../components/production-control/shared'
+import { PCC_SIDEBAR_GROUPS, isMetalSection, isSidebarItemActive, isStockSection } from '../components/production-control/pccSidebarConfig'
 import { PccSkeleton } from '../components/production-control/primitives'
 import { DemoModeProvider, useDemoMode } from '../components/production-control/demo/DemoModeContext'
 import { isProductionDemoEnabled } from '../components/production-control/demo/flags'
@@ -14,8 +14,6 @@ const WorkOrdersPanel = lazy(() => import('../components/production-control/Work
 const PlanningPanel = lazy(() => import('../components/production-control/PlanningPanel'))
 const OverviewPanel = lazy(() => import('../components/production-control/panels/OverviewPanel'))
 const BatchesPanel = lazy(() => import('../components/production-control/panels/BatchesPanel'))
-const PassesPanel = lazy(() => import('../components/production-control/panels/PassesPanel'))
-const MovementsPanel = lazy(() => import('../components/production-control/panels/MovementsPanel'))
 const ProcessesPanel = lazy(() => import('../components/production-control/panels/ProcessesPanel'))
 const QcPanel = lazy(() => import('../components/production-control/panels/QcPanel'))
 const MachinesPanel = lazy(() => import('../components/production-control/panels/MachinesPanel'))
@@ -24,6 +22,8 @@ const AuditPanel = lazy(() => import('../components/production-control/panels/Au
 const BatchDetailModal = lazy(() => import('../components/production-control/panels/BatchDetailModal'))
 const MyTasksPanel = lazy(() => import('../components/production-control/panels/MyTasksPanel'))
 const StockWorkspace = lazy(() => import('../components/production-control/StockWorkspace'))
+const MetalControlWorkspace = lazy(() => import('../components/production-control/MetalControlWorkspace'))
+const JourneyPanel = lazy(() => import('../components/production-control/panels/JourneyPanel'))
 const DepartmentPanel = lazy(() => import('../components/production-control/DepartmentPanel'))
 const FloorManagerPanel = lazy(() =>
   import('../components/production-control/FloorManagerPanels').then((m) => ({ default: m.FloorManagerPanel })),
@@ -36,9 +36,6 @@ const ReportsPanel = lazy(() =>
 )
 const SettingsPanel = lazy(() =>
   import('../components/production-control/FloorManagerPanels').then((m) => ({ default: m.SettingsPanel })),
-)
-const MetalCustodyPanel = lazy(() =>
-  import('../components/production-control/OpsPanels').then((m) => ({ default: m.MetalCustodyPanel })),
 )
 const DelayMonitorPanel = lazy(() =>
   import('../components/production-control/OpsPanels').then((m) => ({ default: m.DelayMonitorPanel })),
@@ -53,8 +50,13 @@ const DepartmentFlowPanel = lazy(() => import('../components/production-control/
 
 const RETURN_KEY = 'pcc_returnTo'
 const DEMO_ENABLED = isProductionDemoEnabled()
-const FLOOR_SUMMARY_SECTIONS = new Set(['live', 'overview', 'floor-manager', 'dept-flow'])
-const FLOW_SECTIONS = new Set(['live', 'overview', 'settings', 'dept-flow', ...Object.keys(DEPT_SECTION_MAP)])
+const FLOOR_SUMMARY_SECTIONS = new Set(['live', 'overview', 'floor-manager', 'dept-flow', 'journey'])
+const SOCKET_SOFT_REFRESH_SECTIONS = new Set([
+  'live', 'overview', 'floor-manager', 'dept-flow', 'journey',
+  'alerts', 'delay-monitor', 'my-tasks', 'metal-custody', 'movements', 'passes',
+  'batches', 'processes', 'qc', 'rework',
+])
+const FLOW_SECTIONS = new Set(['live', 'overview', 'settings', 'dept-flow', 'journey', ...Object.keys(DEPT_SECTION_MAP)])
 
 function connectionLabel(connection) {
   if (connection === 'LIVE') return 'Live / Connected'
@@ -64,8 +66,7 @@ function connectionLabel(connection) {
 }
 
 function resolveSection(raw) {
-  const id = String(raw || '').trim()
-  return SECTION_IDS.has(id) ? id : 'live'
+  return resolveSectionId(raw)
 }
 
 function SectionFallback() {
@@ -99,10 +100,12 @@ function ProductionControlCenterInner() {
   }, [setSearchParams])
 
   useEffect(() => {
-    if (!searchParams.get('section') || !SECTION_IDS.has(String(searchParams.get('section')))) {
+    const raw = searchParams.get('section')
+    const resolved = resolveSection(raw)
+    if (!raw || String(raw) !== resolved) {
       setSearchParams((prev) => {
         const p = new URLSearchParams(prev)
-        p.set('section', 'live')
+        p.set('section', resolved)
         return p
       }, { replace: true })
     }
@@ -309,10 +312,13 @@ function ProductionControlCenterInner() {
         socket.io.on('reconnect_attempt', () => setConnection('RECONNECTING'))
         socket.io.on('reconnect', () => setConnection('LIVE'))
         socket.on('production:update', () => {
-          if (!FLOOR_SUMMARY_SECTIONS.has(sectionRef.current) && !selectedBatchId) return
+          const sec = sectionRef.current
+          if (!SOCKET_SOFT_REFRESH_SECTIONS.has(sec) && !selectedBatchId) return
           if (softTimerRef.current) clearTimeout(softTimerRef.current)
           softTimerRef.current = setTimeout(() => {
-            loadFloorProgressive({ soft: true })
+            if (FLOOR_SUMMARY_SECTIONS.has(sectionRef.current) || selectedBatchId) {
+              loadFloorProgressive({ soft: true })
+            }
           }, 300)
         })
       } catch {
@@ -346,9 +352,14 @@ function ProductionControlCenterInner() {
         kind: 'batch',
         id: b._id,
         label: b.batchNumber || b._id,
-        subtitle: [b.workOrderNumber, b.product || b.metalType, b.currentDepartment, b.status]
-          .filter(Boolean)
-          .join(' · '),
+        subtitle: [
+          b.status,
+          b.currentWeight != null ? `${b.currentWeight}g` : null,
+          b.currentDepartment,
+          b.currentHolderName,
+          b.workOrderNumber,
+          b.product || b.metalType,
+        ].filter(Boolean).join(' · '),
         batchId: b._id,
       }))
       const stockLots = (data?.stockLots || []).map((s) => ({
@@ -412,6 +423,18 @@ function ProductionControlCenterInner() {
       )
     }
 
+    if (isMetalSection(section)) {
+      return (
+        <MetalControlWorkspace
+          section={section}
+          onNavigate={setSection}
+          onToast={showToast}
+          onSelectBatch={setSelectedBatchId}
+          productionRole={productionRole}
+        />
+      )
+    }
+
     if (DEPT_SECTION_MAP[section]) {
       return (
         <DepartmentPanel
@@ -454,6 +477,8 @@ function ProductionControlCenterInner() {
             onRefresh={() => refresh()}
             onToast={showToast}
             onNavigate={setSection}
+            connection={connectionLabel(connection)}
+            lastUpdated={lastUpdated}
           />
         )
       case 'my-tasks':
@@ -483,14 +508,29 @@ function ProductionControlCenterInner() {
         )
       case 'batches':
         return <BatchesPanel onSelectBatch={setSelectedBatchId} onToast={showToast} />
-      case 'movements':
-        return <MovementsPanel onToast={showToast} />
-      case 'passes':
-        return <PassesPanel onToast={showToast} productionRole={productionRole} />
+      case 'journey':
+        return (
+          <JourneyPanel
+            onToast={showToast}
+            onSelectBatch={setSelectedBatchId}
+            onNavigate={setSection}
+          />
+        )
       case 'processes':
-        return <ProcessesPanel onToast={showToast} />
+        return (
+          <ProcessesPanel
+            onToast={showToast}
+            onSelectBatch={setSelectedBatchId}
+          />
+        )
       case 'qc':
-        return <QcPanel onToast={showToast} onNavigate={setSection} />
+        return (
+          <QcPanel
+            onToast={showToast}
+            onNavigate={setSection}
+            onSelectBatch={setSelectedBatchId}
+          />
+        )
       case 'rework':
         return (
           <ReworkQueuePanel
@@ -499,16 +539,20 @@ function ProductionControlCenterInner() {
             onNavigate={setSection}
           />
         )
-      case 'metal-custody':
-        return <MetalCustodyPanel onToast={showToast} onSelectBatch={setSelectedBatchId} />
       case 'delay-monitor':
         return <DelayMonitorPanel onToast={showToast} onSelectBatch={setSelectedBatchId} />
       case 'machines':
-        return <MachinesPanel onToast={showToast} />
+        return <MachinesPanel onToast={showToast} onSelectBatch={setSelectedBatchId} />
       case 'maintenance':
         return <MaintenancePanel onToast={showToast} />
       case 'alerts':
-        return <AlertsPanel onToast={showToast} />
+        return (
+          <AlertsPanel
+            onToast={showToast}
+            onSelectBatch={setSelectedBatchId}
+            onNavigate={setSection}
+          />
+        )
       case 'audit':
         return <AuditPanel onToast={showToast} />
       case 'floor-manager':
@@ -528,7 +572,7 @@ function ProductionControlCenterInner() {
       default:
         return null
     }
-  }, [section, summary, flow, loading, floorError, refresh, showToast, setSection, productionRole, loadFloorProgressive])
+  }, [section, summary, flow, loading, floorError, refresh, showToast, setSection, productionRole, loadFloorProgressive, connection, lastUpdated])
 
   return (
     <div className={`pcc-root${isDemo ? ' pcc-demo-active' : ''}${navOpen ? ' pcc-nav-open' : ''}`}>
