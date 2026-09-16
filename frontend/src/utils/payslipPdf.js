@@ -60,9 +60,38 @@ function salaryCalculatedOf(payslip) {
   return payslip.net ?? payslip.gross
 }
 
+function amountOf(item) {
+  const n = Number(item?.amount)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** True when earnings add detail beyond a single BASIC matching Salary Calculated. */
+function shouldShowEarningsBreakdown(payslip) {
+  const earnings = Array.isArray(payslip.earnings) ? payslip.earnings : []
+  if (!earnings.length) return false
+  if (earnings.length > 1) return true
+  const only = earnings[0]
+  const code = String(only?.code || '').toUpperCase()
+  if (code !== 'BASIC') return true
+  const calc = Number(salaryCalculatedOf(payslip))
+  const line = amountOf(only)
+  return Math.abs(calc - line) > 0.009
+}
+
+/** True when at least one deduction has amount > 0. */
+function shouldShowDeductionsBreakdown(payslip) {
+  const deductions = Array.isArray(payslip.deductions) ? payslip.deductions : []
+  return deductions.some((d) => amountOf(d) > 0)
+}
+
+function hasEmployerContributions(payslip) {
+  const rows = Array.isArray(payslip.employerContributions) ? payslip.employerContributions : []
+  return rows.some((r) => amountOf(r) > 0) || Number(payslip.employerTotal) > 0
+}
+
 /**
  * Generate a payslip PDF via jspdf + autotable.
- * LoopC structured tenants: compact header + Employee/Salary Details tables (no duplicate fields).
+ * LoopC structured: compact header + Employee/Salary Details only (no duplicate blocks).
  * Other tenants: legacy full header + earned/paid/balance lines.
  * Presentation only — does not mutate payslip data.
  */
@@ -85,12 +114,10 @@ export async function generatePayslipPdf(payslip, tenant) {
   doc.setFontSize(10)
 
   if (structured) {
-    // Compact header — fields not repeated in Employee Details
     doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
     doc.text(`Department: ${payslip.department || '—'}`, 320, y)
     y += 14
     doc.text(`Bank: ${payslip.bankMasked || '****'}`, margin, y)
-    doc.text(`Monthly salary: ${money(payslip.monthlySalary)}`, 320, y)
     y += 16
 
     doc.setFont('helvetica', 'bold')
@@ -139,10 +166,67 @@ export async function generatePayslipPdf(payslip, tenant) {
     })
     y = doc.lastAutoTable.finalY + 14
 
-    doc.setFont('helvetica', 'bold')
+    if (shouldShowEarningsBreakdown(payslip)) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.text('Earnings breakdown', margin, y)
+      y += 6
+      const earningsRows = (payslip.earnings || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
+      autoTable(doc, {
+        startY: y,
+        head: [['Code', 'Earnings', 'Amount']],
+        body: earningsRows,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [30, 41, 59] },
+      })
+      y = doc.lastAutoTable.finalY + 12
+    }
+
+    if (shouldShowDeductionsBreakdown(payslip)) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.text('Deductions breakdown', margin, y)
+      y += 6
+      const dedRows = (payslip.deductions || [])
+        .filter((d) => amountOf(d) > 0)
+        .map((r) => [r.code || '', r.label || '', money(r.amount)])
+      autoTable(doc, {
+        startY: y,
+        head: [['Code', 'Deductions', 'Amount']],
+        body: dedRows,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [127, 29, 29] },
+      })
+      y = doc.lastAutoTable.finalY + 12
+    }
+
     doc.setFontSize(10)
-    doc.text('Earnings breakdown', margin, y)
-    y += 6
+    doc.setFont('helvetica', 'bold')
+    if (hasEmployerContributions(payslip)) {
+      doc.text('Employer contributions (not part of net pay)', margin, y)
+      y += 8
+      const empRows = (payslip.employerContributions || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
+      autoTable(doc, {
+        startY: y,
+        head: [['Code', 'Employer component', 'Amount']],
+        body: empRows.length ? empRows : [['—', 'None', '0.00']],
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [30, 64, 175] },
+      })
+      y = doc.lastAutoTable.finalY + 12
+      doc.setFont('helvetica', 'bold')
+      doc.text(`Employer total: ${money(payslip.employerTotal)}`, margin, y)
+      y += 14
+    } else {
+      doc.text(`Employer total: ${money(payslip.employerTotal ?? 0)}`, margin, y)
+      y += 14
+    }
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Payment date: ${fmtDate(payslip.paymentDate)} · Status: ${payslip.paymentStatus || '—'}`, margin, y)
   } else {
     // Legacy full header (non-LoopC / non-structured)
     doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
@@ -159,39 +243,29 @@ export async function generatePayslipPdf(payslip, tenant) {
     doc.text(`Payable days: ${payslip.payableDays ?? '—'}`, margin, y)
     doc.text(`Monthly salary: ${money(payslip.monthlySalary)}`, 320, y)
     y += 20
-  }
 
-  const earningsRows = (payslip.earnings || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
-  autoTable(doc, {
-    startY: y,
-    head: [['Code', 'Earnings', 'Amount']],
-    body: earningsRows.length ? earningsRows : [['—', 'No earnings', '0.00']],
-    margin: { left: margin, right: margin },
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [30, 41, 59] },
-  })
-  y = doc.lastAutoTable.finalY + 12
+    const earningsRows = (payslip.earnings || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
+    autoTable(doc, {
+      startY: y,
+      head: [['Code', 'Earnings', 'Amount']],
+      body: earningsRows.length ? earningsRows : [['—', 'No earnings', '0.00']],
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [30, 41, 59] },
+    })
+    y = doc.lastAutoTable.finalY + 12
 
-  if (structured) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text('Deductions breakdown', margin, y)
-    y += 6
-  }
+    const dedRows = (payslip.deductions || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
+    autoTable(doc, {
+      startY: y,
+      head: [['Code', 'Deductions', 'Amount']],
+      body: dedRows.length ? dedRows : [['—', 'No deductions', '0.00']],
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [127, 29, 29] },
+    })
+    y = doc.lastAutoTable.finalY + 14
 
-  const dedRows = (payslip.deductions || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
-  autoTable(doc, {
-    startY: y,
-    head: [['Code', 'Deductions', 'Amount']],
-    body: dedRows.length ? dedRows : [['—', 'No deductions', '0.00']],
-    margin: { left: margin, right: margin },
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [127, 29, 29] },
-  })
-  y = doc.lastAutoTable.finalY + 14
-
-  // Legacy summary lines — omitted for LoopC structured (already in Salary Details)
-  if (!structured) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.text(`Earned salary: ${money(payslip.net ?? payslip.gross)}`, margin, y)
@@ -206,28 +280,28 @@ export async function generatePayslipPdf(payslip, tenant) {
     doc.setFontSize(8)
     doc.text('Salary balance is earned but unpaid salary. It is not an employee advance.', margin, y)
     y += 16
+
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Employer contributions (not part of net pay)', margin, y)
+    y += 8
+
+    const empRows = (payslip.employerContributions || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
+    autoTable(doc, {
+      startY: y,
+      head: [['Code', 'Employer component', 'Amount']],
+      body: empRows.length ? empRows : [['—', 'None', '0.00']],
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [30, 64, 175] },
+    })
+    y = doc.lastAutoTable.finalY + 12
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Employer total: ${money(payslip.employerTotal)}`, margin, y)
+    y += 14
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Payment date: ${fmtDate(payslip.paymentDate)} · Status: ${payslip.paymentStatus || '—'}`, margin, y)
   }
-
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Employer contributions (not part of net pay)', margin, y)
-  y += 8
-
-  const empRows = (payslip.employerContributions || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
-  autoTable(doc, {
-    startY: y,
-    head: [['Code', 'Employer component', 'Amount']],
-    body: empRows.length ? empRows : [['—', 'None', '0.00']],
-    margin: { left: margin, right: margin },
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [30, 64, 175] },
-  })
-  y = doc.lastAutoTable.finalY + 12
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Employer total: ${money(payslip.employerTotal)}`, margin, y)
-  y += 14
-  doc.setFont('helvetica', 'normal')
-  doc.text(`Payment date: ${fmtDate(payslip.paymentDate)} · Status: ${payslip.paymentStatus || '—'}`, margin, y)
 
   const filename = `${payslip.number || 'payslip'}.pdf`
   doc.save(filename)
