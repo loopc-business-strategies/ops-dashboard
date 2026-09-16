@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { ERP_TAB_SCOPE_STATICS } from './erpTabScopeStatics'
 import { buildErpTabModalProps } from './buildErpTabModalProps'
+import { buildErpTabPanelProps } from './buildErpTabPanelProps'
 
 const ENQUIRY_MODAL_HELPER_KEYS = [
   'getAccountEnquirySignedMetricColor',
@@ -10,10 +11,31 @@ const ENQUIRY_MODAL_HELPER_KEYS = [
   'isMetalStatementEntry',
 ]
 
+const INVENTORY_AND_TX_PANEL_HELPER_KEYS = [
+  'resolveMainStockValueFromForm',
+  'resolveTransactionAttachmentUrl',
+]
+
 describe('erpTabScopeStatics (node)', () => {
   test('exports account enquiry statement helpers as functions', () => {
     for (const key of ENQUIRY_MODAL_HELPER_KEYS) {
       expect(typeof ERP_TAB_SCOPE_STATICS[key]).toBe('function')
+    }
+  })
+
+  test('exports inventory and transaction panel helpers as functions', () => {
+    for (const key of INVENTORY_AND_TX_PANEL_HELPER_KEYS) {
+      expect(typeof ERP_TAB_SCOPE_STATICS[key]).toBe('function')
+    }
+  })
+
+  test('buildErpTabPanelProps passes inventory and transaction helpers from merged scope', () => {
+    const panelProps = buildErpTabPanelProps({
+      ...ERP_TAB_SCOPE_STATICS,
+    })
+
+    for (const key of INVENTORY_AND_TX_PANEL_HELPER_KEYS) {
+      expect(typeof panelProps[key]).toBe('function')
     }
   })
 

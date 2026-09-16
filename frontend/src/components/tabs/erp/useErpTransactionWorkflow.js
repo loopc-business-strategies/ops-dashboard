@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 
 export function getTransactionActionSuccessLabel(action) {
-  if (action === 'submit') return 'submitted'
+  if (action === 'submit') return 'submitted and posted'
   if (action === 'approve') return 'approved'
   if (action === 'return') return 'returned for edit'
   if (action === 'reject') return 'rejected'
@@ -10,7 +10,7 @@ export function getTransactionActionSuccessLabel(action) {
 }
 
 export function getBulkTransactionActionSuccessLabel(action) {
-  if (action === 'submit') return 'submitted'
+  if (action === 'submit') return 'submitted and posted'
   if (action === 'approve') return 'approved'
   if (action === 'post') return 'posted'
   return action
@@ -83,14 +83,35 @@ export function useErpTransactionWorkflow({
       }
       const payload = {
         comment: transactionWorkflowNote,
+        ...(action === 'submit' ? { postImmediately: true } : {}),
         ...(transactionForm.debitAccountId ? { debitAccountId: transactionForm.debitAccountId } : {}),
         ...(transactionForm.creditAccountId ? { creditAccountId: transactionForm.creditAccountId } : {}),
       }
-      if (action === 'submit') await api.submitTransaction(token, id, payload)
-      if (action === 'approve') await api.approveTransaction(token, id, payload)
-      if (action === 'return') await api.returnTransaction(token, id, payload)
-      if (action === 'reject') await api.rejectTransaction(token, id, payload)
-      if (action === 'post') await api.postTransaction(token, id, payload)
+      const runAction = async (confirmVendorAdvance = false) => {
+        const body = {
+          ...payload,
+          ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}),
+        }
+        if (action === 'submit') return api.submitTransaction(token, id, body)
+        if (action === 'approve') return api.approveTransaction(token, id, body)
+        if (action === 'return') return api.returnTransaction(token, id, body)
+        if (action === 'reject') return api.rejectTransaction(token, id, body)
+        if (action === 'post') return api.postTransaction(token, id, body)
+        return null
+      }
+      try {
+        await runAction(false)
+      } catch (e) {
+        const needsAdvanceConfirmation = (action === 'submit' || action === 'post')
+          && e?.response?.status === 409
+          && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
+        if (!needsAdvanceConfirmation) throw e
+        if (typeof window !== 'undefined' && !window.confirm(e.response?.data?.message || 'This payment will create a vendor advance. Continue?')) {
+          setSaving(false)
+          return
+        }
+        await runAction(true)
+      }
       await Promise.all([loadTransactions(), loadDashboard()])
       setTransactionWorkflowNote('')
       showNotification(`✅ Transaction ${getTransactionActionSuccessLabel(action)}`)

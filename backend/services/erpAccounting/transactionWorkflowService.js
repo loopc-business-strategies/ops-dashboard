@@ -44,11 +44,7 @@ function createTransactionWorkflowAction({
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'submit_note')
       appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note })
-      const postImmediately = Boolean(options.postImmediately)
-      if (!postImmediately) {
-        await tx.save(saveOpts)
-        return { transaction: tx }
-      }
+      // All tenants: Submit always posts (Draft → Posted). No separate Approve/Post step.
       tx.status = 'approved'
       tx.approvedBy = user._id
       appendTransactionAudit(tx, user, 'approve', { fromStatus: 'submitted', toStatus: 'approved', comment: note })
@@ -57,7 +53,7 @@ function createTransactionWorkflowAction({
         user,
         note,
         fromStatus: 'approved',
-        options: { ...options, fromSubmit: true },
+        options: { ...options, fromSubmit: true, postImmediately: true },
         session,
       })
     }
@@ -99,11 +95,26 @@ function createTransactionWorkflowAction({
     }
 
     if (action === 'post') {
+      let postFromStatus = fromStatus
+      // Backlog clearance: allow Post from submitted without a separate Approve.
+      if (tx.status === 'submitted') {
+        if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can post transactions')
+        tx.status = 'approved'
+        tx.approvedBy = user._id
+        tx.updatedBy = user._id
+        appendTransactionComment(tx, user, note, 'approval_note')
+        appendTransactionAudit(tx, user, 'approve', {
+          fromStatus: 'submitted',
+          toStatus: 'approved',
+          comment: note || 'Auto-approved for backlog post',
+        })
+        postFromStatus = 'approved'
+      }
       return getTransactionPostingService().executePostWorkflowAction({
         tx,
         user,
         note,
-        fromStatus,
+        fromStatus: postFromStatus,
         options,
         session,
       })

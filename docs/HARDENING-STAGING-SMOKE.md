@@ -29,19 +29,20 @@ Remaining rows below are **manual browser UI** (voucher lock, PCC metal). Automa
 
 ---
 
-## 1. Voucher — Create → Draft → Submit (no auto-post)
+## 1. Voucher — Create → Draft → Submit (auto-post)
 
 - [ ] Create a voucher; **Save Draft** → status stays draft; no GL movement.
-- [ ] **Submit** → status becomes `submitted` (or equivalent); **no** ledger post / no auto-approve.
+- [ ] **Submit** → status becomes `posted`; ledger (and inventory for metal purchase/sale) updates.
 - [ ] As non–Super Admin finance user, **edit/PUT** after submit → `VOUCHER_SUBMITTED_LOCKED` (or UI blocks edit).
 - [ ] Super Admin can still unlock/override per existing policy (if applicable).
+- [ ] UI shows **no Approve** step; **Post** appears only for leftover `submitted`/`approved` backlog rows.
 
 ---
 
-## 2. ERP — Approve → Post still works
+## 2. ERP — Backlog Post (legacy submitted/approved only)
 
-- [ ] Open ERP Transactions for the submitted voucher.
-- [ ] **Approve** then **Post** succeeds and posts to the single GL.
+- [ ] Open ERP Transactions for any leftover `submitted`/`approved` voucher.
+- [ ] **Post** (single click; auto-approves if submitted) succeeds and posts to the single GL.
 - [ ] Confirm AR/AP outstanding reflects posted amounts where expected.
 
 ---

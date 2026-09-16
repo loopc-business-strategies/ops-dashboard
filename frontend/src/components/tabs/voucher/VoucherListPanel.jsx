@@ -182,6 +182,16 @@ export default function VoucherListPanel({
                             {t('submit')}
                           </button>
                         )}
+                        {!periodLocked && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(voucher.status) && (
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => handleListWorkflowAction(voucher, 'post')}
+                            style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#059669', color: '#fff' }}
+                          >
+                            Post
+                          </button>
+                        )}
                         {!periodLocked && canManageWorkflow && ['submitted', 'approved'].includes(voucher.status) && (
                           <button
                             type="button"

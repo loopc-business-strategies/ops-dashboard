@@ -779,20 +779,18 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
     if (!canCreateTransactionFor(req.user, tx.type)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
-    const postImmediately = Boolean(req.body?.postImmediately)
+    // All tenants: submit always posts (ignore client postImmediately flag).
     const workflowOptions = {
       comment: req.body?.comment,
-      postImmediately,
+      postImmediately: true,
       mappingOverride: req.body || {},
     }
-    const result = postImmediately
-      ? await runInTransaction(async (session) => {
-        const freshTx = await Transaction.findById(req.params.id).session(session)
-        if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
-        if (freshTx.status === 'posted') throw new Error('Transaction is already posted.')
-        return applyTransactionWorkflowAction(freshTx, req.user, 'submit', workflowOptions, session)
-      })
-      : await applyTransactionWorkflowAction(tx, req.user, 'submit', workflowOptions)
+    const result = await runInTransaction(async (session) => {
+      const freshTx = await Transaction.findById(req.params.id).session(session)
+      if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
+      if (freshTx.status === 'posted') throw new Error('Transaction is already posted.')
+      return applyTransactionWorkflowAction(freshTx, req.user, 'submit', workflowOptions, session)
+    })
 
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
@@ -1203,13 +1201,20 @@ router.post('/transactions/bulk-action', protect, validateBody(transactionBulkAc
         if (!allowed) {
           throw new Error('Forbidden')
         }
-        const actionResult = ['approve', 'post'].includes(action)
+        const needsTxn = action === 'submit' || ['approve', 'post'].includes(action)
+        const workflowOptions = {
+          comment,
+          mappingOverride,
+          ...(action === 'submit' ? { postImmediately: true } : {}),
+        }
+        const actionResult = needsTxn
           ? await runInTransaction(async (session) => {
             const freshTx = await Transaction.findById(tx._id).session(session)
             if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
-            return applyTransactionWorkflowAction(freshTx, req.user, action, { comment, mappingOverride }, session)
+            if (action === 'submit' && freshTx.status === 'posted') throw new Error('Transaction is already posted.')
+            return applyTransactionWorkflowAction(freshTx, req.user, action, workflowOptions, session)
           })
-          : await applyTransactionWorkflowAction(tx, req.user, action, { comment, mappingOverride })
+          : await applyTransactionWorkflowAction(tx, req.user, action, workflowOptions)
         results.successIds.push(String(actionResult.transaction._id))
       } catch (e) {
         results.failed.push({ id: String(tx._id), message: e.message || 'Failed' })
@@ -1218,7 +1223,7 @@ router.post('/transactions/bulk-action', protect, validateBody(transactionBulkAc
 
     const refreshed = await populateTransactionQuery(Transaction.find({ _id: { $in: results.successIds } }))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
-    if ((action === 'post' || action === 'void') && results.successIds.length) {
+    if ((action === 'submit' || action === 'post' || action === 'void') && results.successIds.length) {
       invalidateErpReadCaches(tenantKey)
     }
     emitRealtime(req, (realtimeServer) => {
@@ -1230,7 +1235,7 @@ router.post('/transactions/bulk-action', protect, validateBody(transactionBulkAc
           failureCount: results.failed.length,
         })
       }
-      if (action === 'post' && typeof realtimeServer.broadcastLedgerUpdate === 'function' && results.successIds.length) {
+      if ((action === 'submit' || action === 'post') && typeof realtimeServer.broadcastLedgerUpdate === 'function' && results.successIds.length) {
         realtimeServer.broadcastLedgerUpdate(tenantKey, {
           action: 'bulk_posted_from_transaction',
           transactionIds: results.successIds,

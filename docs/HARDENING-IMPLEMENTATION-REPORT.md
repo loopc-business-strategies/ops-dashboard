@@ -9,7 +9,7 @@ Monorepo frontend / backend / mobile; auth & tenant isolation; PCC; ERP GL; Fina
 
 ## 2. Fixed
 
-- Voucher Submit no longer auto-posts (`postImmediately` removed); edit lock after submit.
+- Voucher Submit always auto-posts for all tenants (`postImmediately` forced server-side); edit lock after submit/post.
 - Overview quick actions navigate to real tabs; Global Search + Owner Exceptions wired.
 - Finance AR/AP reads ERP outstanding APIs (not seed).
 - Operations shows **DEMO MODE** banner when seed flag is on.

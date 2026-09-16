@@ -806,13 +806,14 @@ export default function VoucherTab({
     setSaving(true)
     clearError()
     try {
-      // Submit only marks status submitted (no postImmediately / auto-post).
+      // All tenants: submit always posts (backend forces postImmediately).
       const requestAction = async (confirmVendorAdvance = false) => runVoucherWorkflowAction(
         token,
         editingId,
         action,
         {
           comment: workflowNote,
+          ...(action === 'submit' ? { postImmediately: true } : {}),
           ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}),
         },
       )
@@ -820,7 +821,7 @@ export default function VoucherTab({
       try {
         await requestAction(false)
       } catch (e) {
-        const needsAdvanceConfirmation = (action === 'post')
+        const needsAdvanceConfirmation = (action === 'submit' || action === 'post')
           && e?.response?.status === 409
           && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
 
@@ -831,7 +832,7 @@ export default function VoucherTab({
       await loadVouchers()
       setWorkflowNote('')
       const actionLabel = action === 'submit'
-        ? 'submitted'
+        ? 'submitted and posted'
         : action === 'approve'
           ? 'approved'
           : action === 'return'
@@ -865,13 +866,14 @@ export default function VoucherTab({
     setSaving(true)
     clearError()
     try {
-      // Submit only marks status submitted (no postImmediately / auto-post).
+      // All tenants: submit always posts (backend forces postImmediately).
       const requestAction = async (confirmVendorAdvance = false) => runVoucherWorkflowAction(
         token,
         voucher._id,
         action,
         {
           comment,
+          ...(action === 'submit' ? { postImmediately: true } : {}),
           ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}),
         },
       )
@@ -879,7 +881,7 @@ export default function VoucherTab({
       try {
         await requestAction(false)
       } catch (e) {
-        const needsAdvanceConfirmation = (action === 'post')
+        const needsAdvanceConfirmation = (action === 'submit' || action === 'post')
           && e?.response?.status === 409
           && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
 
@@ -889,7 +891,7 @@ export default function VoucherTab({
       }
       await loadVouchers()
       const actionLabel = action === 'submit'
-        ? 'submitted'
+        ? 'submitted and posted'
         : action === 'approve'
           ? 'approved'
           : action === 'return'

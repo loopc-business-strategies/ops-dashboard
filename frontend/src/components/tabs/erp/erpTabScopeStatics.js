@@ -17,6 +17,8 @@ import {
   createInventoryMappingForm,
   decodeInventoryCategoryMeta,
   formatVatPercent,
+  resolveMainStockValueFromForm,
+  resolveTransactionAttachmentUrl,
   titleCaseWords,
 } from './erpTabUtils'
 import {
@@ -60,6 +62,8 @@ export const ERP_TAB_SCOPE_STATICS = {
   getTransactionBulkSelectionLabel,
   isMetalStatementEntry,
   resolveExposureDirection,
+  resolveMainStockValueFromForm,
   resolveMarginEquityDirection,
+  resolveTransactionAttachmentUrl,
   titleCaseWords,
 }

@@ -174,10 +174,30 @@ describe('ERP accounting transactions workflow', () => {
     expect(commentRes.body.transaction.auditTrail.map((entry) => entry.action)).toEqual(expect.arrayContaining(['create', 'comment']))
   })
 
-  test('bulk submit updates statuses and records submit audit events', async () => {
+  test('bulk submit posts transactions and records submit audit events', async () => {
     const financeUser = await createUser()
-    const txOne = await createDraftTransaction(financeUser, { description: 'Expense A' })
-    const txTwo = await createDraftTransaction(financeUser, { description: 'Expense B' })
+    const expenseAccount = await ChartOfAccount.create({
+      accountName: 'Bulk Expense',
+      accountCode: '6100',
+      accountType: 'Expense',
+      createdBy: financeUser._id,
+    })
+    const cashAccount = await ChartOfAccount.create({
+      accountName: 'Bulk Cash',
+      accountCode: '1100',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const txOne = await createDraftTransaction(financeUser, {
+      description: 'Expense A',
+      debitAccountId: expenseAccount._id,
+      creditAccountId: cashAccount._id,
+    })
+    const txTwo = await createDraftTransaction(financeUser, {
+      description: 'Expense B',
+      debitAccountId: expenseAccount._id,
+      creditAccountId: cashAccount._id,
+    })
 
     const bulkRes = await request(app)
       .post('/api/erp-accounting/transactions/bulk-action')
@@ -192,51 +212,88 @@ describe('ERP accounting transactions workflow', () => {
     expect(bulkRes.body.successCount).toBe(2)
     expect(bulkRes.body.failureCount).toBe(0)
     for (const transaction of bulkRes.body.transactions) {
-      expect(transaction.status).toBe('submitted')
+      expect(transaction.status).toBe('posted')
       expect(transaction.auditTrail.some((entry) => entry.action === 'submit' && entry.comment === 'Monthly close batch')).toBe(true)
     }
   })
 
-  test('submit without postImmediately leaves submitted status, does not post ledger, and locks edits', async () => {
+  test('submit always posts ledger', async () => {
     const financeUser = await createUser()
-    const tx = await createDraftTransaction(financeUser, { description: 'Submit-only voucher' })
+    const expenseAccount = await ChartOfAccount.create({
+      accountName: 'Office Expense',
+      accountCode: '6000',
+      accountType: 'Expense',
+      createdBy: financeUser._id,
+    })
+    const cashAccount = await ChartOfAccount.create({
+      accountName: 'Cash',
+      accountCode: '1000',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const tx = await createDraftTransaction(financeUser, {
+      description: 'Submit-posts voucher',
+      debitAccountId: expenseAccount._id,
+      creditAccountId: cashAccount._id,
+    })
 
     const submitRes = await request(app)
       .post(`/api/erp-accounting/transactions/${tx._id}/submit`)
       .set(authHeader(financeUser))
-      .send({ comment: 'Ready for review' })
+      .send({ comment: 'Ready for books' })
 
     expect(submitRes.status).toBe(200)
-    expect(submitRes.body.transaction.status).toBe('submitted')
-    expect(submitRes.body.ledgerEntry).toBeFalsy()
+    expect(submitRes.body.transaction.status).toBe('posted')
+    expect(submitRes.body.ledgerEntry).toBeTruthy()
     expect(submitRes.body.transaction.auditTrail.some((entry) => entry.action === 'submit')).toBe(true)
+    expect(submitRes.body.transaction.auditTrail.some((entry) => entry.action === 'post')).toBe(true)
 
     const ledgerCount = await Ledger.countDocuments({ referenceId: tx._id, isDeleted: { $ne: true } })
-    expect(ledgerCount).toBe(0)
+    expect(ledgerCount).toBeGreaterThan(0)
 
-    const lockRes = await request(app)
-      .put(`/api/erp-accounting/transactions/${tx._id}`)
+    const posted = await Transaction.findById(tx._id)
+    expect(posted.description).toBe('Submit-posts voucher')
+    expect(posted.status).toBe('posted')
+  })
+
+  test('post from submitted auto-approves and posts backlog voucher', async () => {
+    const financeUser = await createUser()
+    const expenseAccount = await ChartOfAccount.create({
+      accountName: 'Office Expense Backlog',
+      accountCode: '6001',
+      accountType: 'Expense',
+      createdBy: financeUser._id,
+    })
+    const cashAccount = await ChartOfAccount.create({
+      accountName: 'Cash Backlog',
+      accountCode: '1001',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const tx = await createDraftTransaction(financeUser, {
+      description: 'Backlog submitted voucher',
+      status: 'submitted',
+      debitAccountId: expenseAccount._id,
+      creditAccountId: cashAccount._id,
+    })
+
+    const postRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${tx._id}/post`)
       .set(authHeader(financeUser))
-      .send({ description: 'Should not update after submit' })
+      .send({ comment: 'Finalize backlog' })
 
-    expect(lockRes.status).toBe(409)
-    expect(lockRes.body.code).toBe('VOUCHER_SUBMITTED_LOCKED')
-
-    const unchanged = await Transaction.findById(tx._id)
-    expect(unchanged.description).toBe('Submit-only voucher')
-    expect(unchanged.status).toBe('submitted')
+    expect(postRes.status).toBe(200)
+    expect(postRes.body.transaction.status).toBe('posted')
+    expect(postRes.body.transaction.auditTrail.some((entry) => entry.action === 'approve')).toBe(true)
+    expect(postRes.body.transaction.auditTrail.some((entry) => entry.action === 'post')).toBe(true)
   })
 
   test('uploads attachments and tracks return/reject reasons in audit trail', async () => {
     const financeUser = await createUser({ name: 'Finance Lead' })
-    const tx = await createDraftTransaction(financeUser, { description: 'Vendor settlement' })
-
-    const submitRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${tx._id}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Ready for review' })
-
-    expect(submitRes.status).toBe(200)
+    const tx = await createDraftTransaction(financeUser, {
+      description: 'Vendor settlement',
+      status: 'submitted',
+    })
 
     const attachmentRes = await request(app)
       .post(`/api/erp-accounting/transactions/${tx._id}/attachments`)
@@ -339,22 +396,11 @@ describe('ERP accounting transactions workflow', () => {
 
     expect(createRes.status).toBe(201)
 
-    const submitRes = await request(app)
+    const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
       .set(authHeader(financeUser))
-      .send({ comment: 'Ready to post' })
-    expect(submitRes.status).toBe(200)
-
-    const approveRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approved for posting' })
-    expect(approveRes.status).toBe(200)
-
-    const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
-      .set(authHeader(financeUser))
       .send({ comment: 'Post sale voucher' })
+
 
     expect(postRes.status).toBe(200)
     expect(postRes.body.transaction.status).toBe('posted')
@@ -443,22 +489,11 @@ describe('ERP accounting transactions workflow', () => {
 
     expect(createRes.status).toBe(201)
 
-    const submitRes = await request(app)
+    const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
       .set(authHeader(financeUser))
-      .send({ comment: 'Ready to post' })
-    expect(submitRes.status).toBe(200)
-
-    const approveRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approved for posting' })
-    expect(approveRes.status).toBe(200)
-
-    const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
-      .set(authHeader(financeUser))
       .send({ comment: 'Post purchase voucher' })
+
 
     expect(postRes.status).toBe(200)
     expect(postRes.body.transaction.status).toBe('posted')
@@ -535,17 +570,8 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
 
     const txId = createRes.body.transaction._id
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Ready to post' })
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approved' })
-
     const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Post metal receipt' })
 
@@ -618,17 +644,8 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
 
     const txId = createRes.body.transaction._id
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Ready to post' })
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approved' })
-
     const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Post metal payment' })
 
@@ -700,9 +717,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
 
     const txId = createRes.body.transaction._id
-    await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({})
-    await request(app).post(`/api/erp-accounting/transactions/${txId}/approve`).set(authHeader(financeUser)).send({})
-    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/post`).set(authHeader(financeUser)).send({})
+    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({})
     expect(postRes.status).toBe(200)
 
     const enquiryRes = await request(app)
@@ -776,9 +791,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
 
     const txId = createRes.body.transaction._id
-    await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({})
-    await request(app).post(`/api/erp-accounting/transactions/${txId}/approve`).set(authHeader(financeUser)).send({})
-    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/post`).set(authHeader(financeUser)).send({})
+    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({})
     expect(postRes.status).toBe(200)
 
     const enquiryRes = await request(app)
@@ -859,18 +872,11 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
     const txId = createRes.body.transaction._id
 
-    await request(app)
+    const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
-      .send({ comment: 'submit' })
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'approve' })
-    const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
-      .set(authHeader(financeUser))
       .send({ comment: 'post' })
+
     expect(postRes.status).toBe(200)
 
     const afterPost = await InventoryItem.findById(item._id)
@@ -1000,9 +1006,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
     const txId = createRes.body.transaction._id
 
-    await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({ comment: 's' })
-    await request(app).post(`/api/erp-accounting/transactions/${txId}/approve`).set(authHeader(financeUser)).send({ comment: 'a' })
-    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/post`).set(authHeader(financeUser)).send({ comment: 'p' })
+    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({ comment: 'p' })
     expect(postRes.status).toBe(200)
 
     const main = await Ledger.findOne({ referenceType: 'purchase', referenceId: txId, isDeleted: { $ne: true } })
@@ -1103,31 +1107,20 @@ describe('ERP accounting transactions workflow', () => {
 
       const txId = createRes.body.transaction._id
 
-      const submitRes = await request(app)
+      let postRes = await request(app)
         .post(`/api/erp-accounting/transactions/${txId}/submit`)
         .set(authHeader(financeUser))
         .send({ comment: 'Submit direct account voucher' })
-      expect(submitRes.status).toBe(200)
-
-      const approveRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${txId}/approve`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Approve direct account voucher' })
-      expect(approveRes.status).toBe(200)
-
-      let postRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${txId}/post`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Post direct account voucher' })
 
       if (postRes.status === 409 && postRes.body?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED') {
         postRes = await request(app)
-          .post(`/api/erp-accounting/transactions/${txId}/post`)
+          .post(`/api/erp-accounting/transactions/${txId}/submit`)
           .set(authHeader(financeUser))
-          .send({ comment: 'Post direct account voucher', confirmVendorAdvance: true })
+          .send({ comment: 'Submit direct account voucher', confirmVendorAdvance: true })
       }
 
       expect(postRes.status).toBe(200)
+      expect(postRes.body.transaction.status).toBe('posted')
 
       return txId
     }
@@ -1260,22 +1253,14 @@ describe('ERP accounting transactions workflow', () => {
       expect(createRes.status).toBe(201)
 
       const txId = createRes.body.transaction._id
-      await request(app)
-        .post(`/api/erp-accounting/transactions/${txId}/submit`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Submit party priority voucher' })
-      await request(app)
-        .post(`/api/erp-accounting/transactions/${txId}/approve`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Approve party priority voucher' })
       let postRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${txId}/post`)
+        .post(`/api/erp-accounting/transactions/${txId}/submit`)
         .set(authHeader(financeUser))
         .send({ comment: 'Post party priority voucher' })
 
       if (postRes.status === 409 && postRes.body?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED') {
         postRes = await request(app)
-          .post(`/api/erp-accounting/transactions/${txId}/post`)
+          .post(`/api/erp-accounting/transactions/${txId}/submit`)
           .set(authHeader(financeUser))
           .send({ comment: 'Post party priority voucher', confirmVendorAdvance: true })
       }
@@ -1358,18 +1343,8 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
     const txId = createRes.body.transaction._id
 
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Submit advance warning voucher' })
-
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approve advance warning voucher' })
-
     const warningRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Post advance warning voucher' })
 
@@ -1379,7 +1354,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(Number(warningRes.body.details?.paymentAmount || 0)).toBeCloseTo(300, 2)
 
     const confirmRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Confirm vendor advance', confirmVendorAdvance: true })
 
@@ -1439,16 +1414,8 @@ describe('ERP accounting transactions workflow', () => {
       })
     expect(saleCreate.status).toBe(201)
 
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${saleCreate.body.transaction._id}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Submit sale VAT voucher' })
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${saleCreate.body.transaction._id}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approve sale VAT voucher' })
     const salePost = await request(app)
-      .post(`/api/erp-accounting/transactions/${saleCreate.body.transaction._id}/post`)
+      .post(`/api/erp-accounting/transactions/${saleCreate.body.transaction._id}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Post sale VAT voucher' })
     expect(salePost.status).toBe(200)
@@ -1473,16 +1440,8 @@ describe('ERP accounting transactions workflow', () => {
       })
     expect(purchaseCreate.status).toBe(201)
 
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${purchaseCreate.body.transaction._id}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Submit purchase VAT voucher' })
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${purchaseCreate.body.transaction._id}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approve purchase VAT voucher' })
     const purchasePost = await request(app)
-      .post(`/api/erp-accounting/transactions/${purchaseCreate.body.transaction._id}/post`)
+      .post(`/api/erp-accounting/transactions/${purchaseCreate.body.transaction._id}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Post purchase VAT voucher' })
     expect(purchasePost.status).toBe(200)
@@ -1556,22 +1515,11 @@ describe('ERP accounting transactions workflow', () => {
 
       expect(createRes.status).toBe(201)
 
-      const submitRes = await request(app)
+      const postRes = await request(app)
         .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
         .set(authHeader(financeUser))
-        .send({ comment: 'Ready to post' })
-      expect(submitRes.status).toBe(200)
-
-      const approveRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Approve FX transaction' })
-      expect(approveRes.status).toBe(200)
-
-      const postRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
-        .set(authHeader(financeUser))
         .send({ comment: 'Post FX transaction' })
+
       expect(postRes.status).toBe(200)
 
       return createRes.body.transaction._id
@@ -1645,22 +1593,11 @@ describe('ERP accounting transactions workflow', () => {
 
       expect(createRes.status).toBe(201)
 
-      const submitRes = await request(app)
+      const postRes = await request(app)
         .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
         .set(authHeader(financeUser))
-        .send({ comment: 'Ready to post' })
-      expect(submitRes.status).toBe(200)
-
-      const approveRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Approve FX multi-line transaction' })
-      expect(approveRes.status).toBe(200)
-
-      const postRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
-        .set(authHeader(financeUser))
         .send({ comment: 'Post FX multi-line transaction' })
+
       expect(postRes.status).toBe(200)
 
       return createRes.body.transaction._id
@@ -1742,22 +1679,11 @@ describe('ERP accounting transactions workflow', () => {
     expect(createRes.status).toBe(201)
     const txId = createRes.body.transaction._id
 
-    const submitRes = await request(app)
+    const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
-      .send({ comment: 'Submit INR FC receipt' })
-    expect(submitRes.status).toBe(200)
-
-    const approveRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approve INR FC receipt' })
-    expect(approveRes.status).toBe(200)
-
-    const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
-      .set(authHeader(financeUser))
       .send({ comment: 'Post INR FC receipt' })
+
     expect(postRes.status).toBe(200)
 
     const mainLedger = await queryInTenant(() => Ledger.findOne({
@@ -1819,25 +1745,13 @@ describe('ERP accounting transactions workflow', () => {
 
     expect(createRes.status).toBe(201)
 
-    const submitRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Ready to post rounded FX multi-line transaction' })
-    expect(submitRes.status).toBe(200)
-
-    const approveRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approve rounded FX multi-line transaction' })
-    expect(approveRes.status).toBe(200)
-
     const initialPostRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Post rounded FX multi-line transaction' })
     const postRes = initialPostRes.status === 409
       ? await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
         .set(authHeader(financeUser))
         .send({
           comment: 'Post rounded FX multi-line transaction',
@@ -1845,6 +1759,7 @@ describe('ERP accounting transactions workflow', () => {
         })
       : initialPostRes
     expect(postRes.status).toBe(200)
+    expect(postRes.body.transaction.status).toBe('posted')
 
     const paymentJournal = await queryInTenant(() => Ledger.findOne(
       fxAdjustmentLedgerQuery(createRes.body.transaction._id),
@@ -1913,26 +1828,14 @@ describe('ERP accounting transactions workflow', () => {
 
     const txId = createRes.body.transaction._id
 
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/submit`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Ready to post FX revalue tiny row tx' })
-      .expect(200)
-
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approve FX revalue tiny row tx' })
-      .expect(200)
-
     const firstPost = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
       .send({ comment: 'Post FX revalue tiny row tx' })
 
     if (firstPost.status === 409) {
       await request(app)
-        .post(`/api/erp-accounting/transactions/${txId}/post`)
+        .post(`/api/erp-accounting/transactions/${txId}/submit`)
         .set(authHeader(financeUser))
         .send({ comment: 'Post FX revalue tiny row tx', confirmVendorAdvance: true })
         .expect(200)
@@ -2378,22 +2281,11 @@ describe('ERP accounting transactions workflow', () => {
 
     expect(createRes.status).toBe(201)
 
-    const submitRes = await request(app)
+    const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
       .set(authHeader(financeUser))
-      .send({ comment: 'Ready to post' })
-    expect(submitRes.status).toBe(200)
-
-    const approveRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Approve FX line item transaction' })
-    expect(approveRes.status).toBe(200)
-
-    const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
-      .set(authHeader(financeUser))
       .send({ comment: 'Post FX line item transaction' })
+
     expect(postRes.status).toBe(200)
 
     const fxJournal = await queryInTenant(() => Ledger.findOne(
@@ -2468,7 +2360,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(submitRes.status).toBe(403)
   })
 
-  test('post requires approved status and rejects submitted transaction', async () => {
+  test('submit auto-posts so a second post is rejected', async () => {
     const financeUser = await createUser({ name: 'Finance Approver' })
 
     const createRes = await request(app)
@@ -2477,8 +2369,20 @@ describe('ERP accounting transactions workflow', () => {
       .send({
         type: 'expense',
         amount: 300,
-        description: 'Submitted-only should fail post',
+        description: 'Submit auto-posts so second post is rejected',
         currency: 'USD',
+        debitAccountId: (await ChartOfAccount.create({
+          accountName: 'Exp Dup Post',
+          accountCode: '6200',
+          accountType: 'Expense',
+          createdBy: financeUser._id,
+        }))._id,
+        creditAccountId: (await ChartOfAccount.create({
+          accountName: 'Cash Dup Post',
+          accountCode: '1200',
+          accountType: 'Asset',
+          createdBy: financeUser._id,
+        }))._id,
       })
 
     expect(createRes.status).toBe(201)
@@ -2489,13 +2393,14 @@ describe('ERP accounting transactions workflow', () => {
       .send({ comment: 'submit first' })
 
     expect(submitRes.status).toBe(200)
+    expect(submitRes.body.transaction.status).toBe('posted')
 
     const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
       .set(authHeader(financeUser))
-      .send({ comment: 'attempt posting while submitted' })
+      .send({ comment: 'attempt posting again' })
 
-    expect(postRes.status).toBe(400)
+    expect(postRes.status).toBe(409)
   })
 
   test('rejects invalid numeric values on transaction create', async () => {
