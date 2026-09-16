@@ -1,4 +1,4 @@
-import { C, B, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, DataTable, fmtFull } from './ui'
+import { C, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, DataTable, fmtFull, kitBtnClass } from './ui'
 import { useAuth } from '../../../context/AuthContext'
 
 export default function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAudit, onToast, openModal, financeApi }) {
@@ -25,8 +25,8 @@ export default function ExpenseManagement({ finRole, can, canEdit, expenses, set
   return (
     <div className="space-y-4">
       <SectionHeader title="Expense Management" sub={deptOnly ? 'Your department expenses only' : ''}>
-        {can('superadmin','fin_mgr','dept_head') && <button style={{...B.pri,...B.sm}} onClick={() => openModal('expense')}>+ Submit Expense</button>}
-        {canEdit() && <button style={{...B.ghost,...B.sm}} onClick={() => onToast('Export','Exporting expenses...')}>⬇ Export</button>}
+        {can('superadmin','fin_mgr','dept_head') && <button className={kitBtnClass('pri','sm')} onClick={() => openModal('expense')}>+ Submit Expense</button>}
+        {canEdit() && <button className={kitBtnClass('ghost','sm')} onClick={() => onToast('Export','Exporting expenses...')}>⬇ Export</button>}
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Total This Month"    value="$404,700" color={C.t1}     sub={<span style={{color:C.red,fontWeight:700}}>↑12% vs last month</span>} />
@@ -61,8 +61,8 @@ export default function ExpenseManagement({ finRole, can, canEdit, expenses, set
               {canEdit() && (
                 <Td>
                   {(e.status==='Pending'||e.status==='Under Review') && <>
-                    <button onClick={() => approve(e.id)} style={{ ...B.link, color:'var(--purple)', marginRight:8 }}>Approve</button>
-                    <button onClick={() => reject(e.id)}  style={{ ...B.link, color:C.red }}>Reject</button>
+                    <button onClick={() => approve(e.id)} className={kitBtnClass('link')} style={{ color:'var(--purple)', marginRight:8 }}>Approve</button>
+                    <button onClick={() => reject(e.id)}  className={kitBtnClass('link')} style={{ color:C.red }}>Reject</button>
                   </>}
                   {(e.status==='Approved'||e.status==='Rejected') && <span style={{ color:C.t4, fontSize:11 }}>—</span>}
                 </Td>

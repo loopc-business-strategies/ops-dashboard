@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '../../ui-components'
-import { C, B, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, InlineBar, DataTable, pct, fmt, fmtFull, financeBaseCurrencyCode } from './ui'
+import { C, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, InlineBar, DataTable, pct, fmt, fmtFull, financeBaseCurrencyCode, kitBtnClass } from './ui'
 import { financeInputStyle as iStyle } from './financeTabTokens'
 
 export default function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, setBudgets, financeApi }) {
@@ -55,8 +55,8 @@ export default function BudgetPlanning({ finRole, can, canEdit, onToast, openMod
   return (
     <div className="space-y-4">
       <SectionHeader title="Budget Planning" sub="FY 2026 — Annual Budget Overview">
-        {finRole==='dept_head' && <button style={{...B.sec,...B.sm}} onClick={() => openModal('budget')}>↑ Request Increase</button>}
-        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => openBudgetEditor(null)}>+ Add / Edit Budgets</button>}
+        {finRole==='dept_head' && <button className={kitBtnClass('sec','sm')} onClick={() => openModal('budget')}>↑ Request Increase</button>}
+        {canEdit() && <button className={kitBtnClass('pri','sm')} onClick={() => openBudgetEditor(null)}>+ Add / Edit Budgets</button>}
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Total Annual Budget" value={fmt(totalB)} color={C.cyan}  sub="FY 2026" />
@@ -76,8 +76,8 @@ export default function BudgetPlanning({ finRole, can, canEdit, onToast, openMod
               <Td><InlineBar value={b.spent} max={b.annual} color={p>=100?C.red:p>=80?C.yellow:C.green} /></Td>
               <Td><Badge status={b.status} /></Td>
               {canEdit() && <Td style={{ whiteSpace:'nowrap' }}>
-                <button onClick={() => openBudgetEditor(b)} style={{...B.link,color:'var(--purple)',marginRight:8}}>Edit</button>
-                <button onClick={() => deleteBudget(b)} style={{...B.link,color:C.red}}>Del</button>
+                <button onClick={() => openBudgetEditor(b)} className={kitBtnClass('link')} style={{ color:'var(--purple)',marginRight:8 }}>Edit</button>
+                <button onClick={() => deleteBudget(b)} className={kitBtnClass('link')} style={{ color:C.red }}>Del</button>
               </Td>}
             </tr>
           )
@@ -100,8 +100,8 @@ export default function BudgetPlanning({ finRole, can, canEdit, onToast, openMod
             <div><ML>Spent to Date ($)</ML><input type="number" value={bf.spent} onChange={e=>setBf(p=>({...p,spent:e.target.value}))} style={iStyle} /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
-            <button style={{ ...B.ghost, flex:1 }} onClick={() => setBudgetModal(false)}>Cancel</button>
-            <button style={{ ...B.pri, flex:1 }} onClick={saveBudget}>{editId ? 'Save Changes' : 'Add Budget'}</button>
+            <button className={kitBtnClass('ghost')} style={{ flex:1 }} onClick={() => setBudgetModal(false)}>Cancel</button>
+            <button className={kitBtnClass('pri')} style={{ flex:1 }} onClick={saveBudget}>{editId ? 'Save Changes' : 'Add Budget'}</button>
           </div>
         </Modal>
       )}

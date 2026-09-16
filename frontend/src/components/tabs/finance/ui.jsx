@@ -1,5 +1,5 @@
 import { formatMoney } from '../../../utils/money'
-import { KIT_BTN } from '../sharedModuleKit'
+import { KIT_BTN, kitBtnClass } from '../sharedModuleKit'
 
 export const C = {
   grad:   'var(--brand-primary)',
@@ -13,6 +13,7 @@ export const C = {
 }
 
 export const B = KIT_BTN
+export { kitBtnClass }
 
 export function ML({ children }) {
   return <span style={{ display:'block', fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</span>

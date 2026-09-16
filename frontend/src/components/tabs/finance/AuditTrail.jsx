@@ -1,4 +1,4 @@
-import { C, B, Badge, Td, SectionHeader, Restricted, DataTable } from './ui'
+import { C, Badge, Td, SectionHeader, Restricted, DataTable, kitBtnClass } from './ui'
 
 export default function AuditTrail({ finRole: _finRole, can, auditLog }) {
   if (!can('superadmin','auditor')) return <Restricted msg="Audit Trail is restricted to Super Admin and Auditor roles only." />
@@ -6,7 +6,7 @@ export default function AuditTrail({ finRole: _finRole, can, auditLog }) {
   return (
     <div className="space-y-4">
       <SectionHeader title="Audit Trail" sub="Immutable log — all financial actions · Read only">
-        <button style={{...B.ghost,...B.sm}}>⬇ Export PDF for Auditor</button>
+        <button className={kitBtnClass('ghost','sm')}>⬇ Export PDF for Auditor</button>
       </SectionHeader>
       <div style={{ background:'rgba(0,180,216,0.07)', border:'1px solid rgba(0,180,216,0.2)', borderRadius:10, padding:'12px 16px', fontSize:'12.5px', color:C.cyan, display:'flex', alignItems:'center', gap:10 }}>
         🔒 This log cannot be edited or deleted by anyone. All entries are permanent and tamper-proof.

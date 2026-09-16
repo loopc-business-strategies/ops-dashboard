@@ -4,7 +4,7 @@ import payrollV2API from '../../../api/payrollV2'
 import hrAPI from '../../../api/hr'
 import { isStructuredPayrollEnabled } from '../../../config/tenantBranding'
 import { generatePayslipPdf } from '../../../utils/payslipPdf'
-import { C, B, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, DataTable, fmt, fmtFull } from './ui'
+import { C, Badge, Td, Card, StatCard, SectionHeader, Restricted, ProgressRow, DataTable, fmt, fmtFull, kitBtnClass } from './ui'
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -34,8 +34,8 @@ function LegacyPayrollRegister({ finRole, can, payroll, onToast, openModal }) {
   return (
     <div className="space-y-4">
       <SectionHeader title="Legacy Payroll Register" sub={`${payroll.length} rows (FinancePayroll — unchanged)`}>
-        {can('superadmin','fin_mgr') && <button style={{...B.pri,...B.sm}} onClick={() => openModal('payroll')}>▶ Run Payroll</button>}
-        <button style={{...B.ghost,...B.sm}} onClick={() => onToast('PDF','Generating salary slips...')}>⬇ Salary Slips PDF</button>
+        {can('superadmin','fin_mgr') && <button className={kitBtnClass('pri','sm')} onClick={() => openModal('payroll')}>▶ Run Payroll</button>}
+        <button className={kitBtnClass('ghost','sm')} onClick={() => onToast('PDF','Generating salary slips...')}>⬇ Salary Slips PDF</button>
       </SectionHeader>
       {hrOnly ? (
         <Card title="Payroll by Department">
@@ -193,7 +193,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
     <div className="space-y-4">
       <SectionHeader title="Payroll Management" sub="LoopC structured payroll">
         {can('superadmin','fin_mgr') && (
-          <button style={{...B.pri,...B.sm}} disabled={busy} onClick={createRun}>+ New Run</button>
+          <button className={kitBtnClass('pri','sm')} disabled={busy} onClick={createRun}>+ New Run</button>
         )}
       </SectionHeader>
 
@@ -203,10 +203,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            style={{
-              ...B.sm,
-              ...(tab === t.id ? B.pri : B.ghost),
-            }}
+            className={kitBtnClass(tab === t.id ? 'pri' : 'ghost', 'sm')}
           >
             {t.label}
           </button>
@@ -235,7 +232,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12 }}>
               <input type="number" value={newPeriod.year} onChange={(e) => setNewPeriod((p) => ({ ...p, year: e.target.value }))} style={{ width: 90, padding: 6 }} />
               <input type="number" min={1} max={12} value={newPeriod.month} onChange={(e) => setNewPeriod((p) => ({ ...p, month: e.target.value }))} style={{ width: 70, padding: 6 }} />
-              <button style={{...B.ghost,...B.sm}} disabled={busy} onClick={createRun}>Create draft</button>
+              <button className={kitBtnClass('ghost','sm')} disabled={busy} onClick={createRun}>Create draft</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {runs.map((r) => (
@@ -264,7 +261,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
             <Card title={`Run · ${runDetail.label} · ${runDetail.status}`}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 {can('superadmin','fin_mgr') && runDetail.status === 'DRAFT' && (
-                  <button style={{...B.pri,...B.sm}} disabled={busy} onClick={() => act(async () => {
+                  <button className={kitBtnClass('pri','sm')} disabled={busy} onClick={() => act(async () => {
                     if (selectedEmployeeIds.length) {
                       await payrollV2API.selectEmployees(runDetail._id, selectedEmployeeIds)
                     }
@@ -275,26 +272,26 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                   }, 'Calculated')}>Calculate</button>
                 )}
                 {can('superadmin','fin_mgr') && runDetail.status === 'CALCULATED' && (
-                  <button style={{...B.pri,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.submitReview(runDetail._id), 'Submitted for review')}>Submit review</button>
+                  <button className={kitBtnClass('pri','sm')} disabled={busy} onClick={() => act(() => payrollV2API.submitReview(runDetail._id), 'Submitted for review')}>Submit review</button>
                 )}
                 {can('superadmin','fin_mgr') && runDetail.status === 'UNDER_REVIEW' && (
-                  <button style={{...B.pri,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.approve(runDetail._id), 'Approved')}>Approve</button>
+                  <button className={kitBtnClass('pri','sm')} disabled={busy} onClick={() => act(() => payrollV2API.approve(runDetail._id), 'Approved')}>Approve</button>
                 )}
                 {can('superadmin','fin_mgr') && runDetail.status === 'APPROVED' && (
-                  <button style={{...B.pri,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.finalize(runDetail._id), 'Finalized')}>Finalize</button>
+                  <button className={kitBtnClass('pri','sm')} disabled={busy} onClick={() => act(() => payrollV2API.finalize(runDetail._id), 'Finalized')}>Finalize</button>
                 )}
                 {can('superadmin','fin_mgr') && runDetail.status === 'FINALIZED' && (
                   <>
-                    <button style={{...B.pri,...B.sm}} disabled={busy} onClick={() => act(async () => {
+                    <button className={kitBtnClass('pri','sm')} disabled={busy} onClick={() => act(async () => {
                       const result = await payrollV2API.generatePayslips(runDetail._id)
                       onToast?.('Payslips', `Created ${result.created?.length || 0}, skipped ${result.skipped?.length || 0}, failed ${result.failures?.length || 0}`)
                       await loadPayslips()
                     }, null)}>Generate All Payslips</button>
-                    <button style={{...B.ghost,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.markPaid(runDetail._id), 'Marked paid')}>Mark paid</button>
+                    <button className={kitBtnClass('ghost','sm')} disabled={busy} onClick={() => act(() => payrollV2API.markPaid(runDetail._id), 'Marked paid')}>Mark paid</button>
                   </>
                 )}
                 {can('superadmin','fin_mgr') && runDetail.status === 'PAID' && (
-                  <button style={{...B.pri,...B.sm}} disabled={busy} onClick={() => act(async () => {
+                  <button className={kitBtnClass('pri','sm')} disabled={busy} onClick={() => act(async () => {
                     const result = await payrollV2API.generatePayslips(runDetail._id)
                     onToast?.('Payslips', `Created ${result.created?.length || 0}, skipped ${result.skipped?.length || 0}`)
                     await loadPayslips()
@@ -326,7 +323,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                     })}
                   </div>
                   <button
-                    style={{...B.ghost,...B.sm, marginTop: 8}}
+                    className={kitBtnClass('ghost','sm')} style={{ marginTop: 8 }}
                     disabled={busy || !selectedEmployeeIds.length}
                     onClick={() => act(() => payrollV2API.selectEmployees(runDetail._id, selectedEmployeeIds), 'Employees updated')}
                   >
@@ -394,7 +391,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
               placeholder="Search number / name / code"
               style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid #e5e7eb' }}
             />
-            <button style={{...B.ghost,...B.sm}} onClick={() => loadPayslips()}>Search</button>
+            <button className={kitBtnClass('ghost','sm')} onClick={() => loadPayslips()}>Search</button>
           </div>
           <DataTable title="Payslips" headers={['Number','Employee','Period','Net','Status','Actions']}>
             {payslips.map((p) => (
@@ -406,7 +403,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                 <Td><Badge status={p.paymentStatus} /></Td>
                 <Td>
                   <button
-                    style={{...B.ghost,...B.sm, marginRight: 6}}
+                    className={kitBtnClass('ghost','sm')} style={{ marginRight: 6 }}
                     onClick={async () => {
                       await generatePayslipPdf(p, company)
                       await payrollV2API.auditDownload(p._id).catch(() => {})
@@ -417,7 +414,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                   </button>
                   {can('superadmin','fin_mgr') && p.paymentStatus !== 'VOID' && p.paymentStatus !== 'REISSUED' && (
                     <button
-                      style={{...B.ghost,...B.sm}}
+                      className={kitBtnClass('ghost','sm')}
                       disabled={busy}
                       onClick={() => act(() => payrollV2API.reissuePayslip(p._id).then(() => loadPayslips()), 'Reissued')}
                     >
@@ -459,7 +456,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                         onChange={(e) => setPayAmountByBalance((m) => ({ ...m, [b._id]: e.target.value }))}
                       />
                       <button
-                        style={{...B.pri,...B.sm}}
+                        className={kitBtnClass('pri','sm')}
                         disabled={busy}
                         onClick={() => act(async () => {
                           await payrollV2API.paySalaryBalance(b._id, {
@@ -515,7 +512,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                   style={{ flex: 1, minWidth: 140, padding: 6 }}
                 />
                 <button
-                  style={{...B.pri,...B.sm}}
+                  className={kitBtnClass('pri','sm')}
                   disabled={busy || !advanceForm.employeeId || !advanceForm.amount}
                   onClick={() => act(async () => {
                     await payrollV2API.createAdvance({
@@ -541,14 +538,14 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                 <Td><Badge status={a.status} /></Td>
                 <Td>
                   {can('superadmin','fin_mgr') && a.status === 'PENDING_APPROVAL' && (
-                    <button style={{...B.ghost,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.approveAdvance(a._id).then(loadAdvances), 'Approved')}>Approve</button>
+                    <button className={kitBtnClass('ghost','sm')} disabled={busy} onClick={() => act(() => payrollV2API.approveAdvance(a._id).then(loadAdvances), 'Approved')}>Approve</button>
                   )}
                   {can('superadmin','fin_mgr') && a.status === 'APPROVED' && (
-                    <button style={{...B.ghost,...B.sm}} disabled={busy} onClick={() => act(() => payrollV2API.markAdvancePaid(a._id).then(loadAdvances), 'Advance paid')}>Mark paid</button>
+                    <button className={kitBtnClass('ghost','sm')} disabled={busy} onClick={() => act(() => payrollV2API.markAdvancePaid(a._id).then(loadAdvances), 'Advance paid')}>Mark paid</button>
                   )}
                   {can('superadmin','fin_mgr') && (a.status === 'PAID' || a.status === 'RECOVERING') && toAmountSafe(a.remainingBalance) > 0 && (
                     <button
-                      style={{...B.ghost,...B.sm}}
+                      className={kitBtnClass('ghost','sm')}
                       disabled={busy}
                       onClick={() => act(() => payrollV2API.recoverAdvance(a._id, { amount: a.remainingBalance }).then(loadAdvances), 'Recovered')}
                     >
@@ -575,7 +572,7 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
               <Td><Badge status={p.paymentStatus} /></Td>
               <Td>
                 <button
-                  style={{...B.ghost,...B.sm}}
+                  className={kitBtnClass('ghost','sm')}
                   onClick={async () => {
                     await generatePayslipPdf(p, company)
                     await payrollV2API.auditDownload(p._id).catch(() => {})
@@ -644,8 +641,8 @@ export default function PayrollManagement({ finRole, can, canEdit: _canEdit, pay
   return (
     <div className="space-y-4">
       <SectionHeader title="Payroll Management" sub={`April 2026 · ${payroll.length} employees`}>
-        {can('superadmin','fin_mgr') && <button style={{...B.pri,...B.sm}} onClick={() => openModal('payroll')}>▶ Run Payroll</button>}
-        <button style={{...B.ghost,...B.sm}} onClick={() => onToast('PDF','Generating salary slips...')}>⬇ Salary Slips PDF</button>
+        {can('superadmin','fin_mgr') && <button className={kitBtnClass('pri','sm')} onClick={() => openModal('payroll')}>▶ Run Payroll</button>}
+        <button className={kitBtnClass('ghost','sm')} onClick={() => onToast('PDF','Generating salary slips...')}>⬇ Salary Slips PDF</button>
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Total Payroll"  value="$284,600" color={C.cyan}   sub="Apr 2026" />

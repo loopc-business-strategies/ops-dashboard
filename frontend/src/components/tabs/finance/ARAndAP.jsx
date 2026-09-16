@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../../context/AuthContext'
 import { reportsApi } from '../../../api/erp-accounting/reports'
-import { C, B, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmt, fmtFull } from './ui'
+import { C, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmt, fmtFull, kitBtnClass } from './ui'
 
 function mapOutstandingRows(report, side) {
   const rows = report?.rows || report?.items || report?.parties || report?.data || []
@@ -72,13 +72,13 @@ export default function ARAndAP({ finRole, can, canEdit: _canEdit, onToast }) {
       <SectionHeader title="Accounts Receivable & Payable" sub="Live ERP outstanding (not Finance seed data)">
         <span style={{ fontSize: 12, color: C.t3 }}>Source: {source === 'erp' ? 'ERP Accounting' : source}</span>
         <button
-          style={{ ...B.ghost, ...B.sm }}
+          className={kitBtnClass('ghost','sm')}
           onClick={() => onToast?.('AR Report', 'Open ERP Customer Outstanding report for export')}
         >
           ⬇ AR Report
         </button>
         <button
-          style={{ ...B.ghost, ...B.sm }}
+          className={kitBtnClass('ghost','sm')}
           onClick={() => onToast?.('AP Report', 'Open ERP Vendor Outstanding report for export')}
         >
           ⬇ AP Report

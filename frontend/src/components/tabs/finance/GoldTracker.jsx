@@ -1,4 +1,4 @@
-import { C, B, Td, Card, StatCard, SectionHeader, Restricted, DataTable } from './ui'
+import { C, Td, Card, StatCard, SectionHeader, Restricted, DataTable, kitBtnClass } from './ui'
 
 export default function GoldTracker({ finRole, can, canEdit, onToast }) {
   if (can('vendor','hr_mgr','fin_analyst','dept_head')) return <Restricted msg="Gold Financial Tracker is restricted to Finance Manager and Super Admin." />
@@ -7,7 +7,7 @@ export default function GoldTracker({ finRole, can, canEdit, onToast }) {
   return (
     <div className="space-y-4">
       <SectionHeader title="Gold Financial Tracker" sub="Gold-specific financial performance · Q1 2026">
-        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => onToast('Gold Price','Market price updated to $58,420/kg')}>Update Market Price</button>}
+        {canEdit() && <button className={kitBtnClass('pri','sm')} onClick={() => onToast('Gold Price','Market price updated to $58,420/kg')}>Update Market Price</button>}
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:`repeat(${salesOnly?2:4},minmax(0,1fr))`, gap:11 }}>
         {!salesOnly && <StatCard label="Gold Procurement Cost" value="$1.12M" color={C.orange} sub="This quarter" />}

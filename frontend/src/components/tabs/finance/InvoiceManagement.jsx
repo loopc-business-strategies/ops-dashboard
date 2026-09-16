@@ -1,4 +1,4 @@
-import { C, B, Badge, Td, Card, StatCard, SectionHeader, DataTable, fmtFull } from './ui'
+import { C, Badge, Td, Card, StatCard, SectionHeader, DataTable, fmtFull, kitBtnClass } from './ui'
 
 export default function InvoiceManagement({ finRole, can, canEdit: _canEdit, invoices, setInvoices, addAudit, onToast, openModal, financeApi }) {
   const myOnly    = finRole === 'vendor'
@@ -20,8 +20,8 @@ export default function InvoiceManagement({ finRole, can, canEdit: _canEdit, inv
   return (
     <div className="space-y-4">
       <SectionHeader title="Invoice Management" sub={myOnly ? 'Your invoices only' : 'All invoices'}>
-        {can('superadmin','fin_mgr','fin_analyst') && <button style={{...B.pri,...B.sm}} onClick={() => openModal('invoice')}>+ Create Invoice</button>}
-        <button style={{...B.ghost,...B.sm}} onClick={() => onToast('Export','Exporting invoices...')}>⬇ Export</button>
+        {can('superadmin','fin_mgr','fin_analyst') && <button className={kitBtnClass('pri','sm')} onClick={() => openModal('invoice')}>+ Create Invoice</button>}
+        <button className={kitBtnClass('ghost','sm')} onClick={() => onToast('Export','Exporting invoices...')}>⬇ Export</button>
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Total Invoices"  value={invoices.length} color={C.cyan}   sub="This year" />
@@ -62,10 +62,10 @@ export default function InvoiceManagement({ finRole, can, canEdit: _canEdit, inv
               <Td><Badge status={inv.status} /></Td>
               {!myOnly && (
                 <Td style={{ whiteSpace:'nowrap' }}>
-                  {(inv.status==='Sent'||inv.status==='Overdue') && <button onClick={() => markPaid(inv.id)} style={{...B.link,color:'var(--purple)',marginRight:8}}>Mark Paid</button>}
-                  {inv.status==='Draft' && <button onClick={() => onToast('Invoice Sent',inv.id+' sent to client')} style={{...B.link,color:'var(--purple)',marginRight:8}}>Send</button>}
-                  <button onClick={() => onToast('PDF','Generating invoice PDF...')} style={{...B.link,color:'var(--purple)',marginRight:8}}>PDF</button>
-                  {inv.status==='Overdue' && <button onClick={() => onToast('Reminder Sent','Payment reminder sent to '+inv.client)} style={{...B.link,color:C.cyan}}>Remind</button>}
+                  {(inv.status==='Sent'||inv.status==='Overdue') && <button onClick={() => markPaid(inv.id)} className={kitBtnClass('link')} style={{ color:'var(--purple)',marginRight:8 }}>Mark Paid</button>}
+                  {inv.status==='Draft' && <button onClick={() => onToast('Invoice Sent',inv.id+' sent to client')} className={kitBtnClass('link')} style={{ color:'var(--purple)',marginRight:8 }}>Send</button>}
+                  <button onClick={() => onToast('PDF','Generating invoice PDF...')} className={kitBtnClass('link')} style={{ color:'var(--purple)',marginRight:8 }}>PDF</button>
+                  {inv.status==='Overdue' && <button onClick={() => onToast('Reminder Sent','Payment reminder sent to '+inv.client)} className={kitBtnClass('link')} style={{ color:C.cyan }}>Remind</button>}
                 </Td>
               )}
             </tr>

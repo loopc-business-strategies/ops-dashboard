@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { Modal } from '../../ui-components'
-import { C, B, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmtFull, financeBaseCurrencyCode } from './ui'
+import { C, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmtFull, financeBaseCurrencyCode, kitBtnClass } from './ui'
 import { financeInputStyle as iStyle } from './financeTabTokens'
 
 export default function GeneralLedger({ finRole: _finRole, can, canEdit, onToast, token }) {
@@ -92,7 +92,7 @@ export default function GeneralLedger({ finRole: _finRole, can, canEdit, onToast
   return (
     <div className="space-y-4">
       <SectionHeader title="General Ledger" sub="Journal entries and ledger account balances">
-        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => { setEditEntry(null); setFormData({ date:'', debitAccount:'', creditAccount:'', amount:'', description:'' }); setEditModal(true) }}>+ New Entry</button>}
+        {canEdit() && <button className={kitBtnClass('pri','sm')} onClick={() => { setEditEntry(null); setFormData({ date:'', debitAccount:'', creditAccount:'', amount:'', description:'' }); setEditModal(true) }}>+ New Entry</button>}
       </SectionHeader>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
@@ -117,8 +117,8 @@ export default function GeneralLedger({ finRole: _finRole, can, canEdit, onToast
                 <Td style={{ whiteSpace:'nowrap' }}>
                   {entry.status !== 'Reversed' && entry.status === 'Draft' && (
                     <>
-                      <button onClick={() => openEditForm(entry)} style={{...B.link,color:'var(--purple)',marginRight:8}}>Edit</button>
-                      <button onClick={() => deleteEntry(entry)} style={{...B.link,color:C.red}}>Reverse</button>
+                      <button onClick={() => openEditForm(entry)} className={kitBtnClass('link')} style={{ color:'var(--purple)',marginRight:8 }}>Edit</button>
+                      <button onClick={() => deleteEntry(entry)} className={kitBtnClass('link')} style={{ color:C.red }}>Reverse</button>
                     </>
                   )}
                   {entry.status === 'Reversed' && <span style={{ color:C.t4, fontSize:11 }}>—</span>}
@@ -137,9 +137,9 @@ export default function GeneralLedger({ finRole: _finRole, can, canEdit, onToast
             <select value={limit} onChange={e => { setLimit(Number(e.target.value)); setPage(1) }} style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:6, padding:'5px 8px', fontSize:12 }}>
               <option>10</option><option>25</option><option>50</option><option>100</option>
             </select>
-            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} style={{...B.ghost,...B.sm, opacity:page===1?0.5:1}}>← Prev</button>
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className={kitBtnClass('ghost','sm')} style={{ opacity:page===1?0.5:1 }}>← Prev</button>
             <span style={{ fontSize:12, color:C.t3, minWidth:'30px', textAlign:'center' }}>{page}/{totalPages}</span>
-            <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} style={{...B.ghost,...B.sm, opacity:page===totalPages?0.5:1}}>Next →</button>
+            <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} className={kitBtnClass('ghost','sm')} style={{ opacity:page===totalPages?0.5:1 }}>Next →</button>
           </div>
         </div>
       </Card>
@@ -156,8 +156,8 @@ export default function GeneralLedger({ finRole: _finRole, can, canEdit, onToast
           <ML>Description</ML>
           <textarea value={formData.description} onChange={e=>setFormData(p=>({...p,description:e.target.value}))} style={{ ...iStyle, resize:'vertical', minHeight:65 }} placeholder="Transaction description..." />
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
-            <button style={{ ...B.ghost, flex:1 }} onClick={() => setEditModal(false)}>Cancel</button>
-            <button style={{ ...B.pri, flex:1 }} onClick={saveEntry}>{editEntry ? 'Save Changes' : 'Create Entry'}</button>
+            <button className={kitBtnClass('ghost')} style={{ flex:1 }} onClick={() => setEditModal(false)}>Cancel</button>
+            <button className={kitBtnClass('pri')} style={{ flex:1 }} onClick={saveEntry}>{editEntry ? 'Save Changes' : 'Create Entry'}</button>
           </div>
         </Modal>
       )}

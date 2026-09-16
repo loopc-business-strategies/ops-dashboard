@@ -1,4 +1,4 @@
-import { C, B, Card, StatCard, SectionHeader, Restricted, PieLegend } from './ui'
+import { C, Card, StatCard, SectionHeader, Restricted, PieLegend, kitBtnClass } from './ui'
 
 export default function KPIOverview({ finRole, can, canEdit, invoices: _invoices, openModal, onToast }) {
   if (can('vendor')) return <Restricted msg="Financial KPIs are not available to vendors. Please contact your account manager." />
@@ -10,8 +10,8 @@ export default function KPIOverview({ finRole, can, canEdit, invoices: _invoices
   return (
     <div className="space-y-4">
       <SectionHeader title="Financial KPI Overview" sub="Year to date · April 2026">
-        {(canEdit() || finRole==='auditor') && <button style={{...B.ghost,...B.sm}} onClick={() => onToast('Export PDF','Generating PDF report...')}>⬇ Export PDF</button>}
-        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => openModal('invoice')}>+ Create Invoice</button>}
+        {(canEdit() || finRole==='auditor') && <button className={kitBtnClass('ghost','sm')} onClick={() => onToast('Export PDF','Generating PDF report...')}>⬇ Export PDF</button>}
+        {canEdit() && <button className={kitBtnClass('pri','sm')} onClick={() => openModal('invoice')}>+ Create Invoice</button>}
       </SectionHeader>
 
       {isHR && (

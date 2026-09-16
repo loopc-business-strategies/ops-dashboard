@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '../../ui-components'
-import { C, B, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmtFull, financeBaseCurrencyCode } from './ui'
+import { C, ML, Badge, Td, Card, StatCard, SectionHeader, Restricted, DataTable, fmtFull, financeBaseCurrencyCode, kitBtnClass } from './ui'
 import { financeInputStyle as iStyle } from './financeTabTokens'
 
 export default function TaxCompliance({ finRole: _finRole, can, canEdit, onToast, taxes, setTaxes, financeApi }) {
@@ -48,7 +48,7 @@ export default function TaxCompliance({ finRole: _finRole, can, canEdit, onToast
   return (
     <div className="space-y-4">
       <SectionHeader title="Tax & Compliance Financials" sub="Q1 2026 · KZ Jurisdiction">
-        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => openTaxForm(null)}>+ File / Add Tax Return</button>}
+        {canEdit() && <button className={kitBtnClass('pri','sm')} onClick={() => openTaxForm(null)}>+ File / Add Tax Return</button>}
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Tax Liability (Q1)"  value="$430,900" color={C.yellow} sub="All tax types combined" />
@@ -70,7 +70,7 @@ export default function TaxCompliance({ finRole: _finRole, can, canEdit, onToast
         </div>
         <div style={{ fontSize:11, color:C.t3, marginTop:10, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:C.red, display:'inline-block' }} />Corporate Tax $282,500 due April 30, 2026 — not yet filed</div>
       </Card>
-      <DataTable title="Tax Register" toolbar={canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => openTaxForm(null)}>+ Add Tax Entry</button>}
+      <DataTable title="Tax Register" toolbar={canEdit() && <button className={kitBtnClass('pri','sm')} onClick={() => openTaxForm(null)}>+ Add Tax Entry</button>}
         headers={['Tax Type','Period','Amount','Due Date','Filed Date','Status',...(canEdit()?['Actions']:[])]}>
         {taxes.map((t,i) => (
           <tr key={i} style={{ background:t.status==='Filed'?'rgba(0,200,150,.04)':'rgba(255,214,0,.04)', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
@@ -97,9 +97,9 @@ export default function TaxCompliance({ finRole: _finRole, can, canEdit, onToast
                   setTaxes(prevTaxes)
                   onToast('Error', 'Failed to mark tax as filed. Please try again.')
                 }
-              }} style={{...B.link,color:'var(--purple)',marginRight:8}}>Mark Filed</button> : <span style={{ color:C.t4, marginRight:8 }}>—</span>}
-              <button onClick={() => openTaxForm(t)} style={{...B.link,color:C.cyan,marginRight:8}}>Edit</button>
-              <button onClick={() => deleteTax(t)} style={{...B.link,color:C.red}}>Del</button>
+              }} className={kitBtnClass('link')} style={{ color:'var(--purple)',marginRight:8 }}>Mark Filed</button> : <span style={{ color:C.t4, marginRight:8 }}>—</span>}
+              <button onClick={() => openTaxForm(t)} className={kitBtnClass('link')} style={{ color:C.cyan,marginRight:8 }}>Edit</button>
+              <button onClick={() => deleteTax(t)} className={kitBtnClass('link')} style={{ color:C.red }}>Del</button>
             </Td>}
           </tr>
         ))}
@@ -116,8 +116,8 @@ export default function TaxCompliance({ finRole: _finRole, can, canEdit, onToast
             <div><ML>Status</ML><select value={tf.status} onChange={e=>setTf(p=>({...p,status:e.target.value}))} style={iStyle}><option>Pending</option><option>Due Soon</option><option>Filed</option></select></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
-            <button style={{ ...B.ghost, flex:1 }} onClick={() => setTaxModal(false)}>Cancel</button>
-            <button style={{ ...B.pri, flex:1 }} onClick={saveTax}>{editId ? 'Save Changes' : 'Add Entry'}</button>
+            <button className={kitBtnClass('ghost')} style={{ flex:1 }} onClick={() => setTaxModal(false)}>Cancel</button>
+            <button className={kitBtnClass('pri')} style={{ flex:1 }} onClick={saveTax}>{editId ? 'Save Changes' : 'Add Entry'}</button>
           </div>
         </Modal>
       )}

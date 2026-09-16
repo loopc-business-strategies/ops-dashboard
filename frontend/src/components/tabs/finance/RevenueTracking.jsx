@@ -1,4 +1,4 @@
-import { C, B, Badge, Td, Card, StatCard, SectionHeader, Restricted, PieLegend, DataTable, fmtFull } from './ui'
+import { C, Badge, Td, Card, StatCard, SectionHeader, Restricted, PieLegend, DataTable, fmtFull, kitBtnClass } from './ui'
 
 export default function RevenueTracking({ finRole, can, canEdit: _canEdit, onToast }) {
   if (can('vendor','hr_mgr','dept_head')) return <Restricted msg="Revenue tracking is restricted. Contact Finance department for enquiries." />
@@ -7,8 +7,8 @@ export default function RevenueTracking({ finRole, can, canEdit: _canEdit, onToa
   return (
     <div className="space-y-4">
       <SectionHeader title="Revenue Tracking" sub={salesOnly ? 'Market view only' : 'All revenue streams'}>
-        <button style={{...B.ghost,...B.sm}} onClick={() => onToast('Excel','Generating Excel report...')}>⬇ Excel</button>
-        <button style={{...B.ghost,...B.sm}} onClick={() => onToast('PDF','Generating PDF report...')}>⬇ PDF</button>
+        <button className={kitBtnClass('ghost','sm')} onClick={() => onToast('Excel','Generating Excel report...')}>⬇ Excel</button>
+        <button className={kitBtnClass('ghost','sm')} onClick={() => onToast('PDF','Generating PDF report...')}>⬇ PDF</button>
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Total Revenue YTD"   value="$2.45M" color={C.green}  sub={<span style={{color:C.green,fontWeight:700}}>↑12% vs last year</span>} />

@@ -12,6 +12,7 @@ export const KIT_BTN = {
   outline: 'btn btn-outline',
   warn: 'btn btn-outline',
   sm: 'btn-sm',
+  link: 'btn btn-ghost',
 }
 
 /** Merge kit button class names (e.g. kitBtnClass('pri', 'sm')). */

@@ -1,4 +1,4 @@
-import { C, B, Card, SectionHeader, Restricted } from './ui'
+import { C, Card, SectionHeader, Restricted, kitBtnClass } from './ui'
 
 export default function ReportsAnalytics({ finRole, can, canEdit, onToast }) {
   if (can('vendor')) return <Restricted msg="Reports are not available to vendors." />
@@ -19,7 +19,7 @@ export default function ReportsAnalytics({ finRole, can, canEdit, onToast }) {
   return (
     <div className="space-y-4">
       <SectionHeader title="Financial Reports & Analytics" sub={`${myReports.length} reports available for your role`}>
-        {canEdit() && <button style={{...B.sec,...B.sm}} onClick={() => onToast('Scheduled','Auto-report scheduled — daily 08:00')}>⏰ Schedule Auto-Report</button>}
+        {canEdit() && <button className={kitBtnClass('sec','sm')} onClick={() => onToast('Scheduled','Auto-report scheduled — daily 08:00')}>⏰ Schedule Auto-Report</button>}
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12 }}>
         {myReports.map((r,i) => (
