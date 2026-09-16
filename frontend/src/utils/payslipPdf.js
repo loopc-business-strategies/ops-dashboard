@@ -1,5 +1,6 @@
 import { getTenantBranding, isStructuredPayrollEnabled } from '../config/tenantBranding'
 import { loadPdfTools } from '../components/tabs/erp/lazyExportLibs'
+import { createLogoRenderAsset } from '../components/tabs/erp/ERPBrandingUtils'
 import {
   money,
   inrMoney,
@@ -52,35 +53,26 @@ function amountOf(item) {
   return Number.isFinite(n) ? n : 0
 }
 
-/** True when earnings add detail beyond a single BASIC matching Salary Calculated. */
-function shouldShowEarningsBreakdown(payslip) {
-  const earnings = Array.isArray(payslip.earnings) ? payslip.earnings : []
-  if (!earnings.length) return false
-  if (earnings.length > 1) return true
-  const only = earnings[0]
-  const code = String(only?.code || '').toUpperCase()
-  if (code !== 'BASIC') return true
-  const calc = Number(salaryCalculatedOf(payslip))
-  const line = amountOf(only)
-  return Math.abs(calc - line) > 0.009
-}
-
-/** True when at least one stored deduction component has amount > 0. */
-function shouldShowDeductionsBreakdown(payslip) {
-  const deductions = Array.isArray(payslip.deductions) ? payslip.deductions : []
-  return deductions.some((d) => amountOf(d) > 0)
-}
-
 function hasEmployerContributions(payslip) {
   const rows = Array.isArray(payslip.employerContributions) ? payslip.employerContributions : []
   return rows.some((r) => amountOf(r) > 0) || Number(payslip.employerTotal) > 0
 }
 
-const AMOUNT_COL = { 0: { cellWidth: 300 }, 1: { halign: 'right', cellWidth: 110 } }
+const HEAD_FILL = [30, 41, 59]
+const TABLE_STYLES = { fontSize: 9, cellPadding: 4 }
+const VALUE_COL_WIDTH = 110
+
+function twoColStyles(contentWidth) {
+  const labelW = Math.max(160, contentWidth - VALUE_COL_WIDTH)
+  return {
+    0: { cellWidth: labelW, fontStyle: 'bold' },
+    1: { cellWidth: VALUE_COL_WIDTH, halign: 'right' },
+  }
+}
 
 /**
  * Generate a payslip PDF via jspdf + autotable.
- * LoopC structured: compact header + Employee / Salary / Deductions / Net Paid.
+ * LoopC structured: compact header + logo + Employee / Salary / Deductions / Net Paid.
  * Other tenants: legacy full header + earned/paid/balance lines.
  * Presentation only — does not mutate payslip data.
  */
@@ -90,24 +82,43 @@ export async function generatePayslipPdf(payslip, tenant) {
   const structured = isStructuredPayrollEnabled(tenant)
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const margin = 40
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageRight = pageWidth - margin
+  const contentWidth = pageWidth - margin * 2
   let y = margin
 
-  doc.setFontSize(16)
-  doc.setFont('helvetica', 'bold')
-  doc.text(branding.displayName || branding.companyName || 'LoopC', margin, y)
-  y += 18
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'normal')
-  doc.text('PAYSLIP', margin, y)
-  y += 16
-  doc.setFontSize(10)
-
   if (structured) {
+    const logoW = 48
+    const logoH = 48
+    const logoUrl = branding.logoUrl || branding.logoImage || ''
+    const logoAsset = logoUrl
+      ? await createLogoRenderAsset(logoUrl, logoW, logoH, branding.logoFit || 'contain')
+      : ''
+    if (logoAsset && String(logoAsset).startsWith('data:image/')) {
+      try {
+        doc.addImage(logoAsset, 'PNG', pageRight - logoW, margin - 4, logoW, logoH, undefined, 'FAST')
+      } catch {
+        // Leave reserved top-right space if embed fails.
+      }
+    }
+
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text(branding.displayName || branding.companyName || 'LoopC', margin, y)
+    y += 18
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.text('PAYSLIP', margin, y)
+    y = Math.max(y + 16, margin + logoH + 8)
+    doc.setFontSize(10)
+
     doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
-    doc.text(`Department: ${payslip.department || '—'}`, 320, y)
+    doc.text(`Department: ${payslip.department || '—'}`, pageRight, y, { align: 'right' })
     y += 14
     doc.text(`Bank: ${payslip.bankMasked || '****'}`, margin, y)
     y += 16
+
+    const colStyles = twoColStyles(contentWidth)
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
@@ -124,9 +135,10 @@ export async function generatePayslipPdf(payslip, tenant) {
         ['No. of Days', payslip.payableDays != null ? String(payslip.payableDays) : '—'],
       ],
       margin: { left: margin, right: margin },
-      styles: { fontSize: 9, cellPadding: 4 },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 160 }, 1: { cellWidth: 'auto' } },
-      headStyles: { fillColor: [30, 41, 59] },
+      styles: TABLE_STYLES,
+      columnStyles: colStyles,
+      headStyles: { fillColor: HEAD_FILL },
+      tableWidth: contentWidth,
     })
     y = doc.lastAutoTable.finalY + 14
 
@@ -144,9 +156,10 @@ export async function generatePayslipPdf(payslip, tenant) {
         ['Gross Amount', inrMoney(payslip.gross)],
       ],
       margin: { left: margin, right: margin },
-      styles: { fontSize: 9, cellPadding: 4 },
-      columnStyles: AMOUNT_COL,
-      headStyles: { fillColor: [30, 41, 59] },
+      styles: TABLE_STYLES,
+      columnStyles: colStyles,
+      headStyles: { fillColor: HEAD_FILL },
+      tableWidth: contentWidth,
     })
     y = doc.lastAutoTable.finalY + 14
 
@@ -165,9 +178,10 @@ export async function generatePayslipPdf(payslip, tenant) {
         ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
       ],
       margin: { left: margin, right: margin },
-      styles: { fontSize: 9, cellPadding: 4 },
-      columnStyles: AMOUNT_COL,
-      headStyles: { fillColor: [127, 29, 29] },
+      styles: TABLE_STYLES,
+      columnStyles: colStyles,
+      headStyles: { fillColor: HEAD_FILL },
+      tableWidth: contentWidth,
     })
     y = doc.lastAutoTable.finalY + 16
 
@@ -175,44 +189,6 @@ export async function generatePayslipPdf(payslip, tenant) {
     doc.setFontSize(12)
     doc.text(`NET PAID / AMOUNT PAID: ${inrMoney(payslip.amountPaid)}`, margin, y)
     y += 18
-
-    if (shouldShowEarningsBreakdown(payslip)) {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(10)
-      doc.text('Earnings breakdown', margin, y)
-      y += 6
-      const earningsRows = (payslip.earnings || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
-      autoTable(doc, {
-        startY: y,
-        head: [['Code', 'Earnings', 'Amount']],
-        body: earningsRows,
-        margin: { left: margin, right: margin },
-        styles: { fontSize: 9 },
-        columnStyles: { 2: { halign: 'right' } },
-        headStyles: { fillColor: [30, 41, 59] },
-      })
-      y = doc.lastAutoTable.finalY + 12
-    }
-
-    if (shouldShowDeductionsBreakdown(payslip)) {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(10)
-      doc.text('Deductions breakdown', margin, y)
-      y += 6
-      const dedRows = (payslip.deductions || [])
-        .filter((d) => amountOf(d) > 0)
-        .map((r) => [r.code || '', r.label || '', money(r.amount)])
-      autoTable(doc, {
-        startY: y,
-        head: [['Code', 'Deductions', 'Amount']],
-        body: dedRows,
-        margin: { left: margin, right: margin },
-        styles: { fontSize: 9 },
-        columnStyles: { 2: { halign: 'right' } },
-        headStyles: { fillColor: [127, 29, 29] },
-      })
-      y = doc.lastAutoTable.finalY + 12
-    }
 
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
@@ -225,9 +201,10 @@ export async function generatePayslipPdf(payslip, tenant) {
         head: [['Code', 'Employer component', 'Amount']],
         body: empRows.length ? empRows : [['—', 'None', '0.00']],
         margin: { left: margin, right: margin },
-        styles: { fontSize: 9 },
+        styles: TABLE_STYLES,
         columnStyles: { 2: { halign: 'right' } },
-        headStyles: { fillColor: [30, 64, 175] },
+        headStyles: { fillColor: HEAD_FILL },
+        tableWidth: contentWidth,
       })
       y = doc.lastAutoTable.finalY + 12
       doc.setFont('helvetica', 'bold')
@@ -242,6 +219,16 @@ export async function generatePayslipPdf(payslip, tenant) {
     doc.text(`Payment date: ${fmtDate(payslip.paymentDate)} · Status: ${payslip.paymentStatus || '—'}`, margin, y)
   } else {
     // Legacy full header (non-LoopC / non-structured)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text(branding.displayName || branding.companyName || 'LoopC', margin, y)
+    y += 18
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.text('PAYSLIP', margin, y)
+    y += 16
+    doc.setFontSize(10)
+
     doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
     doc.text(`Period: ${periodLabel(payslip.year, payslip.month)}`, 320, y)
     y += 14
