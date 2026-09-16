@@ -24,6 +24,31 @@ function daysInMonth(year, month) {
 }
 
 /**
+ * Display-only payroll period bounds for a run month.
+ * periodStart = max(joiningDate, monthStart); periodEnd = monthEnd.
+ * Does not change payableDays or proration.
+ */
+function resolvePeriodBounds(year, month, joiningDate) {
+  const y = Number(year)
+  const m = Number(month)
+  if (!Number.isInteger(y) || !Number.isInteger(m) || m < 1 || m > 12) {
+    return { periodStart: null, periodEnd: null }
+  }
+  const monthStart = new Date(Date.UTC(y, m - 1, 1))
+  const periodEnd = new Date(Date.UTC(y, m, 0))
+  let periodStart = monthStart
+  if (joiningDate) {
+    const join = new Date(joiningDate)
+    if (!Number.isNaN(join.getTime())) {
+      const joinUtc = new Date(Date.UTC(join.getUTCFullYear(), join.getUTCMonth(), join.getUTCDate()))
+      if (joinUtc > monthStart && joinUtc <= periodEnd) periodStart = joinUtc
+      else if (joinUtc > periodEnd) periodStart = periodEnd
+    }
+  }
+  return { periodStart, periodEnd }
+}
+
+/**
  * Prorate monthly salary: monthlySalary / calendarDays × payableDays, rounded to 2dp.
  * LoopC Aug 2026: 80000/31*24 = 61935.48; 65000/31*24 = 50322.58
  */
@@ -44,14 +69,20 @@ function resolveMonthlySalary(assignment) {
   return sumComponents(earnings)
 }
 
+const PREV_ARREARS_CODE = 'PREV_ARREARS'
+const ADV_DED_CODE = 'ADV_DED'
+
 /**
  * Pure payroll line calculation from a salary assignment snapshot.
  * When payableDays/calendarDays provided, earnings are prorated from monthly salary.
  * amountPaid drives salaryBalance (arrears), never classified as an advance.
+ * previousArrears / advanceDeduction are optional additive snapshots (LoopC).
  */
 function calculateLineFromAssignment(assignment, employee = {}, options = {}) {
   const earningsFull = normalizeComponents(assignment?.earnings)
-  const deductionsFull = normalizeComponents(assignment?.deductions)
+  const deductionsFull = normalizeComponents(assignment?.deductions).filter(
+    (d) => String(d.code).toUpperCase() !== ADV_DED_CODE
+  )
   const employerContributions = normalizeComponents(assignment?.employerContributions)
 
   const monthlySalary = resolveMonthlySalary(assignment)
@@ -61,7 +92,7 @@ function calculateLineFromAssignment(assignment, employee = {}, options = {}) {
     && Number.isFinite(payableDays) && payableDays >= 0
 
   let earnings = earningsFull
-  let gross
+  let salaryCalculated
   if (useProration) {
     const scale = monthlySalary > 0 ? prorateMonthly(monthlySalary, calendarDays, payableDays) / monthlySalary : 0
     earnings = earningsFull.map((e) => ({
@@ -79,22 +110,53 @@ function calculateLineFromAssignment(assignment, employee = {}, options = {}) {
           amount: toAmount(Math.max(0, earnedExact - others)),
         }
       }
-      gross = earnedExact
+      salaryCalculated = earnedExact
     } else {
-      gross = sumComponents(earnings)
+      salaryCalculated = sumComponents(earnings)
     }
   } else {
-    gross = sumComponents(earnings)
+    salaryCalculated = sumComponents(earnings)
   }
 
-  const deductions = deductionsFull
+  const previousArrearsRaw = options.previousArrears
+  const previousArrears = previousArrearsRaw == null ? null : toAmount(previousArrearsRaw)
+  if (previousArrears != null && previousArrears > 0) {
+    earnings = [
+      ...earnings.filter((e) => String(e.code).toUpperCase() !== PREV_ARREARS_CODE),
+      { code: PREV_ARREARS_CODE, label: 'Previous Arrears', amount: previousArrears },
+    ]
+  }
+
+  const gross = sumComponents(earnings)
+
+  let deductions = deductionsFull
+  const advanceDeductionRaw = options.advanceDeduction
+  const advanceDeduction = advanceDeductionRaw == null ? null : toAmount(advanceDeductionRaw)
+  if (advanceDeduction != null && advanceDeduction > 0) {
+    deductions = [
+      ...deductions,
+      { code: ADV_DED_CODE, label: 'Deduction Towards Advance Payment', amount: advanceDeduction },
+    ]
+  }
+
   const totalDeductions = sumComponents(deductions)
+  const otherDeductions = toAmount(
+    deductions
+      .filter((d) => String(d.code).toUpperCase() !== ADV_DED_CODE)
+      .reduce((s, d) => s + toAmount(d.amount), 0)
+  )
   const net = toAmount(Math.max(0, gross - totalDeductions))
   const employerTotal = sumComponents(employerContributions)
 
   const amountPaidRaw = options.amountPaid
   const amountPaid = amountPaidRaw == null ? null : toAmount(amountPaidRaw)
   const salaryBalance = amountPaid == null ? null : toAmount(Math.max(0, net - amountPaid))
+
+  const year = options.year != null ? Number(options.year) : null
+  const month = options.month != null ? Number(options.month) : null
+  const { periodStart, periodEnd } = (year && month)
+    ? resolvePeriodBounds(year, month, employee.joiningDate || options.joiningDate || null)
+    : { periodStart: options.periodStart || null, periodEnd: options.periodEnd || null }
 
   return {
     employeeId: employee._id || employee.id || assignment?.employeeId,
@@ -108,6 +170,12 @@ function calculateLineFromAssignment(assignment, employee = {}, options = {}) {
     monthlySalary,
     calendarDays: useProration ? calendarDays : null,
     payableDays: useProration ? payableDays : null,
+    periodStart: periodStart || null,
+    periodEnd: periodEnd || null,
+    salaryCalculated: salaryCalculated != null ? toAmount(salaryCalculated) : null,
+    previousArrears,
+    advanceDeduction,
+    otherDeductions,
     earnings,
     deductions,
     employerContributions,
@@ -138,8 +206,11 @@ module.exports = {
   sumComponents,
   normalizeComponents,
   daysInMonth,
+  resolvePeriodBounds,
   prorateMonthly,
   resolveMonthlySalary,
   calculateLineFromAssignment,
   calculateRunTotals,
+  PREV_ARREARS_CODE,
+  ADV_DED_CODE,
 }

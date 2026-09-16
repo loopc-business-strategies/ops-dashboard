@@ -82,6 +82,7 @@ const calculateBodySchema = Joi.object({
   linePayments: Joi.array().items(Joi.object({
     employeeId: Joi.string().hex().length(24).required(),
     amountPaid: Joi.number().min(0).required(),
+    advanceDeduction: Joi.number().min(0).allow(null).optional(),
   })).optional(),
 }).unknown(true)
 
@@ -472,23 +473,43 @@ router.post('/runs/:id/calculate', validateParams(idParam), validateBody(calcula
     run.defaultPayableDays = payableDays
 
     const paymentMap = new Map()
+    const advanceMap = new Map()
     for (const lp of req.body.linePayments || []) {
       paymentMap.set(String(lp.employeeId), toAmount(lp.amountPaid))
+      if (lp.advanceDeduction != null) {
+        advanceMap.set(String(lp.employeeId), toAmount(lp.advanceDeduction))
+      }
     }
 
     const TenantAssignment = await EmployeeSalaryAssignment.getTenantModel(req.tenant)
     const TenantEmployee = await Employee.getTenantModel(req.tenant)
+    const TenantBalance = await SalaryBalance.getTenantModel(req.tenant)
     const employeeIds = run.lines.map((l) => l.employeeId)
-    const [employees, assignments] = await Promise.all([
+    const [employees, assignments, priorBalances] = await Promise.all([
       TenantEmployee.find({ _id: { $in: employeeIds }, isDeleted: { $ne: true } }).lean(),
       TenantAssignment.find({
         employeeId: { $in: employeeIds },
         isActive: true,
         isDeleted: { $ne: true },
       }).lean(),
+      TenantBalance.find({
+        employeeId: { $in: employeeIds },
+        isDeleted: { $ne: true },
+        outstandingAmount: { $gt: 0 },
+        status: { $in: ['OUTSTANDING', 'PARTIALLY_PAID'] },
+        $or: [
+          { year: { $lt: run.year } },
+          { year: run.year, month: { $lt: run.month } },
+        ],
+      }).lean(),
     ])
     const empMap = new Map(employees.map((e) => [String(e._id), e]))
     const asgMap = new Map(assignments.map((a) => [String(a.employeeId), a]))
+    const priorArrearsMap = new Map()
+    for (const bal of priorBalances) {
+      const key = String(bal.employeeId)
+      priorArrearsMap.set(key, toAmount((priorArrearsMap.get(key) || 0) + toAmount(bal.outstandingAmount)))
+    }
 
     const missing = []
     const newLines = run.lines.map((line) => {
@@ -502,10 +523,20 @@ router.post('/runs/:id/calculate', validateParams(idParam), validateBody(calcula
         ? paymentMap.get(String(line.employeeId))
         : (line.amountPaid != null ? toAmount(line.amountPaid) : null)
       const linePayable = line.payableDays != null ? Number(line.payableDays) : payableDays
+      const advanceDeduction = advanceMap.has(String(line.employeeId))
+        ? advanceMap.get(String(line.employeeId))
+        : (line.advanceDeduction != null ? toAmount(line.advanceDeduction) : null)
+      const previousArrears = priorArrearsMap.has(String(line.employeeId))
+        ? priorArrearsMap.get(String(line.employeeId))
+        : 0
       const calc = calculateLineFromAssignment(asg, emp, {
         calendarDays,
         payableDays: linePayable,
         amountPaid: priorPaid,
+        previousArrears,
+        advanceDeduction,
+        year: run.year,
+        month: run.month,
       })
       return {
         ...line.toObject?.() || line,
@@ -777,6 +808,12 @@ router.post('/runs/:id/generate-payslips', validateParams(idParam), async (req, 
           monthlySalary: line.monthlySalary || 0,
           calendarDays: line.calendarDays,
           payableDays: line.payableDays,
+          periodStart: line.periodStart || null,
+          periodEnd: line.periodEnd || null,
+          salaryCalculated: line.salaryCalculated ?? null,
+          previousArrears: line.previousArrears ?? null,
+          advanceDeduction: line.advanceDeduction ?? null,
+          otherDeductions: line.otherDeductions ?? null,
           earnings: line.earnings,
           deductions: line.deductions,
           employerContributions: line.employerContributions,
@@ -843,6 +880,16 @@ router.post('/payslips/:id/reissue', validateParams(idParam), async (req, res) =
       employeeCode: original.employeeCode,
       department: original.department,
       position: original.position,
+      joiningDate: original.joiningDate || null,
+      monthlySalary: original.monthlySalary || 0,
+      calendarDays: original.calendarDays,
+      payableDays: original.payableDays,
+      periodStart: original.periodStart || null,
+      periodEnd: original.periodEnd || null,
+      salaryCalculated: original.salaryCalculated ?? null,
+      previousArrears: original.previousArrears ?? null,
+      advanceDeduction: original.advanceDeduction ?? null,
+      otherDeductions: original.otherDeductions ?? null,
       earnings: original.earnings,
       deductions: original.deductions,
       employerContributions: original.employerContributions,
@@ -850,6 +897,8 @@ router.post('/payslips/:id/reissue', validateParams(idParam), async (req, res) =
       totalDeductions: original.totalDeductions,
       net: original.net,
       employerTotal: original.employerTotal,
+      amountPaid: original.amountPaid,
+      salaryBalance: original.salaryBalance,
       paymentDate: original.paymentDate,
       paymentStatus: 'PENDING',
       bankMasked: '****',

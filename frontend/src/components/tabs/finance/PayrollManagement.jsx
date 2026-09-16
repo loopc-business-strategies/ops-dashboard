@@ -331,13 +331,23 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
                   </button>
                 </div>
               )}
-              <DataTable title="Lines" headers={['Employee','Monthly','Joining','Payable Days','Earned','Paid','Balance']}>
+              <DataTable title="Lines" headers={['Employee','Position','Joining','Period','Days','Monthly','Calculated','Prev Arrears','Adv Ded','Other Ded','Earned','Paid','Balance']}>
                 {(runDetail.lines || []).map((l, i) => (
                   <tr key={String(l.employeeId) + i}>
                     <Td>{l.employeeName} <span style={{ color: C.t3 }}>({l.employeeCode})</span></Td>
-                    <Td>{money(l.monthlySalary)}</Td>
+                    <Td>{l.position || '—'}</Td>
                     <Td>{l.joiningDate ? String(l.joiningDate).slice(0, 10) : '—'}</Td>
+                    <Td style={{ fontSize: 11 }}>
+                      {l.periodStart && l.periodEnd
+                        ? `${String(l.periodStart).slice(0, 10)} → ${String(l.periodEnd).slice(0, 10)}`
+                        : '—'}
+                    </Td>
                     <Td>{l.payableDays ?? '—'}</Td>
+                    <Td>{money(l.monthlySalary)}</Td>
+                    <Td>{l.salaryCalculated == null ? money(l.net) : money(l.salaryCalculated)}</Td>
+                    <Td>{l.previousArrears == null ? '—' : money(l.previousArrears)}</Td>
+                    <Td>{l.advanceDeduction == null ? '—' : money(l.advanceDeduction)}</Td>
+                    <Td>{l.otherDeductions == null ? '—' : money(l.otherDeductions)}</Td>
                     <Td style={{ fontWeight: 700, color: C.cyan }}>{money(l.net)}</Td>
                     <Td>{l.amountPaid == null ? '—' : money(l.amountPaid)}</Td>
                     <Td style={{ color: C.yellow || '#b45309', fontWeight: 700 }}>{l.salaryBalance == null ? '—' : money(l.salaryBalance)}</Td>
@@ -393,13 +403,24 @@ function StructuredPayroll({ finRole, can, payroll, onToast, openModal, company 
             />
             <button className={kitBtnClass('ghost','sm')} onClick={() => loadPayslips()}>Search</button>
           </div>
-          <DataTable title="Payslips" headers={['Number','Employee','Period','Net','Status','Actions']}>
+          <DataTable title="Payslips" headers={['Number','Employee','Position','Period','Days','Monthly','Calculated','Prev Arrears','Adv Ded','Net/Paid','Balance','Status','Actions']}>
             {payslips.map((p) => (
               <tr key={p._id}>
                 <Td style={{ fontFamily: 'monospace', fontSize: 11 }}>{p.number}</Td>
                 <Td>{p.employeeName}</Td>
-                <Td>{p.year}-{String(p.month).padStart(2,'0')}</Td>
-                <Td style={{ fontWeight: 700, color: C.cyan }}>{money(p.net)}</Td>
+                <Td>{p.position || '—'}</Td>
+                <Td style={{ fontSize: 11 }}>
+                  {p.periodStart && p.periodEnd
+                    ? `${String(p.periodStart).slice(0, 10)} → ${String(p.periodEnd).slice(0, 10)}`
+                    : `${p.year}-${String(p.month).padStart(2, '0')}`}
+                </Td>
+                <Td>{p.payableDays ?? '—'}</Td>
+                <Td>{money(p.monthlySalary)}</Td>
+                <Td>{p.salaryCalculated == null ? money(p.net) : money(p.salaryCalculated)}</Td>
+                <Td>{p.previousArrears == null ? '—' : money(p.previousArrears)}</Td>
+                <Td>{p.advanceDeduction == null ? '—' : money(p.advanceDeduction)}</Td>
+                <Td style={{ fontWeight: 700, color: C.cyan }}>{p.amountPaid == null ? money(p.net) : money(p.amountPaid)}</Td>
+                <Td style={{ color: C.yellow || '#b45309', fontWeight: 700 }}>{p.salaryBalance == null ? '—' : money(p.salaryBalance)}</Td>
                 <Td><Badge status={p.paymentStatus} /></Td>
                 <Td>
                   <button

@@ -41,6 +41,13 @@ const payrollRunLineSchema = new mongoose.Schema(
     employerTotal: { type: Number, default: 0 },
     amountPaid: { type: Number, default: null },
     salaryBalance: { type: Number, default: null },
+    // Additive LoopC payslip snapshots (optional; null on historical lines)
+    periodStart: { type: Date, default: null },
+    periodEnd: { type: Date, default: null },
+    salaryCalculated: { type: Number, default: null },
+    previousArrears: { type: Number, default: null },
+    advanceDeduction: { type: Number, default: null },
+    otherDeductions: { type: Number, default: null },
     // Optional manual attendance inputs (not auto-derived)
     daysWorked: { type: Number, default: null },
     daysAbsent: { type: Number, default: null },

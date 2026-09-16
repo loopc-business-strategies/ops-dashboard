@@ -32,12 +32,15 @@ describe('payrollCalculationService', () => {
     const high = calculateLineFromAssignment(
       { earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 80000 }], deductions: [], employerContributions: [] },
       { name: 'Aneesh', employeeCode: 'LoopC-ANEESH', joiningDate: '2026-08-07' },
-      { calendarDays: 31, payableDays: 24, amountPaid: 50000 }
+      { calendarDays: 31, payableDays: 24, amountPaid: 50000, year: 2026, month: 8 }
     )
     expect(high.net).toBe(61935.48)
+    expect(high.salaryCalculated).toBe(61935.48)
     expect(high.amountPaid).toBe(50000)
     expect(high.salaryBalance).toBe(11935.48)
     expect(high.payableDays).toBe(24)
+    expect(String(high.periodStart.toISOString()).slice(0, 10)).toBe('2026-08-07')
+    expect(String(high.periodEnd.toISOString()).slice(0, 10)).toBe('2026-08-31')
 
     const mid = calculateLineFromAssignment(
       { earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 65000 }], deductions: [], employerContributions: [] },
@@ -56,6 +59,40 @@ describe('payrollCalculationService', () => {
     expect(totals.net).toBe(224516.12)
     expect(totals.paid).toBe(200000)
     expect(totals.outstanding).toBe(24516.12)
+  })
+
+  test('previous arrears and advance deduction stay separate', () => {
+    const line = calculateLineFromAssignment(
+      {
+        earnings: [{ code: 'BASIC', label: 'Monthly Salary', amount: 80000 }],
+        deductions: [{ code: 'TAX', label: 'Tax', amount: 100 }],
+        employerContributions: [],
+      },
+      { name: 'Aneesh', employeeCode: 'LoopC-ANEESH', joiningDate: '2026-08-07', position: 'Jewelry Maker' },
+      {
+        calendarDays: 31,
+        payableDays: 24,
+        amountPaid: 50000,
+        previousArrears: 1000,
+        advanceDeduction: 500,
+        year: 2026,
+        month: 8,
+      }
+    )
+    expect(line.position).toBe('Jewelry Maker')
+    expect(line.salaryCalculated).toBe(61935.48)
+    expect(line.previousArrears).toBe(1000)
+    expect(line.advanceDeduction).toBe(500)
+    expect(line.otherDeductions).toBe(100)
+    expect(line.gross).toBe(62935.48) // calculated + previous arrears
+    expect(line.totalDeductions).toBe(600)
+    expect(line.net).toBe(62335.48)
+    expect(line.salaryBalance).toBe(12335.48)
+    expect(line.earnings.some((e) => e.code === 'PREV_ARREARS')).toBe(true)
+    expect(line.deductions.some((d) => d.code === 'ADV_DED')).toBe(true)
+    expect(line.deductions.some((d) => d.code === 'TAX')).toBe(true)
+    // Advance must never be labeled as salary balance / arrears field
+    expect(line.salaryBalance).not.toBe(line.advanceDeduction)
   })
 
   test('salary balance is never negative (overpayment clamps)', () => {

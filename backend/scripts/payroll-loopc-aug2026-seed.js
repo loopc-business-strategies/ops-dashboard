@@ -3,7 +3,7 @@
  * Idempotent LoopC August 2026 payroll seed.
  *
  * - Upserts Aneesh / Biju / Sudheesh / Anil by exact case-insensitive name
- * - Sets joiningDate 2026-08-07 and BASIC monthly salary (80k/65k)
+ * - Sets joiningDate 2026-08-07, position Jewelry Maker, BASIC monthly salary (80k/65k)
  * - Creates/reuses Aug 2026 payroll run with payableDays=24, amountPaid=50000
  * - Finalizes → pays → payslips → salary balances (arrears, not advances)
  *
@@ -35,10 +35,10 @@ const AMOUNT_PAID = 50000
 const IDEMPOTENCY_KEY = 'loopc-aug-2026-payroll'
 
 const EMPLOYEES = [
-  { name: 'Aneesh', monthlySalary: 80000, code: 'LoopC-ANEESH', idNumber: 'ID-ANEESH' },
-  { name: 'Biju', monthlySalary: 80000, code: 'LoopC-BIJU', idNumber: 'ID-BIJU' },
-  { name: 'Sudheesh', monthlySalary: 65000, code: 'LoopC-SUDHEESH', idNumber: 'ID-SUDHEESH' },
-  { name: 'Anil', monthlySalary: 65000, code: 'LoopC-ANIL', idNumber: 'ID-ANIL' },
+  { name: 'Aneesh', monthlySalary: 80000, code: 'LoopC-ANEESH', idNumber: 'ID-ANEESH', position: 'Jewelry Maker' },
+  { name: 'Biju', monthlySalary: 80000, code: 'LoopC-BIJU', idNumber: 'ID-BIJU', position: 'Jewelry Maker' },
+  { name: 'Sudheesh', monthlySalary: 65000, code: 'LoopC-SUDHEESH', idNumber: 'ID-SUDHEESH', position: 'Jewelry Maker' },
+  { name: 'Anil', monthlySalary: 65000, code: 'LoopC-ANIL', idNumber: 'ID-ANIL', position: 'Jewelry Maker' },
 ]
 
 async function upsertEmployee(TenantEmployee, TenantAsg, spec) {
@@ -53,6 +53,8 @@ async function upsertEmployee(TenantEmployee, TenantAsg, spec) {
   if (matches.length === 1) {
     employee = matches[0]
     employee.joiningDate = JOINING
+    employee.position = spec.position || employee.position || ''
+    if (spec.code && employee.employeeCode !== spec.code) employee.employeeCode = spec.code
     if (!employee.status) employee.status = 'ACTIVE'
     await employee.save()
     action = 'updated'
@@ -62,6 +64,7 @@ async function upsertEmployee(TenantEmployee, TenantAsg, spec) {
       employeeCode: spec.code,
       idNumber: spec.idNumber,
       joiningDate: JOINING,
+      position: spec.position || '',
       status: 'ACTIVE',
       department: '',
       address: '',
@@ -176,6 +179,10 @@ async function main() {
         calendarDays: CALENDAR_DAYS,
         payableDays: PAYABLE_DAYS,
         amountPaid: AMOUNT_PAID,
+        year: YEAR,
+        month: MONTH,
+        previousArrears: 0,
+        advanceDeduction: 0,
       }),
       daysWorked: null,
       daysAbsent: null,
@@ -304,6 +311,12 @@ async function main() {
       monthlySalary: line.monthlySalary,
       calendarDays: line.calendarDays,
       payableDays: line.payableDays,
+      periodStart: line.periodStart || null,
+      periodEnd: line.periodEnd || null,
+      salaryCalculated: line.salaryCalculated ?? null,
+      previousArrears: line.previousArrears ?? 0,
+      advanceDeduction: line.advanceDeduction ?? 0,
+      otherDeductions: line.otherDeductions ?? 0,
       earnings: line.earnings,
       deductions: line.deductions,
       employerContributions: line.employerContributions,
