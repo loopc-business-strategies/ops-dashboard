@@ -70,6 +70,60 @@ function twoColStyles(contentWidth) {
   }
 }
 
+/** Make near-black plate transparent; preserve saturated/navy logo ink. */
+function removeNearBlackBackground(ctx, width, height) {
+  try {
+    const imageData = ctx.getImageData(0, 0, width, height)
+    const data = imageData.data
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      const a = data[i + 3]
+      if (a === 0) continue
+      const max = Math.max(r, g, b)
+      const min = Math.min(r, g, b)
+      // Neutral near-black background only (not navy/cyan brand colors).
+      if (max <= 42 && (max - min) <= 14) {
+        data[i + 3] = 0
+      }
+    }
+    ctx.putImageData(imageData, 0, 0)
+  } catch {
+    // Keep original pixels if canvas is tainted or unavailable.
+  }
+}
+
+/** Load logo PNG and strip black plate for white PDF pages. */
+async function loadTransparentPayslipLogo(logoUrl, width, height, fit) {
+  const rendered = await createLogoRenderAsset(logoUrl, width, height, fit || 'contain', { renderScale: 2 })
+  if (!rendered || !String(rendered).startsWith('data:image/')) return ''
+  if (typeof document === 'undefined') return rendered
+
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.onload = () => {
+      try {
+        const w = image.naturalWidth || image.width
+        const h = image.naturalHeight || image.height
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(rendered)
+        ctx.clearRect(0, 0, w, h)
+        ctx.drawImage(image, 0, 0)
+        removeNearBlackBackground(ctx, w, h)
+        resolve(canvas.toDataURL('image/png'))
+      } catch {
+        resolve(rendered)
+      }
+    }
+    image.onerror = () => resolve(rendered)
+    image.src = rendered
+  })
+}
+
 /**
  * Generate a payslip PDF via jspdf + autotable.
  * LoopC structured: compact header + logo + Employee / Salary / Deductions / Net Paid.
@@ -90,13 +144,12 @@ export async function generatePayslipPdf(payslip, tenant) {
   if (structured) {
     const logoW = 130
     const logoH = 42
-    // Dedicated LoopC payslip wordmark; fall back to tenant branding logo if needed.
-    const logoUrl = '/logos/loopc-payslip-logo.png'
-    let logoAsset = await createLogoRenderAsset(logoUrl, logoW, logoH, branding.logoFit || 'contain')
+    const fit = branding.logoFit || 'contain'
+    let logoAsset = await loadTransparentPayslipLogo('/logos/loopc-payslip-logo.png', logoW, logoH, fit)
     if (!logoAsset || !String(logoAsset).startsWith('data:image/')) {
       const fallback = branding.logoUrl || branding.logoImage || ''
       if (fallback) {
-        logoAsset = await createLogoRenderAsset(fallback, logoW, logoH, branding.logoFit || 'contain')
+        logoAsset = await loadTransparentPayslipLogo(fallback, logoW, logoH, fit)
       }
     }
     if (logoAsset && String(logoAsset).startsWith('data:image/')) {
@@ -172,29 +225,39 @@ export async function generatePayslipPdf(payslip, tenant) {
     doc.setFontSize(11)
     doc.text('Deductions', margin, y)
     y += 6
-    const deductionBody = [
-      ['Current Month Advance Payment Deduction', inrMoney(currentMonthAdvanceDeductionOf(payslip))],
-      // Presentation alias of salaryBalance (unpaid residual) — not a second transaction
-      ['Previous Month Advance Payment Deduction', inrMoney(previousMonthAdvanceDeductionOf(payslip))],
-      ['Other Deductions', inrMoney(otherDeductionsOf(payslip))],
-      ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
-      ['Net Paid / Amount Paid', inrMoney(payslip.amountPaid)],
-    ]
-    const netPaidRowIndex = deductionBody.length - 1
     autoTable(doc, {
       startY: y,
       head: [['Deduction', 'Amount']],
-      body: deductionBody,
+      body: [
+        ['Current Month Advance Payment Deduction', inrMoney(currentMonthAdvanceDeductionOf(payslip))],
+        // Presentation alias of salaryBalance (unpaid residual) — not a second transaction
+        ['Previous Month Advance Payment Deduction', inrMoney(previousMonthAdvanceDeductionOf(payslip))],
+        ['Other Deductions', inrMoney(otherDeductionsOf(payslip))],
+        ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
+      ],
       margin: { left: margin, right: margin },
       styles: TABLE_STYLES,
       columnStyles: colStyles,
       headStyles: { fillColor: HEAD_FILL },
       tableWidth: contentWidth,
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.row.index === netPaidRowIndex) {
-          data.cell.styles.fontStyle = 'bold'
-        }
-      },
+    })
+    y = doc.lastAutoTable.finalY + 14
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.text('Net Paid', margin, y)
+    y += 6
+    autoTable(doc, {
+      startY: y,
+      head: [['Description', 'Amount']],
+      body: [
+        ['Net Paid / Amount Paid', inrMoney(payslip.amountPaid)],
+      ],
+      margin: { left: margin, right: margin },
+      styles: { ...TABLE_STYLES, fontStyle: 'bold' },
+      columnStyles: colStyles,
+      headStyles: { fillColor: HEAD_FILL },
+      tableWidth: contentWidth,
     })
     y = doc.lastAutoTable.finalY + 16
 
