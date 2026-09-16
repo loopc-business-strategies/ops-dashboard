@@ -274,7 +274,7 @@ function renderTab(
   erpSubTab,
   chatTabProps = {},
   erpTabProps = {},
-  { departmentsComingSoon = false, overviewIsActive = true } = {},
+  { departmentsComingSoon = false, overviewIsActive = true, onBindOverviewSearch } = {},
 ) {
   if (departmentsComingSoon && (tabId === 'departments' || DEPARTMENT_MODULE_TAB_IDS.has(tabId))) {
     return <DepartmentsComingSoonTab />
@@ -282,7 +282,7 @@ function renderTab(
 
   switch (tabId) {
     case 'overview':
-      return <OverviewTab onNavigate={navigateToTab} buildTabHref={buildTabHref} isActive={overviewIsActive} />
+      return <OverviewTab onNavigate={navigateToTab} buildTabHref={buildTabHref} isActive={overviewIsActive} onBindSearch={onBindOverviewSearch} />
 
     case 'chat':
       return (
@@ -419,6 +419,10 @@ function Dashboard() {
   const langMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
   const accountMenuRef = useRef(null)
+  const overviewSearchOpenerRef = useRef(null)
+  const onBindOverviewSearch = useCallback((fn) => {
+    overviewSearchOpenerRef.current = fn
+  }, [])
 
   const DESKTOP_MIN_WIDTH = 1024
   const DESKTOP_SIDEBAR_WIDTH = 264
@@ -552,8 +556,9 @@ function Dashboard() {
     () => ({
       departmentsComingSoon,
       overviewIsActive: activeTab === 'overview',
+      onBindOverviewSearch,
     }),
-    [departmentsComingSoon, activeTab],
+    [departmentsComingSoon, activeTab, onBindOverviewSearch],
   )
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
@@ -953,6 +958,19 @@ function Dashboard() {
               )}
               {!showMetalTickers && <BuildInfoBadge className="hidden md:inline-flex" />}
 
+              {activeTab === 'overview' ? (
+                <button
+                  type="button"
+                  className="topbar-icon-btn"
+                  aria-label="Search workspace"
+                  onClick={() => overviewSearchOpenerRef.current?.()}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+                  </svg>
+                </button>
+              ) : null}
+
               {/* Read-only badge */}
               {perms.isReadOnly && (
                 <span className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg text-[11px]"
@@ -970,7 +988,7 @@ function Dashboard() {
                   onClick={() => setNotifOpen(v => !v)}
                   className="topbar-icon-btn relative"
                   style={{
-                    background: notifOpen ? 'var(--brand-soft)' : '#fff',
+                    background: notifOpen ? 'var(--brand-soft)' : undefined,
                     borderColor: notifOpen ? 'var(--brand-border)' : undefined,
                     color: 'var(--text-secondary)',
                   }}>
@@ -986,47 +1004,31 @@ function Dashboard() {
 
                 {notifOpen && (
                   <div
-                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
+                    className="topbar-dropdown absolute mt-1 py-1 rounded-xl shadow-2xl"
                     style={{
                       right: 0,
                       top: '100%',
                       minWidth: 320,
                       zIndex: 9999,
-                      background: '#ffffff',
-                      border: '1px solid #E5E7EB',
-                      boxShadow: '0 12px 28px rgba(15,23,42,0.2)',
                     }}>
                     <div
-                      style={{
-                        padding: '10px 12px',
-                        borderBottom: '1px solid #E5E7EB',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 8,
-                      }}
+                      className="flex items-center justify-between gap-2 px-3 py-2.5"
+                      style={{ borderBottom: '1px solid var(--border)' }}
                     >
-                      <span style={{ fontWeight: 700, color: '#111827' }}>Notifications</span>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Notifications</span>
                       {notifUnreadCount > 0 && (
                         <button
                           type="button"
                           onClick={handleMarkAllNotificationsRead}
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: '#2563eb',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '2px 4px',
-                          }}
+                          className="text-[11px] font-semibold"
+                          style={{ color: 'var(--brand-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
                         >
                           Mark all read
                         </button>
                       )}
                     </div>
                     {notifications.length === 0 ? (
-                      <div style={{ padding: '14px 12px', color: '#6B7280', fontSize: 12 }}>
+                      <div className="px-3 py-3.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         No notifications yet.
                       </div>
                     ) : notifications.map((n) => {
@@ -1044,16 +1046,16 @@ function Dashboard() {
                             handleNotificationRowActivate(n)
                           }
                         }}
+                        className="px-3 py-2.5"
                         style={{
-                          padding: '10px 12px',
-                          borderBottom: '1px solid #F3F4F6',
+                          borderBottom: '1px solid var(--border-subtle, var(--border))',
                           cursor: actionable ? 'pointer' : 'default',
                           opacity: n.read ? 0.72 : 1,
                         }}
                       >
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827' }}>{n.title}</p>
-                        {n.msg && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#4B5563' }}>{n.msg}</p>}
-                        <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{n.time}</p>
+                        <p className="text-[13px] font-semibold m-0" style={{ color: 'var(--text-primary)' }}>{n.title}</p>
+                        {n.msg && <p className="text-xs m-0 mt-0.5" style={{ color: 'var(--text-secondary)' }}>{n.msg}</p>}
+                        <p className="text-xs m-0 mt-0.5" style={{ color: 'var(--text-muted)' }}>{n.time}</p>
                       </div>
                       )
                     })}
@@ -1089,9 +1091,6 @@ function Dashboard() {
                       top: '100%',
                       minWidth: 170,
                       zIndex: 9999,
-                      background: '#1e293b',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
                     }}>
                     {LANGUAGES.map(lang => (
                       <button
@@ -1099,12 +1098,12 @@ function Dashboard() {
                         onClick={() => { switchLanguage(lang.code); setLangMenuOpen(false) }}
                         className="topbar-dropdown-item min-w-0 transition-all"
                         style={{
-                          color: lang.code === langMeta.code ? '#a78bfa' : 'rgba(255,255,255,0.8)',
-                          background: lang.code === langMeta.code ? 'rgba(139,92,246,0.15)' : 'transparent',
+                          color: lang.code === langMeta.code ? 'var(--brand-primary)' : 'var(--text-secondary)',
+                          background: lang.code === langMeta.code ? 'var(--brand-soft)' : 'transparent',
                           fontWeight: lang.code === langMeta.code ? 600 : 400,
                           textAlign: isRTL ? 'right' : 'left',
                         }}
-                        onMouseEnter={e => { if (lang.code !== langMeta.code) e.currentTarget.style.background = 'rgba(255,255,255,0.07)' }}
+                        onMouseEnter={e => { if (lang.code !== langMeta.code) e.currentTarget.style.background = 'var(--brand-soft)' }}
                         onMouseLeave={e => { if (lang.code !== langMeta.code) e.currentTarget.style.background = 'transparent' }}>
                         <span
                           style={{
@@ -1113,7 +1112,7 @@ function Dashboard() {
                             textAlign: 'center',
                             fontSize: 11,
                             fontWeight: 700,
-                            color: 'rgba(255,255,255,0.55)',
+                            color: 'var(--text-muted)',
                             letterSpacing: '0.02em',
                           }}>
                           {lang.regionCode}
@@ -1121,7 +1120,7 @@ function Dashboard() {
                         <span style={{ flex: 1, minWidth: 0 }}>{lang.nativeLabel}</span>
                         {lang.code === langMeta.code && (
                           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-                            <path d="M2 7l3.5 3.5L12 3" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M2 7l3.5 3.5L12 3" stroke="var(--brand-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                         )}
                       </button>
@@ -1139,9 +1138,9 @@ function Dashboard() {
                     className="hidden lg:inline-flex shrink-0 items-center justify-center rounded px-2"
                     style={{
                       height: 16,
-                      background: 'rgba(255,255,255,0.08)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      color: 'rgba(255,255,255,0.9)',
+                      background: 'var(--brand-soft)',
+                      border: '1px solid var(--brand-border)',
+                      color: 'var(--brand-on-soft, var(--brand-dark))',
                       fontSize: 9,
                       fontWeight: 700,
                       letterSpacing: 0.2,
@@ -1152,14 +1151,14 @@ function Dashboard() {
                     style={{ background: 'var(--grad-brand)' }}>
                     {user?.name?.[0]?.toUpperCase() || 'U'}
                   </div>
-                  <span className="hidden sm:inline shrink min-w-0 max-w-[5rem] truncate text-xs" style={{ color: '#fff', fontWeight: 600 }}>{user?.name}</span>
+                  <span className="hidden sm:inline shrink min-w-0 max-w-[5rem] truncate text-xs" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{user?.name}</span>
                   <span
                     className="hidden xl:inline-flex shrink-0 items-center rounded px-2"
                     style={{
                       height: 16,
-                      background: 'rgba(59,130,246,0.22)',
-                      border: '1px solid rgba(96,165,250,0.4)',
-                      color: '#93c5fd',
+                      background: 'var(--brand-soft)',
+                      border: '1px solid var(--brand-border)',
+                      color: 'var(--brand-on-soft, var(--brand-dark))',
                       fontSize: 9,
                       fontWeight: 700,
                     }}>

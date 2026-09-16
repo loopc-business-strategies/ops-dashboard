@@ -75,33 +75,6 @@ export default function AppSidebar({
           ))}
         </div>
 
-        {adminItems.length > 0 && <div className="sidebar-divider" role="separator" />}
-
-        {adminItems.length > 0 && (
-          <>
-            <button
-              type="button"
-              className="sidebar-section-title w-full"
-              onClick={() => setAdminOpen((v) => !v)}
-              aria-expanded={adminOpen}
-            >
-              <span>{t('adminSection')}</span>
-              <span className="section-chevron" aria-hidden="true">{adminOpen ? '▴' : '▾'}</span>
-            </button>
-            {adminOpen && adminItems.map((item) => (
-              <NavItem
-                key={item.id}
-                {...item}
-                href={buildNavHref(item)}
-                active={activeTab === item.id}
-                onSameTabNavigate={() => onModuleNavigate?.(item.id)}
-                onAfterClick={sidebarLinkAfterClick}
-                onPrefetch={() => prefetchTabChunk(item.id)}
-              />
-            ))}
-          </>
-        )}
-
         {deptItems.length > 0 && <div className="sidebar-divider" role="separator" />}
 
         {deptItems.length > 0 && (
@@ -152,6 +125,33 @@ export default function AppSidebar({
                 onSameTabNavigate={() => onErpNavigate?.(item.erpSub)}
                 onAfterClick={sidebarLinkAfterClick}
                 onPrefetch={() => prefetchTabChunk('erp')}
+              />
+            ))}
+          </>
+        )}
+
+        {adminItems.length > 0 && <div className="sidebar-divider" role="separator" />}
+
+        {adminItems.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="sidebar-section-title w-full"
+              onClick={() => setAdminOpen((v) => !v)}
+              aria-expanded={adminOpen}
+            >
+              <span>{t('adminSection')}</span>
+              <span className="section-chevron" aria-hidden="true">{adminOpen ? '▴' : '▾'}</span>
+            </button>
+            {adminOpen && adminItems.map((item) => (
+              <NavItem
+                key={item.id}
+                {...item}
+                href={buildNavHref(item)}
+                active={activeTab === item.id}
+                onSameTabNavigate={() => onModuleNavigate?.(item.id)}
+                onAfterClick={sidebarLinkAfterClick}
+                onPrefetch={() => prefetchTabChunk(item.id)}
               />
             ))}
           </>

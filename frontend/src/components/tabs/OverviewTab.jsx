@@ -8,6 +8,7 @@ import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
 import axios, { API_ORIGIN } from '../../api/client'
 import { ModuleTabColumn } from '../layout/ModuleTabChrome'
+import { Modal } from '../ui-components'
 import { subscribeRealtimeEvents } from '../../utils/realtimeEventsBus'
 import OverviewHeader from './overview/OverviewHeader'
 import OverviewKpis from './overview/OverviewKpis'
@@ -15,19 +16,17 @@ import MyWorkPanel from './overview/MyWorkPanel'
 import NotificationsPanel from './overview/NotificationsPanel'
 import QuickActions from './overview/QuickActions'
 import RecentActivity from './overview/RecentActivity'
-import ModuleShortcuts from './overview/ModuleShortcuts'
+import AttentionRequired from './overview/AttentionRequired'
+import UpcomingDeadlines from './overview/UpcomingDeadlines'
+import AttendanceSummary from './overview/AttendanceSummary'
 import {
   DEPT_OPTIONS,
   EmptyPanel,
-  ErrorPanel,
-  LoadingPanel,
   PRIORITY_OPTIONS,
-  Section,
   STATUS_OPTIONS,
   endOfToday,
   fmtDate,
   fmtDateTime,
-  getSeverityTone,
   startOfToday,
   statusLabel,
   taskAssignedToCurrentUser,
@@ -57,7 +56,7 @@ const DEFAULT_TASK_FORM = {
   reminderAt: '',
 }
 
-function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
+function OverviewTab({ onNavigate, buildTabHref, isActive = true, onBindSearch }) {
   const { user, token } = useAuth()
   const perms = usePermissions()
 
@@ -79,8 +78,11 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
   const [myAttendance, setMyAttendance] = useState(null)
   const [leaveRequests, setLeaveRequests] = useState([])
   const [leaveForm, setLeaveForm] = useState({ startDate: '', endDate: '', leaveType: 'personal', reason: '' })
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false)
   const [attendanceError, setAttendanceError] = useState(false)
   const [loadingAttendance, setLoadingAttendance] = useState(true)
+  const [loadingAlerts, setLoadingAlerts] = useState(true)
+  const [alertsError, setAlertsError] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -94,7 +96,6 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
   const roleView = overviewConfig[role] || overviewConfig.department_user
   const canCreateTasks = !perms.isManagement && !perms.isExternal
   const isReadOnlyExec = perms.isManagement
-  const canManageLeave = perms.isSuperAdmin || perms.isDepartmentHead || ((user?.department || '').toLowerCase() === 'hr')
   const todayStart = startOfToday()
   const todayEnd = endOfToday()
 
@@ -237,9 +238,25 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
     }
   }, [token])
 
+  const loadAlerts = useCallback(async () => {
+    setLoadingAlerts((prev) => (liveAlerts.length === 0 ? true : prev))
+    try {
+      const r = await axios.get(`${API_ORIGIN}/api/exceptions`)
+      setLiveAlerts((r.data?.exceptions || []).slice(0, 8))
+      setAlertsError(false)
+    } catch {
+      if (liveAlerts.length === 0) {
+        setLiveAlerts([])
+        setAlertsError(true)
+      }
+    } finally {
+      setLoadingAlerts(false)
+    }
+  }, [liveAlerts.length])
+
   const refreshAll = async () => {
     setRefreshing(true)
-    await Promise.all([loadTasks(), loadMessages(), loadAttendance(), loadAssignees()])
+    await Promise.all([loadTasks(), loadMessages(), loadAttendance(), loadAssignees(), loadAlerts()])
     setRefreshing(false)
     showToast('Overview refreshed')
   }
@@ -250,6 +267,7 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
     loadAssignees()
     loadMessages()
     loadAttendance()
+    loadAlerts()
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -258,9 +276,10 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
       loadTasks()
       loadMessages()
       loadAttendance()
+      loadAlerts()
     }, 120000)
     return () => window.clearInterval(id)
-  }, [token, isActive, loadTasks, loadMessages, loadAttendance])
+  }, [token, isActive, loadTasks, loadMessages, loadAttendance, loadAlerts])
 
   useEffect(() => {
     if (!token) return undefined
@@ -273,13 +292,10 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
   }, [token, user?.company, user?.tenant, loadTasks, loadMessages])
 
   useEffect(() => {
-    if (!token) return undefined
-    let cancelled = false
-    axios.get(`${API_ORIGIN}/api/exceptions`)
-      .then((r) => { if (!cancelled) setLiveAlerts((r.data?.exceptions || []).slice(0, 8)) })
-      .catch(() => { if (!cancelled) setLiveAlerts([]) })
-    return () => { cancelled = true }
-  }, [token])
+    if (!onBindSearch) return undefined
+    onBindSearch(() => setSearchOpen(true))
+    return () => onBindSearch(null)
+  }, [onBindSearch])
 
   useEffect(() => {
     if (!exceptionsOpen || !token) return undefined
@@ -519,20 +535,11 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
     try {
       await attendanceAPI.createLeaveRequest(token, leaveForm)
       setLeaveForm({ startDate: '', endDate: '', leaveType: 'personal', reason: '' })
+      setLeaveModalOpen(false)
       await loadAttendance()
       showToast('Leave request submitted')
     } catch {
       showToast('Failed to submit leave request')
-    }
-  }
-
-  const reviewLeaveRequest = async (requestId, nextStatus) => {
-    try {
-      await attendanceAPI.reviewLeaveRequest(token, requestId, { status: nextStatus })
-      await loadAttendance()
-      showToast(`Leave request ${nextStatus}`)
-    } catch {
-      showToast('Unable to update leave request')
     }
   }
 
@@ -557,6 +564,10 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
     if (perms.isDepartmentHead) return (x.dept || x.department) === (user?.department || '').toLowerCase()
     return (x.name || x.employeeName || '').toLowerCase() === (user?.name || '').toLowerCase()
   })
+  const pendingLeaveCount = visibleLeave.filter((x) => {
+    const status = String(x.status || 'pending').toLowerCase()
+    return status !== 'approved' && status !== 'rejected'
+  }).length
 
   return (
     <ModuleTabColumn className="pb-2 space-y-4">
@@ -675,7 +686,17 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
       </div>
 
       {showTaskCreate && canCreateTasks ? (
-        <Section title={editingTaskId ? 'Edit Task' : 'Create Task'} action={<button type="button" onClick={resetTaskComposer} className="text-sm text-gray-500">Close</button>}>
+        <Modal
+          title={editingTaskId ? 'Edit Task' : 'Create Task'}
+          onClose={resetTaskComposer}
+          width={640}
+          footer={(
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={resetTaskComposer} className="btn btn-secondary btn-sm">Cancel</button>
+              <button type="button" onClick={onSaveTask} className="btn btn-primary btn-sm">{editingTaskId ? 'Save' : 'Create'}</button>
+            </div>
+          )}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input className="input-field" placeholder="Task Title *" value={taskForm.title} onChange={(e) => setTaskForm((p) => ({ ...p, title: e.target.value }))} />
             <input className="input-field" placeholder="Module / Section" value={taskForm.module} onChange={(e) => setTaskForm((p) => ({ ...p, module: e.target.value }))} />
@@ -703,11 +724,34 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
             <input type="date" className="input-field" value={taskForm.dueDate} onChange={(e) => setTaskForm((p) => ({ ...p, dueDate: e.target.value }))} />
             <input className="input-field" placeholder="Linked record" value={taskForm.linkedRecord} onChange={(e) => setTaskForm((p) => ({ ...p, linkedRecord: e.target.value }))} />
           </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <button type="button" onClick={resetTaskComposer} className="px-3 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm">Cancel</button>
-            <button type="button" onClick={onSaveTask} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-sm">{editingTaskId ? 'Save' : 'Create'}</button>
+        </Modal>
+      ) : null}
+
+      {leaveModalOpen ? (
+        <Modal
+          title="Apply for Leave"
+          onClose={() => setLeaveModalOpen(false)}
+          width={480}
+          footer={(
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setLeaveModalOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
+              <button type="button" onClick={submitLeaveRequest} className="btn btn-primary btn-sm">Submit</button>
+            </div>
+          )}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input type="date" value={leaveForm.startDate} onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))} className="input-field" aria-label="Leave start" />
+            <input type="date" value={leaveForm.endDate} onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))} className="input-field" aria-label="Leave end" />
+            <select value={leaveForm.leaveType} onChange={(e) => setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))} className="input-field sm:col-span-2" aria-label="Leave type">
+              <option value="personal">Personal</option>
+              <option value="medical">Medical</option>
+              <option value="annual">Annual</option>
+              <option value="sick">Sick</option>
+              <option value="other">Other</option>
+            </select>
+            <input value={leaveForm.reason} onChange={(e) => setLeaveForm((p) => ({ ...p, reason: e.target.value }))} placeholder="Reason (optional)" className="input-field sm:col-span-2" />
           </div>
-        </Section>
+        </Modal>
       ) : null}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -724,135 +768,40 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true }) {
             else if (item.task) openTaskComposer(item.task)
           }}
         />
-        <RecentActivity items={latestFeed} />
+        <RecentActivity
+          items={latestFeed}
+          loading={loadingTasks && tasks.length === 0}
+          error={tasksError && latestFeed.length === 0}
+          onRetry={loadTasks}
+        />
       </div>
 
-      <Section title="Attention Required">
-        {alertRows.length === 0 ? (
-          <EmptyPanel title="No active alerts" message="Exceptions and overdue tasks will appear here." />
-        ) : (
-          <div className="space-y-2">
-            {alertRows.map((a) => (
-              <div key={a.id} className="border border-gray-200 rounded-xl p-3 bg-white flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-gray-900">{a.text}</p>
-                  <p className="text-xs text-gray-600 mt-1 capitalize">{a.dept}{a.age ? ` · ${a.age}` : ''}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!ackedAlerts[a.id] ? (
-                    <button
-                      type="button"
-                      onClick={() => { setAckedAlerts((p) => ({ ...p, [a.id]: true })); showToast('Alert acknowledged') }}
-                      className="px-2 py-1 rounded border border-gray-300 bg-white text-[11px] text-gray-800"
-                    >
-                      Acknowledge
-                    </button>
-                  ) : null}
-                  <span className={`px-2 py-1 rounded border text-[11px] uppercase ${getSeverityTone(a.severity)}`}>
-                    {ackedAlerts[a.id] ? 'acked' : a.severity}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
+      <AttentionRequired
+        loading={loadingAlerts && liveAlerts.length === 0 && loadingTasks && tasks.length === 0}
+        error={alertsError && alertRows.length === 0}
+        onRetry={() => { loadAlerts(); loadTasks() }}
+        rows={alertRows}
+        ackedAlerts={ackedAlerts}
+        onAcknowledge={(id) => { setAckedAlerts((p) => ({ ...p, [id]: true })); showToast('Alert acknowledged') }}
+        onViewAll={() => setExceptionsOpen(true)}
+      />
 
-      <Section title="Upcoming Deadlines">
-        {deadlineRows.length === 0 ? (
-          <EmptyPanel title="No upcoming deadlines" message="Tasks with due dates will appear here." />
-        ) : (
-          <div className="space-y-2">
-            {deadlineRows.map((d) => (
-              <div key={d.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-2.5 bg-white gap-3">
-                <p className="text-sm text-gray-800"><span className="text-gray-500">{d.when}</span> · {d.text}</p>
-                <span className="text-xs text-gray-500 capitalize shrink-0">{d.dept}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
+      <UpcomingDeadlines
+        loading={loadingTasks && tasks.length === 0}
+        error={tasksError}
+        onRetry={loadTasks}
+        rows={deadlineRows}
+      />
 
-      <Section title="Attendance & Leave" action={<button type="button" className="text-xs text-emerald-800 hover:underline" onClick={() => onNavigate?.('hr')}>View HR →</button>}>
-        {loadingAttendance && !attendanceSummaryApi && !myAttendance ? <LoadingPanel label="Loading attendance…" /> : null}
-        {attendanceError && !attendanceSummaryApi && !myAttendance && !leaveRequests.length ? (
-          <ErrorPanel onRetry={loadAttendance} />
-        ) : null}
-        {!attendanceError || attendanceSummaryApi || myAttendance || leaveRequests.length ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="border border-gray-200 rounded-xl p-3 bg-white">
-              <p className="text-sm font-medium text-gray-900 mb-2">My Attendance</p>
-              {myAttendance ? (
-                <>
-                  <p className="text-xs text-gray-700">
-                    This month: {myAttendance.presentDays ?? '—'}{myAttendance.totalDays != null ? `/${myAttendance.totalDays}` : ''} days
-                    {myAttendance.attendancePct != null ? ` (${myAttendance.attendancePct}%)` : ''}
-                  </p>
-                  <p className="text-xs text-gray-700 mt-1">
-                    Today: {myAttendance.todayStatus ? String(myAttendance.todayStatus).toUpperCase() : '—'}
-                    {myAttendance.todayCheckIn ? ` at ${myAttendance.todayCheckIn}` : ''}
-                  </p>
-                  {myAttendance.leaveDays != null ? (
-                    <p className="text-xs text-gray-700 mt-1">Leaves taken: {myAttendance.leaveDays} days</p>
-                  ) : null}
-                </>
-              ) : (
-                <EmptyPanel title="No attendance data" message="Your attendance summary is not available yet." />
-              )}
-              {attendanceSummaryApi ? (
-                <p className="text-xs text-gray-600 mt-3">
-                  Team present: {attendanceSummaryApi.present ?? 0}/{attendanceSummaryApi.total ?? 0}
-                  {attendanceSummaryApi.percent != null ? ` (${attendanceSummaryApi.percent}%)` : ''}
-                </p>
-              ) : null}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                <input type="date" value={leaveForm.startDate} onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))} className="input-field" aria-label="Leave start" />
-                <input type="date" value={leaveForm.endDate} onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))} className="input-field" aria-label="Leave end" />
-                <select value={leaveForm.leaveType} onChange={(e) => setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))} className="input-field sm:col-span-2" aria-label="Leave type">
-                  <option value="personal">Personal</option>
-                  <option value="medical">Medical</option>
-                  <option value="annual">Annual</option>
-                  <option value="sick">Sick</option>
-                  <option value="other">Other</option>
-                </select>
-                <input value={leaveForm.reason} onChange={(e) => setLeaveForm((p) => ({ ...p, reason: e.target.value }))} placeholder="Reason (optional)" className="input-field sm:col-span-2" />
-              </div>
-              <button type="button" onClick={submitLeaveRequest} className="mt-3 px-3 py-2 text-xs rounded-lg bg-emerald-700 text-white">Apply for Leave</button>
-            </div>
-            <div className="border border-gray-200 rounded-xl p-3 bg-white">
-              <p className="text-sm font-medium text-gray-900 mb-2">Leave Requests</p>
-              {visibleLeave.length === 0 ? (
-                <EmptyPanel title="No leave requests" />
-              ) : (
-                <div className="space-y-2">
-                  {visibleLeave.slice(0, 6).map((x) => (
-                    <div key={x.id || x._id} className="border border-gray-200 rounded-lg p-2">
-                      <p className="text-xs text-gray-800">{x.name || x.employeeName} ({x.dept || x.department || '—'})</p>
-                      <p className="text-xs text-gray-600">
-                        {x.dates || `${fmtDate(x.startDate)} – ${fmtDate(x.endDate)}`}
-                        {x.days != null ? ` · ${x.days} days` : ''}
-                        {x.reason ? ` · ${x.reason}` : ''}
-                      </p>
-                      {canManageLeave && x.status !== 'approved' && x.status !== 'rejected' ? (
-                        <div className="mt-2 flex gap-2 text-xs">
-                          <button type="button" onClick={() => reviewLeaveRequest(x.id || x._id, 'approved')} className="text-emerald-800 hover:underline">Approve</button>
-                          <button type="button" onClick={() => reviewLeaveRequest(x.id || x._id, 'rejected')} className="text-red-700 hover:underline">Reject</button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-      </Section>
-
-      <ModuleShortcuts
-        canViewModule={perms.canViewModule}
-        canViewERP={perms.canViewERP}
-        buildTabHref={buildTabHref}
-        onNavigate={onNavigate}
+      <AttendanceSummary
+        loading={loadingAttendance}
+        error={attendanceError}
+        onRetry={loadAttendance}
+        myAttendance={myAttendance}
+        attendanceSummaryApi={attendanceSummaryApi}
+        pendingLeaveCount={pendingLeaveCount}
+        onApplyLeave={() => setLeaveModalOpen(true)}
+        onViewHr={() => onNavigate?.('hr')}
       />
     </ModuleTabColumn>
   )

@@ -44,19 +44,6 @@ export const QUICK_ACTIONS = {
   external: ['Global Search'],
 }
 
-export const MODULE_SHORTCUTS = [
-  { id: 'hr', label: 'HR', tab: 'hr' },
-  { id: 'compliance', label: 'Compliance', tab: 'compliance' },
-  { id: 'production', label: 'Production', tab: 'production', href: '/production' },
-  { id: 'finance', label: 'Finance', tab: 'finance' },
-  { id: 'sales', label: 'Sales', tab: 'sales' },
-  { id: 'operations', label: 'Operations', tab: 'operations' },
-  { id: 'training', label: 'Training', tab: 'training' },
-  { id: 'chat', label: 'Chat', tab: 'chat' },
-  { id: 'erp', label: 'ERP Dashboard', tab: 'erp', options: { erpSub: 'dashboard' } },
-  { id: 'reports', label: 'Reports', tab: 'erp', options: { erpSub: 'reports' } },
-]
-
 export function startOfToday() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
@@ -129,16 +116,27 @@ export function TabNavLink({ tabId, options, buildTabHref, onNavigate, className
   )
 }
 
+export function FilterChip({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-8 px-2.5 text-xs rounded-lg border ${active ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-700'}`}
+    >
+      {children}
+    </button>
+  )
+}
+
 export function KpiCard({ title, value, hint, onClick, href, loading }) {
-  const cardClass = `relative overflow-hidden text-left bg-white border border-gray-200 rounded-xl px-4 py-4 min-h-[112px] transition-colors ${onClick || href ? 'hover:border-gray-300' : 'cursor-default'}`
+  const cardClass = `h-full min-h-[88px] text-left bg-white border border-gray-200 rounded-lg px-4 py-3 flex flex-col justify-center transition-colors ${onClick || href ? 'hover:border-gray-300' : 'cursor-default'}`
   const content = (
     <>
-      <span aria-hidden className="absolute left-0 top-0 right-0 h-0.5 w-full" style={{ background: 'var(--brand-primary)' }} />
-      <p className="text-[11px] text-gray-500 tracking-[0.12em] uppercase mt-1">{title}</p>
-      <p className="text-2xl sm:text-3xl leading-tight font-semibold text-gray-900 mt-2 tabular-nums">
+      <p className="text-[11px] text-gray-500 tracking-[0.08em] uppercase">{title}</p>
+      <p className="text-[28px] leading-tight font-semibold text-gray-900 mt-1 tabular-nums">
         {loading ? '—' : value}
       </p>
-      {hint ? <p className="text-xs text-gray-600 mt-2">{hint}</p> : null}
+      {hint ? <p className="text-xs text-gray-600 mt-1">{hint}</p> : null}
     </>
   )
 
@@ -159,11 +157,10 @@ export function KpiCard({ title, value, hint, onClick, href, loading }) {
 
 export function Section({ title, action, children, className = '' }) {
   return (
-    <section className={`relative overflow-hidden bg-white border border-gray-200 rounded-xl p-4 sm:p-5 ${className}`}>
-      <div aria-hidden className="pointer-events-none absolute left-0 top-0 right-0 h-0.5" style={{ background: 'var(--brand-primary)' }} />
-      <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-4 pb-3 border-b border-gray-100">
-        <h2 className="text-base font-semibold tracking-tight text-gray-900">{title}</h2>
-        {action ? <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div> : null}
+    <section className={`bg-white border border-gray-200 rounded-lg p-4 ${className}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+        <h2 className="text-[15px] font-semibold tracking-tight text-gray-900">{title}</h2>
+        {action ? <div className="w-full sm:w-auto flex flex-wrap justify-start sm:justify-end gap-1.5">{action}</div> : null}
       </div>
       {children}
     </section>
@@ -172,20 +169,20 @@ export function Section({ title, action, children, className = '' }) {
 
 export function EmptyPanel({ title, message }) {
   return (
-    <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-8 text-center">
+    <div className="rounded-md px-1 py-3">
       <p className="text-sm font-medium text-gray-800">{title}</p>
-      {message ? <p className="text-xs text-gray-500 mt-1">{message}</p> : null}
+      {message ? <p className="text-xs text-gray-500 mt-0.5">{message}</p> : null}
     </div>
   )
 }
 
 export function ErrorPanel({ title = 'Unable to load data', message = 'Please try again.', onRetry }) {
   return (
-    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center">
+    <div className="rounded-md px-1 py-3">
       <p className="text-sm font-medium text-red-900">{title}</p>
-      <p className="text-xs text-red-700 mt-1">{message}</p>
+      <p className="text-xs text-red-700 mt-0.5">{message}</p>
       {onRetry ? (
-        <button type="button" onClick={onRetry} className="mt-3 px-3 py-1.5 text-xs rounded-lg border border-red-300 bg-white text-red-800">
+        <button type="button" onClick={onRetry} className="btn btn-secondary btn-sm mt-2">
           Retry
         </button>
       ) : null}
@@ -195,7 +192,7 @@ export function ErrorPanel({ title = 'Unable to load data', message = 'Please tr
 
 export function LoadingPanel({ label = 'Loading…' }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500" aria-busy="true">
+    <div className="px-1 py-3 text-sm text-gray-500" aria-busy="true">
       {label}
     </div>
   )

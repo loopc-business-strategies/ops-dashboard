@@ -1,22 +1,25 @@
-import { EmptyPanel, Section, fmtDateTime } from './overviewShared'
+import { EmptyPanel, ErrorPanel, LoadingPanel, Section, fmtDateTime } from './overviewShared'
 
-export default function RecentActivity({ items }) {
+export default function RecentActivity({ items, loading, error, onRetry }) {
   return (
     <Section title="Recent Activity">
-      {items.length === 0 ? (
-        <EmptyPanel title="No recent activity" message="Task updates will show up here." />
-      ) : (
-        <div className="space-y-2">
+      {loading ? <LoadingPanel label="Loading activity…" /> : null}
+      {!loading && error ? <ErrorPanel onRetry={onRetry} /> : null}
+      {!loading && !error && items.length === 0 ? (
+        <EmptyPanel title="No recent activity" message="Task and workflow updates will appear here." />
+      ) : null}
+      {!loading && !error && items.length > 0 ? (
+        <ul className="divide-y divide-gray-100">
           {items.map((f) => (
-            <div key={f.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+            <li key={f.id} className="py-2 min-h-[40px]">
               <p className="text-sm text-gray-800">{f.text}</p>
-              <p className="text-[11px] text-gray-500 mt-1 capitalize">
+              <p className="text-[11px] text-gray-500 capitalize">
                 {f.dept || 'general'} · {fmtDateTime(f.time)}
               </p>
-            </div>
+            </li>
           ))}
-        </div>
-      )}
+        </ul>
+      ) : null}
     </Section>
   )
 }
