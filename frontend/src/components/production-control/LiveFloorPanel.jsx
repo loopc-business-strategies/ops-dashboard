@@ -30,7 +30,7 @@ export default function LiveFloorPanel({
 
   const kpis = summary?.kpis || {}
   const stages = flow?.stages || []
-  const board = summary?.board || {}
+  const board = useMemo(() => summary?.board || {}, [summary?.board])
   const shift = summary?.currentShift
   const openAlerts = summary?.openAlerts || summary?.attention || []
   const attentionItems = summary?.attention || summary?.openAlerts || []
