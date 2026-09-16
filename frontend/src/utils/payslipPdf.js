@@ -61,9 +61,10 @@ function salaryCalculatedOf(payslip) {
 }
 
 /**
- * Generate a LoopC payslip PDF via jspdf + autotable.
- * Shows earned vs amount paid vs salary balance (arrears — not advance).
- * LoopC structured tenants also get employee + salary summary tables (additive).
+ * Generate a payslip PDF via jspdf + autotable.
+ * LoopC structured tenants: compact header + Employee/Salary Details tables (no duplicate fields).
+ * Other tenants: legacy full header + earned/paid/balance lines.
+ * Presentation only — does not mutate payslip data.
  */
 export async function generatePayslipPdf(payslip, tenant) {
   const { jsPDF, autoTable } = await loadPdfTools()
@@ -82,22 +83,16 @@ export async function generatePayslipPdf(payslip, tenant) {
   doc.text('PAYSLIP', margin, y)
   y += 16
   doc.setFontSize(10)
-  doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
-  doc.text(`Period: ${periodLabel(payslip.year, payslip.month)}`, 320, y)
-  y += 14
-  doc.text(`Employee: ${payslip.employeeName || '—'} (${payslip.employeeCode || '—'})`, margin, y)
-  y += 14
-  doc.text(`Department: ${payslip.department || '—'}`, margin, y)
-  doc.text(`Position: ${payslip.position || '—'}`, 320, y)
-  y += 14
-  doc.text(`Joining date: ${fmtDate(payslip.joiningDate)}`, margin, y)
-  doc.text(`Bank: ${payslip.bankMasked || '****'}`, 320, y)
-  y += 14
-  doc.text(`Payable days: ${payslip.payableDays ?? '—'}`, margin, y)
-  doc.text(`Monthly salary: ${money(payslip.monthlySalary)}`, 320, y)
-  y += 16
 
   if (structured) {
+    // Compact header — fields not repeated in Employee Details
+    doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
+    doc.text(`Department: ${payslip.department || '—'}`, 320, y)
+    y += 14
+    doc.text(`Bank: ${payslip.bankMasked || '****'}`, margin, y)
+    doc.text(`Monthly salary: ${money(payslip.monthlySalary)}`, 320, y)
+    y += 16
+
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
     doc.text('Employee Details', margin, y)
@@ -143,6 +138,27 @@ export async function generatePayslipPdf(payslip, tenant) {
       headStyles: { fillColor: [30, 41, 59] },
     })
     y = doc.lastAutoTable.finalY + 14
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('Earnings breakdown', margin, y)
+    y += 6
+  } else {
+    // Legacy full header (non-LoopC / non-structured)
+    doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
+    doc.text(`Period: ${periodLabel(payslip.year, payslip.month)}`, 320, y)
+    y += 14
+    doc.text(`Employee: ${payslip.employeeName || '—'} (${payslip.employeeCode || '—'})`, margin, y)
+    y += 14
+    doc.text(`Department: ${payslip.department || '—'}`, margin, y)
+    doc.text(`Position: ${payslip.position || '—'}`, 320, y)
+    y += 14
+    doc.text(`Joining date: ${fmtDate(payslip.joiningDate)}`, margin, y)
+    doc.text(`Bank: ${payslip.bankMasked || '****'}`, 320, y)
+    y += 14
+    doc.text(`Payable days: ${payslip.payableDays ?? '—'}`, margin, y)
+    doc.text(`Monthly salary: ${money(payslip.monthlySalary)}`, 320, y)
+    y += 20
   }
 
   const earningsRows = (payslip.earnings || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
@@ -156,6 +172,13 @@ export async function generatePayslipPdf(payslip, tenant) {
   })
   y = doc.lastAutoTable.finalY + 12
 
+  if (structured) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('Deductions breakdown', margin, y)
+    y += 6
+  }
+
   const dedRows = (payslip.deductions || []).map((r) => [r.code || '', r.label || '', money(r.amount)])
   autoTable(doc, {
     startY: y,
@@ -167,20 +190,23 @@ export async function generatePayslipPdf(payslip, tenant) {
   })
   y = doc.lastAutoTable.finalY + 14
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text(`Earned salary: ${money(payslip.net ?? payslip.gross)}`, margin, y)
-  y += 14
-  doc.text(`Amount paid: ${money(payslip.amountPaid)}`, margin, y)
-  y += 14
-  doc.setTextColor(146, 64, 14)
-  doc.text(`Salary balance (arrears): ${money(payslip.salaryBalance)}`, margin, y)
-  doc.setTextColor(0, 0, 0)
-  y += 10
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.text('Salary balance is earned but unpaid salary. It is not an employee advance.', margin, y)
-  y += 16
+  // Legacy summary lines — omitted for LoopC structured (already in Salary Details)
+  if (!structured) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text(`Earned salary: ${money(payslip.net ?? payslip.gross)}`, margin, y)
+    y += 14
+    doc.text(`Amount paid: ${money(payslip.amountPaid)}`, margin, y)
+    y += 14
+    doc.setTextColor(146, 64, 14)
+    doc.text(`Salary balance (arrears): ${money(payslip.salaryBalance)}`, margin, y)
+    doc.setTextColor(0, 0, 0)
+    y += 10
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text('Salary balance is earned but unpaid salary. It is not an employee advance.', margin, y)
+    y += 16
+  }
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
