@@ -1173,3 +1173,207 @@
   color: var(--pcc-text-muted);
   font-size: 12px;
 }
+
+/* Track 2 — planning gantt, trends, timeline, report groups */
+.pcc-gantt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.pcc-gantt-axis,
+.pcc-gantt-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) minmax(280px, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 520px;
+}
+
+.pcc-gantt-label-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.pcc-gantt-track-col {
+  position: relative;
+  height: 36px;
+  background: var(--pcc-elevated);
+  border: 1px solid var(--pcc-border);
+  border-radius: 8px;
+}
+
+.pcc-gantt-tick {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--pcc-text-muted);
+  white-space: nowrap;
+}
+
+.pcc-gantt-bar {
+  position: absolute;
+  top: 10px;
+  height: 16px;
+  border-radius: 4px;
+  background: rgba(249, 115, 22, 0.55);
+  color: var(--pcc-text);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.pcc-gantt-bar.tone-ok { background: rgba(34, 197, 94, 0.55); }
+.pcc-gantt-bar.tone-bad { background: rgba(239, 68, 68, 0.55); }
+.pcc-gantt-bar.tone-warn { background: rgba(234, 179, 8, 0.55); }
+.pcc-gantt-bar.tone-active { background: rgba(59, 130, 246, 0.55); }
+.pcc-gantt-bar.tone-muted { background: rgba(148, 163, 184, 0.45); }
+
+.pcc-gantt-milestone {
+  position: absolute;
+  top: 10px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: var(--pcc-orange);
+}
+
+.pcc-gantt-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--pcc-danger);
+  opacity: 0.7;
+  z-index: 1;
+}
+
+.pcc-trend {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  min-height: 120px;
+}
+
+.pcc-trend-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pcc-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+  width: 100%;
+  justify-content: center;
+}
+
+.pcc-trend-bar {
+  width: 10px;
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+}
+
+.pcc-trend-bar.jobs { background: rgba(148, 163, 184, 0.55); }
+.pcc-trend-bar.done { background: rgba(34, 197, 94, 0.7); }
+
+.pcc-trend-label {
+  font-size: 10px;
+  color: var(--pcc-text-muted);
+}
+
+.pcc-trend-value {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pcc-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pcc-timeline-item {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 10px;
+  min-height: 52px;
+}
+
+.pcc-timeline-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pcc-timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--pcc-orange);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.pcc-timeline-item.tone-ok .pcc-timeline-dot { background: var(--pcc-success); }
+.pcc-timeline-item.tone-bad .pcc-timeline-dot { background: var(--pcc-danger); }
+.pcc-timeline-item.tone-warn .pcc-timeline-dot { background: var(--pcc-warning); }
+.pcc-timeline-item.tone-active .pcc-timeline-dot { background: #3b82f6; }
+.pcc-timeline-item.tone-muted .pcc-timeline-dot { background: var(--pcc-text-muted); }
+
+.pcc-timeline-line {
+  flex: 1;
+  width: 2px;
+  background: var(--pcc-border);
+  margin-top: 4px;
+}
+
+.pcc-timeline-body {
+  padding-bottom: 14px;
+}
+
+.pcc-timeline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.pcc-timeline-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pcc-report-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pcc-report-group-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--pcc-text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}

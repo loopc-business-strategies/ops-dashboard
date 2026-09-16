@@ -10,6 +10,7 @@ import './ProductionControlCenter.css'
 
 const LiveFloorPanel = lazy(() => import('../components/production-control/LiveFloorPanel'))
 const WorkOrdersPanel = lazy(() => import('../components/production-control/WorkOrdersPanel'))
+const PlanningPanel = lazy(() => import('../components/production-control/PlanningPanel'))
 const OverviewPanel = lazy(() => import('../components/production-control/panels/OverviewPanel'))
 const BatchesPanel = lazy(() => import('../components/production-control/panels/BatchesPanel'))
 const PassesPanel = lazy(() => import('../components/production-control/panels/PassesPanel'))
@@ -435,6 +436,13 @@ function ProductionControlCenterInner() {
               setSection('batches')
               showToast(wo?.woNumber ? `Opened batches — link WO ${wo.woNumber} when creating` : 'Opened batches')
             }}
+          />
+        )
+      case 'planning':
+        return (
+          <PlanningPanel
+            onToast={showToast}
+            onOpenWorkOrders={() => setSection('work-orders')}
           />
         )
       case 'batches':

@@ -361,25 +361,65 @@ export function ReportsPanel({ onToast }) {
     downloadCsv(`pcc-report-${tab}.csv`, rowsToCsv(rows, columns))
   }
 
+  const REPORT_GROUPS = [
+    {
+      id: 'production',
+      label: 'Production',
+      items: [
+        ['daily', 'Daily Production'],
+        ['dept', 'Department'],
+        ['shift', 'Shift'],
+      ],
+    },
+    {
+      id: 'quality',
+      label: 'Quality',
+      items: [
+        ['qc', 'QC'],
+        ['variance', 'Weight Variance'],
+      ],
+    },
+    {
+      id: 'material',
+      label: 'Material',
+      items: [
+        ['stock', 'Stock Movement'],
+        ['custody', 'Metal Custody'],
+      ],
+    },
+    {
+      id: 'machines',
+      label: 'Machines',
+      items: [
+        ['machines', 'Machine Performance'],
+      ],
+    },
+  ]
+
   return (
     <div className="pcc-stack">
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>PRODUCTION REPORTS</h2></div>
-        <div className="pcc-row-actions">
-          {[
-            ['daily', 'Daily Production'],
-            ['stock', 'Stock Movement'],
-            ['dept', 'Department'],
-            ['qc', 'QC'],
-            ['shift', 'Shift'],
-            ['custody', 'Metal Custody'],
-            ['variance', 'Weight Variance'],
-            ['machines', 'Machine Performance'],
-          ].map(([id, label]) => (
-            <button key={id} type="button" className={tab === id ? 'pcc-btn' : 'pcc-btn-ghost'} onClick={() => setTab(id)}>
-              {label}
-            </button>
+        <div className="pcc-report-groups">
+          {REPORT_GROUPS.map((group) => (
+            <div key={group.id} className="pcc-report-group">
+              <div className="pcc-report-group-label">{group.label}</div>
+              <div className="pcc-row-actions">
+                {group.items.map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={tab === id ? 'pcc-btn' : 'pcc-btn-ghost'}
+                    onClick={() => setTab(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
+        </div>
+        <div className="pcc-row-actions" style={{ marginTop: 12 }}>
           <button type="button" className="pcc-btn-ghost" onClick={exportCsv}>Export CSV</button>
         </div>
         <form className="pcc-form-inline" onSubmit={runTrace} style={{ marginTop: 12 }}>

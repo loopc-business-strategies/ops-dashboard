@@ -13,6 +13,112 @@ import {
 import { inventoryApi } from '../../../api/operations/inventory'
 import { useDebounced, canIssueGate } from './panelHelpers'
 
+function formatGap(ms) {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return null
+  const mins = Math.round(ms / 60000)
+  if (mins < 1) return '<1m'
+  if (mins < 60) return `${mins}m`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m ? `${h}h ${m}m` : `${h}h`
+}
+
+function timelineTone(type) {
+  const t = String(type || '').toLowerCase()
+  if (t.includes('fail') || t.includes('hold') || t.includes('cancel')) return 'bad'
+  if (t.includes('qc') || t.includes('rework') || t.includes('wait')) return 'warn'
+  if (t.includes('complete') || t.includes('pass') || t.includes('received') || t.includes('end')) return 'ok'
+  if (t.includes('start') || t.includes('process') || t.includes('issued')) return 'active'
+  return 'muted'
+}
+
+/** Prefer API timeline; fall back to composing from related collections. */
+function enrichTimeline(detail) {
+  const existing = Array.isArray(detail?.timeline) ? [...detail.timeline] : []
+  if (existing.length > 0) {
+    return existing
+      .filter((e) => e?.at)
+      .sort((a, b) => new Date(a.at) - new Date(b.at))
+      .map((e) => ({
+        ...e,
+        detail: e.detail
+          || (e.data?.department ? `Dept ${e.data.department}` : null)
+          || (e.data?.fromDepartment && e.data?.toDepartment
+            ? `${e.data.fromDepartment} → ${e.data.toDepartment}`
+            : null)
+          || null,
+      }))
+  }
+
+  const events = []
+  const batch = detail?.batch
+  if (batch?.createdAt) {
+    events.push({ at: batch.createdAt, type: 'created', label: `Batch ${batch.batchNumber || ''} created`.trim() })
+  }
+  for (const p of detail?.processes || []) {
+    if (p.startTime) {
+      events.push({
+        at: p.startTime,
+        type: 'process_start',
+        label: `${p.process || 'Process'} started`,
+        detail: p.department || null,
+      })
+    }
+    if (p.endTime) {
+      events.push({
+        at: p.endTime,
+        type: 'process_end',
+        label: `${p.process || 'Process'} completed`,
+        detail: p.department || null,
+      })
+    }
+  }
+  for (const p of detail?.passes || []) {
+    if (p.createdAt) {
+      events.push({
+        at: p.createdAt,
+        type: 'pass',
+        label: `Pass ${p.passNumber || ''} ${p.status || ''}`.trim(),
+        detail: p.fromDepartment && p.toDepartment ? `${p.fromDepartment} → ${p.toDepartment}` : null,
+      })
+    }
+    if (p.issuedAt) {
+      events.push({ at: p.issuedAt, type: 'pass_issued', label: `Pass ${p.passNumber || ''} issued`.trim() })
+    }
+    if (p.receivedAt) {
+      events.push({ at: p.receivedAt, type: 'pass_received', label: `Pass ${p.passNumber || ''} received`.trim() })
+    }
+  }
+  for (const m of detail?.movements || []) {
+    if (m.createdAt) {
+      events.push({
+        at: m.createdAt,
+        type: 'movement',
+        label: `Movement ${m.movementNumber || m.type || ''}`.trim(),
+      })
+    }
+  }
+  for (const q of detail?.qc || []) {
+    if (q.createdAt) {
+      events.push({
+        at: q.createdAt,
+        type: 'qc',
+        label: `QC ${q.result || q.status || ''}`.trim(),
+      })
+    }
+  }
+  for (const a of detail?.adjustments || []) {
+    if (a.createdAt) {
+      events.push({
+        at: a.createdAt,
+        type: 'weight',
+        label: `Weight ${a.field || ''} adjusted`.trim(),
+      })
+    }
+  }
+  return events.sort((a, b) => new Date(a.at) - new Date(b.at))
+}
+
 export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshFloor }) {
   const pccApi = usePccApi()
   const { isDemo } = useDemoMode()
@@ -398,16 +504,39 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
             {tab === 'journey' && (
               <div className="pcc-panel">
                 <div className="pcc-panel-head"><h3>Production Journey</h3></div>
-                {(detail.timeline || []).length === 0 ? <PccEmptyState message="No timeline events" /> : (
-                  <ul className="pcc-list">
-                    {detail.timeline.map((t, i) => (
-                      <li key={`${t.type}-${i}`}>
-                        <strong>{formatTime(t.at)}</strong>
-                        <span>{t.label}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {(() => {
+                  const events = enrichTimeline(detail)
+                  if (!events.length) return <PccEmptyState message="No timeline events" />
+                  return (
+                    <ol className="pcc-timeline">
+                      {events.map((t, i) => {
+                        const prev = events[i - 1]
+                        const gapMs = prev?.at && t.at
+                          ? new Date(t.at).getTime() - new Date(prev.at).getTime()
+                          : null
+                        const gapLabel = formatGap(gapMs)
+                        const tone = timelineTone(t.type)
+                        return (
+                          <li key={`${t.type}-${t.at}-${i}`} className={`pcc-timeline-item tone-${tone}`}>
+                            <div className="pcc-timeline-rail" aria-hidden>
+                              <span className="pcc-timeline-dot" />
+                              {i < events.length - 1 ? <span className="pcc-timeline-line" /> : null}
+                            </div>
+                            <div className="pcc-timeline-body">
+                              <div className="pcc-timeline-meta">
+                                <PccStatusBadge status={String(t.type || 'event').replace(/_/g, ' ')} />
+                                <strong>{formatTime(t.at)}</strong>
+                                {gapLabel ? <span className="pcc-muted">+{gapLabel}</span> : null}
+                              </div>
+                              <div className="pcc-timeline-label">{t.label}</div>
+                              {t.detail ? <div className="pcc-muted">{t.detail}</div> : null}
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  )
+                })()}
               </div>
             )}
 

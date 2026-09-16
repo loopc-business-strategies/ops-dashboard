@@ -239,7 +239,27 @@ export function createDemoPccApi() {
     floorLogout: () => demoWriteOk(),
     floorHeartbeat: () => demoWriteOk(),
     listFloorSessions: async () => ({ success: true, sessions: [], total: 0 }),
-    reportDaily: async () => ({ success: true, report: { summary: {} } }),
+    reportDaily: async (params = {}) => {
+      const date = params.date ? new Date(params.date) : new Date()
+      const day = date.getDay()
+      const jobs = 8 + (day % 5) * 3
+      const completed = Math.max(0, jobs - (day % 3))
+      return {
+        success: true,
+        report: {
+          date: date.toISOString().slice(0, 10),
+          summary: {
+            jobs,
+            completed,
+            pending: jobs - completed,
+            weightIn: 1200 + day * 40,
+            weightOut: 1100 + day * 35,
+            scrap: 12 + day,
+            loss: 4 + (day % 2),
+          },
+        },
+      }
+    },
     reportStockMovement: async () => ({ success: true, report: { movements: [] } }),
     reportDepartmentPerformance: async () => ({ success: true, report: { rows: [] } }),
     reportQc: async () => ({ success: true, report: { summary: {}, rows: [] } }),

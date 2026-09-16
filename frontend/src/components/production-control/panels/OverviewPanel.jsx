@@ -3,6 +3,7 @@ import {
   PccEmptyState,
   PccSkeleton,
 } from '../primitives'
+import ProductionTrends from './ProductionTrends'
 
 const FLOW_STAGES = [
   { key: 'work-orders', label: 'Work Orders', section: 'work-orders', kpi: 'activeWorkOrders' },
@@ -214,6 +215,8 @@ export default function OverviewPanel({
           ))}
         </div>
       </div>
+
+      <ProductionTrends onNavigate={onNavigate} />
 
       <div className="pcc-split">
         <div className="pcc-panel">

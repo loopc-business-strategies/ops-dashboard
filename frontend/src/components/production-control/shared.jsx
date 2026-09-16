@@ -17,6 +17,7 @@ export const SECTION_GROUPS = [
     label: 'PRODUCTION',
     sections: [
       { id: 'work-orders', label: 'Work Orders' },
+      { id: 'planning', label: 'Planning' },
       { id: 'batches', label: 'Batches' },
       { id: 'processes', label: 'Processes' },
       { id: 'dept-flow', label: 'Department Flow' },

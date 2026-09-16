@@ -2,11 +2,13 @@ import { describe, expect, test } from 'vitest'
 import { SECTION_GROUPS, SECTION_IDS, formatClock } from './shared'
 
 describe('PCC nav IA track 1', () => {
-  test('PRODUCTION group includes department flow', () => {
+  test('PRODUCTION group includes department flow and planning', () => {
     const production = SECTION_GROUPS.find((g) => g.id === 'production')
     expect(production?.label).toBe('PRODUCTION')
     expect(production?.sections.some((s) => s.id === 'dept-flow')).toBe(true)
+    expect(production?.sections.some((s) => s.id === 'planning')).toBe(true)
     expect(SECTION_IDS.has('dept-flow')).toBe(true)
+    expect(SECTION_IDS.has('planning')).toBe(true)
   })
 
   test('Floor Attendance keeps stable section id', () => {

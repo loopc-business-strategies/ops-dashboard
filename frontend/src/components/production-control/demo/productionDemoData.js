@@ -768,8 +768,20 @@ export function getDemoBatchDetail(batchId) {
     timeline: [
       { at: batch.createdAt, type: 'created', label: `Batch ${batch.batchNumber} created` },
       ...(batch.startedAt ? [{ at: batch.startedAt, type: 'started', label: 'Production started' }] : []),
+      ...DEMO_PROCESSES.filter((p) => p.batchNumber === batch.batchNumber).flatMap((p) => [
+        ...(p.startTime ? [{ at: p.startTime, type: 'process_start', label: `${p.process} started`, detail: p.department }] : []),
+        ...(p.endTime ? [{ at: p.endTime, type: 'process_end', label: `${p.process} completed`, detail: p.department }] : []),
+      ]),
+      ...DEMO_PASSES.filter((p) => p.batchNumber === batch.batchNumber).flatMap((p) => [
+        { at: p.createdAt || p.issuedAt, type: 'pass', label: `Pass ${p.passNumber} ${p.status}`, detail: `${p.fromDepartment || ''} → ${p.toDepartment || ''}`.trim() },
+      ]),
+      ...DEMO_QC.filter((q) => q.batchNumber === batch.batchNumber).map((q) => ({
+        at: q.createdAt,
+        type: 'qc',
+        label: `QC ${q.result || q.status}`,
+      })),
       ...(batch.completedAt ? [{ at: batch.completedAt, type: 'completed', label: 'Batch completed' }] : []),
-    ],
+    ].filter((e) => e.at).sort((a, b) => new Date(a.at) - new Date(b.at)),
     weightReconciliation: {
       initialWeight: batch.initialWeight,
       issuedWeight: batch.issuedWeight,
