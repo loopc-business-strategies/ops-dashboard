@@ -398,9 +398,23 @@ function Dashboard() {
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
 
   const [activeTab,    setActiveTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).activeTab)
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const pinned = window.localStorage.getItem('ops.sidebarPinned')
+      if (pinned === '0' || pinned === 'false') return false
+      if (pinned === '1' || pinned === 'true') return true
+      // Default unpinned so mouseleave auto-hide works until user pins via hamburger
+      return false
+    } catch {
+      return false
+    }
+  })
   const [sidebarOpen,  setSidebarOpen]  = useState(() => {
     if (typeof window === 'undefined') return true
     try {
+      const pinned = window.localStorage.getItem('ops.sidebarPinned')
+      if (pinned === '1' || pinned === 'true') return true
       const stored = window.localStorage.getItem('ops.sidebarOpen')
       if (stored === '0' || stored === 'false') return false
       if (stored === '1' || stored === 'true') return true
@@ -443,10 +457,14 @@ function Dashboard() {
   const DESKTOP_MIN_WIDTH = 1024
   const DESKTOP_SIDEBAR_WIDTH = 264
   const SIDEBAR_STORAGE_KEY = 'ops.sidebarOpen'
+  const SIDEBAR_PINNED_KEY = 'ops.sidebarPinned'
+  const SIDEBAR_EDGE_PX = 16
+  const SIDEBAR_HIDE_DELAY_MS = 250
+  const sidebarHideTimerRef = useRef(null)
   const [isDesktop, setIsDesktop] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
-  // Sidebar is user-controlled (toggle + mobile drawer); preference persists on desktop.
+  // Desktop: hamburger pin + edge hover open / mouseleave auto-hide when unpinned.
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
   const includeCompany = useMemo(
@@ -536,8 +554,8 @@ function Dashboard() {
     } catch {
       /* ignore */
     }
-    navigate('/production-dashboard', { state: { returnTo: target } })
-  }, [navigate])
+    window.open('/production-dashboard', '_blank', 'noopener,noreferrer')
+  }, [])
 
   const navigateToTab = useCallback((tabId, options = {}) => {
     if (tabId === 'production') {
@@ -681,7 +699,24 @@ function Dashboard() {
     return applyTenantTheme(branding.colors)
   }, [branding])
 
+  const clearSidebarHideTimer = useCallback(() => {
+    if (sidebarHideTimerRef.current) {
+      clearTimeout(sidebarHideTimerRef.current)
+      sidebarHideTimerRef.current = null
+    }
+  }, [])
+
+  const persistSidebarPrefs = useCallback((open, pinned) => {
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, open ? '1' : '0')
+      window.localStorage.setItem(SIDEBAR_PINNED_KEY, pinned ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [SIDEBAR_PINNED_KEY, SIDEBAR_STORAGE_KEY])
+
   const closeSidebar = () => {
+    clearSidebarHideTimer()
     setSidebarOpen(false)
   }
 
@@ -689,17 +724,38 @@ function Dashboard() {
     if (!isDesktop) closeSidebar()
   }
 
+  /** Hamburger: Show pins open; Hide unpins and closes. */
   const toggleSidebar = () => {
-    setSidebarOpen((open) => {
-      const next = !open
-      try {
-        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0')
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
+    clearSidebarHideTimer()
+    const nextOpen = !sidebarOpen
+    const nextPinned = nextOpen
+    setSidebarOpen(nextOpen)
+    setSidebarPinned(nextPinned)
+    persistSidebarPrefs(nextOpen, nextPinned)
   }
+
+  const openSidebarFromEdge = useCallback(() => {
+    if (!isDesktop) return
+    clearSidebarHideTimer()
+    setSidebarOpen(true)
+    // Temporary hover open — do not pin
+  }, [isDesktop, clearSidebarHideTimer])
+
+  const handleSidebarMouseEnter = useCallback(() => {
+    if (!isDesktop) return
+    clearSidebarHideTimer()
+  }, [isDesktop, clearSidebarHideTimer])
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    if (!isDesktop || sidebarPinned) return
+    clearSidebarHideTimer()
+    sidebarHideTimerRef.current = setTimeout(() => {
+      setSidebarOpen(false)
+      sidebarHideTimerRef.current = null
+    }, SIDEBAR_HIDE_DELAY_MS)
+  }, [isDesktop, sidebarPinned, clearSidebarHideTimer, SIDEBAR_HIDE_DELAY_MS])
+
+  useEffect(() => () => clearSidebarHideTimer(), [clearSidebarHideTimer])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -920,6 +976,7 @@ function Dashboard() {
     <LiveMetalRatesProvider token={token} tenant={branding.key} enabled={metalRatesEnabled}>
     <AppShell
       sidebar={(
+      <>
       <AppSidebar
         branding={branding}
         t={t}
@@ -944,7 +1001,24 @@ function Dashboard() {
         onLogout={handleLogout}
         onModuleNavigate={(tabId) => navigateToTab(tabId)}
         onErpNavigate={(erpSub) => navigateToTab('erp', { erpSub, sub: null })}
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
       />
+      {isDesktop && !sidebarOpen ? (
+        <div
+          aria-hidden="true"
+          onMouseEnter={openSidebarFromEdge}
+          style={{
+            position: 'fixed',
+            top: 0,
+            bottom: 0,
+            width: SIDEBAR_EDGE_PX,
+            zIndex: 45,
+            ...(isRTL ? { right: 0 } : { left: 0 }),
+          }}
+        />
+      ) : null}
+      </>
       )}
       overlay={(
       <>

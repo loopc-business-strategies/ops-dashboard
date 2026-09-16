@@ -2,7 +2,7 @@ import React from 'react'
 
 /**
  * Flex shell: sidebar slot + main content.
- * Collapse is user-controlled (toggle / mobile drawer) — no edge-open or hover auto-hide.
+ * Desktop: hamburger pin toggle + edge hover open / mouseleave auto-hide (wired in Dashboard).
  */
 export default function AppShell({
   sidebar,
