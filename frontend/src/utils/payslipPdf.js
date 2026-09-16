@@ -1,12 +1,14 @@
 import { getTenantBranding, isStructuredPayrollEnabled } from '../config/tenantBranding'
 import { loadPdfTools } from '../components/tabs/erp/lazyExportLibs'
-
-function money(n) {
-  if (n == null || n === '') return '—'
-  const v = Number(n)
-  if (!Number.isFinite(v)) return '—'
-  return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+import {
+  money,
+  inrMoney,
+  otherDeductionsOf,
+  previousMonthAdvanceDeductionOf,
+  currentMonthAdvanceDeductionOf,
+  displayTotalDeductionsOf,
+  salaryCalculatedOf,
+} from './loopcPayrollDisplay'
 
 function periodLabel(year, month) {
   const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -45,51 +47,6 @@ function displayPeriodRange(payslip) {
   return `${fmtDate(start)} to ${fmtDate(monthEnd)}`
 }
 
-function otherDeductionsOf(payslip) {
-  if (payslip.otherDeductions != null) return payslip.otherDeductions
-  const total = Number(payslip.totalDeductions) || 0
-  const adv = Number(payslip.advanceDeduction) || 0
-  return Math.round((total - adv) * 100) / 100
-}
-
-function numOrZero(n) {
-  const v = Number(n)
-  return Number.isFinite(v) ? v : 0
-}
-
-/** Presentation-only: unpaid residual (salaryBalance) shown as prev-month advance deduction. */
-function previousMonthAdvanceDeductionOf(payslip) {
-  return numOrZero(payslip.salaryBalance)
-}
-
-function currentMonthAdvanceDeductionOf(payslip) {
-  return numOrZero(payslip.advanceDeduction)
-}
-
-/** Display-only total; does not overwrite payslip.totalDeductions. */
-function displayTotalDeductionsOf(payslip) {
-  return Math.round(
-    (currentMonthAdvanceDeductionOf(payslip)
-      + previousMonthAdvanceDeductionOf(payslip)
-      + numOrZero(otherDeductionsOf(payslip))) * 100
-  ) / 100
-}
-
-function inrMoney(n) {
-  if (n == null || n === '') return '—'
-  const v = Number(n)
-  if (!Number.isFinite(v)) return '—'
-  return `INR ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function salaryCalculatedOf(payslip) {
-  if (payslip.salaryCalculated != null) return payslip.salaryCalculated
-  const prev = Number(payslip.previousArrears) || 0
-  const gross = Number(payslip.gross) || 0
-  if (prev > 0) return Math.round((gross - prev) * 100) / 100
-  return payslip.net ?? payslip.gross
-}
-
 function amountOf(item) {
   const n = Number(item?.amount)
   return Number.isFinite(n) ? n : 0
@@ -108,7 +65,7 @@ function shouldShowEarningsBreakdown(payslip) {
   return Math.abs(calc - line) > 0.009
 }
 
-/** True when at least one deduction has amount > 0. */
+/** True when at least one stored deduction component has amount > 0. */
 function shouldShowDeductionsBreakdown(payslip) {
   const deductions = Array.isArray(payslip.deductions) ? payslip.deductions : []
   return deductions.some((d) => amountOf(d) > 0)
@@ -119,9 +76,11 @@ function hasEmployerContributions(payslip) {
   return rows.some((r) => amountOf(r) > 0) || Number(payslip.employerTotal) > 0
 }
 
+const AMOUNT_COL = { 0: { cellWidth: 300 }, 1: { halign: 'right', cellWidth: 110 } }
+
 /**
  * Generate a payslip PDF via jspdf + autotable.
- * LoopC structured: compact header + Employee/Salary Details only (no duplicate blocks).
+ * LoopC structured: compact header + Employee / Salary / Deductions / Net Paid.
  * Other tenants: legacy full header + earned/paid/balance lines.
  * Presentation only — does not mutate payslip data.
  */
@@ -183,19 +142,39 @@ export async function generatePayslipPdf(payslip, tenant) {
         ['Salary Calculated', inrMoney(salaryCalculatedOf(payslip))],
         ['Previous Arrears', inrMoney(payslip.previousArrears ?? 0)],
         ['Gross Amount', inrMoney(payslip.gross)],
-        ['Current Month Advance Payment Deduction', inrMoney(currentMonthAdvanceDeductionOf(payslip))],
-        // Presentation alias of stored salaryBalance (unpaid residual) — not a second transaction
-        ['Previous Month Advance Payment Deduction', inrMoney(previousMonthAdvanceDeductionOf(payslip))],
-        ['Other Deductions', inrMoney(otherDeductionsOf(payslip))],
-        ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
-        ['Net Paid / Amount Paid', inrMoney(payslip.amountPaid)],
       ],
       margin: { left: margin, right: margin },
       styles: { fontSize: 9, cellPadding: 4 },
-      columnStyles: { 0: { cellWidth: 300 }, 1: { halign: 'right', cellWidth: 110 } },
+      columnStyles: AMOUNT_COL,
       headStyles: { fillColor: [30, 41, 59] },
     })
     y = doc.lastAutoTable.finalY + 14
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.text('Deductions', margin, y)
+    y += 6
+    autoTable(doc, {
+      startY: y,
+      head: [['Deduction', 'Amount']],
+      body: [
+        ['Current Month Advance Payment Deduction', inrMoney(currentMonthAdvanceDeductionOf(payslip))],
+        // Presentation alias of salaryBalance (unpaid residual) — not a second transaction
+        ['Previous Month Advance Payment Deduction', inrMoney(previousMonthAdvanceDeductionOf(payslip))],
+        ['Other Deductions', inrMoney(otherDeductionsOf(payslip))],
+        ['Total Deductions', inrMoney(displayTotalDeductionsOf(payslip))],
+      ],
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 9, cellPadding: 4 },
+      columnStyles: AMOUNT_COL,
+      headStyles: { fillColor: [127, 29, 29] },
+    })
+    y = doc.lastAutoTable.finalY + 16
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text(`NET PAID / AMOUNT PAID: ${inrMoney(payslip.amountPaid)}`, margin, y)
+    y += 18
 
     if (shouldShowEarningsBreakdown(payslip)) {
       doc.setFont('helvetica', 'bold')
@@ -209,6 +188,7 @@ export async function generatePayslipPdf(payslip, tenant) {
         body: earningsRows,
         margin: { left: margin, right: margin },
         styles: { fontSize: 9 },
+        columnStyles: { 2: { halign: 'right' } },
         headStyles: { fillColor: [30, 41, 59] },
       })
       y = doc.lastAutoTable.finalY + 12
@@ -228,6 +208,7 @@ export async function generatePayslipPdf(payslip, tenant) {
         body: dedRows,
         margin: { left: margin, right: margin },
         styles: { fontSize: 9 },
+        columnStyles: { 2: { halign: 'right' } },
         headStyles: { fillColor: [127, 29, 29] },
       })
       y = doc.lastAutoTable.finalY + 12
@@ -245,6 +226,7 @@ export async function generatePayslipPdf(payslip, tenant) {
         body: empRows.length ? empRows : [['—', 'None', '0.00']],
         margin: { left: margin, right: margin },
         styles: { fontSize: 9 },
+        columnStyles: { 2: { halign: 'right' } },
         headStyles: { fillColor: [30, 64, 175] },
       })
       y = doc.lastAutoTable.finalY + 12
