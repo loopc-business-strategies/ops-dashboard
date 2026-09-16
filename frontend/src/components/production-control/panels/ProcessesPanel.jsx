@@ -19,20 +19,30 @@ export default function ProcessesPanel({ onToast }) {
     id: '', outputWeight: '', scrap: '0', loss: '0', sopFollowed: 'yes', sopReason: '',
   })
 
+  const [statusFilter, setStatusFilter] = useState('')
+
   const load = useCallback(async () => {
     const [p, b, m] = await Promise.all([
-      pccApi.listProcesses({ limit: 100 }),
+      pccApi.listProcesses({ limit: 100, status: statusFilter || undefined }),
       pccApi.listBatches({ limit: 100 }),
       pccApi.listMachines(),
     ])
     setRows(p.processes || [])
     setBatches(b.batches || [])
     setMachines(m.machines || [])
-  }, [pccApi])
+  }, [pccApi, statusFilter])
 
   useEffect(() => { load().catch(() => {}) }, [load])
 
   const availableMachines = machines.filter((m) => !['FAULT', 'OFFLINE', 'MAINTENANCE'].includes(m.status))
+
+  const PROCESS_TABS = [
+    { id: '', label: 'All' },
+    { id: 'PENDING', label: 'Waiting' },
+    { id: 'IN_PROGRESS', label: 'Running' },
+    { id: 'COMPLETED', label: 'Completed' },
+    { id: 'CANCELLED', label: 'Cancelled' },
+  ]
 
   const start = async (e) => {
     e.preventDefault()
@@ -146,6 +156,18 @@ export default function ProcessesPanel({ onToast }) {
 
       <div className="pcc-panel">
         <div className="pcc-panel-head"><h2>PROCESS HISTORY</h2></div>
+        <div className="pcc-status-tabs" role="tablist" aria-label="Process status">
+          {PROCESS_TABS.map((tab) => (
+            <button
+              key={tab.id || 'all'}
+              type="button"
+              className={statusFilter === tab.id ? 'active' : ''}
+              onClick={() => setStatusFilter(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         {rows.length === 0 ? <PccEmptyState message="No process runs" /> : (
           <div className="pcc-table-wrap">
             <table className="pcc-table">

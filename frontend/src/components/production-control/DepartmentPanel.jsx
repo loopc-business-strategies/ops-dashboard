@@ -96,19 +96,20 @@ export default function DepartmentPanel({ deptKey, onToast, onSelectBatch }) {
         </div>
       </div>
 
-      <div className="pcc-kpi-row">
+      <div className="pcc-kpi-row pcc-dept-kpi-primary">
         <PccKpiCard label="Waiting" value={kpis.waitingJobs ?? 0} />
         <PccKpiCard label="Active" value={kpis.activeJobs ?? 0} />
-        <PccKpiCard label="Completed today" value={kpis.completedToday ?? 0} />
-        <PccKpiCard label="Pending" value={kpis.pendingJobs ?? 0} />
-        <PccKpiCard label="Input wt" value={formatGrams(kpis.totalInputWeight)} />
-        <PccKpiCard label="Output wt" value={formatGrams(kpis.totalOutputWeight)} />
+        <PccKpiCard label="Completed" value={kpis.completedToday ?? 0} />
+        <PccKpiCard label="Alerts" value={kpis.alerts ?? 0} />
+      </div>
+      <div className="pcc-kpi-row pcc-kpi-row-secondary">
+        <PccKpiCard label="Input" value={formatGrams(kpis.totalInputWeight)} />
+        <PccKpiCard label="Output" value={formatGrams(kpis.totalOutputWeight)} />
         <PccKpiCard label="Scrap" value={formatGrams(kpis.scrap)} />
         <PccKpiCard label="Loss" value={formatGrams(kpis.loss)} />
         <PccKpiCard label="Recovery" value={formatGrams(kpis.recovery)} />
         <PccKpiCard label="Operators" value={kpis.operators ?? 0} />
         <PccKpiCard label="Machines" value={kpis.machines ?? 0} />
-        <PccKpiCard label="Alerts" value={kpis.alerts ?? 0} />
       </div>
 
       <div className="pcc-panel">

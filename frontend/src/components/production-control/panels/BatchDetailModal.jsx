@@ -273,7 +273,7 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
   ]
 
   return (
-    <div className="pcc-modal-backdrop" onClick={onClose} role="presentation">
+    <div className="pcc-modal-backdrop pcc-drawer-wide" onClick={onClose} role="presentation">
       <div className="pcc-modal pcc-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog">
         <div className="pcc-panel-head">
           <h2>{b?.batchNumber || 'Batch'}</h2>
@@ -300,14 +300,34 @@ export default function BatchDetailModal({ batchId, onClose, onToast, onRefreshF
               <div className="pcc-stack">
                 <div className="pcc-meta-grid">
                   <div><span>Metal</span><strong>{b.metalType} {b.purity}</strong></div>
+                  <div><span>Product</span><strong>{b.product || '—'}</strong></div>
                   <div><span>Initial</span><strong><PccWeightDisplay grams={b.initialWeight} /></strong></div>
                   <div><span>Current</span><strong><PccWeightDisplay grams={b.currentWeight} /></strong></div>
                   <div><span>Department</span><strong>{b.currentDepartment}</strong></div>
-                  <div><span>Holder</span><strong>{b.currentHolderName || '—'}</strong></div>
+                  <div><span>Holder / Custody</span><strong>{b.currentHolderName || '—'}</strong></div>
                   <div><span>Machine</span><strong>{b.currentMachineName || '—'}</strong></div>
                   <div><span>Process</span><strong>{b.currentProcess || '—'}</strong></div>
                   <div><span>WO</span><strong>{b.workOrderNumber || '—'}</strong></div>
                   <div><span>Status</span><strong><PccStatusBadge status={b.status} /></strong></div>
+                  <div><span>QC</span><strong>{b.qcStatus || b.lastQcResult || '—'}</strong></div>
+                </div>
+
+                <div className="pcc-panel">
+                  <div className="pcc-panel-head"><h3>PROCESS TIMELINE</h3></div>
+                  <ul className="pcc-timeline">
+                    {[
+                      { key: 'issue', label: 'Stock Issued', done: Boolean(b.issuedWeight > 0 || ['ISSUED', 'IN_PROCESS', 'IN_TRANSIT', 'RECEIVED', 'QC', 'COMPLETED', 'RETURNED_TO_VAULT', 'HOLD', 'REWORK'].includes(b.status)) },
+                      { key: 'process', label: b.currentProcess || 'Current process', done: Boolean(b.currentProcess), current: Boolean(b.currentProcess) && !['QC', 'COMPLETED', 'RETURNED_TO_VAULT'].includes(b.status) },
+                      { key: 'dept', label: `Department: ${b.currentDepartment || '—'}`, done: Boolean(b.currentDepartment), current: true },
+                      { key: 'qc', label: 'QC', done: ['QC', 'COMPLETED', 'RETURNED_TO_VAULT'].includes(b.status) || Boolean(b.lastQcResult), current: b.status === 'QC' },
+                      { key: 'vault', label: 'Vault', done: b.status === 'RETURNED_TO_VAULT' },
+                    ].map((step) => (
+                      <li key={step.key} className={step.done ? 'done' : step.current ? 'current' : ''}>
+                        <span>{step.done ? '✓' : step.current ? '●' : '○'}</span>
+                        <span>{step.label}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
                 <div className="pcc-actions">

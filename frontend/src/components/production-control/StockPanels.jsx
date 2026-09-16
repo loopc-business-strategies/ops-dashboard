@@ -262,24 +262,34 @@ export function NewStockInPanel({ onToast }) {
     <div className="pcc-panel">
       <div className="pcc-panel-head"><h2>NEW STOCK IN</h2></div>
       <form className="pcc-form" onSubmit={submit}>
+        <h3 className="pcc-muted">BASIC</h3>
         <div className="pcc-form-grid">
-          <label>Purchase Ref<input className="pcc-input" value={form.purchaseRef} onChange={set('purchaseRef')} /></label>
-          <label>Supplier<input className="pcc-input" value={form.supplier} onChange={set('supplier')} /></label>
-          <label>Purchase Date<input className="pcc-input" type="date" value={form.purchaseDate} onChange={set('purchaseDate')} /></label>
-          <label>Product<input className="pcc-input" value={form.product} onChange={set('product')} placeholder="e.g. Bangle 1" /></label>
-          <label>Product Code<input className="pcc-input" value={form.productCode} onChange={set('productCode')} /></label>
-          <label>Category<input className="pcc-input" value={form.category} onChange={set('category')} /></label>
-          <label>Design Number<input className="pcc-input" value={form.designNumber} onChange={set('designNumber')} /></label>
-          <label>Quantity<input className="pcc-input" type="number" min="0" step="any" value={form.quantity} onChange={set('quantity')} /></label>
-          <label>Gross Weight (g)<input className="pcc-input" type="number" min="0" step="any" value={form.grossWeight} onChange={set('grossWeight')} /></label>
-          <label>Net Weight (g)<input className="pcc-input" type="number" min="0" step="any" value={form.netWeight} onChange={set('netWeight')} /></label>
           <label>Metal
             <select className="pcc-input" value={form.metalType} onChange={set('metalType')}>
               <option>Gold</option><option>Silver</option><option>Platinum</option><option>Other</option>
             </select>
           </label>
+          <label>Product<input className="pcc-input" value={form.product} onChange={set('product')} placeholder="e.g. Bangle 1" /></label>
+          <label>Quantity<input className="pcc-input" type="number" min="0" step="any" value={form.quantity} onChange={set('quantity')} /></label>
+          <label>Gross Weight (g)<input className="pcc-input" type="number" min="0" step="any" value={form.grossWeight} onChange={set('grossWeight')} /></label>
+          <label>Net Weight (g)<input className="pcc-input" type="number" min="0" step="any" value={form.netWeight} onChange={set('netWeight')} /></label>
           <label>Purity<input className="pcc-input" value={form.purity} onChange={set('purity')} /></label>
+        </div>
+        <h3 className="pcc-muted">SOURCE</h3>
+        <div className="pcc-form-grid">
+          <label>Supplier<input className="pcc-input" value={form.supplier} onChange={set('supplier')} /></label>
+          <label>Purchase Ref<input className="pcc-input" value={form.purchaseRef} onChange={set('purchaseRef')} /></label>
+          <label>Purchase Date<input className="pcc-input" type="date" value={form.purchaseDate} onChange={set('purchaseDate')} /></label>
+        </div>
+        <h3 className="pcc-muted">PRODUCT DETAILS</h3>
+        <div className="pcc-form-grid">
+          <label>Product Code<input className="pcc-input" value={form.productCode} onChange={set('productCode')} /></label>
+          <label>Category<input className="pcc-input" value={form.category} onChange={set('category')} /></label>
+          <label>Design Number<input className="pcc-input" value={form.designNumber} onChange={set('designNumber')} /></label>
           <label>Size<input className="pcc-input" value={form.size} onChange={set('size')} /></label>
+        </div>
+        <h3 className="pcc-muted">OPTIONAL</h3>
+        <div className="pcc-form-grid">
           <label>Remarks<input className="pcc-input" value={form.remarks} onChange={set('remarks')} /></label>
         </div>
         <p className="pcc-muted">Stock code is assigned automatically (STK-YYYY-#####). Initial status: NEW_STOCK.</p>

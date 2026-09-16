@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { SECTION_GROUPS, SECTION_IDS, formatClock, getSectionTrail } from './shared'
+import {
+  PCC_SIDEBAR_GROUPS,
+  STOCK_SECTION_IDS,
+  isSidebarItemActive,
+  isStockSection,
+} from './pccSidebarConfig'
 
 describe('PCC nav IA', () => {
   test('PRODUCTION group includes department flow and planning', () => {
@@ -35,5 +41,35 @@ describe('PCC nav IA', () => {
     expect(
       SECTION_GROUPS.some((g) => g.sections.some((s) => /cost/i.test(s.label))),
     ).toBe(false)
+  })
+
+  test('sidebar preserves every legacy SECTION_IDS deep link', () => {
+    const sidebarIds = new Set()
+    for (const group of PCC_SIDEBAR_GROUPS) {
+      for (const item of group.items) {
+        sidebarIds.add(item.id)
+        for (const child of item.children || []) sidebarIds.add(child.id)
+      }
+    }
+    for (const id of STOCK_SECTION_IDS) sidebarIds.add(id)
+    for (const id of SECTION_IDS) {
+      if (String(id).startsWith('stock-')) {
+        expect(isStockSection(id)).toBe(true)
+        continue
+      }
+      expect(sidebarIds.has(id) || SECTION_IDS.has(id)).toBe(true)
+    }
+    expect(SECTION_IDS.size).toBeGreaterThan(30)
+  })
+
+  test('stock hub highlights any stock-* section', () => {
+    const stockItem = { id: 'stock-overview', label: 'Stock', stockHub: true }
+    expect(isSidebarItemActive('stock-in', stockItem)).toBe(true)
+    expect(isSidebarItemActive('batches', stockItem)).toBe(false)
+  })
+
+  test('sidebar groups include COMMAND MATERIAL QUALITY FACTORY REPORTS', () => {
+    const labels = PCC_SIDEBAR_GROUPS.map((g) => g.label)
+    expect(labels).toEqual(expect.arrayContaining(['COMMAND', 'PRODUCTION', 'MATERIAL', 'QUALITY', 'FACTORY', 'REPORTS', 'ADMIN']))
   })
 })

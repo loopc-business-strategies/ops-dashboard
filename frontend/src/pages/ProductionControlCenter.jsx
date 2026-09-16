@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { DEPT_SECTION_MAP, SECTION_GROUPS, SECTION_IDS, SECTIONS, formatClock, getSectionTrail } from '../components/production-control/shared'
+import { DEPT_SECTION_MAP, SECTION_IDS, SECTIONS, formatClock, getSectionTrail } from '../components/production-control/shared'
+import { PCC_SIDEBAR_GROUPS, isSidebarItemActive, isStockSection } from '../components/production-control/pccSidebarConfig'
 import { PccSkeleton } from '../components/production-control/primitives'
 import { DemoModeProvider, useDemoMode } from '../components/production-control/demo/DemoModeContext'
 import { isProductionDemoEnabled } from '../components/production-control/demo/flags'
@@ -22,24 +23,7 @@ const AlertsPanel = lazy(() => import('../components/production-control/panels/A
 const AuditPanel = lazy(() => import('../components/production-control/panels/AuditPanel'))
 const BatchDetailModal = lazy(() => import('../components/production-control/panels/BatchDetailModal'))
 const MyTasksPanel = lazy(() => import('../components/production-control/panels/MyTasksPanel'))
-const StockOverviewPanel = lazy(() =>
-  import('../components/production-control/StockPanels').then((m) => ({ default: m.StockOverviewPanel })),
-)
-const StockListPanel = lazy(() =>
-  import('../components/production-control/StockPanels').then((m) => ({ default: m.StockListPanel })),
-)
-const NewStockInPanel = lazy(() =>
-  import('../components/production-control/StockPanels').then((m) => ({ default: m.NewStockInPanel })),
-)
-const StockHistoryPanel = lazy(() =>
-  import('../components/production-control/StockPanels').then((m) => ({ default: m.StockHistoryPanel })),
-)
-const StockAdjustmentsPanel = lazy(() =>
-  import('../components/production-control/StockPanels').then((m) => ({ default: m.StockAdjustmentsPanel })),
-)
-const MarkAvailableHelper = lazy(() =>
-  import('../components/production-control/StockPanels').then((m) => ({ default: m.MarkAvailableHelper })),
-)
+const StockWorkspace = lazy(() => import('../components/production-control/StockWorkspace'))
 const DepartmentPanel = lazy(() => import('../components/production-control/DepartmentPanel'))
 const FloorManagerPanel = lazy(() =>
   import('../components/production-control/FloorManagerPanels').then((m) => ({ default: m.FloorManagerPanel })),
@@ -69,12 +53,11 @@ const DepartmentFlowPanel = lazy(() => import('../components/production-control/
 
 const RETURN_KEY = 'pcc_returnTo'
 const DEMO_ENABLED = isProductionDemoEnabled()
-const PROCESSING_STATUSES = 'ALLOCATED,UNDER_PROCESSING,DEPARTMENT_PROCESSING,QC_PENDING,QC_PASSED,QC_FAILED,REWORK,HOLD,PACKAGING'
 const FLOOR_SUMMARY_SECTIONS = new Set(['live', 'overview', 'floor-manager', 'dept-flow'])
 const FLOW_SECTIONS = new Set(['live', 'overview', 'settings', 'dept-flow', ...Object.keys(DEPT_SECTION_MAP)])
 
 function connectionLabel(connection) {
-  if (connection === 'LIVE') return 'Live data'
+  if (connection === 'LIVE') return 'Live / Connected'
   if (connection === 'DEMO') return 'Demo data'
   if (connection === 'RECONNECTING') return 'Reconnecting…'
   return 'Offline — showing last available data'
@@ -101,6 +84,7 @@ function ProductionControlCenterInner() {
   const { isDemo, enterDemo, exitDemo } = useDemoMode()
   const pccApi = usePccApi()
   const [navOpen, setNavOpen] = useState(false)
+  const [deptNavOpen, setDeptNavOpen] = useState(true)
   const mainRef = useRef(null)
 
   const section = resolveSection(searchParams.get('section'))
@@ -410,7 +394,24 @@ function ProductionControlCenterInner() {
       : connection === 'RECONNECTING' ? 'reconnecting'
         : 'offline'
 
+  useEffect(() => {
+    if (String(section).startsWith('dept-') && section !== 'dept-flow') {
+      setDeptNavOpen(true)
+    }
+  }, [section])
+
   const body = useMemo(() => {
+    if (isStockSection(section)) {
+      return (
+        <StockWorkspace
+          section={section}
+          onNavigate={setSection}
+          onToast={showToast}
+          onStockAllocated={() => loadFloorProgressive({ soft: true })}
+        />
+      )
+    }
+
     if (DEPT_SECTION_MAP[section]) {
       return (
         <DepartmentPanel
@@ -510,46 +511,6 @@ function ProductionControlCenterInner() {
         return <AlertsPanel onToast={showToast} />
       case 'audit':
         return <AuditPanel onToast={showToast} />
-      case 'stock-overview':
-        return <StockOverviewPanel onToast={showToast} onNavigate={setSection} />
-      case 'stock-in':
-        return (
-          <>
-            <MarkAvailableHelper onToast={showToast} />
-            <NewStockInPanel onToast={showToast} />
-          </>
-        )
-      case 'stock-selection':
-        return (
-          <StockListPanel
-            title="STOCK SELECTION — AVAILABLE"
-            statusFilter="AVAILABLE"
-            selectable
-            onToast={showToast}
-            onAllocated={() => loadFloorProgressive({ soft: true })}
-          />
-        )
-      case 'stock-processing':
-        return (
-          <StockListPanel
-            title="UNDER PROCESSING"
-            statusFilter={PROCESSING_STATUSES}
-            onToast={showToast}
-          />
-        )
-      case 'stock-finished':
-        return (
-          <StockListPanel
-            title="FINISHED STOCK"
-            statusFilter="FINISHED,DISPATCHED"
-            dispatchable
-            onToast={showToast}
-          />
-        )
-      case 'stock-history':
-        return <StockHistoryPanel onToast={showToast} />
-      case 'stock-adjustments':
-        return <StockAdjustmentsPanel onToast={showToast} />
       case 'floor-manager':
         return (
           <FloorManagerPanel
@@ -691,31 +652,68 @@ function ProductionControlCenterInner() {
         />
       ) : null}
 
-      <nav id="pcc-section-nav" className="pcc-nav" aria-label="Production sections">
-        {SECTION_GROUPS.map((group) => (
-          <div key={group.id} className="pcc-nav-group">
-            <span className="pcc-nav-group-label">{group.label}</span>
-            <div className="pcc-nav-group-items">
-              {group.sections.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={section === s.id ? 'active' : ''}
-                  onClick={() => setSection(s.id)}
-                >
-                  {s.label}
-                </button>
-              ))}
+      <div className="pcc-shell">
+        <nav id="pcc-section-nav" className="pcc-nav" aria-label="Production sections">
+          {PCC_SIDEBAR_GROUPS.map((group) => (
+            <div key={group.id} className="pcc-nav-group">
+              <span className="pcc-nav-group-label">{group.label}</span>
+              <div className="pcc-nav-group-items">
+                {group.items.map((item) => {
+                  const active = isSidebarItemActive(section, item)
+                  if (item.children?.length) {
+                    return (
+                      <div key={`${item.id}-parent`} className="pcc-nav-parent">
+                        <button
+                          type="button"
+                          className={active ? 'active' : ''}
+                          aria-expanded={deptNavOpen}
+                          onClick={() => {
+                            setDeptNavOpen((v) => !v)
+                            setSection(item.id)
+                          }}
+                        >
+                          {item.label}
+                          {deptNavOpen ? ' ▾' : ' ▸'}
+                        </button>
+                        {deptNavOpen ? (
+                          <div className="pcc-nav-children">
+                            {item.children.map((child) => (
+                              <button
+                                key={child.id}
+                                type="button"
+                                className={section === child.id ? 'active' : ''}
+                                onClick={() => setSection(child.id)}
+                              >
+                                {child.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  }
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={active ? 'active' : ''}
+                      onClick={() => setSection(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
 
-      <main className="pcc-main" ref={mainRef}>
-        <Suspense fallback={<SectionFallback />}>
-          {body}
-        </Suspense>
-      </main>
+        <main className="pcc-main" ref={mainRef}>
+          <Suspense fallback={<SectionFallback />}>
+            {body}
+          </Suspense>
+        </main>
+      </div>
 
       {toast && <div className="pcc-toast">{toast}</div>}
 

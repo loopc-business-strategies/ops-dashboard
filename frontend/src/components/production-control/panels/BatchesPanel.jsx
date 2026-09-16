@@ -78,6 +78,16 @@ export default function BatchesPanel({ onSelectBatch, onToast }) {
     }
   }
 
+  const STATUS_TABS = [
+    { id: '', label: 'All' },
+    { id: 'WAITING', label: 'Waiting' },
+    { id: 'IN_PROCESS', label: 'In Process' },
+    { id: 'QC', label: 'QC' },
+    { id: 'HOLD', label: 'Hold' },
+    { id: 'REWORK', label: 'Rework' },
+    { id: 'COMPLETED', label: 'Completed' },
+  ]
+
   const clearFilters = () => {
     setSearch('')
     setStatus('')
@@ -118,7 +128,7 @@ export default function BatchesPanel({ onSelectBatch, onToast }) {
             </select>
           </label>
         </div>
-        <button type="submit" className="pcc-btn">Create batch</button>
+        <button type="submit" className="pcc-btn">+ Create Batch</button>
       </form>
 
       <div className="pcc-panel">
@@ -126,17 +136,21 @@ export default function BatchesPanel({ onSelectBatch, onToast }) {
           <h2>BATCHES</h2>
           <span>{total} total</span>
         </div>
+        <div className="pcc-status-tabs" role="tablist" aria-label="Batch status">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.id || 'all'}
+              type="button"
+              className={status === tab.id ? 'active' : ''}
+              onClick={() => setStatus(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         <div className="pcc-toolbar">
           <label>Search
             <input type="search" placeholder="Batch, WO, product, holder…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </label>
-          <label>Status
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">All</option>
-              {['CREATED', 'AWAITING_ISSUE', 'ISSUED', 'IN_TRANSIT', 'RECEIVED', 'IN_PROCESS', 'WAITING', 'QC', 'QC_FAILED', 'REWORK', 'HOLD', 'COMPLETED', 'RETURNED_TO_VAULT'].map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
           </label>
           <label>Department
             <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. polishing" />
@@ -146,33 +160,28 @@ export default function BatchesPanel({ onSelectBatch, onToast }) {
           )}
         </div>
         {loading ? <PccSkeleton rows={4} /> : batches.length === 0 ? (
-          <PccEmptyState message="No batches" />
+          <PccEmptyState message="No active production batches matching filters" />
         ) : (
-          <div className="pcc-table-wrap">
-            <table className="pcc-table">
-              <thead>
-                <tr>
-                  <th>Batch</th><th>WO</th><th>Product</th><th>Metal</th><th>Weight</th><th>Process</th>
-                  <th>Department</th><th>Operator</th><th>Status</th><th />
-                </tr>
-              </thead>
-              <tbody>
-                {batches.map((b) => (
-                  <tr key={b._id}>
-                    <td>{b.batchNumber}</td>
-                    <td>{b.workOrderNumber || '—'}</td>
-                    <td>{b.product || '—'}</td>
-                    <td>{b.metalType} {b.purity}</td>
-                    <td><PccWeightDisplay grams={b.currentWeight} /></td>
-                    <td>{b.currentProcess || '—'}</td>
-                    <td>{b.currentDepartment}</td>
-                    <td>{b.currentHolderName || '—'}</td>
-                    <td><PccStatusBadge status={b.status} /></td>
-                    <td><button type="button" className="pcc-btn-ghost" onClick={() => onSelectBatch(b._id)}>Open</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="pcc-batch-cards">
+            {batches.map((b) => (
+              <article key={b._id} className="pcc-batch-card">
+                <div className="pcc-batch-card-head">
+                  <strong>{b.batchNumber}</strong>
+                  <PccStatusBadge status={b.status} />
+                </div>
+                <div>{b.product || `${b.metalType || ''} ${b.purity || ''}`.trim() || '—'}</div>
+                <dl>
+                  <dt>Weight</dt><dd><PccWeightDisplay grams={b.currentWeight} /></dd>
+                  <dt>Stage</dt><dd>{b.currentProcess || b.currentDepartment || '—'}</dd>
+                  <dt>Department</dt><dd>{b.currentDepartment || '—'}</dd>
+                  <dt>Operator</dt><dd>{b.currentHolderName || '—'}</dd>
+                  <dt>Machine</dt><dd>{b.currentMachineName || '—'}</dd>
+                </dl>
+                <div className="pcc-actions">
+                  <button type="button" className="pcc-btn" onClick={() => onSelectBatch(b._id)}>Open Batch</button>
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </div>

@@ -173,27 +173,40 @@ export default function LiveFloorPanel({
         </div>
       )}
 
-      <div className="pcc-kpi-row">
-        <PccKpiCard label="Active WOs" value={kpis.activeWorkOrders ?? 0} />
-        <PccKpiCard label="Active batches" value={kpis.activeBatches ?? 0} />
-        <PccKpiCard label="Metal WIP" value={formatKg(kpis.metalInProduction)} />
-        <PccKpiCard label="In transit" value={formatKg(kpis.metalInTransit)} />
-        <PccKpiCard label="Delayed" value={kpis.delayedBatches ?? 0} />
-        <PccKpiCard label="Waiting" value={kpis.waiting ?? 0} />
-        <PccKpiCard label="QC pending" value={kpis.qcPending ?? 0} />
-        <PccKpiCard label="QC failed" value={kpis.qcFailed ?? 0} />
-        <PccKpiCard label="On hold" value={kpis.onHold ?? 0} />
-        <PccKpiCard label="Rework" value={kpis.rework ?? 0} />
-        <PccKpiCard label="Alerts" value={kpis.activeAlerts ?? 0} />
-        <PccKpiCard label="Machines run" value={kpis.machinesRunning ?? 0} />
-        <PccKpiCard label="Machines fault" value={kpis.machinesFaulted ?? 0} />
-        <PccKpiCard label="Pending passes" value={kpis.passesPending ?? 0} />
-        <PccKpiCard label="Completed today" value={kpis.completedToday ?? 0} />
+      <div className="pcc-panel">
+        <div className="pcc-panel-head">
+          <h2>COMMAND KPIs</h2>
+          <div className="pcc-actions">
+            <button type="button" className="pcc-btn" onClick={() => onNavigate?.('batches')}>+ Create Batch</button>
+            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('stock-selection')}>Issue Metal</button>
+            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('processes')}>Start Process</button>
+            <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('passes')}>Record Handover</button>
+          </div>
+        </div>
+        <div className="pcc-kpi-row pcc-kpi-row-primary">
+          <PccKpiCard label="ACTIVE" value={kpis.activeBatches ?? 0} />
+          <PccKpiCard label="WAITING" value={kpis.waiting ?? 0} />
+          <PccKpiCard label="HOLD" value={kpis.onHold ?? 0} />
+          <PccKpiCard label="QC PENDING" value={kpis.qcPending ?? 0} />
+        </div>
+        <div className="pcc-kpi-row pcc-kpi-row-secondary" style={{ marginTop: 10 }}>
+          <PccKpiCard label="Metal WIP" value={formatKg(kpis.metalInProduction)} />
+          <PccKpiCard label="In transit" value={formatKg(kpis.metalInTransit)} />
+          <PccKpiCard label="Delayed" value={kpis.delayedBatches ?? 0} />
+          <PccKpiCard label="Rework" value={kpis.rework ?? 0} />
+          <PccKpiCard label="Alerts" value={kpis.activeAlerts ?? 0} />
+          <PccKpiCard label="Passes pending" value={kpis.passesPending ?? 0} />
+          <PccKpiCard label="Completed today" value={kpis.completedToday ?? 0} />
+          <PccKpiCard label="Active WOs" value={kpis.activeWorkOrders ?? 0} />
+        </div>
       </div>
 
       <div className="pcc-panel">
-        <div className="pcc-panel-head"><h2>STOCK</h2></div>
-        <div className="pcc-kpi-row">
+        <div className="pcc-panel-head">
+          <h2>STOCK</h2>
+          <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('stock-overview')}>Open Stock</button>
+        </div>
+        <div className="pcc-kpi-row pcc-kpi-row-secondary">
           <PccKpiCard label="New Stock" value={stock.newStock?.count ?? 0} />
           <PccKpiCard label="Available" value={stock.available?.count ?? 0} />
           <PccKpiCard label="Selected" value={stock.selected?.count ?? 0} />
@@ -203,36 +216,44 @@ export default function LiveFloorPanel({
       </div>
 
       <div className="pcc-panel">
-        <div className="pcc-panel-head"><h2>DEPARTMENTS</h2></div>
-        <div className="pcc-dept-grid">
-          {(summary?.departments || []).map((d) => (
-            <button
-              key={d.key}
-              type="button"
-              className="pcc-dept-tile"
-              onClick={() => onNavigate?.(`dept-${d.key}`)}
-            >
-              <strong>{d.label}</strong>
-              <PccStatusBadge status={d.status} />
-              <span>{d.active ?? 0} active · {d.waiting ?? 0} wait · {d.completedToday ?? 0} done</span>
-            </button>
-          ))}
-          {!(summary?.departments || []).length && (
-            <PccEmptyState message="Department status will appear when flow is active" />
-          )}
+        <div className="pcc-panel-head">
+          <h2>PRODUCTION FLOW</h2>
+          <button type="button" className="pcc-btn-ghost" onClick={() => onNavigate?.('dept-flow')}>Full flow</button>
         </div>
-      </div>
-
-      <div className="pcc-flow">
-        {stages.length === 0 ? (
-          <PccEmptyState message="No production flow configured" />
+        {(summary?.departments || []).length || stages.length ? (
+          <div className="pcc-flow-card-grid">
+            {(summary?.departments || []).length
+              ? (summary.departments || []).map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  className="pcc-flow-card"
+                  onClick={() => onNavigate?.(`dept-${d.key}`)}
+                >
+                  <strong>{d.label}</strong>
+                  <span>● {d.active ?? 0} Active</span>
+                  <span>{d.waiting ?? 0} Waiting</span>
+                  <span>⚠ {d.alerts ?? d.alertCount ?? 0} Alert</span>
+                  {d.weight != null || d.metalGrams != null ? (
+                    <span>{formatKg(d.weight ?? d.metalGrams)}</span>
+                  ) : null}
+                  <span className="pcc-muted">Open Department</span>
+                </button>
+              ))
+              : stages.map((stage) => (
+                <button
+                  key={stage.key}
+                  type="button"
+                  className="pcc-flow-card"
+                  onClick={() => onNavigate?.(stage.key === 'vault' || stage.key === 'vault_return' ? 'stock-overview' : `dept-${stage.key}`)}
+                >
+                  <strong>{stage.label}</strong>
+                  <span className="pcc-muted">Open stage</span>
+                </button>
+              ))}
+          </div>
         ) : (
-          stages.map((stage, idx) => (
-            <div key={stage.key || idx} className="pcc-flow-stage">
-              <span>{stage.label}</span>
-              {idx < stages.length - 1 && <span className="pcc-flow-arrow">→</span>}
-            </div>
-          ))
+          <PccEmptyState message="Department status will appear when flow is active" />
         )}
       </div>
 
