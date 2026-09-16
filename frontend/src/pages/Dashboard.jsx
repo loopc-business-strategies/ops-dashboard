@@ -398,7 +398,17 @@ function Dashboard() {
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
 
   const [activeTab,    setActiveTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).activeTab)
-  const [sidebarOpen,  setSidebarOpen]  = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true)
+  const [sidebarOpen,  setSidebarOpen]  = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      const stored = window.localStorage.getItem('ops.sidebarOpen')
+      if (stored === '0' || stored === 'false') return false
+      if (stored === '1' || stored === 'true') return true
+    } catch {
+      /* ignore */
+    }
+    return window.innerWidth >= 1024
+  })
   const [adminOpen,    setAdminOpen]    = useState(true)
   const [deptOpen,     setDeptOpen]     = useState(true)
   const [erpOpen,      setErpOpen]      = useState(true)
@@ -432,10 +442,11 @@ function Dashboard() {
 
   const DESKTOP_MIN_WIDTH = 1024
   const DESKTOP_SIDEBAR_WIDTH = 264
+  const SIDEBAR_STORAGE_KEY = 'ops.sidebarOpen'
   const [isDesktop, setIsDesktop] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
-  // Sidebar is user-controlled (toggle + mobile drawer); no hover auto-hide / edge-open.
+  // Sidebar is user-controlled (toggle + mobile drawer); preference persists on desktop.
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
   const includeCompany = useMemo(
@@ -477,6 +488,9 @@ function Dashboard() {
     if (item.id === 'production') {
       return '/production'
     }
+    if (item.id === 'production-new') {
+      return '/production-dashboard'
+    }
     if (item.external && item.href) {
       return String(item.href).trim()
     }
@@ -510,9 +524,28 @@ function Dashboard() {
     navigate('/production', { state: { returnTo } })
   }, [navigate])
 
+  const openProductionDashboard = useCallback(() => {
+    const raw = `${window.location.pathname}${window.location.search}` || '/dashboard'
+    const returnTo = raw
+      .replace(/([?&])tab=production-new\b/, '$1tab=overview')
+      .replace(/\?&/, '?')
+      .replace(/[?&]$/, '') || '/dashboard'
+    const target = returnTo.includes('tab=') ? returnTo : '/dashboard?tab=overview'
+    try {
+      sessionStorage.setItem('pd_returnTo', target)
+    } catch {
+      /* ignore */
+    }
+    navigate('/production-dashboard', { state: { returnTo: target } })
+  }, [navigate])
+
   const navigateToTab = useCallback((tabId, options = {}) => {
     if (tabId === 'production') {
       openProductionWorkspace()
+      return
+    }
+    if (tabId === 'production-new') {
+      openProductionDashboard()
       return
     }
     const { erpSub, sub, replace = true } = options
@@ -528,7 +561,7 @@ function Dashboard() {
       sub: sub === undefined ? (nextActive === 'erp' ? null : searchParams.get('sub')) : sub,
       replace,
     })
-  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionWorkspace])
+  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionWorkspace, openProductionDashboard])
 
   const handleErpSubTabChange = useCallback((subTab) => {
     setActiveTab('erp')
@@ -657,16 +690,22 @@ function Dashboard() {
   }
 
   const toggleSidebar = () => {
-    setSidebarOpen((open) => !open)
+    setSidebarOpen((open) => {
+      const next = !open
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
   }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
     const handleResize = () => {
-      const desktop = window.innerWidth >= DESKTOP_MIN_WIDTH
-      setIsDesktop(desktop)
-      if (desktop) setSidebarOpen(true)
+      setIsDesktop(window.innerWidth >= DESKTOP_MIN_WIDTH)
     }
 
     handleResize()
@@ -936,7 +975,8 @@ function Dashboard() {
                 type="button"
                 onClick={toggleSidebar}
                 className="topbar-icon-btn"
-                aria-label="Toggle sidebar"
+                aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+                title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
                 style={{ color: 'var(--text-secondary)' }}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1215,7 +1255,7 @@ function Dashboard() {
 
         {/* Page content — 1.5rem inset matches ERP module padding; chat stays full-bleed inside scroll area */}
         <main
-          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' || activeTab === 'production-new' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
         >
           {visitedKeepAliveTabs.has('overview') && (
@@ -1249,10 +1289,6 @@ function Dashboard() {
           {activeTab !== 'overview' && activeTab !== 'erp' && (
             activeTab === 'chat' ? (
               <div className="flex-1 min-h-0 flex flex-col">
-                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
-              </div>
-            ) : activeTab === 'production-new' ? (
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ boxSizing: 'border-box' }}>
                 {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
               </div>
             ) : (
