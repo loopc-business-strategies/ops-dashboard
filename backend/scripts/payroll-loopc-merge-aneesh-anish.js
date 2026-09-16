@@ -78,8 +78,8 @@ async function main() {
   const TenantBal = await SalaryBalance.getTenantModel(TENANT)
   const TenantAsg = await EmployeeSalaryAssignment.getTenantModel(TENANT)
 
-  let survivor = await TenantEmployee.findOne({ employeeCode: SURVIVOR_CODE })
-  let duplicate = await TenantEmployee.findOne({ employeeCode: DUPLICATE_CODE })
+  let survivor = await TenantEmployee.findOne({ employeeCode: SURVIVOR_CODE, isDeleted: { $ne: true } })
+  let duplicate = await TenantEmployee.findOne({ employeeCode: DUPLICATE_CODE, isDeleted: { $ne: true } })
 
   if (!survivor) {
     const byName = await TenantEmployee.find({ name: /^Aneesh$/i, isDeleted: { $ne: true } })
@@ -95,13 +95,10 @@ async function main() {
     process.exit(1)
   }
   if (!duplicate) {
-    if (survivor && String(survivor.isDeleted) === 'true') {
-      console.log('Duplicate already merged/removed; survivor present. Idempotent exit.')
-      await mongoose.disconnect()
-      return
-    }
-    // Maybe already soft-deleted
-    const soft = await TenantEmployee.findOne({ employeeCode: DUPLICATE_CODE, isDeleted: true })
+    const soft = await TenantEmployee.collection.findOne({
+      employeeCode: DUPLICATE_CODE,
+      isDeleted: true,
+    })
     if (soft) {
       console.log(`Duplicate ${DUPLICATE_CODE} already soft-deleted. Idempotent exit.`)
       await mongoose.disconnect()
@@ -117,7 +114,9 @@ async function main() {
     return
   }
 
-  if (duplicate.isDeleted === true) {
+  // Raw check — Employee schema may not declare isDeleted
+  const dupRaw = await TenantEmployee.collection.findOne({ _id: duplicate._id })
+  if (dupRaw?.isDeleted === true) {
     console.log(`Duplicate ${duplicate.employeeCode} already soft-deleted. Idempotent exit.`)
     await mongoose.disconnect()
     return
