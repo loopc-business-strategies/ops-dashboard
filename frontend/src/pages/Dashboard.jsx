@@ -1215,7 +1215,7 @@ function Dashboard() {
 
         {/* Page content — 1.5rem inset matches ERP module padding; chat stays full-bleed inside scroll area */}
         <main
-          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' || activeTab === 'production-new' ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
         >
           {visitedKeepAliveTabs.has('overview') && (
@@ -1249,6 +1249,10 @@ function Dashboard() {
           {activeTab !== 'overview' && activeTab !== 'erp' && (
             activeTab === 'chat' ? (
               <div className="flex-1 min-h-0 flex flex-col">
+                {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
+              </div>
+            ) : activeTab === 'production-new' ? (
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ boxSizing: 'border-box' }}>
                 {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps, tabRenderOptions)}
               </div>
             ) : (
