@@ -141,10 +141,10 @@ function cropToOpaqueBounds(sourceCanvas, pad = 4) {
 }
 
 /**
- * Load payslip logo at natural resolution, strip black plate, crop, return PNG data URL.
- * Does not pre-shrink (avoids blur from createLogoRenderAsset).
+ * Load payslip logo at natural resolution, strip black plate, crop,
+ * then optionally downscale to targetPx (never upscale) for sharp PDF embed.
  */
-async function loadTransparentPayslipLogo(logoUrl) {
+async function loadTransparentPayslipLogo(logoUrl, targetW = 0, targetH = 0) {
   if (!logoUrl || typeof document === 'undefined') return ''
 
   return new Promise((resolve) => {
@@ -164,7 +164,26 @@ async function loadTransparentPayslipLogo(logoUrl) {
         ctx.drawImage(image, 0, 0)
         removeNearBlackBackground(ctx, w, h)
         const cropped = cropToOpaqueBounds(canvas, 6)
-        resolve(cropped.toDataURL('image/png'))
+        const cw = cropped.width
+        const ch = cropped.height
+        if (!targetW || !targetH || cw <= targetW || ch <= targetH) {
+          resolve(cropped.toDataURL('image/png'))
+          return
+        }
+        // Downscale only (never upscale) with high-quality smoothing.
+        const scale = Math.min(targetW / cw, targetH / ch)
+        const outW = Math.max(1, Math.round(cw * scale))
+        const outH = Math.max(1, Math.round(ch * scale))
+        const out = document.createElement('canvas')
+        out.width = outW
+        out.height = outH
+        const octx = out.getContext('2d')
+        if (!octx) return resolve(cropped.toDataURL('image/png'))
+        octx.clearRect(0, 0, outW, outH)
+        octx.imageSmoothingEnabled = true
+        octx.imageSmoothingQuality = 'high'
+        octx.drawImage(cropped, 0, 0, cw, ch, 0, 0, outW, outH)
+        resolve(out.toDataURL('image/png'))
       } catch {
         resolve('')
       }
@@ -192,13 +211,16 @@ export async function generatePayslipPdf(payslip, tenant) {
   let y = margin
 
   if (structured) {
-    const logoW = 170
-    const logoH = 55
-    let logoAsset = await loadTransparentPayslipLogo('/logos/loopc-payslip-logo.png')
+    const logoW = 140
+    const logoH = 45
+    // 2× display pixels for sharper embed when source is larger than this.
+    const embedPxW = Math.round(logoW * 2)
+    const embedPxH = Math.round(logoH * 2)
+    let logoAsset = await loadTransparentPayslipLogo('/logos/loopc-payslip-logo.png', embedPxW, embedPxH)
     if (!logoAsset || !String(logoAsset).startsWith('data:image/')) {
       const fallback = branding.logoUrl || branding.logoImage || ''
       if (fallback) {
-        logoAsset = await loadTransparentPayslipLogo(fallback)
+        logoAsset = await loadTransparentPayslipLogo(fallback, embedPxW, embedPxH)
       }
     }
     if (logoAsset && String(logoAsset).startsWith('data:image/')) {
@@ -209,15 +231,13 @@ export async function generatePayslipPdf(payslip, tenant) {
       }
     }
 
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.text(branding.displayName || branding.companyName || 'LoopC', margin, y)
-    y += 18
+    // Logo brands the page; no top-left LoopC text.
     doc.setFontSize(11)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('helvetica', 'bold')
     doc.text('PAYSLIP', margin, y)
     y = Math.max(y + 16, margin + logoH + 8)
     doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
 
     doc.text(`Payslip No: ${payslip.number || '—'}`, margin, y)
     y += 14
@@ -292,13 +312,9 @@ export async function generatePayslipPdf(payslip, tenant) {
     })
     y = doc.lastAutoTable.finalY + 14
 
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.text('Net Paid', margin, y)
-    y += 6
     autoTable(doc, {
       startY: y,
-      head: [['Description', 'Amount']],
+      head: [['Description', 'Total Amount']],
       body: [
         ['Net Paid / Amount Paid', inrMoney(payslip.amountPaid)],
       ],
