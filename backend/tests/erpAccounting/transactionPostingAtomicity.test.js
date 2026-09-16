@@ -49,7 +49,7 @@ const createUser = async (overrides = {}) => {
   })
 }
 
-const createApprovedSaleTransaction = async (financeUser, { item, customer, receivableAccount, inventoryAccount }) => {
+const createDraftSaleTransaction = async (financeUser, { item, customer }) => {
   const createRes = await request(app)
     .post('/api/erp-accounting/transactions')
     .set(authHeader(financeUser))
@@ -73,21 +73,17 @@ const createApprovedSaleTransaction = async (financeUser, { item, customer, rece
     })
 
   expect(createRes.status).toBe(201)
-  const txId = createRes.body.transaction._id
+  return { txId: createRes.body.transaction._id, item }
+}
 
-  await request(app)
+const submitAndPostSale = async (financeUser, txId) => {
+  const submitRes = await request(app)
     .post(`/api/erp-accounting/transactions/${txId}/submit`)
     .set(authHeader(financeUser))
     .send({ comment: 'submit' })
-    .expect(200)
-
-  await request(app)
-    .post(`/api/erp-accounting/transactions/${txId}/approve`)
-    .set(authHeader(financeUser))
-    .send({ comment: 'approve' })
-    .expect(200)
-
-  return { txId, receivableAccount, inventoryAccount, item }
+  expect(submitRes.status).toBe(200)
+  expect(submitRes.body.transaction.status).toBe('posted')
+  return submitRes
 }
 
 beforeAll(async () => {
@@ -140,7 +136,7 @@ afterAll(async () => {
 })
 
 describe('transaction posting atomicity', () => {
-  test('rolls back ledger and inventory when stock movement creation fails mid-post', async () => {
+  test('rolls back ledger and inventory when stock movement creation fails mid-submit/post', async () => {
     const financeUser = await createUser()
     const receivableAccount = await ChartOfAccount.create({
       accountName: 'Customer Receivable',
@@ -171,25 +167,20 @@ describe('transaction posting atomicity', () => {
       updatedBy: financeUser._id,
     })
 
-    const { txId } = await createApprovedSaleTransaction(financeUser, {
-      item,
-      customer,
-      receivableAccount,
-      inventoryAccount,
-    })
+    const { txId } = await createDraftSaleTransaction(financeUser, { item, customer })
 
     const { StockMovement: TenantStockMovement } = await getTenantModels()
     jest.spyOn(TenantStockMovement, 'create').mockRejectedValue(new Error('Simulated mid-post failure'))
 
-    const postRes = await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
+    const submitRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
       .set(authHeader(financeUser))
-      .send({ comment: 'Post sale voucher' })
+      .send({ comment: 'Submit sale voucher' })
 
-    expect(postRes.status).not.toBe(200)
+    expect(submitRes.status).not.toBe(200)
 
     const tx = await Transaction.findById(txId)
-    expect(tx.status).toBe('approved')
+    expect(tx.status).toBe('draft')
     expect(tx.journalEntryId).toBeFalsy()
 
     const activeLedgers = await Ledger.find({ referenceId: txId, isDeleted: { $ne: true } })
@@ -235,18 +226,8 @@ describe('transaction posting atomicity', () => {
       updatedBy: financeUser._id,
     })
 
-    const { txId } = await createApprovedSaleTransaction(financeUser, {
-      item,
-      customer,
-      receivableAccount,
-      inventoryAccount,
-    })
-
-    await request(app)
-      .post(`/api/erp-accounting/transactions/${txId}/post`)
-      .set(authHeader(financeUser))
-      .send({ comment: 'Post before void' })
-      .expect(200)
+    const { txId } = await createDraftSaleTransaction(financeUser, { item, customer })
+    await submitAndPostSale(financeUser, txId)
 
     const postedItem = await InventoryItem.findById(item._id)
     expect(Number(postedItem.quantity)).toBe(90)

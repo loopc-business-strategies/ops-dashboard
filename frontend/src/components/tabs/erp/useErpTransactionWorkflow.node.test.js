@@ -6,7 +6,7 @@ import {
 
 describe('useErpTransactionWorkflow helpers', () => {
   test('getTransactionActionSuccessLabel formats single transaction actions', () => {
-    expect(getTransactionActionSuccessLabel('submit')).toBe('submitted')
+    expect(getTransactionActionSuccessLabel('submit')).toBe('submitted and posted')
     expect(getTransactionActionSuccessLabel('approve')).toBe('approved')
     expect(getTransactionActionSuccessLabel('return')).toBe('returned for edit')
     expect(getTransactionActionSuccessLabel('reject')).toBe('rejected')
@@ -15,7 +15,7 @@ describe('useErpTransactionWorkflow helpers', () => {
   })
 
   test('getBulkTransactionActionSuccessLabel formats supported bulk actions', () => {
-    expect(getBulkTransactionActionSuccessLabel('submit')).toBe('submitted')
+    expect(getBulkTransactionActionSuccessLabel('submit')).toBe('submitted and posted')
     expect(getBulkTransactionActionSuccessLabel('approve')).toBe('approved')
     expect(getBulkTransactionActionSuccessLabel('post')).toBe('posted')
     expect(getBulkTransactionActionSuccessLabel('return')).toBe('return')
