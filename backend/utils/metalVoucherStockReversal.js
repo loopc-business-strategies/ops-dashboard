@@ -10,6 +10,7 @@ const {
   stockMovementReasonPattern,
 } = require('./metalStockVoucherTypes')
 const { withSession, writeOpts } = require('./mongoTransaction')
+const { cancelLotsForVoidedPurchase } = require('../services/erpAccounting/voucherProductionStockBridge')
 
 async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, InventoryItem, toQty, deleteReason, session = null }) {
   if (!StockMovement || !InventoryItem || !toQty) return
@@ -41,6 +42,27 @@ async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, Invent
     mov.deletedBy = user._id
     mov.deleteReason = reasonText
     await mov.save(writeOpts(session))
+  }
+
+  // Soft-cancel unused purchase-linked production lots (no hard delete).
+  try {
+    const bridgeResult = await cancelLotsForVoidedPurchase({
+      user,
+      tx,
+      session,
+      deleteReason: reasonText,
+    })
+    if (bridgeResult?.warnings?.length) {
+      console.warn(
+        '[metalVoucherStockReversal] production lot void warnings:',
+        bridgeResult.warnings.join('; '),
+      )
+    }
+  } catch (err) {
+    console.warn(
+      '[metalVoucherStockReversal] production lot void bridge failed:',
+      err?.message || err,
+    )
   }
 }
 

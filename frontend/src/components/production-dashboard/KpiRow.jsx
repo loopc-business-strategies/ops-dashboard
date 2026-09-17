@@ -8,6 +8,7 @@ import {
   IconOutput,
   IconTrendUp,
   IconWeekly,
+  IconVault,
 } from './PdIcons'
 
 function CompactKpi({ icon, label, value, hint }) {
@@ -34,14 +35,23 @@ function deltaLabel(n) {
 export default function KpiRow({ model }) {
   if (!model) return null
   const k = model.compactKpis || {}
+  const vault = model.vaultKpi || {}
   const day = deltaLabel(k.yesterdayVsToday)
   const week = deltaLabel(k.weeklyComparison)
+  const newStockWeight = vault.newStockWeight ?? k.vaultNewStock
+  const availableWeight = vault.availableWeight ?? k.vaultAvailable
 
   return (
     <section className="pd-kpi-strip" aria-label="Production KPIs">
       <CompactKpi icon={<IconEmployees />} label="Employees" value={k.employees != null ? k.employees : '—'} />
       <CompactKpi icon={<IconManager />} label="Floor Manager" value={k.floorManager || 'Not assigned'} />
       <CompactKpi icon={<IconShift />} label="Current Shift" value={k.currentShift || '—'} />
+      <CompactKpi
+        icon={<IconVault />}
+        label="Vault New Stock"
+        value={newStockWeight != null ? formatGrams(newStockWeight) : '—'}
+        hint={availableWeight != null ? `Available ${formatGrams(availableWeight)}` : undefined}
+      />
       <CompactKpi
         icon={<IconProduction />}
         label="Total Production Today"

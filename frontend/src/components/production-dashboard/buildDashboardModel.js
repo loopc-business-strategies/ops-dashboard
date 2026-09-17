@@ -613,6 +613,25 @@ export function buildDashboardModel({
     ? percentChange(thisWeek?.weightOut ?? thisWeek?.weightIn, lastWeek?.weightOut ?? lastWeek?.weightIn)
     : null
 
+  const stock = widgetsRes?.stock || summaryRes?.stock || null
+  const vaultKpi = stock
+    ? {
+        newStockWeight: numOrNull(stock.newStock?.weight),
+        newStockCount: numOrNull(stock.newStock?.count),
+        availableWeight: numOrNull(stock.available?.weight),
+        availableCount: numOrNull(stock.available?.count),
+        underProcessingWeight: numOrNull(stock.underProcessing?.weight),
+        underProcessingCount: numOrNull(stock.underProcessing?.count),
+      }
+    : {
+        newStockWeight: null,
+        newStockCount: null,
+        availableWeight: null,
+        availableCount: null,
+        underProcessingWeight: null,
+        underProcessingCount: null,
+      }
+
   const role = me?.productionRole || me?.role || null
   const online = activeCount > 0 || (Array.isArray(operators) && operators.length > 0)
 
@@ -641,6 +660,8 @@ export function buildDashboardModel({
       totalOutput: weightOut,
       yesterdayVsToday: dayDelta,
       weeklyComparison: weekDelta,
+      vaultNewStock: vaultKpi.newStockWeight,
+      vaultAvailable: vaultKpi.availableWeight,
     },
     employeeKpi: {
       total: empList.length || (Array.isArray(operators) ? operators.length : null),
@@ -675,6 +696,7 @@ export function buildDashboardModel({
       remainingWeight,
       estimatedCompletion: null,
     },
+    vaultKpi,
     comparisons: {
       day: dayCmp,
       week: weekCmp,

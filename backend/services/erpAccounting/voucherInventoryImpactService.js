@@ -14,6 +14,7 @@ const {
   scoreInventoryLineMatch,
 } = require('../../utils/voucherInventoryLookup')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
+const { createLotsFromPurchasePlans } = require('./voucherProductionStockBridge')
 
 function createVoucherInventoryImpactService({
   ensureAccountByCode,
@@ -218,6 +219,26 @@ function createVoucherInventoryImpactService({
           currency: tx.currency || BASE_CURRENCY_CODE,
           exchangeRate: Number(tx.exchangeRate || 1),
         }], writeOpts(session))
+      }
+    }
+
+    // Additive: mirror metal stock-in into production vault (NEW_STOCK).
+    // Fail soft when no session; with a session rethrow so inventory + lots stay atomic.
+    if (isMetalStockInType(transactionType)) {
+      try {
+        const bridgeResult = await createLotsFromPurchasePlans({ user, tx, plans, session })
+        if (bridgeResult?.warnings?.length) {
+          console.warn(
+            '[voucherInventoryImpact] production stock bridge warnings:',
+            bridgeResult.warnings.join('; '),
+          )
+        }
+      } catch (err) {
+        console.warn(
+          '[voucherInventoryImpact] production stock bridge failed:',
+          err?.message || err,
+        )
+        if (session) throw err
       }
     }
   }
