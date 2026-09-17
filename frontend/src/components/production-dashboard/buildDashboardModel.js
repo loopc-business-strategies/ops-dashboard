@@ -613,15 +613,15 @@ export function buildDashboardModel({
     ? percentChange(thisWeek?.weightOut ?? thisWeek?.weightIn, lastWeek?.weightOut ?? lastWeek?.weightIn)
     : null
 
-  const stock = widgetsRes?.stock || summaryRes?.stock || null
-  const vaultKpi = stock
+  const vaultSource = widgetsRes?.stock || summaryRes?.stock || stock || null
+  const vaultKpi = vaultSource
     ? {
-        newStockWeight: numOrNull(stock.newStock?.weight),
-        newStockCount: numOrNull(stock.newStock?.count),
-        availableWeight: numOrNull(stock.available?.weight),
-        availableCount: numOrNull(stock.available?.count),
-        underProcessingWeight: numOrNull(stock.underProcessing?.weight),
-        underProcessingCount: numOrNull(stock.underProcessing?.count),
+        newStockWeight: numOrNull(vaultSource.newStock?.weight),
+        newStockCount: numOrNull(vaultSource.newStock?.count),
+        availableWeight: numOrNull(vaultSource.available?.weight),
+        availableCount: numOrNull(vaultSource.available?.count),
+        underProcessingWeight: numOrNull(vaultSource.underProcessing?.weight),
+        underProcessingCount: numOrNull(vaultSource.underProcessing?.count),
       }
     : {
         newStockWeight: null,
