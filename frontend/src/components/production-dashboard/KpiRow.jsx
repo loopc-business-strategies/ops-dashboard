@@ -11,17 +11,40 @@ import {
   IconWeekly,
 } from './PdIcons'
 
-function CompactKpi({ icon, label, value, hint }) {
+function CompactKpi({ icon, label, value, hint, hintLines, className = '' }) {
   return (
-    <article className="pd-kpi-compact">
+    <article className={`pd-kpi-compact${className ? ` ${className}` : ''}`}>
       <div className="pd-kpi-compact-icon" aria-hidden>{icon}</div>
       <div className="pd-kpi-compact-body">
         <span className="pd-kpi-compact-label">{label}</span>
         <strong className="pd-kpi-compact-value">{value}</strong>
         {hint ? <span className="pd-kpi-compact-hint">{hint}</span> : null}
+        {Array.isArray(hintLines) && hintLines.length > 0 ? (
+          <ul className="pd-kpi-compact-lines">
+            {hintLines.map((line) => (
+              <li key={line.key}>{line.text}</li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </article>
   )
+}
+
+function formatPurity(purity) {
+  const raw = String(purity || '').trim()
+  if (!raw) return ''
+  const n = Number(raw)
+  if (Number.isFinite(n) && n > 0 && n <= 1) return n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+  return raw
+}
+
+function vaultProductLine(row) {
+  const grams = row.availableWeight > 0 ? row.availableWeight : row.totalWeight
+  const purity = formatPurity(row.purity)
+  const parts = [row.product, row.metalType]
+  if (purity) parts.push(purity)
+  return `${parts.join(' · ')} — ${formatGrams(grams)}`
 }
 
 function deltaLabel(n) {
@@ -43,10 +66,16 @@ export default function KpiRow({ model }) {
   const availableWeight = vault.availableWeight ?? k.vaultAvailable
   const newW = Number(newStockWeight) || 0
   const availW = Number(availableWeight) || 0
-  const vaultDisplay = (newW + availW) > 0
-    ? formatGrams(newW > 0 ? newW : availW)
-    : (newStockWeight != null || availableWeight != null ? formatGrams(0) : '—')
-  const vaultHint = `Available ${formatGrams(availW)}`
+  const vaultDisplay = availableWeight != null || newStockWeight != null
+    ? formatGrams(availW)
+    : '—'
+  const vaultHint = newW > 0 ? `New ${formatGrams(newW)}` : null
+  const vaultLines = (Array.isArray(vault.products) ? vault.products : [])
+    .slice(0, 6)
+    .map((row, idx) => ({
+      key: row.inventoryItemId || `${row.product}-${row.metalType}-${idx}`,
+      text: vaultProductLine(row),
+    }))
 
   return (
     <section className="pd-kpi-strip" aria-label="Production KPIs">
@@ -54,9 +83,11 @@ export default function KpiRow({ model }) {
       <CompactKpi icon={<IconManager />} label="Floor Manager" value={k.floorManager || 'Not assigned'} />
       <CompactKpi
         icon={<IconVault />}
-        label="Vault New Stock"
+        label="Vault Available"
         value={vaultDisplay}
         hint={vaultHint}
+        hintLines={vaultLines}
+        className="pd-kpi-compact--vault"
       />
       <CompactKpi icon={<IconShift />} label="Current Shift" value={k.currentShift || '—'} />
       <CompactKpi

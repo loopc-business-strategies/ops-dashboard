@@ -636,16 +636,32 @@ export function buildDashboardModel({
   const pccNew = numOrNull(vaultSource?.newStock?.weight)
   const pccAvail = numOrNull(vaultSource?.available?.weight)
   const erpVaultW = numOrNull(vaultSource?.erpVault?.weight)
+  const availableWeightResolved = (Number(pccAvail) || 0) > 0
+    ? pccAvail
+    : ((Number(pccNew) || 0) <= 0 && erpVaultW != null ? erpVaultW : pccAvail)
+  const vaultProductsRaw = Array.isArray(vaultSource?.vaultProducts) ? vaultSource.vaultProducts : []
+  const vaultProducts = vaultProductsRaw
+    .map((row) => ({
+      product: String(row?.product || '').trim() || 'Stock',
+      metalType: String(row?.metalType || '').trim() || 'Gold',
+      purity: String(row?.purity || '').trim(),
+      newStockWeight: Number(row?.newStockWeight) || 0,
+      availableWeight: Number(row?.availableWeight) || 0,
+      totalWeight: Number(row?.totalWeight) || 0,
+      inventoryItemId: row?.inventoryItemId || null,
+    }))
+    .filter((row) => row.availableWeight > 0 || row.totalWeight > 0)
+    .sort((a, b) => (b.availableWeight || b.totalWeight) - (a.availableWeight || a.totalWeight))
   const vaultKpi = vaultSource
     ? {
         newStockWeight: pccNew,
         newStockCount: numOrNull(vaultSource.newStock?.count),
-        availableWeight: (Number(pccAvail) || 0) > 0
-          ? pccAvail
-          : ((Number(pccNew) || 0) <= 0 && erpVaultW != null ? erpVaultW : pccAvail),
+        /** Headline = Available (PCC AVAILABLE, else ERP fallback) — not NEW+AVAILABLE sum */
+        availableWeight: availableWeightResolved,
         availableCount: numOrNull(vaultSource.available?.count),
         underProcessingWeight: numOrNull(vaultSource.underProcessing?.weight),
         underProcessingCount: numOrNull(vaultSource.underProcessing?.count),
+        products: vaultProducts,
       }
     : {
         newStockWeight: null,
@@ -654,6 +670,7 @@ export function buildDashboardModel({
         availableCount: null,
         underProcessingWeight: null,
         underProcessingCount: null,
+        products: [],
       }
 
   const role = me?.productionRole || me?.role || null

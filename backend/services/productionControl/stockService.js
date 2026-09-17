@@ -217,7 +217,7 @@ async function listStock(query = {}) {
 
 async function getStockOverview() {
   const InventoryItem = require('../../models/InventoryItem')
-  const [rows, erpAgg] = await Promise.all([
+  const [rows, erpAgg, vaultLots, erpItems] = await Promise.all([
     ProductionStockLot.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$netWeight' }, qty: { $sum: '$quantity' } } },
     ]),
@@ -225,6 +225,14 @@ async function getStockOverview() {
       { $match: { isDeleted: { $ne: true }, quantity: { $gt: 0 } } },
       { $group: { _id: null, weight: { $sum: '$quantity' }, count: { $sum: 1 } } },
     ]).catch(() => []),
+    ProductionStockLot.find({ status: { $in: ['NEW_STOCK', 'AVAILABLE'] } })
+      .select('product productCode metalType purity netWeight status inventoryItemId category')
+      .lean()
+      .catch(() => []),
+    InventoryItem.find({ isDeleted: { $ne: true }, quantity: { $gt: 0 } })
+      .select('name sku category quantity')
+      .lean()
+      .catch(() => []),
   ])
   const byStatus = Object.fromEntries(
     STOCK_STATUSES.map((s) => [s, { count: 0, weight: 0, qty: 0 }]),
@@ -241,6 +249,97 @@ async function getStockOverview() {
     count: erpAgg[0]?.count || 0,
     weight: erpAgg[0]?.weight || 0,
   }
+
+  const itemById = new Map((erpItems || []).map((it) => [String(it._id), it]))
+  // Also load items referenced by lots but qty 0 (for metadata only)
+  const missingItemIds = [...new Set(
+    (vaultLots || [])
+      .map((lot) => (lot.inventoryItemId ? String(lot.inventoryItemId) : ''))
+      .filter((id) => id && !itemById.has(id)),
+  )]
+  if (missingItemIds.length) {
+    const extra = await InventoryItem.find({ _id: { $in: missingItemIds } })
+      .select('name sku category quantity')
+      .lean()
+      .catch(() => [])
+    for (const it of extra || []) itemById.set(String(it._id), it)
+  }
+
+  const productMap = new Map()
+  const bumpProduct = (key, patch) => {
+    const prev = productMap.get(key) || {
+      key,
+      product: patch.product || 'Stock',
+      metalType: patch.metalType || 'Gold',
+      purity: patch.purity || '',
+      inventoryItemId: patch.inventoryItemId || null,
+      newStockWeight: 0,
+      availableWeight: 0,
+      totalWeight: 0,
+    }
+    prev.product = prev.product || patch.product || 'Stock'
+    prev.metalType = prev.metalType || patch.metalType || 'Gold'
+    if (!prev.purity && patch.purity) prev.purity = patch.purity
+    if (!prev.inventoryItemId && patch.inventoryItemId) prev.inventoryItemId = patch.inventoryItemId
+    prev.newStockWeight += Number(patch.newStockWeight || 0)
+    prev.availableWeight += Number(patch.availableWeight || 0)
+    prev.totalWeight = prev.newStockWeight + prev.availableWeight
+    productMap.set(key, prev)
+  }
+
+  for (const lot of vaultLots || []) {
+    const item = lot.inventoryItemId ? itemById.get(String(lot.inventoryItemId)) : null
+    const meta = parseInventoryCategoryMeta(item?.category || lot.category || '')
+    const metalType = titleCaseMetal(lot.metalType || meta.metalType || meta.mainStock || inferMetalTypeFromItem(item || lot))
+    const purity = String(lot.purity || meta.productPurity || meta.purity || '').trim()
+    const product = String(lot.product || item?.name || metalType).trim() || 'Stock'
+    const itemId = lot.inventoryItemId ? String(lot.inventoryItemId) : ''
+    const key = itemId || `${product}|${metalType}|${purity}`.toLowerCase()
+    const weight = Number(lot.netWeight) || 0
+    bumpProduct(key, {
+      product,
+      metalType,
+      purity,
+      inventoryItemId: itemId || null,
+      newStockWeight: lot.status === 'NEW_STOCK' ? weight : 0,
+      availableWeight: lot.status === 'AVAILABLE' ? weight : 0,
+    })
+  }
+
+  // ERP-only products with on-hand qty but no active vault lot row
+  for (const item of erpItems || []) {
+    const itemId = String(item._id)
+    const already = [...productMap.values()].some((p) => p.inventoryItemId === itemId)
+    if (already) continue
+    const meta = parseInventoryCategoryMeta(item.category || '')
+    // Skip pure stock-type masters without product recordType when qty is only mapping noise
+    const metalType = titleCaseMetal(meta.metalType || meta.mainStock || inferMetalTypeFromItem(item))
+    const purity = String(meta.productPurity || meta.purity || '').trim()
+    const product = String(item.name || metalType).trim() || 'Stock'
+    const weight = Number(item.quantity) || 0
+    if (weight <= 0) continue
+    bumpProduct(itemId, {
+      product,
+      metalType,
+      purity,
+      inventoryItemId: itemId,
+      availableWeight: weight,
+    })
+  }
+
+  const vaultProducts = [...productMap.values()]
+    .filter((p) => (Number(p.totalWeight) || 0) > 0)
+    .sort((a, b) => (Number(b.totalWeight) || 0) - (Number(a.totalWeight) || 0))
+    .map((p) => ({
+      product: p.product,
+      metalType: p.metalType,
+      purity: p.purity,
+      inventoryItemId: p.inventoryItemId,
+      newStockWeight: Number(p.newStockWeight) || 0,
+      availableWeight: Number(p.availableWeight) || 0,
+      totalWeight: Number(p.totalWeight) || 0,
+    }))
+
   return {
     byStatus,
     newStock,
@@ -267,7 +366,32 @@ async function getStockOverview() {
     erpVault,
     /** PCC NEW_STOCK + AVAILABLE; PD may fall back to erpVault when this is 0 */
     vaultWeight: pccVaultWeight,
+    vaultProducts,
   }
+}
+
+function parseInventoryCategoryMeta(category) {
+  const meta = {}
+  String(category || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const eq = part.indexOf('=')
+      if (eq <= 0) return
+      const key = part.slice(0, eq).trim()
+      const value = part.slice(eq + 1).trim()
+      if (key) meta[key] = value
+    })
+  return meta
+}
+
+function titleCaseMetal(value) {
+  const s = String(value || '').trim().toLowerCase()
+  if (s.includes('silver') || s === 'ag') return 'Silver'
+  if (s.includes('platinum') || s === 'pt' || s === 'plt') return 'Platinum'
+  if (s.includes('gold') || s === 'au' || !s) return 'Gold'
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function voucherStockIdempotencyKey(txId, inventoryItemId) {

@@ -1123,6 +1123,29 @@
   color: var(--pd-muted);
 }
 
+.pd-kpi-compact--vault .pd-kpi-compact-body {
+  min-width: 0;
+}
+
+.pd-kpi-compact-lines {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-width: 100%;
+}
+
+.pd-kpi-compact-lines li {
+  font-size: 10px;
+  line-height: 1.25;
+  color: var(--pd-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .pd-dept-status {
   min-height: 0;
 }
