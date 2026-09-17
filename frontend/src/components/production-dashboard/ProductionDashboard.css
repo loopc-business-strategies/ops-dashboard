@@ -64,6 +64,11 @@
   padding: 0.55rem 0.75rem;
 }
 
+.pd-header-main {
+  min-width: 0;
+  flex: 1;
+}
+
 .pd-title {
   margin: 0;
   font-size: 1.15rem;
@@ -118,6 +123,46 @@
 .pd-status-dot--active {
   background: var(--pd-ok);
   box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.18);
+}
+
+.pd-status-dot--muted {
+  background: #94a3b8;
+}
+
+.pd-fullscreen-page {
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #f4f6f9;
+  position: relative;
+}
+
+.pd-fullscreen-back {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.85rem;
+  z-index: 5;
+  border: 1px solid var(--pd-border, #e2e8f0);
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.2rem 0.55rem;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.pd-fullscreen-back:hover {
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.pd-fullscreen-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .pd-btn {
@@ -528,7 +573,7 @@
 .pd-badge--in-progress,
 .pd-badge--active { background: var(--pd-primary-soft); color: var(--pd-primary); }
 .pd-badge--completed { background: #dcfce7; color: var(--pd-ok); }
-.pd-badge--pending { background: #f1f5f9; color: #475569; }
+.pd-badge--idle { background: #f1f5f9; color: #64748b; }
 .pd-badge--delayed { background: #ffedd5; color: var(--pd-warn); }
 .pd-badge--stopped { background: #fee2e2; color: var(--pd-bad); }
 .pd-badge--confirm { background: #ede9fe; color: #6d28d9; }

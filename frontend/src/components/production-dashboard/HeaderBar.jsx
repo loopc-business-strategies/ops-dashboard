@@ -1,49 +1,36 @@
-import { formatClock, formatDateLong, formatShiftClock, pccHref } from './formatters'
+import { formatClock, formatDateLong, pccHref } from './formatters'
 
 export default function HeaderBar({ header, lastUpdated, connection, onRefresh, loading }) {
   const h = header || {}
-  const shiftLabel = h.shiftName
-    ? `${h.shiftName}${h.shiftStart || h.shiftEnd ? ` (${formatShiftClock(h.shiftStart)} – ${formatShiftClock(h.shiftEnd)})` : ''}`
-    : '—'
-
   return (
-    <header className="pd-header pd-header--navy">
-      <div className="pd-header-brand">
-        <span className="pd-header-mark" aria-hidden />
-        <div>
-          <h1 className="pd-title">{h.title || 'PRODUCTION CONTROL CENTER'}</h1>
-          <p className="pd-header-sub">{h.subtitle || 'Jewelry & Precious Metal Manufacturing'}</p>
+    <header className="pd-header">
+      <div className="pd-header-main">
+        <div className="pd-header-title-row">
+          <h1 className="pd-title">Production</h1>
+          <span className="pd-header-sep">|</span>
+          <span className="pd-header-meta">{h.dateLabel || formatDateLong()}</span>
+          <span className="pd-header-sep">|</span>
+          <span className={`pd-status-dot pd-status-dot--${h.statusTone === 'ok' ? 'active' : 'muted'}`} aria-hidden />
+          <span className="pd-header-meta">{h.status || 'No production activity today'}</span>
+        </div>
+        <div className="pd-header-facts">
+          <span><strong>Shift:</strong> {h.shiftName || '—'}</span>
+          <span><strong>Manager:</strong> {h.floorManager || 'Manager not assigned'}</span>
+          <span><strong>Employees:</strong> {h.employeeCount != null ? h.employeeCount : '—'}</span>
+          <span>
+            <strong>Batches:</strong>{' '}
+            {h.activeBatches != null
+              ? `${h.activeBatches}${h.totalBatches != null ? ` / ${h.totalBatches}` : ''}`
+              : '—'}
+          </span>
         </div>
       </div>
-
-      <div className="pd-header-center">
-        <span className="pd-header-chip">
-          {h.dateLabel || formatDateLong()}
-          {h.timeLabel ? ` | ${h.timeLabel}` : ''}
-        </span>
-        <span className={`pd-factory-status pd-factory-status--${h.statusTone || 'muted'}`}>
-          <span className="pd-factory-pulse" aria-hidden />
-          {h.status || 'No production activity today'}
-        </span>
-        <span className="pd-header-chip pd-header-chip--shift" title="Current shift">
-          Shift: {shiftLabel}
-        </span>
-      </div>
-
       <div className="pd-header-actions">
         {lastUpdated ? (
-          <span className="pd-header-meta-light">
-            Updated {formatClock(lastUpdated)} · {connection}
-          </span>
+          <span className="pd-muted">Updated {formatClock(lastUpdated)} · {connection}</span>
         ) : null}
-        {h.floorManager ? (
-          <span className="pd-header-avatar" title={h.floorManager}>
-            {String(h.floorManager).slice(0, 2).toUpperCase()}
-          </span>
-        ) : (
-          <span className="pd-header-avatar pd-header-avatar--muted" title="Manager not assigned">—</span>
-        )}
-        <a className="pd-btn pd-btn--ghost-light" href={pccHref('batches')}>Open PCC</a>
+        <a className="pd-btn pd-btn--ghost" href={pccHref('batches')}>View All Batches</a>
+        <a className="pd-btn pd-btn--ghost" href={pccHref('batches')}>New Batch</a>
         <button type="button" className="pd-btn pd-btn--primary" onClick={onRefresh} disabled={loading}>
           Refresh
         </button>
