@@ -1,4 +1,5 @@
 import { formatClock } from './formatters'
+import { AlertIcon } from './PdIcons'
 
 function severityClass(tone) {
   const s = String(tone || '').toLowerCase()
@@ -35,10 +36,13 @@ export default function AlertsPanel({ alerts }) {
             const tone = severityClass(a.tone || a.severity)
             return (
               <li key={a.id || a.message} className={`pd-alert-item pd-alert-item--${tone}`}>
-                <span className={`pd-alert-severity pd-alert-severity--${tone}`}>
-                  {severityLabel(a.tone || a.severity)}
+                <span className="pd-alert-icon" aria-hidden>
+                  <AlertIcon tone={tone} />
                 </span>
                 <div className="pd-alert-body">
+                  <span className={`pd-alert-severity pd-alert-severity--${tone}`}>
+                    {severityLabel(a.tone || a.severity)}
+                  </span>
                   <strong>{a.title || a.message || 'Alert'}</strong>
                   {a.message && a.title && a.message !== a.title ? <p>{a.message}</p> : null}
                   {a.createdAt ? <time>{formatClock(a.createdAt)}</time> : null}

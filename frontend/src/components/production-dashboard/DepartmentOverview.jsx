@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { formatGrams, formatMinutes, pccHref } from './formatters'
+import { DeptIcon } from './PdIcons'
 
 function statusClass(status) {
   return String(status || 'Idle').toLowerCase().replace(/\s+/g, '-')
@@ -10,7 +11,9 @@ function DeptCard({ card, expanded, onToggle, tables }) {
   return (
     <article className={`pd-dept-card pd-dept-card--${tone}${card.isAssembly ? ' pd-dept-card--assembly' : ''}${expanded ? ' pd-dept-card--expanded' : ''}`}>
       <div className="pd-dept-card-head">
-        <span className="pd-dept-mark" aria-hidden />
+        <span className="pd-dept-icon-wrap" aria-hidden>
+          <DeptIcon deptKey={card.key} />
+        </span>
         <h3 className="pd-dept-name">{card.name}</h3>
         <span className={`pd-status-pill pd-status-pill--${tone}`}>
           <span className="pd-status-dot" aria-hidden />

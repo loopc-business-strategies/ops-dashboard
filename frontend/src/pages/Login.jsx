@@ -70,8 +70,10 @@ function Login() {
       setLoading(false)
       if (!err.response) {
         setError(t('loginErrNetwork'))
+      } else if (err.response?.data?.code === 'TENANT_DB_NOT_CONFIGURED' || err.response?.data?.code === 'TENANT_DB_UNREACHABLE') {
+        setError(err.response.data.message || t('loginErrServer'))
       } else if (err.response.status >= 500) {
-        setError(t('loginErrServer'))
+        setError(err.response?.data?.message || t('loginErrServer'))
       } else if (err.response?.data?.code === 'TENANT_NEEDS_SETUP') {
         setNeedsSetup(true)
         setError(err.response.data.message)

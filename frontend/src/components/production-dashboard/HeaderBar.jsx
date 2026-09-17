@@ -1,4 +1,5 @@
 import { formatClock, formatDateLong, formatShiftClock, pccHref } from './formatters'
+import { IconCalendar, IconMark } from './PdIcons'
 
 export default function HeaderBar({ header, lastUpdated, connection, onRefresh, loading }) {
   const h = header || {}
@@ -9,7 +10,9 @@ export default function HeaderBar({ header, lastUpdated, connection, onRefresh, 
   return (
     <header className="pd-header pd-header--navy">
       <div className="pd-header-brand">
-        <span className="pd-header-mark" aria-hidden />
+        <span className="pd-header-mark" aria-hidden>
+          <IconMark />
+        </span>
         <div>
           <h1 className="pd-title">{h.title || 'PRODUCTION CONTROL CENTER'}</h1>
           <p className="pd-header-sub">{h.subtitle || 'Jewelry & Precious Metal Manufacturing'}</p>
@@ -18,6 +21,7 @@ export default function HeaderBar({ header, lastUpdated, connection, onRefresh, 
 
       <div className="pd-header-center">
         <span className="pd-header-chip">
+          <IconCalendar size={14} />
           {h.dateLabel || formatDateLong()}
           {h.timeLabel ? ` | ${h.timeLabel}` : ''}
         </span>

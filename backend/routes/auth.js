@@ -114,6 +114,27 @@ const validatePasswordForTenant = async (tenant, password) => {
   return validatePasswordPolicy(password, settings.passwordPolicy)
 }
 
+/** Prefer a clear 503 when a tenant Mongo URI is missing or unreachable (local misconfig). */
+function sendAuthCatchError(res, err, logLabel) {
+  console.error(logLabel, err)
+  const msg = String(err?.message || '')
+  if (/Mongo URI not configured/i.test(msg)) {
+    return res.status(503).json({
+      success: false,
+      code: 'TENANT_DB_NOT_CONFIGURED',
+      message: 'Database not configured for this company. Set MONGO_URI_<TENANT> in backend/.env and restart the API.',
+    })
+  }
+  if (/Tenant DB connection failed|IP that isn't whitelisted|ENOTFOUND|ECONNREFUSED|MongoNetworkError|MongoServerSelectionError/i.test(msg)) {
+    return res.status(503).json({
+      success: false,
+      code: 'TENANT_DB_UNREACHABLE',
+      message: 'Cannot reach the company database. Check MongoDB Atlas Network Access (whitelist your current IP), then try again.',
+    })
+  }
+  return res.status(500).json({ success: false, message: 'Server error.' })
+}
+
 const setupSchema = Joi.object({
   company: Joi.string().trim().valid(...getTenantKeys()).optional(),
   name: Joi.string().trim().min(2).max(80).required(),
@@ -260,8 +281,7 @@ router.get('/setup-status', async (req, res) => {
       needsSetup: count === 0,
     })
   } catch (err) {
-    console.error('setup-status error:', err)
-    res.status(500).json({ success: false, message: 'Server error.' })
+    return sendAuthCatchError(res, err, 'setup-status error:')
   }
 })
 
@@ -361,8 +381,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 
     await sendToken(user, 200, res, tenant, req)
   } catch (err) {
-    console.error('Login error:', err)
-    res.status(500).json({ success: false, message: 'Server error.' })
+    return sendAuthCatchError(res, err, 'Login error:')
   }
 })
 

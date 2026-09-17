@@ -1,8 +1,19 @@
 import { formatGrams, formatPct } from './formatters'
+import {
+  IconEmployees,
+  IconManager,
+  IconShift,
+  IconProduction,
+  IconUnderProduction,
+  IconOutput,
+  IconTrendUp,
+  IconWeekly,
+} from './PdIcons'
 
-function CompactKpi({ label, value, hint }) {
+function CompactKpi({ icon, label, value, hint }) {
   return (
     <article className="pd-kpi-compact">
+      <div className="pd-kpi-compact-icon" aria-hidden>{icon}</div>
       <div className="pd-kpi-compact-body">
         <span className="pd-kpi-compact-label">{label}</span>
         <strong className="pd-kpi-compact-value">{value}</strong>
@@ -28,26 +39,31 @@ export default function KpiRow({ model }) {
 
   return (
     <section className="pd-kpi-strip" aria-label="Production KPIs">
-      <CompactKpi label="Employees" value={k.employees != null ? k.employees : '—'} />
-      <CompactKpi label="Floor Manager" value={k.floorManager || 'Not assigned'} />
-      <CompactKpi label="Current Shift" value={k.currentShift || '—'} />
+      <CompactKpi icon={<IconEmployees />} label="Employees" value={k.employees != null ? k.employees : '—'} />
+      <CompactKpi icon={<IconManager />} label="Floor Manager" value={k.floorManager || 'Not assigned'} />
+      <CompactKpi icon={<IconShift />} label="Current Shift" value={k.currentShift || '—'} />
       <CompactKpi
+        icon={<IconProduction />}
         label="Total Production Today"
         value={k.totalProductionToday != null ? formatGrams(k.totalProductionToday) : '—'}
       />
       <CompactKpi
+        icon={<IconUnderProduction />}
         label="Under Production"
         value={k.underProduction != null ? formatGrams(k.underProduction) : '—'}
       />
       <CompactKpi
+        icon={<IconOutput />}
         label="Total Output"
         value={k.totalOutput != null ? formatGrams(k.totalOutput) : '—'}
       />
       <CompactKpi
+        icon={<IconTrendUp />}
         label="Yesterday vs Today"
         value={<span className={`pd-delta pd-delta--${day.tone}`}>{day.text}</span>}
       />
       <CompactKpi
+        icon={<IconWeekly />}
         label="Weekly Comparison"
         value={<span className={`pd-delta pd-delta--${week.tone}`}>{week.text}</span>}
         hint={week.tone !== 'muted' && k.weeklyComparison != null ? formatPct(Math.abs(Number(k.weeklyComparison))) : undefined}
