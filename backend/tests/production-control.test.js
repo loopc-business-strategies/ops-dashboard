@@ -325,6 +325,71 @@ describe('Production Control Center API', () => {
     expect((await InventoryItem.findOne({ name: 'Keep Me' })).quantity).toBe(42)
   })
 
+  test('cancel batch and WIP stock lot clears live-floor metal without inventory restore', async () => {
+    const user = await createUser({ productionRole: 'production_manager' })
+    const headers = auth(user)
+    const ProductionStockLot = require('../models/ProductionStockLot')
+
+    const createRes = await request(app)
+      .post('/api/erp/production-control/batches')
+      .set(headers)
+      .send({ metalType: 'Gold', initialWeight: 1010 })
+    expect(createRes.status).toBe(201)
+    const batchId = createRes.body.batch._id
+    const invBefore = createRes.body.batch.inventoryItemId
+      ? await InventoryItem.findById(createRes.body.batch.inventoryItemId)
+      : null
+    const invQtyBefore = invBefore ? Number(invBefore.quantity) : null
+
+    const stockCreate = await request(app)
+      .post('/api/erp/production-control/stock')
+      .set(headers)
+      .send({
+        metalType: 'Gold',
+        netWeight: 1500,
+        grossWeight: 1500,
+        quantity: 1,
+        product: 'WIP leftover',
+      })
+    expect(stockCreate.status).toBe(201)
+    const lotId = stockCreate.body.lot._id
+    await ProductionStockLot.updateOne({ _id: lotId }, { $set: { status: 'UNDER_PROCESSING' } })
+
+    const cancelBatch = await request(app)
+      .post(`/api/erp/production-control/batches/${batchId}/cancel`)
+      .set(headers)
+      .send({ reason: 'Clear leftover PD WIP' })
+    expect(cancelBatch.status).toBe(200)
+    expect(cancelBatch.body.batch.status).toBe('CANCELLED')
+
+    const cancelLot = await request(app)
+      .post(`/api/erp/production-control/stock/${lotId}/cancel`)
+      .set(headers)
+      .send({ reason: 'Clear leftover PD WIP' })
+    expect(cancelLot.status).toBe(200)
+    expect(cancelLot.body.lot.status).toBe('CANCELLED')
+
+    const board = await request(app)
+      .get('/api/erp/production-control/live-floor/board')
+      .set(headers)
+    expect(board.status).toBe(200)
+    expect((board.body.activeBatches || []).some((b) => String(b._id) === String(batchId))).toBe(false)
+
+    const overview = await request(app)
+      .get('/api/erp/production-control/stock/overview')
+      .set(headers)
+    expect(overview.status).toBe(200)
+    expect(overview.body.underProcessing?.weight || 0).toBe(0)
+
+    const still = await ProductionBatch.findById(batchId)
+    expect(still.status).toBe('CANCELLED')
+
+    if (invQtyBefore != null) {
+      const invAfter = await InventoryItem.findById(invBefore._id)
+      expect(Number(invAfter.quantity)).toBe(invQtyBefore)
+    }
+  })
+
   test('blocks process start on FAULT/OFFLINE/MAINTENANCE machines and summarizes WO links', async () => {
     const user = await createUser({ productionRole: 'production_manager' })
     const headers = auth(user)

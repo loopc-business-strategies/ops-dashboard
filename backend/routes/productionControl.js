@@ -362,6 +362,19 @@ router.post('/batches/:id/return-to-vault', protect, requireProductionPermission
   }
 })
 
+router.post('/batches/:id/cancel', protect, requireProductionPermission('returnToVault'), validateParams(idParam), validateBody(Joi.object({
+  reason: Joi.string().trim().allow('', null),
+  expectedVersion: Joi.number().integer().min(0),
+})), async (req, res) => {
+  try {
+    const batch = await batchService.cancelBatch(req, req.params.id, req.body || {})
+    emitProduction(req, 'batch.cancelled', { batchId: batch._id })
+    res.json({ success: true, batch })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 router.post('/batches/:id/weight-adjustments', protect, requireProductionPermission('adjustWeight'), validateParams(idParam), validateBody(Joi.object({
   field: Joi.string().default('currentWeight'),
   adjustment: Joi.number().invalid(0).required(),
@@ -948,6 +961,19 @@ router.post('/stock/:id/available', protect, requireProductionPermission('manage
   try {
     const lot = await stockService.markAvailable(req, req.params.id, req.body || {})
     emitProduction(req, 'stock.available', { stockLotId: lot._id })
+    res.json({ success: true, lot })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/stock/:id/cancel', protect, requireProductionPermission('manageStock'), validateParams(idParam), validateBody(Joi.object({
+  reason: Joi.string().trim().allow('', null),
+  expectedVersion: Joi.number().integer().min(0),
+})), async (req, res) => {
+  try {
+    const lot = await stockService.cancelStockLot(req, req.params.id, req.body || {})
+    emitProduction(req, 'stock.cancelled', { stockLotId: lot._id })
     res.json({ success: true, lot })
   } catch (err) {
     handleError(res, err)

@@ -611,6 +611,48 @@ async function mergeBatches(req, { batchIds = [], reason = '', product = '', pur
   })
 }
 
+/**
+ * Soft-cancel an open batch without returning metal to InventoryItem.
+ * Linked stock lot is synced to CANCELLED when present.
+ */
+async function cancelBatch(req, batchId, { reason = '', expectedVersion } = {}) {
+  return runInTransaction(async (session) => {
+    const batch = await withSession(ProductionBatch.findById(batchId), session)
+    if (!batch) throw new ProductionError('Batch not found', 404)
+    if (batch.status === 'CANCELLED') return batch
+    if (['COMPLETED', 'RETURNED_TO_VAULT', 'SPLIT', 'MERGED'].includes(batch.status)) {
+      throw new ProductionError(`Cannot cancel batch in status ${batch.status}`)
+    }
+    if (expectedVersion != null && batch.version !== Number(expectedVersion)) {
+      throw new ProductionError('Batch was updated by another user. Refresh and retry.', 409)
+    }
+
+    const from = batch.status
+    assertStatusTransition('batch', from, 'CANCELLED')
+    batch.status = 'CANCELLED'
+    batch.holdReason = ''
+    batch.statusBeforeHold = ''
+    batch.completedAt = batch.completedAt || new Date()
+    batch.version = (batch.version || 0) + 1
+    await batch.save(writeOpts(session))
+
+    await writeProductionAudit(req, {
+      resource: 'ProductionBatch',
+      resourceId: batch._id,
+      action: AUDIT_ACTIONS.BATCH_CANCELLED,
+      detail: `Batch ${batch.batchNumber} cancelled${reason ? `: ${reason}` : ''}`,
+      changes: { fromState: from, toState: 'CANCELLED', reason: reason || '' },
+      session,
+    })
+
+    await syncStockSafe(req, batch, 'CANCELLED', {
+      reason: reason || `Batch ${batch.batchNumber} cancelled`,
+      session,
+    })
+    return batch
+  })
+}
+
 module.exports = {
   ProductionError,
   createBatch,
@@ -618,6 +660,7 @@ module.exports = {
   holdBatch,
   releaseBatch,
   returnToVault,
+  cancelBatch,
   raiseWeightVarianceAlert,
   splitBatch,
   mergeBatches,

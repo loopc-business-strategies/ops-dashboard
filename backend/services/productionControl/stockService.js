@@ -281,6 +281,28 @@ async function markAvailable(req, lotId, { reason = 'Released to available', exp
   })
 }
 
+/** Soft-cancel a WIP stock lot so it leaves under-processing overview totals. */
+async function cancelStockLot(req, lotId, { reason = 'Cancelled leftover WIP', expectedVersion } = {}) {
+  return runInTransaction(async (session) => {
+    const lot = await withSession(ProductionStockLot.findById(lotId), session)
+    if (!lot) throw new ProductionError('Stock lot not found', 404)
+    if (lot.status === 'CANCELLED') return lot
+    if (['FINISHED', 'DISPATCHED', 'NEW_STOCK', 'AVAILABLE'].includes(lot.status)) {
+      throw new ProductionError(`Cannot cancel stock in status ${lot.status}`)
+    }
+    if (expectedVersion != null && lot.version !== Number(expectedVersion)) {
+      throw new ProductionError('Stock was updated by another user. Refresh and retry.', 409)
+    }
+    await transitionStock(req, lot, 'CANCELLED', {
+      reason,
+      batchId: lot.batchId || null,
+      batchNumber: lot.batchNumber || '',
+      session,
+    })
+    return lot
+  })
+}
+
 async function updateStock(req, lotId, updates = {}) {
   const a = actor(req)
   return runInTransaction(async (session) => {
@@ -706,6 +728,7 @@ module.exports = {
   getStockOverview,
   getStockDetail,
   markAvailable,
+  cancelStockLot,
   updateStock,
   selectAndAllocate,
   adjustStock,
