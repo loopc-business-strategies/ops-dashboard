@@ -226,6 +226,11 @@ describe('Production Control Center API', () => {
     const floor = await request(app).get('/api/erp/production-control/live-floor').set(headers)
     expect(floor.status).toBe(200)
     expect(floor.body.kpis).toBeDefined()
+    // activeBatches is WIP-only; completed/returned-today still appear on board.COMPLETED
+    expect(Array.isArray(floor.body.activeBatches)).toBe(true)
+    expect(floor.body.activeBatches.every((b) => !['COMPLETED', 'RETURNED_TO_VAULT', 'CANCELLED', 'SPLIT', 'MERGED'].includes(b.status))).toBe(true)
+    expect(floor.body.activeBatches.some((b) => String(b._id) === String(batchId))).toBe(false)
+    expect((floor.body.board?.COMPLETED || []).some((b) => String(b._id) === String(batchId))).toBe(true)
 
     const audits = await AuditLog.find({ resource: { $in: ['ProductionBatch', 'ProductionPass', 'ProcessRun'] } })
     expect(audits.length).toBeGreaterThan(3)

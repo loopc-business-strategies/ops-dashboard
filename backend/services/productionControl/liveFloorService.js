@@ -232,7 +232,10 @@ async function getLiveFloorBoardPart() {
 
   return {
     board: bucketBoard(boardBatches),
-    activeBatches: boardBatches.slice(0, 50),
+    // Truly active WIP only — completed-today stay in board.COMPLETED for PCC kanban
+    activeBatches: boardBatches
+      .filter((b) => ACTIVE_BATCH_STATUSES.includes(b.status))
+      .slice(0, 50),
   }
 }
 

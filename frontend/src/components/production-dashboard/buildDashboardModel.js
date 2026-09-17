@@ -275,7 +275,19 @@ export function buildDashboardModel({
   const shift = shiftRes?.shift || shiftRes || widgetsRes?.currentShift || summaryRes?.currentShift || null
   const managers = widgetsRes?.managersPresent || summaryRes?.managersPresent || []
   const operators = widgetsRes?.operatorsPresent || summaryRes?.operatorsPresent || []
-  const activeBatches = boardRes?.activeBatches || summaryRes?.activeBatches || []
+  const rawBoardBatches = boardRes?.activeBatches || summaryRes?.activeBatches || []
+  const TERMINAL_BATCH_STATUSES = new Set([
+    'COMPLETED',
+    'RETURNED_TO_VAULT',
+    'CANCELLED',
+    'SPLIT',
+    'MERGED',
+  ])
+  // Live Floor already excludes terminal statuses; dashboard must do the same.
+  // Board payload historically included completed-today for the PCC kanban column.
+  const liveBatches = (rawBoardBatches || []).filter(
+    (b) => !TERMINAL_BATCH_STATUSES.has(String(b.status || '').toUpperCase()),
+  )
   const departments = deptsRes?.departments || widgetsRes?.departments || summaryRes?.departments || []
   const delayedIds = new Set(
     (summaryRes?.delayedBatchIds || boardRes?.delayedBatchIds || []).map((id) => String(id)),
@@ -315,23 +327,22 @@ export function buildDashboardModel({
     const label = dept.label
     const deptMeta = (departments || []).find((d) => matchDashboardDeptKey(d.key || d.department) === key) || {}
     const reportDept = (reportByDept || []).find((d) => matchDashboardDeptKey(d.department || d.key) === key) || {}
-    const batchesHere = (activeBatches || []).filter((b) => batchMatchesDept(b, dept))
+    const batchesHere = (liveBatches || []).filter((b) => batchMatchesDept(b, dept))
     const primary = batchesHere[0] || null
     const delayed = primary && delayedIds.has(String(primary._id || primary.id))
     const mapped = mapBatchStatus(primary, delayed)
-    const status = displayDeptStatus(mapped, Boolean(primary) || reportDept.jobs != null)
+    // Live occupancy only — day report totals must not make idle cards look active
+    const status = displayDeptStatus(mapped, Boolean(primary))
     const metalIn = numOrNull(
       primary?.processInputWeight
         ?? primary?.issuedWeight
         ?? primary?.initialWeight
-        ?? reportDept.weightIn
-        ?? deptMeta.inputWeight,
+        ?? (primary ? (reportDept.weightIn ?? deptMeta.inputWeight) : null),
     )
     const metalOut = numOrNull(
       primary?.processOutputWeight
         ?? primary?.receivedWeight
-        ?? reportDept.weightOut
-        ?? deptMeta.outputWeight,
+        ?? (primary ? (reportDept.weightOut ?? deptMeta.outputWeight) : null),
     )
     const loss = metalLoss(metalIn, metalOut)
     const lossPct = lossPercent(metalIn, metalOut)
@@ -374,9 +385,9 @@ export function buildDashboardModel({
       passId: passForBatch?._id || passForBatch?.id || null,
       passStatus: passForBatch?.status || null,
       progress: processProgress(primary || processRun, mapped),
-      quantity: numOrNull(primary?.currentWeight ?? primary?.targetQuantity ?? reportDept.weightIn ?? reportDept.jobs),
+      quantity: numOrNull(primary?.currentWeight ?? primary?.targetQuantity ?? null),
       timeTakenMin: elapsed,
-      hasData: Boolean(primary) || metalIn != null || metalOut != null || reportDept.jobs != null,
+      hasData: Boolean(primary),
       isMelting: key === 'melting',
       isAssembly: key === 'assembly',
       tableCount: dept.tableCount || null,
@@ -390,7 +401,7 @@ export function buildDashboardModel({
   // Assembly tables 1–15
   const assemblyDept = DASHBOARD_DEPARTMENTS.find((d) => d.key === 'assembly')
   const assemblyBatches = assemblyDept
-    ? (activeBatches || []).filter((b) => batchMatchesDept(b, assemblyDept))
+    ? (liveBatches || []).filter((b) => batchMatchesDept(b, assemblyDept))
     : []
   const assemblyTables = Array.from({ length: ASSEMBLY_TABLE_COUNT }, (_, i) => {
     const tableNo = i + 1
@@ -415,7 +426,7 @@ export function buildDashboardModel({
     }
   })
 
-  const selectedBatch = activeBatches[0] || null
+  const selectedBatch = liveBatches[0] || null
   const timeline = timelineState(selectedBatch, stages)
 
   const deptRows = deptCards.map((c) => ({
@@ -431,7 +442,7 @@ export function buildDashboardModel({
     status: c.status,
   }))
 
-  const batchMonitorRows = (activeBatches || []).slice(0, 40).map((b) => {
+  const batchMonitorRows = (liveBatches || []).slice(0, 40).map((b) => {
     const delayed = delayedIds.has(String(b._id || b.id))
     const mapped = mapBatchStatus(b, delayed)
     const status = displayDeptStatus(mapped, true)
@@ -525,7 +536,7 @@ export function buildDashboardModel({
   }))
 
   const holderStats = new Map()
-  ;(activeBatches || []).forEach((b) => {
+  ;(liveBatches || []).forEach((b) => {
     const name = b.currentHolderName || b.operatorName
     if (!name) return
     const emp = matchEmployee(empList, name)
@@ -578,7 +589,7 @@ export function buildDashboardModel({
   const totalBatchesToday = (numOrNull(today.jobs) ?? ((numOrNull(kpis.activeBatches) || 0) + (completedBatches || 0))) || null
   const weightIn = today.weightIn ?? numOrNull(kpis.metalInProduction)
   const weightOut = today.weightOut
-  const activeCount = numOrNull(kpis.activeBatches) ?? activeBatches.length
+  const activeCount = numOrNull(kpis.activeBatches) ?? liveBatches.length
 
   const statusSummary = {
     active: activeCount || 0,
