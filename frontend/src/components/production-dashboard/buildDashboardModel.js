@@ -1,5 +1,12 @@
 import { canPcc } from '../production-control/shared'
 import { numOrNull, metalLoss, lossPercent, completionPercent, percentChange, shiftProgressPercent, elapsedMinutes, dayKey, addDays } from './safeMath'
+import {
+  ASSEMBLY_TABLE_COUNT,
+  DASHBOARD_DEPARTMENTS,
+  MATERIAL_FLOW_STEPS,
+  matchDashboardDeptKey,
+  parseAssemblyTableIndex,
+} from './departmentConfig'
 
 const VAULT_KEYS = new Set(['vault', 'vault_return'])
 
@@ -188,6 +195,56 @@ function processProgress(batch, status) {
   return { mode: 'indeterminate', percent: null }
 }
 
+/** Map internal batch status to reference card labels. */
+function displayDeptStatus(mapped, hasBatch) {
+  if (!hasBatch) return 'Idle'
+  if (mapped === 'Completed') return 'Completed'
+  if (mapped === 'In Progress') return 'Running'
+  if (mapped === 'Pending' || mapped === 'Delayed') return 'Waiting'
+  if (mapped === 'Stopped') return 'Idle'
+  return 'Idle'
+}
+
+function batchMatchesDept(batch, dept) {
+  const keys = [dept.key, ...(dept.aliases || [])]
+  const candidates = [
+    batch.currentDepartment,
+    batch.department,
+    batch.currentProcess,
+    batch.process,
+    batch.currentLocation,
+  ]
+  for (const c of candidates) {
+    const matched = matchDashboardDeptKey(c)
+    if (matched === dept.key) return true
+    const token = String(c || '').toLowerCase()
+    if (keys.some((k) => token === String(k).toLowerCase() || token.includes(String(k).toLowerCase().replace(/_/g, ' ')))) {
+      return true
+    }
+  }
+  return false
+}
+
+function alertSeverityTone(severity) {
+  const s = String(severity || '').toLowerCase()
+  if (s === 'critical' || s === 'error') return 'critical'
+  if (s === 'warning' || s === 'attention') return 'warning'
+  if (s === 'success' || s === 'ok') return 'success'
+  return 'info'
+}
+
+function stockBucketGrams(stock, keys) {
+  if (!stock || typeof stock !== 'object') return null
+  for (const k of keys) {
+    const node = stock[k]
+    if (node == null) continue
+    const g = numOrNull(node.weight ?? node.totalWeight ?? node.grams ?? node.quantity)
+    if (g != null) return g
+    if (typeof node === 'number') return numOrNull(node)
+  }
+  return null
+}
+
 export function buildDashboardModel({
   summaryRes,
   boardRes,
@@ -210,6 +267,8 @@ export function buildDashboardModel({
   passes,
   processes,
   me,
+  stockOverview = null,
+  alertsRes = null,
 }) {
   const kpis = summaryRes?.kpis || {}
   const statusCountsRaw = summaryRes?.statusCounts || {}
@@ -251,18 +310,16 @@ export function buildDashboardModel({
   const stages = pickStages(flowRes?.flow || flowRes)
   const reportByDept = today.byDepartment || []
 
-  const liveCards = stages.map((stage) => {
-    const key = stage.key
-    const label = stage.label || stage.process || key
-    const deptMeta = (departments || []).find((d) => d.key === key || d.department === key) || {}
-    const reportDept = (reportByDept || []).find((d) => d.department === key || d.key === key) || {}
-    const batchesHere = (activeBatches || []).filter(
-      (b) => String(b.currentDepartment || b.department || '') === key
-        || String(b.currentProcess || b.process || '') === key,
-    )
+  const buildCardForDept = (dept) => {
+    const key = dept.key
+    const label = dept.label
+    const deptMeta = (departments || []).find((d) => matchDashboardDeptKey(d.key || d.department) === key) || {}
+    const reportDept = (reportByDept || []).find((d) => matchDashboardDeptKey(d.department || d.key) === key) || {}
+    const batchesHere = (activeBatches || []).filter((b) => batchMatchesDept(b, dept))
     const primary = batchesHere[0] || null
     const delayed = primary && delayedIds.has(String(primary._id || primary.id))
-    const status = mapBatchStatus(primary, delayed)
+    const mapped = mapBatchStatus(primary, delayed)
+    const status = displayDeptStatus(mapped, Boolean(primary) || reportDept.jobs != null)
     const metalIn = numOrNull(
       primary?.processInputWeight
         ?? primary?.issuedWeight
@@ -289,8 +346,11 @@ export function buildDashboardModel({
     )
     const processRun = (processes || []).find(
       (pr) => String(pr.batchId || '') === String(primary?._id || primary?.id || '')
-        && String(pr.department || pr.process || '').toLowerCase() === String(key).toLowerCase(),
+        && matchDashboardDeptKey(pr.department || pr.process) === key,
     )
+    const employeeCount = new Set(
+      batchesHere.map((b) => b.currentHolderName || b.operatorName).filter(Boolean),
+    ).size || (holder ? 1 : 0)
 
     return {
       key,
@@ -300,6 +360,7 @@ export function buildDashboardModel({
       batchNumber: primary?.batchNumber || null,
       employeeName: holder,
       employeeCode: emp?.employeeCode || emp?.idNumber || null,
+      employeeCount: employeeCount || null,
       floorManager: floorManager,
       shiftName: shift?.name || shift?.shiftName || null,
       startedAt,
@@ -312,18 +373,52 @@ export function buildDashboardModel({
       confirmState: metalConfirmState(primary, passForBatch),
       passId: passForBatch?._id || passForBatch?.id || null,
       passStatus: passForBatch?.status || null,
-      progress: processProgress(primary || processRun, status),
-      quantity: numOrNull(primary?.currentWeight ?? primary?.targetQuantity ?? reportDept.jobs),
+      progress: processProgress(primary || processRun, mapped),
+      quantity: numOrNull(primary?.currentWeight ?? primary?.targetQuantity ?? reportDept.weightIn ?? reportDept.jobs),
       timeTakenMin: elapsed,
       hasData: Boolean(primary) || metalIn != null || metalOut != null || reportDept.jobs != null,
-      isMelting: String(key).toLowerCase().includes('melt'),
+      isMelting: key === 'melting',
+      isAssembly: key === 'assembly',
+      tableCount: dept.tableCount || null,
+      activeBatchCount: batchesHere.length,
+    }
+  }
+
+  const deptCards = DASHBOARD_DEPARTMENTS.map(buildCardForDept)
+  const liveCards = deptCards
+
+  // Assembly tables 1–15
+  const assemblyDept = DASHBOARD_DEPARTMENTS.find((d) => d.key === 'assembly')
+  const assemblyBatches = assemblyDept
+    ? (activeBatches || []).filter((b) => batchMatchesDept(b, assemblyDept))
+    : []
+  const assemblyTables = Array.from({ length: ASSEMBLY_TABLE_COUNT }, (_, i) => {
+    const tableNo = i + 1
+    const batch = assemblyBatches.find((b) => {
+      const idx = parseAssemblyTableIndex(b.currentMachineName)
+        || parseAssemblyTableIndex(b.currentLocation)
+        || parseAssemblyTableIndex(b.currentHolderName)
+        || parseAssemblyTableIndex(b.machineName)
+      return idx === tableNo
+    }) || null
+    const delayed = batch && delayedIds.has(String(batch._id || batch.id))
+    const mapped = mapBatchStatus(batch, delayed)
+    return {
+      tableNo,
+      label: `Table ${tableNo}`,
+      status: displayDeptStatus(mapped, Boolean(batch)),
+      batchId: batch?._id || batch?.id || null,
+      batchNumber: batch?.batchNumber || null,
+      quantity: numOrNull(batch?.currentWeight),
+      employeeName: batch?.currentHolderName || batch?.operatorName || null,
+      elapsedMin: elapsedMinutes(batch?.startedAt || batch?.processStartTime),
     }
   })
 
   const selectedBatch = activeBatches[0] || null
   const timeline = timelineState(selectedBatch, stages)
 
-  const deptRows = liveCards.map((c) => ({
+  const deptRows = deptCards.map((c) => ({
     department: c.name,
     key: c.key,
     batch: c.batchNumber,
@@ -334,6 +429,99 @@ export function buildDashboardModel({
     output: c.metalOut,
     timeTakenMin: c.timeTakenMin,
     status: c.status,
+  }))
+
+  const batchMonitorRows = (activeBatches || []).slice(0, 40).map((b) => {
+    const delayed = delayedIds.has(String(b._id || b.id))
+    const mapped = mapBatchStatus(b, delayed)
+    const status = displayDeptStatus(mapped, true)
+    const metalIn = numOrNull(b.processInputWeight ?? b.issuedWeight ?? b.initialWeight)
+    const metalOut = numOrNull(b.processOutputWeight ?? b.receivedWeight ?? b.currentWeight)
+    const loss = metalLoss(metalIn, metalOut)
+    const startedAt = b.startedAt || b.processStartTime || b.createdAt || null
+    const progress = processProgress(b, mapped)
+    const deptKey = matchDashboardDeptKey(b.currentDepartment || b.currentProcess || b.department)
+    const deptLabel = DASHBOARD_DEPARTMENTS.find((d) => d.key === deptKey)?.label
+      || b.currentDepartment
+      || b.currentProcess
+      || '—'
+    return {
+      id: b._id || b.id,
+      batchNumber: b.batchNumber || '—',
+      department: deptLabel,
+      qtyIn: metalIn,
+      qtyOut: metalOut,
+      employee: b.currentHolderName || b.operatorName || null,
+      startedAt,
+      durationMin: elapsedMinutes(startedAt),
+      metalLoss: loss != null ? Math.max(0, loss) : null,
+      status,
+      progress,
+    }
+  })
+
+  const stock = stockOverview?.overview || stockOverview?.stock || stockOverview || summaryRes?.stock || {}
+  const unprocessed = stockBucketGrams(stock, ['newStock', 'new_stock', 'available', 'AVAILABLE', 'vault'])
+    ?? numOrNull(kpis.metalInVault)
+  const underProcessing = stockBucketGrams(stock, ['underProcessing', 'under_processing', 'selected', 'processing', 'wip'])
+    ?? numOrNull(kpis.metalInProduction)
+  const finishedGoods = stockBucketGrams(stock, ['finished', 'FINISHED', 'dispatched'])
+    ?? numOrNull(today.weightOut)
+  const totalStock = (() => {
+    const parts = [unprocessed, underProcessing, finishedGoods].filter((n) => n != null)
+    if (!parts.length) return null
+    return parts.reduce((a, b) => a + b, 0)
+  })()
+
+  const materialFlow = MATERIAL_FLOW_STEPS.map((step) => {
+    let weight = null
+    let status = 'Idle'
+    if (step.key === 'vault') {
+      weight = unprocessed
+      status = weight != null && weight > 0 ? 'Ready' : 'Idle'
+    } else if (step.key === 'melting') {
+      const card = deptCards.find((c) => c.key === 'melting')
+      weight = card?.quantity ?? card?.metalIn
+      status = card?.status || 'Idle'
+    } else if (step.key === 'rolling') {
+      const card = deptCards.find((c) => c.key === 'rolling')
+      weight = card?.quantity ?? card?.metalIn
+      status = card?.status || 'Idle'
+    } else if (step.key === 'production') {
+      weight = underProcessing
+      status = (underProcessing != null && underProcessing > 0) ? 'Under Processing' : 'Idle'
+    } else if (step.key === 'qc') {
+      weight = numOrNull(kpis.qcPending)
+      status = (numOrNull(kpis.qcPending) || 0) > 0 ? 'Waiting' : 'Idle'
+    } else if (step.key === 'finished') {
+      weight = finishedGoods
+      status = weight != null && weight > 0 ? 'Completed' : 'Idle'
+    }
+    return { ...step, weight, status }
+  })
+
+  const stockSummary = {
+    unprocessed,
+    underProcessing,
+    finishedGoods,
+    totalBalance: totalStock,
+    movementIn: numOrNull(today.weightIn) ?? numOrNull(kpis.metalReceivedToday),
+    movementOut: numOrNull(today.weightOut) ?? numOrNull(kpis.metalDispatchedToday),
+    movementWip: underProcessing,
+  }
+
+  const rawAlerts = alertsRes?.alerts
+    || summaryRes?.openAlerts
+    || summaryRes?.attention
+    || widgetsRes?.alerts
+    || []
+  const alertItems = (Array.isArray(rawAlerts) ? rawAlerts : []).slice(0, 12).map((a, i) => ({
+    id: a._id || a.id || `alert-${i}`,
+    title: a.title || a.code || a.message || 'Alert',
+    message: a.message || a.reason || '',
+    tone: alertSeverityTone(a.severity || a.level || a.type),
+    createdAt: a.createdAt || a.at || null,
+    batchId: a.batchId || null,
   }))
 
   const holderStats = new Map()
@@ -362,7 +550,6 @@ export function buildDashboardModel({
     holderStats.set(key, prev)
   })
 
-  // Also include HR employees with ratings who appear on floor
   empList.forEach((e) => {
     if (e.rating == null || !Number.isFinite(Number(e.rating))) return
     const key = e._id || e.id || e.employeeCode
@@ -406,18 +593,43 @@ export function buildDashboardModel({
     return numOrNull(kpis.metalInProduction)
   })()
 
+  const dayCmp = buildComparison(today, yesterday)
+  const weekCmp = buildComparison(thisWeek, lastWeek)
+  const dayDelta = dayCmp.available
+    ? percentChange(today.weightOut ?? today.weightIn, yesterday.weightOut ?? yesterday.weightIn)
+    : null
+  const weekDelta = weekCmp.available
+    ? percentChange(thisWeek?.weightOut ?? thisWeek?.weightIn, lastWeek?.weightOut ?? lastWeek?.weightIn)
+    : null
+
   const role = me?.productionRole || me?.role || null
+  const online = activeCount > 0 || (Array.isArray(operators) && operators.length > 0)
 
   return {
     header: {
+      title: 'PRODUCTION CONTROL CENTER',
+      subtitle: 'Jewelry & Precious Metal Manufacturing',
       dateLabel: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
-      status: activeCount > 0 ? 'Production Active' : (completedBatches > 0 ? 'Production Idle' : 'No production activity today'),
-      statusTone: activeCount > 0 ? 'active' : 'muted',
+      timeLabel: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: online ? 'Factory Online — Systems Active' : (completedBatches > 0 ? 'Factory Online — Idle' : 'No production activity today'),
+      statusTone: online ? 'ok' : 'muted',
       shiftName: shift?.name || shift?.shiftName || null,
+      shiftStart: shift?.startTime || shift?.startLabel || null,
+      shiftEnd: shift?.endTime || shift?.endLabel || null,
       floorManager,
       employeeCount: Array.isArray(operators) ? operators.length : (activeEmployees.length || null),
       activeBatches: activeCount,
       totalBatches: totalBatchesToday,
+    },
+    compactKpis: {
+      employees: Array.isArray(operators) ? operators.length : (empList.length || null),
+      floorManager: floorManager || null,
+      currentShift: shift?.name || shift?.shiftName || null,
+      totalProductionToday: weightIn ?? weightOut,
+      underProduction: remainingWeight ?? underProcessing,
+      totalOutput: weightOut,
+      yesterdayVsToday: dayDelta,
+      weeklyComparison: weekDelta,
     },
     employeeKpi: {
       total: empList.length || (Array.isArray(operators) ? operators.length : null),
@@ -450,11 +662,11 @@ export function buildDashboardModel({
       activeBatches: activeCount,
       pendingQuantity: numOrNull(today.pending) ?? numOrNull(kpis.waiting),
       remainingWeight,
-      estimatedCompletion: null, // never invent
+      estimatedCompletion: null,
     },
     comparisons: {
-      day: buildComparison(today, yesterday),
-      week: buildComparison(thisWeek, lastWeek),
+      day: dayCmp,
+      week: weekCmp,
       month: buildComparison(thisMonth, lastMonth),
     },
     timeline,
@@ -462,6 +674,12 @@ export function buildDashboardModel({
       ? { id: selectedBatch._id || selectedBatch.id, batchNumber: selectedBatch.batchNumber, status: selectedBatch.status }
       : null,
     liveCards,
+    deptCards,
+    assemblyTables,
+    materialFlow,
+    stockSummary,
+    batchMonitorRows,
+    alertItems,
     deptRows,
     employeeRatings,
     statusSummary,

@@ -1,12 +1,9 @@
 import HeaderBar from './HeaderBar'
 import KpiRow from './KpiRow'
-import TimeComparison from './TimeComparison'
-import ProductionTimeline from './ProductionTimeline'
-import LiveBatchStrip from './LiveBatchStrip'
-import MeltingMetalPanel from './MeltingMetalPanel'
 import DepartmentOverview from './DepartmentOverview'
-import EmployeeRating from './EmployeeRating'
-import TotalProcessedStatus from './TotalProcessedStatus'
+import MaterialFlowPanel from './MaterialFlowPanel'
+import BatchMonitorTable from './BatchMonitorTable'
+import AlertsPanel from './AlertsPanel'
 import { useProductionDashboard } from './useProductionDashboard'
 import './ProductionDashboard.css'
 
@@ -18,10 +15,7 @@ export default function ProductionDashboardTab() {
     lastUpdated,
     connection,
     refresh,
-    ensurePeriod,
-    periodLoading,
   } = useProductionDashboard()
-  const meltingCard = (model?.liveCards || []).find((c) => c.isMelting) || null
 
   return (
     <div className="pd-page">
@@ -53,35 +47,13 @@ export default function ProductionDashboardTab() {
       ) : null}
 
       {model ? (
-        <div className="pd-layout">
+        <div className="pd-layout pd-layout--reference">
           <KpiRow model={model} />
-          <div className="pd-row-mid">
-            <TimeComparison
-              comparisons={model.comparisons}
-              onNeedPeriod={ensurePeriod}
-              periodLoading={periodLoading}
-            />
-            <ProductionTimeline timeline={model.timeline} selectedBatch={model.selectedBatch} />
-          </div>
-          <div className="pd-row-live">
-            <LiveBatchStrip cards={model.liveCards} />
-            {meltingCard ? (
-              <MeltingMetalPanel
-                meltingCard={meltingCard}
-                permissions={model.permissions}
-                onDone={() => refresh()}
-              />
-            ) : null}
-          </div>
-          <div className="pd-row-bottom">
-            <DepartmentOverview rows={model.deptRows} />
-            <EmployeeRating rows={model.employeeRatings} />
-            <TotalProcessedStatus
-              totalsByPeriod={model.totalsByPeriod}
-              statusSummary={model.statusSummary}
-              onNeedPeriod={ensurePeriod}
-              periodLoading={periodLoading}
-            />
+          <DepartmentOverview cards={model.deptCards} assemblyTables={model.assemblyTables} />
+          <MaterialFlowPanel materialFlow={model.materialFlow} stockSummary={model.stockSummary} />
+          <div className="pd-row-bottom-split">
+            <BatchMonitorTable rows={model.batchMonitorRows} />
+            <AlertsPanel alerts={model.alertItems} />
           </div>
         </div>
       ) : null}

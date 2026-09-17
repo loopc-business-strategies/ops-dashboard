@@ -93,6 +93,8 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       passes,
       processes,
       me,
+      stockOverview: payload.stockOverview,
+      alertsRes: payload.alertsRes,
     })
   }, [user])
 
@@ -143,13 +145,15 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       if (!soft) setLoading(false)
 
       // Wave B — enrich
-      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes] = await Promise.all([
+      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes, stockOverview, alertsRes] = await Promise.all([
         productionControlApi.reportDaily({ date: dayKey(addDays(new Date(), -1)) }, { signal: ac.signal }).catch(() => null),
         productionControlApi.listDepartments({ signal: ac.signal }).catch(() => null),
         productionControlApi.listFloorSessions({ status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
         hrAPI.getEmployees().catch(() => null),
         productionControlApi.listPasses({ limit: 50 }, { signal: ac.signal }).catch(() => null),
         productionControlApi.listProcesses({ limit: 50 }, { signal: ac.signal }).catch(() => null),
+        productionControlApi.getStockOverview({ signal: ac.signal }).catch(() => null),
+        productionControlApi.listAlerts({ limit: 20, status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
       ])
       if (ac.signal.aborted) return
       publish({
@@ -159,6 +163,8 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         employeesRes,
         passesRes,
         processesRes,
+        stockOverview,
+        alertsRes,
       })
 
       // Wave C — week comparisons (2 range APIs, not 14 daily)
