@@ -123,7 +123,7 @@ router.get(
         id: String(b._id),
         label: b.batchNumber,
         subtitle: `${b.metalType || ''} ${b.status || ''}`.trim(),
-        href: `/production?batchId=${b._id}`,
+        href: `/production-dashboard`,
       }))
 
       const lots = await safeFind(ProductionStockLot, {
@@ -133,7 +133,7 @@ router.get(
         id: String(l._id),
         label: l.stockCode,
         subtitle: `${l.product || ''} · ${l.status}`,
-        href: `/production?section=stock-overview&stockId=${l._id}`,
+        href: `/production-dashboard`,
       }))
 
       const wos = await safeFind(WorkOrder, {
@@ -143,7 +143,7 @@ router.get(
         id: String(w._id),
         label: w.woNumber || String(w._id),
         subtitle: w.status || '',
-        href: `/production?section=work-orders&woId=${w._id}`,
+        href: `/production-dashboard`,
       }))
 
       const machines = await safeFind(ProductionMachine, {
@@ -154,7 +154,7 @@ router.get(
         id: String(m._id),
         label: m.machineCode || m.name,
         subtitle: `${m.name || ''} · ${m.status || ''}`,
-        href: `/production?section=machines&machineId=${m._id}`,
+        href: `/production-dashboard`,
       }))
 
       const products = await safeFind(InventoryItem, {

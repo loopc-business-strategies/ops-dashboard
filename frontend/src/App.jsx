@@ -15,7 +15,6 @@ import Login           from './pages/Login'
 import Setup           from './pages/Setup'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
-const ProductionControlCenter = lazy(() => import('./pages/ProductionControlCenter'))
 const ProductionDashboardPage = lazy(() => import('./pages/ProductionDashboardPage'))
 
 function App() {
@@ -37,12 +36,10 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* Full-screen Production Control Center (no ERP sidebar) */}
+          {/* Legacy PCC bookmarks → Production Dashboard */}
           <Route path="/production" element={
             <ProtectedRoute>
-              <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-gray-500">Loading…</div>}>
-                <ProductionControlCenter />
-              </Suspense>
+              <Navigate to="/production-dashboard" replace />
             </ProtectedRoute>
           } />
 

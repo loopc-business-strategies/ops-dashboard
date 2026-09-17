@@ -40,7 +40,7 @@ router.get('/', protect, async (req, res) => {
         owner: a.raisedByName || '',
         status: a.status,
         createdAt: a.createdAt,
-        href: '/production?section=alerts',
+        href: '/production-dashboard',
         entity: { kind: 'ProductionAlert', id: String(a._id) },
       })
     }
@@ -60,7 +60,7 @@ router.get('/', protect, async (req, res) => {
         owner: b.currentHolderName || '',
         status: 'OPEN',
         createdAt: b.updatedAt,
-        href: `/production?batchId=${b._id}`,
+        href: `/production-dashboard`,
         entity: { kind: 'ProductionBatch', id: String(b._id) },
       })
     }
@@ -80,7 +80,7 @@ router.get('/', protect, async (req, res) => {
         owner: '',
         status: 'OPEN',
         createdAt: m.updatedAt,
-        href: '/production?section=machines',
+        href: '/production-dashboard',
         entity: { kind: 'ProductionMachine', id: String(m._id) },
       })
     }

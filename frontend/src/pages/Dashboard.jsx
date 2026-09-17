@@ -34,7 +34,6 @@ const OverviewTab = lazy(() => import('../components/tabs/OverviewTab'))
 const AdminTab = lazy(() => import('../components/tabs/AdminTab'))
 const HRTab = lazy(() => import('../components/tabs/HRTab'))
 const FinanceTab = lazy(() => import('../components/tabs/FinanceTab'))
-const ProductionTab = lazy(() => import('../components/tabs/ProductionTab'))
 const ProductionNewTab = lazy(() => import('../components/tabs/ProductionNewTab'))
 const ChatTab = lazy(() => import('../components/tabs/ChatTab'))
 const MasterSettingsTab = lazy(() => import('../components/tabs/MasterSettingsTab'))
@@ -51,7 +50,6 @@ const TAB_CHUNK_PREFETCHERS = {
   admin: () => import('../components/tabs/AdminTab'),
   hr: () => import('../components/tabs/HRTab'),
   finance: () => import('../components/tabs/FinanceTab'),
-  production: () => import('../components/tabs/ProductionTab'),
   'production-new': () => {
     // Prefetch fullscreen dashboard page (real payload), not only the redirect stub
     void import('../pages/ProductionDashboardPage')
@@ -263,7 +261,6 @@ function resolveRealtimeBellErpFields(payload) {
 const DEPARTMENT_MODULE_TAB_IDS = new Set([
   'hr',
   'compliance',
-  'production',
   'production-new',
   'finance',
   'sales',
@@ -316,9 +313,6 @@ function renderTab(
 
     case 'compliance':
       return <ComplianceTab />
-
-    case 'production':
-      return <ProductionTab />
 
     case 'production-new':
       return <ProductionNewTab />
@@ -507,9 +501,6 @@ function Dashboard() {
   }, [activeTab, erpSubTab, searchParams, tenantForHref, includeCompany, setSearchParams])
 
   const buildNavHref = useCallback((item) => {
-    if (item.id === 'production') {
-      return '/production'
-    }
     if (item.id === 'production-new') {
       return '/production-dashboard'
     }
@@ -536,16 +527,6 @@ function Dashboard() {
     })
   }, [tenantForHref, includeCompany, searchParams])
 
-  const openProductionWorkspace = useCallback(() => {
-    const returnTo = `${window.location.pathname}${window.location.search}` || '/dashboard'
-    try {
-      sessionStorage.setItem('pcc_returnTo', returnTo)
-    } catch {
-      /* ignore */
-    }
-    navigate('/production', { state: { returnTo } })
-  }, [navigate])
-
   const openProductionDashboard = useCallback(() => {
     const raw = `${window.location.pathname}${window.location.search}` || '/dashboard'
     const returnTo = raw
@@ -562,11 +543,7 @@ function Dashboard() {
   }, [])
 
   const navigateToTab = useCallback((tabId, options = {}) => {
-    if (tabId === 'production') {
-      openProductionWorkspace()
-      return
-    }
-    if (tabId === 'production-new') {
+    if (tabId === 'production-new' || tabId === 'production') {
       openProductionDashboard()
       return
     }
@@ -583,8 +560,7 @@ function Dashboard() {
       sub: sub === undefined ? (nextActive === 'erp' ? null : searchParams.get('sub')) : sub,
       replace,
     })
-  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionWorkspace, openProductionDashboard])
-
+  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionDashboard])
   const handleErpSubTabChange = useCallback((subTab) => {
     setActiveTab('erp')
     setErpSubTab(subTab)

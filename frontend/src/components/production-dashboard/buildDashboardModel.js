@@ -1,4 +1,4 @@
-import { canPcc } from '../production-control/shared'
+import { canPcc } from './permissions'
 import { numOrNull, metalLoss, lossPercent, completionPercent, percentChange, shiftProgressPercent, elapsedMinutes, dayKey, addDays } from './safeMath'
 import {
   ASSEMBLY_TABLE_COUNT,

@@ -1,7 +1,29 @@
-import { formatGrams, formatMinutes, formatClock } from '../production-control/shared'
 import { numOrNull } from './safeMath'
 
-export { formatGrams, formatMinutes, formatClock }
+export function formatGrams(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  return `${n.toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
+}
+
+/** Clock time HH:MM for connection / last-update chrome. */
+export function formatClock(value) {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+  } catch {
+    return '—'
+  }
+}
+
+export function formatMinutes(mins) {
+  const n = Number(mins)
+  if (!Number.isFinite(n)) return '—'
+  const h = Math.floor(n / 60)
+  const m = Math.round(n % 60)
+  if (h <= 0) return `${m}m`
+  return `${h}h ${m}m`
+}
 
 export function formatDateLong(d = new Date()) {
   try {
@@ -43,14 +65,4 @@ export function formatEmployeeRange(codes) {
   if (!list.length) return 'Employee not assigned'
   if (list.length === 1) return list[0]
   return `${list[0]} — ${list[list.length - 1]}`
-}
-
-export function pccHref(section, extra = {}) {
-  const params = new URLSearchParams()
-  if (section) params.set('section', section)
-  Object.entries(extra).forEach(([k, v]) => {
-    if (v != null && v !== '') params.set(k, String(v))
-  })
-  const q = params.toString()
-  return q ? `/production?${q}` : '/production'
 }

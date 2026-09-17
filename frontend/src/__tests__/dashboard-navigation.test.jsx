@@ -75,8 +75,8 @@ vi.mock('../components/tabs/HRTab', () => ({
 vi.mock('../components/tabs/FinanceTab', () => ({
   default: () => <div>finance-tab</div>,
 }))
-vi.mock('../components/tabs/ProductionTab', () => ({
-  default: () => <div>production-tab</div>,
+vi.mock('../components/tabs/ProductionNewTab', () => ({
+  default: () => <div>production-new-tab</div>,
 }))
 vi.mock('../components/tabs/ChatTab', () => ({
   default: () => <div>chat-tab</div>,

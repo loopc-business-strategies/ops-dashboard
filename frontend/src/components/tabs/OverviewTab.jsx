@@ -517,7 +517,7 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true, onBindSearch }
     if (lower.includes('lead') || lower.includes('meeting')) { onNavigate?.('sales'); return }
     if (lower.includes('incident')) { onNavigate?.('operations'); return }
     if (lower.includes('production') || lower.includes('work order') || lower.includes('batch')) {
-      window.location.assign('/production')
+      window.location.assign('/production-dashboard')
       return
     }
     if (lower.includes('report')) { onNavigate?.('erp', { erpSub: 'reports' }); return }
