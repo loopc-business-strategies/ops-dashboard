@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatGrams } from './formatters'
 
 const PERIODS = [
@@ -7,10 +7,15 @@ const PERIODS = [
   { id: 'month', label: 'This Month' },
 ]
 
-export default function TotalProcessedStatus({ totalsByPeriod, statusSummary }) {
+export default function TotalProcessedStatus({ totalsByPeriod, statusSummary, onNeedPeriod, periodLoading }) {
   const [period, setPeriod] = useState('today')
   const totals = totalsByPeriod?.[period]
   const status = statusSummary || {}
+  const monthBusy = Boolean(periodLoading?.month)
+
+  useEffect(() => {
+    if (period === 'month') onNeedPeriod?.('month')
+  }, [period, onNeedPeriod])
 
   return (
     <section className="pd-panel pd-totals" aria-label="Total processed and status">
@@ -32,7 +37,9 @@ export default function TotalProcessedStatus({ totalsByPeriod, statusSummary }) 
         </div>
       </div>
 
-      {!totals ? (
+      {period === 'month' && monthBusy && !totals ? (
+        <p className="pd-empty">Loading…</p>
+      ) : !totals ? (
         <p className="pd-empty">No production data</p>
       ) : (
         <div className="pd-totals-grid">

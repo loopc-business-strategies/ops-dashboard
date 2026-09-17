@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatGrams, formatMinutes, formatPct, formatDelta } from './formatters'
 
 const TABS = [
@@ -15,9 +15,14 @@ function formatMetricValue(m) {
   return formatGrams(m.current)
 }
 
-export default function TimeComparison({ comparisons }) {
+export default function TimeComparison({ comparisons, onNeedPeriod, periodLoading }) {
   const [tab, setTab] = useState('day')
   const data = comparisons?.[tab]
+  const monthBusy = Boolean(periodLoading?.month)
+
+  useEffect(() => {
+    if (tab === 'month') onNeedPeriod?.('month')
+  }, [tab, onNeedPeriod])
 
   return (
     <section className="pd-panel pd-time-compare" aria-label="Time comparison">
@@ -38,7 +43,9 @@ export default function TimeComparison({ comparisons }) {
           ))}
         </div>
       </div>
-      {!data?.available ? (
+      {tab === 'month' && monthBusy && !data?.available ? (
+        <p className="pd-empty">Loading…</p>
+      ) : !data?.available ? (
         <p className="pd-empty">No comparison data</p>
       ) : (
         <div className="pd-compare-grid">

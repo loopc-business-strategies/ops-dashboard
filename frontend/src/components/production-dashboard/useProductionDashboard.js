@@ -4,30 +4,53 @@ import hrAPI from '../../api/hr'
 import { useAuth } from '../../context/AuthContext'
 import { buildDashboardModel, dayKey, addDays } from './buildDashboardModel'
 
-async function fetchDailyRange(fromOffset, count, signal) {
-  const n = Math.max(0, Math.min(Number(count) || 0, 31))
-  if (!n) return []
-  const rows = await Promise.all(
-    Array.from({ length: n }, (_, i) => {
-      const d = dayKey(addDays(new Date(), -(fromOffset + i)))
-      return productionControlApi.reportDaily({ date: d }, { signal })
-        .then((r) => r)
-        .catch(() => null)
-    }),
+/** Sum department-performance rows into a period totals object. */
+export function summarizeDeptPerf(res) {
+  const rows = res?.rows || res?.report?.rows || []
+  if (!Array.isArray(rows) || !rows.length) return null
+  const totals = rows.reduce(
+    (acc, r) => {
+      const weightOut = Number(r.weight) || 0
+      const loss = Number(r.loss) || 0
+      const scrap = Number(r.scrap) || 0
+      acc.jobs += Number(r.jobs) || 0
+      acc.completed += Number(r.completed) || 0
+      acc.pending += Number(r.pending) || 0
+      acc.weightOut += weightOut
+      acc.scrap += scrap
+      acc.loss += loss
+      // Approx input when only output weights exist on dept rows
+      acc.weightIn += weightOut + loss + scrap
+      return acc
+    },
+    { jobs: 0, completed: 0, pending: 0, weightIn: 0, weightOut: 0, scrap: 0, loss: 0 },
   )
-  return rows.filter(Boolean)
+  return totals
 }
 
-function monthWindow() {
+function rangeDates(fromOffsetDays, lengthDays) {
+  const end = addDays(new Date(), -fromOffsetDays)
+  const start = addDays(end, -(lengthDays - 1))
+  return {
+    fromDate: dayKey(start),
+    toDate: dayKey(end),
+  }
+}
+
+function monthRanges() {
   const now = new Date()
-  const thisMonthDays = now.getDate()
-  const lastMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
-  return { thisMonthDays, lastMonthDays }
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+  const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1)
+  return {
+    thisMonth: { fromDate: dayKey(thisMonthStart), toDate: dayKey(now) },
+    lastMonth: { fromDate: dayKey(lastMonthStart), toDate: dayKey(lastMonthEnd) },
+  }
 }
 
 /**
- * Aggregates existing PCC + HR read APIs into the Production Dashboard model.
- * Soft-refreshes on Socket.IO /production and polling fallback.
+ * Progressive Production Dashboard loader.
+ * Wave A paints fast; week uses 2 range APIs; month is lazy.
  */
 export function useProductionDashboard({ refreshMs = 45000 } = {}) {
   const { company, user } = useAuth()
@@ -36,9 +59,11 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
   const [model, setModel] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [connection, setConnection] = useState('OFFLINE')
+  const [periodLoading, setPeriodLoading] = useState({ month: false })
   const abortRef = useRef(null)
   const softTimerRef = useRef(null)
-  const corePayloadRef = useRef(null)
+  const payloadRef = useRef({})
+  const monthLoadedRef = useRef(false)
 
   const assemble = useCallback((payload) => {
     const me = payload.meRes
@@ -56,10 +81,14 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       floorSessions: payload.floorSessions,
       todayReport: payload.todayReport,
       yesterdayReport: payload.yesterdayReport,
-      weekReports: payload.weekReports || [],
-      lastWeekReports: payload.lastWeekReports || [],
-      monthReports: payload.monthReports || [],
-      lastMonthReports: payload.lastMonthReports || [],
+      weekReports: [],
+      lastWeekReports: [],
+      monthReports: [],
+      lastMonthReports: [],
+      weekSummary: payload.weekSummary || null,
+      lastWeekSummary: payload.lastWeekSummary || null,
+      monthSummary: payload.monthSummary || null,
+      lastMonthSummary: payload.lastMonthSummary || null,
       employees: payload.employeesRes,
       passes,
       processes,
@@ -67,7 +96,13 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     })
   }, [user])
 
-  const load = useCallback(async ({ soft = false } = {}) => {
+  const publish = useCallback((partial) => {
+    payloadRef.current = { ...payloadRef.current, ...partial }
+    setModel(assemble(payloadRef.current))
+    setLastUpdated(new Date())
+  }, [assemble])
+
+  const loadCore = useCallback(async ({ soft = false } = {}) => {
     if (abortRef.current) abortRef.current.abort()
     const ac = new AbortController()
     abortRef.current = ac
@@ -77,103 +112,124 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     }
     try {
       const today = dayKey()
-      const yesterday = dayKey(addDays(new Date(), -1))
 
-      const [
-        summaryRes,
-        boardRes,
-        widgetsRes,
-        flowRes,
-        deptsRes,
-        shiftRes,
-        floorSessions,
-        todayReport,
-        yesterdayReport,
-        weekReports,
-        lastWeekReports,
-        employeesRes,
-        passesRes,
-        processesRes,
-        meRes,
-      ] = await Promise.all([
+      // Wave A — first paint
+      const [summaryRes, boardRes, widgetsRes, shiftRes, flowRes, todayReport, meRes] = await Promise.all([
         productionControlApi.getLiveFloorSummary({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorBoard({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorWidgets({ signal: ac.signal }).catch(() => null),
-        productionControlApi.getFlow({ signal: ac.signal }).catch(() => null),
-        productionControlApi.listDepartments({ signal: ac.signal }).catch(() => null),
         productionControlApi.getCurrentShift({ signal: ac.signal }).catch(() => null),
-        productionControlApi.listFloorSessions({ status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
+        productionControlApi.getFlow({ signal: ac.signal }).catch(() => null),
         productionControlApi.reportDaily({ date: today }, { signal: ac.signal }).catch(() => null),
-        productionControlApi.reportDaily({ date: yesterday }, { signal: ac.signal }).catch(() => null),
-        fetchDailyRange(0, 7, ac.signal),
-        fetchDailyRange(7, 7, ac.signal),
-        hrAPI.getEmployees().catch(() => null),
-        productionControlApi.listPasses({ limit: 50 }, { signal: ac.signal }).catch(() => null),
-        productionControlApi.listProcesses({ limit: 50 }, { signal: ac.signal }).catch(() => null),
         productionControlApi.me({ signal: ac.signal }).catch(() => null),
       ])
-
       if (ac.signal.aborted) return
 
       if (!summaryRes && !boardRes && !widgetsRes) {
         setError('Unable to load production floor data')
+      } else {
+        setError(null)
       }
 
-      const core = {
+      publish({
         summaryRes,
         boardRes,
         widgetsRes,
-        flowRes,
-        deptsRes,
         shiftRes,
-        floorSessions,
+        flowRes,
         todayReport,
+        meRes,
+      })
+      if (!soft) setLoading(false)
+
+      // Wave B — enrich
+      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes] = await Promise.all([
+        productionControlApi.reportDaily({ date: dayKey(addDays(new Date(), -1)) }, { signal: ac.signal }).catch(() => null),
+        productionControlApi.listDepartments({ signal: ac.signal }).catch(() => null),
+        productionControlApi.listFloorSessions({ status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
+        hrAPI.getEmployees().catch(() => null),
+        productionControlApi.listPasses({ limit: 50 }, { signal: ac.signal }).catch(() => null),
+        productionControlApi.listProcesses({ limit: 50 }, { signal: ac.signal }).catch(() => null),
+      ])
+      if (ac.signal.aborted) return
+      publish({
         yesterdayReport,
-        weekReports,
-        lastWeekReports,
-        monthReports: [],
-        lastMonthReports: [],
+        deptsRes,
+        floorSessions,
         employeesRes,
         passesRes,
         processesRes,
-        meRes,
-      }
-      corePayloadRef.current = core
-      setModel(assemble(core))
-      setLastUpdated(new Date())
-      if (summaryRes || boardRes || widgetsRes) setError(null)
-      if (!soft) setLoading(false)
+      })
 
-      // Month comparisons load in a second wave to keep first paint fast
-      const { thisMonthDays, lastMonthDays } = monthWindow()
-      const [monthReports, lastMonthReports] = await Promise.all([
-        fetchDailyRange(0, thisMonthDays, ac.signal),
-        fetchDailyRange(thisMonthDays, lastMonthDays, ac.signal),
+      // Wave C — week comparisons (2 range APIs, not 14 daily)
+      const thisWeekRange = rangeDates(0, 7)
+      const lastWeekRange = rangeDates(7, 7)
+      const [thisWeekPerf, lastWeekPerf] = await Promise.all([
+        productionControlApi.reportDepartmentPerformance(thisWeekRange, { signal: ac.signal }).catch(() => null),
+        productionControlApi.reportDepartmentPerformance(lastWeekRange, { signal: ac.signal }).catch(() => null),
       ])
       if (ac.signal.aborted) return
-      const withMonth = { ...core, monthReports, lastMonthReports }
-      corePayloadRef.current = withMonth
-      setModel(assemble(withMonth))
-      setLastUpdated(new Date())
+      publish({
+        weekSummary: summarizeDeptPerf(thisWeekPerf),
+        lastWeekSummary: summarizeDeptPerf(lastWeekPerf),
+      })
     } catch (err) {
       if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || ac.signal.aborted) return
       setError(err?.response?.data?.message || err?.message || 'Failed to load Production Dashboard')
       if (!soft) setLoading(false)
     }
-  }, [assemble])
+  }, [publish])
+
+  const softRefreshFloor = useCallback(async () => {
+    const ac = new AbortController()
+    // Don't abort core loads mid-flight for soft refresh; use a separate short fetch
+    try {
+      const [summaryRes, boardRes, widgetsRes, shiftRes] = await Promise.all([
+        productionControlApi.getLiveFloorSummary({ signal: ac.signal }).catch(() => null),
+        productionControlApi.getLiveFloorBoard({ signal: ac.signal }).catch(() => null),
+        productionControlApi.getLiveFloorWidgets({ signal: ac.signal }).catch(() => null),
+        productionControlApi.getCurrentShift({ signal: ac.signal }).catch(() => null),
+      ])
+      if (!summaryRes && !boardRes && !widgetsRes) return
+      publish({ summaryRes, boardRes, widgetsRes, shiftRes })
+    } catch {
+      /* ignore soft refresh errors */
+    }
+  }, [publish])
+
+  const ensurePeriod = useCallback(async (period) => {
+    if (period !== 'month') return
+    if (monthLoadedRef.current) return
+    if (periodLoading.month) return
+    setPeriodLoading((p) => ({ ...p, month: true }))
+    try {
+      const { thisMonth, lastMonth } = monthRanges()
+      const [thisMonthPerf, lastMonthPerf] = await Promise.all([
+        productionControlApi.reportDepartmentPerformance(thisMonth).catch(() => null),
+        productionControlApi.reportDepartmentPerformance(lastMonth).catch(() => null),
+      ])
+      monthLoadedRef.current = true
+      publish({
+        monthSummary: summarizeDeptPerf(thisMonthPerf),
+        lastMonthSummary: summarizeDeptPerf(lastMonthPerf),
+      })
+    } finally {
+      setPeriodLoading((p) => ({ ...p, month: false }))
+    }
+  }, [periodLoading.month, publish])
 
   useEffect(() => {
-    load({ soft: false })
+    loadCore({ soft: false })
     return () => {
       if (abortRef.current) abortRef.current.abort()
     }
-  }, [load])
+  }, [loadCore])
 
   useEffect(() => {
     if (!refreshMs || refreshMs < 5000) return undefined
-    const id = setInterval(() => load({ soft: true }), refreshMs)
+    const id = setInterval(() => softRefreshFloor(), refreshMs)
     return () => clearInterval(id)
-  }, [load, refreshMs])
+  }, [softRefreshFloor, refreshMs])
 
   useEffect(() => {
     let socket
@@ -199,7 +255,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         socket.io.on('reconnect', () => setConnection('LIVE'))
         socket.on('production:update', () => {
           if (softTimerRef.current) clearTimeout(softTimerRef.current)
-          softTimerRef.current = setTimeout(() => load({ soft: true }), 300)
+          softTimerRef.current = setTimeout(() => softRefreshFloor(), 300)
         })
       } catch {
         setConnection('OFFLINE')
@@ -210,7 +266,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       if (softTimerRef.current) clearTimeout(softTimerRef.current)
       try { socket?.disconnect() } catch { /* ignore */ }
     }
-  }, [company, user?.company, load])
+  }, [company, user?.company, softRefreshFloor])
 
   return {
     loading,
@@ -218,7 +274,12 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     model,
     lastUpdated,
     connection,
-    refresh: () => load({ soft: false }),
-    softRefresh: () => load({ soft: true }),
+    periodLoading,
+    ensurePeriod,
+    refresh: () => {
+      monthLoadedRef.current = false
+      return loadCore({ soft: false })
+    },
+    softRefresh: () => softRefreshFloor(),
   }
 }

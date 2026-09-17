@@ -11,7 +11,16 @@ import { useProductionDashboard } from './useProductionDashboard'
 import './ProductionDashboard.css'
 
 export default function ProductionDashboardTab() {
-  const { loading, error, model, lastUpdated, connection, refresh } = useProductionDashboard()
+  const {
+    loading,
+    error,
+    model,
+    lastUpdated,
+    connection,
+    refresh,
+    ensurePeriod,
+    periodLoading,
+  } = useProductionDashboard()
   const meltingCard = (model?.liveCards || []).find((c) => c.isMelting) || null
 
   return (
@@ -47,7 +56,11 @@ export default function ProductionDashboardTab() {
         <div className="pd-layout">
           <KpiRow model={model} />
           <div className="pd-row-mid">
-            <TimeComparison comparisons={model.comparisons} />
+            <TimeComparison
+              comparisons={model.comparisons}
+              onNeedPeriod={ensurePeriod}
+              periodLoading={periodLoading}
+            />
             <ProductionTimeline timeline={model.timeline} selectedBatch={model.selectedBatch} />
           </div>
           <div className="pd-row-live">
@@ -66,6 +79,8 @@ export default function ProductionDashboardTab() {
             <TotalProcessedStatus
               totalsByPeriod={model.totalsByPeriod}
               statusSummary={model.statusSummary}
+              onNeedPeriod={ensurePeriod}
+              periodLoading={periodLoading}
             />
           </div>
         </div>

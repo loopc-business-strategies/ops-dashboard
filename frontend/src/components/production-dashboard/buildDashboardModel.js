@@ -202,6 +202,10 @@ export function buildDashboardModel({
   lastWeekReports,
   monthReports,
   lastMonthReports,
+  weekSummary = null,
+  lastWeekSummary = null,
+  monthSummary = null,
+  lastMonthSummary = null,
   employees,
   passes,
   processes,
@@ -239,10 +243,10 @@ export function buildDashboardModel({
 
   const today = reportSummary(todayReport)
   const yesterday = reportSummary(yesterdayReport)
-  const thisWeek = sumReports(weekReports)
-  const lastWeek = sumReports(lastWeekReports)
-  const thisMonth = sumReports(monthReports)
-  const lastMonth = sumReports(lastMonthReports)
+  const thisWeek = weekSummary || sumReports(weekReports)
+  const lastWeek = lastWeekSummary || sumReports(lastWeekReports)
+  const thisMonth = monthSummary || sumReports(monthReports)
+  const lastMonth = lastMonthSummary || sumReports(lastMonthReports)
 
   const stages = pickStages(flowRes?.flow || flowRes)
   const reportByDept = today.byDepartment || []

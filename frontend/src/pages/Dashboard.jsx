@@ -52,7 +52,11 @@ const TAB_CHUNK_PREFETCHERS = {
   hr: () => import('../components/tabs/HRTab'),
   finance: () => import('../components/tabs/FinanceTab'),
   production: () => import('../components/tabs/ProductionTab'),
-  'production-new': () => import('../components/tabs/ProductionNewTab'),
+  'production-new': () => {
+    // Prefetch fullscreen dashboard page (real payload), not only the redirect stub
+    void import('../pages/ProductionDashboardPage')
+    return import('../components/tabs/ProductionNewTab')
+  },
   chat: () => import('../components/tabs/ChatTab'),
   'master-settings': () => import('../components/tabs/MasterSettingsTab'),
   training: () => import('../components/tabs/TrainingTab'),
