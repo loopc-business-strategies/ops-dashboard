@@ -1,4 +1,4 @@
-import { formatClock, formatGrams, formatMinutes, pccHref } from './formatters'
+import { formatClock, formatGrams, formatMinutes } from './formatters'
 
 function statusClass(status) {
   return String(status || 'Idle').toLowerCase().replace(/\s+/g, '-')
@@ -18,7 +18,6 @@ export default function BatchMonitorTable({ rows }) {
     <section className="pd-panel pd-batch-monitor" aria-label="Batch monitor">
       <div className="pd-panel-head">
         <h2 className="pd-panel-title">Batch Monitor</h2>
-        <a className="pd-link" href={pccHref('batches')}>View all</a>
       </div>
       {!list.length ? (
         <p className="pd-empty">No active batches</p>
@@ -45,11 +44,7 @@ export default function BatchMonitorTable({ rows }) {
                 const pct = progressPct(row.progress)
                 return (
                   <tr key={row.id || row.batchNumber}>
-                    <td>
-                      {row.id ? (
-                        <a className="pd-link" href={pccHref('batches', { batch: row.id })}>{row.batchNumber}</a>
-                      ) : row.batchNumber}
-                    </td>
+                    <td>{row.batchNumber || '—'}</td>
                     <td>{row.department || '—'}</td>
                     <td>{row.qtyIn != null ? formatGrams(row.qtyIn) : '—'}</td>
                     <td>{row.qtyOut != null ? formatGrams(row.qtyOut) : '—'}</td>

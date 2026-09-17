@@ -76,7 +76,6 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'admin', label: t('admin'), group: 'admin', show: perms.canViewAdmin },
     { id: 'hr', label: t('hr'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('hr') },
     { id: 'compliance', label: t('compliance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('government') },
-    { id: 'production', label: t('production'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('production') },
     { id: 'production-new', label: 'Production Dashboard', group: 'departments', show: !departmentsComingSoon && perms.canViewModule('production') },
     { id: 'finance', label: t('finance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('finance') },
     { id: 'sales', label: t('sales'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('sales') },

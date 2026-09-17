@@ -9,7 +9,7 @@
       "envVar": "MONGO_URI_MG",
       "brandPrimary": "#EA580C",
       "sharedInboxEmail": "",
-      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "production-new", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production-new", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "cg": {
       "key": "cg",
@@ -20,7 +20,7 @@
       "envVar": "MONGO_URI_CG",
       "brandPrimary": "#16A34A",
       "sharedInboxEmail": "",
-      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "production-new", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production-new", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "loopc": {
       "key": "loopc",
@@ -31,7 +31,7 @@
       "envVar": "MONGO_URI_LOOPC",
       "brandPrimary": "#2563EB",
       "sharedInboxEmail": "business@loopcstrategies.com",
-      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production", "production-new", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "hr", "compliance", "production-new", "finance", "sales", "operations", "training", "erp", "procurement-plus"]
     },
     "vb": {
       "key": "vb",

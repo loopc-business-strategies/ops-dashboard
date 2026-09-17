@@ -1,4 +1,4 @@
-import { formatClock, formatDateLong, formatShiftClock, pccHref } from './formatters'
+import { formatClock, formatDateLong, formatShiftClock } from './formatters'
 import { IconCalendar, IconMark } from './PdIcons'
 
 export default function HeaderBar({ header, lastUpdated, connection, onRefresh, loading }) {
@@ -47,7 +47,6 @@ export default function HeaderBar({ header, lastUpdated, connection, onRefresh, 
         ) : (
           <span className="pd-header-avatar pd-header-avatar--muted" title="Manager not assigned">—</span>
         )}
-        <a className="pd-btn pd-btn--ghost-light" href={pccHref('batches')}>Open PCC</a>
         <button type="button" className="pd-btn pd-btn--primary" onClick={onRefresh} disabled={loading}>
           Refresh
         </button>

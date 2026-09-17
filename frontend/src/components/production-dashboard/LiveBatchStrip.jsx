@@ -1,4 +1,4 @@
-import { formatGrams, formatMinutes, formatClock, formatPct, pccHref } from './formatters'
+import { formatGrams, formatMinutes, formatClock, formatPct } from './formatters'
 
 function ProgressBar({ progress }) {
   const mode = progress?.mode || 'indeterminate'
@@ -84,10 +84,6 @@ function LiveCard({ card }) {
       ) : null}
 
       <ProgressBar progress={card.progress} />
-
-      {card.batchId ? (
-        <a className="pd-link" href={pccHref('batches', { batch: card.batchId })}>Open Batch</a>
-      ) : null}
     </article>
   )
 }
@@ -98,7 +94,6 @@ export default function LiveBatchStrip({ cards }) {
     <section className="pd-panel pd-live-strip" aria-label="Live production">
       <div className="pd-panel-head">
         <h2 className="pd-panel-title">Live Production / Active Batches</h2>
-        <a className="pd-link" href={pccHref('passes')}>Metal Control</a>
       </div>
       {!list.length ? (
         <p className="pd-empty">No active batches</p>

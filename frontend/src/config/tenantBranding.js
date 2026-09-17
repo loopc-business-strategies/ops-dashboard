@@ -223,7 +223,7 @@ const defaultBranding = {
     bgTopbar: '#172554',
     brandButtonHover: '#172554',
   }),
-  enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'production-new', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+  enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production-new', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
   enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
   featureFlags: {
     procurementPlus: true,
@@ -261,7 +261,7 @@ const tenantBranding = {
       bgTopbar: '#431407',
       brandButtonHover: '#7C2D12',
     }),
-    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'production-new', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production-new', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,
@@ -295,7 +295,7 @@ const tenantBranding = {
       bgTopbar: '#052E16',
       brandButtonHover: '#14532D',
     }),
-    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'production-new', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production-new', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,

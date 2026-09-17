@@ -143,7 +143,7 @@ function DepartmentsComingSoonTab() {
     <PlaceholderTab
       title={t('departments')}
       description={t('comingSoon')}
-      subTabs={['HR', 'Compliance', 'Production', 'Finance', 'Sales', 'Operations', 'Training']}
+      subTabs={['HR', 'Compliance', 'Production Dashboard', 'Finance', 'Sales', 'Operations', 'Training']}
     />
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatGrams, formatMinutes, pccHref } from './formatters'
+import { formatGrams, formatMinutes } from './formatters'
 import { DeptIcon } from './PdIcons'
 
 function statusClass(status) {
@@ -23,11 +23,7 @@ function DeptCard({ card, expanded, onToggle, tables }) {
       <dl className="pd-dept-meta">
         <div>
           <dt>Batch</dt>
-          <dd>
-            {card.batchId ? (
-              <a className="pd-link" href={pccHref('batches', { batch: card.batchId })}>{card.batchNumber}</a>
-            ) : '—'}
-          </dd>
+          <dd>{card.batchNumber || '—'}</dd>
         </div>
         <div>
           <dt>Qty</dt>

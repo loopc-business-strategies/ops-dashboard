@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { productionControlApi } from '../../api/productionControl'
-import { formatGrams, formatPct, pccHref } from './formatters'
+import { formatGrams, formatPct } from './formatters'
 import { metalLoss, lossPercent, numOrNull } from './safeMath'
 
 /**
@@ -26,7 +26,7 @@ export default function MeltingMetalPanel({ meltingCard, permissions, onDone }) 
     setErr(null)
     setMsg(null)
     if (!card.passId) {
-      setErr('No open pass for this batch. Use Metal Control in Production.')
+      setErr('No open pass for this batch.')
       return
     }
     if (!permissions?.canReceive && !permissions?.canIssue) {
@@ -93,7 +93,6 @@ export default function MeltingMetalPanel({ meltingCard, permissions, onDone }) 
             {busy ? 'Confirming…' : 'Confirm Metal OUT'}
           </button>
         ) : null}
-        <a className="pd-btn pd-btn--ghost" href={pccHref('passes')}>Open Passes Workflow</a>
       </div>
       {msg ? <p className="pd-ok" role="status">{msg}</p> : null}
       {err ? <p className="pd-err" role="alert">{err}</p> : null}
