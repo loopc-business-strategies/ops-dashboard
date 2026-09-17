@@ -2,9 +2,7 @@ import { canPcc } from '../production-control/shared'
 import { numOrNull, metalLoss, lossPercent, completionPercent, percentChange, shiftProgressPercent, elapsedMinutes, dayKey, addDays } from './safeMath'
 import {
   ASSEMBLY_TABLE_COUNT,
-  ALL_KNOWN_DEPARTMENTS,
   DASHBOARD_DEPARTMENTS,
-  EXTENDED_DEPT_ALIASES,
   MATERIAL_FLOW_STEPS,
   matchDashboardDeptKey,
   parseAssemblyTableIndex,
@@ -197,6 +195,16 @@ function processProgress(batch, status) {
   return { mode: 'indeterminate', percent: null }
 }
 
+/** Map internal batch status to reference card labels. */
+function displayDeptStatus(mapped, hasBatch) {
+  if (!hasBatch) return 'Idle'
+  if (mapped === 'Completed') return 'Completed'
+  if (mapped === 'In Progress') return 'Running'
+  if (mapped === 'Pending' || mapped === 'Delayed') return 'Waiting'
+  if (mapped === 'Stopped') return 'Idle'
+  return 'Idle'
+}
+
 function batchMatchesDept(batch, dept) {
   const keys = [dept.key, ...(dept.aliases || [])]
   const candidates = [
@@ -311,8 +319,7 @@ export function buildDashboardModel({
     const primary = batchesHere[0] || null
     const delayed = primary && delayedIds.has(String(primary._id || primary.id))
     const mapped = mapBatchStatus(primary, delayed)
-    // LiveBatchStrip expects mapBatchStatus labels; Idle when no active batch here
-    const status = primary || reportDept.jobs != null ? mapped : 'Idle'
+    const status = displayDeptStatus(mapped, Boolean(primary) || reportDept.jobs != null)
     const metalIn = numOrNull(
       primary?.processInputWeight
         ?? primary?.issuedWeight
@@ -380,8 +387,8 @@ export function buildDashboardModel({
   const deptCards = DASHBOARD_DEPARTMENTS.map(buildCardForDept)
   const liveCards = deptCards
 
-  // Assembly tables 1–15 (optional; not primary classic UI)
-  const assemblyDept = EXTENDED_DEPT_ALIASES.find((d) => d.key === 'assembly')
+  // Assembly tables 1–15
+  const assemblyDept = DASHBOARD_DEPARTMENTS.find((d) => d.key === 'assembly')
   const assemblyBatches = assemblyDept
     ? (activeBatches || []).filter((b) => batchMatchesDept(b, assemblyDept))
     : []
@@ -399,7 +406,7 @@ export function buildDashboardModel({
     return {
       tableNo,
       label: `Table ${tableNo}`,
-      status: batch ? mapped : 'Idle',
+      status: displayDeptStatus(mapped, Boolean(batch)),
       batchId: batch?._id || batch?.id || null,
       batchNumber: batch?.batchNumber || null,
       quantity: numOrNull(batch?.currentWeight),
@@ -427,14 +434,14 @@ export function buildDashboardModel({
   const batchMonitorRows = (activeBatches || []).slice(0, 40).map((b) => {
     const delayed = delayedIds.has(String(b._id || b.id))
     const mapped = mapBatchStatus(b, delayed)
-    const status = mapped
+    const status = displayDeptStatus(mapped, true)
     const metalIn = numOrNull(b.processInputWeight ?? b.issuedWeight ?? b.initialWeight)
     const metalOut = numOrNull(b.processOutputWeight ?? b.receivedWeight ?? b.currentWeight)
     const loss = metalLoss(metalIn, metalOut)
     const startedAt = b.startedAt || b.processStartTime || b.createdAt || null
     const progress = processProgress(b, mapped)
     const deptKey = matchDashboardDeptKey(b.currentDepartment || b.currentProcess || b.department)
-    const deptLabel = ALL_KNOWN_DEPARTMENTS.find((d) => d.key === deptKey)?.label
+    const deptLabel = DASHBOARD_DEPARTMENTS.find((d) => d.key === deptKey)?.label
       || b.currentDepartment
       || b.currentProcess
       || '—'
@@ -600,11 +607,11 @@ export function buildDashboardModel({
 
   return {
     header: {
-      title: 'Production',
-      subtitle: null,
+      title: 'PRODUCTION CONTROL CENTER',
+      subtitle: 'Jewelry & Precious Metal Manufacturing',
       dateLabel: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
       timeLabel: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: online ? 'Production Active' : (completedBatches > 0 ? 'Production Idle' : 'No production activity today'),
+      status: online ? 'Factory Online — Systems Active' : (completedBatches > 0 ? 'Factory Online — Idle' : 'No production activity today'),
       statusTone: online ? 'ok' : 'muted',
       shiftName: shift?.name || shift?.shiftName || null,
       shiftStart: shift?.startTime || shift?.startLabel || null,
