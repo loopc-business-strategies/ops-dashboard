@@ -245,6 +245,19 @@ function stockBucketGrams(stock, keys) {
   return null
 }
 
+/** Sum NEW_STOCK + AVAILABLE (do not stop at zero newStock). Fall back to ERP vault. */
+function vaultUnprocessedGrams(stock) {
+  if (!stock || typeof stock !== 'object') return null
+  const newW = numOrNull(stock.newStock?.weight ?? stock.new_stock?.weight) || 0
+  const availW = numOrNull(stock.available?.weight ?? stock.AVAILABLE?.weight) || 0
+  const pcc = newW + availW
+  if (pcc > 0) return pcc
+  const erp = numOrNull(stock.erpVault?.weight ?? stock.vaultWeight)
+  if (erp != null && erp > 0) return erp
+  if (pcc === 0 && (stock.newStock != null || stock.available != null || stock.erpVault != null)) return 0
+  return erp
+}
+
 export function buildDashboardModel({
   summaryRes,
   boardRes,
@@ -472,7 +485,9 @@ export function buildDashboardModel({
   })
 
   const stock = stockOverview?.overview || stockOverview?.stock || stockOverview || summaryRes?.stock || {}
-  const unprocessed = stockBucketGrams(stock, ['newStock', 'new_stock', 'available', 'AVAILABLE', 'vault'])
+  const vaultNewStock = numOrNull(stock.newStock?.weight ?? stock.new_stock?.weight) || 0
+  const vaultAvailable = numOrNull(stock.available?.weight ?? stock.AVAILABLE?.weight) || 0
+  const unprocessed = vaultUnprocessedGrams(stock)
     ?? numOrNull(kpis.metalInVault)
   const underProcessing = stockBucketGrams(stock, ['underProcessing', 'under_processing', 'selected', 'processing', 'wip'])
     ?? numOrNull(kpis.metalInProduction)
@@ -516,6 +531,10 @@ export function buildDashboardModel({
     underProcessing,
     finishedGoods,
     totalBalance: totalStock,
+    vaultNewStock,
+    vaultAvailable: vaultAvailable > 0
+      ? vaultAvailable
+      : (vaultNewStock <= 0 ? (numOrNull(stock.erpVault?.weight) || 0) : vaultAvailable),
     movementIn: numOrNull(today.weightIn) ?? numOrNull(kpis.metalReceivedToday),
     movementOut: numOrNull(today.weightOut) ?? numOrNull(kpis.metalDispatchedToday),
     movementWip: underProcessing,
@@ -613,12 +632,17 @@ export function buildDashboardModel({
     ? percentChange(thisWeek?.weightOut ?? thisWeek?.weightIn, lastWeek?.weightOut ?? lastWeek?.weightIn)
     : null
 
-  const vaultSource = widgetsRes?.stock || summaryRes?.stock || stock || null
+  const vaultSource = stockOverview?.overview || widgetsRes?.stock || summaryRes?.stock || stock || null
+  const pccNew = numOrNull(vaultSource?.newStock?.weight)
+  const pccAvail = numOrNull(vaultSource?.available?.weight)
+  const erpVaultW = numOrNull(vaultSource?.erpVault?.weight)
   const vaultKpi = vaultSource
     ? {
-        newStockWeight: numOrNull(vaultSource.newStock?.weight),
+        newStockWeight: pccNew,
         newStockCount: numOrNull(vaultSource.newStock?.count),
-        availableWeight: numOrNull(vaultSource.available?.weight),
+        availableWeight: (Number(pccAvail) || 0) > 0
+          ? pccAvail
+          : ((Number(pccNew) || 0) <= 0 && erpVaultW != null ? erpVaultW : pccAvail),
         availableCount: numOrNull(vaultSource.available?.count),
         underProcessingWeight: numOrNull(vaultSource.underProcessing?.weight),
         underProcessingCount: numOrNull(vaultSource.underProcessing?.count),
@@ -655,13 +679,13 @@ export function buildDashboardModel({
       employees: Array.isArray(operators) ? operators.length : (empList.length || null),
       floorManager: floorManager || null,
       currentShift: shift?.name || shift?.shiftName || null,
+      vaultNewStock: vaultKpi.newStockWeight ?? vaultNewStock,
+      vaultAvailable: vaultKpi.availableWeight ?? stockSummary.vaultAvailable,
       totalProductionToday: weightIn ?? weightOut,
       underProduction: remainingWeight ?? underProcessing,
       totalOutput: weightOut,
       yesterdayVsToday: dayDelta,
       weeklyComparison: weekDelta,
-      vaultNewStock: vaultKpi.newStockWeight,
-      vaultAvailable: vaultKpi.availableWeight,
     },
     employeeKpi: {
       total: empList.length || (Array.isArray(operators) ? operators.length : null),

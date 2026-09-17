@@ -216,8 +216,15 @@ async function listStock(query = {}) {
 }
 
 async function getStockOverview() {
-  const rows = await ProductionStockLot.aggregate([
-    { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$netWeight' }, qty: { $sum: '$quantity' } } },
+  const InventoryItem = require('../../models/InventoryItem')
+  const [rows, erpAgg] = await Promise.all([
+    ProductionStockLot.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$netWeight' }, qty: { $sum: '$quantity' } } },
+    ]),
+    InventoryItem.aggregate([
+      { $match: { isDeleted: { $ne: true }, quantity: { $gt: 0 } } },
+      { $group: { _id: null, weight: { $sum: '$quantity' }, count: { $sum: 1 } } },
+    ]).catch(() => []),
   ])
   const byStatus = Object.fromEntries(
     STOCK_STATUSES.map((s) => [s, { count: 0, weight: 0, qty: 0 }]),
@@ -227,10 +234,17 @@ async function getStockOverview() {
       byStatus[row._id] = { count: row.count, weight: row.weight, qty: row.qty }
     }
   }
+  const newStock = byStatus.NEW_STOCK
+  const available = byStatus.AVAILABLE
+  const pccVaultWeight = (Number(newStock.weight) || 0) + (Number(available.weight) || 0)
+  const erpVault = {
+    count: erpAgg[0]?.count || 0,
+    weight: erpAgg[0]?.weight || 0,
+  }
   return {
     byStatus,
-    newStock: byStatus.NEW_STOCK,
-    available: byStatus.AVAILABLE,
+    newStock,
+    available,
     selected: byStatus.SELECTED,
     underProcessing: {
       count: (byStatus.UNDER_PROCESSING.count || 0)
@@ -250,7 +264,132 @@ async function getStockOverview() {
     },
     finished: byStatus.FINISHED,
     dispatched: byStatus.DISPATCHED,
+    erpVault,
+    /** PCC NEW_STOCK + AVAILABLE; PD may fall back to erpVault when this is 0 */
+    vaultWeight: pccVaultWeight,
   }
+}
+
+function voucherStockIdempotencyKey(txId, inventoryItemId) {
+  return `voucher-stock:${String(txId)}:${String(inventoryItemId)}`
+}
+
+function inferMetalTypeFromItem(item) {
+  const raw = String(item?.metalType || item?.category || item?.name || '').toLowerCase()
+  if (raw.includes('silver')) return 'Silver'
+  if (raw.includes('platinum')) return 'Platinum'
+  if (METAL_TYPES.includes(item?.metalType)) return item.metalType
+  return 'Gold'
+}
+
+/**
+ * Create (or reuse) an AVAILABLE ProductionStockLot linked to a metal purchase/receipt line.
+ * Idempotent via voucher-stock:{txId}:{itemId}.
+ */
+async function upsertVoucherAvailableLot({
+  user,
+  tx,
+  inventoryItem,
+  netWeight,
+  session = null,
+} = {}) {
+  if (!tx?._id || !inventoryItem?._id) return null
+  const weight = Number(netWeight)
+  if (!Number.isFinite(weight) || weight <= 0) return null
+
+  const idempotencyKey = voucherStockIdempotencyKey(tx._id, inventoryItem._id)
+  const existing = await withSession(ProductionStockLot.findOne({ idempotencyKey }), session)
+  if (existing) {
+    if (existing.status === 'CANCELLED') {
+      existing.status = 'AVAILABLE'
+      existing.netWeight = weight
+      existing.grossWeight = weight
+      existing.quantity = Number(existing.quantity) || 1
+      existing.version = (existing.version || 0) + 1
+      await existing.save(writeOpts(session))
+    }
+    return { lot: existing, reused: true }
+  }
+
+  const vocNo = String(tx?.voucherMeta?.vocNo || '').trim()
+  const a = {
+    id: user?._id || null,
+    name: user?.name || 'system',
+  }
+  const stockCode = await nextStockCode(ProductionStockLot, session)
+  const [created] = await ProductionStockLot.create(
+    [
+      {
+        stockCode,
+        purchaseRef: vocNo,
+        supplier: String(tx?.voucherMeta?.partyName || '').trim(),
+        purchaseDate: tx?.date || tx?.voucherMeta?.valueDate || new Date(),
+        product: inventoryItem.name || '',
+        productCode: inventoryItem.sku || '',
+        category: inventoryItem.category || '',
+        quantity: 1,
+        grossWeight: weight,
+        netWeight: weight,
+        metalType: inferMetalTypeFromItem(inventoryItem),
+        purity: '',
+        remarks: `Auto from metal voucher ${vocNo || tx._id}`,
+        receivedById: a.id,
+        receivedByName: a.name,
+        status: 'AVAILABLE',
+        inventoryItemId: inventoryItem._id,
+        idempotencyKey,
+        createdById: a.id,
+        createdByName: a.name,
+        version: 0,
+      },
+    ],
+    writeOpts(session),
+  )
+
+  await ProductionStockStatusEvent.create(
+    [
+      {
+        stockLotId: created._id,
+        stockCode,
+        fromStatus: '',
+        toStatus: 'AVAILABLE',
+        reason: `Metal voucher ${vocNo || tx._id}`,
+        actorId: a.id,
+        actorName: a.name,
+      },
+    ],
+    writeOpts(session),
+  )
+
+  return { lot: created, reused: false }
+}
+
+/** Soft-cancel PCC lots created for a metal voucher (void path). */
+async function cancelVoucherAvailableLotsForTx(tx, { user, reason = 'Void metal voucher', session = null } = {}) {
+  if (!tx?._id) return { cancelled: 0 }
+  const prefix = `voucher-stock:${String(tx._id)}:`
+  const lots = await withSession(
+    ProductionStockLot.find({
+      idempotencyKey: { $regex: `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
+      status: { $ne: 'CANCELLED' },
+    }),
+    session,
+  )
+  let cancelled = 0
+  const fakeReq = { user: user || { _id: null, name: 'system' } }
+  for (const lot of lots) {
+    try {
+      await transitionStock(fakeReq, lot, 'CANCELLED', {
+        reason,
+        session,
+        skipTransitionCheck: !((STOCK_STATUS_TRANSITIONS[lot.status] || []).includes('CANCELLED')),
+      })
+      cancelled += 1
+    } catch (err) {
+      console.warn('[production-control] voucher lot cancel failed:', err.message)
+    }
+  }
+  return { cancelled }
 }
 
 async function getStockDetail(idOrCode) {
@@ -737,6 +876,9 @@ module.exports = {
   syncStockStatusForBatch,
   getStockHistory,
   recordStatusEvent,
+  upsertVoucherAvailableLot,
+  cancelVoucherAvailableLotsForTx,
+  voucherStockIdempotencyKey,
   ProductionError,
   // re-export createBatch for callers that need it without circular issues
   createBatch,

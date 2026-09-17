@@ -3,12 +3,12 @@ import {
   IconEmployees,
   IconManager,
   IconShift,
+  IconVault,
   IconProduction,
   IconUnderProduction,
   IconOutput,
   IconTrendUp,
   IconWeekly,
-  IconVault,
 } from './PdIcons'
 
 function CompactKpi({ icon, label, value, hint }) {
@@ -38,20 +38,27 @@ export default function KpiRow({ model }) {
   const vault = model.vaultKpi || {}
   const day = deltaLabel(k.yesterdayVsToday)
   const week = deltaLabel(k.weeklyComparison)
+
   const newStockWeight = vault.newStockWeight ?? k.vaultNewStock
   const availableWeight = vault.availableWeight ?? k.vaultAvailable
+  const newW = Number(newStockWeight) || 0
+  const availW = Number(availableWeight) || 0
+  const vaultDisplay = (newW + availW) > 0
+    ? formatGrams(newW > 0 ? newW : availW)
+    : (newStockWeight != null || availableWeight != null ? formatGrams(0) : '—')
+  const vaultHint = `Available ${formatGrams(availW)}`
 
   return (
     <section className="pd-kpi-strip" aria-label="Production KPIs">
       <CompactKpi icon={<IconEmployees />} label="Employees" value={k.employees != null ? k.employees : '—'} />
       <CompactKpi icon={<IconManager />} label="Floor Manager" value={k.floorManager || 'Not assigned'} />
-      <CompactKpi icon={<IconShift />} label="Current Shift" value={k.currentShift || '—'} />
       <CompactKpi
         icon={<IconVault />}
         label="Vault New Stock"
-        value={newStockWeight != null ? formatGrams(newStockWeight) : '—'}
-        hint={availableWeight != null ? `Available ${formatGrams(availableWeight)}` : undefined}
+        value={vaultDisplay}
+        hint={vaultHint}
       />
+      <CompactKpi icon={<IconShift />} label="Current Shift" value={k.currentShift || '—'} />
       <CompactKpi
         icon={<IconProduction />}
         label="Total Production Today"
