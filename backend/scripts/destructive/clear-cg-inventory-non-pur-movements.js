@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+require('./_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: true })
 /**
  * CG-only: soft-delete StockMovements that are NOT tied to Pur/2026/0001,
  * then reconcile InventoryItem.quantity to the sum of remaining active movements.

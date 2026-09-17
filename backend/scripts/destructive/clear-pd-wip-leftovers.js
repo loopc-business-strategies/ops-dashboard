@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+require('./_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: true })
 /**
  * Soft-cancel leftover Production Dashboard WIP across tenants:
  * - open ProductionBatch (ACTIVE_BATCH_STATUSES)
