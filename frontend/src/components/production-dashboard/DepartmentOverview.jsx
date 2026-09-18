@@ -1,15 +1,27 @@
 import { useState } from 'react'
-import { formatGrams, formatMinutes } from './formatters'
+import { formatGrams } from './formatters'
 import { DeptIcon } from './PdIcons'
 
 function statusClass(status) {
   return String(status || 'Idle').toLowerCase().replace(/\s+/g, '-')
 }
 
-function DeptCard({ card, expanded, onToggle, tables }) {
+function DeptCard({ card, selected, onSelect, expanded, onToggle, tables }) {
   const tone = statusClass(card.status)
   return (
-    <article className={`pd-dept-card pd-dept-card--${tone}${card.isAssembly ? ' pd-dept-card--assembly' : ''}${expanded ? ' pd-dept-card--expanded' : ''}`}>
+    <article
+      className={`pd-dept-card pd-dept-card--${tone}${card.isAssembly ? ' pd-dept-card--assembly' : ''}${expanded ? ' pd-dept-card--expanded' : ''}${selected ? ' pd-dept-card--selected' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect?.(card.key)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect?.(card.key)
+        }
+      }}
+      aria-pressed={selected}
+    >
       <div className="pd-dept-card-head">
         <span className="pd-dept-icon-wrap" aria-hidden>
           <DeptIcon deptKey={card.key} />
@@ -20,26 +32,37 @@ function DeptCard({ card, expanded, onToggle, tables }) {
           {card.status || 'Idle'}
         </span>
       </div>
-      <dl className="pd-dept-meta">
+      <dl className="pd-dept-meta pd-dept-meta--ref">
         <div>
-          <dt>Batch</dt>
-          <dd>{card.batchNumber || '—'}</dd>
+          <dt>Metal Balance</dt>
+          <dd>{card.metalBalance != null ? formatGrams(card.metalBalance) : '—'}</dd>
         </div>
         <div>
-          <dt>Qty</dt>
-          <dd>{card.quantity != null ? formatGrams(card.quantity) : '—'}</dd>
+          <dt>Metal IN</dt>
+          <dd>{card.metalIn != null ? formatGrams(card.metalIn) : '—'}</dd>
+        </div>
+        <div>
+          <dt>Metal OUT</dt>
+          <dd>{card.metalOut != null ? formatGrams(card.metalOut) : '—'}</dd>
+        </div>
+        <div>
+          <dt>Active Batch</dt>
+          <dd>{card.batchNumber || '—'}</dd>
         </div>
         <div>
           <dt>Employees</dt>
           <dd>{card.employeeCount != null ? card.employeeCount : '—'}</dd>
         </div>
-        <div>
-          <dt>Elapsed</dt>
-          <dd>{card.elapsedMin != null ? formatMinutes(card.elapsedMin) : '—'}</dd>
-        </div>
       </dl>
       {card.isAssembly ? (
-        <button type="button" className="pd-btn pd-btn--ghost pd-dept-expand" onClick={onToggle}>
+        <button
+          type="button"
+          className="pd-btn pd-btn--ghost pd-dept-expand"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle?.()
+          }}
+        >
           {expanded ? 'Hide tables' : `Show ${card.tableCount || 15} tables`}
         </button>
       ) : null}
@@ -62,30 +85,92 @@ function DeptCard({ card, expanded, onToggle, tables }) {
   )
 }
 
-export default function DepartmentOverview({ cards, assemblyTables }) {
+export default function DepartmentOverview({
+  cards,
+  assemblyTables,
+  selectedDeptKey,
+  onSelectDept,
+  onMetalInOut,
+  onOperatorInOut,
+  onViewDepartment,
+  onViewAll,
+  permissions,
+}) {
   const list = cards || []
   const [assemblyOpen, setAssemblyOpen] = useState(false)
+  const selected = list.find((c) => c.key === selectedDeptKey) || null
 
   return (
-    <section className="pd-panel pd-dept-status" aria-label="Department status">
-      <div className="pd-panel-head">
-        <h2 className="pd-panel-title">Department Status</h2>
-      </div>
-      {!list.length ? (
-        <p className="pd-empty">No departments configured</p>
-      ) : (
-        <div className="pd-dept-grid">
-          {list.map((card) => (
-            <DeptCard
-              key={card.key}
-              card={card}
-              expanded={card.isAssembly && assemblyOpen}
-              onToggle={() => setAssemblyOpen((v) => !v)}
-              tables={assemblyTables}
-            />
-          ))}
+    <section className="pd-dept-row" aria-label="Department status and actions">
+      <div className="pd-panel pd-dept-status">
+        <div className="pd-panel-head">
+          <h2 className="pd-panel-title">Department Status</h2>
+          {selected ? (
+            <span className="pd-panel-hint">Selected: {selected.name}</span>
+          ) : (
+            <span className="pd-panel-hint">Click a department to control</span>
+          )}
         </div>
-      )}
+        {!list.length ? (
+          <p className="pd-empty">No departments configured</p>
+        ) : (
+          <div className="pd-dept-grid">
+            {list.map((card) => (
+              <DeptCard
+                key={card.key}
+                card={card}
+                selected={selectedDeptKey === card.key}
+                onSelect={onSelectDept}
+                expanded={card.isAssembly && assemblyOpen}
+                onToggle={() => setAssemblyOpen((v) => !v)}
+                tables={assemblyTables}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <aside className="pd-panel pd-quick-actions" aria-label="Department quick actions">
+        <div className="pd-panel-head">
+          <h2 className="pd-panel-title">Quick Actions</h2>
+        </div>
+        <div className="pd-quick-stack">
+          <button
+            type="button"
+            className="pd-quick-btn pd-quick-btn--metal"
+            onClick={() => onMetalInOut?.()}
+            disabled={!permissions?.canCreatePass && !permissions?.canReceive && !permissions?.canIssue}
+            title={!permissions?.canCreatePass ? 'No metal transfer permission' : 'Metal IN / OUT'}
+          >
+            Metal IN / OUT
+          </button>
+          <button
+            type="button"
+            className="pd-quick-btn pd-quick-btn--operator"
+            onClick={() => onOperatorInOut?.()}
+            disabled={!permissions?.canFloorSession}
+            title={!permissions?.canFloorSession ? 'No floor session permission' : 'Operator IN / OUT'}
+          >
+            Operator IN / OUT
+          </button>
+          <button
+            type="button"
+            className="pd-quick-btn pd-quick-btn--view"
+            onClick={() => onViewDepartment?.(selectedDeptKey)}
+            disabled={!selectedDeptKey}
+            title={selectedDeptKey ? 'View selected department' : 'Select a department first'}
+          >
+            View Department
+          </button>
+          <button
+            type="button"
+            className="pd-quick-btn pd-quick-btn--all"
+            onClick={() => onViewAll?.()}
+          >
+            View All Departments
+          </button>
+        </div>
+      </aside>
     </section>
   )
 }

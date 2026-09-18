@@ -282,12 +282,15 @@ export function buildDashboardModel({
   me,
   stockOverview = null,
   alertsRes = null,
+  weightVarianceRes = null,
+  metalMovements = null,
 }) {
   const kpis = summaryRes?.kpis || {}
   const statusCountsRaw = summaryRes?.statusCounts || {}
   const shift = shiftRes?.shift || shiftRes || widgetsRes?.currentShift || summaryRes?.currentShift || null
   const managers = widgetsRes?.managersPresent || summaryRes?.managersPresent || []
   const operators = widgetsRes?.operatorsPresent || summaryRes?.operatorsPresent || []
+  const metalByDept = summaryRes?.metalByDepartment || boardRes?.metalByDepartment || []
   const rawBoardBatches = boardRes?.activeBatches || summaryRes?.activeBatches || []
   const TERMINAL_BATCH_STATUSES = new Set([
     'COMPLETED',
@@ -376,6 +379,24 @@ export function buildDashboardModel({
       batchesHere.map((b) => b.currentHolderName || b.operatorName).filter(Boolean),
     ).size || (holder ? 1 : 0)
 
+    const custodyWeight = (Array.isArray(metalByDept) ? metalByDept : [])
+      .filter((row) => matchDashboardDeptKey(row.department) === key)
+      .reduce((sum, row) => sum + (Number(row.weight) || 0), 0)
+    const quantity = numOrNull(primary?.currentWeight ?? primary?.targetQuantity ?? null)
+    const metalBalance = (custodyWeight > 0 ? custodyWeight : null)
+      ?? quantity
+      ?? (metalIn != null && metalOut != null ? Math.max(0, metalIn - metalOut) : null)
+      ?? metalIn
+
+    const openPass = (passes || []).find((p) => {
+      const st = String(p.status || '').toUpperCase()
+      if (!['REQUESTED', 'APPROVED', 'ISSUED', 'IN_TRANSIT'].includes(st)) return false
+      const toKey = matchDashboardDeptKey(p.toDepartment)
+      const fromKey = matchDashboardDeptKey(p.fromDepartment)
+      return toKey === key || fromKey === key
+        || String(p.batchId || p.batch?._id || '') === String(primary?._id || primary?.id || '')
+    })
+
     return {
       key,
       name: label,
@@ -392,19 +413,21 @@ export function buildDashboardModel({
       elapsedMin: elapsed,
       metalIn,
       metalOut,
+      metalBalance,
       metalLoss: loss != null ? Math.max(0, loss) : null,
       lossPct,
-      confirmState: metalConfirmState(primary, passForBatch),
-      passId: passForBatch?._id || passForBatch?.id || null,
-      passStatus: passForBatch?.status || null,
+      confirmState: metalConfirmState(primary, passForBatch || openPass),
+      passId: (passForBatch || openPass)?._id || (passForBatch || openPass)?.id || null,
+      passStatus: (passForBatch || openPass)?.status || null,
       progress: processProgress(primary || processRun, mapped),
-      quantity: numOrNull(primary?.currentWeight ?? primary?.targetQuantity ?? null),
+      quantity,
       timeTakenMin: elapsed,
       hasData: Boolean(primary),
       isMelting: key === 'melting',
       isAssembly: key === 'assembly',
       tableCount: dept.tableCount || null,
       activeBatchCount: batchesHere.length,
+      flowStatus: status === 'Running' ? 'ACTIVE' : (status === 'Idle' ? 'STABLE' : String(status || 'STABLE').toUpperCase()),
     }
   }
 
@@ -501,29 +524,42 @@ export function buildDashboardModel({
 
   const materialFlow = MATERIAL_FLOW_STEPS.map((step) => {
     let weight = null
+    let metalIn = null
+    let metalOut = null
     let status = 'Idle'
     if (step.key === 'vault') {
       weight = unprocessed
-      status = weight != null && weight > 0 ? 'Ready' : 'Idle'
+      metalIn = numOrNull(today.weightIn) ?? numOrNull(kpis.metalReceivedToday)
+      metalOut = vaultAvailable > 0 ? null : numOrNull(kpis.metalIssuedToday)
+      status = weight != null && weight > 0 ? 'STABLE' : 'Idle'
     } else if (step.key === 'melting') {
       const card = deptCards.find((c) => c.key === 'melting')
-      weight = card?.quantity ?? card?.metalIn
-      status = card?.status || 'Idle'
+      weight = card?.metalBalance ?? card?.quantity ?? card?.metalIn
+      metalIn = card?.metalIn
+      metalOut = card?.metalOut
+      status = card?.flowStatus || (card?.status === 'Running' ? 'ACTIVE' : 'STABLE')
     } else if (step.key === 'rolling') {
       const card = deptCards.find((c) => c.key === 'rolling')
-      weight = card?.quantity ?? card?.metalIn
-      status = card?.status || 'Idle'
+      weight = card?.metalBalance ?? card?.quantity ?? card?.metalIn
+      metalIn = card?.metalIn
+      metalOut = card?.metalOut
+      status = card?.flowStatus || (card?.status === 'Running' ? 'ACTIVE' : 'STABLE')
     } else if (step.key === 'production') {
+      const prodCards = deptCards.filter((c) => !['vault_room', 'melting', 'rolling'].includes(c.key))
       weight = underProcessing
-      status = (underProcessing != null && underProcessing > 0) ? 'Under Processing' : 'Idle'
+      metalIn = prodCards.reduce((s, c) => s + (Number(c.metalIn) || 0), 0) || null
+      metalOut = prodCards.reduce((s, c) => s + (Number(c.metalOut) || 0), 0) || null
+      status = (underProcessing != null && underProcessing > 0) ? 'ACTIVE' : 'STABLE'
     } else if (step.key === 'qc') {
       weight = numOrNull(kpis.qcPending)
-      status = (numOrNull(kpis.qcPending) || 0) > 0 ? 'Waiting' : 'Idle'
+      status = (numOrNull(kpis.qcPending) || 0) > 0 ? 'ACTIVE' : 'STABLE'
     } else if (step.key === 'finished') {
       weight = finishedGoods
-      status = weight != null && weight > 0 ? 'Completed' : 'Idle'
+      metalIn = numOrNull(today.weightOut)
+      status = weight != null && weight > 0 ? 'STABLE' : 'Idle'
     }
-    return { ...step, weight, status }
+    if (status === 'Idle' && weight != null && weight > 0) status = 'STABLE'
+    return { ...step, weight, metalIn, metalOut, status }
   })
 
   const stockSummary = {
@@ -552,7 +588,163 @@ export function buildDashboardModel({
     tone: alertSeverityTone(a.severity || a.level || a.type),
     createdAt: a.createdAt || a.at || null,
     batchId: a.batchId || null,
+    status: a.status || 'OPEN',
   }))
+
+  const sessionList = Array.isArray(floorSessions?.sessions)
+    ? floorSessions.sessions
+    : (Array.isArray(floorSessions) ? floorSessions : [])
+  const openSessions = sessionList.filter((s) => String(s.status || '').toUpperCase() === 'OPEN')
+  const onDutyNames = new Set([
+    ...operatorNames.map((n) => String(n).toLowerCase()),
+    ...openSessions.map((s) => String(s.name || personName(s) || '').toLowerCase()).filter(Boolean),
+  ])
+
+  const operatorPresenceRows = (() => {
+    const rows = []
+    const seen = new Set()
+    openSessions.forEach((s) => {
+      const name = s.name || personName(s) || 'Operator'
+      const key = String(s.userId || s.employeeId || name).toLowerCase()
+      if (seen.has(key)) return
+      seen.add(key)
+      const emp = matchEmployee(empList, name) || matchEmployee(empList, s.employeeId)
+      rows.push({
+        id: String(s._id || s.id || key),
+        employeeId: emp?._id || emp?.id || s.employeeId || null,
+        employee: emp?.name || name,
+        department: emp?.department || s.department || s.shiftName || '—',
+        direction: 'IN',
+        time: s.loginAt || s.lastActivityAt || null,
+        status: 'On Duty',
+        sessionId: s._id || s.id || null,
+      })
+    })
+    operatorNames.forEach((n) => {
+      const key = String(n).toLowerCase()
+      if (seen.has(key)) return
+      seen.add(key)
+      const emp = matchEmployee(empList, n)
+      rows.push({
+        id: `op-${key}`,
+        employeeId: emp?._id || emp?.id || null,
+        employee: emp?.name || n,
+        department: emp?.department || 'Floor',
+        direction: 'IN',
+        time: null,
+        status: 'On Duty',
+        sessionId: null,
+      })
+    })
+    activeEmployees.slice(0, 24).forEach((e) => {
+      const key = String(e._id || e.id || e.name).toLowerCase()
+      if (seen.has(key)) return
+      const nameKey = String(e.name || '').toLowerCase()
+      if (onDutyNames.has(nameKey)) return
+      seen.add(key)
+      rows.push({
+        id: String(e._id || e.id || key),
+        employeeId: e._id || e.id || null,
+        employee: e.name || 'Employee',
+        department: e.department || '—',
+        direction: 'OUT',
+        time: null,
+        status: 'Off Duty',
+        sessionId: null,
+      })
+    })
+    return rows.slice(0, 40)
+  })()
+
+  const varianceRows = weightVarianceRes?.rows || weightVarianceRes?.report?.rows || []
+  const varianceByDept = new Map()
+  ;(Array.isArray(varianceRows) ? varianceRows : []).forEach((r) => {
+    const key = matchDashboardDeptKey(r.department) || String(r.department || '').toLowerCase()
+    if (!key) return
+    const prev = varianceByDept.get(key) || { system: 0, physical: 0, count: 0, flagged: false }
+    prev.system += Number(r.expectedWeight) || 0
+    prev.physical += Number(r.actualWeight) || 0
+    prev.count += 1
+    if (r.overTolerance) prev.flagged = true
+    varianceByDept.set(key, prev)
+  })
+
+  const reconciliationRows = DASHBOARD_DEPARTMENTS.map((dept) => {
+    const card = deptCards.find((c) => c.key === dept.key)
+    const custody = (Array.isArray(metalByDept) ? metalByDept : [])
+      .filter((row) => matchDashboardDeptKey(row.department) === dept.key)
+      .reduce((sum, row) => sum + (Number(row.weight) || 0), 0)
+    const system = custody > 0 ? custody : (card?.metalBalance ?? null)
+    const variance = varianceByDept.get(dept.key)
+    const physical = variance && variance.count > 0 ? variance.physical : null
+    const diff = (system != null && physical != null) ? physical - system : null
+    return {
+      key: dept.key,
+      department: dept.label,
+      system,
+      physical,
+      diff,
+      flagged: Boolean(variance?.flagged) || (diff != null && Math.abs(diff) >= 0.05),
+    }
+  })
+
+  const mismatchAlerts = reconciliationRows
+    .filter((r) => r.flagged && r.diff != null)
+    .map((r) => ({
+      id: `mismatch-${r.key}`,
+      department: r.department,
+      diff: r.diff,
+      message: `Weight mismatch in ${r.department}: ${r.diff > 0 ? '+' : ''}${Number(r.diff).toFixed(3)} g`,
+    }))
+
+  const metalMovementRows = (() => {
+    const raw = Array.isArray(metalMovements)
+      ? metalMovements
+      : (metalMovements?.movements || [])
+    return (raw || []).slice(0, 80).map((m, i) => ({
+      id: m._id || m.id || m.movementNumber || `mv-${i}`,
+      movementNumber: m.movementNumber || m.id || '—',
+      time: m.issuedAt || m.createdAt || m.receivedAt || null,
+      batch: m.batchNumber || '—',
+      batchId: m.batchId || null,
+      from: m.fromDepartment || '—',
+      to: m.toDepartment || '—',
+      weight: numOrNull(m.weight),
+      operator: m.issuedByName || m.fromPersonName || m.receivedByName || '—',
+      status: m.status || '—',
+      passId: m.passId || null,
+    }))
+  })()
+
+  const batchOptions = (liveBatches || []).map((b) => ({
+    id: b._id || b.id,
+    batchNumber: b.batchNumber,
+    department: b.currentDepartment || b.currentProcess || '',
+    weight: numOrNull(b.currentWeight ?? b.initialWeight),
+    status: b.status,
+    metalType: b.metalType,
+    purity: b.purity,
+  }))
+
+  const employeeOptions = activeEmployees.map((e) => ({
+    id: e._id || e.id,
+    name: e.name || 'Employee',
+    department: e.department || '',
+    code: e.employeeCode || e.idNumber || '',
+  }))
+
+  const openPasses = (passes || [])
+    .filter((p) => ['REQUESTED', 'APPROVED', 'ISSUED', 'IN_TRANSIT'].includes(String(p.status || '').toUpperCase()))
+    .map((p) => ({
+      id: p._id || p.id,
+      passNumber: p.passNumber,
+      batchId: p.batchId || p.batch?._id,
+      batchNumber: p.batchNumber || p.batch?.batchNumber,
+      fromDepartment: p.fromDepartment,
+      toDepartment: p.toDepartment,
+      weight: numOrNull(p.weight),
+      status: p.status,
+    }))
 
   const holderStats = new Map()
   ;(liveBatches || []).forEach((b) => {
@@ -673,6 +865,29 @@ export function buildDashboardModel({
         products: [],
       }
 
+  const vaultLines = (vaultProducts.length
+    ? vaultProducts
+    : [{
+        product: 'Vault',
+        metalType: 'Gold',
+        purity: '',
+        availableWeight: availableWeightResolved || 0,
+        totalWeight: availableWeightResolved || 0,
+        inventoryItemId: null,
+        newStockWeight: pccNew || 0,
+      }].filter((r) => (r.availableWeight || r.totalWeight) > 0)
+  ).map((row, idx) => ({
+    id: row.inventoryItemId || `vault-${idx}`,
+    label: [row.metalType, row.purity, row.product].filter(Boolean).join(' · ') || 'Stock',
+    metalType: row.metalType || 'Gold',
+    purity: row.purity || '',
+    product: row.product || '',
+    weight: row.availableWeight > 0 ? row.availableWeight : row.totalWeight,
+    availableWeight: row.availableWeight || 0,
+    newStockWeight: row.newStockWeight || 0,
+    inventoryItemId: row.inventoryItemId || null,
+  }))
+
   const role = me?.productionRole || me?.role || null
   const online = activeCount > 0 || (Array.isArray(operators) && operators.length > 0)
 
@@ -754,6 +969,14 @@ export function buildDashboardModel({
     stockSummary,
     batchMonitorRows,
     alertItems,
+    operatorPresenceRows,
+    vaultLines,
+    reconciliationRows,
+    mismatchAlerts,
+    metalMovementRows,
+    batchOptions,
+    employeeOptions,
+    openPasses,
     deptRows,
     employeeRatings,
     statusSummary,
@@ -768,6 +991,10 @@ export function buildDashboardModel({
       canIssue: canPcc(role, 'issueMetal'),
       canReceive: canPcc(role, 'receivePass'),
       canApprove: canPcc(role, 'approvePass'),
+      canCreatePass: canPcc(role, 'createPass'),
+      canFloorSession: canPcc(role, 'floorSession'),
+      canResolveAlert: canPcc(role, 'resolveAlert'),
+      canCreateBatch: canPcc(role, 'createBatch'),
     },
     hasAnyFloorData: Boolean(summaryRes || boardRes || widgetsRes),
   }

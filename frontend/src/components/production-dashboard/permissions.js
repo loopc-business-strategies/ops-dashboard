@@ -21,6 +21,8 @@ export const PCC_PERMISSIONS = {
   viewAudit: ['production_manager', 'floor_manager'],
   viewReports: ['production_manager', 'floor_manager'],
   manageShifts: ['production_manager'],
+  floorSession: ['production_manager', 'floor_manager'],
+  manageStock: ['production_manager', 'floor_manager', 'vault_officer'],
 }
 
 export function canPcc(role, permission) {

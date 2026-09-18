@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { productionControlApi } from '../../api/productionControl'
 import hrAPI from '../../api/hr'
 import { useAuth } from '../../context/AuthContext'
@@ -19,7 +19,6 @@ export function summarizeDeptPerf(res) {
       acc.weightOut += weightOut
       acc.scrap += scrap
       acc.loss += loss
-      // Approx input when only output weights exist on dept rows
       acc.weightIn += weightOut + loss + scrap
       return acc
     },
@@ -48,20 +47,30 @@ function monthRanges() {
   }
 }
 
+function errMsg(err, fallback) {
+  return err?.response?.data?.message || err?.message || fallback
+}
+
 /**
- * Progressive Production Dashboard loader.
- * Wave A paints fast; week uses 2 range APIs; month is lazy.
+ * Progressive Production Dashboard loader + floor actions.
  */
 export function useProductionDashboard({ refreshMs = 45000 } = {}) {
   const { company, user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [actionError, setActionError] = useState(null)
+  const [actionBusy, setActionBusy] = useState(false)
   const [model, setModel] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [connection, setConnection] = useState('OFFLINE')
   const [periodLoading, setPeriodLoading] = useState({ month: false })
   const [stockLedger, setStockLedger] = useState([])
   const [stockLedgerLoading, setStockLedgerLoading] = useState(false)
+  const [metalMovements, setMetalMovements] = useState([])
+  const [selectedDeptKey, setSelectedDeptKey] = useState(null)
+  const [selectedBatchId, setSelectedBatchId] = useState(null)
+  const [batchDetail, setBatchDetail] = useState(null)
+  const [deptDetail, setDeptDetail] = useState(null)
   const abortRef = useRef(null)
   const softTimerRef = useRef(null)
   const payloadRef = useRef({})
@@ -73,6 +82,9 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       : user
     const passes = payload.passesRes?.passes || payload.passesRes?.data || (Array.isArray(payload.passesRes) ? payload.passesRes : [])
     const processes = payload.processesRes?.processes || payload.processesRes?.data || (Array.isArray(payload.processesRes) ? payload.processesRes : [])
+    const movements = payload.metalMovements
+      || payload.movementsRes?.movements
+      || (Array.isArray(payload.movementsRes) ? payload.movementsRes : [])
     return buildDashboardModel({
       summaryRes: payload.summaryRes,
       boardRes: payload.boardRes,
@@ -97,6 +109,8 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       me,
       stockOverview: payload.stockOverview,
       alertsRes: payload.alertsRes,
+      weightVarianceRes: payload.weightVarianceRes,
+      metalMovements: movements,
     })
   }, [user])
 
@@ -104,7 +118,39 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     payloadRef.current = { ...payloadRef.current, ...partial }
     setModel(assemble(payloadRef.current))
     setLastUpdated(new Date())
+    if (partial.metalMovements || partial.movementsRes) {
+      const moves = partial.metalMovements
+        || partial.movementsRes?.movements
+        || (Array.isArray(partial.movementsRes) ? partial.movementsRes : null)
+      if (moves) setMetalMovements(moves)
+    }
   }, [assemble])
+
+  const refreshLedgerAndStock = useCallback(async (signal) => {
+    setStockLedgerLoading(true)
+    const [stockMoveRes, movementsRes, stockOverview, weightVarianceRes, floorSessions, alertsRes, passesRes] = await Promise.all([
+      productionControlApi.reportStockMovement({ limit: 120 }, { signal }).catch(() => null),
+      productionControlApi.listMovements({ limit: 80 }, { signal }).catch(() => null),
+      productionControlApi.getStockOverview({ signal }).catch(() => null),
+      productionControlApi.reportWeightVariance({ limit: 100 }, { signal }).catch(() => null),
+      productionControlApi.listFloorSessions({ status: 'OPEN' }, { signal }).catch(() => null),
+      productionControlApi.listAlerts({ limit: 20, status: 'OPEN' }, { signal }).catch(() => null),
+      productionControlApi.listPasses({ limit: 50 }, { signal }).catch(() => null),
+    ])
+    if (signal?.aborted) return
+    const ledger = stockMoveRes?.report?.ledger || stockMoveRes?.ledger || []
+    setStockLedger(Array.isArray(ledger) ? ledger : [])
+    setStockLedgerLoading(false)
+    publish({
+      stockOverview,
+      weightVarianceRes,
+      floorSessions,
+      alertsRes,
+      passesRes,
+      movementsRes,
+      metalMovements: movementsRes?.movements || [],
+    })
+  }, [publish])
 
   const loadCore = useCallback(async ({ soft = false } = {}) => {
     if (abortRef.current) abortRef.current.abort()
@@ -117,7 +163,6 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     try {
       const today = dayKey()
 
-      // Wave A — first paint
       const [summaryRes, boardRes, widgetsRes, shiftRes, flowRes, todayReport, meRes] = await Promise.all([
         productionControlApi.getLiveFloorSummary({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorBoard({ signal: ac.signal }).catch(() => null),
@@ -146,8 +191,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       })
       if (!soft) setLoading(false)
 
-      // Wave B — enrich
-      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes, stockOverview, alertsRes] = await Promise.all([
+      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes, stockOverview, alertsRes, weightVarianceRes, movementsRes] = await Promise.all([
         productionControlApi.reportDaily({ date: dayKey(addDays(new Date(), -1)) }, { signal: ac.signal }).catch(() => null),
         productionControlApi.listDepartments({ signal: ac.signal }).catch(() => null),
         productionControlApi.listFloorSessions({ status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
@@ -156,6 +200,8 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.listProcesses({ limit: 50 }, { signal: ac.signal }).catch(() => null),
         productionControlApi.getStockOverview({ signal: ac.signal }).catch(() => null),
         productionControlApi.listAlerts({ limit: 20, status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
+        productionControlApi.reportWeightVariance({ limit: 100 }, { signal: ac.signal }).catch(() => null),
+        productionControlApi.listMovements({ limit: 80 }, { signal: ac.signal }).catch(() => null),
       ])
       if (ac.signal.aborted) return
       publish({
@@ -167,6 +213,9 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         processesRes,
         stockOverview,
         alertsRes,
+        weightVarianceRes,
+        movementsRes,
+        metalMovements: movementsRes?.movements || [],
       })
 
       setStockLedgerLoading(true)
@@ -179,7 +228,6 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         setStockLedgerLoading(false)
       }
 
-      // Wave C — week comparisons (2 range APIs, not 14 daily)
       const thisWeekRange = rangeDates(0, 7)
       const lastWeekRange = rangeDates(7, 7)
       const [thisWeekPerf, lastWeekPerf] = await Promise.all([
@@ -200,7 +248,6 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
 
   const softRefreshFloor = useCallback(async () => {
     const ac = new AbortController()
-    // Don't abort core loads mid-flight for soft refresh; use a separate short fetch
     try {
       const [summaryRes, boardRes, widgetsRes, shiftRes] = await Promise.all([
         productionControlApi.getLiveFloorSummary({ signal: ac.signal }).catch(() => null),
@@ -214,6 +261,149 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       /* ignore soft refresh errors */
     }
   }, [publish])
+
+  const afterWrite = useCallback(async () => {
+    await softRefreshFloor()
+    await refreshLedgerAndStock()
+  }, [softRefreshFloor, refreshLedgerAndStock])
+
+  const withAction = useCallback(async (fn) => {
+    setActionBusy(true)
+    setActionError(null)
+    try {
+      const result = await fn()
+      await afterWrite()
+      return result
+    } catch (err) {
+      const message = errMsg(err, 'Action failed')
+      setActionError(message)
+      throw err
+    } finally {
+      setActionBusy(false)
+    }
+  }, [afterWrite])
+
+  const selectBatch = useCallback(async (batchId) => {
+    setSelectedBatchId(batchId || null)
+    setBatchDetail(null)
+    if (!batchId) return null
+    try {
+      const [batchRes, traceRes] = await Promise.all([
+        productionControlApi.getBatch(batchId).catch(() => null),
+        productionControlApi.getTraceability({ batchId }).catch(() => null),
+      ])
+      const batch = batchRes?.batch || batchRes
+      const detail = {
+        batch,
+        trace: traceRes?.trace || traceRes?.report || traceRes || null,
+        movements: (metalMovements || []).filter(
+          (m) => String(m.batchId) === String(batchId)
+            || String(m.batchNumber) === String(batch?.batchNumber || ''),
+        ),
+      }
+      setBatchDetail(detail)
+      return detail
+    } catch (err) {
+      setActionError(errMsg(err, 'Failed to load batch'))
+      return null
+    }
+  }, [metalMovements])
+
+  const viewDepartment = useCallback(async (deptKey) => {
+    if (!deptKey) {
+      setDeptDetail(null)
+      return null
+    }
+    setSelectedDeptKey(deptKey)
+    try {
+      const res = await productionControlApi.getDepartment(deptKey).catch(() => null)
+      const detail = res?.department || res || { key: deptKey }
+      setDeptDetail(detail)
+      return detail
+    } catch (err) {
+      setActionError(errMsg(err, 'Failed to load department'))
+      return null
+    }
+  }, [])
+
+  const actions = useMemo(() => ({
+    selectDepartment: (key) => {
+      setSelectedDeptKey(key || null)
+      if (!key) setDeptDetail(null)
+    },
+    clearDepartment: () => {
+      setSelectedDeptKey(null)
+      setDeptDetail(null)
+    },
+    viewDepartment,
+    selectBatch,
+    metalTransfer: ({ batchId, fromDepartment, toDepartment, weight, receiveWeight, mode }) => withAction(async () => {
+      if (mode === 'receive' || mode === 'in') {
+        const open = (payloadRef.current.passesRes?.passes || [])
+          .find((p) => {
+            const st = String(p.status || '').toUpperCase()
+            if (!['ISSUED', 'IN_TRANSIT', 'APPROVED'].includes(st)) return false
+            if (batchId && String(p.batchId) !== String(batchId)) return false
+            if (toDepartment && String(p.toDepartment || '').toLowerCase() !== String(toDepartment).toLowerCase()) return false
+            return true
+          })
+        if (!open?._id && !open?.id) throw new Error('No open pass to receive for this department/batch')
+        const passId = open._id || open.id
+        return productionControlApi.receivePass(passId, {
+          receivedWeight: Number(receiveWeight ?? weight),
+        })
+      }
+      const { pass } = await productionControlApi.createPass({
+        batchId,
+        fromDepartment: fromDepartment || undefined,
+        toDepartment,
+        weight: Number(weight),
+      })
+      const passId = pass._id || pass.id
+      try {
+        await productionControlApi.approvePass(passId)
+      } catch {
+        /* approve may already be done or not required for role */
+      }
+      await productionControlApi.issuePass(passId, {})
+      return pass
+    }),
+    receiveOpenPass: ({ passId, receivedWeight }) => withAction(async () => (
+      productionControlApi.receivePass(passId, { receivedWeight: Number(receivedWeight) })
+    )),
+    operatorIn: ({ employeeId } = {}) => withAction(async () => (
+      productionControlApi.floorLogin({ employeeId: employeeId || undefined })
+    )),
+    operatorOut: () => withAction(async () => (
+      productionControlApi.floorLogout({})
+    )),
+    issueMetal: ({ batchId, inventoryItemId, weight, purpose }) => withAction(async () => (
+      productionControlApi.issueFromVault(batchId, {
+        inventoryItemId: inventoryItemId || undefined,
+        weight: Number(weight),
+        purpose: purpose || 'Dashboard vault issue',
+      })
+    )),
+    createBatchForIssue: ({ metalType, purity, targetWeight, inventoryItemId }) => withAction(async () => (
+      productionControlApi.createBatch({
+        metalType: metalType || 'Gold',
+        purity: purity || '',
+        initialWeight: Number(targetWeight),
+        inventoryItemId: inventoryItemId || undefined,
+      })
+    )),
+    acknowledgeAlert: (id) => withAction(async () => productionControlApi.acknowledgeAlert(id)),
+    resolveAlert: (id) => withAction(async () => productionControlApi.resolveAlert(id)),
+    listAwaitingBatches: async () => {
+      const res = await productionControlApi.listBatches({ status: 'AWAITING_ISSUE', limit: 40 }).catch(() => null)
+      const created = await productionControlApi.listBatches({ status: 'CREATED', limit: 40 }).catch(() => null)
+      const a = res?.batches || res?.data || []
+      const b = created?.batches || created?.data || []
+      const map = new Map()
+      ;[...a, ...b].forEach((row) => map.set(String(row._id || row.id), row))
+      return [...map.values()]
+    },
+  }), [withAction, viewDepartment, selectBatch])
 
   const ensurePeriod = useCallback(async (period) => {
     if (period !== 'month') return
@@ -289,12 +479,21 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
   return {
     loading,
     error,
+    actionError,
+    actionBusy,
+    clearActionError: () => setActionError(null),
     model,
     lastUpdated,
     connection,
     periodLoading,
     stockLedger,
     stockLedgerLoading,
+    metalMovements,
+    selectedDeptKey,
+    selectedBatchId,
+    batchDetail,
+    deptDetail,
+    actions,
     ensurePeriod,
     refresh: () => {
       monthLoadedRef.current = false
