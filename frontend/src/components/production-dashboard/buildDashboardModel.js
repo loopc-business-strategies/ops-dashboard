@@ -467,19 +467,6 @@ export function buildDashboardModel({
   const selectedBatch = liveBatches[0] || null
   const timeline = timelineState(selectedBatch, stages)
 
-  const deptRows = deptCards.map((c) => ({
-    department: c.name,
-    key: c.key,
-    batch: c.batchNumber,
-    batchId: c.batchId,
-    employee: c.employeeName || c.employeeCode,
-    quantity: c.quantity,
-    input: c.metalIn,
-    output: c.metalOut,
-    timeTakenMin: c.timeTakenMin,
-    status: c.status,
-  }))
-
   const batchMonitorRows = (liveBatches || []).slice(0, 40).map((b) => {
     const delayed = delayedIds.has(String(b._id || b.id))
     const mapped = mapBatchStatus(b, delayed)
