@@ -71,7 +71,7 @@ export default function KpiRow({ model }) {
     : '—'
   const vaultHint = newW > 0 ? `New ${formatGrams(newW)}` : null
   const vaultLines = (Array.isArray(vault.products) ? vault.products : [])
-    .slice(0, 6)
+    .slice(0, 2)
     .map((row, idx) => ({
       key: row.inventoryItemId || `${row.product}-${row.metalType}-${idx}`,
       text: vaultProductLine(row),

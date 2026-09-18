@@ -18,6 +18,7 @@
   --pd-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
 
   box-sizing: border-box;
+  position: relative;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
@@ -683,13 +684,14 @@
 }
 
 @media (max-width: 1280px) {
-  .pd-page {
+  /* Keep fullscreen Production Dashboard viewport-locked; only densify grids. */
+  .pd-page:not(:has(.pd-layout--control-center)) {
     overflow: auto;
     height: auto;
     max-height: none;
   }
 
-  .pd-layout {
+  .pd-layout:not(.pd-layout--control-center) {
     overflow: visible;
     grid-template-rows: auto;
   }
@@ -737,7 +739,7 @@
 
 .pd-layout--reference {
   grid-template-rows: auto auto auto minmax(0, 1fr);
-  overflow: auto;
+  overflow: hidden;
 }
 
 .pd-header--navy {
@@ -1639,9 +1641,35 @@
 }
 
 .pd-layout--control-center {
-  grid-template-rows: auto auto auto auto minmax(0, 1.1fr) minmax(0, 1.2fr);
-  gap: 0.5rem;
-  overflow: auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.35rem;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.pd-layout--control-center .pd-panel {
+  padding: 0.4rem 0.5rem;
+}
+
+.pd-layout--control-center .pd-panel-head {
+  margin-bottom: 0.25rem;
+}
+
+.pd-layout--control-center .pd-kpi-strip {
+  gap: 0.35rem;
+}
+
+.pd-layout--control-center .pd-kpi-compact {
+  padding: 0.35rem 0.45rem;
+}
+
+.pd-layout--control-center .pd-kpi-compact-value {
+  font-size: 0.92rem;
+}
+
+.pd-layout--control-center .pd-kpi-compact-lines {
+  max-height: 2.2em;
+  overflow: hidden;
 }
 
 .pd-panel-hint {
@@ -1655,28 +1683,93 @@
   gap: 0.3rem;
 }
 
-.pd-live-metal .pd-flow-rail--live {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0.35rem;
-  overflow-x: auto;
-  padding-bottom: 0.15rem;
+/* Live Metal — compact single-line chip rail */
+.pd-live-metal {
+  padding: 0.3rem 0.5rem !important;
 }
 
-.pd-flow-node {
+.pd-live-metal .pd-panel-head {
+  display: none;
+}
+
+.pd-live-metal .pd-flow-rail--live {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding: 0;
+  min-height: 0;
+}
+
+.pd-live-metal .pd-flow-stage {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.pd-live-metal .pd-flow-arrow {
+  font-size: 11px;
+  color: var(--pd-muted);
+  flex-shrink: 0;
+}
+
+.pd-live-metal .pd-flow-node,
+.pd-flow-node--chip {
   border: 1px solid var(--pd-border);
   background: #f8fafc;
-  border-radius: 9px;
-  padding: 0.45rem 0.55rem;
-  min-width: 7.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem 0.2rem 0.35rem;
+  min-width: 0;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
   text-align: left;
   cursor: pointer;
   color: inherit;
   font: inherit;
+  white-space: nowrap;
+  height: 1.85rem;
+}
+
+.pd-live-metal .pd-flow-node-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.pd-live-metal .pd-flow-node-icon .pd-icon {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.pd-live-metal .pd-flow-node strong {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pd-live-metal .pd-flow-weight {
+  font-size: 10.5px;
+  color: var(--pd-text);
+  font-weight: 600;
+}
+
+.pd-live-metal .pd-flow-io {
+  display: none;
+}
+
+.pd-live-metal .pd-flow-status {
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .pd-flow-node--active {
@@ -1709,9 +1802,27 @@
 
 .pd-dept-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 11.5rem;
-  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) 9.5rem;
+  gap: 0.35rem;
   min-height: 0;
+}
+
+.pd-layout--control-center .pd-dept-card {
+  padding: 0.35rem 0.45rem;
+  gap: 0.25rem;
+}
+
+.pd-layout--control-center .pd-dept-name {
+  font-size: 11.5px;
+}
+
+.pd-layout--control-center .pd-dept-meta--ref {
+  gap: 0.1rem 0.35rem;
+  font-size: 10.5px;
+}
+
+.pd-layout--control-center .pd-dept-meta--ref dt {
+  font-size: 9px;
 }
 
 .pd-dept-card--selected {
@@ -1737,15 +1848,15 @@
 .pd-quick-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  margin-top: 0.35rem;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
 }
 
 .pd-quick-btn {
   border: none;
-  border-radius: 9px;
-  padding: 0.7rem 0.55rem;
-  font-size: 12px;
+  border-radius: 8px;
+  padding: 0.4rem 0.4rem;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   color: #fff;
@@ -1769,15 +1880,16 @@
 .pd-mid-quad {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.5rem;
-  min-height: 220px;
+  gap: 0.35rem;
+  min-height: 0;
 }
 
 .pd-mid-quad > .pd-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: 280px;
+  max-height: none;
+  overflow: hidden;
 }
 
 .pd-table-wrap--compact {
@@ -1896,7 +2008,8 @@
 
 .pd-row-bottom-terminal {
   grid-template-columns: 1.55fr 1fr;
-  min-height: 240px;
+  min-height: 0;
+  gap: 0.35rem;
 }
 
 .pd-batch-trace,
@@ -1904,7 +2017,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: 360px;
+  max-height: none;
+  overflow: hidden;
 }
 
 .pd-batch-trace-layout {
@@ -2005,6 +2119,11 @@
 .pd-terminal-btn--metal-out { background: #ea580c; }
 
 .pd-dept-drawer {
+  position: absolute;
+  left: 0.85rem;
+  right: 0.85rem;
+  top: 4.5rem;
+  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2013,6 +2132,7 @@
   background: var(--pd-primary-soft);
   border: 1px solid #a7f3d0;
   border-radius: 8px;
+  box-shadow: var(--pd-shadow);
 }
 
 .pd-modal-backdrop {
@@ -2117,6 +2237,10 @@
   .pd-row-bottom-terminal,
   .pd-batch-trace-layout {
     grid-template-columns: 1fr;
+  }
+
+  .pd-layout--control-center {
+    overflow: auto;
   }
 
   .pd-mid-quad > .pd-panel,

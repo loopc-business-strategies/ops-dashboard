@@ -304,6 +304,8 @@ export function buildDashboardModel({
   const liveBatches = (rawBoardBatches || []).filter(
     (b) => !TERMINAL_BATCH_STATUSES.has(String(b.status || '').toUpperCase()),
   )
+  /** Floor is connected only when non-terminal batches exist; until then show ERP vault only. */
+  const hasLiveProduction = liveBatches.length > 0
   const departments = deptsRes?.departments || widgetsRes?.departments || summaryRes?.departments || []
   const delayedIds = new Set(
     (summaryRes?.delayedBatchIds || boardRes?.delayedBatchIds || []).map((id) => String(id)),
@@ -325,7 +327,7 @@ export function buildDashboardModel({
       const hit = matchEmployee(empList, n)
       return hit?.employeeCode || hit?.idNumber || n
     })
-    : activeEmployees.slice(0, 12).map((e) => e.employeeCode || e.idNumber || e.name)
+    : []
   ).filter(Boolean)
 
   const today = reportSummary(todayReport)
@@ -595,10 +597,6 @@ export function buildDashboardModel({
     ? floorSessions.sessions
     : (Array.isArray(floorSessions) ? floorSessions : [])
   const openSessions = sessionList.filter((s) => String(s.status || '').toUpperCase() === 'OPEN')
-  const onDutyNames = new Set([
-    ...operatorNames.map((n) => String(n).toLowerCase()),
-    ...openSessions.map((s) => String(s.name || personName(s) || '').toLowerCase()).filter(Boolean),
-  ])
 
   const operatorPresenceRows = (() => {
     const rows = []
@@ -636,23 +634,7 @@ export function buildDashboardModel({
         sessionId: null,
       })
     })
-    activeEmployees.slice(0, 24).forEach((e) => {
-      const key = String(e._id || e.id || e.name).toLowerCase()
-      if (seen.has(key)) return
-      const nameKey = String(e.name || '').toLowerCase()
-      if (onDutyNames.has(nameKey)) return
-      seen.add(key)
-      rows.push({
-        id: String(e._id || e.id || key),
-        employeeId: e._id || e.id || null,
-        employee: e.name || 'Employee',
-        department: e.department || '—',
-        direction: 'OUT',
-        time: null,
-        status: 'Off Duty',
-        sessionId: null,
-      })
-    })
+    // Do not pad with HR Off Duty employees — that looks like fake floor data.
     return rows.slice(0, 40)
   })()
 
@@ -828,9 +810,12 @@ export function buildDashboardModel({
   const pccNew = numOrNull(vaultSource?.newStock?.weight)
   const pccAvail = numOrNull(vaultSource?.available?.weight)
   const erpVaultW = numOrNull(vaultSource?.erpVault?.weight)
-  const availableWeightResolved = (Number(pccAvail) || 0) > 0
-    ? pccAvail
-    : ((Number(pccNew) || 0) <= 0 && erpVaultW != null ? erpVaultW : pccAvail)
+  // Prefer ERP vault until production floor is connected (avoid leftover PCC lots polluting headline).
+  const availableWeightResolved = !hasLiveProduction && erpVaultW != null
+    ? erpVaultW
+    : ((Number(pccAvail) || 0) > 0
+      ? pccAvail
+      : ((Number(pccNew) || 0) <= 0 && erpVaultW != null ? erpVaultW : pccAvail))
   const vaultProductsRaw = Array.isArray(vaultSource?.vaultProducts) ? vaultSource.vaultProducts : []
   const vaultProducts = vaultProductsRaw
     .map((row) => ({
@@ -846,13 +831,14 @@ export function buildDashboardModel({
     .sort((a, b) => (b.availableWeight || b.totalWeight) - (a.availableWeight || a.totalWeight))
   const vaultKpi = vaultSource
     ? {
-        newStockWeight: pccNew,
-        newStockCount: numOrNull(vaultSource.newStock?.count),
-        /** Headline = Available (PCC AVAILABLE, else ERP fallback) — not NEW+AVAILABLE sum */
+        newStockWeight: hasLiveProduction ? pccNew : null,
+        newStockCount: hasLiveProduction ? numOrNull(vaultSource.newStock?.count) : null,
         availableWeight: availableWeightResolved,
-        availableCount: numOrNull(vaultSource.available?.count),
-        underProcessingWeight: numOrNull(vaultSource.underProcessing?.weight),
-        underProcessingCount: numOrNull(vaultSource.underProcessing?.count),
+        availableCount: hasLiveProduction
+          ? numOrNull(vaultSource.available?.count)
+          : numOrNull(vaultSource.erpVault?.count),
+        underProcessingWeight: hasLiveProduction ? numOrNull(vaultSource.underProcessing?.weight) : null,
+        underProcessingCount: hasLiveProduction ? numOrNull(vaultSource.underProcessing?.count) : null,
         products: vaultProducts,
       }
     : {
@@ -889,41 +875,127 @@ export function buildDashboardModel({
   }))
 
   const role = me?.productionRole || me?.role || null
-  const online = activeCount > 0 || (Array.isArray(operators) && operators.length > 0)
+  const online = hasLiveProduction && (activeCount > 0 || (Array.isArray(operators) && operators.length > 0))
+
+  const idleDeptCards = DASHBOARD_DEPARTMENTS.map((dept) => ({
+    key: dept.key,
+    name: dept.label,
+    status: 'Idle',
+    batchId: null,
+    batchNumber: null,
+    employeeName: null,
+    employeeCode: null,
+    employeeCount: null,
+    floorManager: null,
+    shiftName: shift?.name || shift?.shiftName || null,
+    startedAt: null,
+    completedAt: null,
+    elapsedMin: null,
+    metalIn: null,
+    metalOut: null,
+    metalBalance: null,
+    metalLoss: null,
+    lossPct: null,
+    confirmState: null,
+    passId: null,
+    passStatus: null,
+    progress: { mode: 'determinate', percent: 0 },
+    quantity: null,
+    timeTakenMin: null,
+    hasData: false,
+    isMelting: dept.key === 'melting',
+    isAssembly: dept.key === 'assembly',
+    tableCount: dept.tableCount || null,
+    activeBatchCount: 0,
+    flowStatus: 'Idle',
+  }))
+
+  const idleAssemblyTables = Array.from({ length: ASSEMBLY_TABLE_COUNT }, (_, i) => ({
+    tableNo: i + 1,
+    label: `Table ${i + 1}`,
+    status: 'Idle',
+    batchId: null,
+    batchNumber: null,
+    quantity: null,
+    employeeName: null,
+    elapsedMin: null,
+  }))
+
+  const erpVaultWeight = availableWeightResolved
+  const idleMaterialFlow = MATERIAL_FLOW_STEPS.map((step) => {
+    if (step.key === 'vault') {
+      const w = erpVaultWeight
+      return {
+        ...step,
+        weight: w,
+        metalIn: null,
+        metalOut: null,
+        status: w != null && w > 0 ? 'STABLE' : 'Idle',
+      }
+    }
+    return { ...step, weight: null, metalIn: null, metalOut: null, status: 'Idle' }
+  })
+
+  const emptyRecon = DASHBOARD_DEPARTMENTS.map((dept) => ({
+    key: dept.key,
+    department: dept.label,
+    system: null,
+    physical: null,
+    diff: null,
+    flagged: false,
+  }))
+
+  const outDeptCards = hasLiveProduction ? deptCards : idleDeptCards
+  const outAssembly = hasLiveProduction ? assemblyTables : idleAssemblyTables
+  const outMaterialFlow = hasLiveProduction ? materialFlow : idleMaterialFlow
+  const outBatchRows = hasLiveProduction ? batchMonitorRows : []
+  const outAlerts = hasLiveProduction ? alertItems : []
+  const outPresence = hasLiveProduction ? operatorPresenceRows : []
+  const outMovements = hasLiveProduction ? metalMovementRows : []
+  const outRecon = hasLiveProduction ? reconciliationRows : emptyRecon
+  const outMismatch = hasLiveProduction ? mismatchAlerts : []
+  const outBatchOptions = hasLiveProduction ? batchOptions : []
+  const outOpenPasses = hasLiveProduction ? openPasses : []
+  const outLiveCards = hasLiveProduction ? liveCards : idleDeptCards
 
   return {
+    hasLiveProduction,
     header: {
       title: 'PRODUCTION CONTROL CENTER',
       subtitle: 'Jewelry & Precious Metal Manufacturing',
       dateLabel: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
       timeLabel: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: online ? 'Factory Online — Systems Active' : (completedBatches > 0 ? 'Factory Online — Idle' : 'No production activity today'),
+      status: online
+        ? 'Factory Online — Systems Active'
+        : (hasLiveProduction
+          ? 'Factory Online — Idle'
+          : 'Vault connected · Production not connected'),
       statusTone: online ? 'ok' : 'muted',
       shiftName: shift?.name || shift?.shiftName || null,
       shiftStart: shift?.startTime || shift?.startLabel || null,
       shiftEnd: shift?.endTime || shift?.endLabel || null,
-      floorManager,
-      employeeCount: Array.isArray(operators) ? operators.length : (activeEmployees.length || null),
-      activeBatches: activeCount,
-      totalBatches: totalBatchesToday,
+      floorManager: hasLiveProduction ? floorManager : null,
+      employeeCount: hasLiveProduction ? (Array.isArray(operators) ? operators.length : null) : null,
+      activeBatches: hasLiveProduction ? activeCount : 0,
+      totalBatches: hasLiveProduction ? totalBatchesToday : null,
     },
     compactKpis: {
-      employees: Array.isArray(operators) ? operators.length : (empList.length || null),
-      floorManager: floorManager || null,
+      employees: hasLiveProduction ? (Array.isArray(operators) ? operators.length : null) : null,
+      floorManager: hasLiveProduction ? (floorManager || null) : null,
       currentShift: shift?.name || shift?.shiftName || null,
-      vaultNewStock: vaultKpi.newStockWeight ?? vaultNewStock,
+      vaultNewStock: vaultKpi.newStockWeight,
       vaultAvailable: vaultKpi.availableWeight ?? stockSummary.vaultAvailable,
-      totalProductionToday: weightIn ?? weightOut,
-      underProduction: remainingWeight ?? underProcessing,
-      totalOutput: weightOut,
-      yesterdayVsToday: dayDelta,
-      weeklyComparison: weekDelta,
+      totalProductionToday: hasLiveProduction ? (weightIn ?? weightOut) : null,
+      underProduction: hasLiveProduction ? (remainingWeight ?? underProcessing) : null,
+      totalOutput: hasLiveProduction ? weightOut : null,
+      yesterdayVsToday: hasLiveProduction ? dayDelta : null,
+      weeklyComparison: hasLiveProduction ? weekDelta : null,
     },
     employeeKpi: {
-      total: empList.length || (Array.isArray(operators) ? operators.length : null),
-      active: Array.isArray(operators) ? operators.length : (activeEmployees.length || null),
-      idRange: empCodes,
-      floorManager,
+      total: hasLiveProduction ? (empList.length || (Array.isArray(operators) ? operators.length : null)) : null,
+      active: hasLiveProduction ? (Array.isArray(operators) ? operators.length : null) : null,
+      idRange: hasLiveProduction ? empCodes : [],
+      floorManager: hasLiveProduction ? floorManager : null,
     },
     shiftKpi: {
       name: shift?.name || shift?.shiftName || null,
@@ -932,60 +1004,83 @@ export function buildDashboardModel({
       elapsedMin: numOrNull(shift?.timeElapsedMinutes),
       remainingMin: numOrNull(shift?.timeRemainingMinutes),
       progress: shiftProgressPercent(shift?.timeElapsedMinutes, shift?.timeRemainingMinutes),
-      floorManager,
+      floorManager: hasLiveProduction ? floorManager : null,
     },
     productionTodayKpi: {
-      processedQty: weightIn,
-      productionWeight: weightOut,
-      completedBatches,
-      totalBatches: totalBatchesToday,
+      processedQty: hasLiveProduction ? weightIn : null,
+      productionWeight: hasLiveProduction ? weightOut : null,
+      completedBatches: hasLiveProduction ? completedBatches : null,
+      totalBatches: hasLiveProduction ? totalBatchesToday : null,
     },
     outputKpi: {
-      inputWeight: weightIn,
-      outputWeight: weightOut,
-      outputQuantity: weightOut,
-      completion: completionPercent(completedBatches, totalBatchesToday),
+      inputWeight: hasLiveProduction ? weightIn : null,
+      outputWeight: hasLiveProduction ? weightOut : null,
+      outputQuantity: hasLiveProduction ? weightOut : null,
+      completion: hasLiveProduction ? completionPercent(completedBatches, totalBatchesToday) : null,
     },
     underProductionKpi: {
-      activeBatches: activeCount,
-      pendingQuantity: numOrNull(today.pending) ?? numOrNull(kpis.waiting),
-      remainingWeight,
+      activeBatches: hasLiveProduction ? activeCount : 0,
+      pendingQuantity: hasLiveProduction ? (numOrNull(today.pending) ?? numOrNull(kpis.waiting)) : null,
+      remainingWeight: hasLiveProduction ? remainingWeight : null,
       estimatedCompletion: null,
     },
     vaultKpi,
     comparisons: {
-      day: dayCmp,
-      week: weekCmp,
-      month: buildComparison(thisMonth, lastMonth),
+      day: hasLiveProduction ? dayCmp : { available: false, metrics: null },
+      week: hasLiveProduction ? weekCmp : { available: false, metrics: null },
+      month: hasLiveProduction ? buildComparison(thisMonth, lastMonth) : { available: false, metrics: null },
     },
-    timeline,
-    selectedBatch: selectedBatch
+    timeline: hasLiveProduction ? timeline : timelineState(null, stages),
+    selectedBatch: hasLiveProduction && selectedBatch
       ? { id: selectedBatch._id || selectedBatch.id, batchNumber: selectedBatch.batchNumber, status: selectedBatch.status }
       : null,
-    liveCards,
-    deptCards,
-    assemblyTables,
-    materialFlow,
-    stockSummary,
-    batchMonitorRows,
-    alertItems,
-    operatorPresenceRows,
-    vaultLines,
-    reconciliationRows,
-    mismatchAlerts,
-    metalMovementRows,
-    batchOptions,
-    employeeOptions,
-    openPasses,
-    deptRows,
-    employeeRatings,
-    statusSummary,
-    totalsByPeriod: {
-      today: today.jobs != null || today.weightOut != null ? today : null,
-      week: thisWeek,
-      month: thisMonth,
+    liveCards: outLiveCards,
+    deptCards: outDeptCards,
+    assemblyTables: outAssembly,
+    materialFlow: outMaterialFlow,
+    stockSummary: {
+      ...stockSummary,
+      unprocessed: hasLiveProduction ? stockSummary.unprocessed : erpVaultWeight,
+      underProcessing: hasLiveProduction ? stockSummary.underProcessing : null,
+      finishedGoods: hasLiveProduction ? stockSummary.finishedGoods : null,
+      totalBalance: hasLiveProduction ? stockSummary.totalBalance : erpVaultWeight,
+      movementIn: hasLiveProduction ? stockSummary.movementIn : null,
+      movementOut: hasLiveProduction ? stockSummary.movementOut : null,
+      movementWip: hasLiveProduction ? stockSummary.movementWip : null,
+      vaultAvailable: vaultKpi.availableWeight ?? stockSummary.vaultAvailable,
     },
-    stages,
+    batchMonitorRows: outBatchRows,
+    alertItems: outAlerts,
+    operatorPresenceRows: outPresence,
+    vaultLines,
+    reconciliationRows: outRecon,
+    mismatchAlerts: outMismatch,
+    metalMovementRows: outMovements,
+    batchOptions: outBatchOptions,
+    employeeOptions,
+    openPasses: outOpenPasses,
+    deptRows: outDeptCards.map((c) => ({
+      department: c.name,
+      key: c.key,
+      batch: c.batchNumber,
+      batchId: c.batchId,
+      employee: c.employeeName || c.employeeCode,
+      quantity: c.quantity,
+      input: c.metalIn,
+      output: c.metalOut,
+      timeTakenMin: c.timeTakenMin,
+      status: c.status,
+    })),
+    employeeRatings: hasLiveProduction ? employeeRatings : [],
+    statusSummary: hasLiveProduction
+      ? statusSummary
+      : { active: 0, completed: 0, pending: 0, delayed: 0, stopped: 0 },
+    totalsByPeriod: {
+      today: hasLiveProduction && (today.jobs != null || today.weightOut != null) ? today : null,
+      week: hasLiveProduction ? thisWeek : null,
+      month: hasLiveProduction ? thisMonth : null,
+    },
+    stages: hasLiveProduction ? stages : MATERIAL_FLOW_STEPS,
     permissions: {
       role,
       canIssue: canPcc(role, 'issueMetal'),
@@ -996,7 +1091,7 @@ export function buildDashboardModel({
       canResolveAlert: canPcc(role, 'resolveAlert'),
       canCreateBatch: canPcc(role, 'createBatch'),
     },
-    hasAnyFloorData: Boolean(summaryRes || boardRes || widgetsRes),
+    hasAnyFloorData: Boolean(summaryRes || boardRes || widgetsRes || stockOverview),
   }
 }
 

@@ -109,7 +109,11 @@ export default function MetalMovementLedger({
               })}
             </tbody>
           </table>
-          {!metalRows.length ? <p className="pd-empty">No metal movements</p> : null}
+          {!metalRows.length ? (
+            <p className="pd-empty">
+              No metal movements
+            </p>
+          ) : null}
         </div>
       )}
     </section>

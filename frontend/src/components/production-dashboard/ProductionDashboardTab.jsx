@@ -58,13 +58,14 @@ export default function ProductionDashboardTab() {
   )
 
   useEffect(() => {
+    if (!model?.hasLiveProduction) return
     if (autoBatchRef.current || selectedBatchId || !model?.batchMonitorRows?.length) return
     const first = model.batchMonitorRows[0]
     if (first?.id) {
       autoBatchRef.current = true
       actions.selectBatch(first.id)
     }
-  }, [model?.batchMonitorRows, selectedBatchId, actions])
+  }, [model?.hasLiveProduction, model?.batchMonitorRows, selectedBatchId, actions])
 
   const openModal = (type, seed = {}) => {
     clearActionError?.()
@@ -242,8 +243,8 @@ export default function ProductionDashboardTab() {
           <div className="pd-mid-quad">
             <MetalMovementLedger
               rows={model.metalMovementRows}
-              stockLedger={stockLedger}
-              loading={stockLedgerLoading}
+              stockLedger={model.hasLiveProduction ? stockLedger : []}
+              loading={model.hasLiveProduction ? stockLedgerLoading : false}
               filterDept={selectedDeptKey || flowFilterKey}
               filterBatch={selectedBatchId}
               selectedId={selectedMovementId}

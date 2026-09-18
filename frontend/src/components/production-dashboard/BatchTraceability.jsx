@@ -156,7 +156,7 @@ export default function BatchTraceability({
               </ul>
             </>
           ) : (
-            <p className="pd-empty">Select a batch to view traceability</p>
+            <p className="pd-empty">No production connected</p>
           )}
         </div>
       </div>
