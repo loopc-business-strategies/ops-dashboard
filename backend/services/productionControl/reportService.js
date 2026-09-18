@@ -134,6 +134,7 @@ async function dailyProduction(query = {}) {
 }
 
 async function stockMovementReport(query = {}) {
+  const StockMovement = require('../../models/StockMovement')
   const limit = Math.min(500, Math.max(1, Number(query.limit) || 100))
   const filter = {}
   if (query.stockCode) filter.stockCode = new RegExp(String(query.stockCode).trim(), 'i')
@@ -151,6 +152,109 @@ async function stockMovementReport(query = {}) {
   const lots = await ProductionStockLot.find({ _id: { $in: lotIds } }).lean()
   const lotMap = Object.fromEntries(lots.map((l) => [String(l._id), l]))
 
+  const movFilter = { isDeleted: { $ne: true } }
+  if (query.fromDate || query.toDate) {
+    movFilter.createdAt = {}
+    if (query.fromDate) movFilter.createdAt.$gte = new Date(query.fromDate)
+    if (query.toDate) movFilter.createdAt.$lte = new Date(query.toDate)
+  }
+  if (query.search || query.q) {
+    const re = new RegExp(String(query.search || query.q).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    movFilter.$or = [{ itemName: re }, { reason: re }, { actorName: re }]
+  }
+  if (query.metal) {
+    movFilter.itemName = new RegExp(String(query.metal).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+  }
+
+  const stockMoves = await StockMovement.find(movFilter)
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean()
+
+  const parseVoucherRef = (reason) => {
+    const text = String(reason || '')
+    const m = text.match(/#\s*([A-Za-z]+\/\d{4}\/[^\s]+)/i)
+      || text.match(/#\s*([A-Za-z0-9/_-]+)/)
+    const voc = m ? m[1] : ''
+    let type = 'Adjustment'
+    let source = 'ERP'
+    const lower = text.toLowerCase()
+    if (lower.includes('purchase') || lower.includes('metal receipt')) {
+      type = 'Purchase'
+      source = 'ERP'
+    } else if (lower.includes('metal payment') || lower.includes('sale')) {
+      type = 'Customer OUT'
+      source = 'Customer'
+    } else if (lower.includes('production_issue') || lower.includes('production')) {
+      type = 'Production'
+      source = 'Batch'
+    } else if (lower.includes('return')) {
+      type = 'Production Return'
+      source = 'Batch'
+    } else if (lower.includes('void') || lower.includes('revers')) {
+      type = 'Reversal'
+      source = 'ERP'
+    }
+    return { type, source, reference: voc || text.slice(0, 48) }
+  }
+
+  const ledger = stockMoves.map((m) => {
+    const meta = parseVoucherRef(m.reason)
+    const change = Number(m.change || 0)
+    return {
+      id: String(m._id),
+      date: m.createdAt,
+      type: meta.type,
+      source: meta.source,
+      reference: meta.reference,
+      supplier: '',
+      metal: m.itemName || '',
+      purity: '',
+      inQty: change > 0 ? change : null,
+      outQty: change < 0 ? Math.abs(change) : null,
+      balance: Number(m.quantityAfter || 0),
+      actorName: m.actorName || '',
+      reason: m.reason || '',
+    }
+  })
+
+  // Enrich purchase rows with lot supplier/purity when purchaseRef matches.
+  const purchaseRefs = [...new Set(ledger.filter((r) => r.type === 'Purchase' && r.reference).map((r) => r.reference))]
+  if (purchaseRefs.length) {
+    const purchaseLots = await ProductionStockLot.find({
+      purchaseRef: { $in: purchaseRefs },
+    }).select('purchaseRef supplier purity metalType product').lean()
+    const byRef = Object.fromEntries(purchaseLots.map((l) => [String(l.purchaseRef), l]))
+    for (const row of ledger) {
+      const lot = byRef[row.reference]
+      if (!lot) continue
+      row.supplier = lot.supplier || row.supplier
+      row.purity = lot.purity || row.purity
+      if (lot.metalType) row.metal = `${lot.metalType}${lot.product ? ` · ${lot.product}` : ''}`
+    }
+  }
+
+  if (query.movementType) {
+    const want = String(query.movementType).toLowerCase()
+    const filtered = ledger.filter((r) => String(r.type).toLowerCase().includes(want))
+    return {
+      movements: events.map((e) => {
+        const lot = lotMap[String(e.stockLotId)] || {}
+        return {
+          stockCode: e.stockCode || lot.stockCode,
+          product: lot.product || '',
+          from: e.fromStatus || '—',
+          to: e.toStatus,
+          dateTime: e.createdAt,
+          user: e.actorName,
+          reason: e.reason,
+          batchNumber: e.batchNumber,
+        }
+      }),
+      ledger: filtered,
+    }
+  }
+
   return {
     movements: events.map((e) => {
       const lot = lotMap[String(e.stockLotId)] || {}
@@ -165,6 +269,7 @@ async function stockMovementReport(query = {}) {
         batchNumber: e.batchNumber,
       }
     }),
+    ledger,
   }
 }
 

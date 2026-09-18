@@ -33,10 +33,13 @@ function createTransactionWorkflowAction({
   canManageTransactionWorkflow,
   getTransactionPostingService,
 }) {
+  const { isMetalStockType } = require('../../utils/metalStockVoucherTypes')
+
   return async function applyTransactionWorkflowAction(tx, user, action, options = {}, session = null) {
     const note = normalizeTransactionNote(options.comment)
     const fromStatus = tx.status
     const saveOpts = session ? { session } : {}
+    const metalSaveSubmitOnly = isMetalStockType(tx?.type)
 
     if (action === 'submit') {
       if (!['draft', 'returned', 'rejected'].includes(tx.status)) throw new Error('Only draft, returned, or rejected transactions can be submitted')
@@ -59,6 +62,9 @@ function createTransactionWorkflowAction({
     }
 
     if (action === 'approve') {
+      if (metalSaveSubmitOnly) {
+        throw new Error('Metal stock vouchers use Save → Submit only. Approve is not available.')
+      }
       if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can approve transactions')
       if (tx.status !== 'submitted') throw new Error('Only submitted transactions can be approved')
       tx.status = 'approved'
@@ -95,6 +101,9 @@ function createTransactionWorkflowAction({
     }
 
     if (action === 'post') {
+      if (metalSaveSubmitOnly && !options.fromSubmit) {
+        throw new Error('Metal stock vouchers use Save → Submit only. Post is not available.')
+      }
       let postFromStatus = fromStatus
       // Backlog clearance: allow Post from submitted without a separate Approve.
       if (tx.status === 'submitted') {

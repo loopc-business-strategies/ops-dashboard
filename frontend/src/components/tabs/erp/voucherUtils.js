@@ -117,6 +117,20 @@ export const isMetalStockOutVoucherType = (type) => (
   METAL_STOCK_OUT_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
 )
 
+/** Metal stock vouchers are Save → Submit only (no separate Approve/Post UI). */
+export const isSaveSubmitOnlyVoucherType = (type) => isMetalStockVoucherType(type)
+
+/**
+ * User-facing workflow label for metal vouchers without migrating DB statuses.
+ * Posted/approved metal stock vouchers display as "Submitted".
+ */
+export function formatVoucherWorkflowStatusLabel(status, type) {
+  const st = String(status || '').toLowerCase()
+  if (!isSaveSubmitOnlyVoucherType(type)) return st || '—'
+  if (st === 'posted' || st === 'approved') return 'submitted'
+  return st || '—'
+}
+
 export const getDocYear = (dateValue) => {
   const dt = new Date(dateValue || Date.now())
   const year = Number.isFinite(dt.getTime()) ? dt.getFullYear() : new Date().getFullYear()

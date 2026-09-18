@@ -1,9 +1,37 @@
+import { useMemo, useState } from 'react'
 import { formatGrams } from './formatters'
 import { FlowIcon } from './PdIcons'
 
-export default function MaterialFlowPanel({ materialFlow, stockSummary }) {
+function formatLedgerDate(value) {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch {
+    return '—'
+  }
+}
+
+export default function MaterialFlowPanel({ materialFlow, stockSummary, stockLedger = [], stockLedgerLoading = false }) {
   const stages = materialFlow || []
   const stock = stockSummary || {}
+  const [metalFilter, setMetalFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
+  const [refFilter, setRefFilter] = useState('')
+
+  const filteredLedger = useMemo(() => {
+    const rows = Array.isArray(stockLedger) ? stockLedger : []
+    return rows.filter((row) => {
+      if (metalFilter && !String(row.metal || '').toLowerCase().includes(metalFilter.toLowerCase())) return false
+      if (typeFilter && !String(row.type || '').toLowerCase().includes(typeFilter.toLowerCase())) return false
+      if (sourceFilter && !String(row.source || '').toLowerCase().includes(sourceFilter.toLowerCase())) return false
+      if (refFilter) {
+        const hay = `${row.reference || ''} ${row.supplier || ''} ${row.reason || ''}`.toLowerCase()
+        if (!hay.includes(refFilter.toLowerCase())) return false
+      }
+      return true
+    })
+  }, [stockLedger, metalFilter, typeFilter, sourceFilter, refFilter])
 
   return (
     <section className="pd-flow-row" aria-label="Material flow and stock">
@@ -69,6 +97,77 @@ export default function MaterialFlowPanel({ materialFlow, stockSummary }) {
               <strong>{stock.movementWip != null ? formatGrams(stock.movementWip) : '—'}</strong>
             </div>
           </div>
+        </div>
+
+        <div className="pd-stock-ledger">
+          <p className="pd-movement-title">Movement ledger</p>
+          <div className="pd-stock-ledger-filters">
+            <input
+              type="search"
+              placeholder="Metal"
+              value={metalFilter}
+              onChange={(e) => setMetalFilter(e.target.value)}
+              aria-label="Filter by metal"
+            />
+            <input
+              type="search"
+              placeholder="Type"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              aria-label="Filter by movement type"
+            />
+            <input
+              type="search"
+              placeholder="Source"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              aria-label="Filter by source"
+            />
+            <input
+              type="search"
+              placeholder="Ref / supplier"
+              value={refFilter}
+              onChange={(e) => setRefFilter(e.target.value)}
+              aria-label="Filter by reference"
+            />
+          </div>
+          {stockLedgerLoading ? (
+            <p className="pd-stock-ledger-empty">Loading movements…</p>
+          ) : (
+            <div className="pd-stock-ledger-scroll">
+              <table className="pd-stock-ledger-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                    <th>Ref</th>
+                    <th>Metal</th>
+                    <th>In</th>
+                    <th>Out</th>
+                    <th>Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLedger.map((row) => (
+                    <tr key={row.id}>
+                      <td>{formatLedgerDate(row.date)}</td>
+                      <td>{row.type || '—'}</td>
+                      <td>{row.source || '—'}</td>
+                      <td title={row.supplier ? `Supplier: ${row.supplier}` : undefined}>{row.reference || '—'}</td>
+                      <td>{row.metal || '—'}{row.purity ? ` · ${row.purity}` : ''}</td>
+                      <td>{row.inQty != null ? formatGrams(row.inQty) : '—'}</td>
+                      <td>{row.outQty != null ? formatGrams(row.outQty) : '—'}</td>
+                      <td>{row.balance != null ? formatGrams(row.balance) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filteredLedger.length ? (
+                <p className="pd-stock-ledger-empty">No stock movements for the current filters.</p>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     </section>

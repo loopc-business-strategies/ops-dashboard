@@ -60,6 +60,8 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [connection, setConnection] = useState('OFFLINE')
   const [periodLoading, setPeriodLoading] = useState({ month: false })
+  const [stockLedger, setStockLedger] = useState([])
+  const [stockLedgerLoading, setStockLedgerLoading] = useState(false)
   const abortRef = useRef(null)
   const softTimerRef = useRef(null)
   const payloadRef = useRef({})
@@ -166,6 +168,16 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         stockOverview,
         alertsRes,
       })
+
+      setStockLedgerLoading(true)
+      const stockMoveRes = await productionControlApi
+        .reportStockMovement({ limit: 120 }, { signal: ac.signal })
+        .catch(() => null)
+      if (!ac.signal.aborted) {
+        const ledger = stockMoveRes?.report?.ledger || stockMoveRes?.ledger || []
+        setStockLedger(Array.isArray(ledger) ? ledger : [])
+        setStockLedgerLoading(false)
+      }
 
       // Wave C — week comparisons (2 range APIs, not 14 daily)
       const thisWeekRange = rangeDates(0, 7)
@@ -281,6 +293,8 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     lastUpdated,
     connection,
     periodLoading,
+    stockLedger,
+    stockLedgerLoading,
     ensurePeriod,
     refresh: () => {
       monthLoadedRef.current = false

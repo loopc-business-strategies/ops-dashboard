@@ -7,6 +7,7 @@ const {
 const {
   createLotsFromPurchasePlans,
   cancelLotsForVoidedPurchase,
+  assertAndConsumeVaultLotsForStockOut,
   idempotencyKeyForLine,
 } = require('../services/erpAccounting/voucherProductionStockBridge')
 const ProductionStockLot = require('../models/ProductionStockLot')
@@ -134,5 +135,85 @@ describe('voucherProductionStockBridge', () => {
     })
     expect(result.created).toHaveLength(0)
     expect(await ProductionStockLot.countDocuments({})).toBe(0)
+  })
+
+  test('rejects metal OUT when vault available is insufficient', async () => {
+    const user = await User.create({
+      name: 'out-user',
+      email: 'out@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: 'Gold grain',
+      sku: 'AU-OUT',
+      category: 'gold',
+      quantity: 300,
+      unit: 'grams',
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await ProductionStockLot.create({
+      stockCode: 'STK-OUT-1',
+      product: 'Gold grain',
+      status: 'NEW_STOCK',
+      inventoryItemId: item._id,
+      netWeight: 300,
+      grossWeight: 300,
+      metalType: 'Gold',
+      createdById: user._id,
+      createdByName: user.name,
+    })
+
+    await expect(
+      assertAndConsumeVaultLotsForStockOut({
+        user,
+        item,
+        quantity: 500,
+        reason: 'unit insufficient',
+      }),
+    ).rejects.toThrow(/Insufficient vault stock\. Available: 300 g, requested: 500 g\./)
+  })
+
+  test('consumes vault lots on metal OUT without exceeding available', async () => {
+    const user = await User.create({
+      name: 'consume-user',
+      email: 'consume@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: 'Gold grain 2',
+      sku: 'AU-OUT-2',
+      category: 'gold',
+      quantity: 500,
+      unit: 'grams',
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    const lot = await ProductionStockLot.create({
+      stockCode: 'STK-OUT-2',
+      product: 'Gold grain 2',
+      status: 'AVAILABLE',
+      inventoryItemId: item._id,
+      netWeight: 500,
+      grossWeight: 500,
+      metalType: 'Gold',
+      createdById: user._id,
+      createdByName: user.name,
+    })
+
+    const result = await assertAndConsumeVaultLotsForStockOut({
+      user,
+      item,
+      quantity: 200,
+      reason: 'unit consume',
+    })
+    expect(result.consumed).toHaveLength(1)
+    expect(Number(result.consumed[0].weight)).toBe(200)
+
+    const after = await ProductionStockLot.findById(lot._id)
+    expect(Number(after.netWeight)).toBe(300)
+    expect(after.status).toBe('AVAILABLE')
   })
 })

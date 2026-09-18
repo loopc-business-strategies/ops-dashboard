@@ -1150,7 +1150,7 @@ router.get('/reports/daily', protect, requireProductionPermission('viewReports')
   }
 })
 
-router.get('/reports/stock-movement', protect, requireProductionPermission('viewReports'), async (req, res) => {
+router.get('/reports/stock-movement', protect, requireProductionPermission('view'), async (req, res) => {
   try {
     const report = await reportService.stockMovementReport(req.query)
     res.json({ success: true, report })

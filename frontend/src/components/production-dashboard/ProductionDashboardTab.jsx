@@ -15,6 +15,8 @@ export default function ProductionDashboardTab() {
     lastUpdated,
     connection,
     refresh,
+    stockLedger,
+    stockLedgerLoading,
   } = useProductionDashboard()
 
   return (
@@ -50,7 +52,12 @@ export default function ProductionDashboardTab() {
         <div className="pd-layout pd-layout--reference">
           <KpiRow model={model} />
           <DepartmentOverview cards={model.deptCards} assemblyTables={model.assemblyTables} />
-          <MaterialFlowPanel materialFlow={model.materialFlow} stockSummary={model.stockSummary} />
+          <MaterialFlowPanel
+            materialFlow={model.materialFlow}
+            stockSummary={model.stockSummary}
+            stockLedger={stockLedger}
+            stockLedgerLoading={stockLedgerLoading}
+          />
           <div className="pd-row-bottom-split">
             <BatchMonitorTable rows={model.batchMonitorRows} />
             <AlertsPanel alerts={model.alertItems} />

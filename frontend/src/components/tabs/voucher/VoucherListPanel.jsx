@@ -1,4 +1,4 @@
-import { btn, computeVoucherGrandTotal, fmt, inputStyle, isMetalStockVoucherType, S } from './voucherTabShared'
+import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, inputStyle, isMetalStockVoucherType, isSaveSubmitOnlyVoucherType, S } from './voucherTabShared'
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
 
@@ -134,7 +134,9 @@ export default function VoucherListPanel({
                 if (!voucher) return null
                 const meta = voucher.voucherMeta || {}
                 const grand = computeVoucherGrandTotal(voucher, voucherType)
-                const statusStyle = STATUS_COLORS[voucher.status] || { bg: '#F3F4F6', color: '#374151' }
+                const displayStatus = formatVoucherWorkflowStatusLabel(voucher.status, voucher.type || voucherType)
+                const statusStyle = STATUS_COLORS[displayStatus] || STATUS_COLORS[voucher.status] || { bg: '#F3F4F6', color: '#374151' }
+                const saveSubmitOnly = isSaveSubmitOnlyVoucherType(voucher.type || voucherType)
                 const fixingDisplay = meta.fixingType === 'non-fixing' ? 'Unfixed' : 'Fixed'
                 const periodLocked = Boolean(isEntryLocked(voucher))
                 return (
@@ -159,7 +161,7 @@ export default function VoucherListPanel({
                     <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand, voucher.currency)}</td>
                     <td style={{ padding: '0.55rem 0.75rem' }}>
                       <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: statusStyle.bg, color: statusStyle.color }}>
-                        {voucher.status}
+                        {displayStatus}
                       </span>
                       {periodLocked ? (
                         <span style={{ marginLeft: '0.35rem', padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: '#FEE2E2', color: '#991B1B' }}>
@@ -182,7 +184,7 @@ export default function VoucherListPanel({
                             {t('submit')}
                           </button>
                         )}
-                        {!periodLocked && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(voucher.status) && (
+                        {!periodLocked && !saveSubmitOnly && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(voucher.status) && (
                           <button
                             type="button"
                             disabled={saving}
@@ -192,7 +194,7 @@ export default function VoucherListPanel({
                             Post
                           </button>
                         )}
-                        {!periodLocked && canManageWorkflow && ['submitted', 'approved'].includes(voucher.status) && (
+                        {!periodLocked && !saveSubmitOnly && canManageWorkflow && ['submitted', 'approved'].includes(voucher.status) && (
                           <button
                             type="button"
                             disabled={saving}
@@ -202,7 +204,7 @@ export default function VoucherListPanel({
                             {t('returnForEdit')}
                           </button>
                         )}
-                        {!periodLocked && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(voucher.status) && (
+                        {!periodLocked && !saveSubmitOnly && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(voucher.status) && (
                           <button
                             type="button"
                             disabled={saving}

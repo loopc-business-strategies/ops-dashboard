@@ -5,6 +5,7 @@ import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { normalizeFilterMonths, normalizeFilterSearchTerm, normalizeFilterYear } from '../erpListFilters'
 import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
+import { formatVoucherWorkflowStatusLabel, isSaveSubmitOnlyVoucherType } from '../voucherUtils'
 
 export default function ERPTransactionsTab({
   activeTab,
@@ -266,7 +267,17 @@ export default function ERPTransactionsTab({
               <textarea value={transactionWorkflowNote} onChange={(e) => setTransactionWorkflowNote(e.target.value)} rows={3} placeholder="Workflow note for submit / post / return / reject" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical' }} />
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button type="button" disabled={!selectedTransactionIds.length || saving || selectedIdsPeriodLocked} onClick={() => handleBulkTransactionAction('submit')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Bulk Submit</button>
-                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving || selectedIdsPeriodLocked} onClick={() => handleBulkTransactionAction('post')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Post (backlog)</button>}
+                {(isSuperAdmin || isFinance) && (
+                  <button
+                    type="button"
+                    disabled={!selectedTransactionIds.length || saving || selectedIdsPeriodLocked}
+                    onClick={() => handleBulkTransactionAction('post')}
+                    title="Backlog post for non-metal vouchers only. Metal stock vouchers use Submit."
+                    style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}
+                  >
+                    Bulk Post (backlog)
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -354,9 +365,14 @@ export default function ERPTransactionsTab({
                     ) : (
                       <>
                         {['draft', 'returned', 'rejected'].includes(selectedTransaction.status) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('submit', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Submit</button>}
-                        {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('post', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Post</button>}
-                        {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('return', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F472B6', color: '#831843', cursor: 'pointer', fontWeight: '700' }}>Return for Edit</button>}
-                        {['submitted', 'approved', 'returned'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('reject', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Reject</button>}
+                        {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && !isSaveSubmitOnlyVoucherType(selectedTransaction.type) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('post', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Post</button>}
+                        {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && !isSaveSubmitOnlyVoucherType(selectedTransaction.type) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('return', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F472B6', color: '#831843', cursor: 'pointer', fontWeight: '700' }}>Return for Edit</button>}
+                        {['submitted', 'approved', 'returned'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && !isSaveSubmitOnlyVoucherType(selectedTransaction.type) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('reject', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Reject</button>}
+                        {isSaveSubmitOnlyVoucherType(selectedTransaction.type) && ['posted', 'approved', 'submitted'].includes(selectedTransaction.status) && (
+                          <span style={{ padding: '0.45rem 0.8rem', color: C.inkSoft, fontWeight: 600, fontSize: '0.85rem' }}>
+                            Status: {formatVoucherWorkflowStatusLabel(selectedTransaction.status, selectedTransaction.type)} (Save → Submit)
+                          </span>
+                        )}
                       </>
                     )}
                   </div>

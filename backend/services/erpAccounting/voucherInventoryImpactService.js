@@ -14,7 +14,10 @@ const {
   scoreInventoryLineMatch,
 } = require('../../utils/voucherInventoryLookup')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
-const { createLotsFromPurchasePlans } = require('./voucherProductionStockBridge')
+const {
+  createLotsFromPurchasePlans,
+  assertAndConsumeVaultLotsForStockOut,
+} = require('./voucherProductionStockBridge')
 
 function createVoucherInventoryImpactService({
   ensureAccountByCode,
@@ -183,6 +186,21 @@ function createVoucherInventoryImpactService({
           actorName: user.name,
         }], writeOpts(session))
         continue
+      }
+
+      // Metal stock-out (sale / metal_payment): block negative vault and consume lots once.
+      await assertAndConsumeVaultLotsForStockOut({
+        user,
+        item,
+        quantity: movementQty,
+        session,
+        reason: `Customer metal OUT ${tx.voucherMeta?.vocNo || tx._id}`,
+      })
+
+      if (beforeQty + 1e-9 < movementQty) {
+        const shown = Math.round(beforeQty * 1000) / 1000
+        const need = Math.round(movementQty * 1000) / 1000
+        throw new Error(`Insufficient vault stock. Available: ${shown} g, requested: ${need} g.`)
       }
 
       const nextQty = toQty(beforeQty - movementQty)

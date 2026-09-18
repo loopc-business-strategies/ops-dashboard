@@ -285,9 +285,97 @@ async function cancelLotsForVoidedPurchase({ user, tx, session = null, deleteRea
   return { cancelled, annotated, warnings }
 }
 
+/**
+ * Ensure vault/lot (or inventory) weight covers metal stock-out, then soft-consume unused lots FIFO.
+ * Throws with the product message when insufficient.
+ */
+async function assertAndConsumeVaultLotsForStockOut({
+  user,
+  item,
+  quantity,
+  session = null,
+  reason = '',
+} = {}) {
+  const requested = Number(quantity || 0)
+  if (!(requested > 0) || !item?._id) return { consumed: [], available: 0 }
+
+  const actorId = user?._id || null
+  const actorName = user?.name || 'system'
+  const lots = await withSession(
+    ProductionStockLot.find({
+      inventoryItemId: item._id,
+      status: { $in: ['NEW_STOCK', 'AVAILABLE'] },
+      batchId: null,
+    }).sort({ createdAt: 1 }),
+    session,
+  )
+
+  const lotAvailable = (lots || []).reduce((sum, lot) => {
+    const free = Math.max(0, Number(lot.netWeight || 0) - Number(lot.allocatedWeight || 0))
+    return sum + free
+  }, 0)
+  const inventoryAvailable = Math.max(0, Number(item.quantity || 0))
+
+  // Prefer lot free weight when lots exist; otherwise inventory qty (legacy / pre-bridge).
+  const effectiveAvailable = (lots.length && lotAvailable > 0)
+    ? Math.min(lotAvailable, inventoryAvailable)
+    : inventoryAvailable
+
+  if (effectiveAvailable + 1e-9 < requested) {
+    const shown = Math.round(effectiveAvailable * 1000) / 1000
+    const need = Math.round(requested * 1000) / 1000
+    throw new Error(`Insufficient vault stock. Available: ${shown} g, requested: ${need} g.`)
+  }
+
+  let remaining = requested
+  const consumed = []
+  for (const lot of lots || []) {
+    if (remaining <= 1e-9) break
+    const free = Math.max(0, Number(lot.netWeight || 0) - Number(lot.allocatedWeight || 0))
+    if (free <= 0) continue
+    const take = Math.min(free, remaining)
+    const remark = reason || 'Consumed by customer metal OUT'
+    if (take + 1e-9 >= free) {
+      await ProductionStockStatusEvent.create(
+        [
+          {
+            stockLotId: lot._id,
+            stockCode: lot.stockCode,
+            fromStatus: lot.status,
+            toStatus: 'CANCELLED',
+            reason: remark,
+            actorId,
+            actorName,
+          },
+        ],
+        writeOpts(session),
+      )
+      lot.status = 'CANCELLED'
+      lot.version = (lot.version || 0) + 1
+      const prev = String(lot.remarks || '').trim()
+      lot.remarks = prev ? `${prev}\n${remark}` : remark
+      await lot.save(writeOpts(session))
+    } else {
+      lot.netWeight = Math.max(0, Number(lot.netWeight || 0) - take)
+      lot.grossWeight = Math.max(Number(lot.grossWeight || 0) - take, lot.netWeight)
+      lot.quantity = Math.max(0, Number(lot.quantity || 0) - take)
+      lot.version = (lot.version || 0) + 1
+      const prev = String(lot.remarks || '').trim()
+      const note = `${remark} (−${take}g)`
+      lot.remarks = prev ? `${prev}\n${note}` : note
+      await lot.save(writeOpts(session))
+    }
+    remaining -= take
+    consumed.push({ lotId: lot._id, stockCode: lot.stockCode, weight: take })
+  }
+
+  return { consumed, available: effectiveAvailable }
+}
+
 module.exports = {
   createLotsFromPurchasePlans,
   cancelLotsForVoidedPurchase,
+  assertAndConsumeVaultLotsForStockOut,
   idempotencyKeyForLine,
   deriveMetalType,
   purchaseRefForTx,

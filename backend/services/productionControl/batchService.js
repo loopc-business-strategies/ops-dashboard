@@ -156,7 +156,9 @@ async function issueFromVault(req, batchId, {
     const item = await withSession(InventoryItem.findById(itemId), session)
     if (!item || item.isDeleted) throw new ProductionError('Inventory item not found', 404)
     if (Number(item.quantity) < issueWeight) {
-      throw new ProductionError(`Insufficient vault stock. Available: ${item.quantity}`)
+      throw new ProductionError(
+        `Insufficient vault stock. Available: ${Number(item.quantity)} g, requested: ${issueWeight} g.`,
+      )
     }
 
     const before = Number(item.quantity)

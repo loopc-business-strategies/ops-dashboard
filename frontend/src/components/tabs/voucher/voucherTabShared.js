@@ -18,6 +18,8 @@ export {
   hasMetalTransferLineQuantity,
   isMetalStockInVoucherType,
   isMetalStockOutVoucherType,
+  isSaveSubmitOnlyVoucherType,
+  formatVoucherWorkflowStatusLabel,
   getDocYear,
   parseAnyVoucherDocMeta,
   parseVoucherDocMeta,
