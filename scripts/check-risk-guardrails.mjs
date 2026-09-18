@@ -17,11 +17,6 @@ const budgets = [
     message: 'OperationsTab is high-risk. Extract panels/hooks instead of growing the shell.',
   },
   {
-    file: 'frontend/src/components/tabs/ProductionTab.jsx',
-    maxLines: 500,
-    message: 'ProductionTab is high-risk. Keep the shell thin; put panels in production/.',
-  },
-  {
     file: 'backend/routes/erp-accountingContext.js',
     maxLines: 2400,
     message: 'ERP accounting route context is high-risk. Put new route slices or services in focused modules.',
