@@ -84,20 +84,46 @@ export function WeightDisplay({
   weight,
   unit = 'g',
   stable,
+  connectionStatus,
+  lastReadingAt,
+  onReconnect,
 }: {
   weight: number | null
   unit?: string
   stable: boolean | null
+  connectionStatus?: string | null
+  lastReadingAt?: string | null
+  onReconnect?: () => void
 }) {
+  const conn = String(connectionStatus || '').toUpperCase()
+  const connTone =
+    conn === 'CONNECTED' ? 'ok' : conn === 'DISCONNECTED' || conn === 'ERROR' ? 'bad' : conn ? 'warn' : 'neutral'
   return (
     <View style={styles.weightBox}>
+      {conn ? <StatusPill label={conn} tone={connTone} /> : null}
       <Text style={styles.weightValue}>
         {weight == null ? '—' : weight.toFixed(2)} <Text style={styles.weightUnit}>{unit}</Text>
       </Text>
       <StatusPill
-        label={stable == null ? 'NO SCALE' : stable ? 'STABLE' : 'WAITING FOR STABLE WEIGHT'}
+        label={
+          stable == null
+            ? conn === 'DISCONNECTED' || conn === 'ERROR'
+              ? 'NO LIVE READING'
+              : 'WAITING FOR SCALE'
+            : stable
+              ? 'STABLE'
+              : 'WAITING FOR STABLE WEIGHT'
+        }
         tone={stable == null ? 'neutral' : stable ? 'ok' : 'warn'}
       />
+      {lastReadingAt ? (
+        <Text style={styles.weightMeta}>Last reading: {new Date(lastReadingAt).toLocaleTimeString()}</Text>
+      ) : null}
+      {(conn === 'DISCONNECTED' || conn === 'ERROR') && onReconnect ? (
+        <Pressable onPress={onReconnect} style={styles.reconnect}>
+          <Text style={styles.reconnectText}>RECONNECT</Text>
+        </Pressable>
+      ) : null}
     </View>
   )
 }
@@ -169,5 +195,21 @@ const styles = StyleSheet.create({
   weightUnit: {
     fontSize: 22,
     color: colors.textMuted,
+  },
+  weightMeta: {
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  reconnect: {
+    marginTop: spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 6,
+  },
+  reconnectText: {
+    color: colors.text,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 })
