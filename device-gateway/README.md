@@ -32,7 +32,25 @@ Local XRF controls:
 - `GET /xrf`
 - `POST /xrf/MG-XRF-001/test` body `{ "outcome": "ok" }` (`ok`|`error`|`timeout`|`invalid`)
 
-## Run
+## Run (factory PC — double-click)
+
+1. Copy `gateway.local.env.example` → `gateway.local.env`
+2. Copy `gateway-token.txt.example` → `gateway-token.txt` and paste an MG JWT (one line)
+3. Double-click **`start-gateway.cmd`**
+   - Or: `start-gateway.cmd RS232` for real serial scales
+4. Leave the window open. Health: `http://localhost:7077/health`
+
+Token file is gitignored — never commit `gateway-token.txt`.
+
+Get a token (PowerShell):
+
+```powershell
+$body = '{"name":"Nan","password":"123456","company":"mg"}'
+$r = Invoke-RestMethod -Uri 'https://api.loopcstrategies.com/api/auth/login' -Method POST -ContentType 'application/json' -Headers @{ 'X-Client' = 'mg-floor' } -Body $body
+$r.token
+```
+
+## Run (manual)
 
 ```bash
 cd device-gateway
