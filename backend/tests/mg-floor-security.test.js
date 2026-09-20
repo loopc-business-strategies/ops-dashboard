@@ -427,7 +427,21 @@ describe('MG Floor sync idempotency', () => {
     expect([200, 201]).toContain(simOk.status)
     expect(simOk.body.test?.source).toBe('simulated')
 
-    // Prod-like: block simulated
+    // Pending simulated row (allowed now) — confirm must fail when sim later disabled
+    const simPending = await request(app)
+      .post('/api/mg-floor/xrf/ingest/result')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        analyzerId: 'MG-XRF-001',
+        source: 'simulated',
+        ingestId: 'sim-pending-confirm-block',
+        elements: [{ symbol: 'Au', value: 77.7, unit: '%' }],
+      })
+    expect([200, 201]).toContain(simPending.status)
+    const simPendingId = simPending.body.test.xrfTestId
+
+    // Prod-like: block simulated create + confirm
     const prevAllow = process.env.ALLOW_XRF_SIMULATOR
     const prevNode = process.env.NODE_ENV
     process.env.ALLOW_XRF_SIMULATOR = 'false'
@@ -445,6 +459,17 @@ describe('MG Floor sync idempotency', () => {
           elements: [{ symbol: 'Au', value: 88.1, unit: '%' }],
         })
       expect(simBlocked.status).toBe(403)
+
+      const confirmSimBlocked = await request(app)
+        .post('/api/mg-floor/xrf/tests')
+        .set('Host', 'api.loopcstrategies.com')
+        .set('x-tenant', 'mg')
+        .set('Authorization', `Bearer ${mgToken}`)
+        .send({
+          xrfTestId: simPendingId,
+          operationId: 'xrf-confirm-sim-blocked',
+        })
+      expect(confirmSimBlocked.status).toBe(403)
     } finally {
       process.env.ALLOW_XRF_SIMULATOR = prevAllow
       process.env.NODE_ENV = prevNode
