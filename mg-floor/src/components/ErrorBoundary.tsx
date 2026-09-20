@@ -1,6 +1,7 @@
 import React from 'react'
 import { StyleSheet, Text, View, Pressable } from 'react-native'
 import { colors } from '@/src/theme'
+import { API_URL } from '@/src/config/env'
 
 type Props = {
   children: React.ReactNode
@@ -27,12 +28,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.error) {
+      const apiHost = (() => {
+        try {
+          return new URL(API_URL).host
+        } catch {
+          return 'not configured'
+        }
+      })()
       return (
         <View style={styles.wrap}>
-          <Text style={styles.title}>MG Floor hit an error</Text>
-          <Text style={styles.body}>{this.state.error.message || 'Unknown error'}</Text>
+          <Text style={styles.brand}>MG Floor</Text>
+          <Text style={styles.title}>Something went wrong.</Text>
+          <Text style={styles.body}>{this.state.error.message || 'Unexpected error'}</Text>
+          <Text style={styles.meta}>Connection: {apiHost}</Text>
           <Pressable style={styles.btn} onPress={this.reset} accessibilityRole="button">
-            <Text style={styles.btnText}>Try again</Text>
+            <Text style={styles.btnText}>Retry</Text>
           </Pressable>
         </View>
       )
@@ -50,9 +60,15 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 12,
   },
+  brand: {
+    color: colors.accent,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
   title: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -61,10 +77,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  meta: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+  },
   btn: {
     marginTop: 8,
     backgroundColor: colors.accent,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },

@@ -12,7 +12,7 @@ if (!isProductionProfile && !apiUrlFromEnv) {
 
 const apiUrl = apiUrlFromEnv || (isProductionProfile ? PROD_API_URL : 'http://localhost:5000')
 
-const config: ExpoConfig = {
+const config = {
   name: 'MG Floor',
   slug: 'mg-floor',
   version: APP_VERSION,
@@ -20,8 +20,8 @@ const config: ExpoConfig = {
   icon: './assets/images/icon.png',
   scheme: 'mgfloor',
   userInterfaceStyle: 'light',
-  // Factory tablets: Fabric + Reanimated/Worklets has caused instant "keeps stopping" on open.
-  newArchEnabled: false,
+  // RN 0.85 + Reanimated 4 require New Architecture (false is ignored / unsupported).
+  newArchEnabled: true,
   splash: {
     image: './assets/images/splash-icon.png',
     resizeMode: 'contain',
@@ -45,6 +45,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    'expo-splash-screen',
     [
       'expo-camera',
       {
@@ -62,6 +63,6 @@ const config: ExpoConfig = {
       projectId: process.env.EAS_PROJECT_ID || 'mg-floor-local',
     },
   },
-}
+} as ExpoConfig
 
 export default config
