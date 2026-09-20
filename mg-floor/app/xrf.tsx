@@ -1,15 +1,27 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, LoadingBlock, Screen, StatusPill, Subtitle } from '@/src/components/ui'
-import { fetchXrfDevices, fetchXrfStatus, submitXrfTest } from '@/src/api/floor'
+import { fetchXrfDevices, fetchXrfStatus, fetchXrfTests, submitXrfTest } from '@/src/api/floor'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { useAuth } from '@/src/context/AuthContext'
+import { APP_ENV, IS_PRODUCTION } from '@/src/config/env'
 import { colors, spacing } from '@/src/theme'
 
 type ElementRow = { symbol: string; value: number; unit?: string }
 
-type Phase = 'idle' | 'testing' | 'result' | 'error'
+type PendingTest = {
+  xrfTestId: string
+  ingestId?: string | null
+  source?: string
+  elements?: ElementRow[]
+  analyzerId?: string
+  testedAt?: string
+}
+
+type Phase = 'idle' | 'waiting' | 'result' | 'error'
+
+const ALLOW_APP_SIM = !IS_PRODUCTION && APP_ENV !== 'production'
 
 export default function XrfScreen() {
   const { user } = useAuth()
@@ -24,12 +36,38 @@ export default function XrfScreen() {
   const [scaleWeight, setScaleWeight] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
   const [elements, setElements] = useState<ElementRow[]>([])
-  const [testMeta, setTestMeta] = useState<Record<string, unknown> | null>(null)
+  const [pending, setPending] = useState<PendingTest | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const refresh = async () => {
+  const applyPending = useCallback((test: PendingTest | null) => {
+    if (!test) {
+      setPending(null)
+      setElements([])
+      setPhase('waiting')
+      return
+    }
+    setPending(test)
+    setElements(Array.isArray(test.elements) ? test.elements : [])
+    setPhase('result')
+    if (test.analyzerId) setAnalyzerId(String(test.analyzerId))
+  }, [])
+
+  const loadPending = useCallback(async () => {
+    const res = await fetchXrfTests({
+      pendingForConfirm: '1',
+      analyzerId,
+      limit: 5,
+    })
+    const tests = (res.tests || []) as PendingTest[]
+    const latest = tests[0] || null
+    applyPending(latest)
+    return latest
+  }, [analyzerId, applyPending])
+
+  const refresh = useCallback(async () => {
     try {
       const [devs, st] = await Promise.all([
         fetchXrfDevices(),
@@ -40,61 +78,115 @@ export default function XrfScreen() {
       if (devs.devices?.[0]?.analyzerId && analyzerId === 'MG-XRF-001') {
         setAnalyzerId(String(devs.devices[0].analyzerId))
       }
+      await loadPending()
+      setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load XRF devices')
       setStatus('DISCONNECTED')
+      setPhase('error')
     } finally {
       setLoading(false)
     }
-  }
+  }, [analyzerId, loadPending])
 
   useEffect(() => {
     refresh()
   }, [])
 
-  const startTest = async () => {
+  useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(() => {
+      loadPending().catch(() => {})
+    }, 5000)
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [loadPending])
+
+  const waitForGateway = async () => {
     setBusy(true)
     setError('')
-    setPhase('testing')
-    setElements([])
-    setTestMeta(null)
+    setPhase('waiting')
     try {
-      // Development path: app can save a simulated result when gateway simulator is not reachable.
-      // Real LANScientific protocol is gateway-side and model-configurable.
-      await new Promise((r) => setTimeout(r, 600))
+      const latest = await loadPending()
+      if (!latest) {
+        setError('Waiting for analyzer / gateway — no pending hardware result yet.')
+      }
+    } catch (err) {
+      setPhase('error')
+      setError(err instanceof Error ? err.message : 'Failed to poll pending XRF results')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runSimulator = async () => {
+    if (!ALLOW_APP_SIM) {
+      Alert.alert('Not available', 'Simulator is disabled in production builds.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
       const simElements: ElementRow[] = [
         { symbol: 'Au', value: 91.72, unit: '%' },
         { symbol: 'Ag', value: 5.41, unit: '%' },
         { symbol: 'Cu', value: 2.63, unit: '%' },
       ]
-      setElements(simElements)
-      setTestMeta({
+      const operationId = createOperationId('xrf_sim')
+      const payload: Record<string, unknown> = {
+        source: 'simulated',
         analyzerId,
+        elements: simElements,
         status: 'COMPLETED',
-        note: 'Simulator payload — replace with gateway ingest when live protocol is configured',
+        batchNumber: batchNumber.trim() || undefined,
+        batchId: batchId.trim() || undefined,
+        jobId: jobId.trim() || undefined,
+        materialId: materialId.trim() || undefined,
+        scaleId: scaleId.trim() || undefined,
+        scaleWeight: scaleWeight ? Number(scaleWeight) : undefined,
+        department: user?.department || 'quality_control',
+        operationId,
+        originalResult: { elements: simElements, source: 'simulated' },
+      }
+      const net = await NetInfo.fetch()
+      if (!net.isConnected) {
+        await enqueueOutbox({ operationId, operationType: 'xrf_test', payload, scaleId: scaleId || undefined })
+        Alert.alert('Queued (SIMULATED)', 'Simulator XRF saved offline')
+        return
+      }
+      const res = await submitXrfTest(payload)
+      const test = (res.test || {}) as PendingTest
+      applyPending({
+        xrfTestId: String(test.xrfTestId || ''),
+        source: 'simulated',
+        elements: simElements,
+        analyzerId,
       })
-      setPhase('result')
-      setStatus('READY')
+      Alert.alert('SIMULATED', 'Dev simulator result saved (tagged source=simulated)')
     } catch (err) {
       setPhase('error')
-      setError(err instanceof Error ? err.message : 'XRF test failed')
-      setStatus('ERROR')
+      setError(err instanceof Error ? err.message : 'Simulator failed')
     } finally {
       setBusy(false)
     }
   }
 
   const saveResult = async () => {
-    if (!elements.length) {
-      Alert.alert('No result', 'Run a test first')
+    if (!pending?.xrfTestId) {
+      Alert.alert('No result', 'Wait for a gateway-ingested result before confirming')
+      return
+    }
+    if (pending.source === 'simulated' && !ALLOW_APP_SIM) {
+      Alert.alert('Blocked', 'Simulated results cannot be confirmed in production')
       return
     }
     setBusy(true)
     const operationId = createOperationId('xrf_test')
     const payload: Record<string, unknown> = {
+      xrfTestId: pending.xrfTestId,
+      ingestId: pending.ingestId || undefined,
       analyzerId,
-      elements,
-      status: 'COMPLETED',
       batchNumber: batchNumber.trim() || undefined,
       batchId: batchId.trim() || undefined,
       jobId: jobId.trim() || undefined,
@@ -103,18 +195,20 @@ export default function XrfScreen() {
       scaleWeight: scaleWeight ? Number(scaleWeight) : undefined,
       department: user?.department || 'quality_control',
       operationId,
-      originalResult: { elements, source: 'mg-floor-ui' },
-      rawData: testMeta,
     }
     try {
       const net = await NetInfo.fetch()
       if (!net.isConnected) {
         await enqueueOutbox({ operationId, operationType: 'xrf_test', payload, scaleId: scaleId || undefined })
-        Alert.alert('Saved offline', 'XRF result queued for sync')
+        Alert.alert('Saved offline', 'XRF confirmation queued for sync')
         return
       }
       await submitXrfTest(payload)
-      Alert.alert('Saved', 'XRF result recorded with audit trail')
+      Alert.alert('Confirmed', 'XRF result linked with audit trail')
+      setPending(null)
+      setElements([])
+      setPhase('idle')
+      await loadPending()
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'xrf_test', payload, scaleId: scaleId || undefined })
       Alert.alert('Queued', err instanceof Error ? err.message : 'Saved offline after failure')
@@ -131,13 +225,16 @@ export default function XrfScreen() {
     )
   }
 
+  const isSim = pending?.source === 'simulated'
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Quality control — LANScientific model is configurable</Subtitle>
+        <Subtitle>Quality control — confirm gateway results only</Subtitle>
         <View style={styles.metaRow}>
           <StatusPill label={`ANALYZER ${analyzerId}`} tone="neutral" />
           <StatusPill label={String(status)} tone={status === 'READY' || status === 'CONNECTED' ? 'ok' : 'warn'} />
+          {isSim ? <StatusPill label="SIMULATED" tone="warn" /> : null}
         </View>
         {devices[0] ? (
           <Text style={styles.hint}>
@@ -157,10 +254,15 @@ export default function XrfScreen() {
         <TextInput style={styles.input} value={scaleId} onChangeText={setScaleId} placeholder="MG-SCALE-003" placeholderTextColor={colors.textMuted} />
         <TextInput style={styles.input} value={scaleWeight} onChangeText={setScaleWeight} keyboardType="decimal-pad" placeholder="125.36" placeholderTextColor={colors.textMuted} />
 
-        {phase === 'testing' ? <Text style={styles.testing}>TESTING…</Text> : null}
-        {phase === 'result' ? (
+        {phase === 'waiting' ? (
+          <Text style={styles.testing}>Waiting for analyzer / gateway…</Text>
+        ) : null}
+        {phase === 'result' && elements.length ? (
           <View style={styles.result}>
-            <Text style={styles.resultTitle}>RESULT</Text>
+            <Text style={styles.resultTitle}>{isSim ? 'SIMULATED RESULT' : 'HARDWARE RESULT'}</Text>
+            {pending?.xrfTestId ? (
+              <Text style={styles.hint}>ID: {pending.xrfTestId}</Text>
+            ) : null}
             {elements.map((e) => (
               <Text key={e.symbol} style={styles.el}>
                 {e.symbol}  {e.value}
@@ -172,14 +274,18 @@ export default function XrfScreen() {
         ) : null}
         {error ? <Text style={styles.err}>{error}</Text> : null}
 
-        <BigButton label={busy && phase === 'testing' ? 'TESTING…' : 'START XRF TEST'} onPress={startTest} disabled={busy} />
-        {phase === 'result' ? (
-          <>
-            <BigButton label={busy ? 'SAVING…' : 'SAVE RESULT'} onPress={saveResult} disabled={busy} />
-            <BigButton label="TEST AGAIN" onPress={startTest} tone="neutral" disabled={busy} />
-          </>
+        <BigButton
+          label={busy && phase === 'waiting' ? 'CHECKING…' : 'CHECK PENDING RESULT'}
+          onPress={waitForGateway}
+          disabled={busy}
+        />
+        {phase === 'result' && pending?.xrfTestId ? (
+          <BigButton label={busy ? 'CONFIRMING…' : 'CONFIRM / SAVE METADATA'} onPress={saveResult} disabled={busy} />
         ) : null}
-        <BigButton label="REFRESH STATUS" onPress={refresh} tone="neutral" />
+        {ALLOW_APP_SIM ? (
+          <BigButton label="RUN SIMULATOR (DEV)" onPress={runSimulator} tone="neutral" disabled={busy} />
+        ) : null}
+        <BigButton label="REFRESH STATUS" onPress={refresh} tone="neutral" disabled={busy} />
       </ScrollView>
     </Screen>
   )
@@ -199,7 +305,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm },
-  testing: { color: colors.accent, fontSize: 22, fontWeight: '800', textAlign: 'center', marginVertical: spacing.lg },
+  testing: { color: colors.accent, fontSize: 18, fontWeight: '800', textAlign: 'center', marginVertical: spacing.lg },
   result: {
     marginVertical: spacing.md,
     padding: spacing.md,

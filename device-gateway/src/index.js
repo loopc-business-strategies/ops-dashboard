@@ -3,7 +3,7 @@ const path = require('path')
 const { ScaleManager } = require('./scales/ScaleManager')
 const { XrfManager } = require('./xrf/XrfManager')
 const { startLocalApi } = require('./api/localServer')
-const { postScaleReading, postXrfIngest } = require('./api/backendClient')
+const { postScaleReading, postXrfIngest, postXrfResult } = require('./api/backendClient')
 const { createLogger } = require('./utils/logger')
 
 const log = createLogger('main')
@@ -18,8 +18,11 @@ function loadConfig() {
     xrfMode: process.env.MG_XRF_MODE || raw.xrfMode || 'disabled',
     backendUrl: process.env.MG_API_BASE_URL || raw.backendUrl,
     authToken: process.env.MG_GATEWAY_TOKEN || raw.authToken,
+    gatewaySecret: process.env.MG_GATEWAY_SECRET || raw.gatewaySecret || '',
     gatewayId: process.env.MG_GATEWAY_ID || raw.gatewayId || 'MG-GATEWAY-001',
     localPort: Number(process.env.MG_GATEWAY_PORT || raw.localPort || 7077),
+    bindHost: process.env.MG_GATEWAY_BIND || raw.bindHost || '127.0.0.1',
+    localToken: process.env.MG_GATEWAY_LOCAL_TOKEN || raw.localToken || '',
   }
 }
 
@@ -29,10 +32,17 @@ async function main() {
     throw new Error('MG Device Gateway is MG-only (tenant must be mg)')
   }
 
+  const jwtFallback = String(process.env.MG_GATEWAY_ALLOW_JWT_FALLBACK || '').trim() === '1'
+  if (!config.gatewaySecret && !(config.authToken && jwtFallback)) {
+    log.warn('No MG_GATEWAY_SECRET set — ingest will be skipped unless JWT fallback is enabled (dev only)')
+  }
+
   log.info('starting', {
     gatewayId: config.gatewayId,
     mode: config.mode,
     xrfMode: config.xrfMode,
+    bindHost: config.bindHost,
+    auth: config.gatewaySecret ? 'gateway-secret' : (jwtFallback && config.authToken ? 'jwt-fallback' : 'none'),
     scales: (config.scales || []).length,
   })
 
@@ -47,6 +57,13 @@ async function main() {
     gatewayId: config.gatewayId,
     analyzers: config.xrfAnalyzers || [{ analyzerId: 'MG-XRF-001', enabled: true, model: '' }],
     mode: config.xrfMode,
+  })
+
+  const creds = () => ({
+    backendUrl: config.backendUrl,
+    authToken: config.authToken,
+    gatewayId: config.gatewayId,
+    gatewaySecret: config.gatewaySecret,
   })
 
   let lastPushError = null
@@ -69,9 +86,7 @@ async function main() {
     inFlightByScale.add(scaleId)
     try {
       await postScaleReading({
-        backendUrl: config.backendUrl,
-        authToken: config.authToken,
-        gatewayId: config.gatewayId,
+        ...creds(),
         reading,
       })
       pushCount += 1
@@ -90,9 +105,7 @@ async function main() {
   scaleManager.on('lifecycle', async (evt) => {
     try {
       await postScaleReading({
-        backendUrl: config.backendUrl,
-        authToken: config.authToken,
-        gatewayId: config.gatewayId,
+        ...creds(),
         reading: {
           scaleId: evt.scaleId,
           deviceId: config.gatewayId,
@@ -109,9 +122,7 @@ async function main() {
   xrfManager.on('status', async (status) => {
     try {
       await postXrfIngest({
-        backendUrl: config.backendUrl,
-        authToken: config.authToken,
-        gatewayId: config.gatewayId,
+        ...creds(),
         body: {
           analyzerId: status.analyzerId,
           eventType: 'status',
@@ -121,6 +132,27 @@ async function main() {
       })
     } catch (err) {
       log.warn('xrf status ingest failed', { message: err.message })
+    }
+  })
+
+  xrfManager.on('result', async (result) => {
+    try {
+      await postXrfResult({
+        ...creds(),
+        body: {
+          analyzerId: result.analyzerId,
+          elements: result.elements || [],
+          source: result.source || 'hardware',
+          status: result.status || 'COMPLETED',
+          ingestId: result.ingestId,
+          purity: result.purity,
+          fineness: result.fineness,
+          originalResult: result,
+          rawData: result.rawData || result,
+        },
+      })
+    } catch (err) {
+      log.warn('xrf result ingest failed', { message: err.message })
     }
   })
 
@@ -142,6 +174,8 @@ async function main() {
 
   startLocalApi({
     port: config.localPort,
+    bindHost: config.bindHost,
+    localToken: config.localToken,
     gatewayId: config.gatewayId,
     scaleManager,
     xrfManager,
@@ -151,7 +185,8 @@ async function main() {
       gatewayId: config.gatewayId,
       mode: config.mode,
       xrfMode: config.xrfMode,
-      version: '1.1.0',
+      bindHost: config.bindHost,
+      version: '1.2.0',
       scales: scaleManager.getStatuses(),
       xrf: xrfManager.getStatuses(),
       pushCount,
@@ -161,11 +196,11 @@ async function main() {
       driverNotes: {
         rs232: 'production-ready when serialport installed and COM configured',
         ethernet: 'TCP line-oriented scales supported',
-        usb: 'stub — not production-ready',
-        bluetooth: 'stub — not production-ready',
+        usb: 'stub — not commissioned / not production-ready',
+        bluetooth: 'stub — not commissioned / not production-ready',
         xrf: config.xrfMode === 'simulator'
-          ? 'simulator only — LANScientific protocol TBD'
-          : 'disabled or adapter stub',
+          ? 'simulator only — LANScientific protocol TBD; results tagged simulated'
+          : 'disabled or adapter stub — do not claim hardware verified',
       },
     }),
   })

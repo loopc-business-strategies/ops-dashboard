@@ -35,12 +35,23 @@ const createTenantUser = async (tenant, overrides = {}) => {
   })
 }
 
+const GATEWAY_ID = 'MG-GATEWAY-001'
+const GATEWAY_SECRET = 'test-gateway-secret'
+
+const gatewayHeaders = () => ({
+  'X-Gateway-Id': GATEWAY_ID,
+  'X-Gateway-Secret': GATEWAY_SECRET,
+})
+
 beforeAll(async () => {
   process.env.NODE_ENV = 'test'
   process.env.JWT_SECRET = 'test-secret'
   process.env.RATE_LIMIT_MAX = '100000'
   process.env.AUTH_RATE_LIMIT_MAX = '100000'
   process.env.DEFAULT_TENANT = 'loopc'
+  process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET}`
+  process.env.ALLOW_XRF_SIMULATOR = 'true'
+  delete process.env.MG_GATEWAY_ALLOW_JWT_FALLBACK
 
   mongo = await startMongoMemoryServer()
   const baseUri = mongo.getUri()
@@ -175,13 +186,25 @@ describe('MG Floor scales', () => {
     expect(list.status).toBe(200)
     expect(list.body.scales.length).toBeGreaterThanOrEqual(7)
 
-    const bad = await request(app)
+    const jwtBlocked = await request(app)
       .post('/api/mg-floor/scales/ingest')
       .set('Host', 'api.loopcstrategies.com')
       .set('x-tenant', 'mg')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        deviceId: 'MG-GATEWAY-001',
+        deviceId: GATEWAY_ID,
+        scaleId: 'MG-SCALE-001',
+        eventType: 'weight_reading',
+        payload: { weight: 10, stable: true, unit: 'g' },
+      })
+    expect(jwtBlocked.status).toBe(401)
+
+    const bad = await request(app)
+      .post('/api/mg-floor/scales/ingest')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        deviceId: GATEWAY_ID,
         scaleId: 'FAKE-SCALE-999',
         eventType: 'weight_reading',
         payload: { weight: 10, stable: true, unit: 'g' },
@@ -192,10 +215,9 @@ describe('MG Floor scales', () => {
     const ok = await request(app)
       .post('/api/mg-floor/scales/ingest')
       .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
+      .set(gatewayHeaders())
       .send({
-        deviceId: 'MG-GATEWAY-001',
+        deviceId: GATEWAY_ID,
         scaleId: 'MG-SCALE-001',
         eventType: 'weight_reading',
         payload: { weight: 125.36, stable: true, unit: 'g', connectionType: 'SIMULATOR' },
@@ -209,10 +231,9 @@ describe('MG Floor scales', () => {
     const again = await request(app)
       .post('/api/mg-floor/scales/ingest')
       .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
+      .set(gatewayHeaders())
       .send({
-        deviceId: 'MG-GATEWAY-001',
+        deviceId: GATEWAY_ID,
         scaleId: 'MG-SCALE-001',
         eventType: 'weight_reading',
         payload: { weight: 125.36, stable: true, unit: 'g' },
@@ -220,6 +241,19 @@ describe('MG Floor scales', () => {
       })
 
     expect(again.body.reused).toBe(true)
+
+    const unknownGw = await request(app)
+      .post('/api/mg-floor/scales/ingest')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('X-Gateway-Id', 'MG-GATEWAY-UNKNOWN')
+      .set('X-Gateway-Secret', GATEWAY_SECRET)
+      .send({
+        deviceId: 'MG-GATEWAY-UNKNOWN',
+        scaleId: 'MG-SCALE-001',
+        eventType: 'weight_reading',
+        payload: { weight: 1, stable: true },
+      })
+    expect(unknownGw.status).toBe(403)
   })
 })
 
@@ -232,8 +266,7 @@ describe('MG Floor sync idempotency', () => {
     await request(app)
       .post('/api/mg-floor/scales/ingest')
       .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
+      .set(gatewayHeaders())
       .send({
         deviceId: 'GW',
         scaleId: 'MG-SCALE-001',
@@ -281,7 +314,7 @@ describe('MG Floor sync idempotency', () => {
     expect(second.body.results[0].operationId).toBe(opId)
   })
 
-  test('XRF devices and tests are MG-only and seed MG-XRF-001', async () => {
+  test('XRF integrity: app cannot invent Au; gateway ingest + confirm; sim gated', async () => {
     const mgUser = await createTenantUser('mg')
     const cgUser = await createTenantUser('cg')
     const mgToken = tokenFor(mgUser, 'mg')
@@ -302,18 +335,70 @@ describe('MG Floor sync idempotency', () => {
     expect(devices.status).toBe(200)
     expect(devices.body.devices.some((d) => d.analyzerId === 'MG-XRF-001')).toBe(true)
 
-    const created = await request(app)
+    const invented = await request(app)
       .post('/api/mg-floor/xrf/tests')
       .set('Host', 'api.loopcstrategies.com')
       .set('x-tenant', 'mg')
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-test-op-1',
+        operationId: 'xrf-invent-blocked',
         elements: [{ symbol: 'Au', value: 91.7, unit: '%' }],
       })
-    expect([200, 201]).toContain(created.status)
-    expect(created.body.test?.elements?.[0]?.symbol).toBe('Au')
+    expect(invented.status).toBe(403)
+
+    const ingested = await request(app)
+      .post('/api/mg-floor/xrf/ingest/result')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        analyzerId: 'MG-XRF-001',
+        source: 'hardware',
+        ingestId: 'hw-ingest-1',
+        elements: [
+          { symbol: 'Au', value: 91.72, unit: '%' },
+          { symbol: 'Ag', value: 5.41, unit: '%' },
+        ],
+      })
+    expect([200, 201]).toContain(ingested.status)
+    expect(ingested.body.test?.source).toBe('hardware')
+    expect(ingested.body.test?.confirmationStatus).toBe('PENDING_CONFIRM')
+    const xrfTestId = ingested.body.test.xrfTestId
+
+    const pending = await request(app)
+      .get('/api/mg-floor/xrf/tests')
+      .query({ pendingForConfirm: '1' })
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+    expect(pending.status).toBe(200)
+    expect(pending.body.tests.some((t) => t.xrfTestId === xrfTestId)).toBe(true)
+
+    const confirmOverride = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        operationId: 'xrf-confirm-override',
+        elements: [{ symbol: 'Au', value: 99.9, unit: '%' }],
+      })
+    expect(confirmOverride.status).toBe(403)
+
+    const confirmed = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        operationId: 'xrf-confirm-1',
+        batchNumber: 'B-100',
+      })
+    expect([200, 201]).toContain(confirmed.status)
+    expect(confirmed.body.test?.confirmationStatus).toBe('CONFIRMED')
+    expect(confirmed.body.test?.elements?.[0]?.value).toBe(91.72)
 
     const reused = await request(app)
       .post('/api/mg-floor/xrf/tests')
@@ -321,11 +406,48 @@ describe('MG Floor sync idempotency', () => {
       .set('x-tenant', 'mg')
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-test-op-1',
-        elements: [{ symbol: 'Au', value: 91.7, unit: '%' }],
+        xrfTestId,
+        operationId: 'xrf-confirm-1',
       })
     expect(reused.status).toBe(200)
     expect(reused.body.reused).toBe(true)
+
+    // Simulator allowed in test (ALLOW_XRF_SIMULATOR=true)
+    const simOk = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        source: 'simulated',
+        analyzerId: 'MG-XRF-001',
+        operationId: 'xrf-sim-ok',
+        elements: [{ symbol: 'Au', value: 88.1, unit: '%' }],
+      })
+    expect([200, 201]).toContain(simOk.status)
+    expect(simOk.body.test?.source).toBe('simulated')
+
+    // Prod-like: block simulated
+    const prevAllow = process.env.ALLOW_XRF_SIMULATOR
+    const prevNode = process.env.NODE_ENV
+    process.env.ALLOW_XRF_SIMULATOR = 'false'
+    process.env.NODE_ENV = 'production'
+    try {
+      const simBlocked = await request(app)
+        .post('/api/mg-floor/xrf/tests')
+        .set('Host', 'api.loopcstrategies.com')
+        .set('x-tenant', 'mg')
+        .set('Authorization', `Bearer ${mgToken}`)
+        .send({
+          source: 'simulated',
+          analyzerId: 'MG-XRF-001',
+          operationId: 'xrf-sim-blocked',
+          elements: [{ symbol: 'Au', value: 88.1, unit: '%' }],
+        })
+      expect(simBlocked.status).toBe(403)
+    } finally {
+      process.env.ALLOW_XRF_SIMULATOR = prevAllow
+      process.env.NODE_ENV = prevNode
+    }
   })
 })

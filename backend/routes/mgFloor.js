@@ -2,6 +2,7 @@ const express = require('express')
 const Joi = require('joi')
 const { protect } = require('../middleware/auth')
 const { requireMgTenant } = require('../middleware/requireMgTenant')
+const { requireMgGateway } = require('../middleware/requireMgGateway')
 const { validateBody, validateParams, validateQuery } = require('../middleware/validate')
 const { requireProductionPermission, resolveProductionRole } = require('../services/productionControl/permissions')
 const ProductionBatch = require('../models/ProductionBatch')
@@ -28,6 +29,7 @@ function handleError(res, err) {
 }
 
 const mgProtect = [protect, requireMgTenant]
+const mgGatewayProtect = [requireMgGateway]
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
@@ -270,7 +272,7 @@ router.patch('/scales/:scaleId', ...mgProtect, requireProductionPermission('mana
   }
 })
 
-router.post('/scales/ingest', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
+router.post('/scales/ingest', ...mgGatewayProtect, validateBody(Joi.object({
   deviceType: Joi.string().default('weighing_scale'),
   deviceId: Joi.string().trim().required(),
   scaleId: Joi.string().trim().required(),
@@ -281,7 +283,14 @@ router.post('/scales/ingest', ...mgProtect, requireProductionPermission('view'),
   gatewayId: Joi.string().trim().allow('', null),
 }).unknown(true)), async (req, res) => {
   try {
-    const result = await mgFloor.ingestScaleReading(req, req.body)
+    if (!req.user) {
+      req.user = { _id: null, name: `gateway:${req.mgGateway?.gatewayId || 'unknown'}`, role: 'department_user', company: 'mg' }
+    }
+    if (!req.tenant) req.tenant = 'mg'
+    const result = await mgFloor.ingestScaleReading(req, {
+      ...req.body,
+      gatewayId: req.body.gatewayId || req.mgGateway?.gatewayId,
+    })
     const io = req.app?.get?.('io')
     if (io && !result.reused) {
       io.to('tenant:mg').emit('mg-floor:scale', {
@@ -302,7 +311,7 @@ router.post('/scales/ingest', ...mgProtect, requireProductionPermission('view'),
 router.post('/sync', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
   operations: Joi.array().items(Joi.object({
     operationId: Joi.string().trim().required(),
-    operationType: Joi.string().valid('metal_in', 'metal_out', 'transfer', 'weight_adjust', 'scan', 'other').required(),
+    operationType: Joi.string().valid('metal_in', 'metal_out', 'transfer', 'weight_adjust', 'xrf_test', 'scan', 'other').required(),
     payload: Joi.object().unknown(true).default({}),
     deviceId: Joi.string().trim().allow('', null),
     scaleId: Joi.string().trim().allow('', null),
@@ -414,7 +423,7 @@ router.get('/xrf/:id/status', ...mgProtect, requireProductionPermission('view'),
   }
 })
 
-router.post('/xrf/ingest', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
+router.post('/xrf/ingest', ...mgGatewayProtect, validateBody(Joi.object({
   analyzerId: Joi.string().trim().required(),
   eventType: Joi.string().trim().default('status'),
   status: Joi.string().trim().allow('', null),
@@ -426,8 +435,50 @@ router.post('/xrf/ingest', ...mgProtect, requireProductionPermission('view'), va
   payload: Joi.object().unknown(true),
 }).unknown(true)), async (req, res) => {
   try {
-    const result = await mgFloor.ingestXrfStatus(req, req.body)
+    if (!req.user) {
+      req.user = { _id: null, name: `gateway:${req.mgGateway?.gatewayId || 'unknown'}`, role: 'department_user', company: 'mg' }
+    }
+    if (!req.tenant) req.tenant = 'mg'
+    const result = await mgFloor.ingestXrfStatus(req, {
+      ...req.body,
+      gatewayId: req.body.gatewayId || req.mgGateway?.gatewayId,
+    })
     res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/xrf/ingest/result', ...mgGatewayProtect, validateBody(Joi.object({
+  analyzerId: Joi.string().trim().default('MG-XRF-001'),
+  elements: Joi.array().items(Joi.object({
+    symbol: Joi.string().trim().required(),
+    value: Joi.number().required(),
+    unit: Joi.string().trim().default('%'),
+  }).unknown(true)).default([]),
+  source: Joi.string().valid('hardware', 'simulated').default('hardware'),
+  status: Joi.string().trim().default('COMPLETED'),
+  ingestId: Joi.string().trim().allow('', null),
+  idempotencyKey: Joi.string().trim().allow('', null),
+  gatewayId: Joi.string().trim().allow('', null),
+  purity: Joi.number().allow(null),
+  fineness: Joi.number().allow(null),
+  testedAt: Joi.date().allow(null),
+  originalResult: Joi.object().unknown(true).allow(null),
+  rawData: Joi.any().allow(null),
+  model: Joi.string().trim().allow('', null),
+  serialNumber: Joi.string().trim().allow('', null),
+}).unknown(true)), async (req, res) => {
+  try {
+    if (!req.user) {
+      req.user = { _id: null, name: `gateway:${req.mgGateway?.gatewayId || 'unknown'}`, role: 'department_user', company: 'mg' }
+    }
+    if (!req.tenant) req.tenant = 'mg'
+    const result = await mgFloor.ingestXrfResult(req, {
+      ...req.body,
+      gatewayId: req.body.gatewayId || req.mgGateway?.gatewayId,
+    })
+    res.status(result.reused ? 200 : 201).json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }
@@ -452,15 +503,15 @@ router.get('/xrf/tests/:id', ...mgProtect, requireProductionPermission('view'), 
 })
 
 router.post('/xrf/tests', ...mgProtect, requireProductionPermission('receivePass'), validateBody(Joi.object({
-  analyzerId: Joi.string().trim().default('MG-XRF-001'),
+  xrfTestId: Joi.string().trim().allow('', null),
+  ingestId: Joi.string().trim().allow('', null),
+  source: Joi.string().valid('simulated').allow('', null),
   elements: Joi.array().items(Joi.object({
     symbol: Joi.string().trim().required(),
     value: Joi.number().required(),
     unit: Joi.string().trim().default('%'),
-  }).unknown(true)).default([]),
-  purity: Joi.number().allow(null),
-  fineness: Joi.number().allow(null),
-  status: Joi.string().trim().default('COMPLETED'),
+  }).unknown(true)).max(32),
+  analyzerId: Joi.string().trim().default('MG-XRF-001'),
   batchId: Joi.string().hex().length(24).allow(null, ''),
   batchNumber: Joi.string().trim().allow('', null),
   jobId: Joi.string().trim().allow('', null),
@@ -469,18 +520,14 @@ router.post('/xrf/tests', ...mgProtect, requireProductionPermission('receivePass
   scaleId: Joi.string().trim().allow('', null),
   scaleWeight: Joi.number().allow(null),
   deviceId: Joi.string().trim().allow('', null),
-  gatewayId: Joi.string().trim().allow('', null),
   operationId: Joi.string().trim().allow('', null),
-  xrfTestId: Joi.string().trim().allow('', null),
-  testedAt: Joi.date().allow(null),
+  status: Joi.string().trim().allow('', null),
+  purity: Joi.number().allow(null),
+  fineness: Joi.number().allow(null),
   originalResult: Joi.object().unknown(true).allow(null),
   rawData: Joi.any().allow(null),
-  reportReference: Joi.string().trim().allow('', null),
-  model: Joi.string().trim().allow('', null),
-  serialNumber: Joi.string().trim().allow('', null),
 }).unknown(true)), async (req, res) => {
   try {
-    // Operators with receivePass can also submit QC on the floor when submitQc is missing
     const result = await mgFloor.submitXrfTest(req, req.body)
     res.status(result.reused ? 200 : 201).json({ success: true, ...result })
   } catch (err) {

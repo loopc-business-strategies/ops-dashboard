@@ -59,7 +59,15 @@ class XrfManager extends EventEmitter {
   async runTest(analyzerId, opts = {}) {
     const adapter = this.getConnection(analyzerId)
     if (!adapter) throw new Error(`XRF analyzer not found: ${analyzerId}`)
-    return adapter.runTest(opts)
+    const result = await adapter.runTest(opts)
+    const payload = {
+      analyzerId: String(analyzerId || '').toUpperCase(),
+      ...result,
+      source: this.mode === 'simulator' ? 'simulated' : 'hardware',
+      ingestId: result?.ingestId || `gw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    }
+    this.emit('result', payload)
+    return payload
   }
 }
 

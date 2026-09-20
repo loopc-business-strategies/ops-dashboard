@@ -41,6 +41,17 @@ const xrfTestSchema = new mongoose.Schema(
     scaleId: { type: String, trim: true, default: '' },
     scaleWeight: { type: Number, default: null },
     gatewayId: { type: String, trim: true, default: '' },
+    source: {
+      type: String,
+      enum: ['hardware', 'simulated'],
+      default: 'hardware',
+    },
+    confirmationStatus: {
+      type: String,
+      enum: ['PENDING_CONFIRM', 'CONFIRMED', 'REJECTED'],
+      default: 'PENDING_CONFIRM',
+    },
+    ingestId: { type: String, trim: true, default: null },
     syncStatus: {
       type: String,
       enum: ['PENDING', 'SYNCING', 'SYNCED', 'FAILED', 'CONFLICT'],
@@ -53,6 +64,8 @@ const xrfTestSchema = new mongoose.Schema(
 
 xrfTestSchema.index({ xrfTestId: 1 }, { unique: true })
 xrfTestSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true })
+xrfTestSchema.index({ ingestId: 1 }, { unique: true, sparse: true })
+xrfTestSchema.index({ analyzerId: 1, confirmationStatus: 1, testedAt: -1 })
 xrfTestSchema.index({ analyzerId: 1, testedAt: -1 })
 xrfTestSchema.index({ batchId: 1, testedAt: -1 })
 xrfTestSchema.index({ operationId: 1 }, { sparse: true })
