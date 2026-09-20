@@ -199,6 +199,13 @@ async function submitXrfTest(req, body = {}) {
       : await XrfTest.findOne({ ingestId })
     if (!test) throw new ProductionError('XRF test not found — wait for gateway ingest', 404)
 
+    if (test.source === 'simulated' && !allowXrfSimulator()) {
+      throw new ProductionError(
+        'Simulated XRF results cannot be confirmed in this environment',
+        403,
+      )
+    }
+
     if (Array.isArray(body.elements) && body.elements.length) {
       throw new ProductionError(
         'Client cannot supply or override XRF element values. Confirm a gateway-ingested result only.',
