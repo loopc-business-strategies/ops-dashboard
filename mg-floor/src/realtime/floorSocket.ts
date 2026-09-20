@@ -78,6 +78,18 @@ export function releaseFloorSocket() {
   }
 }
 
+/** Force-drop shared socket on logout regardless of refCount. */
+export function forceReleaseFloorSocket() {
+  refCount = 0
+  if (socket) {
+    socket.removeAllListeners()
+    socket.io.removeAllListeners()
+    socket.disconnect()
+    socket = null
+  }
+  emitStatus('DISCONNECTED', null)
+}
+
 export function reconnectFloorSocket() {
   if (socket) {
     emitStatus('RECONNECTING', null)

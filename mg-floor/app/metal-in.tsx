@@ -2,13 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
-import { BigButton, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
+import { BigButton, Screen, Subtitle } from '@/src/components/ui'
 import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
+import { StableCapturePanel } from '@/src/components/StableCapturePanel'
+import { QrFirstResolve } from '@/src/components/QrFirstResolve'
 import { fetchOpenPasses, fetchScales, metalIn } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
-import { useLiveScale } from '@/src/hooks/useLiveScale'
+import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { flushOutbox } from '@/src/offline/sync'
+import { useAuth } from '@/src/context/AuthContext'
 import { colors, spacing } from '@/src/theme'
 
 type PassRow = {
@@ -23,12 +26,14 @@ type PassRow = {
 
 export default function MetalInScreen() {
   const params = useLocalSearchParams<{ passId?: string; scaleId?: string }>()
+  const { user } = useAuth()
   const [selected, setSelected] = useState<PassRow | null>(null)
   const [scaleId, setScaleId] = useState(String(params.scaleId || ''))
+  const [showList, setShowList] = useState(false)
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const inFlightOpId = useRef<string | null>(null)
-  const live = useLiveScale(scaleId || null)
+  const capture = useStableScaleCapture(scaleId)
 
   const passes = useAsyncResource(
     useCallback(async (signal) => {
@@ -39,11 +44,21 @@ export default function MetalInScreen() {
   )
 
   const scales = useAsyncResource(
-    useCallback(async (signal) => {
-      const res = await fetchScales({ limit: 50, skip: 0 }, { signal })
-      return (res.scales || []).map((x) => String(x.scaleId))
-    }, []),
-    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
+    useCallback(
+      async (signal) => {
+        const res = await fetchScales(
+          {
+            limit: 50,
+            skip: 0,
+            ...(user?.department ? { department: String(user.department) } : {}),
+          },
+          { signal },
+        )
+        return (res.scales || []).map((x) => String(x.scaleId))
+      },
+      [user?.department],
+    ),
+    { isEmpty: (d) => !d.length, cacheKey: `mg-floor:scale-ids:${user?.department || 'all'}` },
   )
 
   useEffect(() => {
@@ -62,8 +77,8 @@ export default function MetalInScreen() {
       Alert.alert('Select a scale', 'Choose an authorized scale before submitting.')
       return
     }
-    if (!live.lastReading?.stable || live.weight == null) {
-      Alert.alert('Waiting for stable weight', 'Place material on the scale and wait until STABLE.')
+    if (!capture.captured?.scaleReadingId) {
+      Alert.alert('Capture stable weight', 'Capture a stable scale reading before confirming.')
       return
     }
     if (busy) return
@@ -74,7 +89,8 @@ export default function MetalInScreen() {
     const payload = {
       passId: selected._id,
       scaleId,
-      receivedWeight: live.weight,
+      stableReadingId: capture.captured.scaleReadingId,
+      receivedWeight: capture.captured.weight,
       operationId,
     }
     try {
@@ -93,6 +109,7 @@ export default function MetalInScreen() {
       await metalIn(payload)
       Alert.alert('Success', 'Metal IN recorded')
       inFlightOpId.current = null
+      capture.clearCapture()
     } catch (err) {
       await enqueueOutbox({
         operationId,
@@ -115,35 +132,67 @@ export default function MetalInScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Scan/select inbound pass → confirm scale → capture stable weight</Subtitle>
+        <Subtitle>Scan → verify → scale → capture stable → confirm</Subtitle>
 
-        <Text style={styles.step}>Step 1 — Open passes</Text>
-        <AsyncSection
-          status={passes.status}
-          loadingLabel="Loading passes…"
-          error={passes.error || 'Unable to load open passes'}
-          emptyMessage="No open inbound passes"
-          onRetry={passes.reload}
-          updatedAt={passes.updatedAt}
-          fromCache={passes.fromCache}
-          stale={passes.stale}
-        >
-          {(passes.data || []).map((p) => (
-            <BigButton
-              key={p._id}
-              label={
-                selected?._id === p._id
-                  ? `✓ ${p.passNumber || p._id}`
-                  : String(p.passNumber || p.batchNumber || p._id)
-              }
-              tone={selected?._id === p._id ? 'accent' : 'neutral'}
-              onPress={() => setSelected(p)}
-            />
-          ))}
-        </AsyncSection>
+        <QrFirstResolve
+          hint="Scan inbound pass / batch QR"
+          onVerified={(match) => {
+            const id = String(match.passId || match._id || match.id || '')
+            if (id) {
+              const fromList = (passes.data || []).find((p) => p._id === id)
+              setSelected(
+                fromList || {
+                  _id: id,
+                  passNumber: String(match.passNumber || match.batchNumber || id),
+                  batchNumber: String(match.batchNumber || ''),
+                  fromDepartment: String(match.fromDepartment || ''),
+                  toDepartment: String(match.toDepartment || ''),
+                  status: String(match.status || ''),
+                },
+              )
+            }
+          }}
+        />
 
-        <Text style={styles.step}>Step 2 — Select scale</Text>
-        {!scaleId ? <Text style={styles.hint}>Select a scale to start live weighing.</Text> : null}
+        {selected ? (
+          <Text style={styles.selected}>
+            Selected: {selected.passNumber || selected._id}
+            {selected.fromDepartment ? ` · ${selected.fromDepartment} → ${selected.toDepartment || ''}` : ''}
+          </Text>
+        ) : null}
+
+        <BigButton
+          label={showList ? 'HIDE OPEN PASSES' : 'SELECT FROM OPEN PASSES (SECONDARY)'}
+          tone="neutral"
+          onPress={() => setShowList((v) => !v)}
+        />
+        {showList ? (
+          <AsyncSection
+            status={passes.status}
+            loadingLabel="Loading passes…"
+            error={passes.error || 'Unable to load open passes'}
+            emptyMessage="No open inbound passes"
+            onRetry={passes.reload}
+            updatedAt={passes.updatedAt}
+            fromCache={passes.fromCache}
+            stale={passes.stale}
+          >
+            {(passes.data || []).map((p) => (
+              <BigButton
+                key={p._id}
+                label={
+                  selected?._id === p._id
+                    ? `✓ ${p.passNumber || p._id}`
+                    : String(p.passNumber || p.batchNumber || p._id)
+                }
+                tone={selected?._id === p._id ? 'accent' : 'neutral'}
+                onPress={() => setSelected(p)}
+              />
+            ))}
+          </AsyncSection>
+        ) : null}
+
+        <Text style={styles.step}>AUTHORIZED SCALE</Text>
         {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
         {scales.status === 'error' && !scales.data ? (
           <ErrorState message={scales.error || 'Unable to load scales'} onRetry={scales.reload} />
@@ -159,20 +208,14 @@ export default function MetalInScreen() {
           ))}
         </View>
 
-        <Text style={styles.step}>Step 3 — Live weight</Text>
-        <WeightDisplay
-          weight={live.weight}
-          stable={live.stable}
-          connectionStatus={live.connectionStatus}
-          lastReadingAt={live.lastReadingAt}
-          onReconnect={live.reconnect}
-        />
+        <Text style={styles.step}>STABLE CAPTURE</Text>
+        <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
 
         {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
         <BigButton
           label={busy ? 'SUBMITTING…' : 'CONFIRM METAL IN'}
           onPress={submit}
-          disabled={busy || !selected || !scaleId || !live.stable}
+          disabled={busy || !selected || !scaleId || !capture.hasCapture}
         />
       </ScrollView>
     </Screen>
@@ -187,7 +230,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     letterSpacing: 0.5,
   },
-  hint: { color: colors.textMuted, marginBottom: spacing.sm },
+  selected: { color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
   scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   err: { color: colors.danger, marginVertical: spacing.sm },
 })

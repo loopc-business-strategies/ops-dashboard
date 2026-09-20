@@ -2,24 +2,29 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
-import { BigButton, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
+import { BigButton, Screen, Subtitle } from '@/src/components/ui'
 import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
+import { StableCapturePanel } from '@/src/components/StableCapturePanel'
+import { QrFirstResolve } from '@/src/components/QrFirstResolve'
 import { fetchDepartments, fetchScales, transfer } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
-import { useLiveScale } from '@/src/hooks/useLiveScale'
+import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
+import { useAuth } from '@/src/context/AuthContext'
 import { colors, spacing } from '@/src/theme'
 
 export default function TransferScreen() {
   const params = useLocalSearchParams<{ batchId?: string; scaleId?: string }>()
+  const { user } = useAuth()
   const [batchId, setBatchId] = useState(String(params.batchId || ''))
   const [fromDepartment, setFromDepartment] = useState('')
   const [toDepartment, setToDepartment] = useState('')
   const [scaleId, setScaleId] = useState(String(params.scaleId || ''))
+  const [showManualBatch, setShowManualBatch] = useState(false)
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const inFlightOpId = useRef<string | null>(null)
-  const live = useLiveScale(scaleId || null)
+  const capture = useStableScaleCapture(scaleId)
 
   useEffect(() => {
     if (params.batchId) setBatchId(String(params.batchId))
@@ -38,11 +43,21 @@ export default function TransferScreen() {
   )
 
   const scales = useAsyncResource(
-    useCallback(async (signal) => {
-      const s = await fetchScales({ limit: 50, skip: 0 }, { signal })
-      return (s.scales || []).map((x) => String(x.scaleId))
-    }, []),
-    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
+    useCallback(
+      async (signal) => {
+        const s = await fetchScales(
+          {
+            limit: 50,
+            skip: 0,
+            ...(user?.department ? { department: String(user.department) } : {}),
+          },
+          { signal },
+        )
+        return (s.scales || []).map((x) => String(x.scaleId))
+      },
+      [user?.department],
+    ),
+    { isEmpty: (d) => !d.length, cacheKey: `mg-floor:scale-ids:${user?.department || 'all'}` },
   )
 
   const submit = async () => {
@@ -54,8 +69,8 @@ export default function TransferScreen() {
       Alert.alert('Select a scale', 'Choose an authorized scale before submitting.')
       return
     }
-    if (!live.lastReading?.stable || live.weight == null) {
-      Alert.alert('Waiting for stable weight')
+    if (!capture.captured?.scaleReadingId) {
+      Alert.alert('Capture stable weight', 'Capture a stable scale reading before confirming.')
       return
     }
     if (busy) return
@@ -68,7 +83,8 @@ export default function TransferScreen() {
       fromDepartment: fromDepartment.trim() || undefined,
       toDepartment: toDepartment.trim(),
       scaleId,
-      weight: live.weight,
+      stableReadingId: capture.captured.scaleReadingId,
+      weight: capture.captured.weight,
       operationId,
     }
     try {
@@ -82,6 +98,7 @@ export default function TransferScreen() {
       await transfer(payload)
       Alert.alert('Success', 'Transfer recorded')
       inFlightOpId.current = null
+      capture.clearCapture()
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'transfer', payload, scaleId })
       setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
@@ -93,17 +110,40 @@ export default function TransferScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Department → department material transfer</Subtitle>
+        <Subtitle>Scan → departments → capture stable → confirm transfer</Subtitle>
 
-        <Text style={styles.label}>Batch ID</Text>
-        <TextInput
-          style={styles.input}
-          value={batchId}
-          onChangeText={setBatchId}
-          placeholderTextColor={colors.textMuted}
+        <QrFirstResolve
+          hint="Scan batch / transfer QR"
+          onVerified={(match) => {
+            const id = String(match.batchId || match._id || match.id || '')
+            if (id) setBatchId(id)
+            const from = String(match.fromDepartment || match.currentDepartment || match.department || '')
+            const to = String(match.toDepartment || '')
+            if (from) setFromDepartment(from)
+            if (to) setToDepartment(to)
+          }}
         />
 
-        <Text style={styles.step}>Departments</Text>
+        {batchId ? <Text style={styles.selected}>Batch: {batchId}</Text> : null}
+
+        <BigButton
+          label={showManualBatch ? 'HIDE MANUAL BATCH' : 'ENTER BATCH ID (FALLBACK)'}
+          tone="neutral"
+          onPress={() => setShowManualBatch((v) => !v)}
+        />
+        {showManualBatch ? (
+          <>
+            <Text style={styles.warn}>Manual batch ID still validated by backend on submit.</Text>
+            <TextInput
+              style={styles.input}
+              value={batchId}
+              onChangeText={setBatchId}
+              placeholderTextColor={colors.textMuted}
+            />
+          </>
+        ) : null}
+
+        <Text style={styles.step}>DEPARTMENTS</Text>
         <AsyncSection
           status={departments.status}
           loadingLabel="Loading departments…"
@@ -137,8 +177,7 @@ export default function TransferScreen() {
           placeholderTextColor={colors.textMuted}
         />
 
-        <Text style={styles.step}>Select scale</Text>
-        {!scaleId ? <Text style={styles.hint}>Select a scale to start live weighing.</Text> : null}
+        <Text style={styles.step}>AUTHORIZED SCALE</Text>
         {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
         {scales.status === 'error' && !scales.data ? (
           <ErrorState message={scales.error || 'Scales unavailable'} onRetry={scales.reload} />
@@ -152,19 +191,14 @@ export default function TransferScreen() {
           />
         ))}
 
-        <WeightDisplay
-          weight={live.weight}
-          stable={live.stable}
-          connectionStatus={live.connectionStatus}
-          lastReadingAt={live.lastReadingAt}
-          onReconnect={live.reconnect}
-        />
+        <Text style={styles.step}>STABLE CAPTURE</Text>
+        <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
 
         {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
         <BigButton
           label={busy ? 'SUBMITTING…' : 'CONFIRM TRANSFER'}
           onPress={submit}
-          disabled={busy || !scaleId || !live.stable}
+          disabled={busy || !scaleId || !capture.hasCapture}
         />
       </ScrollView>
     </Screen>
@@ -173,8 +207,8 @@ export default function TransferScreen() {
 
 const styles = StyleSheet.create({
   step: { color: colors.accent, fontWeight: '800', marginTop: spacing.md, marginBottom: spacing.sm },
-  hint: { color: colors.textMuted, marginBottom: spacing.sm },
-  label: { color: colors.textMuted, marginTop: spacing.md, marginBottom: 6, fontWeight: '700' },
+  selected: { color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
+  warn: { color: colors.warning, fontSize: 12, fontWeight: '700', marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surface,
     borderColor: colors.border,

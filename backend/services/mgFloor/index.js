@@ -55,23 +55,50 @@ async function getMe(req) {
   }
 }
 
-async function assertScaleReading(scaleId, stableReadingId, expectedWeight) {
+const STABLE_READING_MAX_AGE_MS = Number(process.env.MG_STABLE_READING_MAX_AGE_MS || 2 * 60 * 1000)
+const STABLE_WEIGHT_TOLERANCE_G = Number(process.env.MG_STABLE_WEIGHT_TOLERANCE_G || 0.5)
+
+/**
+ * @param {object} [opts]
+ * @param {boolean} [opts.requireId] When true (metal submit), stableReadingId is mandatory — no latest fallback.
+ * @param {boolean} [opts.allowLatestFallback] When true (capture endpoint only), resolve latest stable if id omitted.
+ */
+async function assertScaleReading(scaleId, stableReadingId, expectedWeight, opts = {}) {
+  const requireId = opts.requireId === true
+  const allowLatestFallback = opts.allowLatestFallback === true && !requireId
+
   if (!scaleId) throw new ProductionError('scaleId is required for floor weight capture')
   const scale = await Scale.findOne({ scaleId: String(scaleId).toUpperCase() })
   if (!scale || !scale.enabled) throw new ProductionError('Scale not found or disabled', 404)
   if (scale.status === 'DISABLED') throw new ProductionError('Scale is disabled')
 
+  const id = stableReadingId ? String(stableReadingId).trim() : ''
+  if (requireId && !id) {
+    throw new ProductionError(
+      'stableReadingId is required. Capture a stable scale reading before submitting.',
+      400,
+    )
+  }
+
   let reading = null
-  if (stableReadingId) {
-    reading = await HardwareEvent.findById(stableReadingId)
+  if (id) {
+    reading = await HardwareEvent.findById(id)
     if (!reading) throw new ProductionError('Stable scale reading not found', 404)
     if (String(reading.scaleId || '').toUpperCase() !== String(scaleId).toUpperCase()) {
-      throw new ProductionError('Scale reading does not match scaleId')
+      throw new ProductionError('Scale reading does not match scaleId', 403)
     }
-    if (!reading.stable) throw new ProductionError('Scale reading is not stable')
-  } else {
-    // Prefer the latest stable reading within 2 minutes for this scale
-    const since = new Date(Date.now() - 2 * 60 * 1000)
+    if (!reading.stable) throw new ProductionError('Scale reading is not stable', 400)
+    const readingGw = String(reading.gatewayId || '').trim().toUpperCase()
+    const scaleGw = String(scale.gatewayId || '').trim().toUpperCase()
+    if (readingGw && scaleGw && readingGw !== scaleGw) {
+      throw new ProductionError('Scale reading gateway does not match scale assignment', 403)
+    }
+    const recorded = new Date(reading.recordedAt || reading.createdAt || 0).getTime()
+    if (Number.isFinite(recorded) && Date.now() - recorded > STABLE_READING_MAX_AGE_MS) {
+      throw new ProductionError('Stable scale reading has expired. Capture again.', 400)
+    }
+  } else if (allowLatestFallback) {
+    const since = new Date(Date.now() - STABLE_READING_MAX_AGE_MS)
     reading = await HardwareEvent.findOne({
       scaleId: String(scaleId).toUpperCase(),
       stable: true,
@@ -83,6 +110,11 @@ async function assertScaleReading(scaleId, stableReadingId, expectedWeight) {
         'No recent stable scale reading. Wait for STABLE on the gateway scale, then capture again.',
       )
     }
+  } else {
+    throw new ProductionError(
+      'stableReadingId is required. Capture a stable scale reading before submitting.',
+      400,
+    )
   }
 
   const weight = Number(reading.weight)
@@ -90,10 +122,12 @@ async function assertScaleReading(scaleId, stableReadingId, expectedWeight) {
     throw new ProductionError('Valid stable weight is required')
   }
 
-  // Optional sanity check vs client-displayed weight (tolerance 0.5g)
   if (expectedWeight != null && Number.isFinite(Number(expectedWeight))) {
-    if (Math.abs(Number(expectedWeight) - weight) > 0.5) {
-      throw new ProductionError('Displayed weight does not match latest stable scale reading')
+    if (Math.abs(Number(expectedWeight) - weight) > STABLE_WEIGHT_TOLERANCE_G) {
+      throw new ProductionError(
+        'Submitted weight does not match the captured stable scale reading',
+        400,
+      )
     }
   }
 
@@ -102,7 +136,9 @@ async function assertScaleReading(scaleId, stableReadingId, expectedWeight) {
 
 /** Capture latest stable HardwareEvent for a scale — returns scaleReadingId. */
 async function captureStableReading(scaleId, expectedWeight = null) {
-  const { scale, reading, weight } = await assertScaleReading(scaleId, null, expectedWeight)
+  const { scale, reading, weight } = await assertScaleReading(scaleId, null, expectedWeight, {
+    allowLatestFallback: true,
+  })
   return {
     scaleReadingId: String(reading._id),
     scaleId: scale.scaleId,
@@ -138,7 +174,9 @@ async function metalOut(req, body = {}) {
     weight = Number(clientWeight)
     if (!Number.isFinite(weight) || weight <= 0) throw new ProductionError('Manual weight must be positive')
   } else {
-    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight)
+    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight, {
+      requireId: true,
+    })
     weight = asserted.weight
     scaleMeta = { scaleId: asserted.scale.scaleId, readingId: asserted.reading?._id, deviceId }
   }
@@ -210,9 +248,11 @@ async function metalIn(req, body = {}) {
   let scaleMeta = null
   if (allowManualWeight && hasProductionPermission(req.user, 'adjustWeight')) {
     weight = Number(clientWeight)
-    if (!Number.isFinite(weight) || weight < 0) throw new ProductionError('Manual received weight invalid')
+    if (!Number.isFinite(weight) || weight <= 0) throw new ProductionError('Manual received weight invalid')
   } else {
-    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight)
+    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight, {
+      requireId: true,
+    })
     weight = asserted.weight
     scaleMeta = { scaleId: asserted.scale.scaleId, readingId: asserted.reading?._id, deviceId }
   }
@@ -258,7 +298,9 @@ async function transfer(req, body = {}) {
     weight = Number(clientWeight)
     if (!Number.isFinite(weight) || weight <= 0) throw new ProductionError('Manual weight must be positive')
   } else {
-    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight)
+    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight, {
+      requireId: true,
+    })
     weight = asserted.weight
     scaleMeta = { scaleId: asserted.scale.scaleId, readingId: asserted.reading?._id, deviceId }
   }

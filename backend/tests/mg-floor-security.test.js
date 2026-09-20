@@ -772,3 +772,45 @@ describe('MG Floor dynamic device registry', () => {
     expect(devices.body.scales.length).toBeGreaterThanOrEqual(100)
   })
 })
+
+describe('MG Floor stableReadingId required on metal submit', () => {
+  test('Metal IN without stableReadingId is rejected', async () => {
+    const user = await createTenantUser('mg')
+    const token = tokenFor(user, 'mg')
+    const fakePassId = 'aaaaaaaaaaaaaaaaaaaaaaaa'
+    const res = await request(app)
+      .post('/api/mg-floor/metal/in')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        passId: fakePassId,
+        scaleId: 'MG-SCALE-001',
+        receivedWeight: 10.5,
+        operationId: 'metal-in-no-stable-id',
+      })
+    expect(res.status).toBeGreaterThanOrEqual(400)
+    expect(res.status).toBeLessThan(500)
+    expect(String(res.body.message || '')).toMatch(/stableReadingId/i)
+  })
+
+  test('Metal OUT without stableReadingId is rejected', async () => {
+    const user = await createTenantUser('mg')
+    const token = tokenFor(user, 'mg')
+    const res = await request(app)
+      .post('/api/mg-floor/metal/out')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        batchId: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+        toDepartment: 'casting',
+        scaleId: 'MG-SCALE-001',
+        weight: 10.5,
+        operationId: 'metal-out-no-stable-id',
+      })
+    expect(res.status).toBeGreaterThanOrEqual(400)
+    expect(res.status).toBeLessThan(500)
+    expect(String(res.body.message || '')).toMatch(/stableReadingId/i)
+  })
+})
