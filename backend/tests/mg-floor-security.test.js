@@ -63,6 +63,11 @@ beforeAll(async () => {
 
   await mongoose.connect(process.env.MONGO_URI_MG)
   app = createApp()
+  // createApp/dotenv may override — re-apply test gateway/XRF flags
+  process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET}`
+  process.env.ALLOW_XRF_SIMULATOR = 'true'
+  delete process.env.MG_GATEWAY_ALLOW_JWT_FALLBACK
+  process.env.NODE_ENV = 'test'
 }, 120000)
 
 afterEach(async () => {
@@ -474,5 +479,152 @@ describe('MG Floor sync idempotency', () => {
       process.env.ALLOW_XRF_SIMULATOR = prevAllow
       process.env.NODE_ENV = prevNode
     }
+  })
+})
+
+describe('MG Floor dynamic device registry', () => {
+  test('can register scale beyond seed set and list/search it', async () => {
+    const user = await createTenantUser('mg')
+    const token = tokenFor(user, 'mg')
+
+    const created = await request(app)
+      .post('/api/mg-floor/scales')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        scaleId: 'MG-SCALE-008',
+        gatewayId: GATEWAY_ID,
+        name: 'Extra scale 8',
+        connectionType: 'SIMULATOR',
+        department: 'casting',
+      })
+    expect(created.status).toBe(201)
+    expect(created.body.scale.scaleId).toBe('MG-SCALE-008')
+    expect(created.body.scale.gatewayId).toBe(GATEWAY_ID)
+
+    const list = await request(app)
+      .get('/api/mg-floor/scales')
+      .query({ search: '008', limit: 50 })
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+    expect(list.status).toBe(200)
+    expect(list.body.total).toBeGreaterThanOrEqual(1)
+    expect(list.body.scales.some((s) => s.scaleId === 'MG-SCALE-008')).toBe(true)
+
+    const ingestOk = await request(app)
+      .post('/api/mg-floor/scales/ingest')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        deviceId: GATEWAY_ID,
+        scaleId: 'MG-SCALE-008',
+        eventType: 'weight_reading',
+        payload: { weight: 10.5, stable: true, unit: 'g' },
+        idempotencyKey: 'dyn-scale-008-1',
+      })
+    expect([200, 202]).toContain(ingestOk.status)
+  })
+
+  test('wrong gateway cannot ingest assigned scale (DEVICE_GATEWAY_MISMATCH)', async () => {
+    process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET},MG-GATEWAY-002=other-secret`
+
+    const user = await createTenantUser('mg')
+    const token = tokenFor(user, 'mg')
+
+    await request(app)
+      .post('/api/mg-floor/gateways')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ gatewayId: 'MG-GATEWAY-002', name: 'Second' })
+
+    await request(app)
+      .post('/api/mg-floor/scales')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        scaleId: 'MG-SCALE-009',
+        gatewayId: GATEWAY_ID,
+        connectionType: 'SIMULATOR',
+      })
+
+    const mismatch = await request(app)
+      .post('/api/mg-floor/scales/ingest')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('X-Gateway-Id', 'MG-GATEWAY-002')
+      .set('X-Gateway-Secret', 'other-secret')
+      .send({
+        deviceId: 'MG-GATEWAY-002',
+        scaleId: 'MG-SCALE-009',
+        eventType: 'weight_reading',
+        payload: { weight: 1, stable: true },
+      })
+    expect(mismatch.status).toBe(403)
+    expect(mismatch.body.code).toBe('DEVICE_GATEWAY_MISMATCH')
+
+    process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET}`
+  })
+
+  test('register 43 scales, list/filter, ingest subset', async () => {
+    const user = await createTenantUser('mg')
+    const token = tokenFor(user, 'mg')
+
+    for (let i = 10; i <= 43; i += 1) {
+      const scaleId = `MG-SCALE-${String(i).padStart(3, '0')}`
+      const res = await request(app)
+        .post('/api/mg-floor/scales')
+        .set('Host', 'api.loopcstrategies.com')
+        .set('x-tenant', 'mg')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          scaleId,
+          gatewayId: GATEWAY_ID,
+          connectionType: 'SIMULATOR',
+          department: i % 2 === 0 ? 'melting' : 'casting',
+        })
+      expect([201, 409]).toContain(res.status)
+    }
+
+    const all = await request(app)
+      .get('/api/mg-floor/scales')
+      .query({ limit: 500 })
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+    expect(all.status).toBe(200)
+    expect(all.body.total).toBeGreaterThanOrEqual(43)
+
+    const melting = await request(app)
+      .get('/api/mg-floor/scales')
+      .query({ department: 'melting', limit: 200 })
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+    expect(melting.status).toBe(200)
+    expect(melting.body.scales.every((s) => s.department === 'melting')).toBe(true)
+
+    const ingest = await request(app)
+      .post('/api/mg-floor/scales/ingest')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        deviceId: GATEWAY_ID,
+        scaleId: 'MG-SCALE-043',
+        eventType: 'weight_reading',
+        payload: { weight: 99.1, stable: true },
+        idempotencyKey: 'load-043-1',
+      })
+    expect([200, 202]).toContain(ingest.status)
+
+    const devices = await request(app)
+      .get('/api/mg-floor/gateway/devices')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+    expect(devices.status).toBe(200)
+    expect(devices.body.scales.length).toBeGreaterThanOrEqual(43)
+    expect(devices.body.scales.every((s) => s.gatewayId === GATEWAY_ID)).toBe(true)
   })
 })

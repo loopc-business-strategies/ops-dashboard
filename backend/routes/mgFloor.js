@@ -211,8 +211,40 @@ router.get('/audit', ...mgProtect, requireProductionPermission('viewAudit'), asy
 // ── Scales ─────────────────────────────────────────
 router.get('/scales', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const scales = await mgFloor.ensureDefaultScales()
-    res.json({ success: true, scales })
+    const result = await mgFloor.listScales(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/scales', ...mgProtect, requireProductionPermission('manageMachines'), validateBody(Joi.object({
+  scaleId: Joi.string().trim().required(),
+  name: Joi.string().trim().allow('', null),
+  manufacturer: Joi.string().trim().allow('', null),
+  model: Joi.string().trim().allow('', null),
+  serialNumber: Joi.string().trim().allow('', null),
+  connectionType: Joi.string().trim().allow('', null),
+  port: Joi.string().trim().allow('', null),
+  baudRate: Joi.number().allow(null),
+  dataBits: Joi.number().allow(null),
+  parity: Joi.string().trim().allow('', null),
+  stopBits: Joi.number().allow(null),
+  ipAddress: Joi.string().trim().allow('', null),
+  bluetoothId: Joi.string().trim().allow('', null),
+  networkPort: Joi.number().allow(null),
+  department: Joi.string().trim().allow('', null),
+  location: Joi.string().trim().allow('', null),
+  unit: Joi.string().trim().allow('', null),
+  precision: Joi.number().allow(null),
+  gatewayId: Joi.string().trim().required(),
+  enabled: Joi.boolean(),
+  calibrationDate: Joi.date().allow(null),
+  nextCalibrationDate: Joi.date().allow(null),
+}).unknown(true)), async (req, res) => {
+  try {
+    const scale = await mgFloor.createScale(req.body)
+    res.status(201).json({ success: true, scale })
   } catch (err) {
     handleError(res, err)
   }
@@ -252,21 +284,52 @@ router.get('/scales/:scaleId/status', ...mgProtect, requireProductionPermission(
 
 router.patch('/scales/:scaleId', ...mgProtect, requireProductionPermission('manageMachines'), async (req, res) => {
   try {
-    const scaleId = String(req.params.scaleId || '').toUpperCase()
-    const scale = await Scale.findOne({ scaleId })
-    if (!scale) return res.status(404).json({ success: false, message: 'Scale not found' })
-    const allowed = [
-      'name', 'manufacturer', 'model', 'serialNumber', 'connectionType', 'port',
-      'baudRate', 'dataBits', 'parity', 'stopBits', 'ipAddress', 'bluetoothId',
-      'department', 'location', 'unit', 'precision', 'calibrationDate',
-      'nextCalibrationDate', 'gatewayId', 'enabled',
-    ]
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) scale[key] = req.body[key]
-    }
-    if (scale.enabled === false) scale.status = 'DISABLED'
-    await scale.save()
+    const scale = await mgFloor.updateScale(req.params.scaleId, req.body)
     res.json({ success: true, scale })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Gateways (metadata only — secrets stay in env) ─
+router.get('/gateways', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await mgFloor.listGateways(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/gateways', ...mgProtect, requireProductionPermission('manageMachines'), validateBody(Joi.object({
+  gatewayId: Joi.string().trim().required(),
+  name: Joi.string().trim().allow('', null),
+  location: Joi.string().trim().allow('', null),
+  notes: Joi.string().trim().allow('', null),
+  enabled: Joi.boolean(),
+}).unknown(true)), async (req, res) => {
+  try {
+    const gateway = await mgFloor.createGateway(req.body)
+    res.status(201).json({ success: true, gateway })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.patch('/gateways/:gatewayId', ...mgProtect, requireProductionPermission('manageMachines'), async (req, res) => {
+  try {
+    const gateway = await mgFloor.updateGateway(req.params.gatewayId, req.body)
+    res.json({ success: true, gateway })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// Gateway bootstrap — assigned devices for this authenticated gateway
+router.get('/gateway/devices', ...mgGatewayProtect, async (req, res) => {
+  try {
+    const result = await mgFloor.listDevicesForGateway(req.mgGateway?.gatewayId)
+    res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }
@@ -381,8 +444,28 @@ router.get('/passes/open', ...mgProtect, requireProductionPermission('view'), as
 // ── XRF / Quality Control ──────────────────────────
 router.get('/xrf/devices', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const devices = await mgFloor.listXrfAnalyzers()
-    res.json({ success: true, devices })
+    const result = await mgFloor.listXrfAnalyzersPaged(req.query)
+    res.json({ success: true, devices: result.analyzers, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/xrf/devices', ...mgProtect, requireProductionPermission('manageMachines'), validateBody(Joi.object({
+  analyzerId: Joi.string().trim().required(),
+  manufacturer: Joi.string().trim().allow('', null),
+  model: Joi.string().trim().allow('', null),
+  serialNumber: Joi.string().trim().allow('', null),
+  connectionType: Joi.string().trim().allow('', null),
+  department: Joi.string().trim().allow('', null),
+  location: Joi.string().trim().allow('', null),
+  gatewayId: Joi.string().trim().required(),
+  enabled: Joi.boolean(),
+  notes: Joi.string().trim().allow('', null),
+}).unknown(true)), async (req, res) => {
+  try {
+    const device = await mgFloor.createXrfAnalyzer(req.body)
+    res.status(201).json({ success: true, device })
   } catch (err) {
     handleError(res, err)
   }

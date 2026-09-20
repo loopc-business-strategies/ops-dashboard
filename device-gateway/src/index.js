@@ -3,17 +3,43 @@ const path = require('path')
 const { ScaleManager } = require('./scales/ScaleManager')
 const { XrfManager } = require('./xrf/XrfManager')
 const { startLocalApi } = require('./api/localServer')
-const { postScaleReading, postXrfIngest, postXrfResult } = require('./api/backendClient')
+const { postScaleReading, postXrfIngest, postXrfResult, fetchGatewayDevices } = require('./api/backendClient')
 const { createLogger } = require('./utils/logger')
 
 const log = createLogger('main')
+
+function expandSimulatorScales(scales, count) {
+  const n = Number(count)
+  if (!Number.isFinite(n) || n <= 0) return scales || []
+  const out = []
+  for (let i = 1; i <= n; i += 1) {
+    const scaleId = `MG-SCALE-${String(i).padStart(3, '0')}`
+    const existing = (scales || []).find((s) => String(s.scaleId).toUpperCase() === scaleId)
+    out.push({
+      scaleId,
+      connectionType: 'SIMULATOR',
+      unit: 'g',
+      enabled: true,
+      ...(existing || {}),
+      scaleId,
+      connectionType: existing?.connectionType === 'RS232' ? 'RS232' : 'SIMULATOR',
+    })
+  }
+  return out
+}
 
 function loadConfig() {
   const configPath = process.env.MG_GATEWAY_CONFIG
     || path.join(__dirname, '..', 'config', 'default.json')
   const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+  const simCount = process.env.MG_GATEWAY_SIM_SCALE_COUNT
+  let scales = raw.scales || []
+  if (simCount && (process.env.MG_GATEWAY_MODE || raw.mode || 'simulator') === 'simulator') {
+    scales = expandSimulatorScales(scales, simCount)
+  }
   return {
     ...raw,
+    scales,
     mode: process.env.MG_GATEWAY_MODE || raw.mode || 'simulator',
     xrfMode: process.env.MG_XRF_MODE || raw.xrfMode || 'disabled',
     backendUrl: process.env.MG_API_BASE_URL || raw.backendUrl,
@@ -23,6 +49,7 @@ function loadConfig() {
     localPort: Number(process.env.MG_GATEWAY_PORT || raw.localPort || 7077),
     bindHost: process.env.MG_GATEWAY_BIND || raw.bindHost || '127.0.0.1',
     localToken: process.env.MG_GATEWAY_LOCAL_TOKEN || raw.localToken || '',
+    registryRefreshMs: Number(process.env.MG_GATEWAY_REGISTRY_REFRESH_MS || 60000),
   }
 }
 
@@ -158,6 +185,30 @@ async function main() {
 
   await scaleManager.startAll()
   await xrfManager.startAll()
+
+  const refreshRegistry = async () => {
+    try {
+      const data = await fetchGatewayDevices(creds())
+      if (!data?.scales) return
+      let mapped = data.scales.map((s) => ({
+        ...s,
+        connectionType: config.mode === 'simulator' ? 'SIMULATOR' : (s.connectionType || 'RS232'),
+        enabled: s.enabled !== false,
+      }))
+      const simCount = Number(process.env.MG_GATEWAY_SIM_SCALE_COUNT || 0)
+      if (config.mode === 'simulator' && simCount > mapped.length) {
+        mapped = expandSimulatorScales(mapped, simCount)
+      }
+      await scaleManager.syncScales(mapped)
+      log.info('registry sync ok', { scales: mapped.length })
+    } catch (err) {
+      log.warn('registry sync failed — using local/fallback config', { message: err.message })
+    }
+  }
+  await refreshRegistry()
+  if (config.registryRefreshMs > 0) {
+    setInterval(refreshRegistry, config.registryRefreshMs).unref?.()
+  }
 
   const heartbeatMs = Number(process.env.MG_GATEWAY_HEARTBEAT_MS || 60000)
   setInterval(() => {

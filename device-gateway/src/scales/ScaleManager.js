@@ -146,6 +146,7 @@ class ScaleManager extends EventEmitter {
     super()
     this.gatewayId = gatewayId
     this.mode = mode
+    this.stability = stability
     this.connections = new Map()
     for (const scale of scales || []) {
       if (scale.enabled === false) continue
@@ -155,7 +156,7 @@ class ScaleManager extends EventEmitter {
       conn.on('malformed', (m) => this.emit('malformed', m))
       conn.on('error', (e) => this.emit('error', { scaleId: scale.scaleId, error: e }))
       conn.on('lifecycle', (e) => this.emit('lifecycle', e))
-      this.connections.set(scale.scaleId, conn)
+      this.connections.set(String(scale.scaleId).toUpperCase(), conn)
     }
   }
 
@@ -182,6 +183,44 @@ class ScaleManager extends EventEmitter {
   getConnection(scaleId) {
     return this.connections.get(String(scaleId).toUpperCase())
       || this.connections.get(scaleId)
+  }
+
+  /**
+   * Merge backend-assigned scales into the manager (add new, stop removed).
+   * Does not restart unchanged connections.
+   */
+  async syncScales(scaleConfigs = []) {
+    const nextIds = new Set()
+    for (const cfg of scaleConfigs || []) {
+      if (cfg.enabled === false) continue
+      const id = String(cfg.scaleId || '').toUpperCase()
+      if (!id) continue
+      nextIds.add(id)
+      if (this.connections.has(id)) continue
+      const conn = new ScaleConnection({ ...cfg, scaleId: id }, {
+        gatewayId: this.gatewayId,
+        stability: this.stability,
+        mode: this.mode,
+      })
+      conn.on('reading', (r) => this.emit('reading', r))
+      conn.on('status', (s) => this.emit('status', s))
+      conn.on('malformed', (m) => this.emit('malformed', m))
+      conn.on('error', (e) => this.emit('error', { scaleId: id, error: e }))
+      conn.on('lifecycle', (e) => this.emit('lifecycle', e))
+      this.connections.set(id, conn)
+      try {
+        await conn.start()
+        log.info('synced scale started', { scaleId: id })
+      } catch (err) {
+        log.warn('synced scale start failed', { scaleId: id, message: err.message })
+      }
+    }
+    for (const [id, conn] of [...this.connections.entries()]) {
+      if (nextIds.has(id)) continue
+      await conn.stop().catch(() => {})
+      this.connections.delete(id)
+      log.info('synced scale removed', { scaleId: id })
+    }
   }
 }
 

@@ -47,6 +47,15 @@ export default function ProductionDashboardPage() {
       <button type="button" className="pd-fullscreen-back" onClick={goBack} title="Back to Ops Dashboard">
         ← Ops
       </button>
+      <button
+        type="button"
+        className="pd-fullscreen-back"
+        style={{ left: 88 }}
+        onClick={() => navigate('/production-devices')}
+        title="MG Floor device registry"
+      >
+        Devices
+      </button>
       <div className="pd-fullscreen-body">
         <ProductionDashboardTab />
       </div>

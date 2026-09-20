@@ -28,6 +28,7 @@ const scaleSchema = new mongoose.Schema(
     stopBits: { type: Number, default: 1 },
     ipAddress: { type: String, trim: true, default: '' },
     bluetoothId: { type: String, trim: true, default: '' },
+    networkPort: { type: Number, default: null },
     department: { type: String, trim: true, default: '' },
     location: { type: String, trim: true, default: '' },
     unit: { type: String, trim: true, default: 'g' },
@@ -35,6 +36,7 @@ const scaleSchema = new mongoose.Schema(
     calibrationDate: { type: Date, default: null },
     nextCalibrationDate: { type: Date, default: null },
     gatewayId: { type: String, trim: true, default: '' },
+    notes: { type: String, trim: true, default: '' },
     status: { type: String, enum: SCALE_STATUSES, default: 'DISCONNECTED' },
     lastWeight: { type: Number, default: null },
     lastStable: { type: Boolean, default: false },
@@ -48,6 +50,9 @@ const scaleSchema = new mongoose.Schema(
 scaleSchema.index({ scaleId: 1 }, { unique: true })
 scaleSchema.index({ gatewayId: 1, enabled: 1 })
 scaleSchema.index({ department: 1 })
+scaleSchema.index({ enabled: 1, status: 1 })
+scaleSchema.index({ name: 1 })
+scaleSchema.index({ model: 1 })
 
 module.exports = createTenantModel('Scale', scaleSchema)
 module.exports.SCALE_STATUSES = SCALE_STATUSES

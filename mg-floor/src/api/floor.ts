@@ -45,8 +45,11 @@ export async function transfer(body: Record<string, unknown>) {
   })
 }
 
-export async function fetchScales() {
-  return apiRequest<{ success: boolean; scales: Array<Record<string, unknown>> }>('/api/mg-floor/scales')
+export async function fetchScales(params?: Record<string, string | number | boolean>) {
+  return apiRequest<{ success: boolean; scales: Array<Record<string, unknown>>; total?: number }>(
+    '/api/mg-floor/scales',
+    { params: { enabled: true, limit: 500, ...params } },
+  )
 }
 
 export async function fetchScaleStatus(scaleId: string) {
