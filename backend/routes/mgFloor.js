@@ -4,7 +4,7 @@ const { protect } = require('../middleware/auth')
 const { requireMgTenant } = require('../middleware/requireMgTenant')
 const { requireMgGateway } = require('../middleware/requireMgGateway')
 const { validateBody, validateParams, validateQuery } = require('../middleware/validate')
-const { requireProductionPermission, resolveProductionRole } = require('../services/productionControl/permissions')
+const { requireProductionPermission, resolveProductionRole, hasProductionPermission } = require('../services/productionControl/permissions')
 const ProductionBatch = require('../models/ProductionBatch')
 const ProductionPass = require('../models/ProductionPass')
 const MetalMovement = require('../models/MetalMovement')
@@ -114,7 +114,7 @@ router.post('/metal/in', ...mgProtect, requireProductionPermission('receivePass'
   scaleId: Joi.string().trim().required(),
   deviceId: Joi.string().trim().allow('', null),
   stableReadingId: Joi.string().hex().length(24).allow(null, ''),
-  receivedWeight: Joi.number().min(0),
+  receivedWeight: Joi.number().positive(),
   operationId: Joi.string().trim().max(120).allow('', null),
   varianceReason: Joi.string().trim().allow(''),
   expectedBatchVersion: Joi.number().integer().min(0),
@@ -211,7 +211,12 @@ router.get('/audit', ...mgProtect, requireProductionPermission('viewAudit'), asy
 // ── Scales ─────────────────────────────────────────
 router.get('/scales', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
   try {
-    const result = await mgFloor.listScales(req.query)
+    const query = { ...req.query }
+    const canManage = hasProductionPermission(req.user, 'manageMachines')
+    if (!canManage && req.user?.department && query.department == null && query.search == null) {
+      query.department = String(req.user.department)
+    }
+    const result = await mgFloor.listScales(query)
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)

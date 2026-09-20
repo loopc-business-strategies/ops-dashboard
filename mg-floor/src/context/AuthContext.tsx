@@ -4,6 +4,7 @@ import { fetchMe, login as apiLogin } from '@/src/api/auth'
 import { setAuthToken, setUnauthorizedHandler } from '@/src/api/client'
 import { userFacingMessage } from '@/src/api/errors'
 import { registerDevice } from '@/src/api/floor'
+import { forceReleaseFloorSocket } from '@/src/realtime/floorSocket'
 import { Platform } from 'react-native'
 
 const TOKEN_KEY = 'mg_floor_session_token'
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [storedToken, setStoredToken] = useState<string | null>(null)
 
   const logout = useCallback(async () => {
+    forceReleaseFloorSocket()
     setAuthToken(null)
     setToken(null)
     setUser(null)
