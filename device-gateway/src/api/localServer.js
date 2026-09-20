@@ -4,7 +4,7 @@ const { createLogger } = require('../utils/logger')
 
 const log = createLogger('local-api')
 
-function startLocalApi({ port, gatewayId, scaleManager, getHealth }) {
+function startLocalApi({ port, gatewayId, scaleManager, xrfManager, getHealth }) {
   const app = express()
   app.use(express.json())
 
@@ -54,6 +54,22 @@ function startLocalApi({ port, gatewayId, scaleManager, getHealth }) {
     res.json({ success: true })
   })
 
+  app.get('/xrf', (_req, res) => {
+    res.json({ success: true, gatewayId, analyzers: xrfManager ? xrfManager.getStatuses() : [] })
+  })
+
+  app.post('/xrf/:analyzerId/test', async (req, res) => {
+    if (!xrfManager) return res.status(400).json({ success: false, message: 'XRF manager not enabled' })
+    try {
+      const result = await xrfManager.runTest(req.params.analyzerId, {
+        outcome: req.body?.outcome || 'ok',
+      })
+      res.json({ success: true, result })
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message })
+    }
+  })
+
   const server = app.listen(port, () => {
     log.info('local API listening', { port, gatewayId })
   })
@@ -68,6 +84,9 @@ function startLocalApi({ port, gatewayId, scaleManager, getHealth }) {
 
   scaleManager.on('reading', (reading) => broadcast({ type: 'reading', reading }))
   scaleManager.on('status', (status) => broadcast({ type: 'status', status }))
+  if (xrfManager) {
+    xrfManager.on('status', (status) => broadcast({ type: 'xrf_status', status }))
+  }
 
   return { app, server, wss, broadcast }
 }

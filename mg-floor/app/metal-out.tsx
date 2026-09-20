@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput } from 'react-native'
+import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, LoadingBlock, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
 import { fetchJobs, fetchScales, metalOut } from '@/src/api/floor'
@@ -16,10 +17,12 @@ type Job = {
 }
 
 export default function MetalOutScreen() {
+  const params = useLocalSearchParams<{ batchId?: string; batchNumber?: string }>()
   const [jobs, setJobs] = useState<Job[]>([])
   const [selected, setSelected] = useState<Job | null>(null)
   const [toDepartment, setToDepartment] = useState('')
   const [scaleId, setScaleId] = useState('MG-SCALE-001')
+  const [scaleOptions, setScaleOptions] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -32,14 +35,20 @@ export default function MetalOutScreen() {
         const list = (j.jobs || []) as Job[]
         setJobs(list)
         const ids = (s.scales || []).map((x) => String(x.scaleId))
+        setScaleOptions(ids)
         if (ids[0]) setScaleId(ids[0])
+        if (params.batchId) {
+          const pre = list.find((x) => x._id === params.batchId || x.batchId === params.batchId)
+          if (pre) setSelected(pre)
+          else setSelected({ _id: params.batchId, batchId: params.batchId, batchNumber: params.batchNumber })
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load')
       } finally {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [params.batchId, params.batchNumber])
 
   const batchId = selected?._id || selected?.batchId
 
@@ -94,26 +103,35 @@ export default function MetalOutScreen() {
       <ScrollView>
         <Subtitle>Select job → destination → stable scale capture</Subtitle>
         <Text style={styles.label}>Scale</Text>
-        <TextInput style={styles.input} value={scaleId} onChangeText={setScaleId} autoCapitalize="characters" placeholderTextColor={colors.textMuted} />
+        {scaleOptions.map((id) => (
+          <BigButton
+            key={id}
+            label={id === scaleId ? `✓ ${id}` : id}
+            tone={id === scaleId ? 'accent' : 'neutral'}
+            onPress={() => setScaleId(id)}
+          />
+        ))}
+        {!scaleOptions.length ? (
+          <TextInput style={styles.input} value={scaleId} onChangeText={setScaleId} autoCapitalize="characters" placeholderTextColor={colors.textMuted} />
+        ) : null}
         <WeightDisplay weight={live?.weight ?? null} stable={live?.stable ?? null} />
         <Text style={styles.label}>Destination department</Text>
         <TextInput
           style={styles.input}
           value={toDepartment}
           onChangeText={setToDepartment}
-          placeholder="e.g. casting"
           placeholderTextColor={colors.textMuted}
         />
         <Text style={styles.label}>Jobs</Text>
-        {jobs.length === 0 ? <Text style={styles.hint}>No assigned jobs — open a batch from Scan</Text> : null}
-        {jobs.map((j, idx) => {
-          const id = String(j._id || j.batchId || idx)
+        {jobs.map((job, idx) => {
+          const id = String(job._id || job.batchId || idx)
+          const active = (selected?._id || selected?.batchId) === (job._id || job.batchId)
           return (
             <BigButton
               key={id}
-              label={`${selected && (selected._id || selected.batchId) === (j._id || j.batchId) ? '✓ ' : ''}${j.batchNumber || id} · ${j.currentDepartment || ''} · ${j.status || ''}`}
-              tone="neutral"
-              onPress={() => setSelected(j)}
+              label={`${active ? '✓ ' : ''}${job.batchNumber || id} · ${job.currentDepartment || '—'}`}
+              tone={active ? 'accent' : 'neutral'}
+              onPress={() => setSelected(job)}
             />
           )
         })}
@@ -135,6 +153,5 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 18,
   },
-  hint: { color: colors.textMuted, marginTop: 8 },
   error: { color: colors.danger, marginVertical: 8, fontWeight: '600' },
 })

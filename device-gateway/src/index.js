@@ -1,8 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 const { ScaleManager } = require('./scales/ScaleManager')
+const { XrfManager } = require('./xrf/XrfManager')
 const { startLocalApi } = require('./api/localServer')
-const { postScaleReading } = require('./api/backendClient')
+const { postScaleReading, postXrfIngest } = require('./api/backendClient')
 const { createLogger } = require('./utils/logger')
 
 const log = createLogger('main')
@@ -14,6 +15,7 @@ function loadConfig() {
   return {
     ...raw,
     mode: process.env.MG_GATEWAY_MODE || raw.mode || 'simulator',
+    xrfMode: process.env.MG_XRF_MODE || raw.xrfMode || 'disabled',
     backendUrl: process.env.MG_API_BASE_URL || raw.backendUrl,
     authToken: process.env.MG_GATEWAY_TOKEN || raw.authToken,
     gatewayId: process.env.MG_GATEWAY_ID || raw.gatewayId || 'MG-GATEWAY-001',
@@ -30,6 +32,7 @@ async function main() {
   log.info('starting', {
     gatewayId: config.gatewayId,
     mode: config.mode,
+    xrfMode: config.xrfMode,
     scales: (config.scales || []).length,
   })
 
@@ -40,15 +43,21 @@ async function main() {
     mode: config.mode,
   })
 
+  const xrfManager = new XrfManager({
+    gatewayId: config.gatewayId,
+    analyzers: config.xrfAnalyzers || [{ analyzerId: 'MG-XRF-001', enabled: true, model: '' }],
+    mode: config.xrfMode,
+  })
+
   let lastPushError = null
   let pushCount = 0
   const lastPushAtByScale = new Map()
   const inFlightByScale = new Set()
   const minPushIntervalMs = Number(process.env.MG_GATEWAY_MIN_PUSH_MS || 15000)
   let rateLimitUntil = 0
+  let heartbeatCount = 0
 
   scaleManager.on('reading', async (reading) => {
-    // Only push stable readings to backend by default to reduce noise
     if (!reading.stable) return
     const now = Date.now()
     if (now < rateLimitUntil) return
@@ -56,7 +65,6 @@ async function main() {
     if (inFlightByScale.has(scaleId)) return
     const last = lastPushAtByScale.get(scaleId) || 0
     if (now - last < minPushIntervalMs) return
-    // Stamp before await so concurrent ticks cannot race past the throttle.
     lastPushAtByScale.set(scaleId, now)
     inFlightByScale.add(scaleId)
     try {
@@ -79,22 +87,86 @@ async function main() {
     }
   })
 
+  scaleManager.on('lifecycle', async (evt) => {
+    try {
+      await postScaleReading({
+        backendUrl: config.backendUrl,
+        authToken: config.authToken,
+        gatewayId: config.gatewayId,
+        reading: {
+          scaleId: evt.scaleId,
+          deviceId: config.gatewayId,
+          timestamp: evt.timestamp,
+          error: evt.error,
+        },
+        eventType: evt.eventType,
+      })
+    } catch (err) {
+      log.warn('lifecycle ingest failed', { scaleId: evt.scaleId, message: err.message })
+    }
+  })
+
+  xrfManager.on('status', async (status) => {
+    try {
+      await postXrfIngest({
+        backendUrl: config.backendUrl,
+        authToken: config.authToken,
+        gatewayId: config.gatewayId,
+        body: {
+          analyzerId: status.analyzerId,
+          eventType: 'status',
+          status: status.status,
+          error: status.error,
+        },
+      })
+    } catch (err) {
+      log.warn('xrf status ingest failed', { message: err.message })
+    }
+  })
+
   await scaleManager.startAll()
+  await xrfManager.startAll()
+
+  const heartbeatMs = Number(process.env.MG_GATEWAY_HEARTBEAT_MS || 60000)
+  setInterval(() => {
+    heartbeatCount += 1
+    log.info('heartbeat', {
+      gatewayId: config.gatewayId,
+      pushCount,
+      heartbeatCount,
+      scales: scaleManager.getStatuses().map((s) => `${s.scaleId}:${s.status}`),
+      xrf: xrfManager.getStatuses(),
+      lastPushError,
+    })
+  }, heartbeatMs).unref?.()
 
   startLocalApi({
     port: config.localPort,
     gatewayId: config.gatewayId,
     scaleManager,
+    xrfManager,
     getHealth: () => ({
       ok: true,
       tenant: 'mg',
       gatewayId: config.gatewayId,
       mode: config.mode,
-      version: '1.0.0',
+      xrfMode: config.xrfMode,
+      version: '1.1.0',
       scales: scaleManager.getStatuses(),
+      xrf: xrfManager.getStatuses(),
       pushCount,
+      heartbeatCount,
       lastPushError,
       startedAt: new Date().toISOString(),
+      driverNotes: {
+        rs232: 'production-ready when serialport installed and COM configured',
+        ethernet: 'TCP line-oriented scales supported',
+        usb: 'stub — not production-ready',
+        bluetooth: 'stub — not production-ready',
+        xrf: config.xrfMode === 'simulator'
+          ? 'simulator only — LANScientific protocol TBD'
+          : 'disabled or adapter stub',
+      },
     }),
   })
 }
