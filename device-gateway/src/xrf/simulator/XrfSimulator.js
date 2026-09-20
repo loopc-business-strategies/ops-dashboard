@@ -1,5 +1,5 @@
 const { EventEmitter } = require('events')
-const { createLogger } = require('../utils/logger')
+const { createLogger } = require('../../utils/logger')
 
 const log = createLogger('xrf-sim')
 
@@ -10,8 +10,12 @@ const log = createLogger('xrf-sim')
 class XrfSimulator extends EventEmitter {
   constructor(config = {}) {
     super()
+    const analyzerId = String(config.analyzerId || '').trim().toUpperCase()
+    if (!analyzerId) {
+      throw new Error('XrfSimulator requires analyzerId')
+    }
     this.config = config
-    this.analyzerId = config.analyzerId || 'MG-XRF-001'
+    this.analyzerId = analyzerId
     this.status = 'DISCONNECTED'
     this._connected = false
   }

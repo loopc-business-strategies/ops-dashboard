@@ -5,8 +5,12 @@
  */
 class LanScientificAdapter {
   constructor(config = {}) {
+    const analyzerId = String(config.analyzerId || '').trim().toUpperCase()
+    if (!analyzerId) {
+      throw new Error('LanScientificAdapter requires analyzerId')
+    }
     this.config = config
-    this.analyzerId = config.analyzerId || 'MG-XRF-001'
+    this.analyzerId = analyzerId
     this._connected = false
   }
 

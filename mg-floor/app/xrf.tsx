@@ -10,8 +10,8 @@ import {
 } from '@/src/components/async'
 import { QrFirstResolve } from '@/src/components/QrFirstResolve'
 import { StableCapturePanel } from '@/src/components/StableCapturePanel'
+import { AuthorizedScalePicker } from '@/src/components/AuthorizedScalePicker'
 import {
-  fetchScales,
   fetchXrfDevices,
   fetchXrfStatus,
   fetchXrfTests,
@@ -19,6 +19,7 @@ import {
 } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
+import { useAuthorizedScaleIds } from '@/src/hooks/useAuthorizedScaleIds'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { useAuth } from '@/src/context/AuthContext'
 import { APP_ENV, IS_PRODUCTION } from '@/src/config/env'
@@ -66,6 +67,7 @@ export default function XrfScreen() {
   const mountedRef = useRef(true)
   const pendingRef = useRef<PendingTest | null>(null)
   const capture = useStableScaleCapture(scaleId)
+  const scales = useAuthorizedScaleIds(user?.department)
 
   pendingRef.current = pending
 
@@ -75,24 +77,6 @@ export default function XrfScreen() {
       return res.devices || []
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:xrf-devices' },
-  )
-
-  const scales = useAsyncResource(
-    useCallback(
-      async (signal) => {
-        const res = await fetchScales(
-          {
-            limit: 50,
-            skip: 0,
-            ...(user?.department ? { department: String(user.department) } : {}),
-          },
-          { signal },
-        )
-        return (res.scales || []).map((x) => String(x.scaleId))
-      },
-      [user?.department],
-    ),
-    { isEmpty: (d) => !d.length, cacheKey: `mg-floor:scale-ids:${user?.department || 'all'}` },
   )
 
   const applyVerifiedMatch = (match: Record<string, unknown>) => {
@@ -331,20 +315,7 @@ export default function XrfScreen() {
         )}
 
         <Text style={styles.section}>2 — AUTHORIZED SCALE</Text>
-        {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
-        {scales.status === 'error' && !scales.data ? (
-          <ErrorState message={scales.error || 'Unable to load scales'} onRetry={scales.reload} />
-        ) : null}
-        <View style={styles.scaleRow}>
-          {(scales.data || []).map((id) => (
-            <BigButton
-              key={id}
-              label={id === scaleId ? `✓ ${id}` : id}
-              tone={id === scaleId ? 'accent' : 'neutral'}
-              onPress={() => setScaleId(id)}
-            />
-          ))}
-        </View>
+        <AuthorizedScalePicker scaleId={scaleId} onSelect={setScaleId} scales={scales} />
         <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
 
         <Text style={styles.section}>3 — XRF ANALYZER</Text>
@@ -352,7 +323,7 @@ export default function XrfScreen() {
           status={devices.status}
           loadingLabel="Loading analyzers…"
           error={devices.error || 'Unable to load analyzers'}
-          emptyMessage="No analyzers registered"
+          emptyMessage="No XRF analyzer configured."
           onRetry={devices.reload}
         >
           {!analyzerId ? (
@@ -375,7 +346,7 @@ export default function XrfScreen() {
           })}
           {analyzerId ? <HardwareStatus label={analyzerId} status={analyzerStatus} /> : null}
           {analyzerId && (analyzerStatus === 'DISCONNECTED' || analyzerStatus === 'ERROR') ? (
-            <ErrorState message="XRF Analyzer DISCONNECTED" onRetry={refreshAnalyzerStatus} />
+            <ErrorState message="XRF analyzer offline." onRetry={refreshAnalyzerStatus} />
           ) : null}
         </AsyncSection>
 
@@ -443,7 +414,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   selected: { color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
-  scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm },
   waitingRow: { marginBottom: spacing.sm },
   pollHint: { color: colors.accent, fontSize: 12, fontWeight: '700', marginBottom: 4 },
