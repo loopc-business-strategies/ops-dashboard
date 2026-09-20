@@ -4,18 +4,34 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import React, { useEffect } from 'react'
-import { StyleSheet } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ErrorBoundary } from '@/src/components/ErrorBoundary'
 import { startAutoSync } from '@/src/offline/sync'
 import { LoadingBlock, Screen } from '@/src/components/ui'
+import { API_CONFIG_ERROR } from '@/src/config/env'
 import { colors } from '@/src/theme'
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Splash module may be unavailable in some native builds; ignore.
 })
+
+function ConfigErrorScreen({ message }: { message: string }) {
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {})
+  }, [])
+
+  return (
+    <View style={styles.configWrap}>
+      <Text style={styles.configBrand}>MG Floor</Text>
+      <Text style={styles.configTitle}>Configuration error</Text>
+      <Text style={styles.configBody}>{message}</Text>
+      <Text style={styles.configMeta}>The app opened safely. Fix the build env and reinstall.</Text>
+    </View>
+  )
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { loading, token } = useAuth()
@@ -55,6 +71,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  if (API_CONFIG_ERROR) {
+    return (
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider>
+          <ErrorBoundary>
+            <StatusBar style="light" />
+            <ConfigErrorScreen message={API_CONFIG_ERROR} />
+          </ErrorBoundary>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    )
+  }
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
@@ -92,4 +121,35 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  configWrap: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  configBrand: {
+    color: colors.accent,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  configTitle: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  configBody: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  configMeta: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+  },
 })

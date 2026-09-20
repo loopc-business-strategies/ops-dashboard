@@ -63,8 +63,8 @@ if errorlevel 1 (
 echo.
 REM Cover 32-bit and 64-bit factory tablets/phones (avoids UnsatisfiedLinkError on older devices).
 set OPS_REACT_NATIVE_ARCHS=armeabi-v7a,arm64-v8a
-REM Expo prebuild may rewrite newArchEnabled=true; force off for stable factory launches.
-powershell -NoProfile -Command "(Get-Content '%REPO%\mg-floor\android\gradle.properties') -replace 'newArchEnabled=true','newArchEnabled=false' -replace 'edgeToEdgeEnabled=true','edgeToEdgeEnabled=false' | Set-Content '%REPO%\mg-floor\android\gradle.properties'"
+REM Keep New Architecture enabled (required by RN 0.85 + Reanimated 4).
+powershell -NoProfile -Command "(Get-Content '%REPO%\mg-floor\android\gradle.properties') -replace 'newArchEnabled=false','newArchEnabled=true' | Set-Content '%REPO%\mg-floor\android\gradle.properties'"
 echo Running: npm run mg-floor:build:android:local:apk
 echo.
 call npm run mg-floor:build:android:local:apk
