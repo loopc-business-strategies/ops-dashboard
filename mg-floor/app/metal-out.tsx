@@ -21,7 +21,7 @@ export default function MetalOutScreen() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [selected, setSelected] = useState<Job | null>(null)
   const [toDepartment, setToDepartment] = useState('')
-  const [scaleId, setScaleId] = useState('MG-SCALE-001')
+  const [scaleId, setScaleId] = useState('')
   const [scaleOptions, setScaleOptions] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)

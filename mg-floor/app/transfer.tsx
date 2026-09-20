@@ -14,7 +14,7 @@ export default function TransferScreen() {
   const [fromDepartment, setFromDepartment] = useState('')
   const [toDepartment, setToDepartment] = useState('')
   const [departments, setDepartments] = useState<Array<{ key: string; label: string }>>([])
-  const [scaleId, setScaleId] = useState('MG-SCALE-001')
+  const [scaleId, setScaleId] = useState('')
   const [scaleOptions, setScaleOptions] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')

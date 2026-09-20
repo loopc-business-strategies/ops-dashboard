@@ -23,7 +23,7 @@ export default function MetalInScreen() {
   const params = useLocalSearchParams<{ passId?: string }>()
   const [passes, setPasses] = useState<PassRow[]>([])
   const [selected, setSelected] = useState<PassRow | null>(null)
-  const [scaleId, setScaleId] = useState('MG-SCALE-001')
+  const [scaleId, setScaleId] = useState('')
   const [scales, setScales] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)

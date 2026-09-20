@@ -107,4 +107,19 @@ async function postXrfResult({ backendUrl, authToken, gatewayId, gatewaySecret, 
   return data
 }
 
-module.exports = { postScaleReading, postXrfIngest, postXrfResult }
+async function fetchGatewayDevices({ backendUrl, authToken, gatewayId, gatewaySecret }) {
+  if (!canIngest({ backendUrl, authToken, gatewaySecret })) {
+    log.warn('skip device pull — backendUrl or gateway credentials missing')
+    return null
+  }
+  const url = `${String(backendUrl).replace(/\/$/, '')}/api/mg-floor/gateway/devices`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: authHeaders({ authToken, gatewayId, gatewaySecret }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.message || `Device pull failed (${res.status})`)
+  return data
+}
+
+module.exports = { postScaleReading, postXrfIngest, postXrfResult, fetchGatewayDevices }

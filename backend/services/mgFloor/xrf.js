@@ -6,6 +6,7 @@ const { writeProductionAudit } = require('../productionControl/audit')
 const { AUDIT_ACTIONS } = require('../productionControl/constants')
 
 const DEFAULT_MG_XRF = ['MG-XRF-001']
+const DEFAULT_GATEWAY_ID = 'MG-GATEWAY-001'
 
 function allowXrfSimulator() {
   if (String(process.env.ALLOW_XRF_SIMULATOR || '').trim() === 'true') return true
@@ -26,10 +27,15 @@ async function ensureDefaultXrfAnalyzers() {
           department: 'quality_control',
           enabled: true,
           status: 'DISCONNECTED',
+          gatewayId: DEFAULT_GATEWAY_ID,
           notes: 'Model/protocol configurable — confirm on device before enabling live communication.',
         },
       },
       { upsert: true, new: true },
+    )
+    await XrfAnalyzer.updateOne(
+      { analyzerId, $or: [{ gatewayId: '' }, { gatewayId: null }, { gatewayId: { $exists: false } }] },
+      { $set: { gatewayId: DEFAULT_GATEWAY_ID } },
     )
   }
   return XrfAnalyzer.find({}).sort({ analyzerId: 1 }).lean()
@@ -74,6 +80,11 @@ async function ingestXrfStatus(req, body = {}) {
   const analyzer = await XrfAnalyzer.findOne({ analyzerId })
   if (!analyzer || !analyzer.enabled) throw new ProductionError('XRF analyzer not found or disabled', 404)
 
+  if (req.mgGateway?.gatewayId) {
+    const { assertGatewayOwnsDevice } = require('./deviceRegistry')
+    assertGatewayOwnsDevice(analyzer.gatewayId, req.mgGateway.gatewayId, `XRF ${analyzerId}`)
+  }
+
   const eventType = String(body.eventType || 'status').toLowerCase()
   const status = String(body.status || '').toUpperCase()
   const known = ['CONNECTED', 'DISCONNECTED', 'ERROR', 'TESTING', 'READY', 'CALIBRATION_DUE', 'DISABLED']
@@ -89,7 +100,7 @@ async function ingestXrfStatus(req, body = {}) {
     analyzer.status = 'TESTING'
   }
   analyzer.lastSeenAt = new Date()
-  analyzer.gatewayId = body.gatewayId || req.mgGateway?.gatewayId || analyzer.gatewayId
+  // Do not reassign analyzer.gatewayId on status ingest — ownership is admin-managed
   analyzer.lastError = eventType === 'error' ? String(body.error || body.payload?.error || 'xrf error') : ''
   if (body.model != null) analyzer.model = String(body.model)
   if (body.serialNumber != null) analyzer.serialNumber = String(body.serialNumber)
@@ -136,6 +147,11 @@ async function ingestXrfResult(req, body = {}) {
   const analyzer = await XrfAnalyzer.findOne({ analyzerId })
   if (!analyzer || !analyzer.enabled) throw new ProductionError('XRF analyzer not found or disabled', 404)
 
+  if (req.mgGateway?.gatewayId) {
+    const { assertGatewayOwnsDevice } = require('./deviceRegistry')
+    assertGatewayOwnsDevice(analyzer.gatewayId, req.mgGateway.gatewayId, `XRF ${analyzerId}`)
+  }
+
   const elements = normalizeElements(body.elements)
   const status = body.status || 'COMPLETED'
   if (!elements.length && !['ERROR', 'TIMEOUT', 'INVALID'].includes(status)) {
@@ -172,7 +188,7 @@ async function ingestXrfResult(req, body = {}) {
 
   analyzer.status = status === 'COMPLETED' ? 'READY' : analyzer.status
   analyzer.lastSeenAt = new Date()
-  analyzer.gatewayId = gatewayId || analyzer.gatewayId
+  // Do not reassign analyzer.gatewayId on ingest — ownership is admin-managed
   await analyzer.save()
 
   return { test: test.toObject ? test.toObject() : test, reused: false }

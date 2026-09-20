@@ -15,38 +15,22 @@ const {
 } = require('../productionControl')
 const { ProductionError } = require('../productionControl/errors')
 const xrf = require('./xrf')
+const deviceRegistry = require('./deviceRegistry')
 
-const DEFAULT_MG_SCALES = [
-  'MG-SCALE-001',
-  'MG-SCALE-002',
-  'MG-SCALE-003',
-  'MG-SCALE-004',
-  'MG-SCALE-005',
-  'MG-SCALE-006',
-  'MG-SCALE-007',
-]
-
-async function ensureDefaultScales() {
-  for (const scaleId of DEFAULT_MG_SCALES) {
-    await Scale.findOneAndUpdate(
-      { scaleId },
-      {
-        $setOnInsert: {
-          scaleId,
-          name: scaleId,
-          manufacturer: 'Ming Heng',
-          model: 'MH-708',
-          connectionType: 'RS232',
-          unit: 'g',
-          enabled: true,
-          status: 'DISCONNECTED',
-        },
-      },
-      { upsert: true, new: true },
-    )
-  }
-  return Scale.find({ scaleId: { $in: DEFAULT_MG_SCALES } }).sort({ scaleId: 1 }).lean()
-}
+const {
+  DEFAULT_MG_SCALES,
+  ensureDefaultScales,
+  listScales,
+  createScale,
+  updateScale,
+  assertGatewayOwnsDevice,
+  listGateways,
+  createGateway,
+  updateGateway,
+  listXrfAnalyzersPaged,
+  createXrfAnalyzer,
+  listDevicesForGateway,
+} = deviceRegistry
 
 async function getMe(req) {
   const shift = await shiftService.getCurrentShift().catch(() => null)
@@ -329,6 +313,12 @@ async function ingestScaleReading(req, body = {}) {
   }
   if (!scale.enabled) throw new ProductionError('Scale is disabled', 403)
 
+  const authGatewayId = req.mgGateway?.gatewayId
+  if (!authGatewayId) {
+    throw new ProductionError('Gateway authentication required for scale ingest', 401)
+  }
+  assertGatewayOwnsDevice(scale.gatewayId, authGatewayId, `Scale ${normalizedScaleId}`)
+
   const weight = payload.weight != null ? Number(payload.weight) : Number(payload.grams)
   const stable = Boolean(payload.stable)
   const unit = String(payload.unit || scale.unit || 'g')
@@ -357,7 +347,7 @@ async function ingestScaleReading(req, body = {}) {
   scale.lastWeight = Number.isFinite(weight) ? weight : scale.lastWeight
   scale.lastStable = stable
   scale.lastSeenAt = new Date()
-  scale.gatewayId = gatewayId || scale.gatewayId
+  // Do not reassign gateway on ingest — ownership is fixed via admin assignment
   if (eventType === 'disconnect') scale.status = 'DISCONNECTED'
   else if (eventType === 'error') scale.status = 'ERROR'
   else if (!scale.enabled) scale.status = 'DISABLED'
@@ -480,6 +470,15 @@ async function registerDevice(req, body = {}) {
 module.exports = {
   DEFAULT_MG_SCALES,
   ensureDefaultScales,
+  listScales,
+  createScale,
+  updateScale,
+  listGateways,
+  createGateway,
+  updateGateway,
+  listXrfAnalyzersPaged,
+  createXrfAnalyzer,
+  listDevicesForGateway,
   getMe,
   metalIn,
   metalOut,

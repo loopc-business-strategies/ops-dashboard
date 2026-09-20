@@ -33,7 +33,7 @@ export default function ScalesScreen() {
 
   return (
     <Screen>
-      <Subtitle>Seven MG scales — status & diagnostics</Subtitle>
+      <Subtitle>Registered MG scales — status & diagnostics</Subtitle>
       <BigButton label="REFRESH" onPress={load} tone="neutral" />
       <FlatList
         data={scales}
