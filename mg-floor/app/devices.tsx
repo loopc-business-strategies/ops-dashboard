@@ -1,73 +1,83 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
-import { BigButton, LoadingBlock, Screen, StatusPill, Subtitle } from '@/src/components/ui'
-import { fetchScales, fetchXrfDevices } from '@/src/api/floor'
+import { BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
+import { AsyncSection, HardwareStatus } from '@/src/components/async'
+import { fetchScalesFull, fetchXrfDevices } from '@/src/api/floor'
+import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { colors, spacing } from '@/src/theme'
 
 export default function DevicesScreen() {
-  const [loading, setLoading] = useState(true)
-  const [scales, setScales] = useState<Array<Record<string, unknown>>>([])
-  const [xrf, setXrf] = useState<Array<Record<string, unknown>>>([])
-  const [error, setError] = useState('')
+  const scales = useAsyncResource(
+    useCallback(async (signal) => {
+      const res = await fetchScalesFull({}, { signal })
+      return res.scales || []
+    }, []),
+    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:devices-scales' },
+  )
 
-  const load = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const [s, x] = await Promise.all([
-        fetchScales().catch(() => ({ scales: [] as Array<Record<string, unknown>> })),
-        fetchXrfDevices().catch(() => ({ devices: [] as Array<Record<string, unknown>> })),
-      ])
-      setScales(s.scales || [])
-      setXrf(x.devices || [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load devices')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    load()
-  }, [])
-
-  if (loading) {
-    return (
-      <Screen>
-        <LoadingBlock label="Loading devices…" />
-      </Screen>
-    )
-  }
+  const xrf = useAsyncResource(
+    useCallback(async (signal) => {
+      const res = await fetchXrfDevices({ signal })
+      return res.devices || []
+    }, []),
+    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:devices-xrf' },
+  )
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Scales and XRF — app stays usable when devices are offline</Subtitle>
-        {error ? <Text style={styles.err}>{error}</Text> : null}
-        <BigButton label="REFRESH" onPress={load} tone="neutral" />
+        <Subtitle>Scales and XRF — sections load independently</Subtitle>
+        <BigButton
+          label="REFRESH ALL"
+          onPress={() => {
+            scales.reload()
+            xrf.reload()
+          }}
+          tone="neutral"
+        />
+
         <Text style={styles.section}>SCALES</Text>
-        {scales.length === 0 ? <Text style={styles.empty}>No scales reported</Text> : null}
-        {scales.map((s) => (
-          <View key={String(s.scaleId)} style={styles.card}>
-            <Text style={styles.title}>{String(s.scaleId)}</Text>
-            <StatusPill label={String(s.status || 'UNKNOWN')} tone="neutral" />
-            <Text style={styles.meta}>
-              {String(s.connectionType || '—')} · last {s.lastSeenAt ? String(s.lastSeenAt) : 'never'}
-            </Text>
-          </View>
-        ))}
-        <Text style={styles.section}>XRF</Text>
-        {xrf.length === 0 ? <Text style={styles.empty}>No analyzers registered</Text> : null}
-        {xrf.map((d) => (
-          <View key={String(d.analyzerId)} style={styles.card}>
-            <Text style={styles.title}>{String(d.analyzerId)}</Text>
-            <StatusPill label={String(d.status || 'UNKNOWN')} tone="neutral" />
-            <Text style={styles.meta}>
-              {String(d.manufacturer || 'LANScientific')} {String(d.model || '(model TBD)')} ·{' '}
-              {String(d.connectionType || 'UNKNOWN')}
-            </Text>
-          </View>
-        ))}
+        <AsyncSection
+          status={scales.status}
+          loadingLabel="Loading scales…"
+          error={scales.error || 'Unable to load scales'}
+          emptyMessage="No scales registered"
+          onRetry={scales.reload}
+          updatedAt={scales.updatedAt}
+          fromCache={scales.fromCache}
+        >
+          {(scales.data || []).map((s) => (
+            <View key={String(s.scaleId)} style={styles.card}>
+              <Text style={styles.title}>{String(s.scaleId)}</Text>
+              <HardwareStatus label="STATUS" status={String(s.status || 'UNKNOWN')} />
+              <Text style={styles.meta}>
+                {String(s.connectionType || '—')} · last {s.lastSeenAt ? String(s.lastSeenAt) : 'never'}
+              </Text>
+            </View>
+          ))}
+        </AsyncSection>
+
+        <Text style={styles.section}>XRF ANALYZERS</Text>
+        <AsyncSection
+          status={xrf.status}
+          loadingLabel="Loading XRF…"
+          error={xrf.error || 'Unable to load XRF devices'}
+          emptyMessage="No analyzers registered"
+          onRetry={xrf.reload}
+          updatedAt={xrf.updatedAt}
+          fromCache={xrf.fromCache}
+        >
+          {(xrf.data || []).map((d) => (
+            <View key={String(d.analyzerId)} style={styles.card}>
+              <Text style={styles.title}>{String(d.analyzerId)}</Text>
+              <StatusPill label={String(d.status || 'UNKNOWN')} tone="neutral" />
+              <Text style={styles.meta}>
+                {String(d.manufacturer || 'LANScientific')} {String(d.model || '(model TBD)')} ·{' '}
+                {String(d.connectionType || 'UNKNOWN')}
+              </Text>
+            </View>
+          ))}
+        </AsyncSection>
       </ScrollView>
     </Screen>
   )
@@ -92,6 +102,4 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.text, fontWeight: '800', fontSize: 16 },
   meta: { color: colors.textMuted, fontSize: 12 },
-  empty: { color: colors.textMuted },
-  err: { color: '#f87171', marginBottom: spacing.sm },
 })

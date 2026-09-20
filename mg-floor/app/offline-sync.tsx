@@ -46,7 +46,15 @@ export default function OfflineSyncScreen() {
               <Text style={styles.id}>{item.operationType}</Text>
               <StatusPill
                 label={item.syncStatus}
-                tone={item.syncStatus === 'SYNCED' ? 'ok' : item.syncStatus === 'FAILED' ? 'warn' : 'neutral'}
+                tone={
+                  item.syncStatus === 'SYNCED'
+                    ? 'ok'
+                    : item.syncStatus === 'FAILED' || item.syncStatus === 'CONFLICT'
+                      ? 'bad'
+                      : item.syncStatus === 'SYNCING'
+                        ? 'warn'
+                        : 'neutral'
+                }
               />
               <Text style={styles.meta}>{item.operationId}</Text>
               {item.errorMessage ? <Text style={styles.err}>{item.errorMessage}</Text> : null}

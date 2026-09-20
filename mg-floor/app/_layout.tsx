@@ -9,8 +9,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ErrorBoundary } from '@/src/components/ErrorBoundary'
+import { AppChrome } from '@/src/navigation/AppChrome'
 import { startAutoSync } from '@/src/offline/sync'
-import { LoadingBlock, Screen } from '@/src/components/ui'
+import { BigButton, LoadingBlock, Screen } from '@/src/components/ui'
 import { API_CONFIG_ERROR } from '@/src/config/env'
 import { colors } from '@/src/theme'
 
@@ -34,16 +35,16 @@ function ConfigErrorScreen({ message }: { message: string }) {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { loading, token } = useAuth()
+  const { loading, token, hydrateError, retryHydrate } = useAuth()
   const segments = useSegments()
   const router = useRouter()
 
   useEffect(() => {
     if (loading) return
     const onLogin = segments[0] === 'login'
-    if (!token && !onLogin) router.replace('/login')
+    if (!token && !onLogin && !hydrateError) router.replace('/login')
     if (token && onLogin) router.replace('/')
-  }, [loading, token, segments, router])
+  }, [loading, token, segments, router, hydrateError])
 
   useEffect(() => {
     if (!token) return
@@ -67,7 +68,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  return <>{children}</>
+  if (hydrateError && !token) {
+    return (
+      <Screen>
+        <Text style={styles.configTitle}>Unable to restore session</Text>
+        <Text style={styles.configBody}>{hydrateError}</Text>
+        <BigButton label="RETRY" onPress={() => retryHydrate()} />
+        <BigButton label="SIGN IN" onPress={() => router.replace('/login')} tone="neutral" />
+      </Screen>
+    )
+  }
+
+  const onLogin = segments[0] === 'login'
+  if (onLogin || !token) {
+    return <>{children}</>
+  }
+
+  return <AppChrome>{children}</AppChrome>
 }
 
 export default function RootLayout() {
@@ -101,6 +118,7 @@ export default function RootLayout() {
               >
                 <Stack.Screen name="index" options={{ title: 'MG FLOOR' }} />
                 <Stack.Screen name="login" options={{ headerShown: false }} />
+                <Stack.Screen name="more" options={{ title: 'MORE' }} />
                 <Stack.Screen name="metal-in" options={{ title: 'METAL IN' }} />
                 <Stack.Screen name="metal-out" options={{ title: 'METAL OUT' }} />
                 <Stack.Screen name="transfer" options={{ title: 'TRANSFER' }} />

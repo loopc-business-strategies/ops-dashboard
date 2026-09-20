@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react'
-import { Alert, ScrollView, StyleSheet, Text, TextInput } from 'react-native'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
-import { BigButton, LoadingBlock, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
+import { BigButton, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
+import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
 import { fetchJobs, fetchScales, metalOut } from '@/src/api/floor'
+import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { useLiveScale } from '@/src/hooks/useLiveScale'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { colors, spacing } from '@/src/theme'
@@ -18,37 +20,45 @@ type Job = {
 
 export default function MetalOutScreen() {
   const params = useLocalSearchParams<{ batchId?: string; batchNumber?: string }>()
-  const [jobs, setJobs] = useState<Job[]>([])
   const [selected, setSelected] = useState<Job | null>(null)
   const [toDepartment, setToDepartment] = useState('')
   const [scaleId, setScaleId] = useState('')
-  const [scaleOptions, setScaleOptions] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const live = useLiveScale(scaleId)
+  const [submitError, setSubmitError] = useState('')
+  const live = useLiveScale(scaleId || null)
+
+  const jobs = useAsyncResource(
+    useCallback(async (signal) => {
+      const res = await fetchJobs({ signal })
+      const raw = res.jobs
+      return (Array.isArray(raw)
+        ? raw
+        : Array.isArray((raw as { tasks?: unknown[] })?.tasks)
+          ? (raw as { tasks: unknown[] }).tasks
+          : []) as Job[]
+    }, []),
+    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:jobs' },
+  )
+
+  const scales = useAsyncResource(
+    useCallback(async (signal) => {
+      const res = await fetchScales({ limit: 100 }, { signal })
+      return (res.scales || []).map((x) => String(x.scaleId))
+    }, []),
+    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
+  )
 
   useEffect(() => {
-    ;(async () => {
-      try {
-        const [j, s] = await Promise.all([fetchJobs(), fetchScales()])
-        const list = (j.jobs || []) as Job[]
-        setJobs(list)
-        const ids = (s.scales || []).map((x) => String(x.scaleId))
-        setScaleOptions(ids)
-        if (ids[0]) setScaleId(ids[0])
-        if (params.batchId) {
-          const pre = list.find((x) => x._id === params.batchId || x.batchId === params.batchId)
-          if (pre) setSelected(pre)
-          else setSelected({ _id: params.batchId, batchId: params.batchId, batchNumber: params.batchNumber })
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load')
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [params.batchId, params.batchNumber])
+    if (scales.data?.[0] && !scaleId) setScaleId(scales.data[0])
+  }, [scales.data, scaleId])
+
+  useEffect(() => {
+    if (!params.batchId) return
+    const list = jobs.data || []
+    const pre = list.find((x) => x._id === params.batchId || x.batchId === params.batchId)
+    if (pre) setSelected(pre)
+    else setSelected({ _id: params.batchId, batchId: params.batchId, batchNumber: params.batchNumber })
+  }, [params.batchId, params.batchNumber, jobs.data])
 
   const batchId = selected?._id || selected?.batchId
 
@@ -57,12 +67,12 @@ export default function MetalOutScreen() {
       Alert.alert('Missing data', 'Select a job and destination department')
       return
     }
-    if (!live?.stable || live.weight == null) {
+    if (!live.lastReading?.stable || live.weight == null) {
       Alert.alert('Waiting for stable weight', 'Wait until the scale shows STABLE.')
       return
     }
     setBusy(true)
-    setError('')
+    setSubmitError('')
     const operationId = createOperationId('metal_out')
     const payload = {
       batchId,
@@ -84,26 +94,47 @@ export default function MetalOutScreen() {
       Alert.alert('Success', 'Metal OUT recorded')
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'metal_out', payload, scaleId })
-      setError(err instanceof Error ? err.message : 'Failed — queued offline')
+      setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
     } finally {
       setBusy(false)
     }
   }
 
-  if (loading) {
-    return (
-      <Screen>
-        <LoadingBlock />
-      </Screen>
-    )
-  }
-
   return (
     <Screen>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <Subtitle>Select job → destination → stable scale capture</Subtitle>
-        <Text style={styles.label}>Scale</Text>
-        {scaleOptions.map((id) => (
+
+        <Text style={styles.step}>Jobs</Text>
+        <AsyncSection
+          status={jobs.status}
+          loadingLabel="Loading jobs…"
+          error={jobs.error || 'Unable to load jobs'}
+          emptyMessage="No jobs assigned"
+          onRetry={jobs.reload}
+          updatedAt={jobs.updatedAt}
+          fromCache={jobs.fromCache}
+        >
+          {(jobs.data || []).map((j) => {
+            const id = String(j._id || j.batchId || '')
+            const selectedId = String(selected?._id || selected?.batchId || '')
+            return (
+              <BigButton
+                key={id}
+                label={selectedId === id ? `✓ ${j.batchNumber || id}` : String(j.batchNumber || id)}
+                tone={selectedId === id ? 'accent' : 'neutral'}
+                onPress={() => setSelected(j)}
+              />
+            )
+          })}
+        </AsyncSection>
+
+        <Text style={styles.step}>Scale</Text>
+        {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
+        {scales.status === 'error' && !scales.data ? (
+          <ErrorState message={scales.error || 'Unable to load scales'} onRetry={scales.reload} />
+        ) : null}
+        {(scales.data || []).map((id) => (
           <BigButton
             key={id}
             label={id === scaleId ? `✓ ${id}` : id}
@@ -111,10 +142,24 @@ export default function MetalOutScreen() {
             onPress={() => setScaleId(id)}
           />
         ))}
-        {!scaleOptions.length ? (
-          <TextInput style={styles.input} value={scaleId} onChangeText={setScaleId} autoCapitalize="characters" placeholderTextColor={colors.textMuted} />
+        {!scales.data?.length && scales.status === 'success' ? (
+          <TextInput
+            style={styles.input}
+            value={scaleId}
+            onChangeText={setScaleId}
+            autoCapitalize="characters"
+            placeholderTextColor={colors.textMuted}
+          />
         ) : null}
-        <WeightDisplay weight={live?.weight ?? null} stable={live?.stable ?? null} />
+
+        <WeightDisplay
+          weight={live.weight}
+          stable={live.stable}
+          connectionStatus={live.connectionStatus}
+          lastReadingAt={live.lastReadingAt}
+          onReconnect={live.reconnect}
+        />
+
         <Text style={styles.label}>Destination department</Text>
         <TextInput
           style={styles.input}
@@ -122,27 +167,24 @@ export default function MetalOutScreen() {
           onChangeText={setToDepartment}
           placeholderTextColor={colors.textMuted}
         />
-        <Text style={styles.label}>Jobs</Text>
-        {jobs.map((job, idx) => {
-          const id = String(job._id || job.batchId || idx)
-          const active = (selected?._id || selected?.batchId) === (job._id || job.batchId)
-          return (
-            <BigButton
-              key={id}
-              label={`${active ? '✓ ' : ''}${job.batchNumber || id} · ${job.currentDepartment || '—'}`}
-              tone={active ? 'accent' : 'neutral'}
-              onPress={() => setSelected(job)}
-            />
-          )
-        })}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <BigButton label={busy ? 'SUBMITTING…' : 'CAPTURE & SUBMIT METAL OUT'} onPress={submit} disabled={busy || !live?.stable} />
+        {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
+        <BigButton
+          label={busy ? 'SUBMITTING…' : 'CONFIRM METAL OUT'}
+          onPress={submit}
+          disabled={busy || !live.stable}
+        />
       </ScrollView>
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
+  step: {
+    color: colors.accent,
+    fontWeight: '800',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
   label: { color: colors.textMuted, marginTop: spacing.md, marginBottom: 6, fontWeight: '700' },
   input: {
     backgroundColor: colors.surface,
@@ -151,7 +193,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     color: colors.text,
     padding: 14,
-    fontSize: 18,
+    fontSize: 16,
+    marginBottom: spacing.sm,
   },
-  error: { color: colors.danger, marginVertical: 8, fontWeight: '600' },
+  err: { color: colors.danger, marginVertical: spacing.sm },
 })

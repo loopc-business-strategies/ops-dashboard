@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react'
-import { io, type Socket } from 'socket.io-client'
-import { SOCKET_URL } from '@/src/config/env'
-import { getAuthToken } from '@/src/api/client'
-import { getTenant } from '@/src/config/tenant'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  acquireFloorSocket,
+  releaseFloorSocket,
+  reconnectFloorSocket,
+  subscribeFloorSocketStatus,
+  type SocketConnectionStatus,
+} from '@/src/realtime/floorSocket'
 
 export type LiveScaleReading = {
   scaleId: string
@@ -12,30 +15,74 @@ export type LiveScaleReading = {
   timestamp?: string
 }
 
-export function useLiveScale(scaleId: string | null) {
-  const [reading, setReading] = useState<LiveScaleReading | null>(null)
+export type LiveScaleState = {
+  connectionStatus: SocketConnectionStatus
+  lastReading: LiveScaleReading | null
+  lastStableReading: LiveScaleReading | null
+  lastReadingAt: string | null
+  error: string | null
+  /** @deprecated prefer lastReading.weight */
+  weight: number | null
+  /** @deprecated prefer lastReading.stable */
+  stable: boolean | null
+  scaleId: string | null
+  reconnect: () => void
+}
+
+export function useLiveScale(scaleId: string | null): LiveScaleState {
+  const [connectionStatus, setConnectionStatus] = useState<SocketConnectionStatus>('DISCONNECTED')
+  const [error, setError] = useState<string | null>(null)
+  const [lastReading, setLastReading] = useState<LiveScaleReading | null>(null)
+  const [lastStableReading, setLastStableReading] = useState<LiveScaleReading | null>(null)
+  const [lastReadingAt, setLastReadingAt] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!scaleId) return
-    const token = getAuthToken()
-    if (!token) return
+    setLastReading(null)
+    setLastStableReading(null)
+    setLastReadingAt(null)
+  }, [scaleId])
 
-    const socket: Socket = io(SOCKET_URL, {
-      transports: ['websocket'],
-      auth: { token },
-      extraHeaders: { 'x-tenant': getTenant() },
+  useEffect(() => {
+    if (!scaleId) {
+      setConnectionStatus('DISCONNECTED')
+      return
+    }
+
+    const sock = acquireFloorSocket()
+    const unsubStatus = subscribeFloorSocketStatus((status, err) => {
+      setConnectionStatus(status)
+      setError(err || null)
     })
 
-    socket.on('mg-floor:scale', (payload: LiveScaleReading) => {
-      if (String(payload.scaleId).toUpperCase() === String(scaleId).toUpperCase()) {
-        setReading(payload)
-      }
-    })
+    const onReading = (payload: LiveScaleReading) => {
+      if (String(payload.scaleId || '').toUpperCase() !== String(scaleId).toUpperCase()) return
+      setLastReading(payload)
+      setLastReadingAt(payload.timestamp || new Date().toISOString())
+      if (payload.stable) setLastStableReading(payload)
+    }
+
+    sock?.on('mg-floor:scale', onReading)
 
     return () => {
-      socket.disconnect()
+      sock?.off('mg-floor:scale', onReading)
+      unsubStatus()
+      releaseFloorSocket()
     }
   }, [scaleId])
 
-  return reading
+  const reconnect = useCallback(() => {
+    reconnectFloorSocket()
+  }, [])
+
+  return {
+    connectionStatus,
+    lastReading,
+    lastStableReading,
+    lastReadingAt,
+    error,
+    weight: lastReading?.weight ?? null,
+    stable: lastReading ? lastReading.stable : null,
+    scaleId,
+    reconnect,
+  }
 }

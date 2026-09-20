@@ -51,9 +51,16 @@ async function seedDefaultScales() {
   }
 }
 
-/** @deprecated Prefer seedDefaultScales + listScales. Kept for call-site compatibility. */
-async function ensureDefaultScales() {
+async function seedDefaultsIfEmpty() {
+  const count = await Scale.countDocuments()
+  if (count > 0) return { seeded: false, count }
   await seedDefaultScales()
+  return { seeded: true, count: await Scale.countDocuments() }
+}
+
+/** @deprecated Prefer seedDefaultsIfEmpty + listScales. Kept for call-site compatibility. */
+async function ensureDefaultScales() {
+  await seedDefaultsIfEmpty()
   return listScales({ limit: 500 }).then((r) => r.scales)
 }
 
@@ -81,7 +88,8 @@ function buildScaleFilter(query = {}) {
 }
 
 async function listScales(query = {}) {
-  await seedDefaultScales()
+  // Only seed when the collection is empty (no-op afterward — not 7 upserts per GET)
+  await seedDefaultsIfEmpty()
   const filter = buildScaleFilter(query)
   const limit = Math.min(Math.max(Number(query.limit) || 100, 1), 500)
   const skip = Math.max(Number(query.skip) || 0, 0)
@@ -280,7 +288,7 @@ async function createXrfAnalyzer(body = {}) {
 async function listDevicesForGateway(gatewayIdRaw) {
   const gatewayId = String(gatewayIdRaw || '').trim().toUpperCase()
   if (!gatewayId) throw new ProductionError('gatewayId is required')
-  await seedDefaultScales()
+  await seedDefaultsIfEmpty()
   await ensureDefaultGateways()
   const { ensureDefaultXrfAnalyzers } = require('./xrf')
   await ensureDefaultXrfAnalyzers()
@@ -338,6 +346,7 @@ module.exports = {
   DEFAULT_MG_SCALES,
   DEFAULT_GATEWAY_ID,
   seedDefaultScales,
+  seedDefaultsIfEmpty,
   ensureDefaultScales,
   listScales,
   createScale,

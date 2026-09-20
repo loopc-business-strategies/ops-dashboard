@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react'
-import { Alert, ScrollView, StyleSheet, Text, TextInput } from 'react-native'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
+import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
 import { fetchDepartments, fetchScales, transfer } from '@/src/api/floor'
+import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { useLiveScale } from '@/src/hooks/useLiveScale'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { colors, spacing } from '@/src/theme'
@@ -13,41 +15,46 @@ export default function TransferScreen() {
   const [batchId, setBatchId] = useState(String(params.batchId || ''))
   const [fromDepartment, setFromDepartment] = useState('')
   const [toDepartment, setToDepartment] = useState('')
-  const [departments, setDepartments] = useState<Array<{ key: string; label: string }>>([])
   const [scaleId, setScaleId] = useState('')
-  const [scaleOptions, setScaleOptions] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const live = useLiveScale(scaleId)
+  const [submitError, setSubmitError] = useState('')
+  const live = useLiveScale(scaleId || null)
 
   useEffect(() => {
     if (params.batchId) setBatchId(String(params.batchId))
   }, [params.batchId])
 
+  const departments = useAsyncResource(
+    useCallback(async (signal) => {
+      const r = await fetchDepartments({ signal })
+      return r.departments || []
+    }, []),
+    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:departments' },
+  )
+
+  const scales = useAsyncResource(
+    useCallback(async (signal) => {
+      const s = await fetchScales({ limit: 100 }, { signal })
+      return (s.scales || []).map((x) => String(x.scaleId))
+    }, []),
+    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
+  )
+
   useEffect(() => {
-    fetchDepartments()
-      .then((r) => setDepartments(r.departments || []))
-      .catch(() => {})
-    fetchScales()
-      .then((s) => {
-        const ids = (s.scales || []).map((x) => String(x.scaleId))
-        setScaleOptions(ids)
-        if (ids[0]) setScaleId(ids[0])
-      })
-      .catch(() => {})
-  }, [])
+    if (scales.data?.[0] && !scaleId) setScaleId(scales.data[0])
+  }, [scales.data, scaleId])
 
   const submit = async () => {
     if (!batchId.trim() || !toDepartment.trim()) {
       Alert.alert('Missing data', 'Batch ID and destination required')
       return
     }
-    if (!live?.stable || live.weight == null) {
+    if (!live.lastReading?.stable || live.weight == null) {
       Alert.alert('Waiting for stable weight')
       return
     }
     setBusy(true)
-    setError('')
+    setSubmitError('')
     const operationId = createOperationId('transfer')
     const payload = {
       batchId: batchId.trim(),
@@ -68,7 +75,7 @@ export default function TransferScreen() {
       Alert.alert('Success', 'Transfer recorded')
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'transfer', payload, scaleId })
-      setError(err instanceof Error ? err.message : 'Failed — queued offline')
+      setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
     } finally {
       setBusy(false)
     }
@@ -76,19 +83,57 @@ export default function TransferScreen() {
 
   return (
     <Screen>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <Subtitle>Department → department material transfer</Subtitle>
+
         <Text style={styles.label}>Batch ID</Text>
-        <TextInput style={styles.input} value={batchId} onChangeText={setBatchId} placeholderTextColor={colors.textMuted} />
-        <Text style={styles.label}>From department</Text>
-        <TextInput style={styles.input} value={fromDepartment} onChangeText={setFromDepartment} placeholder="auto from batch if empty" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.label}>To department</Text>
-        <TextInput style={styles.input} value={toDepartment} onChangeText={setToDepartment} placeholderTextColor={colors.textMuted} />
-        {departments.length ? (
-          <Text style={styles.hint}>{departments.map((d) => d.key).join(' → ')}</Text>
+        <TextInput
+          style={styles.input}
+          value={batchId}
+          onChangeText={setBatchId}
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <Text style={styles.step}>Departments</Text>
+        <AsyncSection
+          status={departments.status}
+          loadingLabel="Loading departments…"
+          error={departments.error || 'Departments unavailable'}
+          emptyMessage="No departments returned"
+          onRetry={departments.reload}
+        >
+          <View style={styles.row}>
+            {(departments.data || []).map((d) => (
+              <BigButton
+                key={d.key}
+                label={toDepartment === d.key ? `✓ TO ${d.label}` : d.label}
+                tone={toDepartment === d.key ? 'accent' : 'neutral'}
+                onPress={() => setToDepartment(d.key)}
+              />
+            ))}
+          </View>
+        </AsyncSection>
+        <TextInput
+          style={styles.input}
+          value={fromDepartment}
+          onChangeText={setFromDepartment}
+          placeholder="From (optional)"
+          placeholderTextColor={colors.textMuted}
+        />
+        <TextInput
+          style={styles.input}
+          value={toDepartment}
+          onChangeText={setToDepartment}
+          placeholder="To department key"
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <Text style={styles.step}>Scales</Text>
+        {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
+        {scales.status === 'error' && !scales.data ? (
+          <ErrorState message={scales.error || 'Scales unavailable'} onRetry={scales.reload} />
         ) : null}
-        <Text style={styles.label}>Scale</Text>
-        {scaleOptions.map((id) => (
+        {(scales.data || []).map((id) => (
           <BigButton
             key={id}
             label={id === scaleId ? `✓ ${id}` : id}
@@ -96,15 +141,24 @@ export default function TransferScreen() {
             onPress={() => setScaleId(id)}
           />
         ))}
-        <WeightDisplay weight={live?.weight ?? null} stable={live?.stable ?? null} />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <BigButton label={busy ? 'SUBMITTING…' : 'CAPTURE & SUBMIT TRANSFER'} onPress={submit} disabled={busy || !live?.stable} />
+
+        <WeightDisplay
+          weight={live.weight}
+          stable={live.stable}
+          connectionStatus={live.connectionStatus}
+          lastReadingAt={live.lastReadingAt}
+          onReconnect={live.reconnect}
+        />
+
+        {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
+        <BigButton label={busy ? 'SUBMITTING…' : 'CONFIRM TRANSFER'} onPress={submit} disabled={busy || !live.stable} />
       </ScrollView>
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
+  step: { color: colors.accent, fontWeight: '800', marginTop: spacing.md, marginBottom: spacing.sm },
   label: { color: colors.textMuted, marginTop: spacing.md, marginBottom: 6, fontWeight: '700' },
   input: {
     backgroundColor: colors.surface,
@@ -113,8 +167,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     color: colors.text,
     padding: 14,
-    fontSize: 18,
+    fontSize: 16,
+    marginBottom: spacing.sm,
   },
-  hint: { color: colors.textMuted, marginTop: 8 },
-  error: { color: colors.danger, marginVertical: 8, fontWeight: '600' },
+  row: { gap: 0 },
+  err: { color: colors.danger, marginVertical: spacing.sm },
 })
