@@ -51,9 +51,15 @@ export default function XrfScreen() {
   const [pending, setPending] = useState<PendingTest | null>(null)
   const [pendingStatus, setPendingStatus] = useState<'idle' | 'loading' | 'empty' | 'ready' | 'error'>('idle')
   const [pendingError, setPendingError] = useState('')
+  const [pollRefreshing, setPollRefreshing] = useState(false)
   const [busy, setBusy] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
+  const pendingRef = useRef<PendingTest | null>(null)
   const live = useLiveScale(scaleId || null)
+
+  pendingRef.current = pending
 
   const devices = useAsyncResource(
     useCallback(async (signal) => {
@@ -90,15 +96,29 @@ export default function XrfScreen() {
     }
   }, [analyzerId])
 
-  const loadPending = useCallback(async () => {
-    setPendingStatus('loading')
-    setPendingError('')
+  const loadPending = useCallback(async (mode: 'initial' | 'poll' | 'manual' = 'initial') => {
+    if (mode === 'initial') {
+      setPendingStatus('loading')
+      setPendingError('')
+    } else if (mode === 'manual') {
+      setPendingError('')
+      if (!pendingRef.current) setPendingStatus('loading')
+    } else {
+      setPollRefreshing(true)
+    }
+    pollAbortRef.current?.abort()
+    const controller = new AbortController()
+    pollAbortRef.current = controller
     try {
-      const res = await fetchXrfTests({
-        pendingForConfirm: '1',
-        analyzerId,
-        limit: 5,
-      })
+      const res = await fetchXrfTests(
+        {
+          pendingForConfirm: '1',
+          analyzerId,
+          limit: 5,
+        },
+        { signal: controller.signal },
+      )
+      if (controller.signal.aborted || !mountedRef.current) return null
       const tests = (res.tests || []) as PendingTest[]
       const latest = tests[0] || null
       setPending(latest)
@@ -106,24 +126,44 @@ export default function XrfScreen() {
       if (latest?.analyzerId) setAnalyzerId(String(latest.analyzerId))
       return latest
     } catch (err) {
+      if (controller.signal.aborted || !mountedRef.current) return null
+      if (mode === 'poll') {
+        return null
+      }
       setPendingStatus('error')
       setPendingError(userFacingMessage(err) || 'Unable to load pending XRF')
       return null
+    } finally {
+      if (mountedRef.current) setPollRefreshing(false)
     }
   }, [analyzerId])
 
   useEffect(() => {
+    mountedRef.current = true
     refreshAnalyzerStatus()
-    loadPending()
+    loadPending('initial')
+    return () => {
+      mountedRef.current = false
+      pollAbortRef.current?.abort()
+    }
   }, [refreshAnalyzerStatus, loadPending])
 
   useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current)
-    pollRef.current = setInterval(() => {
-      loadPending().catch(() => {})
-    }, 5000)
+    let cancelled = false
+    const schedule = () => {
+      if (cancelled) return
+      pollTimerRef.current = setTimeout(async () => {
+        if (cancelled) return
+        await loadPending('poll')
+        if (!cancelled) schedule()
+      }, 5000)
+    }
+    schedule()
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+      cancelled = true
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
+      pollTimerRef.current = null
+      pollAbortRef.current?.abort()
     }
   }, [loadPending])
 
@@ -246,7 +286,7 @@ export default function XrfScreen() {
       setPending(null)
       setPendingStatus('empty')
       clearCapture()
-      await loadPending()
+      await loadPending('manual')
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'xrf_test', payload, scaleId: scaleId || undefined })
       Alert.alert('Queued', userFacingMessage(err) || 'Saved offline after failure')
@@ -337,12 +377,18 @@ export default function XrfScreen() {
 
         <Text style={styles.section}>XRF RESULT</Text>
         {pendingStatus === 'loading' ? <SectionLoading label="Checking pending…" /> : null}
-        {pendingStatus === 'empty' ? <Text style={styles.hint}>WAITING — no pending hardware result</Text> : null}
+        {pendingStatus === 'empty' ? (
+          <View style={styles.waitingRow}>
+            <Text style={styles.hint}>WAITING FOR XRF RESULT</Text>
+            {pollRefreshing ? <Text style={styles.pollHint}>↻ Checking…</Text> : null}
+          </View>
+        ) : null}
         {pendingStatus === 'error' ? (
-          <ErrorState message={pendingError || 'Unable to load pending'} onRetry={loadPending} />
+          <ErrorState message={pendingError || 'Unable to load pending'} onRetry={() => loadPending('manual')} />
         ) : null}
         {pendingStatus === 'ready' && pending ? (
           <View style={styles.result}>
+            {pollRefreshing ? <Text style={styles.pollHint}>↻ Checking…</Text> : null}
             <Text style={styles.resultTitle}>{isSim ? 'SIMULATED RESULT' : 'HARDWARE RESULT'}</Text>
             {isSim ? <StatusPill label="SIMULATED" tone="warn" /> : null}
             <Text style={styles.hint}>ID: {pending.xrfTestId}</Text>
@@ -356,7 +402,7 @@ export default function XrfScreen() {
           </View>
         ) : null}
 
-        <BigButton label="CHECK PENDING RESULT" onPress={loadPending} disabled={busy} />
+        <BigButton label="CHECK PENDING RESULT" onPress={() => loadPending('manual')} disabled={busy} />
         {pendingStatus === 'ready' && pending?.xrfTestId ? (
           <BigButton
             label={busy ? 'CONFIRMING…' : 'CONFIRM / SAVE METADATA'}
@@ -373,7 +419,7 @@ export default function XrfScreen() {
             devices.reload()
             scales.reload()
             refreshAnalyzerStatus()
-            loadPending()
+            loadPending('manual')
           }}
           tone="neutral"
           disabled={busy}
@@ -405,6 +451,8 @@ const styles = StyleSheet.create({
   scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   captured: { marginVertical: spacing.sm, gap: spacing.sm },
   hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm },
+  waitingRow: { marginBottom: spacing.sm },
+  pollHint: { color: colors.accent, fontSize: 12, fontWeight: '700', marginBottom: 4 },
   result: {
     marginVertical: spacing.md,
     padding: spacing.md,

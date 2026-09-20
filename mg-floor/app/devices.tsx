@@ -2,7 +2,7 @@ import React, { useCallback } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
 import { AsyncSection, HardwareStatus } from '@/src/components/async'
-import { fetchScalesFull, fetchXrfDevices } from '@/src/api/floor'
+import { fetchGateways, fetchScalesFull, fetchXrfDevices } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { colors, spacing } from '@/src/theme'
 
@@ -23,15 +23,24 @@ export default function DevicesScreen() {
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:devices-xrf' },
   )
 
+  const gateways = useAsyncResource(
+    useCallback(async (signal) => {
+      const res = await fetchGateways({ limit: 100 }, { signal })
+      return res.gateways || []
+    }, []),
+    { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:devices-gateways' },
+  )
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Scales and XRF — sections load independently</Subtitle>
+        <Subtitle>Scales, XRF, and gateways — sections load independently</Subtitle>
         <BigButton
           label="REFRESH ALL"
           onPress={() => {
             scales.reload()
             xrf.reload()
+            gateways.reload()
           }}
           tone="neutral"
         />
@@ -41,10 +50,11 @@ export default function DevicesScreen() {
           status={scales.status}
           loadingLabel="Loading scales…"
           error={scales.error || 'Unable to load scales'}
-          emptyMessage="No scales registered"
+          emptyMessage="No active scales available."
           onRetry={scales.reload}
           updatedAt={scales.updatedAt}
           fromCache={scales.fromCache}
+          slow={scales.slow}
         >
           {(scales.data || []).map((s) => (
             <View key={String(s.scaleId)} style={styles.card}>
@@ -66,6 +76,7 @@ export default function DevicesScreen() {
           onRetry={xrf.reload}
           updatedAt={xrf.updatedAt}
           fromCache={xrf.fromCache}
+          slow={xrf.slow}
         >
           {(xrf.data || []).map((d) => (
             <View key={String(d.analyzerId)} style={styles.card}>
@@ -74,6 +85,31 @@ export default function DevicesScreen() {
               <Text style={styles.meta}>
                 {String(d.manufacturer || 'LANScientific')} {String(d.model || '(model TBD)')} ·{' '}
                 {String(d.connectionType || 'UNKNOWN')}
+              </Text>
+            </View>
+          ))}
+        </AsyncSection>
+
+        <Text style={styles.section}>GATEWAYS</Text>
+        <AsyncSection
+          status={gateways.status}
+          loadingLabel="Loading gateways…"
+          error={gateways.error || 'Unable to load gateways'}
+          emptyMessage="No gateways registered"
+          onRetry={gateways.reload}
+          updatedAt={gateways.updatedAt}
+          fromCache={gateways.fromCache}
+          slow={gateways.slow}
+        >
+          {(gateways.data || []).map((g) => (
+            <View key={String(g.gatewayId)} style={styles.card}>
+              <Text style={styles.title}>{String(g.gatewayId)}</Text>
+              <HardwareStatus
+                label="STATUS"
+                status={String(g.enabled === false ? 'DISABLED' : g.status || 'UNKNOWN')}
+              />
+              <Text style={styles.meta}>
+                {String(g.name || '—')} · {String(g.location || 'unassigned')}
               </Text>
             </View>
           ))}

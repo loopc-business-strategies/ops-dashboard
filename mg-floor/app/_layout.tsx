@@ -116,15 +116,11 @@ export default function RootLayout() {
                   headerTitleStyle: { fontWeight: '800' },
                 }}
               >
-                <Stack.Screen name="index" options={{ title: 'MG FLOOR' }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="login" options={{ headerShown: false }} />
-                <Stack.Screen name="more" options={{ title: 'MORE' }} />
                 <Stack.Screen name="metal-in" options={{ title: 'METAL IN' }} />
                 <Stack.Screen name="metal-out" options={{ title: 'METAL OUT' }} />
                 <Stack.Screen name="transfer" options={{ title: 'TRANSFER' }} />
-                <Stack.Screen name="scan" options={{ title: 'SCAN' }} />
-                <Stack.Screen name="jobs" options={{ title: 'MY JOBS' }} />
-                <Stack.Screen name="history" options={{ title: 'HISTORY' }} />
                 <Stack.Screen name="scales" options={{ title: 'SCALES' }} />
                 <Stack.Screen name="devices" options={{ title: 'DEVICES' }} />
                 <Stack.Screen name="xrf" options={{ title: 'XRF / QC' }} />

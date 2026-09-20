@@ -4,14 +4,23 @@ import { useRouter } from 'expo-router'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
 import { resolveScan } from '@/src/api/floor'
-import { userFacingMessage } from '@/src/api/errors'
-import { ApiError } from '@/src/api/errors'
+import { userFacingMessage, ApiError } from '@/src/api/errors'
+import { useAuth } from '@/src/context/AuthContext'
 import { colors, spacing } from '@/src/theme'
 
 type ResolvePhase = 'idle' | 'scanned' | 'resolving' | 'verified' | 'not_found' | 'unavailable'
 
+function field(match: Record<string, unknown>, ...keys: string[]) {
+  for (const k of keys) {
+    const v = match[k]
+    if (v != null && String(v).trim()) return String(v)
+  }
+  return '—'
+}
+
 export default function ScanScreen() {
   const router = useRouter()
+  const { permissions } = useAuth()
   const [permission, requestPermission] = useCameraPermissions()
   const [manual, setManual] = useState('')
   const [phase, setPhase] = useState<ResolvePhase>('idle')
@@ -23,7 +32,6 @@ export default function ScanScreen() {
   const runResolve = async (code: string) => {
     if (!code.trim()) return
     setLastCode(code.trim())
-    setPhase('scanned')
     setError('')
     setMatch(null)
     setPhase('resolving')
@@ -109,15 +117,11 @@ export default function ScanScreen() {
           }
         />
         <View style={styles.panel}>
-          {phase === 'scanned' || phase === 'resolving' ? (
+          {phase === 'resolving' ? (
             <View style={styles.row}>
               <StatusPill label="SCANNED" tone="neutral" />
-              {phase === 'resolving' ? (
-                <>
-                  <StatusPill label="RESOLVING…" tone="warn" />
-                  <ActivityIndicator color={colors.accent} />
-                </>
-              ) : null}
+              <StatusPill label="RESOLVING…" tone="warn" />
+              <ActivityIndicator color={colors.accent} />
             </View>
           ) : null}
           {phase === 'verified' ? <StatusPill label="VERIFIED" tone="ok" /> : null}
@@ -125,15 +129,37 @@ export default function ScanScreen() {
           {phase === 'unavailable' ? <StatusPill label="UNAVAILABLE" tone="warn" /> : null}
           {lastCode ? <Text style={styles.meta}>Code: {lastCode}</Text> : null}
           {error ? <Text style={styles.err}>{error}</Text> : null}
-          {match ? (
-            <>
-              <Text style={styles.result} numberOfLines={6}>
-                {JSON.stringify(match, null, 2)}
+          {match && phase === 'verified' ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>VERIFIED BATCH</Text>
+              <Text style={styles.cardLine}>
+                Batch: <Text style={styles.cardValue}>{field(match, 'batchNumber', 'batchId', 'passNumber')}</Text>
               </Text>
-              <BigButton label="OPEN METAL IN" onPress={openMetalIn} />
-              <BigButton label="OPEN METAL OUT" onPress={openMetalOut} />
-              <BigButton label="OPEN TRANSFER" onPress={openTransfer} />
-            </>
+              <Text style={styles.cardLine}>
+                Job: <Text style={styles.cardValue}>{field(match, 'jobId', 'jobNumber', '_id')}</Text>
+              </Text>
+              <Text style={styles.cardLine}>
+                Material: <Text style={styles.cardValue}>{field(match, 'material', 'materialId', 'materialName')}</Text>
+              </Text>
+              <Text style={styles.cardLine}>
+                Department:{' '}
+                <Text style={styles.cardValue}>
+                  {field(match, 'department', 'currentDepartment', 'toDepartment')}
+                </Text>
+              </Text>
+              <Text style={styles.cardLine}>
+                Status: <Text style={styles.cardValue}>{field(match, 'status')}</Text>
+              </Text>
+              {permissions.metalIn !== false ? (
+                <BigButton label="METAL IN" onPress={openMetalIn} />
+              ) : null}
+              {permissions.metalOut !== false ? (
+                <BigButton label="METAL OUT" onPress={openMetalOut} />
+              ) : null}
+              {permissions.transfer !== false ? (
+                <BigButton label="TRANSFER" onPress={openTransfer} />
+              ) : null}
+            </View>
           ) : null}
           <BigButton label="SCAN AGAIN" tone="neutral" onPress={reset} />
           <Text style={styles.label}>Manual code</Text>
@@ -161,7 +187,17 @@ const styles = StyleSheet.create({
     color: colors.text,
     padding: 12,
   },
-  result: { color: colors.textMuted, fontSize: 11, fontFamily: 'monospace' },
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: spacing.md,
+    gap: 6,
+  },
+  cardTitle: { color: colors.accent, fontWeight: '800', fontSize: 16, marginBottom: 4 },
+  cardLine: { color: colors.textMuted, fontSize: 14 },
+  cardValue: { color: colors.text, fontWeight: '700' },
   err: { color: '#f87171' },
   meta: { color: colors.textMuted, fontSize: 12 },
 })

@@ -162,3 +162,13 @@ export async function fetchXrfTests(params?: Record<string, string | number>, op
     signal: opts?.signal,
   })
 }
+
+export async function fetchGateways(
+  params?: Record<string, string | number | boolean>,
+  opts?: SignalOpts,
+) {
+  return apiRequest<{ success: boolean; gateways: Array<Record<string, unknown>>; total?: number }>(
+    '/api/mg-floor/gateways',
+    { params, signal: opts?.signal },
+  )
+}

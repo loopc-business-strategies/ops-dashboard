@@ -4,11 +4,27 @@ import { StatusPill } from '@/src/components/ui'
 import { colors, spacing } from '@/src/theme'
 import type { AsyncStatus } from '@/src/async/types'
 
-export function SectionLoading({ label = 'Loading…' }: { label?: string }) {
+export function SectionLoading({
+  label = 'Loading…',
+  slow,
+  onRetry,
+}: {
+  label?: string
+  slow?: boolean
+  onRetry?: () => void
+}) {
   return (
-    <View style={styles.sectionRow}>
-      <ActivityIndicator color={colors.accent} size="small" />
-      <Text style={styles.muted}>{label}</Text>
+    <View style={styles.box}>
+      <View style={styles.sectionRow}>
+        <ActivityIndicator color={colors.accent} size="small" />
+        <Text style={styles.muted}>{label}</Text>
+      </View>
+      {slow ? (
+        <>
+          <Text style={styles.meta}>Connection is taking longer than expected.</Text>
+          {onRetry ? <RetryButton onPress={onRetry} /> : null}
+        </>
+      ) : null}
     </View>
   )
 }
@@ -124,6 +140,7 @@ export function AsyncSection({
   updatedAt,
   fromCache,
   onRetry,
+  slow,
   children,
 }: {
   status: AsyncStatus
@@ -133,10 +150,11 @@ export function AsyncSection({
   updatedAt?: number | null
   fromCache?: boolean
   onRetry?: () => void
+  slow?: boolean
   children?: React.ReactNode
 }) {
   if (status === 'loading' && !children) {
-    return <SectionLoading label={loadingLabel} />
+    return <SectionLoading label={loadingLabel} slow={slow} onRetry={onRetry} />
   }
   if (status === 'offline' && !children) {
     return <OfflineState message={error || 'Unable to load — offline'} lastUpdated={updatedAt} onRetry={onRetry} />
@@ -150,11 +168,18 @@ export function AsyncSection({
   return (
     <View>
       {(status === 'loading' || status === 'retrying') && children ? (
-        <SectionLoading label={status === 'retrying' ? 'Refreshing…' : loadingLabel} />
+        <SectionLoading
+          label={status === 'retrying' ? 'Refreshing…' : loadingLabel}
+          slow={slow}
+          onRetry={onRetry}
+        />
       ) : null}
       {fromCache || updatedAt ? <LastUpdated at={updatedAt} fromCache={fromCache} /> : null}
       {status === 'offline' && children ? (
         <Text style={styles.meta}>OFFLINE — showing last known</Text>
+      ) : null}
+      {fromCache && status !== 'offline' && children ? (
+        <Text style={styles.meta}>LAST KNOWN DATA</Text>
       ) : null}
       {children}
     </View>

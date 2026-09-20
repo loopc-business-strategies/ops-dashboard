@@ -14,6 +14,7 @@ type Options<T> = {
 }
 
 const DEFAULT_TTL = 5 * 60 * 1000
+const SLOW_MS = 3000
 
 async function readCache<T>(key: string): Promise<{ data: T; at: number } | null> {
   try {
@@ -56,6 +57,7 @@ export function useAsyncResource<T>(
     updatedAt: null,
     fromCache: false,
   })
+  const [slow, setSlow] = useState(false)
 
   const dataRef = useRef<T | null>(null)
   dataRef.current = state.data
@@ -68,6 +70,10 @@ export function useAsyncResource<T>(
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
+    setSlow(false)
+    const slowTimer = setTimeout(() => {
+      if (!controller.signal.aborted) setSlow(true)
+    }, SLOW_MS)
 
     const hadData = dataRef.current != null
     setState((prev) => ({
@@ -83,11 +89,11 @@ export function useAsyncResource<T>(
     if (cacheKey && !hadData) {
       const cached = await readCache<T>(cacheKey)
       if (cached && !controller.signal.aborted) {
-        const stale = Date.now() - cached.at > cacheTtlMs
         const empty = isEmpty ? isEmpty(cached.data) : false
         dataRef.current = cached.data
+        // Stale cache while online = LAST KNOWN (success/empty), not OFFLINE
         setState({
-          status: offline || stale ? 'offline' : empty ? 'empty' : 'success',
+          status: offline ? 'offline' : empty ? 'empty' : 'success',
           data: cached.data,
           updatedAt: cached.at,
           fromCache: true,
@@ -98,6 +104,8 @@ export function useAsyncResource<T>(
     }
 
     if (offline && dataRef.current == null) {
+      clearTimeout(slowTimer)
+      setSlow(false)
       setState((prev) => ({
         ...prev,
         status: 'offline',
@@ -126,14 +134,18 @@ export function useAsyncResource<T>(
       const e = toApiError(err)
       if (e.kind === 'CANCELLED') return
       const keep = dataRef.current
+      const net2 = await NetInfo.fetch()
+      const stillOffline = net2.isConnected === false
       setState({
         status:
           keep != null
-            ? e.kind === 'NETWORK_ERROR' || e.kind === 'TIMEOUT'
+            ? stillOffline
               ? 'offline'
               : 'error'
-            : e.kind === 'NETWORK_ERROR' || e.kind === 'TIMEOUT' || offline
-              ? 'offline'
+            : stillOffline || e.kind === 'NETWORK_ERROR' || e.kind === 'TIMEOUT'
+              ? stillOffline
+                ? 'offline'
+                : 'error'
               : 'error',
         data: keep,
         error: userFacingMessage(e) || e.message,
@@ -141,6 +153,9 @@ export function useAsyncResource<T>(
         updatedAt: keep != null ? Date.now() : null,
         fromCache: keep != null,
       })
+    } finally {
+      clearTimeout(slowTimer)
+      setSlow(false)
     }
   }, [enabled, cacheKey, cacheTtlMs, isEmpty])
 
@@ -160,5 +175,7 @@ export function useAsyncResource<T>(
     reload,
     load,
     isLoading: state.status === 'loading' || state.status === 'retrying',
+    slow,
+    abort: () => abortRef.current?.abort(),
   }
 }
