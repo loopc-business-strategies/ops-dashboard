@@ -1,9 +1,10 @@
 import React, { useCallback, useState } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
-import { AsyncSection, SectionLoading } from '@/src/components/async'
+import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
 import { fetchHistory } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
+import { userFacingMessage } from '@/src/api/errors'
 import { colors, spacing } from '@/src/theme'
 
 const PAGE = 50
@@ -12,12 +13,14 @@ export default function HistoryScreen() {
   const [skip, setSkip] = useState(0)
   const [extra, setExtra] = useState<Array<Record<string, unknown>>>([])
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState('')
 
   const history = useAsyncResource(
     useCallback(async (signal) => {
       const res = await fetchHistory({ limit: PAGE, skip: 0 }, { signal })
       setExtra([])
       setSkip(0)
+      setLoadMoreError('')
       return {
         movements: (res.movements || []) as Array<Record<string, unknown>>,
         total: Number(res.total || 0),
@@ -35,11 +38,14 @@ export default function HistoryScreen() {
   const loadMore = async () => {
     if (loadingMore || rows.length >= total) return
     setLoadingMore(true)
+    setLoadMoreError('')
     try {
       const nextSkip = skip + PAGE
       const res = await fetchHistory({ limit: PAGE, skip: nextSkip })
       setExtra((prev) => [...prev, ...((res.movements || []) as Array<Record<string, unknown>>)])
       setSkip(nextSkip)
+    } catch (err) {
+      setLoadMoreError(userFacingMessage(err) || 'Unable to load more.')
     } finally {
       setLoadingMore(false)
     }
@@ -49,7 +55,9 @@ export default function HistoryScreen() {
     <Screen>
       <Subtitle>Metal movements (RBAC-filtered via MG Floor API)</Subtitle>
       <BigButton label="REFRESH" onPress={history.reload} tone="neutral" disabled={history.isLoading} />
-      {history.status === 'loading' && !history.data ? <SectionLoading label="Loading history…" /> : null}
+      {history.status === 'loading' && !history.data ? (
+        <SectionLoading label="Loading history…" slow={history.slow} onRetry={history.reload} />
+      ) : null}
       <AsyncSection
         status={history.status === 'loading' && history.data ? 'retrying' : history.status}
         error={history.error || 'Unable to load history'}
@@ -57,6 +65,7 @@ export default function HistoryScreen() {
         onRetry={history.reload}
         updatedAt={history.updatedAt}
         fromCache={history.fromCache}
+        slow={history.slow}
       >
         {history.data || history.status === 'offline' ? (
           <FlatList
@@ -64,14 +73,18 @@ export default function HistoryScreen() {
             keyExtractor={(item, idx) => String(item._id || idx)}
             ListEmptyComponent={<Text style={styles.empty}>No history yet</Text>}
             ListFooterComponent={
-              rows.length < total ? (
-                <BigButton
-                  label={loadingMore ? 'LOADING…' : 'LOAD MORE'}
-                  onPress={loadMore}
-                  tone="neutral"
-                  disabled={loadingMore}
-                />
-              ) : null
+              <>
+                {loadMoreError ? (
+                  <ErrorState message={loadMoreError} onRetry={loadMore} />
+                ) : rows.length < total ? (
+                  <BigButton
+                    label={loadingMore ? 'LOADING…' : 'LOAD MORE'}
+                    onPress={loadMore}
+                    tone="neutral"
+                    disabled={loadingMore}
+                  />
+                ) : null}
+              </>
             }
             renderItem={({ item }) => (
               <View style={styles.row}>
