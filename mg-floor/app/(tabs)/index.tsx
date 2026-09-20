@@ -126,24 +126,24 @@ export default function HomeScreen() {
 
         {!tablet ? (
           <View style={styles.stack}>
-            <BigButton label="METAL IN" onPress={() => router.push('/metal-in')} />
-            <BigButton label="METAL OUT" onPress={() => router.push('/metal-out')} />
-            <BigButton label="TRANSFER" onPress={() => router.push('/transfer')} />
-            <BigButton label="XRF / QC" onPress={() => router.push('/xrf')} />
-            <BigButton label="DEVICES" onPress={() => router.push('/devices')} tone="neutral" />
-            <BigButton label="OFFLINE SYNC" onPress={() => router.push('/offline-sync')} tone="neutral" />
+            <BigButton label="METAL IN" onPress={() => router.replace('/metal-in')} />
+            <BigButton label="METAL OUT" onPress={() => router.replace('/metal-out')} />
+            <BigButton label="TRANSFER" onPress={() => router.replace('/transfer')} />
+            <BigButton label="XRF / QC" onPress={() => router.replace('/xrf')} />
+            <BigButton label="DEVICES" onPress={() => router.replace('/devices')} tone="neutral" />
+            <BigButton label="OFFLINE SYNC" onPress={() => router.replace('/offline-sync')} tone="neutral" />
           </View>
         ) : (
           <Text style={styles.muted}>Use the sidebar to open production and device screens.</Text>
         )}
 
         {permissions.manageScales ? (
-          <BigButton label="SCALE MANAGEMENT" onPress={() => router.push('/scales')} tone="neutral" />
+          <BigButton label="SCALE MANAGEMENT" onPress={() => router.replace('/scales')} tone="neutral" />
         ) : null}
         {permissions.adjustWeight ? (
-          <BigButton label="SUPERVISOR CORRECTION" onPress={() => router.push('/correction')} tone="neutral" />
+          <BigButton label="SUPERVISOR CORRECTION" onPress={() => router.replace('/correction')} tone="neutral" />
         ) : null}
-        <BigButton label="PROFILE / SETTINGS" onPress={() => router.push('/profile')} tone="neutral" />
+        <BigButton label="PROFILE / SETTINGS" onPress={() => router.replace('/profile')} tone="neutral" />
         <BigButton label="SIGN OUT" onPress={() => logout()} tone="danger" />
       </ScrollView>
     </Screen>

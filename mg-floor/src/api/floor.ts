@@ -61,22 +61,37 @@ export async function fetchScales(
   params?: Record<string, string | number | boolean>,
   opts?: SignalOpts,
 ) {
-  return apiRequest<{ success: boolean; scales: Array<Record<string, unknown>>; total?: number }>(
-    '/api/mg-floor/scales',
-    { params: { enabled: true, limit: 100, ...params }, signal: opts?.signal },
-  )
+  return apiRequest<{
+    success: boolean
+    scales: Array<Record<string, unknown>>
+    total?: number
+    limit?: number
+    skip?: number
+  }>('/api/mg-floor/scales', {
+    params: { enabled: true, limit: 50, skip: 0, ...params },
+    signal: opts?.signal,
+  })
 }
 
-/** Full registry list for Devices / Scales admin screens */
+/** Paged registry list for Devices / Scales screens (includes disabled unless filtered). */
 export async function fetchScalesFull(
   params?: Record<string, string | number | boolean>,
   opts?: SignalOpts,
 ) {
-  return fetchScales({ limit: 500, ...params }, opts)
+  return apiRequest<{
+    success: boolean
+    scales: Array<Record<string, unknown>>
+    total?: number
+    limit?: number
+    skip?: number
+  }>('/api/mg-floor/scales', {
+    params: { limit: 50, skip: 0, ...params },
+    signal: opts?.signal,
+  })
 }
 
 export async function fetchScaleSummary(opts?: SignalOpts) {
-  return fetchScales({ limit: 50 }, opts)
+  return fetchScales({ limit: 50, skip: 0 }, opts)
 }
 
 export async function fetchScaleStatus(scaleId: string, opts?: SignalOpts) {
@@ -167,8 +182,14 @@ export async function fetchGateways(
   params?: Record<string, string | number | boolean>,
   opts?: SignalOpts,
 ) {
-  return apiRequest<{ success: boolean; gateways: Array<Record<string, unknown>>; total?: number }>(
-    '/api/mg-floor/gateways',
-    { params, signal: opts?.signal },
-  )
+  return apiRequest<{
+    success: boolean
+    gateways: Array<Record<string, unknown>>
+    total?: number
+    limit?: number
+    skip?: number
+  }>('/api/mg-floor/gateways', {
+    params: { limit: 50, skip: 0, ...params },
+    signal: opts?.signal,
+  })
 }

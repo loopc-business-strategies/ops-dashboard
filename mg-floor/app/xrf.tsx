@@ -39,7 +39,7 @@ const ALLOW_APP_SIM = !IS_PRODUCTION && APP_ENV !== 'production'
 
 export default function XrfScreen() {
   const { user } = useAuth()
-  const [analyzerId, setAnalyzerId] = useState('MG-XRF-001')
+  const [analyzerId, setAnalyzerId] = useState<string | null>(null)
   const [analyzerStatus, setAnalyzerStatus] = useState('UNKNOWN')
   const [batchNumber, setBatchNumber] = useState('')
   const [batchId, setBatchId] = useState('')
@@ -71,23 +71,17 @@ export default function XrfScreen() {
 
   const scales = useAsyncResource(
     useCallback(async (signal) => {
-      const res = await fetchScales({ limit: 100 }, { signal })
+      const res = await fetchScales({ limit: 50, skip: 0 }, { signal })
       return (res.scales || []).map((x) => String(x.scaleId))
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
   )
 
-  useEffect(() => {
-    if (devices.data?.[0]?.analyzerId && analyzerId === 'MG-XRF-001') {
-      setAnalyzerId(String(devices.data[0].analyzerId))
-    }
-  }, [devices.data, analyzerId])
-
-  useEffect(() => {
-    if (scales.data?.[0] && !scaleId) setScaleId(scales.data[0])
-  }, [scales.data, scaleId])
-
   const refreshAnalyzerStatus = useCallback(async () => {
+    if (!analyzerId) {
+      setAnalyzerStatus('UNKNOWN')
+      return
+    }
     try {
       const st = await fetchXrfStatus(analyzerId)
       setAnalyzerStatus(String(st.status || 'UNKNOWN'))
@@ -97,6 +91,13 @@ export default function XrfScreen() {
   }, [analyzerId])
 
   const loadPending = useCallback(async (mode: 'initial' | 'poll' | 'manual' = 'initial') => {
+    if (!analyzerId) {
+      if (mode !== 'poll') {
+        setPending(null)
+        setPendingStatus('empty')
+      }
+      return null
+    }
     if (mode === 'initial') {
       setPendingStatus('loading')
       setPendingError('')
@@ -123,7 +124,6 @@ export default function XrfScreen() {
       const latest = tests[0] || null
       setPending(latest)
       setPendingStatus(latest ? 'ready' : 'empty')
-      if (latest?.analyzerId) setAnalyzerId(String(latest.analyzerId))
       return latest
     } catch (err) {
       if (controller.signal.aborted || !mountedRef.current) return null
@@ -199,6 +199,10 @@ export default function XrfScreen() {
       Alert.alert('Not available', 'Simulator is disabled in production builds.')
       return
     }
+    if (!analyzerId) {
+      Alert.alert('Select analyzer', 'Choose an authorized XRF analyzer first')
+      return
+    }
     setBusy(true)
     try {
       const simElements: ElementRow[] = [
@@ -234,7 +238,7 @@ export default function XrfScreen() {
         xrfTestId: String(test.xrfTestId || ''),
         source: 'simulated',
         elements: simElements,
-        analyzerId,
+        analyzerId: analyzerId || undefined,
       })
       setPendingStatus('ready')
       Alert.alert('SIMULATED', 'Dev simulator result saved (tagged source=simulated)')
@@ -246,6 +250,10 @@ export default function XrfScreen() {
   }
 
   const saveResult = async () => {
+    if (!analyzerId) {
+      Alert.alert('Select analyzer', 'Choose an authorized XRF analyzer first')
+      return
+    }
     if (!pending?.xrfTestId) {
       Alert.alert('No result', 'Wait for a gateway-ingested result before confirming')
       return
@@ -311,15 +319,27 @@ export default function XrfScreen() {
           emptyMessage="No analyzers registered"
           onRetry={devices.reload}
         >
-          <HardwareStatus label={analyzerId} status={analyzerStatus} />
-          {analyzerStatus === 'DISCONNECTED' || analyzerStatus === 'ERROR' ? (
-            <ErrorState message="XRF Analyzer DISCONNECTED" onRetry={refreshAnalyzerStatus} />
+          {!analyzerId ? (
+            <Text style={styles.hint}>Select an authorized analyzer before QC.</Text>
           ) : null}
-          {devices.data?.[0] ? (
-            <Text style={styles.hint}>
-              {String(devices.data[0].manufacturer || 'LANScientific')} · model{' '}
-              {String(devices.data[0].model || 'TBD')}
-            </Text>
+          {(devices.data || []).map((d) => {
+            const id = String(d.analyzerId || '')
+            return (
+              <BigButton
+                key={id}
+                label={analyzerId === id ? `✓ ${id}` : id}
+                tone={analyzerId === id ? 'accent' : 'neutral'}
+                onPress={() => {
+                  setAnalyzerId(id)
+                  setPending(null)
+                  setPendingStatus('idle')
+                }}
+              />
+            )
+          })}
+          {analyzerId ? <HardwareStatus label={analyzerId} status={analyzerStatus} /> : null}
+          {analyzerId && (analyzerStatus === 'DISCONNECTED' || analyzerStatus === 'ERROR') ? (
+            <ErrorState message="XRF Analyzer DISCONNECTED" onRetry={refreshAnalyzerStatus} />
           ) : null}
         </AsyncSection>
 

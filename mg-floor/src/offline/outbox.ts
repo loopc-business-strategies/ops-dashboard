@@ -96,7 +96,13 @@ export async function listOutbox() {
 
 export async function pendingCount() {
   const items = await load()
-  return items.filter((i) => i.syncStatus === 'PENDING' || i.syncStatus === 'FAILED').length
+  return items.filter(
+    (i) =>
+      i.syncStatus === 'PENDING' ||
+      i.syncStatus === 'FAILED' ||
+      i.syncStatus === 'CONFLICT' ||
+      i.syncStatus === 'SYNCING',
+  ).length
 }
 
 export async function markOutbox(operationId: string, patch: Partial<OutboxItem>) {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
@@ -19,12 +19,13 @@ type Job = {
 }
 
 export default function MetalOutScreen() {
-  const params = useLocalSearchParams<{ batchId?: string; batchNumber?: string }>()
+  const params = useLocalSearchParams<{ batchId?: string; batchNumber?: string; scaleId?: string }>()
   const [selected, setSelected] = useState<Job | null>(null)
   const [toDepartment, setToDepartment] = useState('')
-  const [scaleId, setScaleId] = useState('')
+  const [scaleId, setScaleId] = useState(String(params.scaleId || ''))
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const inFlightOpId = useRef<string | null>(null)
   const live = useLiveScale(scaleId || null)
 
   const jobs = useAsyncResource(
@@ -42,15 +43,15 @@ export default function MetalOutScreen() {
 
   const scales = useAsyncResource(
     useCallback(async (signal) => {
-      const res = await fetchScales({ limit: 100 }, { signal })
+      const res = await fetchScales({ limit: 50, skip: 0 }, { signal })
       return (res.scales || []).map((x) => String(x.scaleId))
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
   )
 
   useEffect(() => {
-    if (scales.data?.[0] && !scaleId) setScaleId(scales.data[0])
-  }, [scales.data, scaleId])
+    if (params.scaleId) setScaleId(String(params.scaleId))
+  }, [params.scaleId])
 
   useEffect(() => {
     if (!params.batchId) return
@@ -67,13 +68,19 @@ export default function MetalOutScreen() {
       Alert.alert('Missing data', 'Select a job and destination department')
       return
     }
+    if (!scaleId) {
+      Alert.alert('Select a scale', 'Choose an authorized scale before submitting.')
+      return
+    }
     if (!live.lastReading?.stable || live.weight == null) {
       Alert.alert('Waiting for stable weight', 'Wait until the scale shows STABLE.')
       return
     }
+    if (busy) return
     setBusy(true)
     setSubmitError('')
-    const operationId = createOperationId('metal_out')
+    const operationId = inFlightOpId.current || createOperationId('metal_out')
+    inFlightOpId.current = operationId
     const payload = {
       batchId,
       toDepartment: toDepartment.trim(),
@@ -88,10 +95,12 @@ export default function MetalOutScreen() {
       if (!net.isConnected) {
         await enqueueOutbox({ operationId, operationType: 'metal_out', payload, scaleId })
         Alert.alert('Saved offline', 'Metal OUT queued')
+        inFlightOpId.current = null
         return
       }
       await metalOut(payload)
       Alert.alert('Success', 'Metal OUT recorded')
+      inFlightOpId.current = null
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'metal_out', payload, scaleId })
       setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
@@ -114,6 +123,7 @@ export default function MetalOutScreen() {
           onRetry={jobs.reload}
           updatedAt={jobs.updatedAt}
           fromCache={jobs.fromCache}
+          stale={jobs.stale}
         >
           {(jobs.data || []).map((j) => {
             const id = String(j._id || j.batchId || '')
@@ -129,7 +139,8 @@ export default function MetalOutScreen() {
           })}
         </AsyncSection>
 
-        <Text style={styles.step}>Scale</Text>
+        <Text style={styles.step}>Select scale</Text>
+        {!scaleId ? <Text style={styles.hint}>Select a scale to start live weighing.</Text> : null}
         {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
         {scales.status === 'error' && !scales.data ? (
           <ErrorState message={scales.error || 'Unable to load scales'} onRetry={scales.reload} />
@@ -142,15 +153,6 @@ export default function MetalOutScreen() {
             onPress={() => setScaleId(id)}
           />
         ))}
-        {!scales.data?.length && scales.status === 'success' ? (
-          <TextInput
-            style={styles.input}
-            value={scaleId}
-            onChangeText={setScaleId}
-            autoCapitalize="characters"
-            placeholderTextColor={colors.textMuted}
-          />
-        ) : null}
 
         <WeightDisplay
           weight={live.weight}
@@ -171,7 +173,7 @@ export default function MetalOutScreen() {
         <BigButton
           label={busy ? 'SUBMITTING…' : 'CONFIRM METAL OUT'}
           onPress={submit}
-          disabled={busy || !live.stable}
+          disabled={busy || !scaleId || !live.stable}
         />
       </ScrollView>
     </Screen>
@@ -185,6 +187,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
   },
+  hint: { color: colors.textMuted, marginBottom: spacing.sm },
   label: { color: colors.textMuted, marginTop: spacing.md, marginBottom: 6, fontWeight: '700' },
   input: {
     backgroundColor: colors.surface,

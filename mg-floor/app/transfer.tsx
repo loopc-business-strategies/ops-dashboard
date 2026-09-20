@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
@@ -11,18 +11,23 @@ import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { colors, spacing } from '@/src/theme'
 
 export default function TransferScreen() {
-  const params = useLocalSearchParams<{ batchId?: string }>()
+  const params = useLocalSearchParams<{ batchId?: string; scaleId?: string }>()
   const [batchId, setBatchId] = useState(String(params.batchId || ''))
   const [fromDepartment, setFromDepartment] = useState('')
   const [toDepartment, setToDepartment] = useState('')
-  const [scaleId, setScaleId] = useState('')
+  const [scaleId, setScaleId] = useState(String(params.scaleId || ''))
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const inFlightOpId = useRef<string | null>(null)
   const live = useLiveScale(scaleId || null)
 
   useEffect(() => {
     if (params.batchId) setBatchId(String(params.batchId))
   }, [params.batchId])
+
+  useEffect(() => {
+    if (params.scaleId) setScaleId(String(params.scaleId))
+  }, [params.scaleId])
 
   const departments = useAsyncResource(
     useCallback(async (signal) => {
@@ -34,28 +39,30 @@ export default function TransferScreen() {
 
   const scales = useAsyncResource(
     useCallback(async (signal) => {
-      const s = await fetchScales({ limit: 100 }, { signal })
+      const s = await fetchScales({ limit: 50, skip: 0 }, { signal })
       return (s.scales || []).map((x) => String(x.scaleId))
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
   )
-
-  useEffect(() => {
-    if (scales.data?.[0] && !scaleId) setScaleId(scales.data[0])
-  }, [scales.data, scaleId])
 
   const submit = async () => {
     if (!batchId.trim() || !toDepartment.trim()) {
       Alert.alert('Missing data', 'Batch ID and destination required')
       return
     }
+    if (!scaleId) {
+      Alert.alert('Select a scale', 'Choose an authorized scale before submitting.')
+      return
+    }
     if (!live.lastReading?.stable || live.weight == null) {
       Alert.alert('Waiting for stable weight')
       return
     }
+    if (busy) return
     setBusy(true)
     setSubmitError('')
-    const operationId = createOperationId('transfer')
+    const operationId = inFlightOpId.current || createOperationId('transfer')
+    inFlightOpId.current = operationId
     const payload = {
       batchId: batchId.trim(),
       fromDepartment: fromDepartment.trim() || undefined,
@@ -69,10 +76,12 @@ export default function TransferScreen() {
       if (!net.isConnected) {
         await enqueueOutbox({ operationId, operationType: 'transfer', payload, scaleId })
         Alert.alert('Saved offline', 'Transfer queued')
+        inFlightOpId.current = null
         return
       }
       await transfer(payload)
       Alert.alert('Success', 'Transfer recorded')
+      inFlightOpId.current = null
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'transfer', payload, scaleId })
       setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
@@ -128,7 +137,8 @@ export default function TransferScreen() {
           placeholderTextColor={colors.textMuted}
         />
 
-        <Text style={styles.step}>Scales</Text>
+        <Text style={styles.step}>Select scale</Text>
+        {!scaleId ? <Text style={styles.hint}>Select a scale to start live weighing.</Text> : null}
         {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
         {scales.status === 'error' && !scales.data ? (
           <ErrorState message={scales.error || 'Scales unavailable'} onRetry={scales.reload} />
@@ -151,7 +161,11 @@ export default function TransferScreen() {
         />
 
         {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
-        <BigButton label={busy ? 'SUBMITTING…' : 'CONFIRM TRANSFER'} onPress={submit} disabled={busy || !live.stable} />
+        <BigButton
+          label={busy ? 'SUBMITTING…' : 'CONFIRM TRANSFER'}
+          onPress={submit}
+          disabled={busy || !scaleId || !live.stable}
+        />
       </ScrollView>
     </Screen>
   )
@@ -159,6 +173,7 @@ export default function TransferScreen() {
 
 const styles = StyleSheet.create({
   step: { color: colors.accent, fontWeight: '800', marginTop: spacing.md, marginBottom: spacing.sm },
+  hint: { color: colors.textMuted, marginBottom: spacing.sm },
   label: { color: colors.textMuted, marginTop: spacing.md, marginBottom: 6, fontWeight: '700' },
   input: {
     backgroundColor: colors.surface,
