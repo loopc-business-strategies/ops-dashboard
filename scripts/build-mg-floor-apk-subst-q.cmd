@@ -61,8 +61,10 @@ if errorlevel 1 (
 )
 
 echo.
-REM Typical factory tablets/phones are arm64; fewer ABIs = faster build and fewer Windows/Ninja issues.
-set OPS_REACT_NATIVE_ARCHS=arm64-v8a
+REM Cover 32-bit and 64-bit factory tablets/phones (avoids UnsatisfiedLinkError on older devices).
+set OPS_REACT_NATIVE_ARCHS=armeabi-v7a,arm64-v8a
+REM Expo prebuild may rewrite newArchEnabled=true; force off for stable factory launches.
+powershell -NoProfile -Command "(Get-Content '%REPO%\mg-floor\android\gradle.properties') -replace 'newArchEnabled=true','newArchEnabled=false' -replace 'edgeToEdgeEnabled=true','edgeToEdgeEnabled=false' | Set-Content '%REPO%\mg-floor\android\gradle.properties'"
 echo Running: npm run mg-floor:build:android:local:apk
 echo.
 call npm run mg-floor:build:android:local:apk

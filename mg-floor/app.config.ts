@@ -20,6 +20,8 @@ const config: ExpoConfig = {
   icon: './assets/images/icon.png',
   scheme: 'mgfloor',
   userInterfaceStyle: 'light',
+  // Factory tablets: Fabric + Reanimated/Worklets has caused instant "keeps stopping" on open.
+  newArchEnabled: false,
   splash: {
     image: './assets/images/splash-icon.png',
     resizeMode: 'contain',

@@ -1,5 +1,4 @@
 import 'react-native-gesture-handler'
-import 'react-native-reanimated'
 
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
