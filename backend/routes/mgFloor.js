@@ -549,7 +549,7 @@ router.post('/xrf/ingest', ...mgGatewayProtect, validateBody(Joi.object({
 })
 
 router.post('/xrf/ingest/result', ...mgGatewayProtect, validateBody(Joi.object({
-  analyzerId: Joi.string().trim().default('MG-XRF-001'),
+  analyzerId: Joi.string().trim().required(),
   elements: Joi.array().items(Joi.object({
     symbol: Joi.string().trim().required(),
     value: Joi.number().required(),
@@ -610,7 +610,7 @@ router.post('/xrf/tests', ...mgProtect, requireProductionPermission('receivePass
     value: Joi.number().required(),
     unit: Joi.string().trim().default('%'),
   }).unknown(true)).max(32),
-  analyzerId: Joi.string().trim().default('MG-XRF-001'),
+  analyzerId: Joi.string().trim().required(),
   batchId: Joi.string().hex().length(24).allow(null, ''),
   batchNumber: Joi.string().trim().allow('', null),
   jobId: Joi.string().trim().allow('', null),

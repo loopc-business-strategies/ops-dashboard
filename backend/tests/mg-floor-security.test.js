@@ -386,6 +386,7 @@ describe('MG Floor sync idempotency', () => {
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         xrfTestId,
+        analyzerId: 'MG-XRF-001',
         operationId: 'xrf-confirm-override',
         elements: [{ symbol: 'Au', value: 99.9, unit: '%' }],
       })
@@ -399,6 +400,7 @@ describe('MG Floor sync idempotency', () => {
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         xrfTestId,
+        analyzerId: 'MG-XRF-001',
         operationId: 'xrf-confirm-no-reading',
         batchNumber: 'B-100',
       })
@@ -426,6 +428,7 @@ describe('MG Floor sync idempotency', () => {
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         xrfTestId,
+        analyzerId: 'MG-XRF-001',
         operationId: 'xrf-confirm-unstable',
         scaleReadingId: unstableId,
       })
@@ -439,6 +442,7 @@ describe('MG Floor sync idempotency', () => {
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         xrfTestId,
+        analyzerId: 'MG-XRF-001',
         operationId: 'xrf-confirm-missing-reading',
         scaleReadingId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
       })
@@ -476,6 +480,7 @@ describe('MG Floor sync idempotency', () => {
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         xrfTestId,
+        analyzerId: 'MG-XRF-001',
         operationId: 'xrf-confirm-1',
         batchNumber: 'B-100',
         scaleId: 'MG-SCALE-001',
@@ -494,6 +499,7 @@ describe('MG Floor sync idempotency', () => {
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         xrfTestId,
+        analyzerId: 'MG-XRF-001',
         operationId: 'xrf-confirm-1',
       })
     expect(reused.status).toBe(200)
@@ -519,6 +525,7 @@ describe('MG Floor sync idempotency', () => {
       .set('Authorization', `Bearer ${mgToken}`)
       .send({
         xrfTestId: ingested2.body.test.xrfTestId,
+        analyzerId: 'MG-XRF-001',
         operationId: 'xrf-confirm-reuse-reading',
         scaleReadingId,
       })
@@ -579,6 +586,7 @@ describe('MG Floor sync idempotency', () => {
         .set('Authorization', `Bearer ${mgToken}`)
         .send({
           xrfTestId: simPendingId,
+          analyzerId: 'MG-XRF-001',
           operationId: 'xrf-confirm-sim-blocked',
         })
       expect(confirmSimBlocked.status).toBe(403)
@@ -586,6 +594,85 @@ describe('MG Floor sync idempotency', () => {
       process.env.ALLOW_XRF_SIMULATOR = prevAllow
       process.env.NODE_ENV = prevNode
     }
+  })
+
+  test('XRF analyzerId required; unknown/mismatched analyzer rejected', async () => {
+    const mgUser = await createTenantUser('mg')
+    const mgToken = tokenFor(mgUser, 'mg')
+
+    const missingIngest = await request(app)
+      .post('/api/mg-floor/xrf/ingest/result')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        source: 'hardware',
+        ingestId: 'hw-missing-analyzer',
+        elements: [{ symbol: 'Au', value: 91.0, unit: '%' }],
+      })
+    expect(missingIngest.status).toBe(400)
+
+    const unknownIngest = await request(app)
+      .post('/api/mg-floor/xrf/ingest/result')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        analyzerId: 'MG-XRF-DOES-NOT-EXIST',
+        source: 'hardware',
+        ingestId: 'hw-unknown-analyzer',
+        elements: [{ symbol: 'Au', value: 91.0, unit: '%' }],
+      })
+    expect(unknownIngest.status).toBe(404)
+
+    const ingested = await request(app)
+      .post('/api/mg-floor/xrf/ingest/result')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        analyzerId: 'MG-XRF-001',
+        source: 'hardware',
+        ingestId: 'hw-analyzer-required',
+        elements: [{ symbol: 'Au', value: 90.5, unit: '%' }],
+      })
+    expect([200, 201]).toContain(ingested.status)
+    const xrfTestId = ingested.body.test.xrfTestId
+
+    const missingConfirm = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        operationId: 'xrf-confirm-missing-analyzer',
+      })
+    expect(missingConfirm.status).toBe(400)
+
+    const unknownConfirm = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        analyzerId: 'MG-XRF-DOES-NOT-EXIST',
+        operationId: 'xrf-confirm-unknown-analyzer',
+        scaleReadingId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+      })
+    expect(unknownConfirm.status).toBe(404)
+
+    const mismatchConfirm = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        analyzerId: 'MG-XRF-002',
+        operationId: 'xrf-confirm-mismatch-analyzer',
+        scaleReadingId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+      })
+    // MG-XRF-002 may not exist in seed → 404; if seeded disabled/other → 403 mismatch
+    expect([403, 404]).toContain(mismatchConfirm.status)
   })
 })
 

@@ -126,7 +126,10 @@ function normalizeElements(elements) {
  * Gateway-only: create a hardware (or explicit simulated) result awaiting operator confirm.
  */
 async function ingestXrfResult(req, body = {}) {
-  const analyzerId = String(body.analyzerId || 'MG-XRF-001').toUpperCase()
+  const analyzerId = String(body.analyzerId || '').trim().toUpperCase()
+  if (!analyzerId) {
+    throw new ProductionError('analyzerId is required', 400)
+  }
   const sourceRaw = String(body.source || 'hardware').toLowerCase()
   const source = sourceRaw === 'simulated' ? 'simulated' : 'hardware'
 
@@ -202,6 +205,11 @@ async function ingestXrfResult(req, body = {}) {
  * Non-simulated confirms require a real stable scaleReadingId (HardwareEvent).
  */
 async function submitXrfTest(req, body = {}) {
+  const analyzerId = String(body.analyzerId || '').trim().toUpperCase()
+  if (!analyzerId) {
+    throw new ProductionError('analyzerId is required', 400)
+  }
+
   const operationId = body.operationId ? String(body.operationId).trim() : null
   if (operationId) {
     const byOp = await XrfTest.findOne({ operationId }).lean()
@@ -217,6 +225,15 @@ async function submitXrfTest(req, body = {}) {
       ? await XrfTest.findOne({ xrfTestId })
       : await XrfTest.findOne({ ingestId })
     if (!test) throw new ProductionError('XRF test not found — wait for gateway ingest', 404)
+
+    await ensureDefaultXrfAnalyzers()
+    const analyzer = await XrfAnalyzer.findOne({ analyzerId })
+    if (!analyzer || !analyzer.enabled) {
+      throw new ProductionError('XRF analyzer not found or disabled', 404)
+    }
+    if (String(test.analyzerId || '').toUpperCase() !== analyzerId) {
+      throw new ProductionError('analyzerId does not match the pending XRF result', 403)
+    }
 
     if (test.source === 'simulated' && !allowXrfSimulator()) {
       throw new ProductionError(
@@ -337,6 +354,7 @@ async function submitXrfTest(req, body = {}) {
   })
   return submitXrfTest(req, {
     xrfTestId: created.test.xrfTestId,
+    analyzerId,
     operationId,
     batchId: body.batchId,
     batchNumber: body.batchNumber,
