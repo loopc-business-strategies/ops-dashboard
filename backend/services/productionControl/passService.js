@@ -173,13 +173,19 @@ async function approvePass(req, passId) {
   })
 }
 
-async function issuePass(req, passId, { expectedBatchVersion } = {}) {
+async function issuePass(req, passId, { expectedBatchVersion, idempotencyKey = null } = {}) {
   const a = actor(req)
+  // Status-idempotent: already issued passes are safe to re-submit with the same operationId.
+  void idempotencyKey
   return runInTransaction(async (session) => {
     const pass = await withSession(ProductionPass.findById(passId), session)
     if (!pass) throw new ProductionError('Pass not found', 404)
     if (['ISSUED', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED'].includes(pass.status)) {
-      return { pass, movement: pass.movementId ? await withSession(MetalMovement.findById(pass.movementId), session) : null }
+      return {
+        pass,
+        movement: pass.movementId ? await withSession(MetalMovement.findById(pass.movementId), session) : null,
+        reused: true,
+      }
     }
     if (!['REQUESTED', 'APPROVED'].includes(pass.status)) {
       throw new ProductionError(`Cannot issue pass in status ${pass.status}`)

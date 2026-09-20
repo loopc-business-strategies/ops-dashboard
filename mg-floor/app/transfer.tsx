@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput } from 'react-native'
+import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
 import { fetchDepartments, fetchScales, transfer } from '@/src/api/floor'
@@ -8,14 +9,20 @@ import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { colors, spacing } from '@/src/theme'
 
 export default function TransferScreen() {
-  const [batchId, setBatchId] = useState('')
+  const params = useLocalSearchParams<{ batchId?: string }>()
+  const [batchId, setBatchId] = useState(String(params.batchId || ''))
   const [fromDepartment, setFromDepartment] = useState('')
   const [toDepartment, setToDepartment] = useState('')
   const [departments, setDepartments] = useState<Array<{ key: string; label: string }>>([])
   const [scaleId, setScaleId] = useState('MG-SCALE-001')
+  const [scaleOptions, setScaleOptions] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const live = useLiveScale(scaleId)
+
+  useEffect(() => {
+    if (params.batchId) setBatchId(String(params.batchId))
+  }, [params.batchId])
 
   useEffect(() => {
     fetchDepartments()
@@ -24,6 +31,7 @@ export default function TransferScreen() {
     fetchScales()
       .then((s) => {
         const ids = (s.scales || []).map((x) => String(x.scaleId))
+        setScaleOptions(ids)
         if (ids[0]) setScaleId(ids[0])
       })
       .catch(() => {})
@@ -80,10 +88,17 @@ export default function TransferScreen() {
           <Text style={styles.hint}>{departments.map((d) => d.key).join(' → ')}</Text>
         ) : null}
         <Text style={styles.label}>Scale</Text>
-        <TextInput style={styles.input} value={scaleId} onChangeText={setScaleId} autoCapitalize="characters" placeholderTextColor={colors.textMuted} />
+        {scaleOptions.map((id) => (
+          <BigButton
+            key={id}
+            label={id === scaleId ? `✓ ${id}` : id}
+            tone={id === scaleId ? 'accent' : 'neutral'}
+            onPress={() => setScaleId(id)}
+          />
+        ))}
         <WeightDisplay weight={live?.weight ?? null} stable={live?.stable ?? null} />
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <BigButton label={busy ? 'SUBMITTING…' : 'CAPTURE & TRANSFER'} onPress={submit} disabled={busy || !live?.stable} />
+        <BigButton label={busy ? 'SUBMITTING…' : 'CAPTURE & SUBMIT TRANSFER'} onPress={submit} disabled={busy || !live?.stable} />
       </ScrollView>
     </Screen>
   )

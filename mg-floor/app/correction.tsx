@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import { Alert, StyleSheet, Text, TextInput } from 'react-native'
+import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
 import { correctWeight } from '@/src/api/floor'
-import { createOperationId } from '@/src/offline/outbox'
+import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { useAuth } from '@/src/context/AuthContext'
 import { colors, spacing } from '@/src/theme'
 
@@ -32,19 +33,28 @@ export default function CorrectionScreen() {
       return
     }
     setBusy(true)
+    const operationId = createOperationId('weight_adj')
+    const payload = {
+      batchId: batchId.trim(),
+      adjustment: adj,
+      reason: reason.trim(),
+      field: 'currentWeight',
+      operationId,
+    }
     try {
-      await correctWeight({
-        batchId: batchId.trim(),
-        adjustment: adj,
-        reason: reason.trim(),
-        field: 'currentWeight',
-        operationId: createOperationId('weight_adj'),
-      })
+      const net = await NetInfo.fetch()
+      if (!net.isConnected) {
+        await enqueueOutbox({ operationId, operationType: 'weight_adjust', payload })
+        Alert.alert('Saved offline', 'Correction queued for sync')
+        return
+      }
+      await correctWeight(payload)
       Alert.alert('Recorded', 'Correction saved with original value preserved in audit')
       setAdjustment('')
       setReason('')
     } catch (err) {
-      Alert.alert('Failed', err instanceof Error ? err.message : 'Correction failed')
+      await enqueueOutbox({ operationId, operationType: 'weight_adjust', payload })
+      Alert.alert('Queued', err instanceof Error ? err.message : 'Correction queued offline')
     } finally {
       setBusy(false)
     }

@@ -1,5 +1,5 @@
 import React from 'react'
-import { StyleSheet, Text, View, Pressable } from 'react-native'
+import { StyleSheet, Text, View, Pressable, DevSettings } from 'react-native'
 import { colors } from '@/src/theme'
 import { API_URL } from '@/src/config/env'
 
@@ -26,6 +26,19 @@ export class ErrorBoundary extends React.Component<Props, State> {
     this.setState({ error: null })
   }
 
+  private restart = () => {
+    this.setState({ error: null })
+    try {
+      if (typeof DevSettings?.reload === 'function') {
+        DevSettings.reload()
+        return
+      }
+    } catch {
+      // fall through
+    }
+    console.warn('[MG Floor] Restart: close and reopen the app if the error persists')
+  }
+
   render() {
     if (this.state.error) {
       const apiHost = (() => {
@@ -41,9 +54,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <Text style={styles.title}>Something went wrong.</Text>
           <Text style={styles.body}>{this.state.error.message || 'Unexpected error'}</Text>
           <Text style={styles.meta}>Connection: {apiHost}</Text>
-          <Pressable style={styles.btn} onPress={this.reset} accessibilityRole="button">
-            <Text style={styles.btnText}>Retry</Text>
-          </Pressable>
+          <View style={styles.row}>
+            <Pressable style={styles.btn} onPress={this.reset} accessibilityRole="button">
+              <Text style={styles.btnText}>Retry</Text>
+            </Pressable>
+            <Pressable style={[styles.btn, styles.btnSecondary]} onPress={this.restart} accessibilityRole="button">
+              <Text style={styles.btnText}>Restart</Text>
+            </Pressable>
+          </View>
         </View>
       )
     }
@@ -83,15 +101,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-  btn: {
+  row: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 8,
+  },
+  btn: {
     backgroundColor: colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+  },
+  btnSecondary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   btnText: {
     color: '#fff',
     fontWeight: '700',
   },
 })
+

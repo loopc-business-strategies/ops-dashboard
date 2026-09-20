@@ -14,6 +14,23 @@ MG-only. Tenant is hard-locked to `mg`.
 
 - `simulator` (default): virtual MG-SCALE-001..007
 - `RS232`: Ming Heng MH-708 via configurable serial port (verify baud/parity on site)
+- Ethernet/Wi-Fi TCP: line-oriented sockets (`ipAddress` + `networkPort`)
+- USB / Bluetooth: **stubs only** — not production-ready (fail with clear errors)
+
+## XRF (LANScientific)
+
+Separate from scales. Default analyzer id: `MG-XRF-001`.
+
+```bash
+set MG_XRF_MODE=simulator   # development only — never use in production by accident
+# unset / disabled = no XRF adapter started
+# live LANScientific protocol is NOT implemented until model/SDK is confirmed
+```
+
+Local XRF controls:
+
+- `GET /xrf`
+- `POST /xrf/MG-XRF-001/test` body `{ "outcome": "ok" }` (`ok`|`error`|`timeout`|`invalid`)
 
 ## Run
 

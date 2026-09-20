@@ -30,18 +30,54 @@ class ScaleConnection extends EventEmitter {
     this.stability = new StabilityDetector(stability)
     this.lastReading = null
     this.status = 'DISCONNECTED'
+    this._reconnectTimer = null
+    this._reconnectDelayMs = 3000
     this._onRaw = (raw) => this._handleRaw(raw)
     this._onError = (err) => {
       this.status = 'ERROR'
       this.emit('error', err)
+      this.emit('lifecycle', {
+        scaleId: this.config.scaleId,
+        eventType: 'error',
+        error: err?.message || 'scale error',
+        timestamp: new Date().toISOString(),
+      })
+      this.scheduleReconnect()
     }
     this._onDisconnect = () => {
       this.status = 'DISCONNECTED'
       this.emit('status', this.getStatus())
+      this.emit('lifecycle', {
+        scaleId: this.config.scaleId,
+        eventType: 'disconnect',
+        timestamp: new Date().toISOString(),
+      })
+      this.scheduleReconnect()
     }
   }
 
+  scheduleReconnect(delayMs = this._reconnectDelayMs) {
+    if (this._reconnectTimer) return
+    this._reconnectTimer = setTimeout(async () => {
+      this._reconnectTimer = null
+      try {
+        await this.stop().catch(() => {})
+        await this.start()
+        this._reconnectDelayMs = 3000
+        log.info('reconnect ok', { scaleId: this.config.scaleId })
+      } catch (err) {
+        log.warn('reconnect failed', { scaleId: this.config.scaleId, message: err.message })
+        this._reconnectDelayMs = Math.min((delayMs || 3000) * 2, 60000)
+        this.scheduleReconnect(this._reconnectDelayMs)
+      }
+    }, delayMs)
+  }
+
   async start() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer)
+      this._reconnectTimer = null
+    }
     this.driver.on('raw', this._onRaw)
     this.driver.on('error', this._onError)
     this.driver.on('disconnect', this._onDisconnect)
@@ -52,11 +88,16 @@ class ScaleConnection extends EventEmitter {
     } catch (err) {
       this.status = 'ERROR'
       log.error('start failed', { scaleId: this.config.scaleId, message: err.message })
+      this.scheduleReconnect()
       throw err
     }
   }
 
   async stop() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer)
+      this._reconnectTimer = null
+    }
     this.driver.off('raw', this._onRaw)
     this.driver.off('error', this._onError)
     this.driver.off('disconnect', this._onDisconnect)
@@ -113,6 +154,7 @@ class ScaleManager extends EventEmitter {
       conn.on('status', (s) => this.emit('status', s))
       conn.on('malformed', (m) => this.emit('malformed', m))
       conn.on('error', (e) => this.emit('error', { scaleId: scale.scaleId, error: e }))
+      conn.on('lifecycle', (e) => this.emit('lifecycle', e))
       this.connections.set(scale.scaleId, conn)
     }
   }

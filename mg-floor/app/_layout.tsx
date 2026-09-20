@@ -108,6 +108,10 @@ export default function RootLayout() {
                 <Stack.Screen name="jobs" options={{ title: 'MY JOBS' }} />
                 <Stack.Screen name="history" options={{ title: 'HISTORY' }} />
                 <Stack.Screen name="scales" options={{ title: 'SCALES' }} />
+                <Stack.Screen name="devices" options={{ title: 'DEVICES' }} />
+                <Stack.Screen name="xrf" options={{ title: 'XRF / QC' }} />
+                <Stack.Screen name="offline-sync" options={{ title: 'OFFLINE SYNC' }} />
+                <Stack.Screen name="settings" options={{ title: 'SETTINGS' }} />
                 <Stack.Screen name="profile" options={{ title: 'PROFILE' }} />
                 <Stack.Screen name="correction" options={{ title: 'WEIGHT CORRECTION' }} />
               </Stack>

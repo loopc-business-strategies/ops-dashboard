@@ -280,4 +280,52 @@ describe('MG Floor sync idempotency', () => {
     // Either reused SYNCED or same FAILED/CONFLICT — never silent duplicate success without key
     expect(second.body.results[0].operationId).toBe(opId)
   })
+
+  test('XRF devices and tests are MG-only and seed MG-XRF-001', async () => {
+    const mgUser = await createTenantUser('mg')
+    const cgUser = await createTenantUser('cg')
+    const mgToken = tokenFor(mgUser, 'mg')
+    const cgToken = tokenFor(cgUser, 'cg')
+
+    const blocked = await request(app)
+      .get('/api/mg-floor/xrf/devices')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'cg')
+      .set('Authorization', `Bearer ${cgToken}`)
+    expect(blocked.status).toBe(403)
+
+    const devices = await request(app)
+      .get('/api/mg-floor/xrf/devices')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+    expect(devices.status).toBe(200)
+    expect(devices.body.devices.some((d) => d.analyzerId === 'MG-XRF-001')).toBe(true)
+
+    const created = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        analyzerId: 'MG-XRF-001',
+        operationId: 'xrf-test-op-1',
+        elements: [{ symbol: 'Au', value: 91.7, unit: '%' }],
+      })
+    expect([200, 201]).toContain(created.status)
+    expect(created.body.test?.elements?.[0]?.symbol).toBe('Au')
+
+    const reused = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        analyzerId: 'MG-XRF-001',
+        operationId: 'xrf-test-op-1',
+        elements: [{ symbol: 'Au', value: 91.7, unit: '%' }],
+      })
+    expect(reused.status).toBe(200)
+    expect(reused.body.reused).toBe(true)
+  })
 })

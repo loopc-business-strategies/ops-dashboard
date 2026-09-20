@@ -9,7 +9,7 @@ const floorSyncOperationSchema = new mongoose.Schema(
     operationType: {
       type: String,
       required: true,
-      enum: ['metal_in', 'metal_out', 'transfer', 'weight_adjust', 'scan', 'other'],
+      enum: ['metal_in', 'metal_out', 'transfer', 'weight_adjust', 'xrf_test', 'scan', 'other'],
     },
     payload: { type: mongoose.Schema.Types.Mixed, default: {} },
     result: { type: mongoose.Schema.Types.Mixed, default: null },

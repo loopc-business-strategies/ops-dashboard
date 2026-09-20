@@ -80,3 +80,24 @@ export async function resolveScan(code: string, hint?: string) {
     { method: 'POST', body: { code, hint } },
   )
 }
+
+export async function fetchXrfDevices() {
+  return apiRequest<{ success: boolean; devices: Array<Record<string, unknown>> }>('/api/mg-floor/xrf/devices')
+}
+
+export async function fetchXrfStatus(analyzerId: string) {
+  return apiRequest<{ success: boolean } & Record<string, unknown>>(`/api/mg-floor/xrf/${analyzerId}/status`)
+}
+
+export async function submitXrfTest(body: Record<string, unknown>) {
+  return apiRequest<{ success: boolean } & Record<string, unknown>>('/api/mg-floor/xrf/tests', {
+    method: 'POST',
+    body,
+  })
+}
+
+export async function fetchXrfTests(params?: Record<string, string | number>) {
+  return apiRequest<{ success: boolean; tests: unknown[]; total: number }>('/api/mg-floor/xrf/tests', {
+    params,
+  })
+}

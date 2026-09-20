@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useLocalSearchParams } from 'expo-router'
 import { BigButton, LoadingBlock, Screen, Subtitle, WeightDisplay } from '@/src/components/ui'
 import { fetchOpenPasses, fetchScales, metalIn } from '@/src/api/floor'
 import { useLiveScale } from '@/src/hooks/useLiveScale'
@@ -19,6 +20,7 @@ type PassRow = {
 }
 
 export default function MetalInScreen() {
+  const params = useLocalSearchParams<{ passId?: string }>()
   const [passes, setPasses] = useState<PassRow[]>([])
   const [selected, setSelected] = useState<PassRow | null>(null)
   const [scaleId, setScaleId] = useState('MG-SCALE-001')
@@ -32,17 +34,22 @@ export default function MetalInScreen() {
     ;(async () => {
       try {
         const [p, s] = await Promise.all([fetchOpenPasses(), fetchScales()])
-        setPasses((p.passes || []) as PassRow[])
+        const list = (p.passes || []) as PassRow[]
+        setPasses(list)
         const ids = (s.scales || []).map((x) => String(x.scaleId))
         setScales(ids)
         if (ids[0]) setScaleId(ids[0])
+        if (params.passId) {
+          const pre = list.find((x) => x._id === params.passId)
+          if (pre) setSelected(pre)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load')
       } finally {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [params.passId])
 
   const submit = async () => {
     if (!selected) return
@@ -103,15 +110,26 @@ export default function MetalInScreen() {
     <Screen>
       <ScrollView>
         <Subtitle>Scan/select inbound pass → confirm scale → capture stable weight</Subtitle>
-        <Text style={styles.label}>Scale ID</Text>
-        <TextInput
-          style={styles.input}
-          value={scaleId}
-          onChangeText={setScaleId}
-          autoCapitalize="characters"
-          placeholderTextColor={colors.textMuted}
-        />
-        {scales.length ? <Text style={styles.hint}>Available: {scales.join(', ')}</Text> : null}
+        <Text style={styles.label}>Scale</Text>
+        <View style={styles.scaleRow}>
+          {scales.map((id) => (
+            <BigButton
+              key={id}
+              label={id === scaleId ? `✓ ${id}` : id}
+              tone={id === scaleId ? 'accent' : 'neutral'}
+              onPress={() => setScaleId(id)}
+            />
+          ))}
+        </View>
+        {!scales.length ? (
+          <TextInput
+            style={styles.input}
+            value={scaleId}
+            onChangeText={setScaleId}
+            autoCapitalize="characters"
+            placeholderTextColor={colors.textMuted}
+          />
+        ) : null}
 
         <WeightDisplay weight={live?.weight ?? null} stable={live?.stable ?? null} />
 
@@ -149,6 +167,7 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 18,
   },
+  scaleRow: { gap: 0 },
   hint: { color: colors.textMuted, marginTop: 8 },
   error: { color: colors.danger, marginVertical: 8, fontWeight: '600' },
 })

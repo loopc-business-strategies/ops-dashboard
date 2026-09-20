@@ -14,6 +14,7 @@ const {
   hasProductionPermission,
 } = require('../productionControl')
 const { ProductionError } = require('../productionControl/errors')
+const xrf = require('./xrf')
 
 const DEFAULT_MG_SCALES = [
   'MG-SCALE-001',
@@ -176,9 +177,10 @@ async function metalOut(req, body = {}) {
       const approved = pass.status === 'REQUESTED'
         ? await passService.approvePass(req, pass._id)
         : { pass }
-      const issued = await passService.issuePass(req, approved.pass._id || pass._id, {})
+      const issued = await passService.issuePass(req, approved.pass._id || pass._id, { idempotencyKey })
       pass = issued.pass
       movement = issued.movement
+      if (issued.reused) reused = true
     } catch (err) {
       // Pass may already be in transit from a prior sync — return created pass
       if (!/already|status/i.test(String(err.message || ''))) throw err
@@ -422,6 +424,12 @@ async function syncOperations(req, operations = []) {
           })
           break
         }
+        case 'xrf_test':
+          result = await xrf.submitXrfTest(req, payload)
+          break
+        case 'scan':
+          result = { type: 'scan', skipped: true, message: 'scan sync is informational only' }
+          break
         default:
           throw new ProductionError(`Unsupported operationType: ${op.operationType}`)
       }
@@ -487,4 +495,5 @@ module.exports = {
   batchService,
   passService,
   processService,
+  ...xrf,
 }

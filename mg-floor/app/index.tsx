@@ -37,6 +37,9 @@ export default function HomeScreen() {
     { label: 'SCAN', href: '/scan', show: true },
     { label: 'MY JOBS', href: '/jobs', show: true },
     { label: 'HISTORY', href: '/history', show: true },
+    { label: 'XRF / QC', href: '/xrf', show: true },
+    { label: 'DEVICES', href: '/devices', show: true },
+    { label: 'OFFLINE SYNC', href: '/offline-sync', show: true },
   ]
 
   return (
@@ -69,6 +72,7 @@ export default function HomeScreen() {
           <BigButton label="SUPERVISOR CORRECTION" onPress={() => router.push('/correction')} tone="neutral" />
         ) : null}
         <BigButton label="PROFILE / SETTINGS" onPress={() => router.push('/profile')} tone="neutral" />
+        <BigButton label="SETTINGS" onPress={() => router.push('/settings')} tone="neutral" />
         <BigButton label="SIGN OUT" onPress={() => logout()} tone="danger" />
       </ScrollView>
     </Screen>

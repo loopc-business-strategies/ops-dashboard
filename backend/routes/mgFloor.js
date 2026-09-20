@@ -181,6 +181,7 @@ router.get('/history', ...mgProtect, requireProductionPermission('view'), valida
     const skip = Number(req.query.skip) || 0
     const filter = {}
     if (req.query.batchId) filter.batchId = req.query.batchId
+    if (req.query.type) filter.metalType = req.query.type
     if (req.query.department) {
       filter.$or = [
         { fromDepartment: req.query.department },
@@ -363,6 +364,125 @@ router.get('/passes/open', ...mgProtect, requireProductionPermission('view'), as
     if (req.query.batchId) filter.batchId = req.query.batchId
     const passes = await ProductionPass.find(filter).sort({ createdAt: -1 }).limit(100).lean()
     res.json({ success: true, passes })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── XRF / Quality Control ──────────────────────────
+router.get('/xrf/devices', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const devices = await mgFloor.listXrfAnalyzers()
+    res.json({ success: true, devices })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/xrf/devices/:id', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const device = await mgFloor.getXrfAnalyzer(req.params.id)
+    res.json({ success: true, device })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.patch('/xrf/devices/:id', ...mgProtect, requireProductionPermission('manageMachines'), async (req, res) => {
+  try {
+    const device = await mgFloor.patchXrfAnalyzer(req.params.id, req.body || {})
+    res.json({ success: true, device })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/xrf/:id/status', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const device = await mgFloor.getXrfAnalyzer(req.params.id)
+    res.json({
+      success: true,
+      analyzerId: device.analyzerId,
+      status: device.status,
+      lastSeenAt: device.lastSeenAt,
+      lastError: device.lastError,
+      model: device.model,
+      connectionType: device.connectionType,
+    })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/xrf/ingest', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
+  analyzerId: Joi.string().trim().required(),
+  eventType: Joi.string().trim().default('status'),
+  status: Joi.string().trim().allow('', null),
+  gatewayId: Joi.string().trim().allow('', null),
+  model: Joi.string().trim().allow('', null),
+  serialNumber: Joi.string().trim().allow('', null),
+  firmware: Joi.string().trim().allow('', null),
+  error: Joi.string().trim().allow('', null),
+  payload: Joi.object().unknown(true),
+}).unknown(true)), async (req, res) => {
+  try {
+    const result = await mgFloor.ingestXrfStatus(req, req.body)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/xrf/tests', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const result = await mgFloor.listXrfTests(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/xrf/tests/:id', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    const test = await mgFloor.getXrfTest(req.params.id)
+    res.json({ success: true, test })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/xrf/tests', ...mgProtect, requireProductionPermission('receivePass'), validateBody(Joi.object({
+  analyzerId: Joi.string().trim().default('MG-XRF-001'),
+  elements: Joi.array().items(Joi.object({
+    symbol: Joi.string().trim().required(),
+    value: Joi.number().required(),
+    unit: Joi.string().trim().default('%'),
+  }).unknown(true)).default([]),
+  purity: Joi.number().allow(null),
+  fineness: Joi.number().allow(null),
+  status: Joi.string().trim().default('COMPLETED'),
+  batchId: Joi.string().hex().length(24).allow(null, ''),
+  batchNumber: Joi.string().trim().allow('', null),
+  jobId: Joi.string().trim().allow('', null),
+  materialId: Joi.string().trim().allow('', null),
+  department: Joi.string().trim().allow('', null),
+  scaleId: Joi.string().trim().allow('', null),
+  scaleWeight: Joi.number().allow(null),
+  deviceId: Joi.string().trim().allow('', null),
+  gatewayId: Joi.string().trim().allow('', null),
+  operationId: Joi.string().trim().allow('', null),
+  xrfTestId: Joi.string().trim().allow('', null),
+  testedAt: Joi.date().allow(null),
+  originalResult: Joi.object().unknown(true).allow(null),
+  rawData: Joi.any().allow(null),
+  reportReference: Joi.string().trim().allow('', null),
+  model: Joi.string().trim().allow('', null),
+  serialNumber: Joi.string().trim().allow('', null),
+}).unknown(true)), async (req, res) => {
+  try {
+    // Operators with receivePass can also submit QC on the floor when submitQc is missing
+    const result = await mgFloor.submitXrfTest(req, req.body)
+    res.status(result.reused ? 200 : 201).json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }
