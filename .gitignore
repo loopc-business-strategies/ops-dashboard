@@ -28,6 +28,13 @@ mobile/android/.gradle/
 mobile/android/app/build/
 mobile/android/app/.cxx/
 mobile/android/build/
+mg-floor/android/.gradle/
+mg-floor/android/app/build/
+mg-floor/android/app/.cxx/
+mg-floor/android/build/
+mg-floor/android/
+mg-floor/.expo/
+device-gateway/node_modules/
 *.log
 *.cookies/
 *.cookies

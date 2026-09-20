@@ -1,0 +1,47 @@
+# MG Device Gateway
+
+Local edge service for MG Floor weighing scales.
+
+## Architecture
+
+```
+7 scales → MG Device Gateway → MG Backend (/api/mg-floor/scales/ingest) → MG Floor app
+```
+
+MG-only. Tenant is hard-locked to `mg`.
+
+## Modes
+
+- `simulator` (default): virtual MG-SCALE-001..007
+- `RS232`: Ming Heng MH-708 via configurable serial port (verify baud/parity on site)
+
+## Run
+
+```bash
+cd device-gateway
+npm install
+# optional for real serial:
+npm install serialport
+
+set MG_GATEWAY_MODE=simulator
+set MG_API_BASE_URL=http://localhost:5000
+set MG_GATEWAY_TOKEN=<mg-user-jwt>
+npm start
+```
+
+Local health: `http://localhost:7077/health`  
+WebSocket readings: `ws://localhost:7077/ws`
+
+## MH-708 configuration
+
+Do **not** assume baud rate / parity / pinout until measured. Edit `config/default.json` per scale:
+
+- `port` (e.g. `COM3` / `/dev/ttyUSB0`)
+- `baudRate`, `dataBits`, `parity`, `stopBits`
+- `connectionType`: `RS232` | `USB` | `BLUETOOTH` | `ETHERNET` | `SIMULATOR`
+
+## Simulator controls
+
+```bash
+curl -X POST http://localhost:7077/simulator/MG-SCALE-001/weight -H "Content-Type: application/json" -d "{\"weight\":125.36,\"stable\":true}"
+```

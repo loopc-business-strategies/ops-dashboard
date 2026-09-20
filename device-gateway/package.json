@@ -1,0 +1,23 @@
+{
+  "name": "mg-device-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MG Floor local device gateway for weighing scales (RS232/USB/BT/Ethernet + simulator)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "simulator": "MG_GATEWAY_MODE=simulator node src/index.js",
+    "test": "node --test src/**/*.test.js"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "serialport": "^13.0.0"
+  }
+}

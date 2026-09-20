@@ -1,0 +1,92 @@
+{
+  "gatewayId": "MG-GATEWAY-001",
+  "tenant": "mg",
+  "mode": "simulator",
+  "backendUrl": "http://localhost:5000",
+  "authToken": "",
+  "pollIntervalMs": 250,
+  "stability": {
+    "toleranceGrams": 0.05,
+    "durationMs": 800
+  },
+  "localPort": 7077,
+  "scales": [
+    {
+      "scaleId": "MG-SCALE-001",
+      "connectionType": "SIMULATOR",
+      "port": "",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": 1,
+      "unit": "g",
+      "enabled": true
+    },
+    {
+      "scaleId": "MG-SCALE-002",
+      "connectionType": "SIMULATOR",
+      "port": "",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": 1,
+      "unit": "g",
+      "enabled": true
+    },
+    {
+      "scaleId": "MG-SCALE-003",
+      "connectionType": "SIMULATOR",
+      "port": "",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": 1,
+      "unit": "g",
+      "enabled": true
+    },
+    {
+      "scaleId": "MG-SCALE-004",
+      "connectionType": "SIMULATOR",
+      "port": "",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": 1,
+      "unit": "g",
+      "enabled": true
+    },
+    {
+      "scaleId": "MG-SCALE-005",
+      "connectionType": "SIMULATOR",
+      "port": "",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": 1,
+      "unit": "g",
+      "enabled": true
+    },
+    {
+      "scaleId": "MG-SCALE-006",
+      "connectionType": "SIMULATOR",
+      "port": "",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": 1,
+      "unit": "g",
+      "enabled": true
+    },
+    {
+      "scaleId": "MG-SCALE-007",
+      "connectionType": "SIMULATOR",
+      "port": "",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": 1,
+      "unit": "g",
+      "enabled": true
+    }
+  ]
+}
