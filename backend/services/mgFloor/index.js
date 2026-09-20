@@ -100,6 +100,20 @@ async function assertScaleReading(scaleId, stableReadingId, expectedWeight) {
   return { scale, reading, weight }
 }
 
+/** Capture latest stable HardwareEvent for a scale — returns scaleReadingId. */
+async function captureStableReading(scaleId, expectedWeight = null) {
+  const { scale, reading, weight } = await assertScaleReading(scaleId, null, expectedWeight)
+  return {
+    scaleReadingId: String(reading._id),
+    scaleId: scale.scaleId,
+    weight,
+    unit: reading.unit || scale.unit || 'g',
+    stable: true,
+    recordedAt: reading.recordedAt || reading.createdAt,
+    gatewayId: reading.gatewayId || scale.gatewayId || '',
+  }
+}
+
 /**
  * Metal OUT: create pass (if needed) + issue — weight from scale reading.
  */
@@ -487,6 +501,7 @@ module.exports = {
   syncOperations,
   registerDevice,
   assertScaleReading,
+  captureStableReading,
   liveFloorService,
   departmentService,
   shiftService,

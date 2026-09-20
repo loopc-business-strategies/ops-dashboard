@@ -1,6 +1,8 @@
 const mongoose = require('mongoose')
 const XrfAnalyzer = require('../../models/XrfAnalyzer')
 const XrfTest = require('../../models/XrfTest')
+const HardwareEvent = require('../../models/HardwareEvent')
+const Scale = require('../../models/Scale')
 const { ProductionError } = require('../productionControl/errors')
 const { writeProductionAudit } = require('../productionControl/audit')
 const { AUDIT_ACTIONS } = require('../productionControl/constants')
@@ -197,6 +199,7 @@ async function ingestXrfResult(req, body = {}) {
 /**
  * App path: confirm/link a gateway-ingested result. Does NOT accept invented elements.
  * Simulated creates only when ALLOW_XRF_SIMULATOR and explicit source=simulated (dev).
+ * Non-simulated confirms require a real stable scaleReadingId (HardwareEvent).
  */
 async function submitXrfTest(req, body = {}) {
   const operationId = body.operationId ? String(body.operationId).trim() : null
@@ -229,6 +232,55 @@ async function submitXrfTest(req, body = {}) {
       )
     }
 
+    // Manual typed weight is not allowed for normal confirm
+    if (body.scaleWeight != null && body.scaleReadingId == null && test.source !== 'simulated') {
+      throw new ProductionError(
+        'Manual scaleWeight is not allowed. Capture a stable scaleReadingId first.',
+        403,
+      )
+    }
+
+    let reading = null
+    if (test.source !== 'simulated') {
+      const scaleReadingId = body.scaleReadingId ? String(body.scaleReadingId).trim() : ''
+      if (!scaleReadingId || !mongoose.Types.ObjectId.isValid(scaleReadingId)) {
+        throw new ProductionError('scaleReadingId is required to confirm an XRF result', 403)
+      }
+
+      reading = await HardwareEvent.findById(scaleReadingId)
+      if (!reading) throw new ProductionError('Scale reading not found', 404)
+      if (!reading.stable) throw new ProductionError('Scale reading is not stable', 403)
+      if (!Number.isFinite(Number(reading.weight)) || Number(reading.weight) <= 0) {
+        throw new ProductionError('Scale reading has invalid weight', 403)
+      }
+
+      const scale = await Scale.findOne({ scaleId: String(reading.scaleId || '').toUpperCase() })
+      if (!scale || !scale.enabled) throw new ProductionError('Scale not found or disabled', 403)
+
+      if (body.scaleId && String(body.scaleId).toUpperCase() !== String(reading.scaleId).toUpperCase()) {
+        throw new ProductionError('scaleId does not match scaleReadingId', 403)
+      }
+
+      const reused = await XrfTest.findOne({
+        scaleReadingId: reading._id,
+        confirmationStatus: 'CONFIRMED',
+        _id: { $ne: test._id },
+      }).lean()
+      if (reused) {
+        throw new ProductionError(
+          'This scale reading is already linked to another confirmed XRF test',
+          409,
+        )
+      }
+
+      test.scaleReadingId = reading._id
+      test.scaleId = reading.scaleId
+      test.scaleWeight = Number(reading.weight)
+    } else if (body.scaleReadingId && mongoose.Types.ObjectId.isValid(String(body.scaleReadingId))) {
+      // Optional link for sim
+      test.scaleReadingId = body.scaleReadingId
+    }
+
     test.employeeId = req.user?._id || test.employeeId
     test.employeeName = req.user?.name || test.employeeName
     test.department = body.department || req.user?.department || test.department
@@ -236,8 +288,7 @@ async function submitXrfTest(req, body = {}) {
     test.batchId = body.batchId || test.batchId
     test.batchNumber = body.batchNumber != null ? String(body.batchNumber) : test.batchNumber
     test.materialId = body.materialId != null ? String(body.materialId) : test.materialId
-    test.scaleId = body.scaleId != null ? String(body.scaleId) : test.scaleId
-    test.scaleWeight = body.scaleWeight != null ? Number(body.scaleWeight) : test.scaleWeight
+    if (body.scaleId != null && test.source === 'simulated') test.scaleId = String(body.scaleId)
     test.deviceId = body.deviceId != null ? String(body.deviceId) : test.deviceId
     test.operationId = operationId || test.operationId
     test.confirmationStatus = 'CONFIRMED'
@@ -255,6 +306,7 @@ async function submitXrfTest(req, body = {}) {
           source: test.source,
           batchId: test.batchId,
           scaleId: test.scaleId,
+          scaleReadingId: test.scaleReadingId,
           operationId: test.operationId,
         },
       })
@@ -277,14 +329,12 @@ async function submitXrfTest(req, body = {}) {
     throw new ProductionError('Simulated XRF results are not allowed in this environment', 403)
   }
 
-  // Reuse ingest path for sim with gateway-less id
   const created = await ingestXrfResult(req, {
     ...body,
     source: 'simulated',
     gatewayId: body.gatewayId || 'MG-XRF-SIM',
     ingestId: operationId || body.ingestId || `sim-${Date.now()}`,
   })
-  // Auto-confirm sim with operator metadata
   return submitXrfTest(req, {
     xrfTestId: created.test.xrfTestId,
     operationId,
@@ -293,7 +343,7 @@ async function submitXrfTest(req, body = {}) {
     jobId: body.jobId,
     materialId: body.materialId,
     scaleId: body.scaleId,
-    scaleWeight: body.scaleWeight,
+    scaleReadingId: body.scaleReadingId,
     department: body.department,
     deviceId: body.deviceId,
   })

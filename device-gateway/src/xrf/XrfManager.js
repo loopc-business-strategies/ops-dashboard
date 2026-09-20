@@ -69,6 +69,44 @@ class XrfManager extends EventEmitter {
     this.emit('result', payload)
     return payload
   }
+
+  /**
+   * Merge backend-assigned analyzers (add new, drop unassigned).
+   */
+  async syncAnalyzers(analyzerConfigs = []) {
+    if (this.mode === 'disabled') return
+    const nextIds = new Set()
+    for (const cfg of analyzerConfigs || []) {
+      if (cfg.enabled === false) continue
+      const id = String(cfg.analyzerId || '').toUpperCase()
+      if (!id) continue
+      nextIds.add(id)
+      if (this.connections.has(id)) continue
+      const adapter = this.mode === 'simulator'
+        ? new XrfSimulator(cfg)
+        : new LanScientificAdapter(cfg)
+      adapter.on?.('status', (s) => this.emit('status', s))
+      this.connections.set(id, adapter)
+      try {
+        await adapter.connect()
+        this.emit('status', { analyzerId: id, status: adapter.status || 'READY' })
+        log.info('synced XRF started', { analyzerId: id })
+      } catch (err) {
+        log.warn('synced XRF start failed', { analyzerId: id, message: err.message })
+        this.emit('status', { analyzerId: id, status: 'ERROR', error: err.message })
+      }
+    }
+    for (const [id, adapter] of [...this.connections.entries()]) {
+      if (nextIds.has(id)) continue
+      try {
+        await adapter.disconnect?.()
+      } catch {
+        // ignore
+      }
+      this.connections.delete(id)
+      log.info('synced XRF removed', { analyzerId: id })
+    }
+  }
 }
 
 module.exports = { XrfManager }

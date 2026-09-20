@@ -40,6 +40,7 @@ const xrfTestSchema = new mongoose.Schema(
     deviceId: { type: String, trim: true, default: '' },
     scaleId: { type: String, trim: true, default: '' },
     scaleWeight: { type: Number, default: null },
+    scaleReadingId: { type: mongoose.Schema.Types.ObjectId, ref: 'HardwareEvent', default: null },
     gatewayId: { type: String, trim: true, default: '' },
     source: {
       type: String,
@@ -69,5 +70,6 @@ xrfTestSchema.index({ analyzerId: 1, confirmationStatus: 1, testedAt: -1 })
 xrfTestSchema.index({ analyzerId: 1, testedAt: -1 })
 xrfTestSchema.index({ batchId: 1, testedAt: -1 })
 xrfTestSchema.index({ operationId: 1 }, { sparse: true })
+xrfTestSchema.index({ scaleReadingId: 1 }, { sparse: true })
 
 module.exports = createTenantModel('XrfTest', xrfTestSchema)

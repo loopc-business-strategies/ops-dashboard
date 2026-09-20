@@ -282,6 +282,17 @@ router.get('/scales/:scaleId/status', ...mgProtect, requireProductionPermission(
   }
 })
 
+router.post('/scales/:scaleId/capture-stable', ...mgProtect, requireProductionPermission('receivePass'), async (req, res) => {
+  try {
+    const scaleId = String(req.params.scaleId || '').toUpperCase()
+    const expectedWeight = req.body?.expectedWeight != null ? Number(req.body.expectedWeight) : null
+    const captured = await mgFloor.captureStableReading(scaleId, expectedWeight)
+    res.json({ success: true, ...captured })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 router.patch('/scales/:scaleId', ...mgProtect, requireProductionPermission('manageMachines'), async (req, res) => {
   try {
     const scale = await mgFloor.updateScale(req.params.scaleId, req.body)
@@ -602,6 +613,7 @@ router.post('/xrf/tests', ...mgProtect, requireProductionPermission('receivePass
   department: Joi.string().trim().allow('', null),
   scaleId: Joi.string().trim().allow('', null),
   scaleWeight: Joi.number().allow(null),
+  scaleReadingId: Joi.string().hex().length(24).allow(null, ''),
   deviceId: Joi.string().trim().allow('', null),
   operationId: Joi.string().trim().allow('', null),
   status: Joi.string().trim().allow('', null),
