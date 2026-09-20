@@ -22,7 +22,7 @@ export default function MoreScreen() {
         <Subtitle>Production, QC, devices, and system</Subtitle>
         <View style={styles.stack}>
           {items.map((item) => (
-            <BigButton key={item.key} label={item.label} onPress={() => router.push(item.href as never)} />
+            <BigButton key={item.key} label={item.label} onPress={() => router.replace(item.href as never)} />
           ))}
           <BigButton label="SIGN OUT" onPress={() => logout()} tone="danger" />
         </View>

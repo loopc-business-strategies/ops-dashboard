@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import NetInfo from '@react-native-community/netinfo'
 import type { AsyncResourceState } from '@/src/async/types'
 import { toApiError, userFacingMessage } from '@/src/api/errors'
+import { classifyCacheFreshness, shouldSkipNetworkFetch } from '@/src/hooks/cachePolicy'
 
 type Options<T> = {
   cacheKey?: string
@@ -58,9 +59,12 @@ export function useAsyncResource<T>(
     fromCache: false,
   })
   const [slow, setSlow] = useState(false)
+  const [stale, setStale] = useState(false)
 
   const dataRef = useRef<T | null>(null)
   dataRef.current = state.data
+  const updatedAtRef = useRef<number | null>(null)
+  updatedAtRef.current = state.updatedAt
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
   const abortRef = useRef<AbortController | null>(null)
@@ -76,22 +80,38 @@ export function useAsyncResource<T>(
     }, SLOW_MS)
 
     const hadData = dataRef.current != null
-    setState((prev) => ({
-      ...prev,
-      status: hadData ? 'retrying' : 'loading',
-      error: null,
-      errorKind: null,
-    }))
+    const forceNetwork = mode === 'reload'
+
+    if (!hadData) {
+      setState((prev) => ({
+        ...prev,
+        status: 'loading',
+        error: null,
+        errorKind: null,
+      }))
+    } else {
+      setState((prev) => ({
+        ...prev,
+        status: 'retrying',
+        error: null,
+        errorKind: null,
+      }))
+    }
 
     const net = await NetInfo.fetch()
     const offline = net.isConnected === false
+
+    let cachedAt: number | null = updatedAtRef.current
 
     if (cacheKey && !hadData) {
       const cached = await readCache<T>(cacheKey)
       if (cached && !controller.signal.aborted) {
         const empty = isEmpty ? isEmpty(cached.data) : false
         dataRef.current = cached.data
-        // Stale cache while online = LAST KNOWN (success/empty), not OFFLINE
+        cachedAt = cached.at
+        updatedAtRef.current = cached.at
+        const freshness = classifyCacheFreshness(cached.at, cacheTtlMs)
+        setStale(freshness !== 'fresh')
         setState({
           status: offline ? 'offline' : empty ? 'empty' : 'success',
           data: cached.data,
@@ -101,6 +121,23 @@ export function useAsyncResource<T>(
           errorKind: offline ? 'OFFLINE' : null,
         })
       }
+    } else if (hadData && cachedAt != null) {
+      setStale(classifyCacheFreshness(cachedAt, cacheTtlMs) !== 'fresh')
+    }
+
+    // CASE A / D: offline with or without cache — never call API when offline with data
+    if (shouldSkipNetworkFetch({ offline, hasCachedOrLiveData: dataRef.current != null })) {
+      clearTimeout(slowTimer)
+      setSlow(false)
+      setState((prev) => ({
+        ...prev,
+        status: 'offline',
+        error: prev.error || 'You are offline. Showing last known data.',
+        errorKind: 'OFFLINE',
+        fromCache: true,
+        updatedAt: prev.updatedAt ?? cachedAt,
+      }))
+      return
     }
 
     if (offline && dataRef.current == null) {
@@ -115,18 +152,26 @@ export function useAsyncResource<T>(
       return
     }
 
+    // Online + fresh cache on initial: still refresh in background (stale-while-revalidate)
+    // unless we already have live data and freshness is fresh and not forced — still refresh
+    // so operators get updates; TTL mainly drives STALE label.
+    void forceNetwork
+
     try {
       const data = await fetcherRef.current(controller.signal)
       if (controller.signal.aborted) return
       const empty = isEmpty ? isEmpty(data) : false
+      const at = Date.now()
       if (cacheKey) await writeCache(cacheKey, data)
       dataRef.current = data
+      updatedAtRef.current = at
+      setStale(false)
       setState({
         status: empty ? 'empty' : 'success',
         data,
         error: null,
         errorKind: null,
-        updatedAt: Date.now(),
+        updatedAt: at,
         fromCache: false,
       })
     } catch (err) {
@@ -136,23 +181,26 @@ export function useAsyncResource<T>(
       const keep = dataRef.current
       const net2 = await NetInfo.fetch()
       const stillOffline = net2.isConnected === false
+      // Preserve cached.at / prior updatedAt — never stamp Date.now() on failed refresh
+      const preservedAt = updatedAtRef.current
       setState({
         status:
           keep != null
             ? stillOffline
               ? 'offline'
               : 'error'
-            : stillOffline || e.kind === 'NETWORK_ERROR' || e.kind === 'TIMEOUT'
-              ? stillOffline
-                ? 'offline'
-                : 'error'
+            : stillOffline
+              ? 'offline'
               : 'error',
         data: keep,
         error: userFacingMessage(e) || e.message,
         errorKind: e.kind,
-        updatedAt: keep != null ? Date.now() : null,
+        updatedAt: keep != null ? preservedAt : null,
         fromCache: keep != null,
       })
+      if (keep != null && preservedAt != null) {
+        setStale(classifyCacheFreshness(preservedAt, cacheTtlMs) !== 'fresh')
+      }
     } finally {
       clearTimeout(slowTimer)
       setSlow(false)
@@ -176,6 +224,7 @@ export function useAsyncResource<T>(
     load,
     isLoading: state.status === 'loading' || state.status === 'retrying',
     slow,
+    stale,
     abort: () => abortRef.current?.abort(),
   }
 }

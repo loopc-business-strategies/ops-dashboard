@@ -84,14 +84,17 @@ export function OfflineState({
 export function LastUpdated({
   at,
   fromCache,
+  stale,
 }: {
   at?: number | null
   fromCache?: boolean
+  stale?: boolean
 }) {
   if (!at) return null
+  const prefix = fromCache || stale ? (stale ? 'STALE / LAST KNOWN · ' : 'LAST KNOWN · ') : ''
   return (
     <Text style={styles.meta}>
-      {fromCache ? 'LAST KNOWN · ' : ''}LAST UPDATED: {new Date(at).toLocaleString()}
+      {prefix}LAST UPDATED: {new Date(at).toLocaleString()}
     </Text>
   )
 }
@@ -139,6 +142,7 @@ export function AsyncSection({
   emptyMessage,
   updatedAt,
   fromCache,
+  stale,
   onRetry,
   slow,
   children,
@@ -149,6 +153,7 @@ export function AsyncSection({
   emptyMessage?: string
   updatedAt?: number | null
   fromCache?: boolean
+  stale?: boolean
   onRetry?: () => void
   slow?: boolean
   children?: React.ReactNode
@@ -159,7 +164,7 @@ export function AsyncSection({
   if (status === 'offline' && !children) {
     return <OfflineState message={error || 'Unable to load — offline'} lastUpdated={updatedAt} onRetry={onRetry} />
   }
-  if (status === 'error') {
+  if (status === 'error' && !children) {
     return <ErrorState message={error || 'Unable to load'} onRetry={onRetry} />
   }
   if (status === 'empty') {
@@ -174,7 +179,12 @@ export function AsyncSection({
           onRetry={onRetry}
         />
       ) : null}
-      {fromCache || updatedAt ? <LastUpdated at={updatedAt} fromCache={fromCache} /> : null}
+      {status === 'error' && children ? (
+        <ErrorState message={error || 'Unable to refresh'} onRetry={onRetry} />
+      ) : null}
+      {fromCache || updatedAt || stale ? (
+        <LastUpdated at={updatedAt} fromCache={fromCache} stale={stale} />
+      ) : null}
       {status === 'offline' && children ? (
         <Text style={styles.meta}>OFFLINE — showing last known</Text>
       ) : null}

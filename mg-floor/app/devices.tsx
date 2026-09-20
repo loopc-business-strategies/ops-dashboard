@@ -9,7 +9,7 @@ import { colors, spacing } from '@/src/theme'
 export default function DevicesScreen() {
   const scales = useAsyncResource(
     useCallback(async (signal) => {
-      const res = await fetchScalesFull({}, { signal })
+      const res = await fetchScalesFull({ limit: 50, skip: 0 }, { signal })
       return res.scales || []
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:devices-scales' },
@@ -25,7 +25,7 @@ export default function DevicesScreen() {
 
   const gateways = useAsyncResource(
     useCallback(async (signal) => {
-      const res = await fetchGateways({ limit: 100 }, { signal })
+      const res = await fetchGateways({ limit: 50, skip: 0 }, { signal })
       return res.gateways || []
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:devices-gateways' },

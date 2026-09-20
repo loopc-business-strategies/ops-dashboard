@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
@@ -22,11 +22,12 @@ type PassRow = {
 }
 
 export default function MetalInScreen() {
-  const params = useLocalSearchParams<{ passId?: string }>()
+  const params = useLocalSearchParams<{ passId?: string; scaleId?: string }>()
   const [selected, setSelected] = useState<PassRow | null>(null)
-  const [scaleId, setScaleId] = useState('')
+  const [scaleId, setScaleId] = useState(String(params.scaleId || ''))
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const inFlightOpId = useRef<string | null>(null)
   const live = useLiveScale(scaleId || null)
 
   const passes = useAsyncResource(
@@ -39,15 +40,15 @@ export default function MetalInScreen() {
 
   const scales = useAsyncResource(
     useCallback(async (signal) => {
-      const res = await fetchScales({ limit: 100 }, { signal })
+      const res = await fetchScales({ limit: 50, skip: 0 }, { signal })
       return (res.scales || []).map((x) => String(x.scaleId))
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:scale-ids' },
   )
 
   useEffect(() => {
-    if (scales.data?.[0] && !scaleId) setScaleId(scales.data[0])
-  }, [scales.data, scaleId])
+    if (params.scaleId) setScaleId(String(params.scaleId))
+  }, [params.scaleId])
 
   useEffect(() => {
     if (!params.passId || !passes.data) return
@@ -57,13 +58,19 @@ export default function MetalInScreen() {
 
   const submit = async () => {
     if (!selected) return
+    if (!scaleId) {
+      Alert.alert('Select a scale', 'Choose an authorized scale before submitting.')
+      return
+    }
     if (!live.lastReading?.stable || live.weight == null) {
       Alert.alert('Waiting for stable weight', 'Place material on the scale and wait until STABLE.')
       return
     }
+    if (busy) return
     setBusy(true)
     setSubmitError('')
-    const operationId = createOperationId('metal_in')
+    const operationId = inFlightOpId.current || createOperationId('metal_in')
+    inFlightOpId.current = operationId
     const payload = {
       passId: selected._id,
       scaleId,
@@ -80,10 +87,12 @@ export default function MetalInScreen() {
           scaleId,
         })
         Alert.alert('Saved offline', 'Metal IN queued — will sync when online.')
+        inFlightOpId.current = null
         return
       }
       await metalIn(payload)
       Alert.alert('Success', 'Metal IN recorded')
+      inFlightOpId.current = null
     } catch (err) {
       await enqueueOutbox({
         operationId,
@@ -94,8 +103,9 @@ export default function MetalInScreen() {
       setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
       try {
         await flushOutbox()
+        inFlightOpId.current = null
       } catch {
-        /* keep queued */
+        /* keep same operationId for retry */
       }
     } finally {
       setBusy(false)
@@ -116,6 +126,7 @@ export default function MetalInScreen() {
           onRetry={passes.reload}
           updatedAt={passes.updatedAt}
           fromCache={passes.fromCache}
+          stale={passes.stale}
         >
           {(passes.data || []).map((p) => (
             <BigButton
@@ -131,7 +142,8 @@ export default function MetalInScreen() {
           ))}
         </AsyncSection>
 
-        <Text style={styles.step}>Step 2 — Scale</Text>
+        <Text style={styles.step}>Step 2 — Select scale</Text>
+        {!scaleId ? <Text style={styles.hint}>Select a scale to start live weighing.</Text> : null}
         {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
         {scales.status === 'error' && !scales.data ? (
           <ErrorState message={scales.error || 'Unable to load scales'} onRetry={scales.reload} />
@@ -160,7 +172,7 @@ export default function MetalInScreen() {
         <BigButton
           label={busy ? 'SUBMITTING…' : 'CONFIRM METAL IN'}
           onPress={submit}
-          disabled={busy || !selected || !live.stable}
+          disabled={busy || !selected || !scaleId || !live.stable}
         />
       </ScrollView>
     </Screen>
@@ -175,6 +187,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     letterSpacing: 0.5,
   },
+  hint: { color: colors.textMuted, marginBottom: spacing.sm },
   scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   err: { color: colors.danger, marginVertical: spacing.sm },
 })

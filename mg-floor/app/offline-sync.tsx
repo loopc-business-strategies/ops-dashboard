@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
-import { clearSynced, listOutbox, type OutboxItem } from '@/src/offline/outbox'
+import { clearSynced, listOutbox, markOutbox, type OutboxItem } from '@/src/offline/outbox'
 import { flushOutbox } from '@/src/offline/sync'
 import { colors, spacing } from '@/src/theme'
 
@@ -23,13 +23,32 @@ export default function OfflineSyncScreen() {
       const res = await flushOutbox()
       await clearSynced()
       await refresh()
-      Alert.alert('Sync', `Processed ${res.synced} operation(s)`)
+      const conflicts = (await listOutbox()).filter((i) => i.syncStatus === 'CONFLICT').length
+      Alert.alert(
+        'Sync',
+        conflicts
+          ? `Processed ${res.synced} operation(s). ${conflicts} conflict(s) need supervisor review.`
+          : `Processed ${res.synced} operation(s)`,
+      )
     } catch (err) {
       Alert.alert('Sync failed', err instanceof Error ? err.message : 'Unknown error')
       await refresh()
     } finally {
       setBusy(false)
     }
+  }
+
+  const retryFailed = async (item: OutboxItem) => {
+    if (item.syncStatus === 'CONFLICT') {
+      Alert.alert(
+        'Conflict',
+        'This operation conflicts with server state. A supervisor must resolve it — do not resubmit blindly.',
+      )
+      return
+    }
+    await markOutbox(item.operationId, { syncStatus: 'PENDING', errorMessage: undefined })
+    await refresh()
+    await syncNow()
   }
 
   return (
@@ -58,6 +77,19 @@ export default function OfflineSyncScreen() {
               />
               <Text style={styles.meta}>{item.operationId}</Text>
               {item.errorMessage ? <Text style={styles.err}>{item.errorMessage}</Text> : null}
+              {item.syncStatus === 'CONFLICT' ? (
+                <Text style={styles.warn}>
+                  CONFLICT — needs supervisor review. Original operation was not overwritten.
+                </Text>
+              ) : null}
+              {item.syncStatus === 'FAILED' || item.syncStatus === 'PENDING' ? (
+                <BigButton
+                  label="RETRY"
+                  tone="neutral"
+                  onPress={() => retryFailed(item)}
+                  disabled={busy}
+                />
+              ) : null}
             </View>
           ))
         )}
@@ -79,5 +111,6 @@ const styles = StyleSheet.create({
   },
   id: { color: colors.text, fontWeight: '800', fontSize: 16 },
   meta: { color: colors.textMuted, fontSize: 12 },
-  err: { color: colors.danger, fontSize: 12 },
+  err: { color: colors.danger, fontSize: 13 },
+  warn: { color: colors.warning, fontSize: 13, fontWeight: '700' },
 })
