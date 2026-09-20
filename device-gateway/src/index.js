@@ -42,10 +42,23 @@ async function main() {
 
   let lastPushError = null
   let pushCount = 0
+  const lastPushAtByScale = new Map()
+  const inFlightByScale = new Set()
+  const minPushIntervalMs = Number(process.env.MG_GATEWAY_MIN_PUSH_MS || 15000)
+  let rateLimitUntil = 0
 
   scaleManager.on('reading', async (reading) => {
     // Only push stable readings to backend by default to reduce noise
     if (!reading.stable) return
+    const now = Date.now()
+    if (now < rateLimitUntil) return
+    const scaleId = reading.scaleId
+    if (inFlightByScale.has(scaleId)) return
+    const last = lastPushAtByScale.get(scaleId) || 0
+    if (now - last < minPushIntervalMs) return
+    // Stamp before await so concurrent ticks cannot race past the throttle.
+    lastPushAtByScale.set(scaleId, now)
+    inFlightByScale.add(scaleId)
     try {
       await postScaleReading({
         backendUrl: config.backendUrl,
@@ -57,7 +70,12 @@ async function main() {
       lastPushError = null
     } catch (err) {
       lastPushError = err.message
-      log.warn('ingest failed', { scaleId: reading.scaleId, message: err.message })
+      if (/too many requests/i.test(err.message)) {
+        rateLimitUntil = Date.now() + Number(process.env.MG_GATEWAY_RATE_LIMIT_BACKOFF_MS || 60000)
+      }
+      log.warn('ingest failed', { scaleId, message: err.message })
+    } finally {
+      inFlightByScale.delete(scaleId)
     }
   })
 

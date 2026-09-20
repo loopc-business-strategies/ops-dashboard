@@ -57,14 +57,46 @@ function assertSmokeAuthConfigured() {
   }
 }
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
+const SMOKE_429_RETRIES = Number(process.env.SMOKE_429_RETRIES || 3)
+const SMOKE_429_RETRY_CAP_MS = Number(process.env.SMOKE_429_RETRY_CAP_MS || 60000)
 
-async function fetchWithTimeout(url, options = {}) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function retryAfterMs(response) {
+  const retryAfter = response.headers.get('retry-after')
+  if (retryAfter && /^\d+$/.test(retryAfter.trim())) {
+    return Math.min(Number(retryAfter.trim()) * 1000, SMOKE_429_RETRY_CAP_MS)
+  }
+  const reset = response.headers.get('ratelimit-reset')
+  if (reset && /^\d+$/.test(reset.trim())) {
+    return Math.min(Number(reset.trim()) * 1000, SMOKE_429_RETRY_CAP_MS)
+  }
+  return Math.min(5000, SMOKE_429_RETRY_CAP_MS)
+}
+
+async function fetchOnceWithTimeout(url, options = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await fetch(url, { ...options, signal: controller.signal })
   } finally {
     clearTimeout(timer)
+  }
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  let attempt = 0
+  while (true) {
+    const response = await fetchOnceWithTimeout(url, options)
+    if (response.status !== 429 || attempt >= SMOKE_429_RETRIES) {
+      return response
+    }
+    attempt += 1
+    const waitMs = retryAfterMs(response)
+    console.warn(`smoke 429 on ${url} — retry ${attempt}/${SMOKE_429_RETRIES} in ${waitMs}ms`)
+    await sleep(waitMs)
   }
 }
 
