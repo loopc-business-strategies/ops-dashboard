@@ -11,7 +11,6 @@ const Scale = require('../models/Scale')
 const HardwareEvent = require('../models/HardwareEvent')
 const AuditLog = require('../models/AuditLog')
 const mgFloor = require('../services/mgFloor')
-const { ProductionError } = require('../services/productionControl/errors')
 
 const router = express.Router()
 
