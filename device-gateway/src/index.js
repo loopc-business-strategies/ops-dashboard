@@ -89,7 +89,7 @@ async function main() {
 
   const xrfManager = new XrfManager({
     gatewayId: config.gatewayId,
-    analyzers: config.xrfAnalyzers || [{ analyzerId: 'MG-XRF-001', enabled: true, model: '' }],
+    analyzers: Array.isArray(config.xrfAnalyzers) ? config.xrfAnalyzers : [],
     mode: config.xrfMode,
   })
 

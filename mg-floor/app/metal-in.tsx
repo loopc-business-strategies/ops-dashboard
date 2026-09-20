@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
-import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
+import { AsyncSection } from '@/src/components/async'
 import { StableCapturePanel } from '@/src/components/StableCapturePanel'
 import { QrFirstResolve } from '@/src/components/QrFirstResolve'
-import { fetchOpenPasses, fetchScales, metalIn } from '@/src/api/floor'
+import { AuthorizedScalePicker } from '@/src/components/AuthorizedScalePicker'
+import { fetchOpenPasses, metalIn } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
+import { useAuthorizedScaleIds } from '@/src/hooks/useAuthorizedScaleIds'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { flushOutbox } from '@/src/offline/sync'
 import { useAuth } from '@/src/context/AuthContext'
@@ -34,6 +36,7 @@ export default function MetalInScreen() {
   const [submitError, setSubmitError] = useState('')
   const inFlightOpId = useRef<string | null>(null)
   const capture = useStableScaleCapture(scaleId)
+  const scales = useAuthorizedScaleIds(user?.department)
 
   const passes = useAsyncResource(
     useCallback(async (signal) => {
@@ -41,24 +44,6 @@ export default function MetalInScreen() {
       return (res.passes || []) as PassRow[]
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:open-passes' },
-  )
-
-  const scales = useAsyncResource(
-    useCallback(
-      async (signal) => {
-        const res = await fetchScales(
-          {
-            limit: 50,
-            skip: 0,
-            ...(user?.department ? { department: String(user.department) } : {}),
-          },
-          { signal },
-        )
-        return (res.scales || []).map((x) => String(x.scaleId))
-      },
-      [user?.department],
-    ),
-    { isEmpty: (d) => !d.length, cacheKey: `mg-floor:scale-ids:${user?.department || 'all'}` },
   )
 
   useEffect(() => {
@@ -193,20 +178,7 @@ export default function MetalInScreen() {
         ) : null}
 
         <Text style={styles.step}>AUTHORIZED SCALE</Text>
-        {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
-        {scales.status === 'error' && !scales.data ? (
-          <ErrorState message={scales.error || 'Unable to load scales'} onRetry={scales.reload} />
-        ) : null}
-        <View style={styles.scaleRow}>
-          {(scales.data || []).map((id) => (
-            <BigButton
-              key={id}
-              label={id === scaleId ? `✓ ${id}` : id}
-              tone={id === scaleId ? 'accent' : 'neutral'}
-              onPress={() => setScaleId(id)}
-            />
-          ))}
-        </View>
+        <AuthorizedScalePicker scaleId={scaleId} onSelect={setScaleId} scales={scales} />
 
         <Text style={styles.step}>STABLE CAPTURE</Text>
         <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
@@ -231,6 +203,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   selected: { color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
-  scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   err: { color: colors.danger, marginVertical: spacing.sm },
 })

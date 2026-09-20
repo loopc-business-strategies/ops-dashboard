@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Alert, ScrollView, StyleSheet, Text, TextInput } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
-import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
+import { AsyncSection } from '@/src/components/async'
 import { StableCapturePanel } from '@/src/components/StableCapturePanel'
 import { QrFirstResolve } from '@/src/components/QrFirstResolve'
-import { fetchJobs, fetchScales, metalOut } from '@/src/api/floor'
+import { AuthorizedScalePicker } from '@/src/components/AuthorizedScalePicker'
+import { fetchJobs, metalOut } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
+import { useAuthorizedScaleIds } from '@/src/hooks/useAuthorizedScaleIds'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { useAuth } from '@/src/context/AuthContext'
 import { colors, spacing } from '@/src/theme'
@@ -32,6 +34,7 @@ export default function MetalOutScreen() {
   const [submitError, setSubmitError] = useState('')
   const inFlightOpId = useRef<string | null>(null)
   const capture = useStableScaleCapture(scaleId)
+  const scales = useAuthorizedScaleIds(user?.department)
 
   const jobs = useAsyncResource(
     useCallback(async (signal) => {
@@ -44,24 +47,6 @@ export default function MetalOutScreen() {
           : []) as Job[]
     }, []),
     { isEmpty: (d) => !d.length, cacheKey: 'mg-floor:jobs' },
-  )
-
-  const scales = useAsyncResource(
-    useCallback(
-      async (signal) => {
-        const res = await fetchScales(
-          {
-            limit: 50,
-            skip: 0,
-            ...(user?.department ? { department: String(user.department) } : {}),
-          },
-          { signal },
-        )
-        return (res.scales || []).map((x) => String(x.scaleId))
-      },
-      [user?.department],
-    ),
-    { isEmpty: (d) => !d.length, cacheKey: `mg-floor:scale-ids:${user?.department || 'all'}` },
   )
 
   useEffect(() => {
@@ -185,18 +170,7 @@ export default function MetalOutScreen() {
         ) : null}
 
         <Text style={styles.step}>AUTHORIZED SCALE</Text>
-        {scales.status === 'loading' && !scales.data ? <SectionLoading label="Loading scales…" /> : null}
-        {scales.status === 'error' && !scales.data ? (
-          <ErrorState message={scales.error || 'Unable to load scales'} onRetry={scales.reload} />
-        ) : null}
-        {(scales.data || []).map((id) => (
-          <BigButton
-            key={id}
-            label={id === scaleId ? `✓ ${id}` : id}
-            tone={id === scaleId ? 'accent' : 'neutral'}
-            onPress={() => setScaleId(id)}
-          />
-        ))}
+        <AuthorizedScalePicker scaleId={scaleId} onSelect={setScaleId} scales={scales} />
 
         <Text style={styles.step}>STABLE CAPTURE</Text>
         <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
