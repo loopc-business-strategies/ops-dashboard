@@ -164,6 +164,11 @@ function createApp() {
     '/api/erp-accounting/reports/market-prices',
     '/api/realtime',
   ]
+  // Hardware / MG Floor ingest must not share the tenant:ip ERP smoke bucket.
+  const hardwareIngestPaths = [
+    '/api/mg-floor/scales/ingest',
+    '/api/hardware/ingest',
+  ]
 
   const shouldSkipApiRateLimit = (req) => {
     if (!hardenedEnv) return true
@@ -171,6 +176,9 @@ function createApp() {
     if (authRateLimitPaths.some(
       (prefix) => path === prefix || path.startsWith(`${prefix}/`),
     )) {
+      return true
+    }
+    if (hardwareIngestPaths.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return true
     }
     return rateLimitExcludedPrefixes.some(
@@ -191,6 +199,23 @@ function createApp() {
       return `${tenant}:${ip}`
     },
     message: { success: false, message: 'Too many requests. Please try again shortly.' },
+  })
+
+  const ingestLimiter = rateLimit({
+    windowMs: Number(process.env.INGEST_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+    max: Number(process.env.INGEST_RATE_LIMIT_MAX || 6000),
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: createSharedRateLimitStore('ingest'),
+    skip: () => !hardenedEnv,
+    keyGenerator: (req) => {
+      const ip = ipKeyGenerator(req)
+      const gatewayId = String(
+        req.body?.gatewayId || req.headers['x-gateway-id'] || '',
+      ).trim().toLowerCase()
+      return gatewayId ? `ingest:${gatewayId}` : `ingest:ip:${ip}`
+    },
+    message: { success: false, message: 'Too many ingest requests. Please try again shortly.' },
   })
 
   const authLimiter = rateLimit({
@@ -314,6 +339,8 @@ function createApp() {
   // Use /api/erp-accounting/attachments/download/:type/:filename for protected file access.
 
   app.use('/api', apiLimiter)
+  app.use('/api/mg-floor/scales/ingest', ingestLimiter)
+  app.use('/api/hardware/ingest', ingestLimiter)
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/setup', authLimiter)
   app.use('/api', enforceCsrfProtection)
