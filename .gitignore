@@ -35,6 +35,9 @@ mg-floor/android/build/
 mg-floor/android/
 mg-floor/.expo/
 device-gateway/node_modules/
+device-gateway/gateway.local.env
+device-gateway/gateway-token.txt
+
 *.log
 *.cookies/
 *.cookies
