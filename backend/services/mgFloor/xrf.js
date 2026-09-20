@@ -7,6 +7,12 @@ const { AUDIT_ACTIONS } = require('../productionControl/constants')
 
 const DEFAULT_MG_XRF = ['MG-XRF-001']
 
+function allowXrfSimulator() {
+  if (String(process.env.ALLOW_XRF_SIMULATOR || '').trim() === 'true') return true
+  if (process.env.NODE_ENV === 'production') return false
+  return String(process.env.ALLOW_XRF_SIMULATOR || '').trim() !== 'false'
+}
+
 async function ensureDefaultXrfAnalyzers() {
   for (const analyzerId of DEFAULT_MG_XRF) {
     await XrfAnalyzer.findOneAndUpdate(
@@ -83,7 +89,7 @@ async function ingestXrfStatus(req, body = {}) {
     analyzer.status = 'TESTING'
   }
   analyzer.lastSeenAt = new Date()
-  analyzer.gatewayId = body.gatewayId || analyzer.gatewayId
+  analyzer.gatewayId = body.gatewayId || req.mgGateway?.gatewayId || analyzer.gatewayId
   analyzer.lastError = eventType === 'error' ? String(body.error || body.payload?.error || 'xrf error') : ''
   if (body.model != null) analyzer.model = String(body.model)
   if (body.serialNumber != null) analyzer.serialNumber = String(body.serialNumber)
@@ -103,13 +109,26 @@ function normalizeElements(elements) {
     .filter((e) => e.symbol && Number.isFinite(e.value))
 }
 
-async function submitXrfTest(req, body = {}) {
+/**
+ * Gateway-only: create a hardware (or explicit simulated) result awaiting operator confirm.
+ */
+async function ingestXrfResult(req, body = {}) {
   const analyzerId = String(body.analyzerId || 'MG-XRF-001').toUpperCase()
-  const operationId = body.operationId ? String(body.operationId).trim() : null
-  const idempotencyKey = operationId || (body.idempotencyKey ? String(body.idempotencyKey).trim() : null)
+  const sourceRaw = String(body.source || 'hardware').toLowerCase()
+  const source = sourceRaw === 'simulated' ? 'simulated' : 'hardware'
 
-  if (idempotencyKey) {
-    const existing = await XrfTest.findOne({ idempotencyKey }).lean()
+  if (source === 'simulated' && !allowXrfSimulator()) {
+    throw new ProductionError('Simulated XRF results are not allowed in this environment', 403)
+  }
+
+  const ingestId = body.ingestId
+    ? String(body.ingestId).trim()
+    : body.idempotencyKey
+      ? String(body.idempotencyKey).trim()
+      : null
+
+  if (ingestId) {
+    const existing = await XrfTest.findOne({ ingestId }).lean()
     if (existing) return { test: existing, reused: true }
   }
 
@@ -123,67 +142,148 @@ async function submitXrfTest(req, body = {}) {
     throw new ProductionError('XRF result must include at least one element from the analyzer')
   }
 
+  const gatewayId = body.gatewayId || req.mgGateway?.gatewayId || analyzer.gatewayId || ''
   const xrfTestId = String(body.xrfTestId || `XRF-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).trim()
+
   const test = await XrfTest.create({
     xrfTestId,
     analyzerId,
     manufacturer: analyzer.manufacturer || body.manufacturer || 'LANScientific',
     model: analyzer.model || body.model || '',
     serialNumber: analyzer.serialNumber || body.serialNumber || '',
-    employeeId: req.user?._id || null,
-    employeeName: req.user?.name || '',
-    department: body.department || req.user?.department || analyzer.department || '',
-    jobId: body.jobId || '',
-    batchId: body.batchId || null,
-    batchNumber: body.batchNumber || '',
-    materialId: body.materialId || '',
+    employeeId: null,
+    employeeName: '',
+    department: analyzer.department || 'quality_control',
     testedAt: body.testedAt ? new Date(body.testedAt) : new Date(),
     elements,
     purity: body.purity != null && Number.isFinite(Number(body.purity)) ? Number(body.purity) : null,
     fineness: body.fineness != null && Number.isFinite(Number(body.fineness)) ? Number(body.fineness) : null,
     status,
-    originalResult: body.originalResult || { elements },
+    originalResult: body.originalResult || { elements, source },
     rawData: body.rawData || null,
     reportReference: body.reportReference || '',
-    operationId,
-    deviceId: body.deviceId || '',
-    scaleId: body.scaleId || '',
-    scaleWeight: body.scaleWeight != null ? Number(body.scaleWeight) : null,
-    gatewayId: body.gatewayId || analyzer.gatewayId || '',
+    gatewayId,
+    source,
+    confirmationStatus: 'PENDING_CONFIRM',
+    ingestId,
     syncStatus: 'SYNCED',
-    idempotencyKey,
+    idempotencyKey: ingestId,
   })
 
-  analyzer.status = 'READY'
+  analyzer.status = status === 'COMPLETED' ? 'READY' : analyzer.status
   analyzer.lastSeenAt = new Date()
+  analyzer.gatewayId = gatewayId || analyzer.gatewayId
   await analyzer.save()
 
-  try {
-    await writeProductionAudit(req, {
-      resource: 'XrfTest',
-      resourceId: test._id,
-      action: AUDIT_ACTIONS.QC_SUBMITTED,
-      detail: `XRF test ${xrfTestId} on ${analyzerId}` + (test.batchNumber ? ` for ${test.batchNumber}` : ''),
-      changes: {
-        analyzerId,
-        elements,
-        batchId: test.batchId,
-        scaleId: test.scaleId,
-        scaleWeight: test.scaleWeight,
-        operationId,
-      },
-    })
-  } catch {
-    // Audit must not block saving a valid analyzer result
+  return { test: test.toObject ? test.toObject() : test, reused: false }
+}
+
+/**
+ * App path: confirm/link a gateway-ingested result. Does NOT accept invented elements.
+ * Simulated creates only when ALLOW_XRF_SIMULATOR and explicit source=simulated (dev).
+ */
+async function submitXrfTest(req, body = {}) {
+  const operationId = body.operationId ? String(body.operationId).trim() : null
+  if (operationId) {
+    const byOp = await XrfTest.findOne({ operationId }).lean()
+    if (byOp) return { test: byOp, reused: true }
   }
 
-  return { test: test.toObject ? test.toObject() : test, reused: false }
+  const xrfTestId = body.xrfTestId ? String(body.xrfTestId).trim() : ''
+  const ingestId = body.ingestId ? String(body.ingestId).trim() : ''
+
+  // Confirm existing gateway result
+  if (xrfTestId || ingestId) {
+    const test = xrfTestId
+      ? await XrfTest.findOne({ xrfTestId })
+      : await XrfTest.findOne({ ingestId })
+    if (!test) throw new ProductionError('XRF test not found — wait for gateway ingest', 404)
+
+    if (Array.isArray(body.elements) && body.elements.length) {
+      throw new ProductionError(
+        'Client cannot supply or override XRF element values. Confirm a gateway-ingested result only.',
+        403,
+      )
+    }
+
+    test.employeeId = req.user?._id || test.employeeId
+    test.employeeName = req.user?.name || test.employeeName
+    test.department = body.department || req.user?.department || test.department
+    test.jobId = body.jobId != null ? String(body.jobId) : test.jobId
+    test.batchId = body.batchId || test.batchId
+    test.batchNumber = body.batchNumber != null ? String(body.batchNumber) : test.batchNumber
+    test.materialId = body.materialId != null ? String(body.materialId) : test.materialId
+    test.scaleId = body.scaleId != null ? String(body.scaleId) : test.scaleId
+    test.scaleWeight = body.scaleWeight != null ? Number(body.scaleWeight) : test.scaleWeight
+    test.deviceId = body.deviceId != null ? String(body.deviceId) : test.deviceId
+    test.operationId = operationId || test.operationId
+    test.confirmationStatus = 'CONFIRMED'
+    test.syncStatus = 'SYNCED'
+    await test.save()
+
+    try {
+      await writeProductionAudit(req, {
+        resource: 'XrfTest',
+        resourceId: test._id,
+        action: AUDIT_ACTIONS.QC_SUBMITTED,
+        detail: `XRF test ${test.xrfTestId} confirmed (${test.source})`,
+        changes: {
+          analyzerId: test.analyzerId,
+          source: test.source,
+          batchId: test.batchId,
+          scaleId: test.scaleId,
+          operationId: test.operationId,
+        },
+      })
+    } catch {
+      // ignore audit failure
+    }
+
+    return { test: test.toObject ? test.toObject() : test, reused: false }
+  }
+
+  // Dev-only simulated create (never production unless ALLOW_XRF_SIMULATOR=true)
+  const wantsSim = String(body.source || '').toLowerCase() === 'simulated'
+  if (!wantsSim) {
+    throw new ProductionError(
+      'XRF elements must come from an authorized gateway ingest. Provide xrfTestId from pending hardware results.',
+      403,
+    )
+  }
+  if (!allowXrfSimulator()) {
+    throw new ProductionError('Simulated XRF results are not allowed in this environment', 403)
+  }
+
+  // Reuse ingest path for sim with gateway-less id
+  const created = await ingestXrfResult(req, {
+    ...body,
+    source: 'simulated',
+    gatewayId: body.gatewayId || 'MG-XRF-SIM',
+    ingestId: operationId || body.ingestId || `sim-${Date.now()}`,
+  })
+  // Auto-confirm sim with operator metadata
+  return submitXrfTest(req, {
+    xrfTestId: created.test.xrfTestId,
+    operationId,
+    batchId: body.batchId,
+    batchNumber: body.batchNumber,
+    jobId: body.jobId,
+    materialId: body.materialId,
+    scaleId: body.scaleId,
+    scaleWeight: body.scaleWeight,
+    department: body.department,
+    deviceId: body.deviceId,
+  })
 }
 
 async function listXrfTests(query = {}) {
   const filter = {}
   if (query.analyzerId) filter.analyzerId = String(query.analyzerId).toUpperCase()
   if (query.batchId) filter.batchId = query.batchId
+  if (query.source) filter.source = String(query.source)
+  if (query.pendingForConfirm === '1' || query.pendingForConfirm === 'true') {
+    filter.confirmationStatus = 'PENDING_CONFIRM'
+  }
   const limit = Math.min(Number(query.limit) || 50, 200)
   const skip = Number(query.skip) || 0
   const tests = await XrfTest.find(filter).sort({ testedAt: -1 }).skip(skip).limit(limit).lean()
@@ -202,11 +302,13 @@ async function getXrfTest(id) {
 
 module.exports = {
   DEFAULT_MG_XRF,
+  allowXrfSimulator,
   ensureDefaultXrfAnalyzers,
   listXrfAnalyzers,
   getXrfAnalyzer,
   patchXrfAnalyzer,
   ingestXrfStatus,
+  ingestXrfResult,
   submitXrfTest,
   listXrfTests,
   getXrfTest,

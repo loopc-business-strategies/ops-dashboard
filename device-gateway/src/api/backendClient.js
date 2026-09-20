@@ -2,21 +2,41 @@ const { createLogger } = require('../utils/logger')
 
 const log = createLogger('backend')
 
-function authHeaders(authToken, gatewayId) {
-  return {
+function authHeaders({ authToken, gatewayId, gatewaySecret }) {
+  const headers = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${authToken}`,
     'x-tenant': 'mg',
     'x-company': 'mg',
     'X-Client': 'mg-device-gateway',
-    'x-gateway-id': gatewayId || '',
+    'X-Gateway-Id': gatewayId || '',
   }
+  if (gatewaySecret) {
+    headers['X-Gateway-Secret'] = gatewaySecret
+  }
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`
+  }
+  return headers
 }
 
-async function postScaleReading({ backendUrl, authToken, gatewayId, reading, eventType = 'weight_reading' }) {
-  if (!backendUrl || !authToken) {
-    log.warn('skip ingest — backendUrl or authToken missing')
+function canIngest({ backendUrl, authToken, gatewaySecret }) {
+  if (!backendUrl) return false
+  if (gatewaySecret) return true
+  if (authToken && String(process.env.MG_GATEWAY_ALLOW_JWT_FALLBACK || '').trim() === '1') return true
+  return false
+}
+
+async function postScaleReading({
+  backendUrl,
+  authToken,
+  gatewayId,
+  gatewaySecret,
+  reading,
+  eventType = 'weight_reading',
+}) {
+  if (!canIngest({ backendUrl, authToken, gatewaySecret })) {
+    log.warn('skip ingest — backendUrl or gateway credentials missing')
     return null
   }
 
@@ -44,7 +64,7 @@ async function postScaleReading({ backendUrl, authToken, gatewayId, reading, eve
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: authHeaders(authToken, gatewayId),
+    headers: authHeaders({ authToken, gatewayId, gatewaySecret }),
     body: JSON.stringify(body),
   })
 
@@ -55,15 +75,15 @@ async function postScaleReading({ backendUrl, authToken, gatewayId, reading, eve
   return data
 }
 
-async function postXrfIngest({ backendUrl, authToken, gatewayId, body }) {
-  if (!backendUrl || !authToken) {
-    log.warn('skip XRF ingest — backendUrl or authToken missing')
+async function postXrfIngest({ backendUrl, authToken, gatewayId, gatewaySecret, body }) {
+  if (!canIngest({ backendUrl, authToken, gatewaySecret })) {
+    log.warn('skip XRF ingest — backendUrl or gateway credentials missing')
     return null
   }
   const url = `${String(backendUrl).replace(/\/$/, '')}/api/mg-floor/xrf/ingest`
   const res = await fetch(url, {
     method: 'POST',
-    headers: authHeaders(authToken, gatewayId),
+    headers: authHeaders({ authToken, gatewayId, gatewaySecret }),
     body: JSON.stringify({ ...body, gatewayId }),
   })
   const data = await res.json().catch(() => ({}))
@@ -71,4 +91,20 @@ async function postXrfIngest({ backendUrl, authToken, gatewayId, body }) {
   return data
 }
 
-module.exports = { postScaleReading, postXrfIngest }
+async function postXrfResult({ backendUrl, authToken, gatewayId, gatewaySecret, body }) {
+  if (!canIngest({ backendUrl, authToken, gatewaySecret })) {
+    log.warn('skip XRF result ingest — backendUrl or gateway credentials missing')
+    return null
+  }
+  const url = `${String(backendUrl).replace(/\/$/, '')}/api/mg-floor/xrf/ingest/result`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: authHeaders({ authToken, gatewayId, gatewaySecret }),
+    body: JSON.stringify({ ...body, gatewayId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.message || `XRF result ingest failed (${res.status})`)
+  return data
+}
+
+module.exports = { postScaleReading, postXrfIngest, postXrfResult }
