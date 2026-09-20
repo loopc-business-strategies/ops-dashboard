@@ -391,6 +391,84 @@ describe('MG Floor sync idempotency', () => {
       })
     expect(confirmOverride.status).toBe(403)
 
+    // Confirm without scaleReadingId → 403
+    const confirmNoReading = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        operationId: 'xrf-confirm-no-reading',
+        batchNumber: 'B-100',
+      })
+    expect(confirmNoReading.status).toBe(403)
+
+    // Unstable reading rejected
+    const unstableIngest = await request(app)
+      .post('/api/mg-floor/scales/ingest')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        deviceId: GATEWAY_ID,
+        scaleId: 'MG-SCALE-001',
+        eventType: 'weight_reading',
+        payload: { weight: 12.5, stable: false, unit: 'g' },
+        idempotencyKey: 'xrf-unstable-1',
+      })
+    expect([200, 202]).toContain(unstableIngest.status)
+    const unstableId = unstableIngest.body.event?._id
+
+    const confirmUnstable = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        operationId: 'xrf-confirm-unstable',
+        scaleReadingId: unstableId,
+      })
+    expect(confirmUnstable.status).toBe(403)
+
+    // Missing reading id
+    const confirmMissing = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId,
+        operationId: 'xrf-confirm-missing-reading',
+        scaleReadingId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+      })
+    expect(confirmMissing.status).toBe(404)
+
+    // Stable reading → confirm OK
+    const stableIngest = await request(app)
+      .post('/api/mg-floor/scales/ingest')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        deviceId: GATEWAY_ID,
+        scaleId: 'MG-SCALE-001',
+        eventType: 'weight_reading',
+        payload: { weight: 125.36, stable: true, unit: 'g' },
+        idempotencyKey: 'xrf-stable-1',
+      })
+    expect([200, 202]).toContain(stableIngest.status)
+    const scaleReadingId = stableIngest.body.event?._id
+    expect(scaleReadingId).toBeTruthy()
+
+    const captured = await request(app)
+      .post('/api/mg-floor/scales/MG-SCALE-001/capture-stable')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({ expectedWeight: 125.36 })
+    expect(captured.status).toBe(200)
+    expect(captured.body.scaleReadingId).toBeTruthy()
+
     const confirmed = await request(app)
       .post('/api/mg-floor/xrf/tests')
       .set('Host', 'api.loopcstrategies.com')
@@ -400,10 +478,14 @@ describe('MG Floor sync idempotency', () => {
         xrfTestId,
         operationId: 'xrf-confirm-1',
         batchNumber: 'B-100',
+        scaleId: 'MG-SCALE-001',
+        scaleReadingId,
       })
     expect([200, 201]).toContain(confirmed.status)
     expect(confirmed.body.test?.confirmationStatus).toBe('CONFIRMED')
     expect(confirmed.body.test?.elements?.[0]?.value).toBe(91.72)
+    expect(String(confirmed.body.test?.scaleReadingId)).toBe(String(scaleReadingId))
+    expect(confirmed.body.test?.scaleWeight).toBe(125.36)
 
     const reused = await request(app)
       .post('/api/mg-floor/xrf/tests')
@@ -416,6 +498,31 @@ describe('MG Floor sync idempotency', () => {
       })
     expect(reused.status).toBe(200)
     expect(reused.body.reused).toBe(true)
+
+    // Second hardware result cannot reuse the same scaleReadingId
+    const ingested2 = await request(app)
+      .post('/api/mg-floor/xrf/ingest/result')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+      .send({
+        analyzerId: 'MG-XRF-001',
+        source: 'hardware',
+        ingestId: 'hw-ingest-2',
+        elements: [{ symbol: 'Au', value: 90.1, unit: '%' }],
+      })
+    expect([200, 201]).toContain(ingested2.status)
+
+    const reuseReading = await request(app)
+      .post('/api/mg-floor/xrf/tests')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        xrfTestId: ingested2.body.test.xrfTestId,
+        operationId: 'xrf-confirm-reuse-reading',
+        scaleReadingId,
+      })
+    expect(reuseReading.status).toBe(409)
 
     // Simulator allowed in test (ALLOW_XRF_SIMULATOR=true)
     const simOk = await request(app)
@@ -626,5 +733,42 @@ describe('MG Floor dynamic device registry', () => {
     expect(devices.status).toBe(200)
     expect(devices.body.scales.length).toBeGreaterThanOrEqual(43)
     expect(devices.body.scales.every((s) => s.gatewayId === GATEWAY_ID)).toBe(true)
+  })
+
+  test('register 100 scales smoke (same dynamic path)', async () => {
+    const user = await createTenantUser('mg')
+    const token = tokenFor(user, 'mg')
+
+    for (let i = 1; i <= 100; i += 1) {
+      const scaleId = `MG-SCALE-${String(i).padStart(3, '0')}`
+      const res = await request(app)
+        .post('/api/mg-floor/scales')
+        .set('Host', 'api.loopcstrategies.com')
+        .set('x-tenant', 'mg')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          scaleId,
+          gatewayId: GATEWAY_ID,
+          connectionType: 'SIMULATOR',
+          department: 'casting',
+        })
+      expect([201, 409]).toContain(res.status)
+    }
+
+    const all = await request(app)
+      .get('/api/mg-floor/scales')
+      .query({ limit: 500 })
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+    expect(all.status).toBe(200)
+    expect(all.body.total).toBeGreaterThanOrEqual(100)
+
+    const devices = await request(app)
+      .get('/api/mg-floor/gateway/devices')
+      .set('Host', 'api.loopcstrategies.com')
+      .set(gatewayHeaders())
+    expect(devices.status).toBe(200)
+    expect(devices.body.scales.length).toBeGreaterThanOrEqual(100)
   })
 })

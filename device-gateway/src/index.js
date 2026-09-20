@@ -1,9 +1,12 @@
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const { ScaleManager } = require('./scales/ScaleManager')
 const { XrfManager } = require('./xrf/XrfManager')
 const { startLocalApi } = require('./api/localServer')
-const { postScaleReading, postXrfIngest, postXrfResult, fetchGatewayDevices } = require('./api/backendClient')
+const { fetchGatewayDevices } = require('./api/backendClient')
+const { DurableOutbox } = require('./outbox/DurableOutbox')
+const { startOutboxWorker } = require('./outbox/worker')
 const { createLogger } = require('./utils/logger')
 
 const log = createLogger('main')
@@ -50,6 +53,7 @@ function loadConfig() {
     bindHost: process.env.MG_GATEWAY_BIND || raw.bindHost || '127.0.0.1',
     localToken: process.env.MG_GATEWAY_LOCAL_TOKEN || raw.localToken || '',
     registryRefreshMs: Number(process.env.MG_GATEWAY_REGISTRY_REFRESH_MS || 60000),
+    dataDir: process.env.MG_GATEWAY_DATA_DIR || path.join(__dirname, '..', 'data'),
   }
 }
 
@@ -71,7 +75,10 @@ async function main() {
     bindHost: config.bindHost,
     auth: config.gatewaySecret ? 'gateway-secret' : (jwtFallback && config.authToken ? 'jwt-fallback' : 'none'),
     scales: (config.scales || []).length,
+    outbox: config.dataDir,
   })
+
+  const outbox = new DurableOutbox({ dataDir: config.dataDir, gatewayId: config.gatewayId })
 
   const scaleManager = new ScaleManager({
     gatewayId: config.gatewayId,
@@ -93,94 +100,101 @@ async function main() {
     gatewaySecret: config.gatewaySecret,
   })
 
-  let lastPushError = null
-  let pushCount = 0
+  const worker = startOutboxWorker({
+    outbox,
+    creds,
+    intervalMs: Number(process.env.MG_GATEWAY_OUTBOX_INTERVAL_MS || 3000),
+  })
+
   const lastPushAtByScale = new Map()
-  const inFlightByScale = new Set()
   const minPushIntervalMs = Number(process.env.MG_GATEWAY_MIN_PUSH_MS || 15000)
-  let rateLimitUntil = 0
   let heartbeatCount = 0
 
-  scaleManager.on('reading', async (reading) => {
+  scaleManager.on('reading', (reading) => {
     if (!reading.stable) return
     const now = Date.now()
-    if (now < rateLimitUntil) return
     const scaleId = reading.scaleId
-    if (inFlightByScale.has(scaleId)) return
     const last = lastPushAtByScale.get(scaleId) || 0
     if (now - last < minPushIntervalMs) return
     lastPushAtByScale.set(scaleId, now)
-    inFlightByScale.add(scaleId)
-    try {
-      await postScaleReading({
-        ...creds(),
-        reading,
-      })
-      pushCount += 1
-      lastPushError = null
-    } catch (err) {
-      lastPushError = err.message
-      if (/too many requests/i.test(err.message)) {
-        rateLimitUntil = Date.now() + Number(process.env.MG_GATEWAY_RATE_LIMIT_BACKOFF_MS || 60000)
-      }
-      log.warn('ingest failed', { scaleId, message: err.message })
-    } finally {
-      inFlightByScale.delete(scaleId)
-    }
+
+    const eventId = `scale:${scaleId}:${reading.timestamp || now}:${reading.weight}:${reading.stable}`
+    outbox.enqueue({
+      eventId,
+      deviceId: reading.deviceId || scaleId,
+      deviceType: 'weighing_scale',
+      eventType: 'SCALE_READING',
+      payload: {
+        eventType: 'weight_reading',
+        reading: {
+          ...reading,
+          // backendClient builds idempotency from reading fields; also pass eventId
+          idempotencyKey: eventId,
+        },
+      },
+    })
   })
 
-  scaleManager.on('lifecycle', async (evt) => {
-    try {
-      await postScaleReading({
-        ...creds(),
+  scaleManager.on('lifecycle', (evt) => {
+    const eventId = `life:${evt.scaleId}:${evt.eventType}:${evt.timestamp || Date.now()}`
+    outbox.enqueue({
+      eventId,
+      deviceId: evt.scaleId,
+      deviceType: 'weighing_scale',
+      eventType: evt.eventType === 'error' ? 'DEVICE_ERROR' : 'DEVICE_STATUS',
+      payload: {
+        eventType: evt.eventType,
+        lifecycleEventType: evt.eventType,
         reading: {
           scaleId: evt.scaleId,
           deviceId: config.gatewayId,
           timestamp: evt.timestamp,
           error: evt.error,
         },
-        eventType: evt.eventType,
-      })
-    } catch (err) {
-      log.warn('lifecycle ingest failed', { scaleId: evt.scaleId, message: err.message })
-    }
+      },
+    })
   })
 
-  xrfManager.on('status', async (status) => {
-    try {
-      await postXrfIngest({
-        ...creds(),
+  xrfManager.on('status', (status) => {
+    const eventId = `xrf-status:${status.analyzerId}:${status.status}:${Date.now()}`
+    outbox.enqueue({
+      eventId,
+      deviceId: status.analyzerId,
+      deviceType: 'xrf_analyzer',
+      eventType: 'XRF_STATUS',
+      payload: {
         body: {
           analyzerId: status.analyzerId,
           eventType: 'status',
           status: status.status,
           error: status.error,
         },
-      })
-    } catch (err) {
-      log.warn('xrf status ingest failed', { message: err.message })
-    }
+      },
+    })
   })
 
-  xrfManager.on('result', async (result) => {
-    try {
-      await postXrfResult({
-        ...creds(),
+  xrfManager.on('result', (result) => {
+    const ingestId = result.ingestId || `gw-${crypto.randomUUID()}`
+    outbox.enqueue({
+      eventId: ingestId,
+      deviceId: result.analyzerId,
+      deviceType: 'xrf_analyzer',
+      eventType: 'XRF_RESULT',
+      payload: {
+        ingestId,
         body: {
           analyzerId: result.analyzerId,
           elements: result.elements || [],
           source: result.source || 'hardware',
           status: result.status || 'COMPLETED',
-          ingestId: result.ingestId,
+          ingestId,
           purity: result.purity,
           fineness: result.fineness,
           originalResult: result,
           rawData: result.rawData || result,
         },
-      })
-    } catch (err) {
-      log.warn('xrf result ingest failed', { message: err.message })
-    }
+      },
+    })
   })
 
   await scaleManager.startAll()
@@ -189,18 +203,25 @@ async function main() {
   const refreshRegistry = async () => {
     try {
       const data = await fetchGatewayDevices(creds())
-      if (!data?.scales) return
-      let mapped = data.scales.map((s) => ({
-        ...s,
-        connectionType: config.mode === 'simulator' ? 'SIMULATOR' : (s.connectionType || 'RS232'),
-        enabled: s.enabled !== false,
-      }))
-      const simCount = Number(process.env.MG_GATEWAY_SIM_SCALE_COUNT || 0)
-      if (config.mode === 'simulator' && simCount > mapped.length) {
-        mapped = expandSimulatorScales(mapped, simCount)
+      if (data?.scales) {
+        let mapped = data.scales.map((s) => ({
+          ...s,
+          connectionType: config.mode === 'simulator' ? 'SIMULATOR' : (s.connectionType || 'RS232'),
+          enabled: s.enabled !== false,
+        }))
+        const simCount = Number(process.env.MG_GATEWAY_SIM_SCALE_COUNT || 0)
+        if (config.mode === 'simulator' && simCount > mapped.length) {
+          mapped = expandSimulatorScales(mapped, simCount)
+        }
+        await scaleManager.syncScales(mapped)
       }
-      await scaleManager.syncScales(mapped)
-      log.info('registry sync ok', { scales: mapped.length })
+      if (Array.isArray(data?.xrfAnalyzers)) {
+        await xrfManager.syncAnalyzers(data.xrfAnalyzers)
+      }
+      log.info('registry sync ok', {
+        scales: data?.scales?.length || 0,
+        xrf: data?.xrfAnalyzers?.length || 0,
+      })
     } catch (err) {
       log.warn('registry sync failed — using local/fallback config', { message: err.message })
     }
@@ -213,13 +234,15 @@ async function main() {
   const heartbeatMs = Number(process.env.MG_GATEWAY_HEARTBEAT_MS || 60000)
   setInterval(() => {
     heartbeatCount += 1
+    const stats = worker.getStats()
     log.info('heartbeat', {
       gatewayId: config.gatewayId,
-      pushCount,
+      pushCount: stats.pushCount,
+      outbox: stats.counts,
       heartbeatCount,
       scales: scaleManager.getStatuses().map((s) => `${s.scaleId}:${s.status}`),
       xrf: xrfManager.getStatuses(),
-      lastPushError,
+      lastPushError: stats.lastError,
     })
   }, heartbeatMs).unref?.()
 
@@ -230,30 +253,35 @@ async function main() {
     gatewayId: config.gatewayId,
     scaleManager,
     xrfManager,
-    getHealth: () => ({
-      ok: true,
-      tenant: 'mg',
-      gatewayId: config.gatewayId,
-      mode: config.mode,
-      xrfMode: config.xrfMode,
-      bindHost: config.bindHost,
-      version: '1.2.0',
-      scales: scaleManager.getStatuses(),
-      xrf: xrfManager.getStatuses(),
-      pushCount,
-      heartbeatCount,
-      lastPushError,
-      startedAt: new Date().toISOString(),
-      driverNotes: {
-        rs232: 'production-ready when serialport installed and COM configured',
-        ethernet: 'TCP line-oriented scales supported',
-        usb: 'stub — not commissioned / not production-ready',
-        bluetooth: 'stub — not commissioned / not production-ready',
-        xrf: config.xrfMode === 'simulator'
-          ? 'simulator only — LANScientific protocol TBD; results tagged simulated'
-          : 'disabled or adapter stub — do not claim hardware verified',
-      },
-    }),
+    getHealth: () => {
+      const stats = worker.getStats()
+      return {
+        ok: true,
+        tenant: 'mg',
+        gatewayId: config.gatewayId,
+        mode: config.mode,
+        xrfMode: config.xrfMode,
+        bindHost: config.bindHost,
+        version: '1.3.0',
+        scales: scaleManager.getStatuses(),
+        xrf: xrfManager.getStatuses(),
+        pushCount: stats.pushCount,
+        outbox: stats.counts,
+        heartbeatCount,
+        lastPushError: stats.lastError,
+        startedAt: new Date().toISOString(),
+        driverNotes: {
+          rs232: 'production-ready when serialport installed and COM configured',
+          ethernet: 'TCP line-oriented scales supported',
+          usb: 'stub — not commissioned / not production-ready',
+          bluetooth: 'stub — not commissioned / not production-ready',
+          xrf: config.xrfMode === 'simulator'
+            ? 'simulator only — LANScientific protocol TBD; results tagged simulated'
+            : 'disabled or adapter stub — do not claim hardware verified',
+          outbox: 'durable file-backed queue (data/outbox.json); survives restart',
+        },
+      }
+    },
   })
 }
 

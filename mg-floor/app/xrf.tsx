@@ -1,8 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
-import { BigButton, LoadingBlock, Screen, StatusPill, Subtitle } from '@/src/components/ui'
-import { fetchXrfDevices, fetchXrfStatus, fetchXrfTests, submitXrfTest } from '@/src/api/floor'
+import { BigButton, LoadingBlock, Screen, StatusPill, Subtitle, WeightDisplay } from '@/src/components/ui'
+import {
+  captureStableReading,
+  fetchScales,
+  fetchXrfDevices,
+  fetchXrfStatus,
+  fetchXrfTests,
+  submitXrfTest,
+} from '@/src/api/floor'
+import { useLiveScale } from '@/src/hooks/useLiveScale'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { useAuth } from '@/src/context/AuthContext'
 import { APP_ENV, IS_PRODUCTION } from '@/src/config/env'
@@ -33,7 +41,9 @@ export default function XrfScreen() {
   const [jobId, setJobId] = useState('')
   const [materialId, setMaterialId] = useState('')
   const [scaleId, setScaleId] = useState('')
-  const [scaleWeight, setScaleWeight] = useState('')
+  const [scales, setScales] = useState<string[]>([])
+  const [scaleReadingId, setScaleReadingId] = useState<string | null>(null)
+  const [capturedWeight, setCapturedWeight] = useState<number | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
   const [elements, setElements] = useState<ElementRow[]>([])
   const [pending, setPending] = useState<PendingTest | null>(null)
@@ -41,6 +51,7 @@ export default function XrfScreen() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const live = useLiveScale(scaleId)
 
   const applyPending = useCallback((test: PendingTest | null) => {
     if (!test) {
@@ -69,12 +80,16 @@ export default function XrfScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      const [devs, st] = await Promise.all([
+      const [devs, st, s] = await Promise.all([
         fetchXrfDevices(),
         fetchXrfStatus(analyzerId).catch(() => ({ status: 'UNKNOWN' })),
+        fetchScales().catch(() => ({ scales: [] as Array<Record<string, unknown>> })),
       ])
       setDevices(devs.devices || [])
       setStatus(String(st.status || 'UNKNOWN'))
+      const ids = (s.scales || []).map((x) => String(x.scaleId))
+      setScales(ids)
+      if (ids[0] && !scaleId) setScaleId(ids[0])
       if (devs.devices?.[0]?.analyzerId && analyzerId === 'MG-XRF-001') {
         setAnalyzerId(String(devs.devices[0].analyzerId))
       }
@@ -87,7 +102,7 @@ export default function XrfScreen() {
     } finally {
       setLoading(false)
     }
-  }, [analyzerId, loadPending])
+  }, [analyzerId, loadPending, scaleId])
 
   useEffect(() => {
     refresh()
@@ -102,6 +117,39 @@ export default function XrfScreen() {
       if (pollRef.current) clearInterval(pollRef.current)
     }
   }, [loadPending])
+
+  const clearCapture = () => {
+    setScaleReadingId(null)
+    setCapturedWeight(null)
+  }
+
+  const onSelectScale = (id: string) => {
+    setScaleId(id)
+    clearCapture()
+  }
+
+  const captureStable = async () => {
+    if (!scaleId) {
+      Alert.alert('Select scale', 'Pick a linked scale first')
+      return
+    }
+    if (!live?.stable || live.weight == null) {
+      Alert.alert('Waiting for stable weight', 'Place material on the scale and wait until STABLE.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      const res = await captureStableReading(scaleId, live.weight)
+      setScaleReadingId(String(res.scaleReadingId))
+      setCapturedWeight(Number(res.weight))
+      Alert.alert('Captured', `Stable reading locked · ${Number(res.weight).toFixed(2)} g`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to capture stable reading')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const waitForGateway = async () => {
     setBusy(true)
@@ -144,7 +192,7 @@ export default function XrfScreen() {
         jobId: jobId.trim() || undefined,
         materialId: materialId.trim() || undefined,
         scaleId: scaleId.trim() || undefined,
-        scaleWeight: scaleWeight ? Number(scaleWeight) : undefined,
+        scaleReadingId: scaleReadingId || undefined,
         department: user?.department || 'quality_control',
         operationId,
         originalResult: { elements: simElements, source: 'simulated' },
@@ -181,6 +229,11 @@ export default function XrfScreen() {
       Alert.alert('Blocked', 'Simulated results cannot be confirmed in production')
       return
     }
+    const isSim = pending.source === 'simulated'
+    if (!isSim && !scaleReadingId) {
+      Alert.alert('Capture scale first', 'Capture a stable scale reading before confirming')
+      return
+    }
     setBusy(true)
     const operationId = createOperationId('xrf_test')
     const payload: Record<string, unknown> = {
@@ -192,7 +245,7 @@ export default function XrfScreen() {
       jobId: jobId.trim() || undefined,
       materialId: materialId.trim() || undefined,
       scaleId: scaleId.trim() || undefined,
-      scaleWeight: scaleWeight ? Number(scaleWeight) : undefined,
+      scaleReadingId: scaleReadingId || undefined,
       department: user?.department || 'quality_control',
       operationId,
     }
@@ -204,10 +257,11 @@ export default function XrfScreen() {
         return
       }
       await submitXrfTest(payload)
-      Alert.alert('Confirmed', 'XRF result linked with audit trail')
+      Alert.alert('Confirmed', 'XRF result linked to scale reading')
       setPending(null)
       setElements([])
       setPhase('idle')
+      clearCapture()
       await loadPending()
     } catch (err) {
       await enqueueOutbox({ operationId, operationType: 'xrf_test', payload, scaleId: scaleId || undefined })
@@ -250,9 +304,44 @@ export default function XrfScreen() {
         <Text style={styles.label}>Job / Material (optional)</Text>
         <TextInput style={styles.input} value={jobId} onChangeText={setJobId} placeholder="Job ID" placeholderTextColor={colors.textMuted} />
         <TextInput style={styles.input} value={materialId} onChangeText={setMaterialId} placeholder="Material ID" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.label}>Linked scale weight (optional)</Text>
-        <TextInput style={styles.input} value={scaleId} onChangeText={setScaleId} placeholder="MG-SCALE-003" placeholderTextColor={colors.textMuted} />
-        <TextInput style={styles.input} value={scaleWeight} onChangeText={setScaleWeight} keyboardType="decimal-pad" placeholder="125.36" placeholderTextColor={colors.textMuted} />
+
+        <Text style={styles.label}>Linked scale</Text>
+        <View style={styles.scaleRow}>
+          {scales.map((id) => (
+            <BigButton
+              key={id}
+              label={id === scaleId ? `✓ ${id}` : id}
+              tone={id === scaleId ? 'accent' : 'neutral'}
+              onPress={() => onSelectScale(id)}
+            />
+          ))}
+        </View>
+        {scaleId ? (
+          <>
+            <WeightDisplay
+              weight={live?.weight ?? null}
+              unit="g"
+              stable={!!live?.stable}
+            />
+            {scaleReadingId ? (
+              <View style={styles.captured}>
+                <StatusPill label="READING LOCKED" tone="ok" />
+                <Text style={styles.hint}>
+                  {capturedWeight != null ? `${capturedWeight.toFixed(2)} g` : '—'} · id {scaleReadingId.slice(-8)}
+                </Text>
+                <BigButton label="CLEAR CAPTURE" onPress={clearCapture} tone="neutral" disabled={busy} />
+              </View>
+            ) : (
+              <BigButton
+                label={busy ? 'CAPTURING…' : 'CAPTURE STABLE'}
+                onPress={captureStable}
+                disabled={busy || !live?.stable}
+              />
+            )}
+          </>
+        ) : (
+          <Text style={styles.hint}>No enabled scales in registry</Text>
+        )}
 
         {phase === 'waiting' ? (
           <Text style={styles.testing}>Waiting for analyzer / gateway…</Text>
@@ -280,7 +369,11 @@ export default function XrfScreen() {
           disabled={busy}
         />
         {phase === 'result' && pending?.xrfTestId ? (
-          <BigButton label={busy ? 'CONFIRMING…' : 'CONFIRM / SAVE METADATA'} onPress={saveResult} disabled={busy} />
+          <BigButton
+            label={busy ? 'CONFIRMING…' : 'CONFIRM / SAVE METADATA'}
+            onPress={saveResult}
+            disabled={busy || (!isSim && !scaleReadingId)}
+          />
         ) : null}
         {ALLOW_APP_SIM ? (
           <BigButton label="RUN SIMULATOR (DEV)" onPress={runSimulator} tone="neutral" disabled={busy} />
@@ -304,6 +397,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: spacing.sm,
   },
+  scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  captured: { marginVertical: spacing.sm, gap: spacing.sm },
   hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm },
   testing: { color: colors.accent, fontSize: 18, fontWeight: '800', textAlign: 'center', marginVertical: spacing.lg },
   result: {

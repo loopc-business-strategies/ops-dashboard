@@ -56,6 +56,22 @@ export async function fetchScaleStatus(scaleId: string) {
   return apiRequest<{ success: boolean } & Record<string, unknown>>(`/api/mg-floor/scales/${scaleId}/status`)
 }
 
+export async function captureStableReading(scaleId: string, expectedWeight?: number | null) {
+  return apiRequest<{
+    success: boolean
+    scaleReadingId: string
+    scaleId: string
+    weight: number
+    unit?: string
+    stable?: boolean
+    recordedAt?: string
+    gatewayId?: string
+  }>(`/api/mg-floor/scales/${scaleId}/capture-stable`, {
+    method: 'POST',
+    body: expectedWeight != null ? { expectedWeight } : {},
+  })
+}
+
 export async function syncOperations(operations: unknown[]) {
   return apiRequest<{ success: boolean; results: unknown[] }>('/api/mg-floor/sync', {
     method: 'POST',

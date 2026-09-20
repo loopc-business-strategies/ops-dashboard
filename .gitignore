@@ -38,6 +38,7 @@ device-gateway/node_modules/
 device-gateway/gateway.local.env
 device-gateway/gateway-token.txt
 device-gateway/gateway-secret.txt
+device-gateway/data/
 
 *.log
 *.cookies/

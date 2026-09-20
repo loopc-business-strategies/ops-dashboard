@@ -47,9 +47,10 @@ async function postScaleReading({
     scaleId: reading.scaleId,
     gatewayId,
     eventType,
-    idempotencyKey: eventType === 'weight_reading'
-      ? `${reading.scaleId}:${reading.timestamp}:${reading.weight}:${reading.stable}`
-      : `${reading.scaleId}:${eventType}:${reading.timestamp || Date.now()}`,
+    idempotencyKey: reading.idempotencyKey
+      || (eventType === 'weight_reading'
+        ? `${reading.scaleId}:${reading.timestamp}:${reading.weight}:${reading.stable}`
+        : `${reading.scaleId}:${eventType}:${reading.timestamp || Date.now()}`),
     recordedAt: reading.timestamp || new Date().toISOString(),
     payload: {
       weight: reading.weight,
