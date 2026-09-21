@@ -1,4 +1,4 @@
-import { formatGrams, formatShiftClock } from './formatters'
+import { formatGrams, formatPct } from './formatters'
 import {
   IconEmployees,
   IconManager,
@@ -8,6 +8,7 @@ import {
   IconUnderProduction,
   IconOutput,
   IconTrendUp,
+  IconWeekly,
 } from './PdIcons'
 
 function CompactKpi({ icon, label, value, hint, hintLines, className = '' }) {
@@ -58,10 +59,8 @@ export default function KpiRow({ model }) {
   if (!model) return null
   const k = model.compactKpis || {}
   const vault = model.vaultKpi || {}
-  const emp = model.employeeKpi || {}
-  const shift = model.shiftKpi || {}
-  const under = model.underProductionKpi || {}
   const day = deltaLabel(k.yesterdayVsToday)
+  const week = deltaLabel(k.weeklyComparison)
 
   const newStockWeight = vault.newStockWeight ?? k.vaultNewStock
   const availableWeight = vault.availableWeight ?? k.vaultAvailable
@@ -70,7 +69,7 @@ export default function KpiRow({ model }) {
   const vaultDisplay = availableWeight != null || newStockWeight != null
     ? formatGrams(availW)
     : '—'
-  const vaultHint = newW > 0 ? `New ${formatGrams(newW)}` : 'Gold in Stock'
+  const vaultHint = newW > 0 ? `New ${formatGrams(newW)}` : null
   const vaultLines = (Array.isArray(vault.products) ? vault.products : [])
     .slice(0, 2)
     .map((row, idx) => ({
@@ -78,38 +77,10 @@ export default function KpiRow({ model }) {
       text: vaultProductLine(row),
     }))
 
-  const onDuty = emp.active ?? k.employees
-  const totalEmp = emp.total
-  const empValue = onDuty != null ? String(onDuty) : '—'
-  const empHint = totalEmp != null ? `${totalEmp} Total` : (onDuty != null ? 'On Duty' : null)
-
-  const manager = k.floorManager || emp.floorManager
-  const managerHint = manager ? 'Online' : null
-
-  const shiftName = k.currentShift || shift.name || '—'
-  const shiftHint = shift.startTime || shift.endTime
-    ? `${formatShiftClock(shift.startTime)} – ${formatShiftClock(shift.endTime)}`
-    : null
-
-  const activeBatches = under.activeBatches ?? model.header?.activeBatches
-  const underValue = activeBatches != null
-    ? `${activeBatches} Batch${Number(activeBatches) === 1 ? '' : 'es'}`
-    : '—'
-
   return (
     <section className="pd-kpi-strip" aria-label="Production KPIs">
-      <CompactKpi
-        icon={<IconEmployees />}
-        label="Employees"
-        value={empValue}
-        hint={empHint}
-      />
-      <CompactKpi
-        icon={<IconManager />}
-        label="Floor Manager"
-        value={manager || 'Not assigned'}
-        hint={managerHint}
-      />
+      <CompactKpi icon={<IconEmployees />} label="Employees" value={k.employees != null ? k.employees : '—'} />
+      <CompactKpi icon={<IconManager />} label="Floor Manager" value={k.floorManager || 'Not assigned'} />
       <CompactKpi
         icon={<IconVault />}
         label="Vault Available"
@@ -118,22 +89,16 @@ export default function KpiRow({ model }) {
         hintLines={vaultLines}
         className="pd-kpi-compact--vault"
       />
-      <CompactKpi
-        icon={<IconShift />}
-        label="Current Shift"
-        value={shiftName}
-        hint={shiftHint}
-      />
+      <CompactKpi icon={<IconShift />} label="Current Shift" value={k.currentShift || '—'} />
       <CompactKpi
         icon={<IconProduction />}
         label="Total Production Today"
         value={k.totalProductionToday != null ? formatGrams(k.totalProductionToday) : '—'}
-        hint={day.tone !== 'muted' ? day.text : undefined}
       />
       <CompactKpi
         icon={<IconUnderProduction />}
         label="Under Production"
-        value={underValue}
+        value={k.underProduction != null ? formatGrams(k.underProduction) : '—'}
       />
       <CompactKpi
         icon={<IconOutput />}
@@ -144,6 +109,12 @@ export default function KpiRow({ model }) {
         icon={<IconTrendUp />}
         label="Yesterday vs Today"
         value={<span className={`pd-delta pd-delta--${day.tone}`}>{day.text}</span>}
+      />
+      <CompactKpi
+        icon={<IconWeekly />}
+        label="Weekly Comparison"
+        value={<span className={`pd-delta pd-delta--${week.tone}`}>{week.text}</span>}
+        hint={week.tone !== 'muted' && k.weeklyComparison != null ? formatPct(Math.abs(Number(k.weeklyComparison))) : undefined}
       />
     </section>
   )
