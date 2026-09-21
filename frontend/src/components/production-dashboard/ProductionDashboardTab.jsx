@@ -225,8 +225,9 @@ export default function ProductionDashboardTab() {
             onViewAll={() => actions.clearDepartment()}
           />
 
-          {deptDetail ? (
-            <div className="pd-dept-drawer" role="status">
+          {/* Mid/bottom panels + dept drawer hidden from UI (logic/handlers retained). */}
+          {false ? (
+          <div className="pd-dept-drawer" role="status">
               <strong>{deptDetail.name || deptDetail.label || selectedDept?.name || 'Department'}</strong>
               <span className="pd-muted">
                 {' '}
@@ -240,6 +241,7 @@ export default function ProductionDashboardTab() {
             </div>
           ) : null}
 
+          {false ? (
           <div className="pd-mid-quad">
             <MetalMovementLedger
               rows={model.metalMovementRows}
@@ -285,7 +287,9 @@ export default function ProductionDashboardTab() {
               onResolve={(id) => actions.resolveAlert(id)}
             />
           </div>
+          ) : null}
 
+          {false ? (
           <div className="pd-row-bottom-split pd-row-bottom-terminal">
             <BatchTraceability
               batchRows={model.batchMonitorRows}
@@ -314,6 +318,7 @@ export default function ProductionDashboardTab() {
               })}
             />
           </div>
+          ) : null}
         </div>
       ) : null}
 

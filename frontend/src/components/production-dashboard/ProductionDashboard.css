@@ -738,7 +738,7 @@
 /* —— Reference layout (navy header + compact KPIs + dept cards) —— */
 
 .pd-layout--reference {
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -1656,7 +1656,7 @@
 }
 
 .pd-layout--control-center {
-  grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 0.35rem;
   overflow: hidden;
   min-height: 0;
