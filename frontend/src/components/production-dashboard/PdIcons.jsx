@@ -259,6 +259,73 @@ export function IconAlertInfo(props) {
   )
 }
 
+export function IconStar(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 17.9l.9-5.4-3.9-3.8 5.4-.8L12 3z" />
+    </Svg>
+  )
+}
+
+export function IconBriefcase(props) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M3 12h18" />
+    </Svg>
+  )
+}
+
+export function IconClock(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </Svg>
+  )
+}
+
+export function IconBarChart(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4 20V10" />
+      <path d="M10 20V4" />
+      <path d="M16 20v-7" />
+      <path d="M22 20v-4" />
+    </Svg>
+  )
+}
+
+export function IconMetalIn(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 4v12" />
+      <path d="m7 11 5 5 5-5" />
+      <path d="M5 20h14" />
+    </Svg>
+  )
+}
+
+export function IconMetalOut(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 20V8" />
+      <path d="m7 13 5-5 5 5" />
+      <path d="M5 4h14" />
+    </Svg>
+  )
+}
+
+export function IconLossWarn(props) {
+  return (
+    <Svg {...props}>
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </Svg>
+  )
+}
+
 const DEPT_ICONS = {
   vault_room: IconVault,
   melting: IconMelting,
