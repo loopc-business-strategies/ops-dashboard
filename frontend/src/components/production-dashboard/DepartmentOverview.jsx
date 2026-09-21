@@ -90,18 +90,18 @@ export default function DepartmentOverview({
   assemblyTables,
   selectedDeptKey,
   onSelectDept,
-  onMetalInOut,
-  onOperatorInOut,
-  onViewDepartment,
-  onViewAll,
-  permissions,
+  onMetalInOut: _onMetalInOut,
+  onOperatorInOut: _onOperatorInOut,
+  onViewDepartment: _onViewDepartment,
+  onViewAll: _onViewAll,
+  permissions: _permissions,
 }) {
   const list = cards || []
   const [assemblyOpen, setAssemblyOpen] = useState(false)
   const selected = list.find((c) => c.key === selectedDeptKey) || null
 
   return (
-    <section className="pd-dept-row" aria-label="Department status and actions">
+    <section className="pd-dept-row" aria-label="Department status">
       <div className="pd-panel pd-dept-status">
         <div className="pd-panel-head">
           <h2 className="pd-panel-title">Department Status</h2>
@@ -129,48 +129,6 @@ export default function DepartmentOverview({
           </div>
         )}
       </div>
-
-      <aside className="pd-panel pd-quick-actions" aria-label="Department quick actions">
-        <div className="pd-panel-head">
-          <h2 className="pd-panel-title">Quick Actions</h2>
-        </div>
-        <div className="pd-quick-stack">
-          <button
-            type="button"
-            className="pd-quick-btn pd-quick-btn--metal"
-            onClick={() => onMetalInOut?.()}
-            disabled={!permissions?.canCreatePass && !permissions?.canReceive && !permissions?.canIssue}
-            title={!permissions?.canCreatePass ? 'No metal transfer permission' : 'Metal IN / OUT'}
-          >
-            Metal IN / OUT
-          </button>
-          <button
-            type="button"
-            className="pd-quick-btn pd-quick-btn--operator"
-            onClick={() => onOperatorInOut?.()}
-            disabled={!permissions?.canFloorSession}
-            title={!permissions?.canFloorSession ? 'No floor session permission' : 'Operator IN / OUT'}
-          >
-            Operator IN / OUT
-          </button>
-          <button
-            type="button"
-            className="pd-quick-btn pd-quick-btn--view"
-            onClick={() => onViewDepartment?.(selectedDeptKey)}
-            disabled={!selectedDeptKey}
-            title={selectedDeptKey ? 'View selected department' : 'Select a department first'}
-          >
-            View Department
-          </button>
-          <button
-            type="button"
-            className="pd-quick-btn pd-quick-btn--all"
-            onClick={() => onViewAll?.()}
-          >
-            View All Departments
-          </button>
-        </div>
-      </aside>
     </section>
   )
 }
