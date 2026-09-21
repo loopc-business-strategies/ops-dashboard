@@ -1,56 +1,16 @@
 import { useState } from 'react'
 import { formatGrams } from './formatters'
-import { resolveDeptCardDisplay } from './deptCardDisplay'
-import {
-  DeptIcon,
-  IconStar,
-  IconBriefcase,
-  IconClock,
-  IconBarChart,
-  IconMetalIn,
-  IconMetalOut,
-  IconLossWarn,
-} from './PdIcons'
+import { DeptIcon } from './PdIcons'
 
 function statusClass(status) {
   return String(status || 'Idle').toLowerCase().replace(/\s+/g, '-')
 }
 
-function toneClass(key) {
-  return `pd-dept-card--tone-${String(key || '').replace(/_/g, '-')}`
-}
-
-function RatingStars({ rating }) {
-  const n = Number(rating)
-  if (!Number.isFinite(n)) return <span className="pd-dept-rating-na">—</span>
-  return (
-    <span className="pd-dept-rating" title={`${n.toFixed(1)}`}>
-      <IconStar size={12} className="pd-dept-rating-star" />
-      <span>{n.toFixed(1)}</span>
-    </span>
-  )
-}
-
-function DeptCard({
-  card,
-  batchMonitorRows,
-  employeeRatings,
-  selected,
-  onSelect,
-  expanded,
-  onToggle,
-  tables,
-}) {
-  const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings)
-  const tone = statusClass(ui.status)
-  const [showAllLoss, setShowAllLoss] = useState(false)
-  const preview = ui.lossPreviewCount || 3
-  const lossVisible = showAllLoss ? ui.lossRows : ui.lossRows.slice(0, preview)
-  const hasMoreLoss = ui.lossRows.length > preview
-
+function DeptCard({ card, selected, onSelect, expanded, onToggle, tables }) {
+  const tone = statusClass(card.status)
   return (
     <article
-      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${expanded ? ' pd-dept-card--expanded' : ''}${selected ? ' pd-dept-card--selected' : ''}`}
+      className={`pd-dept-card pd-dept-card--${tone}${card.isAssembly ? ' pd-dept-card--assembly' : ''}${expanded ? ' pd-dept-card--expanded' : ''}${selected ? ' pd-dept-card--selected' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect?.(card.key)}
@@ -64,114 +24,37 @@ function DeptCard({
     >
       <div className="pd-dept-card-head">
         <span className="pd-dept-icon-wrap" aria-hidden>
-          <DeptIcon deptKey={ui.key} size={22} />
+          <DeptIcon deptKey={card.key} />
         </span>
-        <div className="pd-dept-title-block">
-          <h3 className="pd-dept-name">{ui.name}</h3>
-          <p className="pd-dept-subtitle">{ui.subtitle}</p>
-        </div>
+        <h3 className="pd-dept-name">{card.name}</h3>
         <span className={`pd-status-pill pd-status-pill--${tone}`}>
           <span className="pd-status-dot" aria-hidden />
-          {ui.status || 'Idle'}
+          {card.status || 'Idle'}
         </span>
       </div>
-
-      <div className="pd-dept-mid">
-        <div className="pd-dept-emp-block">
-          <div className="pd-dept-section-label">Employees ({ui.employeeCount})</div>
-          <table className="pd-dept-emp-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Rating</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ui.employees.map((emp) => (
-                <tr key={`${ui.key}-${emp.name}`}>
-                  <td>{emp.name}</td>
-                  <td><RatingStars rating={emp.rating} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <dl className="pd-dept-meta pd-dept-meta--ref">
+        <div>
+          <dt>Metal Balance</dt>
+          <dd>{card.metalBalance != null ? formatGrams(card.metalBalance) : '—'}</dd>
         </div>
-
-        <ul className="pd-dept-batch-stats">
-          <li>
-            <span className="pd-dept-stat-icon pd-dept-stat-icon--batches" aria-hidden>
-              <IconBriefcase size={16} />
-            </span>
-            <span className="pd-dept-stat-label">Batches</span>
-            <strong className="pd-dept-stat-value">{ui.batches}</strong>
-          </li>
-          <li>
-            <span className="pd-dept-stat-icon pd-dept-stat-icon--time" aria-hidden>
-              <IconClock size={16} />
-            </span>
-            <span className="pd-dept-stat-label">Time / Batch</span>
-            <strong className="pd-dept-stat-value">{ui.timePerBatchLabel}</strong>
-          </li>
-          <li>
-            <span className="pd-dept-stat-icon pd-dept-stat-icon--avg" aria-hidden>
-              <IconBarChart size={16} />
-            </span>
-            <span className="pd-dept-stat-label">Avg. Time</span>
-            <strong className="pd-dept-stat-value">{ui.avgTimeLabel}</strong>
-          </li>
-        </ul>
-      </div>
-
-      <div className="pd-dept-bottom">
-        <div className="pd-dept-metal-cell pd-dept-metal-cell--in">
-          <span className="pd-dept-metal-ico" aria-hidden>
-            <IconMetalIn size={16} />
-          </span>
-          <span className="pd-dept-metal-label">Metal IN</span>
-          <strong className="pd-dept-metal-value">{formatGrams(ui.metalIn)}</strong>
+        <div>
+          <dt>Metal IN</dt>
+          <dd>{card.metalIn != null ? formatGrams(card.metalIn) : '—'}</dd>
         </div>
-        <div className="pd-dept-metal-cell pd-dept-metal-cell--out">
-          <span className="pd-dept-metal-ico" aria-hidden>
-            <IconMetalOut size={16} />
-          </span>
-          <span className="pd-dept-metal-label">Metal OUT</span>
-          <strong className="pd-dept-metal-value">{formatGrams(ui.metalOut)}</strong>
+        <div>
+          <dt>Metal OUT</dt>
+          <dd>{card.metalOut != null ? formatGrams(card.metalOut) : '—'}</dd>
         </div>
-        <div className="pd-dept-loss">
-          <div className="pd-dept-loss-head">
-            <span className="pd-dept-loss-icon" aria-hidden>
-              <IconLossWarn size={14} />
-            </span>
-            <span>Metal Loss (g)</span>
-          </div>
-          <ul className="pd-dept-loss-list">
-            {lossVisible.map((r) => (
-              <li key={`${ui.key}-loss-${r.index}`}>
-                <span>{r.label}</span>
-                <strong>{Number(r.loss).toFixed(2)} g</strong>
-              </li>
-            ))}
-            <li className="pd-dept-loss-avg">
-              <span>Avg</span>
-              <strong>{Number(ui.lossAvg).toFixed(2)} g</strong>
-            </li>
-          </ul>
-          {hasMoreLoss ? (
-            <button
-              type="button"
-              className="pd-btn pd-btn--ghost pd-dept-loss-more"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowAllLoss((v) => !v)
-              }}
-            >
-              {showAllLoss ? 'Hide batches' : `View all batches (${ui.lossRows.length})`}
-            </button>
-          ) : null}
+        <div>
+          <dt>Active Batch</dt>
+          <dd>{card.batchNumber || '—'}</dd>
         </div>
-      </div>
-
-      {ui.isAssembly ? (
+        <div>
+          <dt>Employees</dt>
+          <dd>{card.employeeCount != null ? card.employeeCount : '—'}</dd>
+        </div>
+      </dl>
+      {card.isAssembly ? (
         <button
           type="button"
           className="pd-btn pd-btn--ghost pd-dept-expand"
@@ -180,10 +63,10 @@ function DeptCard({
             onToggle?.()
           }}
         >
-          {expanded ? 'Hide tables' : `Show ${ui.tableCount || 15} tables`}
+          {expanded ? 'Hide tables' : `Show ${card.tableCount || 15} tables`}
         </button>
       ) : null}
-      {ui.isAssembly && expanded ? (
+      {card.isAssembly && expanded ? (
         <div className="pd-assembly-grid" role="list" aria-label="Assembly tables">
           {(tables || []).map((t) => {
             const tTone = statusClass(t.status)
@@ -205,8 +88,6 @@ function DeptCard({
 export default function DepartmentOverview({
   cards,
   assemblyTables,
-  batchMonitorRows,
-  employeeRatings,
   selectedDeptKey,
   onSelectDept,
   onMetalInOut: _onMetalInOut,
@@ -217,15 +98,18 @@ export default function DepartmentOverview({
 }) {
   const list = cards || []
   const [assemblyOpen, setAssemblyOpen] = useState(false)
+  const selected = list.find((c) => c.key === selectedDeptKey) || null
 
   return (
     <section className="pd-dept-row" aria-label="Department status">
       <div className="pd-panel pd-dept-status">
-        <div className="pd-panel-head pd-panel-head--slim">
-          <div>
-            <h2 className="pd-panel-title">Department Status</h2>
-            <p className="pd-panel-sub">Real-time production details by department</p>
-          </div>
+        <div className="pd-panel-head">
+          <h2 className="pd-panel-title">Department Status</h2>
+          {selected ? (
+            <span className="pd-panel-hint">Selected: {selected.name}</span>
+          ) : (
+            <span className="pd-panel-hint">Click a department to control</span>
+          )}
         </div>
         {!list.length ? (
           <p className="pd-empty">No departments configured</p>
@@ -235,8 +119,6 @@ export default function DepartmentOverview({
               <DeptCard
                 key={card.key}
                 card={card}
-                batchMonitorRows={batchMonitorRows}
-                employeeRatings={employeeRatings}
                 selected={selectedDeptKey === card.key}
                 onSelect={onSelectDept}
                 expanded={card.isAssembly && assemblyOpen}
