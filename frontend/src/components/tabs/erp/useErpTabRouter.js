@@ -33,7 +33,6 @@ export function useErpTabRouter({
   loadAccounts,
   loadCustomers,
   loadVendors,
-  loadVendorsQuick,
   loadVendorDetails,
   loadVendorPaymentCalendar,
   loadVendorComplianceSummary,
