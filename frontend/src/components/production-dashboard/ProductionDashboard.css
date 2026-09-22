@@ -1589,15 +1589,22 @@
 .pd-dept-metric {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.15rem;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.2rem;
   min-width: 0;
   padding: 0 0.15rem;
 }
 
 .pd-dept-metric + .pd-dept-metric {
   border-left: 1px solid #E2E8F0;
+}
+
+.pd-dept-metric-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .pd-dept-metric-ico {
@@ -1643,10 +1650,11 @@
   color: var(--pd-text);
   line-height: 1.15;
   white-space: nowrap;
+  padding-left: 0.1rem;
 }
 
 .pd-dept-metric--batches {
-  align-items: stretch;
+  align-items: flex-start;
   text-align: left;
   gap: 0.2rem;
 }
@@ -1659,7 +1667,6 @@
 }
 
 .pd-dept-batches-count {
-  margin-left: auto;
   font-size: 15px;
   font-weight: 700;
   color: var(--pd-text);
@@ -1684,8 +1691,9 @@
 
 .pd-dept-batches-row {
   display: flex;
-  justify-content: space-between;
-  gap: 0.35rem;
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 0.5rem;
   font-size: 10.5px;
   min-width: 0;
 }

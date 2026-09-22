@@ -117,17 +117,21 @@ function DeptCard({
 
       <div className="pd-dept-metrics">
         <div className="pd-dept-metric pd-dept-metric--in">
-          <span className="pd-dept-metric-ico" aria-hidden>
-            <IconMetalIn size={16} />
-          </span>
-          <span className="pd-dept-metric-label">Metal IN</span>
+          <div className="pd-dept-metric-head">
+            <span className="pd-dept-metric-ico" aria-hidden>
+              <IconMetalIn size={16} />
+            </span>
+            <span className="pd-dept-metric-label">Metal IN</span>
+          </div>
           <strong className="pd-dept-metric-value">{formatGrams(ui.metalIn)}</strong>
         </div>
         <div className="pd-dept-metric pd-dept-metric--out">
-          <span className="pd-dept-metric-ico" aria-hidden>
-            <IconMetalOut size={16} />
-          </span>
-          <span className="pd-dept-metric-label">Metal OUT</span>
+          <div className="pd-dept-metric-head">
+            <span className="pd-dept-metric-ico" aria-hidden>
+              <IconMetalOut size={16} />
+            </span>
+            <span className="pd-dept-metric-label">Metal OUT</span>
+          </div>
           <strong className="pd-dept-metric-value">{formatGrams(ui.metalOut)}</strong>
         </div>
         <div className="pd-dept-metric pd-dept-metric--batches">
