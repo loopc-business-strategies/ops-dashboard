@@ -34,9 +34,6 @@ mg-floor/android/app/.cxx/
 mg-floor/android/build/
 mg-floor/android/
 mg-floor/.expo/
-mg-factory/android/
-mg-factory/.expo/
-mg-factory/node_modules/
 device-gateway/node_modules/
 device-gateway/gateway.local.env
 device-gateway/gateway-token.txt

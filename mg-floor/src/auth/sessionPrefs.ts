@@ -76,7 +76,7 @@ export async function authenticateWithBiometric(): Promise<{ username: string; p
   if (!available) return null
   try {
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Sign in to MG Factory',
+      promptMessage: 'Sign in to MG Floor',
       cancelLabel: 'Cancel',
       disableDeviceFallback: false,
     })

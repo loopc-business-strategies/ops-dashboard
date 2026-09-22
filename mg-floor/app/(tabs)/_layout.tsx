@@ -45,7 +45,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'MG FACTORY',
+          title: 'MG FLOOR',
           tabBarLabel: ({ focused }) => <TabLabel label="HOME" focused={focused} />,
         }}
       />

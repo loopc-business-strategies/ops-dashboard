@@ -3,11 +3,11 @@
  * Build a release APK and stage a copy for tablet/phone sideload (no ADB).
  *
  * Usage (from repo root):
- *   npm run mg-factory:apk:tablet
+ *   npm run mg-floor:apk:tablet
  *   npm run mobile:apk:tablet
- *   node scripts/build-and-stage-apk.mjs --app mg-factory
- *   node scripts/build-and-stage-apk.mjs --app mg-factory --stage-only
- *   node scripts/build-and-stage-apk.mjs --app mg-factory --out "D:\share"
+ *   node scripts/build-and-stage-apk.mjs --app mg-floor
+ *   node scripts/build-and-stage-apk.mjs --app mg-floor --stage-only
+ *   node scripts/build-and-stage-apk.mjs --app mobile --out "D:\share"
  *
  * After it finishes, copy the staged .apk onto the tablet (USB file transfer,
  * Drive, WhatsApp, etc.), open the file, tap Install.
@@ -22,19 +22,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
 const isWin = process.platform === 'win32'
 
-/** @typedef {'mg-factory' | 'mobile' | 'mg-floor'} AppId */
+/** @typedef {'mobile' | 'mg-floor'} AppId */
 
 /** @type {Record<AppId, { label: string, packageDir: string, apkRel: string, winBuildCmd: string | null, npmBuild: string, typecheck: string | null, stagedName: string }>} */
 const APPS = {
-  'mg-factory': {
-    label: 'MG Factory',
-    packageDir: 'mg-factory',
-    apkRel: path.join('mg-factory', 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'),
-    winBuildCmd: path.join('scripts', 'build-mg-factory-apk-subst-q.cmd'),
-    npmBuild: 'mg-factory:build:android:local:apk',
-    typecheck: 'typecheck:mg-factory',
-    stagedName: 'mg-factory-release.apk',
-  },
   mobile: {
     label: 'Nexa mobile',
     packageDir: 'mobile',
@@ -57,7 +48,7 @@ const APPS = {
 
 function parseArgs(argv) {
   /** @type {AppId} */
-  let app = 'mg-factory'
+  let app = 'mg-floor'
   let stageOnly = false
   /** @type {string | null} */
   let outDir = null
@@ -82,7 +73,7 @@ function parseArgs(argv) {
   }
 
   if (!APPS[app]) {
-    console.error(`Unknown --app ${app}. Use: mg-factory | mobile | mg-floor`)
+    console.error(`Unknown --app ${app}. Use: mobile | mg-floor`)
     process.exit(1)
   }
 
@@ -93,7 +84,7 @@ function printHelp() {
   console.log(`Build release APK + copy to Desktop/dist for tablet sideload (no ADB).
 
 Usage:
-  node scripts/build-and-stage-apk.mjs --app <mg-factory|mobile|mg-floor> [options]
+  node scripts/build-and-stage-apk.mjs --app <mobile|mg-floor> [options]
 
 Options:
   --stage-only       Skip build; only copy an existing APK
@@ -135,20 +126,13 @@ function fileExists(filePath) {
 }
 
 /**
- * Resolve APK: repo tree first, then C:\\mgf for factory Windows builds.
+ * Resolve APK from the repo tree.
  * @param {AppId} appId
  */
 function resolveApkSource(appId) {
   const cfg = APPS[appId]
-  const candidates = [path.join(repoRoot, cfg.apkRel)]
-  if (appId === 'mg-factory') {
-    candidates.push(
-      path.join('C:\\mgf', 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'),
-    )
-  }
-  for (const candidate of candidates) {
-    if (fileExists(candidate)) return candidate
-  }
+  const candidate = path.join(repoRoot, cfg.apkRel)
+  if (fileExists(candidate)) return candidate
   return null
 }
 
@@ -194,9 +178,6 @@ function stageApk(appId, extraOut) {
   if (!src) {
     console.error(`APK not found for ${cfg.label}. Expected:`)
     console.error(`  ${path.join(repoRoot, cfg.apkRel)}`)
-    if (appId === 'mg-factory') {
-      console.error('  C:\\mgf\\android\\app\\build\\outputs\\apk\\release\\app-release.apk')
-    }
     console.error('\nRun without --stage-only to build first.')
     process.exit(1)
   }

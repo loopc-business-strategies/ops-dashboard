@@ -47,7 +47,7 @@ export function filterNavByPermissions(
 }
 
 export const SECTION_LABELS: Record<string, string> = {
-  main: 'MG FACTORY',
+  main: 'MG FLOOR',
   production: 'PRODUCTION',
   qc: 'QC',
   operations: 'OPERATIONS',

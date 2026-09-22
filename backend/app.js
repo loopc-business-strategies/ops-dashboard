@@ -383,7 +383,6 @@ function createApp() {
   app.use('/api/scan', require('./routes/scanResolve'))
   app.use('/api/hardware', require('./routes/hardwareGateway'))
   app.use('/api/mg-floor', require('./routes/mgFloor'))
-  app.use('/api/mg-factory', require('./routes/mgFactory'))
   app.use('/api/shipments', require('./routes/shipments'))
   app.use('/api/admin', cleanupRoutes)
   app.use('/api/integrations/sales-ai', integrationsSalesAiRoutes)

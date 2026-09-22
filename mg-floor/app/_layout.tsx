@@ -28,7 +28,7 @@ function ConfigErrorScreen({ message }: { message: string }) {
 
   return (
     <View style={styles.configWrap}>
-      <Text style={styles.configBrand}>MG Factory</Text>
+      <Text style={styles.configBrand}>MG Floor</Text>
       <Text style={styles.configTitle}>Configuration error</Text>
       <Text style={styles.configBody}>{message}</Text>
       <Text style={styles.configMeta}>The app opened safely. Fix the build env and reinstall.</Text>
@@ -87,7 +87,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (loading || !deptReady) {
     return (
       <Screen>
-        <LoadingBlock label="Starting MG Factory…" />
+        <LoadingBlock label="Starting MG Floor…" />
       </Screen>
     )
   }

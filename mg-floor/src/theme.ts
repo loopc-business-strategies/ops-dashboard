@@ -27,6 +27,6 @@ export const spacing = {
 
 export const brand = {
   company: 'Modern Gold',
-  appName: 'MG FACTORY',
-  tagline: 'Production Management',
+  appName: 'MG FLOOR',
+  tagline: 'Production Floor',
 }

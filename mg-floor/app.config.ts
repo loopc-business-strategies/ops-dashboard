@@ -19,7 +19,7 @@ const apiUrl = apiUrlFromEnv || (isLocalDev ? 'http://localhost:5000' : PROD_API
 const usesCleartextTraffic = /^http:\/\//i.test(apiUrl)
 
 const config = {
-  name: 'MG Factory',
+  name: 'MG Floor',
   slug: 'mg-floor',
   version: APP_VERSION,
   orientation: 'default',
@@ -61,14 +61,14 @@ const config = {
     [
       'expo-camera',
       {
-        cameraPermission: 'Allow MG Factory to scan job and batch barcodes.',
+        cameraPermission: 'Allow MG Floor to scan job and batch barcodes.',
       },
     ],
     'expo-secure-store',
     [
       'expo-local-authentication',
       {
-        faceIDPermission: 'Allow MG Factory to use Face ID for employee sign-in.',
+        faceIDPermission: 'Allow MG Floor to use Face ID for employee sign-in.',
       },
     ],
   ],

@@ -59,7 +59,7 @@ const createToken = (id, company, expiresIn = process.env.JWT_EXPIRES_IN || '8h'
 // Helper: send user data + token as response
 const isMobileClientRequest = (req) => {
   const client = String(req?.headers?.['x-client'] || req?.headers?.['X-Client'] || '').trim().toLowerCase()
-  return client === 'mobile' || client === 'mg-mobile' || client === 'mg-floor' || client === 'mg-factory'
+  return client === 'mobile' || client === 'mg-mobile' || client === 'mg-floor'
 }
 
 const sendToken = async (user, status, res, company, req = null) => {
