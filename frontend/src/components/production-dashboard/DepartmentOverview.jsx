@@ -75,22 +75,14 @@ function DeptCard({
       <div className="pd-dept-mid">
         <div className="pd-dept-emp-block">
           <div className="pd-dept-section-label">Employees ({ui.employeeCount})</div>
-          <table className="pd-dept-emp-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Rating</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ui.employees.map((emp) => (
-                <tr key={`${ui.key}-${emp.name}`}>
-                  <td>{emp.name}</td>
-                  <td><RatingStars rating={emp.rating} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="pd-dept-emp-list">
+            {ui.employees.map((emp) => (
+              <li key={`${ui.key}-${emp.name}`}>
+                <span className="pd-dept-emp-name">{emp.name}</span>
+                <RatingStars rating={emp.rating} />
+              </li>
+            ))}
+          </ul>
         </div>
 
         <ul className="pd-dept-batch-stats">
@@ -204,33 +196,25 @@ export default function DepartmentOverview({
 
   return (
     <section className="pd-dept-row" aria-label="Department status">
-      <div className="pd-panel pd-dept-status">
-        <div className="pd-panel-head pd-panel-head--slim">
-          <div>
-            <h2 className="pd-panel-title">Department Status</h2>
-            <p className="pd-panel-sub">Real-time production details by department</p>
-          </div>
+      {!list.length ? (
+        <p className="pd-empty">No departments configured</p>
+      ) : (
+        <div className="pd-dept-grid">
+          {list.map((card) => (
+            <DeptCard
+              key={card.key}
+              card={card}
+              batchMonitorRows={batchMonitorRows}
+              employeeRatings={employeeRatings}
+              selected={selectedDeptKey === card.key}
+              onSelect={onSelectDept}
+              expanded={card.isAssembly && assemblyOpen}
+              onToggle={() => setAssemblyOpen((v) => !v)}
+              tables={assemblyTables}
+            />
+          ))}
         </div>
-        {!list.length ? (
-          <p className="pd-empty">No departments configured</p>
-        ) : (
-          <div className="pd-dept-grid">
-            {list.map((card) => (
-              <DeptCard
-                key={card.key}
-                card={card}
-                batchMonitorRows={batchMonitorRows}
-                employeeRatings={employeeRatings}
-                selected={selectedDeptKey === card.key}
-                onSelect={onSelectDept}
-                expanded={card.isAssembly && assemblyOpen}
-                onToggle={() => setAssemblyOpen((v) => !v)}
-                tables={assemblyTables}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      )}
     </section>
   )
 }
