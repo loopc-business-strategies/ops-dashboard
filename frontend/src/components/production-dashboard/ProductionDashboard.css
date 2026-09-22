@@ -1645,7 +1645,7 @@
 .pd-dept-metric--out .pd-dept-metric-label { color: #be123c; }
 
 .pd-dept-metric-value {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--pd-text);
   line-height: 1.15;
@@ -1767,7 +1767,7 @@
 .pd-dept-loss-list li strong {
   font-weight: 700;
   color: var(--pd-text);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .pd-dept-loss-avg strong { color: #B45309; }
