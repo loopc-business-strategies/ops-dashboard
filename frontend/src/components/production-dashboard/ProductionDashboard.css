@@ -1414,10 +1414,6 @@
   background: #ffffff;
 }
 
-.pd-dept-card--assembly.pd-dept-card--expanded {
-  grid-column: 1 / -1;
-}
-
 .pd-dept-card-head {
   display: flex;
   align-items: flex-start;
@@ -1952,46 +1948,6 @@
   pointer-events: none;
 }
 
-.pd-dept-expand {
-  align-self: flex-start;
-  margin-top: 0.1rem;
-}
-
-.pd-assembly-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.35rem;
-  margin-top: 0.25rem;
-  padding-top: 0.4rem;
-  border-top: 1px dashed var(--pd-border);
-}
-
-.pd-table-tile {
-  border: 1px solid var(--pd-border);
-  border-radius: 7px;
-  background: #fff;
-  padding: 0.35rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  font-size: 10.5px;
-  min-width: 0;
-}
-
-.pd-table-tile strong {
-  font-size: 11px;
-}
-
-.pd-table-tile--running {
-  border-color: #86efac;
-  background: #f0fdf4;
-}
-
-.pd-table-tile--waiting {
-  border-color: #fcd34d;
-  background: #fffbeb;
-}
-
 .pd-flow-row {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
@@ -2225,10 +2181,6 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .pd-assembly-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .pd-flow-row,
   .pd-row-bottom-split {
     grid-template-columns: 1fr;
@@ -2334,14 +2286,6 @@
 
   .pd-layout--control-center .pd-dept-mid {
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
-  }
-
-  .pd-assembly-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pd-dept-card--assembly {
-    grid-column: auto;
   }
 
   .pd-dept-bottom {

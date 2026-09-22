@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { formatGrams } from './formatters'
 import { resolveDeptCardDisplay } from './deptCardDisplay'
 import {
@@ -69,16 +68,13 @@ function DeptCard({
   employeeRatings,
   selected,
   onSelect,
-  expanded,
-  onToggle,
-  tables,
 }) {
   const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings)
   const tone = statusClass(ui.status)
 
   return (
     <article
-      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${expanded ? ' pd-dept-card--expanded' : ''}${selected ? ' pd-dept-card--selected' : ''}`}
+      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${selected ? ' pd-dept-card--selected' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect?.(card.key)}
@@ -184,41 +180,13 @@ function DeptCard({
         overLabel={ui.batchOverLabel}
         percent={ui.progressPercent}
       />
-
-      {ui.isAssembly ? (
-        <button
-          type="button"
-          className="pd-btn pd-btn--ghost pd-dept-expand"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggle?.()
-          }}
-        >
-          {expanded ? 'Hide tables' : `Show ${ui.tableCount || 15} tables`}
-        </button>
-      ) : null}
-      {ui.isAssembly && expanded ? (
-        <div className="pd-assembly-grid" role="list" aria-label="Assembly tables">
-          {(tables || []).map((t) => {
-            const tTone = statusClass(t.status)
-            return (
-              <div key={t.tableNo} className={`pd-table-tile pd-table-tile--${tTone}`} role="listitem">
-                <strong>{t.label}</strong>
-                <span className={`pd-status-pill pd-status-pill--sm pd-status-pill--${tTone}`}>{t.status}</span>
-                <span>{t.batchNumber || '—'}</span>
-                <span>{t.quantity != null ? formatGrams(t.quantity) : '—'}</span>
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
     </article>
   )
 }
 
 export default function DepartmentOverview({
   cards,
-  assemblyTables,
+  assemblyTables: _assemblyTables,
   batchMonitorRows,
   employeeRatings,
   selectedDeptKey,
@@ -230,7 +198,6 @@ export default function DepartmentOverview({
   permissions: _permissions,
 }) {
   const list = cards || []
-  const [assemblyOpen, setAssemblyOpen] = useState(false)
 
   return (
     <section className="pd-dept-row" aria-label="Department status">
@@ -250,9 +217,6 @@ export default function DepartmentOverview({
                 employeeRatings={employeeRatings}
                 selected={selectedDeptKey === card.key}
                 onSelect={onSelectDept}
-                expanded={card.isAssembly && assemblyOpen}
-                onToggle={() => setAssemblyOpen((v) => !v)}
-                tables={assemblyTables}
               />
             ))}
           </div>
