@@ -15,6 +15,13 @@ function mean(nums) {
   return list.reduce((a, b) => a + b, 0) / list.length
 }
 
+function fmtMin(v) {
+  if (!hasNum(v)) return '—'
+  const n = Number(v)
+  if (Number.isInteger(n)) return `${n} min`
+  return `${n.toFixed(1)} min`
+}
+
 function normName(v) {
   return String(v || '').trim().toLowerCase()
 }
@@ -60,12 +67,26 @@ const DEMO_PROGRESS = {
   progressPercent: 65,
 }
 
+const DEMO_MANAGER_BY_DEPT = {
+  vault_room: 'Mr. Rajesh',
+  melting: 'Mr. Rajesh',
+  rolling: 'Mr. Suresh',
+  bangle_area: 'Mr. Rajesh',
+  stamping: 'Mr. Suresh',
+  pendent_section: 'Mr. Rajesh',
+  welding_area: 'Mr. Suresh',
+  assembly: 'Mr. Nikhil',
+}
+
 /** Reference-style demo when a department has no live production signal. */
 const DEMO_BY_DEPT = {
   vault_room: {
     status: 'Idle',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Rajesh',
     batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.8 min',
     metalIn: 5000,
     metalOut: 2450,
     lossRows: [
@@ -77,8 +98,11 @@ const DEMO_BY_DEPT = {
   },
   melting: {
     status: 'Running',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Rajesh',
     batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.8 min',
     metalIn: 2500,
     metalOut: 1600,
     lossRows: [
@@ -90,8 +114,11 @@ const DEMO_BY_DEPT = {
   },
   rolling: {
     status: 'Running',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Suresh',
     batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.8 min',
     metalIn: 1800,
     metalOut: 1200,
     lossRows: [
@@ -103,8 +130,11 @@ const DEMO_BY_DEPT = {
   },
   bangle_area: {
     status: 'Running',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Rajesh',
     batches: 3,
+    timePerBatchLabel: '6 min',
+    avgTimeLabel: '5.2 min',
     metalIn: 980,
     metalOut: 720,
     lossRows: [
@@ -116,8 +146,11 @@ const DEMO_BY_DEPT = {
   },
   stamping: {
     status: 'Running',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Suresh',
     batches: 2,
+    timePerBatchLabel: '4 min',
+    avgTimeLabel: '4.2 min',
     metalIn: 640,
     metalOut: 510,
     lossRows: [
@@ -129,8 +162,11 @@ const DEMO_BY_DEPT = {
   },
   pendent_section: {
     status: 'Idle',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Rajesh',
     batches: 1,
+    timePerBatchLabel: '7 min',
+    avgTimeLabel: '6.5 min',
     metalIn: 420,
     metalOut: 310,
     lossRows: [
@@ -142,8 +178,11 @@ const DEMO_BY_DEPT = {
   },
   welding_area: {
     status: 'Running',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Suresh',
     batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.9 min',
     metalIn: 560,
     metalOut: 430,
     lossRows: [
@@ -155,8 +194,11 @@ const DEMO_BY_DEPT = {
   },
   assembly: {
     status: 'Idle',
-    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
+    employeeCount: 3,
+    managerName: 'Mr. Nikhil',
     batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.7 min',
     metalIn: 390,
     metalOut: 360,
     lossRows: [
@@ -168,9 +210,9 @@ const DEMO_BY_DEPT = {
   },
 }
 
-function hasLiveSignal({ employees, batchCount, metalIn, metalOut, lossRows }) {
+function hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows }) {
   return (
-    (employees && employees.length > 0)
+    (hasNum(employeeCount) && Number(employeeCount) > 0)
     || batchCount != null
     || hasNum(metalIn)
     || hasNum(metalOut)
@@ -227,6 +269,14 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     return null
   })()
 
+  const timePerBatchMin = hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
+    ? Number(card.elapsedMin ?? card.timeTakenMin)
+    : (hasNum(batches[0]?.durationMin) ? Number(batches[0].durationMin) : null)
+
+  const avgFromBatches = mean(batches.map((b) => Number(b.durationMin)).filter(Number.isFinite))
+  const avgFromCard = hasNum(card.avgTimeMin) ? Number(card.avgTimeMin) : null
+  const avgTimeMin = avgFromBatches ?? avgFromCard ?? (hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+
   let metalIn = hasNum(card.metalIn) ? Number(card.metalIn) : null
   let metalOut = hasNum(card.metalOut) ? Number(card.metalOut) : null
   if (metalIn == null && batches.some((b) => hasNum(b.qtyIn))) {
@@ -256,40 +306,39 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
 
   let lossAvg = mean(lossRows.map((r) => r.loss))
 
-  let employees = Array.isArray(card.employees) && card.employees.length
-    ? card.employees.map((e) => ({ name: e.name }))
-    : []
+  let employeeCount = hasNum(card.employeeCount)
+    ? Number(card.employeeCount)
+    : (Array.isArray(card.employees) && card.employees.length ? card.employees.length : null)
 
-  if (!employees.length) {
-    const nameSet = new Map()
+  if (employeeCount == null) {
+    const nameSet = new Set()
     batches.forEach((b) => {
-      if (b.employee && !nameSet.has(normName(b.employee))) {
-        nameSet.set(normName(b.employee), b.employee)
-      }
+      if (b.employee) nameSet.add(normName(b.employee))
     })
-    if (card.employeeName && !nameSet.has(normName(card.employeeName))) {
-      nameSet.set(normName(card.employeeName), card.employeeName)
-    }
+    if (card.employeeName) nameSet.add(normName(card.employeeName))
     ;(employeeRatings || []).forEach((r) => {
-      if (nameSet.size >= 3) return
       const rowKey = matchDashboardDeptKey(r.department)
-      if (rowKey === key && r.name && !nameSet.has(normName(r.name))) {
-        nameSet.set(normName(r.name), r.name)
-      }
+      if (rowKey === key && r.name) nameSet.add(normName(r.name))
     })
-    employees = Array.from(nameSet.values()).slice(0, 3).map((name) => ({ name }))
+    if (nameSet.size) employeeCount = nameSet.size
   }
 
+  let managerName = card.floorManager || null
   let status = card.status || 'Idle'
   let batchesDisplay = batchCount != null ? batchCount : '—'
+  let timePerBatchLabel = fmtMin(timePerBatchMin)
+  let avgTimeLabel = fmtMin(avgTimeMin)
   let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches)
 
-  const live = hasLiveSignal({ employees, batchCount, metalIn, metalOut, lossRows })
+  const live = hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows })
   const demo = DEMO_BY_DEPT[key]
   if (!live && demo) {
     status = demo.status
-    employees = demo.employees
+    employeeCount = demo.employeeCount
+    managerName = demo.managerName
     batchesDisplay = demo.batches
+    timePerBatchLabel = demo.timePerBatchLabel
+    avgTimeLabel = demo.avgTimeLabel
     metalIn = demo.metalIn
     metalOut = demo.metalOut
     lossRows = demo.lossRows
@@ -297,7 +346,11 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     batchStartedLabel = demo.batchStartedLabel
     batchOverLabel = demo.batchOverLabel
     progressPercent = demo.progressPercent
-  } else if (live) {
+  } else {
+    if (!managerName) managerName = DEMO_MANAGER_BY_DEPT[key] || 'Mr. Rajesh'
+    if (!hasNum(employeeCount)) employeeCount = 3
+    if (timePerBatchLabel === '—') timePerBatchLabel = demo?.timePerBatchLabel || '5 min'
+    if (avgTimeLabel === '—') avgTimeLabel = demo?.avgTimeLabel || '4.8 min'
     if (!batchStartedLabel) batchStartedLabel = DEMO_PROGRESS.batchStartedLabel
     if (!batchOverLabel) batchOverLabel = DEMO_PROGRESS.batchOverLabel
     if (progressPercent == null) progressPercent = DEMO_PROGRESS.progressPercent
@@ -308,9 +361,11 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     name: card.name || key,
     subtitle: card.subtitle || subtitleFor(key),
     status,
-    employees,
-    employeeCount: employees.length,
+    employeeCount: Number(employeeCount) || 0,
+    managerName: managerName || '—',
     batches: batchesDisplay,
+    timePerBatchLabel,
+    avgTimeLabel,
     metalIn,
     metalOut,
     lossRows,

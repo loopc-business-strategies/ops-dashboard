@@ -2,6 +2,8 @@ import { formatGrams } from './formatters'
 import { resolveDeptCardDisplay } from './deptCardDisplay'
 import {
   DeptIcon,
+  IconEmployees,
+  IconManager,
   IconBriefcase,
   IconMetalIn,
   IconMetalOut,
@@ -41,19 +43,14 @@ function BatchProgressBar({ startedLabel, overLabel, percent }) {
         <div className="pd-batch-progress-track">
           <div className="pd-batch-progress-fill" style={{ width: `${pct}%` }} />
         </div>
-        <span
-          className="pd-batch-progress-pct"
-          style={{ left: `min(100%, max(0%, ${pct}%))` }}
-        >
-          {pct}%
-        </span>
+        <span className="pd-batch-progress-pct">{pct}%</span>
       </div>
 
       <div className="pd-batch-progress-end pd-batch-progress-end--over">
         <span className="pd-batch-progress-ico pd-batch-progress-ico--flag" aria-hidden>
           <IconFlag size={14} />
         </span>
-        <div className="pd-batch-progress-meta">
+        <div className="pd-batch-progress-meta pd-batch-progress-meta--end">
           <span className="pd-batch-progress-caption">Batch Over</span>
           <strong className="pd-batch-progress-time">{overLabel || '—'}</strong>
         </div>
@@ -100,79 +97,86 @@ function DeptCard({
         </span>
       </div>
 
-      <div className="pd-dept-mid">
-        <div className="pd-dept-emp-block">
-          <div className="pd-dept-section-label">
-            {ui.employeeCount > 0 ? `Employees (${ui.employeeCount})` : 'Employees'}
-          </div>
-          <ul className="pd-dept-emp-list">
-            {ui.employees.length ? (
-              ui.employees.map((emp) => (
-                <li key={`${ui.key}-${emp.name}`}>
-                  <span className="pd-dept-emp-name">{emp.name}</span>
-                </li>
-              ))
-            ) : (
-              <li className="pd-dept-rating-na">—</li>
-            )}
-          </ul>
+      <div className="pd-dept-people">
+        <div className="pd-dept-people-side">
+          <span className="pd-dept-people-ico" aria-hidden>
+            <IconEmployees size={14} />
+          </span>
+          <span className="pd-dept-people-label">
+            {ui.employeeCount > 0 ? `EMPLOYEES (${ui.employeeCount})` : 'EMPLOYEES'}
+          </span>
         </div>
-
-        <ul className="pd-dept-batch-stats">
-          <li>
-            <span className="pd-dept-stat-icon pd-dept-stat-icon--batches" aria-hidden>
-              <IconBriefcase size={16} />
-            </span>
-            <span className="pd-dept-stat-label">Batches</span>
-            <strong className="pd-dept-stat-value">{ui.batches}</strong>
-          </li>
-        </ul>
+        <div className="pd-dept-people-divider" aria-hidden />
+        <div className="pd-dept-people-side pd-dept-people-side--manager">
+          <span className="pd-dept-people-ico" aria-hidden>
+            <IconManager size={14} />
+          </span>
+          <span className="pd-dept-people-manager">{ui.managerName}</span>
+        </div>
       </div>
 
-      <div className="pd-dept-bottom">
-        <div className="pd-dept-metal-cell pd-dept-metal-cell--in">
-          <span className="pd-dept-metal-ico" aria-hidden>
+      <div className="pd-dept-metrics">
+        <div className="pd-dept-metric pd-dept-metric--in">
+          <span className="pd-dept-metric-ico" aria-hidden>
             <IconMetalIn size={16} />
           </span>
-          <span className="pd-dept-metal-label">Metal IN</span>
-          <strong className="pd-dept-metal-value">{formatGrams(ui.metalIn)}</strong>
+          <span className="pd-dept-metric-label">Metal IN</span>
+          <strong className="pd-dept-metric-value">{formatGrams(ui.metalIn)}</strong>
         </div>
-        <div className="pd-dept-metal-cell pd-dept-metal-cell--out">
-          <span className="pd-dept-metal-ico" aria-hidden>
+        <div className="pd-dept-metric pd-dept-metric--out">
+          <span className="pd-dept-metric-ico" aria-hidden>
             <IconMetalOut size={16} />
           </span>
-          <span className="pd-dept-metal-label">Metal OUT</span>
-          <strong className="pd-dept-metal-value">{formatGrams(ui.metalOut)}</strong>
+          <span className="pd-dept-metric-label">Metal OUT</span>
+          <strong className="pd-dept-metric-value">{formatGrams(ui.metalOut)}</strong>
         </div>
-        <div className="pd-dept-loss">
-          <div className="pd-dept-loss-head">
-            <span className="pd-dept-loss-icon" aria-hidden>
-              <IconLossWarn size={14} />
+        <div className="pd-dept-metric pd-dept-metric--batches">
+          <div className="pd-dept-batches-head">
+            <span className="pd-dept-stat-icon pd-dept-stat-icon--batches" aria-hidden>
+              <IconBriefcase size={14} />
             </span>
-            <span>Metal Loss (g)</span>
+            <span className="pd-dept-metric-label">Batches</span>
+            <strong className="pd-dept-batches-count">{ui.batches}</strong>
           </div>
-          <ul className="pd-dept-loss-list">
-            {ui.lossRows.length ? (
-              <>
-                {ui.lossRows.map((r) => (
-                  <li key={`${ui.key}-loss-${r.index}`}>
-                    <span>{r.label}</span>
-                    <strong>{formatLoss(r.loss)}</strong>
-                  </li>
-                ))}
-                <li className="pd-dept-loss-avg">
-                  <span>Avg</span>
-                  <strong>{formatLoss(ui.lossAvg)}</strong>
-                </li>
-              </>
-            ) : (
-              <li>
-                <span>—</span>
-                <strong>—</strong>
-              </li>
-            )}
-          </ul>
+          <div className="pd-dept-batches-row">
+            <span>Time / Batch</span>
+            <strong>{ui.timePerBatchLabel}</strong>
+          </div>
+          <div className="pd-dept-batches-row">
+            <span>Avg. Time</span>
+            <strong>{ui.avgTimeLabel}</strong>
+          </div>
         </div>
+      </div>
+
+      <div className="pd-dept-loss-block">
+        <div className="pd-dept-loss-head">
+          <span className="pd-dept-loss-icon" aria-hidden>
+            <IconLossWarn size={14} />
+          </span>
+          <span>Metal Loss (g)</span>
+        </div>
+        <ul className="pd-dept-loss-list">
+          {ui.lossRows.length ? (
+            <>
+              {ui.lossRows.map((r) => (
+                <li key={`${ui.key}-loss-${r.index}`}>
+                  <span>{r.label}</span>
+                  <strong>{formatLoss(r.loss)}</strong>
+                </li>
+              ))}
+              <li className="pd-dept-loss-avg">
+                <span>Avg</span>
+                <strong>{formatLoss(ui.lossAvg)}</strong>
+              </li>
+            </>
+          ) : (
+            <li>
+              <span>—</span>
+              <strong>—</strong>
+            </li>
+          )}
+        </ul>
       </div>
 
       <BatchProgressBar
