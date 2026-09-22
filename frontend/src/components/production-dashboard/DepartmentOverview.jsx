@@ -3,13 +3,12 @@ import { formatGrams } from './formatters'
 import { resolveDeptCardDisplay } from './deptCardDisplay'
 import {
   DeptIcon,
-  IconStar,
   IconBriefcase,
-  IconClock,
-  IconBarChart,
   IconMetalIn,
   IconMetalOut,
   IconLossWarn,
+  IconPlay,
+  IconFlag,
 } from './PdIcons'
 
 function statusClass(status) {
@@ -20,20 +19,48 @@ function toneClass(key) {
   return `pd-dept-card--tone-${String(key || '').replace(/_/g, '-')}`
 }
 
-function RatingStars({ rating }) {
-  const n = Number(rating)
-  if (!Number.isFinite(n)) return <span className="pd-dept-rating-na">—</span>
-  return (
-    <span className="pd-dept-rating" title={`${n.toFixed(1)}`}>
-      <IconStar size={12} className="pd-dept-rating-star" />
-      <span>{n.toFixed(1)}</span>
-    </span>
-  )
-}
-
 function formatLoss(v) {
   if (v == null || !Number.isFinite(Number(v))) return '—'
   return Number(v).toFixed(2)
+}
+
+function BatchProgressBar({ startedLabel, overLabel, percent }) {
+  const pct = Math.max(0, Math.min(100, Number(percent) || 0))
+  return (
+    <div className="pd-batch-progress" aria-label={`Batch progress ${pct}%`}>
+      <div className="pd-batch-progress-end pd-batch-progress-end--start">
+        <span className="pd-batch-progress-ico pd-batch-progress-ico--play" aria-hidden>
+          <IconPlay size={12} />
+        </span>
+        <div className="pd-batch-progress-meta">
+          <span className="pd-batch-progress-caption">Batch Started</span>
+          <strong className="pd-batch-progress-time">{startedLabel || '—'}</strong>
+        </div>
+      </div>
+
+      <div className="pd-batch-progress-track-wrap">
+        <div className="pd-batch-progress-track">
+          <div className="pd-batch-progress-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <span
+          className="pd-batch-progress-pct"
+          style={{ left: `min(100%, max(0%, ${pct}%))` }}
+        >
+          {pct}%
+        </span>
+      </div>
+
+      <div className="pd-batch-progress-end pd-batch-progress-end--over">
+        <span className="pd-batch-progress-ico pd-batch-progress-ico--flag" aria-hidden>
+          <IconFlag size={14} />
+        </span>
+        <div className="pd-batch-progress-meta">
+          <span className="pd-batch-progress-caption">Batch Over</span>
+          <strong className="pd-batch-progress-time">{overLabel || '—'}</strong>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function DeptCard({
@@ -82,28 +109,17 @@ function DeptCard({
           <div className="pd-dept-section-label">
             {ui.employeeCount > 0 ? `Employees (${ui.employeeCount})` : 'Employees'}
           </div>
-          <table className="pd-dept-emp-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Rating</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ui.employees.length ? (
-                ui.employees.map((emp) => (
-                  <tr key={`${ui.key}-${emp.name}`}>
-                    <td>{emp.name}</td>
-                    <td><RatingStars rating={emp.rating} /></td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={2} className="pd-dept-rating-na">—</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <ul className="pd-dept-emp-list">
+            {ui.employees.length ? (
+              ui.employees.map((emp) => (
+                <li key={`${ui.key}-${emp.name}`}>
+                  <span className="pd-dept-emp-name">{emp.name}</span>
+                </li>
+              ))
+            ) : (
+              <li className="pd-dept-rating-na">—</li>
+            )}
+          </ul>
         </div>
 
         <ul className="pd-dept-batch-stats">
@@ -113,20 +129,6 @@ function DeptCard({
             </span>
             <span className="pd-dept-stat-label">Batches</span>
             <strong className="pd-dept-stat-value">{ui.batches}</strong>
-          </li>
-          <li>
-            <span className="pd-dept-stat-icon pd-dept-stat-icon--time" aria-hidden>
-              <IconClock size={16} />
-            </span>
-            <span className="pd-dept-stat-label">Time / Batch</span>
-            <strong className="pd-dept-stat-value">{ui.timePerBatchLabel}</strong>
-          </li>
-          <li>
-            <span className="pd-dept-stat-icon pd-dept-stat-icon--avg" aria-hidden>
-              <IconBarChart size={16} />
-            </span>
-            <span className="pd-dept-stat-label">Avg. Time</span>
-            <strong className="pd-dept-stat-value">{ui.avgTimeLabel}</strong>
           </li>
         </ul>
       </div>
@@ -176,6 +178,12 @@ function DeptCard({
           </ul>
         </div>
       </div>
+
+      <BatchProgressBar
+        startedLabel={ui.batchStartedLabel}
+        overLabel={ui.batchOverLabel}
+        percent={ui.progressPercent}
+      />
 
       {ui.isAssembly ? (
         <button

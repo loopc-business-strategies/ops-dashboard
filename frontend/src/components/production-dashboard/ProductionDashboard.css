@@ -1848,6 +1848,110 @@
 
 .pd-dept-loss-avg strong { color: #B45309; }
 
+.pd-batch-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #E8EEF4;
+  min-width: 0;
+}
+
+.pd-batch-progress-end {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.pd-batch-progress-ico {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.pd-batch-progress-ico--play {
+  background: #F97316;
+  color: #ffffff;
+}
+
+.pd-batch-progress-ico--play .pd-icon {
+  color: #ffffff;
+  fill: #ffffff;
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.pd-batch-progress-ico--flag {
+  background: transparent;
+  color: #64748B;
+}
+
+.pd-batch-progress-ico--flag .pd-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.pd-batch-progress-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.pd-batch-progress-caption {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: #64748B;
+  white-space: nowrap;
+}
+
+.pd-batch-progress-time {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F2747;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.pd-batch-progress-track-wrap {
+  flex: 1;
+  min-width: 3.5rem;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.pd-batch-progress-track {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #E8EEF4;
+  overflow: hidden;
+}
+
+.pd-batch-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #F97316;
+  min-width: 0;
+  transition: width 0.25s ease;
+}
+
+.pd-batch-progress-pct {
+  position: absolute;
+  top: 0.55rem;
+  transform: translateX(-100%);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #F97316;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .pd-dept-expand {
   align-self: flex-start;
   margin-top: 0.1rem;

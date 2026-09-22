@@ -354,6 +354,24 @@ export function IconLossWarn(props) {
   )
 }
 
+export function IconPlay(props) {
+  return (
+    <Svg {...props} fill="currentColor" stroke="none">
+      <path d="M8 5.5v13l11-6.5L8 5.5z" />
+    </Svg>
+  )
+}
+
+export function IconFlag(props) {
+  return (
+    <Svg {...props}>
+      <path d="M5 21V4" />
+      <path d="M5 4h9l-1.5 3L14 10H5" />
+      <path d="M9 4v6M12 4v6" />
+    </Svg>
+  )
+}
+
 const DEPT_ICONS = {
   vault_room: IconVault,
   melting: IconMelting,

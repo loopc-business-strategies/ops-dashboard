@@ -15,13 +15,6 @@ function mean(nums) {
   return list.reduce((a, b) => a + b, 0) / list.length
 }
 
-function fmtMin(v) {
-  if (!hasNum(v)) return '—'
-  const n = Number(v)
-  if (Number.isInteger(n)) return `${n} min`
-  return `${n.toFixed(1)} min`
-}
-
 function normName(v) {
   return String(v || '').trim().toLowerCase()
 }
@@ -40,37 +33,39 @@ function rowsForDept(batchMonitorRows, card) {
   })
 }
 
-function ratingForName(employeeRatings, name) {
-  const hit = (employeeRatings || []).find((r) => normName(r.name) === normName(name))
-  if (!hit) return null
-  if (hasNum(hit.rating)) return Number(hit.rating)
-  if (hasNum(hit.ratingLabel)) return Number(hit.ratingLabel)
-  return null
+function formatBatchClock(value) {
+  if (!value) return null
+  try {
+    const d = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+  } catch {
+    return null
+  }
 }
 
-function avgTimeFromRatings(employeeRatings, employees) {
-  const times = (employees || [])
-    .map((e) => {
-      const hit = (employeeRatings || []).find((r) => normName(r.name) === normName(e.name))
-      return hit?.avgTimeMin
-    })
-    .filter(hasNum)
-    .map(Number)
-  return mean(times)
+function progressPct(progress) {
+  if (progress == null) return null
+  if (typeof progress === 'number') {
+    return Math.max(0, Math.min(100, Math.round(progress)))
+  }
+  const n = Number(progress?.percent ?? progress?.pct ?? progress?.value)
+  if (!Number.isFinite(n)) return null
+  return Math.max(0, Math.min(100, Math.round(n)))
+}
+
+const DEMO_PROGRESS = {
+  batchStartedLabel: '09:00 AM',
+  batchOverLabel: '12:30 PM',
+  progressPercent: 65,
 }
 
 /** Reference-style demo when a department has no live production signal. */
 const DEMO_BY_DEPT = {
   vault_room: {
     status: 'Idle',
-    employees: [
-      { name: 'Mark', rating: 4.8 },
-      { name: 'Jon', rating: 4.5 },
-      { name: 'Maria', rating: 4.9 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 2,
-    timePerBatchLabel: '5 min',
-    avgTimeLabel: '4.8 min',
     metalIn: 5000,
     metalOut: 2450,
     lossRows: [
@@ -78,17 +73,12 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.39 },
     ],
     lossAvg: 0.25,
+    ...DEMO_PROGRESS,
   },
   melting: {
     status: 'Running',
-    employees: [
-      { name: 'Mark', rating: 4.7 },
-      { name: 'Jon', rating: 4.6 },
-      { name: 'Maria', rating: 4.8 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 2,
-    timePerBatchLabel: '5 min',
-    avgTimeLabel: '4.8 min',
     metalIn: 2500,
     metalOut: 1600,
     lossRows: [
@@ -96,17 +86,12 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.39 },
     ],
     lossAvg: 0.25,
+    ...DEMO_PROGRESS,
   },
   rolling: {
     status: 'Running',
-    employees: [
-      { name: 'Mark', rating: 4.8 },
-      { name: 'Jon', rating: 4.6 },
-      { name: 'Maria', rating: 4.9 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 2,
-    timePerBatchLabel: '5 min',
-    avgTimeLabel: '4.8 min',
     metalIn: 1800,
     metalOut: 1200,
     lossRows: [
@@ -114,17 +99,12 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.28 },
     ],
     lossAvg: 0.2,
+    ...DEMO_PROGRESS,
   },
   bangle_area: {
     status: 'Running',
-    employees: [
-      { name: 'Mark', rating: 4.7 },
-      { name: 'Jon', rating: 4.5 },
-      { name: 'Maria', rating: 4.8 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 3,
-    timePerBatchLabel: '6 min',
-    avgTimeLabel: '5.2 min',
     metalIn: 980,
     metalOut: 720,
     lossRows: [
@@ -132,17 +112,12 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.22 },
     ],
     lossAvg: 0.18,
+    ...DEMO_PROGRESS,
   },
   stamping: {
     status: 'Running',
-    employees: [
-      { name: 'Mark', rating: 4.9 },
-      { name: 'Jon', rating: 4.7 },
-      { name: 'Maria', rating: 4.8 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 2,
-    timePerBatchLabel: '4 min',
-    avgTimeLabel: '4.2 min',
     metalIn: 640,
     metalOut: 510,
     lossRows: [
@@ -150,17 +125,12 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.18 },
     ],
     lossAvg: 0.14,
+    ...DEMO_PROGRESS,
   },
   pendent_section: {
     status: 'Idle',
-    employees: [
-      { name: 'Mark', rating: 4.6 },
-      { name: 'Jon', rating: 4.5 },
-      { name: 'Maria', rating: 4.7 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 1,
-    timePerBatchLabel: '7 min',
-    avgTimeLabel: '6.5 min',
     metalIn: 420,
     metalOut: 310,
     lossRows: [
@@ -168,17 +138,12 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.31 },
     ],
     lossAvg: 0.26,
+    ...DEMO_PROGRESS,
   },
   welding_area: {
     status: 'Running',
-    employees: [
-      { name: 'Mark', rating: 4.8 },
-      { name: 'Jon', rating: 4.7 },
-      { name: 'Maria', rating: 4.9 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 2,
-    timePerBatchLabel: '5 min',
-    avgTimeLabel: '4.9 min',
     metalIn: 560,
     metalOut: 430,
     lossRows: [
@@ -186,17 +151,12 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.24 },
     ],
     lossAvg: 0.17,
+    ...DEMO_PROGRESS,
   },
   assembly: {
     status: 'Idle',
-    employees: [
-      { name: 'Mark', rating: 4.7 },
-      { name: 'Jon', rating: 4.6 },
-      { name: 'Maria', rating: 4.8 },
-    ],
+    employees: [{ name: 'Mark' }, { name: 'Jon' }, { name: 'Maria' }],
     batches: 2,
-    timePerBatchLabel: '8 min',
-    avgTimeLabel: '7.5 min',
     metalIn: 390,
     metalOut: 360,
     lossRows: [
@@ -204,6 +164,7 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.12 },
     ],
     lossAvg: 0.1,
+    ...DEMO_PROGRESS,
   },
 }
 
@@ -217,6 +178,43 @@ function hasLiveSignal({ employees, batchCount, metalIn, metalOut, lossRows }) {
   )
 }
 
+function resolveBatchProgress(card, batches) {
+  const primary = batches[0] || null
+  const startedRaw = primary?.startedAt || card.startedAt || card.processStartTime || null
+  const endedRaw = primary?.completedAt || primary?.processEndTime || card.completedAt || card.processEndTime || null
+  const targetMin = Number(
+    primary?.expectedDurationMinutes
+    ?? primary?.targetDurationMinutes
+    ?? card.expectedDurationMinutes
+    ?? card.targetDurationMinutes
+    ?? card.avgTimeMin
+    ?? 0,
+  )
+
+  let batchOverRaw = endedRaw
+  if (!batchOverRaw && startedRaw && Number.isFinite(targetMin) && targetMin > 0) {
+    const startMs = new Date(startedRaw).getTime()
+    if (Number.isFinite(startMs)) {
+      batchOverRaw = new Date(startMs + targetMin * 60 * 1000)
+    }
+  }
+
+  let percent = progressPct(primary?.progress) ?? progressPct(card.progress)
+  if (percent == null && startedRaw && Number.isFinite(targetMin) && targetMin > 0) {
+    const startMs = new Date(startedRaw).getTime()
+    if (Number.isFinite(startMs)) {
+      const elapsedMin = (Date.now() - startMs) / 60000
+      percent = Math.max(0, Math.min(99, Math.round((elapsedMin / targetMin) * 100)))
+    }
+  }
+
+  return {
+    batchStartedLabel: formatBatchClock(startedRaw),
+    batchOverLabel: formatBatchClock(batchOverRaw),
+    progressPercent: percent,
+  }
+}
+
 export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employeeRatings = []) {
   const key = String(card.key || '')
   const batches = rowsForDept(batchMonitorRows, card)
@@ -228,14 +226,6 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     }
     return null
   })()
-
-  const timePerBatchMin = hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
-    ? Number(card.elapsedMin ?? card.timeTakenMin)
-    : (hasNum(batches[0]?.durationMin) ? Number(batches[0].durationMin) : null)
-
-  const avgFromBatches = mean(batches.map((b) => Number(b.durationMin)).filter(Number.isFinite))
-  const avgFromCard = hasNum(card.avgTimeMin) ? Number(card.avgTimeMin) : null
-  const avgTimeMin = avgFromBatches ?? avgFromCard ?? (hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
 
   let metalIn = hasNum(card.metalIn) ? Number(card.metalIn) : null
   let metalOut = hasNum(card.metalOut) ? Number(card.metalOut) : null
@@ -267,10 +257,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   let lossAvg = mean(lossRows.map((r) => r.loss))
 
   let employees = Array.isArray(card.employees) && card.employees.length
-    ? card.employees.map((e) => ({
-        name: e.name,
-        rating: hasNum(e.rating) ? Number(e.rating) : ratingForName(employeeRatings, e.name),
-      }))
+    ? card.employees.map((e) => ({ name: e.name }))
     : []
 
   if (!employees.length) {
@@ -290,16 +277,12 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
         nameSet.set(normName(r.name), r.name)
       }
     })
-    employees = Array.from(nameSet.values()).slice(0, 3).map((name) => ({
-      name,
-      rating: ratingForName(employeeRatings, name),
-    }))
+    employees = Array.from(nameSet.values()).slice(0, 3).map((name) => ({ name }))
   }
 
   let status = card.status || 'Idle'
   let batchesDisplay = batchCount != null ? batchCount : '—'
-  let timePerBatchLabel = fmtMin(timePerBatchMin)
-  let avgTimeLabel = fmtMin(avgTimeMin ?? avgTimeFromRatings(employeeRatings, employees))
+  let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches)
 
   const live = hasLiveSignal({ employees, batchCount, metalIn, metalOut, lossRows })
   const demo = DEMO_BY_DEPT[key]
@@ -307,12 +290,17 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     status = demo.status
     employees = demo.employees
     batchesDisplay = demo.batches
-    timePerBatchLabel = demo.timePerBatchLabel
-    avgTimeLabel = demo.avgTimeLabel
     metalIn = demo.metalIn
     metalOut = demo.metalOut
     lossRows = demo.lossRows
     lossAvg = demo.lossAvg
+    batchStartedLabel = demo.batchStartedLabel
+    batchOverLabel = demo.batchOverLabel
+    progressPercent = demo.progressPercent
+  } else if (live) {
+    if (!batchStartedLabel) batchStartedLabel = DEMO_PROGRESS.batchStartedLabel
+    if (!batchOverLabel) batchOverLabel = DEMO_PROGRESS.batchOverLabel
+    if (progressPercent == null) progressPercent = DEMO_PROGRESS.progressPercent
   }
 
   return {
@@ -323,12 +311,13 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     employees,
     employeeCount: employees.length,
     batches: batchesDisplay,
-    timePerBatchLabel,
-    avgTimeLabel,
     metalIn,
     metalOut,
     lossRows,
     lossAvg,
+    batchStartedLabel: batchStartedLabel || DEMO_PROGRESS.batchStartedLabel,
+    batchOverLabel: batchOverLabel || DEMO_PROGRESS.batchOverLabel,
+    progressPercent: progressPercent ?? DEMO_PROGRESS.progressPercent,
     isAssembly: Boolean(card.isAssembly),
     tableCount: card.tableCount || null,
   }
