@@ -901,3 +901,59 @@ describe('MG Floor stableReadingId required on metal submit', () => {
     expect(String(res.body.message || '')).toMatch(/stableReadingId/i)
   })
 })
+
+describe('MG Floor stats and floor alerts', () => {
+  test('stats/summary requires auth and returns buckets', async () => {
+    const denied = await request(app)
+      .get('/api/mg-floor/stats/summary')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+    expect(denied.status).toBe(401)
+
+    const user = await createTenantUser('mg')
+    const token = tokenFor(user, 'mg')
+    const ok = await request(app)
+      .get('/api/mg-floor/stats/summary')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${token}`)
+    expect(ok.status).toBe(200)
+    expect(ok.body.metalIn).toBeTruthy()
+    expect(ok.body.metalOut).toBeTruthy()
+  })
+
+  test('floor alert requires auth; CG tenant blocked', async () => {
+    const mgUser = await createTenantUser('mg')
+    const cgUser = await createTenantUser('cg')
+    const mgToken = tokenFor(mgUser, 'mg')
+    const cgToken = tokenFor(cgUser, 'cg')
+
+    const noAuth = await request(app)
+      .post('/api/mg-floor/alerts')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .send({ title: 'Need help' })
+    expect(noAuth.status).toBe(401)
+
+    const blocked = await request(app)
+      .post('/api/mg-floor/alerts')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'cg')
+      .set('Authorization', `Bearer ${cgToken}`)
+      .send({ title: 'Need help' })
+    expect(blocked.status).toBe(403)
+
+    const ok = await request(app)
+      .post('/api/mg-floor/alerts')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Authorization', `Bearer ${mgToken}`)
+      .send({
+        title: 'Floor assistance — melting',
+        message: 'Operator needs help',
+        department: 'melting',
+        operationId: 'alert-1',
+      })
+    expect([200, 201]).toContain(ok.status)
+  })
+})

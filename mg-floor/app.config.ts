@@ -1,43 +1,55 @@
 import type { ExpoConfig } from 'expo/config'
 
-const APP_VERSION = '1.0.0'
+const APP_VERSION = '1.1.0'
 const PROD_API_URL = 'https://api.loopcstrategies.com'
 const easProfile = process.env.EAS_BUILD_PROFILE || ''
 const isProductionProfile = easProfile === 'production'
+const isLocalDev =
+  process.env.MG_APP_ENV === 'development' ||
+  (!isProductionProfile &&
+    easProfile !== 'preview' &&
+    process.env.NODE_ENV !== 'production' &&
+    !process.env.GRADLE_TASK?.toLowerCase().includes('release'))
+
 const apiUrlFromEnv = process.env.EXPO_PUBLIC_API_URL?.trim() || process.env.MG_API_BASE_URL?.trim() || ''
 
-if (!isProductionProfile && !apiUrlFromEnv) {
-  // Allow local typecheck without env; runtime start should set EXPO_PUBLIC_API_URL
-}
+/** Unset env → prod HTTPS for release/device APKs (avoids cleartext localhost). Local metro: set MG_APP_ENV=development. */
+const apiUrl = apiUrlFromEnv || (isLocalDev ? 'http://localhost:5000' : PROD_API_URL)
 
-const apiUrl = apiUrlFromEnv || (isProductionProfile ? PROD_API_URL : 'http://localhost:5000')
+const usesCleartextTraffic = /^http:\/\//i.test(apiUrl)
 
 const config = {
-  name: 'MG Floor',
+  name: 'MG Factory',
   slug: 'mg-floor',
   version: APP_VERSION,
   orientation: 'default',
   icon: './assets/images/icon.png',
   scheme: 'mgfloor',
   userInterfaceStyle: 'light',
-  // RN 0.85 + Reanimated 4 require New Architecture (false is ignored / unsupported).
   newArchEnabled: true,
   splash: {
-    image: './assets/images/splash-icon.png',
+    image: './assets/branding/modern-gold-logo.png',
     resizeMode: 'contain',
-    backgroundColor: '#0F1419',
+    backgroundColor: '#FFFFFF',
   },
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.loopc.mgfloor',
+    infoPlist: usesCleartextTraffic
+      ? {
+          NSAppTransportSecurity: {
+            NSAllowsArbitraryLoads: true,
+          },
+        }
+      : undefined,
   },
   android: {
     package: 'com.loopc.mgfloor',
-    permissions: ['CAMERA', 'INTERNET'],
+    permissions: ['CAMERA', 'INTERNET', 'USE_BIOMETRIC', 'USE_FINGERPRINT'],
+    usesCleartextTraffic,
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
-      backgroundImage: './assets/images/android-icon-background.png',
-      backgroundColor: '#0F1419',
+      backgroundColor: '#FFFFFF',
     },
   },
   web: {
@@ -49,16 +61,22 @@ const config = {
     [
       'expo-camera',
       {
-        cameraPermission: 'Allow MG Floor to scan job and batch barcodes.',
+        cameraPermission: 'Allow MG Factory to scan job and batch barcodes.',
       },
     ],
     'expo-secure-store',
+    [
+      'expo-local-authentication',
+      {
+        faceIDPermission: 'Allow MG Factory to use Face ID for employee sign-in.',
+      },
+    ],
   ],
   extra: {
     tenant: 'mg',
     apiUrl,
     socketUrl: process.env.EXPO_PUBLIC_SOCKET_URL || apiUrl,
-    appEnv: easProfile || process.env.MG_APP_ENV || 'development',
+    appEnv: easProfile || process.env.MG_APP_ENV || (isLocalDev ? 'development' : 'production'),
     eas: {
       projectId: process.env.EAS_PROJECT_ID || 'mg-floor-local',
     },

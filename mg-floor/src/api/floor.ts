@@ -19,6 +19,25 @@ export async function fetchHistory(params?: Record<string, string | number>, opt
   })
 }
 
+export async function fetchStatsSummary(params?: Record<string, string>, opts?: SignalOpts) {
+  return apiRequest<{
+    success: boolean
+    metalIn: { count: number; total: number; average: number }
+    metalOut: { count: number; total: number; average: number }
+  }>('/api/mg-floor/stats/summary', {
+    params,
+    signal: opts?.signal,
+  })
+}
+
+export async function callFloorManager(body: Record<string, unknown>) {
+  return apiRequest<{ success: boolean; alert?: unknown }>('/api/mg-floor/alerts', {
+    method: 'POST',
+    body,
+    retrySafeGet: false,
+  })
+}
+
 export async function fetchDepartments(opts?: SignalOpts) {
   return apiRequest<{ success: boolean; departments: Array<{ key: string; label: string }> }>(
     '/api/mg-floor/departments',

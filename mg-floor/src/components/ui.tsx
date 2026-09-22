@@ -35,10 +35,17 @@ export function StatusPill({
   tone?: 'neutral' | 'ok' | 'warn' | 'bad'
 }) {
   const bg =
-    tone === 'ok' ? colors.success : tone === 'warn' ? colors.warning : tone === 'bad' ? colors.danger : colors.surfaceAlt
+    tone === 'ok'
+      ? colors.success
+      : tone === 'warn'
+        ? colors.warning
+        : tone === 'bad'
+          ? colors.danger
+          : colors.surfaceAlt
+  const textColor = tone === 'neutral' ? colors.text : colors.onAccent
   return (
-    <View style={[styles.pill, { backgroundColor: bg }]}>
-      <Text style={styles.pillText}>{label}</Text>
+    <View style={[styles.pill, { backgroundColor: bg, borderWidth: tone === 'neutral' ? 1 : 0, borderColor: colors.border }]}>
+      <Text style={[styles.pillText, { color: textColor }]}>{label}</Text>
     </View>
   )
 }
@@ -56,6 +63,7 @@ export function BigButton({
 }) {
   const bg =
     tone === 'danger' ? colors.danger : tone === 'neutral' ? colors.surfaceAlt : colors.accent
+  const textColor = tone === 'neutral' ? colors.text : colors.onAccent
   return (
     <Pressable
       accessibilityRole="button"
@@ -63,10 +71,15 @@ export function BigButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.bigBtn,
-        { backgroundColor: bg, opacity: disabled ? 0.45 : pressed ? 0.85 : 1 },
+        {
+          backgroundColor: bg,
+          opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
+          borderWidth: tone === 'neutral' ? 1 : 0,
+          borderColor: colors.border,
+        },
       ]}
     >
-      <Text style={styles.bigBtnText}>{label}</Text>
+      <Text style={[styles.bigBtnText, { color: textColor }]}>{label}</Text>
     </Pressable>
   )
 }
@@ -152,7 +165,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   pillText: {
-    color: colors.text,
+    color: colors.onAccent,
     fontWeight: '700',
     fontSize: 12,
     letterSpacing: 0.6,
@@ -166,7 +179,6 @@ const styles = StyleSheet.create({
     marginVertical: spacing.sm,
   },
   bigBtnText: {
-    color: colors.bg,
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: 1,
@@ -206,6 +218,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: colors.surfaceAlt,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   reconnectText: {
     color: colors.text,

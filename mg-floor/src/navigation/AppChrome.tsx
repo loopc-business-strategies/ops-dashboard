@@ -3,8 +3,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
 import { useIsTablet } from '@/src/components/ui'
-import { NAV_ITEMS, SECTION_LABELS, filterNavByPermissions } from '@/src/navigation/menu'
-import { colors, spacing } from '@/src/theme'
+import { ModernGoldLogo } from '@/src/components/ModernGoldLogo'
+import { AuthHeaderActions } from '@/src/navigation/AuthHeaderActions'
+import { NAV_ITEMS, TABLET_SIDEBAR_KEYS, filterNavByPermissions } from '@/src/navigation/menu'
+import { brand, colors, spacing } from '@/src/theme'
 
 function isActive(pathname: string, href: string) {
   if (href === '/') {
@@ -13,39 +15,33 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.includes(href)
 }
 
-/** Tablet sidebar only — phone uses Expo Router Tabs. Uses replace to avoid stack growth. */
 export function TabletSidebar() {
   const { permissions } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const items = filterNavByPermissions(NAV_ITEMS, permissions)
-  const sections = ['production', 'qc', 'operations', 'devices', 'system'] as const
+  const allowed = filterNavByPermissions(NAV_ITEMS, permissions)
+  const byKey = new Map(allowed.map((i) => [i.key, i]))
+  const items = TABLET_SIDEBAR_KEYS.map((k) => byKey.get(k)).filter(Boolean)
 
   return (
     <View style={styles.sidebar}>
-      <Text style={styles.sideBrand}>MG FLOOR</Text>
+      <ModernGoldLogo height={40} style={{ marginBottom: spacing.sm }} />
+      <Text style={styles.sideBrand}>{brand.appName}</Text>
+      <View style={styles.sideAuth}>
+        <AuthHeaderActions />
+      </View>
       <ScrollView>
-        {sections.map((section) => {
-          const rows = items.filter((i) => i.section === section)
-          if (!rows.length) return null
+        {items.map((item) => {
+          if (!item) return null
+          const active = isActive(pathname, item.href)
           return (
-            <View key={section} style={styles.sideSection}>
-              <Text style={styles.sideSectionTitle}>{SECTION_LABELS[section]}</Text>
-              {rows.map((item) => {
-                const active = isActive(pathname, item.href)
-                return (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => router.replace(item.href as never)}
-                    style={[styles.sideItem, active && styles.sideItemActive]}
-                  >
-                    <Text style={[styles.sideItemText, active && styles.sideItemTextActive]}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
+            <Pressable
+              key={item.key}
+              onPress={() => router.replace(item.href as never)}
+              style={[styles.sideItem, active && styles.sideItemActive]}
+            >
+              <Text style={[styles.sideItemText, active && styles.sideItemTextActive]}>{item.label}</Text>
+            </Pressable>
           )
         })}
       </ScrollView>
@@ -53,7 +49,6 @@ export function TabletSidebar() {
   )
 }
 
-/** Wraps authenticated stack: tablet rail only (phone tabs live in (tabs)/_layout). */
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const tablet = useIsTablet()
   if (tablet) {
@@ -78,25 +73,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   sideBrand: {
-    color: colors.accent,
+    color: colors.text,
     fontWeight: '800',
-    fontSize: 16,
-    letterSpacing: 1,
+    fontSize: 14,
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  sideAuth: {
     marginBottom: spacing.md,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    alignItems: 'flex-start',
   },
-  sideSection: { marginBottom: spacing.md },
-  sideSectionTitle: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 6,
-    paddingHorizontal: spacing.sm,
-  },
-  sideItem: { paddingVertical: 10, paddingHorizontal: spacing.sm, borderRadius: 6 },
-  sideItemActive: { backgroundColor: colors.surfaceAlt },
-  sideItemText: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
-  sideItemTextActive: { color: colors.text },
+  sideItem: { paddingVertical: 12, paddingHorizontal: spacing.sm, borderRadius: 8, marginBottom: 4 },
+  sideItemActive: { backgroundColor: colors.accent },
+  sideItemText: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  sideItemTextActive: { color: colors.onAccent },
   tabletContent: { flex: 1 },
 })

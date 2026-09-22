@@ -2,34 +2,38 @@ export type NavItem = {
   key: string
   label: string
   href: string
-  section?: 'production' | 'qc' | 'operations' | 'devices' | 'system'
-  tab?: 'home' | 'scan' | 'jobs' | 'history' | 'more'
+  section?: 'main' | 'production' | 'qc' | 'operations' | 'devices' | 'system'
+  tab?: 'home' | 'batches' | 'history' | 'reports' | 'settings'
   permission?: string
 }
 
 export const PHONE_TABS: Array<{ key: string; label: string; href: string }> = [
   { key: 'home', label: 'HOME', href: '/' },
-  { key: 'scan', label: 'SCAN', href: '/scan' },
-  { key: 'jobs', label: 'JOBS', href: '/jobs' },
+  { key: 'batches', label: 'BATCHES', href: '/batches' },
   { key: 'history', label: 'HISTORY', href: '/history' },
-  { key: 'more', label: 'MORE', href: '/more' },
+  { key: 'reports', label: 'REPORTS', href: '/reports' },
+  { key: 'settings', label: 'SETTINGS', href: '/settings' },
 ]
 
 export const NAV_ITEMS: NavItem[] = [
-  { key: 'home', label: 'HOME', href: '/', section: 'operations', tab: 'home' },
-  { key: 'metal-in', label: 'METAL IN', href: '/metal-in', section: 'production', tab: 'more', permission: 'metalIn' },
-  { key: 'metal-out', label: 'METAL OUT', href: '/metal-out', section: 'production', tab: 'more', permission: 'metalOut' },
-  { key: 'transfer', label: 'TRANSFER', href: '/transfer', section: 'production', tab: 'more', permission: 'transfer' },
-  { key: 'xrf', label: 'XRF / QC', href: '/xrf', section: 'qc', tab: 'more' },
-  { key: 'scan', label: 'SCAN', href: '/scan', section: 'operations', tab: 'scan' },
-  { key: 'jobs', label: 'MY JOBS', href: '/jobs', section: 'operations', tab: 'jobs' },
-  { key: 'history', label: 'HISTORY', href: '/history', section: 'operations', tab: 'history' },
-  { key: 'devices', label: 'DEVICES', href: '/devices', section: 'devices', tab: 'more' },
-  { key: 'scales', label: 'SCALES', href: '/scales', section: 'devices', tab: 'more', permission: 'manageScales' },
-  { key: 'offline', label: 'OFFLINE SYNC', href: '/offline-sync', section: 'system', tab: 'more' },
-  { key: 'profile', label: 'PROFILE', href: '/profile', section: 'system', tab: 'more' },
-  { key: 'settings', label: 'SETTINGS', href: '/settings', section: 'system', tab: 'more' },
-  { key: 'correction', label: 'WEIGHT CORRECTION', href: '/correction', section: 'system', tab: 'more', permission: 'adjustWeight' },
+  { key: 'home', label: 'Home', href: '/', section: 'main', tab: 'home' },
+  { key: 'production', label: 'Production', href: '/production', section: 'main', tab: 'home' },
+  { key: 'batches', label: 'Batches', href: '/batches', section: 'main', tab: 'batches' },
+  { key: 'metal-in', label: 'Metal In', href: '/metal-in', section: 'production', tab: 'home', permission: 'metalIn' },
+  { key: 'metal-out', label: 'Metal Out', href: '/metal-out', section: 'production', tab: 'home', permission: 'metalOut' },
+  { key: 'history', label: 'History', href: '/history', section: 'main', tab: 'history' },
+  { key: 'reports', label: 'Reports', href: '/reports', section: 'main', tab: 'reports' },
+  { key: 'call-manager', label: 'Call Manager', href: '/call-manager', section: 'main', tab: 'home' },
+  { key: 'settings', label: 'Settings', href: '/settings', section: 'system', tab: 'settings' },
+  { key: 'transfer', label: 'Transfer', href: '/transfer', section: 'production', tab: 'settings', permission: 'transfer' },
+  { key: 'xrf', label: 'XRF / QC', href: '/xrf', section: 'qc', tab: 'settings' },
+  { key: 'scan', label: 'Scan', href: '/scan', section: 'operations', tab: 'settings' },
+  { key: 'jobs', label: 'My Jobs', href: '/jobs', section: 'operations', tab: 'batches' },
+  { key: 'devices', label: 'Devices', href: '/devices', section: 'devices', tab: 'settings' },
+  { key: 'scales', label: 'Scales', href: '/scales', section: 'devices', tab: 'settings', permission: 'manageScales' },
+  { key: 'offline', label: 'Offline Sync', href: '/offline-sync', section: 'system', tab: 'settings' },
+  { key: 'profile', label: 'Profile', href: '/profile', section: 'system', tab: 'settings' },
+  { key: 'correction', label: 'Weight Correction', href: '/correction', section: 'system', tab: 'settings', permission: 'adjustWeight' },
 ]
 
 export function filterNavByPermissions(
@@ -43,9 +47,23 @@ export function filterNavByPermissions(
 }
 
 export const SECTION_LABELS: Record<string, string> = {
+  main: 'MG FACTORY',
   production: 'PRODUCTION',
   qc: 'QC',
   operations: 'OPERATIONS',
   devices: 'DEVICES',
   system: 'SYSTEM',
 }
+
+/** Flat tablet sidebar order (prompt IA). */
+export const TABLET_SIDEBAR_KEYS = [
+  'home',
+  'production',
+  'batches',
+  'metal-in',
+  'metal-out',
+  'history',
+  'reports',
+  'call-manager',
+  'settings',
+]

@@ -1,17 +1,20 @@
 export const colors = {
-  bg: '#0F1419',
-  surface: '#1A222C',
-  surfaceAlt: '#243040',
-  border: '#2E3A48',
-  text: '#F4F7FA',
-  textMuted: '#9AA8B5',
-  accent: '#E8A317',
-  accentDim: '#B87F0E',
-  success: '#2F9E44',
-  danger: '#E03131',
-  warning: '#F59F00',
-  stable: '#37B24D',
-  unstable: '#FAB005',
+  bg: '#F7F7F7',
+  surface: '#FFFFFF',
+  surfaceAlt: '#F1F3F5',
+  border: '#E2E8F0',
+  text: '#1F2937',
+  textMuted: '#64748B',
+  accent: '#F97316',
+  accentSecondary: '#FF8A1F',
+  accentDim: '#EA580C',
+  onAccent: '#FFFFFF',
+  success: '#16A34A',
+  danger: '#DC2626',
+  warning: '#F59E0B',
+  info: '#2563EB',
+  stable: '#16A34A',
+  unstable: '#F59E0B',
 }
 
 export const spacing = {
@@ -20,4 +23,10 @@ export const spacing = {
   md: 16,
   lg: 24,
   xl: 32,
+}
+
+export const brand = {
+  company: 'Modern Gold',
+  appName: 'MG FACTORY',
+  tagline: 'Production Management',
 }

@@ -3,15 +3,17 @@ import 'react-native-gesture-handler'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ErrorBoundary } from '@/src/components/ErrorBoundary'
 import { AppChrome } from '@/src/navigation/AppChrome'
+import { AuthHeaderActions } from '@/src/navigation/AuthHeaderActions'
 import { startAutoSync } from '@/src/offline/sync'
 import { BigButton, LoadingBlock, Screen } from '@/src/components/ui'
+import { getSelectedDepartment } from '@/src/auth/sessionPrefs'
 import { API_CONFIG_ERROR } from '@/src/config/env'
 import { colors } from '@/src/theme'
 
@@ -26,7 +28,7 @@ function ConfigErrorScreen({ message }: { message: string }) {
 
   return (
     <View style={styles.configWrap}>
-      <Text style={styles.configBrand}>MG Floor</Text>
+      <Text style={styles.configBrand}>MG Factory</Text>
       <Text style={styles.configTitle}>Configuration error</Text>
       <Text style={styles.configBody}>{message}</Text>
       <Text style={styles.configMeta}>The app opened safely. Fix the build env and reinstall.</Text>
@@ -38,13 +40,35 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { loading, token, hydrateError, retryHydrate } = useAuth()
   const segments = useSegments()
   const router = useRouter()
+  const [deptReady, setDeptReady] = useState(false)
+  const [hasDepartment, setHasDepartment] = useState(false)
 
   useEffect(() => {
     if (loading) return
-    const onLogin = segments[0] === 'login'
-    if (!token && !onLogin && !hydrateError) router.replace('/login')
-    if (token && onLogin) router.replace('/')
-  }, [loading, token, segments, router, hydrateError])
+    let cancelled = false
+    ;(async () => {
+      const dept = await getSelectedDepartment()
+      if (cancelled) return
+      const hasDept = Boolean(dept)
+      setHasDepartment(hasDept)
+      setDeptReady(true)
+
+      const seg0 = segments[0]
+      const onDepartment = seg0 === 'department'
+      const onLogin = seg0 === 'login'
+
+      if (!hasDept && !onDepartment) {
+        router.replace('/department')
+        return
+      }
+      if (token && onLogin) {
+        router.replace('/')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [loading, segments, token, router])
 
   useEffect(() => {
     if (!token) return
@@ -56,14 +80,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, [token])
 
   useEffect(() => {
-    if (loading) return
+    if (loading || !deptReady) return
     SplashScreen.hideAsync().catch(() => {})
-  }, [loading])
+  }, [loading, deptReady])
 
-  if (loading) {
+  if (loading || !deptReady) {
     return (
       <Screen>
-        <LoadingBlock label="Starting MG Floor…" />
+        <LoadingBlock label="Starting MG Factory…" />
       </Screen>
     )
   }
@@ -75,12 +99,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         <Text style={styles.configBody}>{hydrateError}</Text>
         <BigButton label="RETRY" onPress={() => retryHydrate()} />
         <BigButton label="SIGN IN" onPress={() => router.replace('/login')} tone="neutral" />
+        {hasDepartment ? (
+          <BigButton label="CONTINUE WITHOUT SIGN-IN" onPress={() => router.replace('/')} tone="neutral" />
+        ) : null}
       </Screen>
     )
   }
 
-  const onLogin = segments[0] === 'login'
-  if (onLogin || !token) {
+  const seg0 = segments[0]
+  const onAuthScreen = seg0 === 'login' || seg0 === 'department'
+  if (onAuthScreen || !hasDepartment) {
     return <>{children}</>
   }
 
@@ -93,7 +121,7 @@ export default function RootLayout() {
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
           <ErrorBoundary>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
             <ConfigErrorScreen message={API_CONFIG_ERROR} />
           </ErrorBoundary>
         </SafeAreaProvider>
@@ -106,17 +134,19 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ErrorBoundary>
           <AuthProvider>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
             <AuthGate>
               <Stack
                 screenOptions={{
-                  headerStyle: { backgroundColor: colors.bg },
+                  headerStyle: { backgroundColor: colors.surface },
                   headerTintColor: colors.text,
                   contentStyle: { backgroundColor: colors.bg },
                   headerTitleStyle: { fontWeight: '800' },
+                  headerRight: () => <AuthHeaderActions />,
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="department" options={{ headerShown: false }} />
                 <Stack.Screen name="login" options={{ headerShown: false }} />
                 <Stack.Screen name="metal-in" options={{ title: 'METAL IN' }} />
                 <Stack.Screen name="metal-out" options={{ title: 'METAL OUT' }} />
@@ -128,6 +158,10 @@ export default function RootLayout() {
                 <Stack.Screen name="settings" options={{ title: 'SETTINGS' }} />
                 <Stack.Screen name="profile" options={{ title: 'PROFILE' }} />
                 <Stack.Screen name="correction" options={{ title: 'WEIGHT CORRECTION' }} />
+                <Stack.Screen name="batches" options={{ title: 'BATCHES' }} />
+                <Stack.Screen name="reports" options={{ title: 'REPORTS' }} />
+                <Stack.Screen name="call-manager" options={{ title: 'CALL MANAGER' }} />
+                <Stack.Screen name="production" options={{ title: 'PRODUCTION' }} />
               </Stack>
             </AuthGate>
           </AuthProvider>
