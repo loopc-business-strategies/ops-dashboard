@@ -19,6 +19,35 @@ function escapeRegex(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/** Strict 24-hex ObjectId check (avoids mongoose treating short strings as valid). */
+function isMongoObjectId(value) {
+  return /^[a-fA-F0-9]{24}$/.test(String(value || '').trim())
+}
+
+async function resolvePassByIdOrNumber(passIdOrNumber) {
+  const raw = String(passIdOrNumber || '').trim()
+  if (!raw) return null
+  if (isMongoObjectId(raw)) {
+    const byId = await ProductionPass.findById(raw).lean()
+    if (byId) return byId
+  }
+  return ProductionPass.findOne({
+    passNumber: { $regex: new RegExp(`^${escapeRegex(raw)}$`, 'i') },
+  }).lean()
+}
+
+async function resolveBatchByIdOrNumber(batchIdOrNumber) {
+  const raw = String(batchIdOrNumber || '').trim()
+  if (!raw) return null
+  if (isMongoObjectId(raw)) {
+    const byId = await ProductionBatch.findById(raw).lean()
+    if (byId) return byId
+  }
+  return ProductionBatch.findOne({
+    batchNumber: { $regex: new RegExp(`^${escapeRegex(raw)}$`, 'i') },
+  }).lean()
+}
+
 function signDepartmentToken(departmentKey, label) {
   return jwt.sign(
     {
@@ -225,14 +254,14 @@ async function metalIn(req, body = {}) {
     throw new ProductionError('Insufficient permission for Metal IN', 403)
   }
 
-  const pass = await ProductionPass.findById(passId).lean()
+  const pass = await resolvePassByIdOrNumber(passId)
   if (!pass) throw new ProductionError('Pass not found', 404)
   const departmentKey = req.mgFactoryDepartment?.departmentKey
   if (departmentKey && !departmentsMatch(pass.toDepartment, departmentKey)) {
     throw new ProductionError(`Pass is destined for ${pass.toDepartment}, not ${departmentKey}`, 403)
   }
 
-  const result = await passService.receivePass(req, passId, {
+  const result = await passService.receivePass(req, pass._id, {
     receivedWeight: weight,
     expectedBatchVersion,
     receiveIdempotencyKey: operationId || null,
@@ -269,7 +298,7 @@ async function metalOut(req, body = {}) {
   }
 
   const departmentKey = req.mgFactoryDepartment?.departmentKey
-  const batch = await ProductionBatch.findById(batchId).lean()
+  const batch = await resolveBatchByIdOrNumber(batchId)
   if (!batch) throw new ProductionError('Batch not found', 404)
   if (
     departmentKey
@@ -282,7 +311,7 @@ async function metalOut(req, body = {}) {
   }
 
   const created = await passService.createPass(req, {
-    batchId,
+    batchId: batch._id,
     fromDepartment: departmentKey || batch.currentDepartment,
     toDepartment,
     weight,
@@ -296,9 +325,10 @@ async function metalOut(req, body = {}) {
 
   if (!reused || pass.status === 'REQUESTED' || pass.status === 'APPROVED') {
     try {
-      const approved =
-        pass.status === 'REQUESTED' ? await passService.approvePass(req, pass._id) : { pass }
-      const issued = await passService.issuePass(req, approved.pass._id || pass._id, {
+      // approvePass returns the pass document (not { pass })
+      const approvedPass =
+        pass.status === 'REQUESTED' ? await passService.approvePass(req, pass._id) : pass
+      const issued = await passService.issuePass(req, approvedPass._id || pass._id, {
         idempotencyKey: operationId || null,
       })
       pass = issued.pass

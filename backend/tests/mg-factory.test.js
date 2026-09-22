@@ -10,6 +10,8 @@ const createApp = require('../app')
 const User = require('../models/User')
 const FactoryDepartmentCredential = require('../models/FactoryDepartmentCredential')
 const ProductionAlert = require('../models/ProductionAlert')
+const ProductionBatch = require('../models/ProductionBatch')
+const ProductionPass = require('../models/ProductionPass')
 const { connectTenant } = require('../db/tenantConnections')
 const { registerAllOnConnection } = require('../db/tenantModelRegistry')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
@@ -47,6 +49,26 @@ async function seedDepartment(key, password, label) {
   )
 }
 
+async function loginFactoryEmployee(departmentKey, deptPassword, user) {
+  const dept = await request(app)
+    .post('/api/mg-factory/department/login')
+    .set('Host', 'api.loopcstrategies.com')
+    .set('x-tenant', 'mg')
+    .set('X-Client', 'mg-factory')
+    .send({ departmentKey, password: deptPassword })
+  expect(dept.status).toBe(200)
+
+  const emp = await request(app)
+    .post('/api/mg-factory/employee/login')
+    .set('Host', 'api.loopcstrategies.com')
+    .set('x-tenant', 'mg')
+    .set('X-Client', 'mg-factory')
+    .set('Authorization', `Bearer ${dept.body.departmentToken}`)
+    .send({ name: user.name, password: 'password123' })
+  expect(emp.status).toBe(200)
+  return emp.body.token
+}
+
 beforeAll(async () => {
   process.env.NODE_ENV = 'test'
   process.env.JWT_SECRET = 'test-secret'
@@ -76,6 +98,8 @@ afterEach(async () => {
       (await User.getTenantModel('mg')).deleteMany({}),
       (await FactoryDepartmentCredential.getTenantModel('mg')).deleteMany({}),
       ProductionAlert.deleteMany({}),
+      ProductionBatch.deleteMany({}),
+      ProductionPass.deleteMany({}),
     ])
   })
 }, 60000)
@@ -163,5 +187,112 @@ describe('MG Factory auth + call manager', () => {
       .send({ name: 'anyone', password: 'password123' })
 
     expect(res.status).toBe(401)
+  })
+})
+
+describe('MG Factory metal IN/OUT number lookup', () => {
+  test('metal OUT resolves batch by batchNumber', async () => {
+    await seedDepartment('melting', 'melting123', 'Melting')
+    const user = await createTenantUser('mg', { name: 'melt-out-op', password: 'password123' })
+    const token = await loginFactoryEmployee('melting', 'melting123', user)
+
+    const Batch = await ProductionBatch.getTenantModel('mg')
+    await Batch.create({
+      batchNumber: 'MG-FACTORY-OUT-1',
+      metalType: 'Gold',
+      initialWeight: 100,
+      currentWeight: 100,
+      currentDepartment: 'melting',
+      currentLocation: 'melting',
+      status: 'RECEIVED',
+    })
+
+    const res = await request(app)
+      .post('/api/mg-factory/metal/out')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('X-Client', 'mg-factory')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        batchId: 'MG-FACTORY-OUT-1',
+        toDepartment: 'casting',
+        weight: 50,
+        purpose: 'manual batch number',
+        operationId: 'mgf-out-by-number-1',
+      })
+
+    expect([200, 201]).toContain(res.status)
+    expect(res.body.success).toBe(true)
+    expect(res.body.pass).toBeTruthy()
+    expect(res.body.pass.batchNumber).toBe('MG-FACTORY-OUT-1')
+    expect(res.body.pass.toDepartment).toBe('casting')
+  })
+
+  test('metal IN resolves pass by passNumber', async () => {
+    await seedDepartment('casting', 'casting123', 'Casting')
+    const user = await createTenantUser('mg', { name: 'cast-in-op', password: 'password123' })
+    const token = await loginFactoryEmployee('casting', 'casting123', user)
+
+    const Batch = await ProductionBatch.getTenantModel('mg')
+    const Pass = await ProductionPass.getTenantModel('mg')
+    const batch = await Batch.create({
+      batchNumber: 'MG-FACTORY-IN-1',
+      metalType: 'Gold',
+      initialWeight: 80,
+      currentWeight: 80,
+      currentDepartment: 'melting',
+      currentLocation: 'melting',
+      status: 'IN_TRANSIT',
+    })
+    await Pass.create({
+      passNumber: 'PASS-FACTORY-IN-1',
+      batchId: batch._id,
+      batchNumber: batch.batchNumber,
+      fromDepartment: 'melting',
+      toDepartment: 'casting',
+      metalType: 'Gold',
+      weight: 80,
+      status: 'ISSUED',
+      issuedAt: new Date(),
+    })
+
+    const res = await request(app)
+      .post('/api/mg-factory/metal/in')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('X-Client', 'mg-factory')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        passId: 'PASS-FACTORY-IN-1',
+        receivedWeight: 80,
+        operationId: 'mgf-in-by-number-1',
+      })
+
+    expect([200, 201]).toContain(res.status)
+    expect(res.body.success).toBe(true)
+    expect(res.body.pass).toBeTruthy()
+    expect(res.body.pass.passNumber).toBe('PASS-FACTORY-IN-1')
+    expect(res.body.weight).toBe(80)
+  })
+
+  test('metal OUT returns 404 for unknown batchNumber', async () => {
+    await seedDepartment('melting', 'melting123', 'Melting')
+    const user = await createTenantUser('mg', { name: 'melt-miss', password: 'password123' })
+    const token = await loginFactoryEmployee('melting', 'melting123', user)
+
+    const res = await request(app)
+      .post('/api/mg-factory/metal/out')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('X-Client', 'mg-factory')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        batchId: 'DOES-NOT-EXIST',
+        toDepartment: 'casting',
+        weight: 10,
+      })
+
+    expect(res.status).toBe(404)
+    expect(String(res.body.message || '')).toMatch(/batch not found/i)
   })
 })

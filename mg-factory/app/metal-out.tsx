@@ -33,6 +33,7 @@ export default function MetalOutScreen() {
   const [batches, setBatches] = useState<BatchRow[]>([])
   const [departments, setDepartments] = useState<DeptRow[]>([])
   const [selected, setSelected] = useState<BatchRow | null>(null)
+  const [batchIdManual, setBatchIdManual] = useState('')
   const [toDepartment, setToDepartment] = useState('')
   const [weight, setWeight] = useState('')
   const [purpose, setPurpose] = useState('')
@@ -57,13 +58,15 @@ export default function MetalOutScreen() {
   }, [load])
 
   const onConfirm = async () => {
-    if (!employeeToken || !selected) {
-      Alert.alert('Select a batch', 'Choose a batch currently in this department')
+    if (!employeeToken) return
+    const batchId = selected?._id ? String(selected._id) : batchIdManual.trim()
+    const w = Number(weight)
+    if (!batchId) {
+      Alert.alert('Select a batch', 'Choose a batch or enter a batch ID / number')
       return
     }
-    const w = Number(weight)
     if (!toDepartment.trim()) {
-      Alert.alert('Destination required', 'Select a destination department')
+      Alert.alert('Destination required', 'Select or type a destination department')
       return
     }
     if (!Number.isFinite(w) || w <= 0) {
@@ -73,14 +76,15 @@ export default function MetalOutScreen() {
     setBusy(true)
     try {
       await metalOut(employeeToken, {
-        batchId: String(selected._id),
+        batchId,
         toDepartment: toDepartment.trim(),
         weight: w,
         purpose: purpose.trim() || 'MG Factory Metal OUT',
-        operationId: `mgf-out-${selected._id}-${Date.now()}`,
+        operationId: `mgf-out-${batchId}-${Date.now()}`,
       })
       Alert.alert('Metal OUT recorded', `${w} g → ${toDepartment}`)
       setSelected(null)
+      setBatchIdManual('')
       setWeight('')
       setToDepartment('')
       setPurpose('')
@@ -115,6 +119,7 @@ export default function MetalOutScreen() {
             <Pressable
               onPress={() => {
                 setSelected(item)
+                setBatchIdManual(String(item.batchNumber || item._id))
                 if (item.currentWeight != null) setWeight(String(item.currentWeight))
               }}
               style={[styles.row, active && styles.rowActive]}
@@ -133,6 +138,21 @@ export default function MetalOutScreen() {
 
   const form = (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formScroll}>
+      <Text style={styles.label}>Batch ID / number (optional if selected)</Text>
+      <TextInput
+        style={styles.input}
+        value={batchIdManual}
+        onChangeText={(text) => {
+          setBatchIdManual(text)
+          if (selected && text.trim() !== String(selected.batchNumber || selected._id)) {
+            setSelected(null)
+          }
+        }}
+        autoCapitalize="none"
+        placeholder="Batch number or Mongo id"
+        placeholderTextColor={colors.textMuted}
+      />
+
       <Text style={styles.section}>Destination</Text>
       <View style={styles.deptWrap}>
         {departments.map((d) => {
@@ -148,6 +168,16 @@ export default function MetalOutScreen() {
           )
         })}
       </View>
+      <Text style={styles.label}>Destination key (optional if chip selected)</Text>
+      <TextInput
+        style={styles.input}
+        value={toDepartment}
+        onChangeText={setToDepartment}
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholder="e.g. casting"
+        placeholderTextColor={colors.textMuted}
+      />
 
       <Text style={styles.label}>Weight (g)</Text>
       <TextInput

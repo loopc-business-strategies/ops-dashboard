@@ -196,7 +196,7 @@ router.post(
   ...factoryProtect,
   validateBody(
     Joi.object({
-      passId: Joi.string().hex().length(24).required(),
+      passId: Joi.string().trim().min(1).max(120).required(),
       receivedWeight: Joi.number().positive().required(),
       varianceReason: Joi.string().trim().allow(''),
       operationId: Joi.string().trim().max(120).allow('', null),
@@ -218,7 +218,7 @@ router.post(
   ...factoryProtect,
   validateBody(
     Joi.object({
-      batchId: Joi.string().hex().length(24).required(),
+      batchId: Joi.string().trim().min(1).max(120).required(),
       toDepartment: Joi.string().trim().required(),
       weight: Joi.number().positive().required(),
       purpose: Joi.string().trim().allow(''),

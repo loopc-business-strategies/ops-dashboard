@@ -107,7 +107,7 @@ export default function MetalInScreen() {
           <Pressable
             onPress={() => {
               setSelected(item)
-              setPassIdManual(String(item._id))
+              setPassIdManual(String(item.passNumber || item._id))
               if (item.weight != null) setWeight(String(item.weight))
             }}
             style={[styles.row, active && styles.rowActive]}
@@ -125,13 +125,13 @@ export default function MetalInScreen() {
 
   const form = (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formScroll}>
-      <Text style={styles.label}>Pass ID (optional if selected)</Text>
+      <Text style={styles.label}>Pass ID or pass number (optional if selected)</Text>
       <TextInput
         style={styles.input}
         value={passIdManual}
         onChangeText={setPassIdManual}
         autoCapitalize="none"
-        placeholder="Mongo pass id"
+        placeholder="Pass number or Mongo id"
         placeholderTextColor={colors.textMuted}
       />
       <Text style={styles.label}>Received weight (g)</Text>
