@@ -159,6 +159,8 @@ export default function ProductionDashboardTab() {
         header={model?.header}
         lastUpdated={lastUpdated}
         connection={connection}
+        hasLiveProduction={Boolean(model?.hasLiveProduction)}
+        vaultConnected={Boolean(model?.vaultConnected)}
         onRefresh={() => refresh()}
         loading={loading}
       />
@@ -214,6 +216,8 @@ export default function ProductionDashboardTab() {
           <DepartmentOverview
             cards={model.deptCards}
             assemblyTables={model.assemblyTables}
+            batchMonitorRows={model.batchMonitorRows}
+            employeeRatings={model.employeeRatings}
             selectedDeptKey={selectedDeptKey}
             onSelectDept={(key) => actions.selectDepartment(key)}
             permissions={permissions}

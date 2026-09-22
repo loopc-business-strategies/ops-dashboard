@@ -381,6 +381,43 @@ export function buildDashboardModel({
       batchesHere.map((b) => b.currentHolderName || b.operatorName).filter(Boolean),
     ).size || (holder ? 1 : 0)
 
+    const employees = []
+    const seenEmp = new Set()
+    batchesHere.forEach((b) => {
+      const name = b.currentHolderName || b.operatorName
+      if (!name) return
+      const nk = String(name).trim().toLowerCase()
+      if (seenEmp.has(nk)) return
+      seenEmp.add(nk)
+      const matched = matchEmployee(empList, name)
+      employees.push({
+        name: matched?.name || name,
+        rating: matched?.rating != null && Number.isFinite(Number(matched.rating))
+          ? Number(matched.rating)
+          : null,
+      })
+    })
+
+    const lossRows = batchesHere
+      .map((b, i) => {
+        const bin = numOrNull(b.processInputWeight ?? b.issuedWeight ?? b.initialWeight)
+        const bout = numOrNull(b.processOutputWeight ?? b.receivedWeight)
+        const rowLoss = metalLoss(bin, bout)
+        if (rowLoss == null) return null
+        return { index: i + 1, label: `Batch ${i + 1}`, loss: Math.max(0, rowLoss) }
+      })
+      .filter(Boolean)
+    if (!lossRows.length && loss != null) {
+      lossRows.push({ index: 1, label: 'Batch 1', loss: Math.max(0, loss) })
+    }
+    const avgTimeMin = (() => {
+      const times = batchesHere
+        .map((b) => elapsedMinutes(b.startedAt || b.processStartTime, b.completedAt || b.processEndTime))
+        .filter((n) => n != null)
+      if (!times.length) return elapsed
+      return Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+    })()
+
     const custodyWeight = (Array.isArray(metalByDept) ? metalByDept : [])
       .filter((row) => matchDashboardDeptKey(row.department) === key)
       .reduce((sum, row) => sum + (Number(row.weight) || 0), 0)
@@ -402,21 +439,25 @@ export function buildDashboardModel({
     return {
       key,
       name: label,
+      subtitle: dept.subtitle || '',
       status,
       batchId: primary?._id || primary?.id || null,
       batchNumber: primary?.batchNumber || null,
       employeeName: holder,
       employeeCode: emp?.employeeCode || emp?.idNumber || null,
       employeeCount: employeeCount || null,
+      employees,
       floorManager: floorManager,
       shiftName: shift?.name || shift?.shiftName || null,
       startedAt,
       completedAt,
       elapsedMin: elapsed,
+      avgTimeMin,
       metalIn,
       metalOut,
       metalBalance,
       metalLoss: loss != null ? Math.max(0, loss) : null,
+      lossRows,
       lossPct,
       confirmState: metalConfirmState(primary, passForBatch || openPass),
       passId: (passForBatch || openPass)?._id || (passForBatch || openPass)?.id || null,
@@ -867,21 +908,25 @@ export function buildDashboardModel({
   const idleDeptCards = DASHBOARD_DEPARTMENTS.map((dept) => ({
     key: dept.key,
     name: dept.label,
+    subtitle: dept.subtitle || '',
     status: 'Idle',
     batchId: null,
     batchNumber: null,
     employeeName: null,
     employeeCode: null,
     employeeCount: null,
+    employees: [],
     floorManager: null,
     shiftName: shift?.name || shift?.shiftName || null,
     startedAt: null,
     completedAt: null,
     elapsedMin: null,
+    avgTimeMin: null,
     metalIn: null,
     metalOut: null,
     metalBalance: null,
     metalLoss: null,
+    lossRows: [],
     lossPct: null,
     confirmState: null,
     passId: null,
@@ -947,6 +992,7 @@ export function buildDashboardModel({
 
   return {
     hasLiveProduction,
+    vaultConnected: availableWeightResolved != null || vaultProducts.length > 0 || erpVaultW != null,
     header: {
       title: 'PRODUCTION CONTROL CENTER',
       subtitle: 'Jewelry & Precious Metal Manufacturing',
