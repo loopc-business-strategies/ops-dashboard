@@ -2,6 +2,8 @@
 
 Modern Gold factory kiosk app — department unlock first, then employee Face ID / password.
 
+**Orientation:** tablets lock to landscape at runtime; phones stay free (portrait OK).
+
 **Does not modify** `mg-floor/` or Nexa (`mobile/`).
 
 ## Flow

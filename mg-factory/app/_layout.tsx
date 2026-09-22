@@ -1,4 +1,5 @@
 import 'react-native-gesture-handler'
+import 'react-native-reanimated'
 
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -11,11 +12,14 @@ import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ErrorBoundary } from '@/src/components/ErrorBoundary'
 import { LoadingBlock, Screen } from '@/src/components/ui'
 import { API_CONFIG_ERROR } from '@/src/config/env'
+import { useLockOrientation } from '@/src/hooks/useLockOrientation'
 import { colors } from '@/src/theme'
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
 function ConfigErrorScreen({ message }: { message: string }) {
+  useLockOrientation()
+
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {})
   }, [])
@@ -33,6 +37,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { loading, departmentToken, employeeToken } = useAuth()
   const segments = useSegments()
   const router = useRouter()
+  useLockOrientation()
 
   useEffect(() => {
     if (loading) return

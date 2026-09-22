@@ -23,6 +23,16 @@ if not defined JAVA_HOME (
     set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
   )
 )
+if not defined JAVA_HOME (
+  for /d %%J in ("C:\Program Files\Eclipse Adoptium\jdk-17*") do (
+    if exist "%%~J\bin\java.exe" set "JAVA_HOME=%%~J"
+  )
+)
+if not defined JAVA_HOME (
+  for /d %%J in ("C:\Program Files\Microsoft\jdk-17*") do (
+    if exist "%%~J\bin\java.exe" set "JAVA_HOME=%%~J"
+  )
+)
 if not defined ANDROID_HOME (
   if exist "%LOCALAPPDATA%\Android\Sdk" (
     set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
@@ -69,9 +79,12 @@ if not exist "%BUILD_ROOT%\node_modules\expo\package.json" (
   set "NPMERR=%ERRORLEVEL%"
   popd
   if not "%NPMERR%"=="0" (
-    echo ERROR: npm ci failed in %BUILD_ROOT%
-    popd
-    exit /b %NPMERR%
+    if not exist "%BUILD_ROOT%\node_modules\expo\package.json" (
+      echo ERROR: npm ci failed in %BUILD_ROOT%
+      popd
+      exit /b %NPMERR%
+    )
+    echo WARN: npm ci exit %NPMERR% but node_modules looks present — continuing.
   )
 )
 

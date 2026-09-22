@@ -12,7 +12,7 @@ const config = {
   name: 'MG Factory',
   slug: 'mg-factory',
   version: APP_VERSION,
-  orientation: 'landscape',
+  orientation: 'default',
   icon: './assets/images/icon.png',
   scheme: 'mgfactory',
   userInterfaceStyle: 'light',
@@ -30,8 +30,6 @@ const config = {
   android: {
     package: 'com.loopc.mgfactory',
     permissions: ['INTERNET', 'USE_BIOMETRIC', 'USE_FINGERPRINT'],
-    // sensorLandscape: either landscape direction on tablets
-    screenOrientation: 'sensorLandscape',
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
@@ -45,6 +43,7 @@ const config = {
     'expo-router',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-screen-orientation',
     [
       'expo-local-authentication',
       {
