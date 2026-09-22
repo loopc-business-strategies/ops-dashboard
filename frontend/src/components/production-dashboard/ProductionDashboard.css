@@ -768,6 +768,7 @@
 
 .pd-header--control {
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .pd-header-brand {
