@@ -214,6 +214,8 @@ export default function ProductionDashboardTab() {
           <DepartmentOverview
             cards={model.deptCards}
             assemblyTables={model.assemblyTables}
+            batchMonitorRows={model.batchMonitorRows}
+            employeeRatings={model.employeeRatings}
             selectedDeptKey={selectedDeptKey}
             onSelectDept={(key) => actions.selectDepartment(key)}
             permissions={permissions}
