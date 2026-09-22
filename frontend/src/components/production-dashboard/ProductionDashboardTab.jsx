@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import HeaderBar from './HeaderBar'
 import KpiRow from './KpiRow'
 import LiveMetalControl from './LiveMetalControl'
@@ -49,12 +49,23 @@ export default function ProductionDashboardTab() {
   const [flowFilterKey, setFlowFilterKey] = useState(null)
   const [selectedOperatorId, setSelectedOperatorId] = useState(null)
   const [selectedMovementId, setSelectedMovementId] = useState(null)
+  const autoBatchRef = useRef(false)
 
   const permissions = model?.permissions || {}
   const selectedDept = useMemo(
     () => (model?.deptCards || []).find((c) => c.key === selectedDeptKey) || null,
     [model?.deptCards, selectedDeptKey],
   )
+
+  useEffect(() => {
+    if (!model?.hasLiveProduction) return
+    if (autoBatchRef.current || selectedBatchId || !model?.batchMonitorRows?.length) return
+    const first = model.batchMonitorRows[0]
+    if (first?.id) {
+      autoBatchRef.current = true
+      actions.selectBatch(first.id)
+    }
+  }, [model?.hasLiveProduction, model?.batchMonitorRows, selectedBatchId, actions])
 
   const openModal = (type, seed = {}) => {
     clearActionError?.()
@@ -148,8 +159,6 @@ export default function ProductionDashboardTab() {
         header={model?.header}
         lastUpdated={lastUpdated}
         connection={connection}
-        hasLiveProduction={Boolean(model?.hasLiveProduction)}
-        vaultConnected={Boolean(model?.vaultConnected)}
         onRefresh={() => refresh()}
         loading={loading}
       />
@@ -181,8 +190,6 @@ export default function ProductionDashboardTab() {
         <div className="pd-layout pd-layout--reference pd-layout--control-center">
           <KpiRow model={model} />
 
-          {/* Live metal flow rail hidden from UI (logic/handlers retained). */}
-          {false ? (
           <LiveMetalControl
             materialFlow={model.materialFlow}
             activeStageKey={flowFilterKey}
@@ -200,13 +207,10 @@ export default function ProductionDashboardTab() {
               if (deptKey) actions.selectDepartment(deptKey)
             }}
           />
-          ) : null}
 
           <DepartmentOverview
             cards={model.deptCards}
             assemblyTables={model.assemblyTables}
-            batchMonitorRows={model.batchMonitorRows}
-            employeeRatings={model.employeeRatings}
             selectedDeptKey={selectedDeptKey}
             onSelectDept={(key) => actions.selectDepartment(key)}
             permissions={permissions}
@@ -221,9 +225,8 @@ export default function ProductionDashboardTab() {
             onViewAll={() => actions.clearDepartment()}
           />
 
-          {/* Mid/bottom panels + dept drawer hidden from UI (logic/handlers retained). */}
-          {false ? (
-          <div className="pd-dept-drawer" role="status">
+          {deptDetail ? (
+            <div className="pd-dept-drawer" role="status">
               <strong>{deptDetail.name || deptDetail.label || selectedDept?.name || 'Department'}</strong>
               <span className="pd-muted">
                 {' '}
@@ -237,7 +240,6 @@ export default function ProductionDashboardTab() {
             </div>
           ) : null}
 
-          {false ? (
           <div className="pd-mid-quad">
             <MetalMovementLedger
               rows={model.metalMovementRows}
@@ -283,9 +285,7 @@ export default function ProductionDashboardTab() {
               onResolve={(id) => actions.resolveAlert(id)}
             />
           </div>
-          ) : null}
 
-          {false ? (
           <div className="pd-row-bottom-split pd-row-bottom-terminal">
             <BatchTraceability
               batchRows={model.batchMonitorRows}
@@ -314,7 +314,6 @@ export default function ProductionDashboardTab() {
               })}
             />
           </div>
-          ) : null}
         </div>
       ) : null}
 
