@@ -119,7 +119,8 @@ powershell -NoProfile -Command ^
   "$p='%BUILD_ROOT%\android\gradle.properties';" ^
   "if (-not (Test-Path $p)) { exit 0 };" ^
   "$c=Get-Content $p;" ^
-  "$c=$c -replace 'newArchEnabled=false','newArchEnabled=true';" ^
+  "$c=$c -replace 'newArchEnabled=true','newArchEnabled=false';" ^
+  "if ($c -notmatch 'newArchEnabled=') { $c += 'newArchEnabled=false' };" ^
   "if ($c -notmatch 'reactNativeArchitectures=') { $c += 'reactNativeArchitectures=arm64-v8a' } else { $c=$c -replace 'reactNativeArchitectures=.*','reactNativeArchitectures=arm64-v8a' };" ^
   "if ($c -notmatch 'org.gradle.vfs.watch') { $c += 'org.gradle.vfs.watch=false' };" ^
   "Set-Content $p $c"

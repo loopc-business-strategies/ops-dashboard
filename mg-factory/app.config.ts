@@ -16,7 +16,7 @@ const config = {
   icon: './assets/images/icon.png',
   scheme: 'mgfactory',
   userInterfaceStyle: 'light',
-  newArchEnabled: true,
+  newArchEnabled: false,
   splash: {
     image: './assets/images/splash-icon.png',
     resizeMode: 'contain',

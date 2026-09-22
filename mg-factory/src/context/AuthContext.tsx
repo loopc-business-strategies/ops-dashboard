@@ -192,46 +192,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearEmployeeState()
     })
     ;(async () => {
+      let pendingEmp: { token: string; meta: DepartmentInfo | null } | null = null
+      // Phase 1 — SecureStore only, then unblock UI (Department Login can paint).
       try {
-        const [hasHw, enrolled] = await Promise.all([
-          LocalAuthentication.hasHardwareAsync(),
-          LocalAuthentication.isEnrolledAsync(),
-        ])
-        if (!cancelled) setBiometricAvailable(Boolean(hasHw && enrolled))
-
         const storedDept = await safeGet(DEPT_TOKEN_KEY)
         const storedMeta = await safeGet(DEPT_META_KEY)
         const storedEmp = await safeGet(EMP_TOKEN_KEY)
         const storedBio = await safeGet(BIOMETRIC_TOKEN_KEY)
         if (cancelled) return
 
+        let meta: DepartmentInfo | null = null
+        if (storedMeta) {
+          try {
+            meta = JSON.parse(storedMeta) as DepartmentInfo
+          } catch {
+            meta = null
+          }
+        }
+
         if (storedDept) {
           setDepartmentToken(storedDept)
-          if (storedMeta) {
-            try {
-              setDepartment(JSON.parse(storedMeta) as DepartmentInfo)
-            } catch {
-              // ignore
-            }
-          }
+          if (meta) setDepartment(meta)
         }
         if (storedBio) setBiometricEnrolled(true)
 
         if (storedEmp) {
-          try {
-            let meta: DepartmentInfo | null = null
-            if (storedMeta) meta = JSON.parse(storedMeta) as DepartmentInfo
-            await hydrateEmployee(storedEmp, meta)
-          } catch (err) {
-            if (!cancelled) {
-              setHydrateError(userFacingMessage(err) || 'Unable to restore employee session')
-            }
-          }
+          pendingEmp = { token: storedEmp, meta }
         }
       } catch {
         if (!cancelled) setHydrateError('Unable to restore session')
       } finally {
         if (!cancelled) setLoading(false)
+      }
+
+      // Restore employee session in background (network); never block login paint.
+      if (!cancelled && pendingEmp) {
+        try {
+          await hydrateEmployee(pendingEmp.token, pendingEmp.meta)
+        } catch (err) {
+          if (!cancelled) {
+            setHydrateError(userFacingMessage(err) || 'Unable to restore employee session')
+            await safeDel(EMP_TOKEN_KEY)
+            setAuthToken(null)
+            setEmployeeToken(null)
+            setUser(null)
+            setPermissions({})
+          }
+        }
+      }
+
+      // Phase 2 — biometric probe after UI is unblocked (optional).
+      if (cancelled) return
+      try {
+        const [hasHw, enrolled] = await Promise.all([
+          LocalAuthentication.hasHardwareAsync(),
+          LocalAuthentication.isEnrolledAsync(),
+        ])
+        if (!cancelled) setBiometricAvailable(Boolean(hasHw && enrolled))
+      } catch {
+        if (!cancelled) setBiometricAvailable(false)
       }
     })()
     return () => {

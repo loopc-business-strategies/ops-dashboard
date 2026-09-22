@@ -1,5 +1,4 @@
 import 'react-native-gesture-handler'
-import 'react-native-reanimated'
 
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -18,7 +17,8 @@ import { colors } from '@/src/theme'
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
 function ConfigErrorScreen({ message }: { message: string }) {
-  useLockOrientation()
+  // Orientation after first paint — not on critical crash path
+  useLockOrientation(true)
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {})
@@ -37,7 +37,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { loading, departmentToken, employeeToken } = useAuth()
   const segments = useSegments()
   const router = useRouter()
-  useLockOrientation()
+  // Only lock orientation after auth hydrate finishes (Department Login can paint first)
+  useLockOrientation(!loading)
 
   useEffect(() => {
     if (loading) return
