@@ -1430,12 +1430,12 @@
 
 .pd-dept-card-head {
   display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.5rem;
   min-height: 0;
   min-width: 0;
   margin: -0.55rem -0.6rem 0;
-  padding: 0.5rem 0.6rem;
+  padding: 0.55rem 0.65rem 0.6rem;
   background: var(--pd-dept-tone-soft);
   border-radius: 10px 10px 0 0;
   border-bottom: 1px solid color-mix(in srgb, var(--pd-dept-tone) 18%, transparent);
@@ -1479,8 +1479,9 @@
 }
 
 .pd-dept-subtitle {
-  margin: 0.1rem 0 0;
+  margin: 0.15rem 0 0;
   font-size: 10px;
+  line-height: 1.25;
   color: var(--pd-muted);
   font-weight: 500;
   white-space: nowrap;
@@ -2649,7 +2650,9 @@
 
 .pd-layout--control-center .pd-dept-card-head {
   margin: -0.5rem -0.55rem 0;
-  padding: 0.45rem 0.55rem;
+  padding: 0.55rem 0.6rem 0.6rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .pd-layout--control-center .pd-dept-name {
