@@ -2096,11 +2096,31 @@
 
 /* —— Control Center responsive system ——
    Phone ≤599 | Phablet/fold 600–899 | Tablet 900–1199 |
-   Smart display / tablet landscape 1200–1439 | Desktop 1440–1919 |
-   TV / wall ~50\" ≥1920 | 4K / ultra-wide ≥2560
+   Smart display / tablet landscape 1200–1439 | Desktop ≥1440 | Wide ≥1920
 */
 
-/* Standard desktop: locked viewport density + modest type */
+/* Wide desktop / TV-ish */
+@media (min-width: 1920px) {
+  .pd-layout--control-center .pd-kpi-strip {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .pd-layout--control-center .pd-dept-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .pd-layout--control-center .pd-dept-name {
+    font-size: 14px;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-value {
+    font-size: 1.1rem;
+  }
+}
+
+/* Standard desktop: locked viewport density */
 @media (min-width: 1440px) and (max-width: 1919px) {
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(8, minmax(0, 1fr));
@@ -2108,191 +2128,6 @@
 
   .pd-layout--control-center .pd-dept-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .pd-layout--control-center .pd-header--navy .pd-title {
-    font-size: 1.12rem;
-  }
-
-  .pd-layout--control-center .pd-header-chip {
-    font-size: 12px;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-value {
-    font-size: 1.08rem;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-label {
-    font-size: 11px;
-  }
-
-  .pd-layout--control-center .pd-dept-name {
-    font-size: 14px;
-  }
-
-  .pd-layout--control-center .pd-dept-metric-value {
-    font-size: 17px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-list li strong {
-    font-size: 15px;
-  }
-}
-
-/* TV / large wall display (~50\" at 1080p CSS): bigger analytics text */
-@media (min-width: 1920px) {
-  .pd-layout--control-center .pd-kpi-strip {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 0.55rem;
-  }
-
-  .pd-layout--control-center .pd-dept-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.65rem;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact {
-    padding: 0.45rem 0.5rem;
-  }
-
-  .pd-layout--control-center .pd-header--navy .pd-title {
-    font-size: 1.35rem;
-  }
-
-  .pd-layout--control-center .pd-header-sub {
-    font-size: 13px;
-  }
-
-  .pd-layout--control-center .pd-header-chip {
-    font-size: 13.5px;
-    padding: 0.35rem 0.75rem;
-  }
-
-  .pd-layout--control-center .pd-btn--refresh {
-    font-size: 13px;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-value {
-    font-size: 1.3rem;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-label {
-    font-size: 12px;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-hint {
-    font-size: 11px;
-  }
-
-  .pd-layout--control-center .pd-dept-name {
-    font-size: 16px;
-  }
-
-  .pd-layout--control-center .pd-status-pill--sm {
-    font-size: 11px;
-  }
-
-  .pd-layout--control-center .pd-dept-people-label {
-    font-size: 11.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-people-manager {
-    font-size: 14px;
-  }
-
-  .pd-layout--control-center .pd-dept-metric-label {
-    font-size: 11px;
-  }
-
-  .pd-layout--control-center .pd-dept-metric-value {
-    font-size: 20px;
-  }
-
-  .pd-layout--control-center .pd-dept-batches-count {
-    font-size: 18px;
-  }
-
-  .pd-layout--control-center .pd-dept-batches-row {
-    font-size: 12.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-head {
-    font-size: 12.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-list li {
-    font-size: 12.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-list li strong {
-    font-size: 16px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-caption {
-    font-size: 11px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-time {
-    font-size: 14px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-pct {
-    font-size: 13px;
-  }
-}
-
-/* 4K / ultra-wide TV: extra type step for viewing distance */
-@media (min-width: 2560px) {
-  .pd-layout--control-center .pd-kpi-strip {
-    gap: 0.65rem;
-  }
-
-  .pd-layout--control-center .pd-dept-grid {
-    gap: 0.75rem;
-  }
-
-  .pd-layout--control-center .pd-header--navy .pd-title {
-    font-size: 1.55rem;
-  }
-
-  .pd-layout--control-center .pd-header-chip {
-    font-size: 15px;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-value {
-    font-size: 1.5rem;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-label {
-    font-size: 13px;
-  }
-
-  .pd-layout--control-center .pd-dept-name {
-    font-size: 18px;
-  }
-
-  .pd-layout--control-center .pd-dept-metric-value {
-    font-size: 24px;
-  }
-
-  .pd-layout--control-center .pd-dept-batches-count {
-    font-size: 21px;
-  }
-
-  .pd-layout--control-center .pd-dept-batches-row {
-    font-size: 14px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-list li strong {
-    font-size: 18px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-time {
-    font-size: 16px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-pct {
-    font-size: 15px;
   }
 }
 
