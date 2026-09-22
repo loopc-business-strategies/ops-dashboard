@@ -25,7 +25,8 @@ type PassRow = {
   status?: string
 }
 
-export default function MetalInScreen() {
+/** Alloy IN reuses Metal IN receive-pass API with Alloy purpose labeling. */
+export default function AlloyInScreen() {
   const { employeeToken, department, user } = useAuth()
   const tablet = useIsTablet()
   const [loading, setLoading] = useState(true)
@@ -78,17 +79,19 @@ export default function MetalInScreen() {
       await metalIn(employeeToken, {
         passId,
         receivedWeight: w,
-        varianceReason: reason.trim() ? `${reason.trim()} — ${stamp}` : stamp,
-        operationId: `mgf-in-${passId}-${Date.now()}`,
+        varianceReason: reason.trim()
+          ? `Alloy IN — ${reason.trim()} — ${stamp}`
+          : `Alloy IN — ${stamp}`,
+        operationId: `mgf-alloy-in-${passId}-${Date.now()}`,
       })
-      Alert.alert('Metal IN recorded', `${w} g received\n${stamp}`)
+      Alert.alert('Alloy IN recorded', `${w} g received\n${stamp}`)
       setSelected(null)
       setWeight('')
       setReason('')
       setPassIdManual('')
       await load()
     } catch (err) {
-      Alert.alert('Metal IN failed', userFacingMessage(err))
+      Alert.alert('Alloy IN failed', userFacingMessage(err))
     } finally {
       setBusy(false)
     }
@@ -97,11 +100,12 @@ export default function MetalInScreen() {
   if (!employeeToken) {
     return (
       <Screen>
-        <Title>METAL IN</Title>
+        <Title>ALLOY IN</Title>
         <Subtitle>Sign in as employee on Home to continue</Subtitle>
       </Screen>
     )
   }
+
   if (loading) {
     return (
       <Screen>
@@ -131,7 +135,7 @@ export default function MetalInScreen() {
             <Text style={styles.rowTitle}>{item.passNumber || item._id}</Text>
             <Text style={styles.rowMeta}>
               {item.batchNumber || '—'} · {item.fromDepartment || '?'} → {item.toDepartment || '?'} ·{' '}
-              {item.weight != null ? `${item.weight} g` : '—'} · {item.status || ''}
+              {item.weight != null ? `${item.weight} g` : '—'}
             </Text>
           </Pressable>
         )
@@ -141,7 +145,7 @@ export default function MetalInScreen() {
 
   const form = (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formScroll}>
-      <Text style={styles.label}>Pass ID or pass number (optional if selected)</Text>
+      <Text style={styles.label}>Pass ID or pass number</Text>
       <TextInput
         style={styles.input}
         value={passIdManual}
@@ -159,7 +163,7 @@ export default function MetalInScreen() {
         placeholder="0.00"
         placeholderTextColor={colors.textMuted}
       />
-      <Text style={styles.label}>Variance reason (if over tolerance)</Text>
+      <Text style={styles.label}>Notes / variance reason</Text>
       <TextInput
         style={styles.input}
         value={reason}
@@ -172,7 +176,7 @@ export default function MetalInScreen() {
           busy
             ? 'SAVING…'
             : operatorName
-              ? `CONFIRM METAL IN — ${operatorName}`
+              ? `CONFIRM ALLOY IN — ${operatorName}`
               : 'CONFIRM — Sign in required'
         }
         onPress={onConfirm}
@@ -184,9 +188,8 @@ export default function MetalInScreen() {
 
   return (
     <Screen style={styles.screen}>
-      <Title>METAL IN</Title>
-      <Subtitle>{department?.label || 'Department'} — receive pass with weight</Subtitle>
-
+      <Title>ALLOY IN</Title>
+      <Subtitle>{department?.label || 'Department'} — receive alloy pass</Subtitle>
       {tablet ? (
         <View style={styles.columns}>
           <View style={styles.colLeft}>

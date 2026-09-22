@@ -26,7 +26,8 @@ type BatchRow = {
 
 type DeptRow = { key: string; label: string }
 
-export default function MetalOutScreen() {
+/** Alloy OUT reuses Metal OUT create-pass API with Alloy purpose labeling. */
+export default function AlloyOutScreen() {
   const { employeeToken, department, user } = useAuth()
   const tablet = useIsTablet()
   const [loading, setLoading] = useState(true)
@@ -83,15 +84,15 @@ export default function MetalOutScreen() {
     setBusy(true)
     try {
       const stamp = `Confirmed by ${operatorName}`
-      const basePurpose = purpose.trim() || 'MG Factory Metal OUT'
+      const basePurpose = purpose.trim() || 'MG Factory Alloy OUT'
       await metalOut(employeeToken, {
         batchId,
         toDepartment: toDepartment.trim(),
         weight: w,
         purpose: `${basePurpose} — ${stamp}`,
-        operationId: `mgf-out-${batchId}-${Date.now()}`,
+        operationId: `mgf-alloy-out-${batchId}-${Date.now()}`,
       })
-      Alert.alert('Metal OUT recorded', `${w} g → ${toDepartment}\n${stamp}`)
+      Alert.alert('Alloy OUT recorded', `${w} g → ${toDepartment}\n${stamp}`)
       setSelected(null)
       setBatchIdManual('')
       setWeight('')
@@ -99,7 +100,7 @@ export default function MetalOutScreen() {
       setPurpose('')
       await load()
     } catch (err) {
-      Alert.alert('Metal OUT failed', userFacingMessage(err))
+      Alert.alert('Alloy OUT failed', userFacingMessage(err))
     } finally {
       setBusy(false)
     }
@@ -108,11 +109,12 @@ export default function MetalOutScreen() {
   if (!employeeToken) {
     return (
       <Screen>
-        <Title>METAL OUT</Title>
+        <Title>ALLOY OUT</Title>
         <Subtitle>Sign in as employee on Home to continue</Subtitle>
       </Screen>
     )
   }
+
   if (loading) {
     return (
       <Screen>
@@ -143,8 +145,7 @@ export default function MetalOutScreen() {
             >
               <Text style={styles.rowTitle}>{item.batchNumber || item._id}</Text>
               <Text style={styles.rowMeta}>
-                {item.metalType || 'Metal'} · {item.currentWeight != null ? `${item.currentWeight} g` : '—'} ·{' '}
-                {item.status || ''}
+                {item.metalType || 'Metal'} · {item.currentWeight != null ? `${item.currentWeight} g` : '—'}
               </Text>
             </Pressable>
           )
@@ -155,7 +156,7 @@ export default function MetalOutScreen() {
 
   const form = (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formScroll}>
-      <Text style={styles.label}>Batch ID / number (optional if selected)</Text>
+      <Text style={styles.label}>Batch ID / number</Text>
       <TextInput
         style={styles.input}
         value={batchIdManual}
@@ -169,7 +170,6 @@ export default function MetalOutScreen() {
         placeholder="Batch number or Mongo id"
         placeholderTextColor={colors.textMuted}
       />
-
       <Text style={styles.section}>Destination</Text>
       <View style={styles.deptWrap}>
         {departments.map((d) => {
@@ -185,17 +185,15 @@ export default function MetalOutScreen() {
           )
         })}
       </View>
-      <Text style={styles.label}>Destination key (optional if chip selected)</Text>
+      <Text style={styles.label}>Destination key</Text>
       <TextInput
         style={styles.input}
         value={toDepartment}
         onChangeText={setToDepartment}
         autoCapitalize="none"
-        autoCorrect={false}
         placeholder="e.g. casting"
         placeholderTextColor={colors.textMuted}
       />
-
       <Text style={styles.label}>Weight (g)</Text>
       <TextInput
         style={styles.input}
@@ -218,7 +216,7 @@ export default function MetalOutScreen() {
           busy
             ? 'SAVING…'
             : operatorName
-              ? `CONFIRM METAL OUT — ${operatorName}`
+              ? `CONFIRM ALLOY OUT — ${operatorName}`
               : 'CONFIRM — Sign in required'
         }
         onPress={onConfirm}
@@ -229,9 +227,8 @@ export default function MetalOutScreen() {
 
   return (
     <Screen style={styles.screen}>
-      <Title>METAL OUT</Title>
-      <Subtitle>{department?.label || 'Department'} — send metal to next department</Subtitle>
-
+      <Title>ALLOY OUT</Title>
+      <Subtitle>{department?.label || 'Department'} — send alloy to next department</Subtitle>
       {tablet ? (
         <View style={styles.columns}>
           <View style={styles.colLeft}>{list}</View>

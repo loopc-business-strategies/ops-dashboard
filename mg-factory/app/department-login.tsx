@@ -20,7 +20,7 @@ export default function DepartmentLoginScreen() {
     setBusy(true)
     try {
       await unlockDepartment(department, password)
-      router.replace('/employee-login')
+      router.replace('/')
     } catch (err) {
       setError(userFacingMessage(err) || 'Department login failed')
     } finally {

@@ -9,8 +9,8 @@ Modern Gold factory kiosk app — department unlock first, then employee Face ID
 ## Flow
 
 1. Department login (`melting` + department password)
-2. Employee login (password or device Face ID / fingerprint)
-3. Metal In / Metal Out / Call Floor Manager
+2. Home ops hub — employee signs in at the top (password or Face ID); no separate employee screen
+3. Metal / Alloy In & Out, Purity, Batch Start / Over, Alert — confirms stamp operator name
 
 ## Development
 

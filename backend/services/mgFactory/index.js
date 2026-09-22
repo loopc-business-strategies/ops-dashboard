@@ -3,8 +3,9 @@ const User = require('../../models/User')
 const FactoryDepartmentCredential = require('../../models/FactoryDepartmentCredential')
 const ProductionPass = require('../../models/ProductionPass')
 const ProductionBatch = require('../../models/ProductionBatch')
+const ProcessRun = require('../../models/ProcessRun')
 const { DEFAULT_FLOW_STAGES } = require('../productionControl/constants')
-const { flowConfigService, passService, machineAlertService, floorSessionService } = require('../productionControl')
+const { flowConfigService, passService, machineAlertService, floorSessionService, processService } = require('../productionControl')
 const { resolveProductionRole, hasProductionPermission } = require('../productionControl/permissions')
 const { ProductionError } = require('../productionControl/batchService')
 const { departmentsMatch } = require('../productionControl/statusTransitions')
@@ -209,7 +210,7 @@ async function listJobs(req) {
   const departmentKey = req.mgFactoryDepartment?.departmentKey
   if (!departmentKey) throw new ProductionError('Department session required', 401)
 
-  const [allInbound, allBatches] = await Promise.all([
+  const [allInbound, allBatches, allRuns] = await Promise.all([
     ProductionPass.find({
       status: { $in: ['ISSUED', 'IN_TRANSIT'] },
     })
@@ -224,14 +225,24 @@ async function listJobs(req) {
       .sort({ updatedAt: -1 })
       .limit(200)
       .lean(),
+    ProcessRun.find({ status: 'IN_PROGRESS' })
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean(),
   ])
 
   const inboundPasses = allInbound.filter((p) => departmentsMatch(p.toDepartment, departmentKey))
   const batches = allBatches.filter((b) =>
     departmentsMatch(b.currentDepartment || b.currentLocation || '', departmentKey),
   )
+  const batchIds = new Set(batches.map((b) => String(b._id)))
+  const activeRuns = allRuns.filter(
+    (r) =>
+      batchIds.has(String(r.batchId))
+      || departmentsMatch(r.department || '', departmentKey),
+  )
 
-  return { inboundPasses, batches }
+  return { inboundPasses, batches, activeRuns }
 }
 
 async function metalIn(req, body = {}) {
@@ -380,6 +391,131 @@ async function callManager(req, body = {}) {
   return { alert }
 }
 
+async function setBatchPurity(req, body = {}) {
+  const { batchId, purity, notes = '' } = body
+  if (!batchId) throw new ProductionError('batchId is required', 400)
+  const purityValue = String(purity || '').trim()
+  if (!purityValue) throw new ProductionError('purity is required', 400)
+  if (!hasProductionPermission(req.user, 'view')) {
+    throw new ProductionError('Insufficient permission', 403)
+  }
+
+  const departmentKey = req.mgFactoryDepartment?.departmentKey
+  const batch = await resolveBatchByIdOrNumber(batchId)
+  if (!batch) throw new ProductionError('Batch not found', 404)
+  if (
+    departmentKey
+    && !departmentsMatch(batch.currentDepartment || batch.currentLocation || '', departmentKey)
+  ) {
+    throw new ProductionError(
+      `Batch is in ${batch.currentDepartment || batch.currentLocation}, not ${departmentKey}`,
+      403,
+    )
+  }
+
+  const operator = req.user?.name || 'Operator'
+  const Batch = await ProductionBatch.getTenantModel('mg')
+  const updated = await Batch.findByIdAndUpdate(
+    batch._id,
+    {
+      $set: { purity: purityValue },
+      $inc: { version: 1 },
+    },
+    { new: true },
+  ).lean()
+
+  return { batch: updated, purity: purityValue, confirmedBy: operator, notes: String(notes || '').trim() }
+}
+
+async function startBatchProcess(req, body = {}) {
+  const { batchId, process: processName, inputWeight, operationId = null } = body
+  if (!batchId) throw new ProductionError('batchId is required', 400)
+  if (!hasProductionPermission(req.user, 'startProcess')) {
+    throw new ProductionError('Insufficient permission for Batch Start', 403)
+  }
+
+  const departmentKey = req.mgFactoryDepartment?.departmentKey
+  const batch = await resolveBatchByIdOrNumber(batchId)
+  if (!batch) throw new ProductionError('Batch not found', 404)
+  if (
+    departmentKey
+    && !departmentsMatch(batch.currentDepartment || batch.currentLocation || '', departmentKey)
+  ) {
+    throw new ProductionError(
+      `Batch is in ${batch.currentDepartment || batch.currentLocation}, not ${departmentKey}`,
+      403,
+    )
+  }
+
+  const departments = await listDepartments()
+  const stage = departments.find((d) => departmentsMatch(d.key, departmentKey))
+  const resolvedProcess = String(processName || stage?.process || stage?.label || departmentKey || 'Process').trim()
+
+  const result = await processService.startProcess(req, {
+    batchId: batch._id,
+    process: resolvedProcess,
+    department: departmentKey || batch.currentDepartment,
+    inputWeight: inputWeight != null ? Number(inputWeight) : undefined,
+    details: operationId ? { operationId } : {},
+  })
+
+  return {
+    type: 'batch_start',
+    processRun: result.processRun,
+    batch: result.batch,
+    confirmedBy: req.user?.name || 'Operator',
+  }
+}
+
+async function completeBatchProcess(req, body = {}) {
+  const {
+    processRunId,
+    outputWeight,
+    scrap = 0,
+    loss = 0,
+    remarks = '',
+    operationId = null,
+  } = body
+  if (!processRunId) throw new ProductionError('processRunId is required', 400)
+  if (!hasProductionPermission(req.user, 'completeProcess')) {
+    throw new ProductionError('Insufficient permission for Batch Over', 403)
+  }
+
+  const run = await ProcessRun.findById(processRunId).lean()
+  if (!run) throw new ProductionError('Process run not found', 404)
+
+  const departmentKey = req.mgFactoryDepartment?.departmentKey
+  if (departmentKey && !departmentsMatch(run.department || '', departmentKey)) {
+    const batch = await ProductionBatch.findById(run.batchId).lean()
+    if (
+      !batch
+      || !departmentsMatch(batch.currentDepartment || batch.currentLocation || '', departmentKey)
+    ) {
+      throw new ProductionError('Process run is not in this department', 403)
+    }
+  }
+
+  const operator = req.user?.name || 'Operator'
+  const stampedRemarks = [String(remarks || '').trim(), `Confirmed by ${operator}`]
+    .filter(Boolean)
+    .join(' — ')
+
+  const result = await processService.completeProcess(req, processRunId, {
+    outputWeight: outputWeight != null ? Number(outputWeight) : undefined,
+    scrap: Number(scrap) || 0,
+    loss: Number(loss) || 0,
+    remarks: stampedRemarks,
+    completeIdempotencyKey: operationId || null,
+  })
+
+  return {
+    type: 'batch_over',
+    processRun: result.processRun,
+    batch: result.batch,
+    confirmedBy: operator,
+  }
+}
+
 async function setDepartmentPassword(req, { departmentKey, password, label }) {
   const key = String(departmentKey || '').trim().toLowerCase()
   if (!key || !password) throw new ProductionError('departmentKey and password are required', 400)
@@ -417,6 +553,9 @@ module.exports = {
   metalIn,
   metalOut,
   callManager,
+  setBatchPurity,
+  startBatchProcess,
+  completeBatchProcess,
   setDepartmentPassword,
   ProductionError,
 }

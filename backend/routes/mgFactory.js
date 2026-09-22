@@ -253,4 +253,68 @@ router.post(
   },
 )
 
+router.post(
+  '/purity',
+  ...factoryProtect,
+  validateBody(
+    Joi.object({
+      batchId: Joi.string().trim().min(1).max(120).required(),
+      purity: Joi.string().trim().min(1).max(64).required(),
+      notes: Joi.string().trim().max(500).allow('', null),
+    }).unknown(true),
+  ),
+  async (req, res) => {
+    try {
+      const result = await mgFactory.setBatchPurity(req, req.body)
+      res.json({ success: true, ...result })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
+router.post(
+  '/batch/start',
+  ...factoryProtect,
+  validateBody(
+    Joi.object({
+      batchId: Joi.string().trim().min(1).max(120).required(),
+      process: Joi.string().trim().max(120).allow('', null),
+      inputWeight: Joi.number().positive(),
+      operationId: Joi.string().trim().max(120).allow('', null),
+    }).unknown(true),
+  ),
+  async (req, res) => {
+    try {
+      const result = await mgFactory.startBatchProcess(req, req.body)
+      res.status(201).json({ success: true, ...result })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
+router.post(
+  '/batch/complete',
+  ...factoryProtect,
+  validateBody(
+    Joi.object({
+      processRunId: Joi.string().trim().min(1).max(120).required(),
+      outputWeight: Joi.number().min(0),
+      scrap: Joi.number().min(0),
+      loss: Joi.number().min(0),
+      remarks: Joi.string().trim().max(500).allow('', null),
+      operationId: Joi.string().trim().max(120).allow('', null),
+    }).unknown(true),
+  ),
+  async (req, res) => {
+    try {
+      const result = await mgFactory.completeBatchProcess(req, req.body)
+      res.json({ success: true, ...result })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
 module.exports = router

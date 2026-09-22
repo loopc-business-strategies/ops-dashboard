@@ -17,7 +17,6 @@ import { colors } from '@/src/theme'
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
 function ConfigErrorScreen({ message }: { message: string }) {
-  // Orientation after first paint — not on critical crash path
   useLockOrientation(true)
 
   useEffect(() => {
@@ -34,30 +33,25 @@ function ConfigErrorScreen({ message }: { message: string }) {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { loading, departmentToken, employeeToken } = useAuth()
+  const { loading, departmentToken } = useAuth()
   const segments = useSegments()
   const router = useRouter()
-  // Only lock orientation after auth hydrate finishes (Department Login can paint first)
   useLockOrientation(!loading)
 
   useEffect(() => {
     if (loading) return
     const route = String(segments[0] || '')
     const onDept = route === 'department-login'
-    const onEmp = route === 'employee-login'
 
     if (!departmentToken && !onDept) {
       router.replace('/department-login')
       return
     }
-    if (departmentToken && !employeeToken && !onEmp) {
-      router.replace('/employee-login')
-      return
-    }
-    if (departmentToken && employeeToken && (onDept || onEmp)) {
+    // Department unlocked → home (employee signs in on Home, not a separate screen)
+    if (departmentToken && onDept) {
       router.replace('/')
     }
-  }, [loading, departmentToken, employeeToken, segments, router])
+  }, [loading, departmentToken, segments, router])
 
   useEffect(() => {
     if (loading) return
@@ -106,9 +100,13 @@ export default function RootLayout() {
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="department-login" options={{ headerShown: false }} />
-                <Stack.Screen name="employee-login" options={{ headerShown: false }} />
                 <Stack.Screen name="metal-in" options={{ title: 'METAL IN' }} />
                 <Stack.Screen name="metal-out" options={{ title: 'METAL OUT' }} />
+                <Stack.Screen name="alloy-in" options={{ title: 'ALLOY IN' }} />
+                <Stack.Screen name="alloy-out" options={{ title: 'ALLOY OUT' }} />
+                <Stack.Screen name="purity" options={{ title: 'PURITY' }} />
+                <Stack.Screen name="batch-start" options={{ title: 'BATCH START' }} />
+                <Stack.Screen name="batch-over" options={{ title: 'BATCH OVER' }} />
               </Stack>
             </AuthGate>
           </AuthProvider>

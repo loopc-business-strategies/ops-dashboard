@@ -64,6 +64,7 @@ export async function listJobs(token?: string | null) {
     success: boolean
     inboundPasses: Array<Record<string, unknown>>
     batches: Array<Record<string, unknown>>
+    activeRuns?: Array<Record<string, unknown>>
   }>('/api/mg-factory/jobs', { token })
 }
 
@@ -103,5 +104,43 @@ export async function callManager(token: string, body?: { message?: string }) {
       token,
       body: body || {},
     },
+  )
+}
+
+export async function setPurity(
+  token: string,
+  body: { batchId: string; purity: string; notes?: string },
+) {
+  return apiRequest<{ success: boolean; purity?: string; confirmedBy?: string }>('/api/mg-factory/purity', {
+    method: 'POST',
+    token,
+    body,
+  })
+}
+
+export async function batchStart(
+  token: string,
+  body: { batchId: string; process?: string; inputWeight?: number; operationId?: string },
+) {
+  return apiRequest<{ success: boolean; processRun?: unknown; confirmedBy?: string }>(
+    '/api/mg-factory/batch/start',
+    { method: 'POST', token, body },
+  )
+}
+
+export async function batchComplete(
+  token: string,
+  body: {
+    processRunId: string
+    outputWeight: number
+    scrap?: number
+    loss?: number
+    remarks?: string
+    operationId?: string
+  },
+) {
+  return apiRequest<{ success: boolean; processRun?: unknown; confirmedBy?: string }>(
+    '/api/mg-factory/batch/complete',
+    { method: 'POST', token, body },
   )
 }
