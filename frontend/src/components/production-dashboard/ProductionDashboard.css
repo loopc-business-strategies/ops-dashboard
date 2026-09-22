@@ -1424,6 +1424,11 @@
   gap: 0.4rem;
   min-height: 0;
   min-width: 0;
+  margin: -0.55rem -0.6rem 0;
+  padding: 0.5rem 0.6rem;
+  background: var(--pd-dept-tone-soft);
+  border-radius: 10px 10px 0 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--pd-dept-tone) 18%, transparent);
 }
 
 .pd-dept-icon-wrap {
@@ -1502,12 +1507,12 @@
 
 .pd-dept-mid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
   gap: 0;
   flex: 1;
   min-height: 0;
   min-width: 0;
-  border-top: 1px solid var(--pd-border);
+  border-top: none;
   border-bottom: 1px solid var(--pd-border);
   padding: 0.35rem 0;
 }
@@ -1620,11 +1625,11 @@
 .pd-dept-batch-stats {
   list-style: none;
   margin: 0;
-  padding: 0 0 0 0.5rem;
+  padding: 0 0 0 0.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.28rem;
-  justify-content: center;
+  gap: 0.18rem;
+  justify-content: flex-start;
   min-width: 0;
   overflow: hidden;
 }
@@ -1633,14 +1638,14 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.25rem;
   min-width: 0;
 }
 
 .pd-dept-stat-icon {
-  width: 1.2rem;
-  height: 1.2rem;
-  border-radius: 5px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 4px;
   display: grid;
   place-items: center;
   color: #fff;
@@ -1651,8 +1656,13 @@
 .pd-dept-stat-icon--time { background: #2563EB; }
 .pd-dept-stat-icon--avg { background: #2563EB; }
 
+.pd-dept-stat-icon .pd-icon {
+  width: 0.65rem;
+  height: 0.65rem;
+}
+
 .pd-dept-stat-label {
-  font-size: 9.5px;
+  font-size: 9px;
   color: var(--pd-muted);
   font-weight: 600;
   white-space: nowrap;
@@ -1662,7 +1672,7 @@
 }
 
 .pd-dept-stat-value {
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 700;
   color: var(--pd-text);
   text-align: right;
@@ -2096,6 +2106,7 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  /* Desktop control-center stays 4-col until tablet breakpoint */
   .pd-layout--control-center .pd-dept-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -2107,7 +2118,7 @@
   }
 
   .pd-layout--control-center .pd-kpi-strip {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .pd-assembly-grid {
@@ -2130,8 +2141,9 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* Tablet: 2 columns */
   .pd-layout--control-center .pd-dept-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pd-dept-mid {
@@ -2139,7 +2151,7 @@
   }
 
   .pd-layout--control-center .pd-dept-mid {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
   }
 
   .pd-dept-emp-block {
@@ -2163,7 +2175,7 @@
   }
 
   .pd-layout--control-center .pd-dept-batch-stats {
-    padding-left: 0.5rem;
+    padding-left: 0.4rem;
   }
 
   .pd-dept-bottom {
@@ -2199,12 +2211,25 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .pd-layout--control-center .pd-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .pd-dept-grid {
     grid-template-columns: 1fr;
   }
 
+  /* Phone: single column + allow scroll */
   .pd-layout--control-center .pd-dept-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .pd-layout--control-center {
+    overflow: auto;
+  }
+
+  .pd-layout--control-center .pd-dept-mid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
   }
 
   .pd-assembly-grid {
@@ -2432,6 +2457,11 @@
   padding: 0.5rem 0.55rem;
   gap: 0.3rem;
   min-height: 0;
+}
+
+.pd-layout--control-center .pd-dept-card-head {
+  margin: -0.5rem -0.55rem 0;
+  padding: 0.45rem 0.55rem;
 }
 
 .pd-layout--control-center .pd-dept-name {
@@ -2807,11 +2837,6 @@
   .pd-row-bottom-terminal,
   .pd-batch-trace-layout {
     grid-template-columns: 1fr;
-  }
-
-  /* Keep control-center clipped on phone only when mid panels stack; dept grid stays 4-col. */
-  .pd-layout--control-center {
-    overflow: hidden;
   }
 
   .pd-mid-quad > .pd-panel,

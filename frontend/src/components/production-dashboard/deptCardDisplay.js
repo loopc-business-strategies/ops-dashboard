@@ -1,6 +1,6 @@
 /**
- * Live-only department card display mapping.
- * Subtitles are static labels from departmentConfig; all metrics come from the live model.
+ * Department card display mapping.
+ * Live metrics win; when a card has no live signal, reference-style demo values fill the UI.
  */
 
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
@@ -59,6 +59,164 @@ function avgTimeFromRatings(employeeRatings, employees) {
   return mean(times)
 }
 
+/** Reference-style demo when a department has no live production signal. */
+const DEMO_BY_DEPT = {
+  vault_room: {
+    status: 'Idle',
+    employees: [
+      { name: 'Mark', rating: 4.8 },
+      { name: 'Jon', rating: 4.5 },
+      { name: 'Maria', rating: 4.9 },
+    ],
+    batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.8 min',
+    metalIn: 5000,
+    metalOut: 2450,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.11 },
+      { index: 2, label: 'Batch 2', loss: 0.39 },
+    ],
+    lossAvg: 0.25,
+  },
+  melting: {
+    status: 'Running',
+    employees: [
+      { name: 'Mark', rating: 4.7 },
+      { name: 'Jon', rating: 4.6 },
+      { name: 'Maria', rating: 4.8 },
+    ],
+    batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.8 min',
+    metalIn: 2500,
+    metalOut: 1600,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.11 },
+      { index: 2, label: 'Batch 2', loss: 0.39 },
+    ],
+    lossAvg: 0.25,
+  },
+  rolling: {
+    status: 'Running',
+    employees: [
+      { name: 'Mark', rating: 4.8 },
+      { name: 'Jon', rating: 4.6 },
+      { name: 'Maria', rating: 4.9 },
+    ],
+    batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.8 min',
+    metalIn: 1800,
+    metalOut: 1200,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.12 },
+      { index: 2, label: 'Batch 2', loss: 0.28 },
+    ],
+    lossAvg: 0.2,
+  },
+  bangle_area: {
+    status: 'Running',
+    employees: [
+      { name: 'Mark', rating: 4.7 },
+      { name: 'Jon', rating: 4.5 },
+      { name: 'Maria', rating: 4.8 },
+    ],
+    batches: 3,
+    timePerBatchLabel: '6 min',
+    avgTimeLabel: '5.2 min',
+    metalIn: 980,
+    metalOut: 720,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.15 },
+      { index: 2, label: 'Batch 2', loss: 0.22 },
+    ],
+    lossAvg: 0.18,
+  },
+  stamping: {
+    status: 'Running',
+    employees: [
+      { name: 'Mark', rating: 4.9 },
+      { name: 'Jon', rating: 4.7 },
+      { name: 'Maria', rating: 4.8 },
+    ],
+    batches: 2,
+    timePerBatchLabel: '4 min',
+    avgTimeLabel: '4.2 min',
+    metalIn: 640,
+    metalOut: 510,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.09 },
+      { index: 2, label: 'Batch 2', loss: 0.18 },
+    ],
+    lossAvg: 0.14,
+  },
+  pendent_section: {
+    status: 'Idle',
+    employees: [
+      { name: 'Mark', rating: 4.6 },
+      { name: 'Jon', rating: 4.5 },
+      { name: 'Maria', rating: 4.7 },
+    ],
+    batches: 1,
+    timePerBatchLabel: '7 min',
+    avgTimeLabel: '6.5 min',
+    metalIn: 420,
+    metalOut: 310,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.2 },
+      { index: 2, label: 'Batch 2', loss: 0.31 },
+    ],
+    lossAvg: 0.26,
+  },
+  welding_area: {
+    status: 'Running',
+    employees: [
+      { name: 'Mark', rating: 4.8 },
+      { name: 'Jon', rating: 4.7 },
+      { name: 'Maria', rating: 4.9 },
+    ],
+    batches: 2,
+    timePerBatchLabel: '5 min',
+    avgTimeLabel: '4.9 min',
+    metalIn: 560,
+    metalOut: 430,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.1 },
+      { index: 2, label: 'Batch 2', loss: 0.24 },
+    ],
+    lossAvg: 0.17,
+  },
+  assembly: {
+    status: 'Idle',
+    employees: [
+      { name: 'Mark', rating: 4.7 },
+      { name: 'Jon', rating: 4.6 },
+      { name: 'Maria', rating: 4.8 },
+    ],
+    batches: 2,
+    timePerBatchLabel: '8 min',
+    avgTimeLabel: '7.5 min',
+    metalIn: 390,
+    metalOut: 360,
+    lossRows: [
+      { index: 1, label: 'Batch 1', loss: 0.08 },
+      { index: 2, label: 'Batch 2', loss: 0.12 },
+    ],
+    lossAvg: 0.1,
+  },
+}
+
+function hasLiveSignal({ employees, batchCount, metalIn, metalOut, lossRows }) {
+  return (
+    (employees && employees.length > 0)
+    || batchCount != null
+    || hasNum(metalIn)
+    || hasNum(metalOut)
+    || (lossRows && lossRows.length > 0)
+  )
+}
+
 export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employeeRatings = []) {
   const key = String(card.key || '')
   const batches = rowsForDept(batchMonitorRows, card)
@@ -106,7 +264,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     lossRows = [{ index: 1, label: 'Batch 1', loss: Number(card.metalLoss) }]
   }
 
-  const lossAvg = mean(lossRows.map((r) => r.loss))
+  let lossAvg = mean(lossRows.map((r) => r.loss))
 
   let employees = Array.isArray(card.employees) && card.employees.length
     ? card.employees.map((e) => ({
@@ -138,16 +296,35 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     }))
   }
 
+  let status = card.status || 'Idle'
+  let batchesDisplay = batchCount != null ? batchCount : '—'
+  let timePerBatchLabel = fmtMin(timePerBatchMin)
+  let avgTimeLabel = fmtMin(avgTimeMin ?? avgTimeFromRatings(employeeRatings, employees))
+
+  const live = hasLiveSignal({ employees, batchCount, metalIn, metalOut, lossRows })
+  const demo = DEMO_BY_DEPT[key]
+  if (!live && demo) {
+    status = demo.status
+    employees = demo.employees
+    batchesDisplay = demo.batches
+    timePerBatchLabel = demo.timePerBatchLabel
+    avgTimeLabel = demo.avgTimeLabel
+    metalIn = demo.metalIn
+    metalOut = demo.metalOut
+    lossRows = demo.lossRows
+    lossAvg = demo.lossAvg
+  }
+
   return {
     key,
     name: card.name || key,
     subtitle: card.subtitle || subtitleFor(key),
-    status: card.status || 'Idle',
+    status,
     employees,
     employeeCount: employees.length,
-    batches: batchCount != null ? batchCount : '—',
-    timePerBatchLabel: fmtMin(timePerBatchMin),
-    avgTimeLabel: fmtMin(avgTimeMin ?? avgTimeFromRatings(employeeRatings, employees)),
+    batches: batchesDisplay,
+    timePerBatchLabel,
+    avgTimeLabel,
     metalIn,
     metalOut,
     lossRows,
