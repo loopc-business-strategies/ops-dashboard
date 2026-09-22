@@ -1,7 +1,10 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import React, { useState } from 'react'
 import {
   Alert,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,7 +12,7 @@ import {
   View,
 } from 'react-native'
 import { useAuth } from '@/src/context/AuthContext'
-import { BigButton, Screen, Subtitle, Title, useIsTablet } from '@/src/components/ui'
+import { BigButton, Screen, useIsTablet } from '@/src/components/ui'
 import { callManager } from '@/src/api/factory'
 import { userFacingMessage } from '@/src/api/errors'
 import { colors, spacing } from '@/src/theme'
@@ -41,13 +44,13 @@ export default function HomeScreen() {
     loginWithBiometric,
     logoutEmployee,
     logoutDepartment,
-    enrollBiometric,
     biometricAvailable,
     biometricEnrolled,
   } = useAuth()
   const router = useRouter()
   const tablet = useIsTablet()
   const [calling, setCalling] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
   const [empName, setEmpName] = useState('')
   const [empPassword, setEmpPassword] = useState('')
   const [signBusy, setSignBusy] = useState(false)
@@ -55,12 +58,19 @@ export default function HomeScreen() {
 
   const signedIn = Boolean(employeeToken && user?.name)
 
+  const closeLoginModal = () => {
+    setLoginOpen(false)
+    setSignError('')
+    setEmpPassword('')
+  }
+
   const onSignIn = async () => {
     setSignError('')
     setSignBusy(true)
     try {
       await loginEmployee(empName, empPassword)
       setEmpPassword('')
+      setLoginOpen(false)
     } catch (err) {
       setSignError(userFacingMessage(err) || 'Sign in failed')
     } finally {
@@ -73,6 +83,7 @@ export default function HomeScreen() {
     setSignBusy(true)
     try {
       await loginWithBiometric()
+      setLoginOpen(false)
     } catch (err) {
       setSignError(userFacingMessage(err) || 'Face ID failed')
     } finally {
@@ -80,9 +91,23 @@ export default function HomeScreen() {
     }
   }
 
+  const onHeaderAuthPress = async () => {
+    if (signedIn) {
+      await logoutEmployee()
+      return
+    }
+    setSignError('')
+    setLoginOpen(true)
+  }
+
+  const onChangeDepartment = async () => {
+    await logoutDepartment()
+    router.replace('/department-login')
+  }
+
   const onCallManager = async () => {
     if (!employeeToken) {
-      Alert.alert('Sign in required', 'Sign in as employee before sending an alert')
+      Alert.alert('Sign in required', 'Tap Login (top right) first')
       return
     }
     setCalling(true)
@@ -100,7 +125,7 @@ export default function HomeScreen() {
 
   const onOp = (op: OpDef) => {
     if (!signedIn) {
-      Alert.alert('Sign in required', 'Sign in as employee at the top of this screen first')
+      Alert.alert('Sign in required', 'Tap Login (top right) first')
       return
     }
     if (op.alert) {
@@ -113,106 +138,28 @@ export default function HomeScreen() {
   return (
     <Screen style={styles.screen}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
-        <Title>MG FACTORY</Title>
-        <Subtitle>{department?.label || 'Department'} floor hub</Subtitle>
-
-        <View style={styles.empPanel}>
-          <Text style={styles.empTitle}>EMPLOYEE</Text>
-          {signedIn ? (
-            <View style={styles.empSigned}>
-              <Text style={styles.empName}>Operator: {user?.name}</Text>
-              <View style={[styles.empActions, tablet && styles.empActionsRow]}>
-                {biometricAvailable ? (
-                  <View style={tablet ? styles.empCol : undefined}>
-                    <BigButton
-                      label="ENABLE FACE ID"
-                      tone="neutral"
-                      onPress={async () => {
-                        try {
-                          await enrollBiometric()
-                          Alert.alert('Face ID enabled', 'Use Face ID next time from this screen.')
-                        } catch (err) {
-                          Alert.alert('Face ID', userFacingMessage(err))
-                        }
-                      }}
-                    />
-                  </View>
-                ) : null}
-                <View style={tablet ? styles.empCol : undefined}>
-                  <BigButton
-                    label="EMPLOYEE LOGOUT"
-                    tone="neutral"
-                    onPress={async () => {
-                      await logoutEmployee()
-                    }}
-                  />
-                </View>
-                <View style={tablet ? styles.empCol : undefined}>
-                  <BigButton
-                    label="CHANGE DEPARTMENT"
-                    tone="neutral"
-                    onPress={async () => {
-                      await logoutDepartment()
-                      router.replace('/department-login')
-                    }}
-                  />
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.hint}>Sign in to confirm Metal / Alloy / Batch actions</Text>
-              <Text style={styles.label}>Employee</Text>
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.input}
-                value={empName}
-                onChangeText={setEmpName}
-                placeholder="Username"
-                placeholderTextColor={colors.textMuted}
-              />
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                secureTextEntry
-                style={styles.input}
-                value={empPassword}
-                onChangeText={setEmpPassword}
-                placeholder="Password"
-                placeholderTextColor={colors.textMuted}
-              />
-              {signError ? <Text style={styles.error}>{signError}</Text> : null}
-              <View style={[styles.empActions, tablet && styles.empActionsRow]}>
-                {biometricAvailable && biometricEnrolled ? (
-                  <View style={tablet ? styles.empCol : undefined}>
-                    <BigButton
-                      label={signBusy ? '…' : 'FACE ID'}
-                      tone="success"
-                      onPress={onFaceId}
-                      disabled={signBusy}
-                    />
-                  </View>
-                ) : null}
-                <View style={tablet ? styles.empCol : undefined}>
-                  <BigButton
-                    label={signBusy ? 'SIGNING IN…' : 'SIGN IN'}
-                    onPress={onSignIn}
-                    disabled={signBusy || !empName.trim() || !empPassword}
-                  />
-                </View>
-                <View style={tablet ? styles.empCol : undefined}>
-                  <BigButton
-                    label="CHANGE DEPARTMENT"
-                    tone="neutral"
-                    onPress={async () => {
-                      await logoutDepartment()
-                      router.replace('/department-login')
-                    }}
-                  />
-                </View>
-              </View>
-            </View>
-          )}
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>MG FACTORY</Text>
+            <Text style={styles.subtitle}>
+              {department?.label || 'Department'} floor hub
+              {signedIn ? ` · ${user?.name}` : ''}
+            </Text>
+            <Pressable onPress={onChangeDepartment} hitSlop={8}>
+              <Text style={styles.deptLink}>Change department</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={signedIn ? 'Logout' : 'Login'}
+            onPress={onHeaderAuthPress}
+            style={({ pressed }) => [styles.authBtn, pressed && styles.authBtnPressed]}
+          >
+            {!signedIn ? (
+              <MaterialCommunityIcons name="fingerprint" size={18} color={colors.accent} />
+            ) : null}
+            <Text style={styles.authBtnText}>{signedIn ? 'Logout' : 'Login'}</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.section}>OPERATIONS</Text>
@@ -229,6 +176,54 @@ export default function HomeScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={loginOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={closeLoginModal}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={closeLoginModal}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Employee login</Text>
+            <Text style={styles.modalHint}>Required to confirm Metal / Alloy / Batch actions</Text>
+            <Text style={styles.label}>Employee</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+              value={empName}
+              onChangeText={setEmpName}
+              placeholder="Username"
+              placeholderTextColor={colors.textMuted}
+            />
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              secureTextEntry
+              style={styles.input}
+              value={empPassword}
+              onChangeText={setEmpPassword}
+              placeholder="Password"
+              placeholderTextColor={colors.textMuted}
+            />
+            {signError ? <Text style={styles.error}>{signError}</Text> : null}
+            {biometricAvailable && biometricEnrolled ? (
+              <BigButton
+                label={signBusy ? '…' : 'FACE ID'}
+                tone="success"
+                onPress={onFaceId}
+                disabled={signBusy}
+              />
+            ) : null}
+            <BigButton
+              label={signBusy ? 'SIGNING IN…' : 'SIGN IN'}
+              onPress={onSignIn}
+              disabled={signBusy || !empName.trim() || !empPassword}
+            />
+            <BigButton label="CANCEL" tone="neutral" onPress={closeLoginModal} disabled={signBusy} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   )
 }
@@ -236,33 +231,47 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: { paddingBottom: spacing.md },
   scroll: { paddingBottom: spacing.xl },
-  empPanel: {
-    marginTop: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
-  empTitle: { color: colors.accent, fontWeight: '800', letterSpacing: 1, marginBottom: spacing.sm },
-  empSigned: { gap: spacing.sm },
-  empName: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  hint: { color: colors.textMuted, marginBottom: spacing.sm },
-  label: { color: colors.textMuted, marginBottom: 6, marginTop: spacing.sm, fontWeight: '600' },
-  input: {
-    backgroundColor: colors.bg,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 8,
+  headerLeft: { flex: 1, minWidth: 0 },
+  title: {
     color: colors.text,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  error: { color: colors.danger, marginTop: spacing.sm, fontWeight: '600' },
-  empActions: { marginTop: spacing.md, gap: spacing.sm },
-  empActionsRow: { flexDirection: 'row', flexWrap: 'wrap' },
-  empCol: { flexGrow: 1, flexBasis: '30%', minWidth: 140 },
+  subtitle: {
+    color: colors.textMuted,
+    fontSize: 15,
+    marginTop: 4,
+  },
+  deptLink: {
+    color: colors.accent,
+    fontWeight: '700',
+    marginTop: spacing.sm,
+    fontSize: 14,
+  },
+  authBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'transparent',
+  },
+  authBtnPressed: { opacity: 0.75 },
+  authBtnText: {
+    color: colors.accent,
+    fontWeight: '700',
+    fontSize: 15,
+  },
   section: {
     color: colors.text,
     fontWeight: '800',
@@ -274,4 +283,32 @@ const styles = StyleSheet.create({
   gridTablet: { flexDirection: 'row', flexWrap: 'wrap' },
   gridItem: { width: '100%' },
   gridItemTablet: { width: '48%', flexGrow: 1 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  modalTitle: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  modalHint: { color: colors.textMuted, marginBottom: spacing.sm },
+  label: { color: colors.textMuted, marginBottom: 4, marginTop: spacing.xs, fontWeight: '600' },
+  input: {
+    backgroundColor: colors.bg,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    color: colors.text,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  error: { color: colors.danger, fontWeight: '600' },
 })
