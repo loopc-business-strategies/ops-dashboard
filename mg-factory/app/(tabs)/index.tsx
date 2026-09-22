@@ -42,6 +42,7 @@ export default function HomeScreen() {
     employeeToken,
     loginEmployee,
     loginWithBiometric,
+    enrollBiometric,
     logoutEmployee,
     logoutDepartment,
     biometricAvailable,
@@ -57,6 +58,7 @@ export default function HomeScreen() {
   const [signError, setSignError] = useState('')
 
   const signedIn = Boolean(employeeToken && user?.name)
+  const useBiometricLogin = biometricAvailable && biometricEnrolled
 
   const closeLoginModal = () => {
     setLoginOpen(false)
@@ -71,21 +73,15 @@ export default function HomeScreen() {
       await loginEmployee(empName, empPassword)
       setEmpPassword('')
       setLoginOpen(false)
+      if (biometricAvailable) {
+        try {
+          await enrollBiometric()
+        } catch {
+          // Token may already be stored by loginEmployee; OS confirm is best-effort.
+        }
+      }
     } catch (err) {
       setSignError(userFacingMessage(err) || 'Sign in failed')
-    } finally {
-      setSignBusy(false)
-    }
-  }
-
-  const onFaceId = async () => {
-    setSignError('')
-    setSignBusy(true)
-    try {
-      await loginWithBiometric()
-      setLoginOpen(false)
-    } catch (err) {
-      setSignError(userFacingMessage(err) || 'Face ID failed')
     } finally {
       setSignBusy(false)
     }
@@ -97,6 +93,17 @@ export default function HomeScreen() {
       return
     }
     setSignError('')
+    if (useBiometricLogin) {
+      setSignBusy(true)
+      try {
+        await loginWithBiometric()
+      } catch (err) {
+        Alert.alert('Login failed', userFacingMessage(err) || 'Biometric login failed')
+      } finally {
+        setSignBusy(false)
+      }
+      return
+    }
     setLoginOpen(true)
   }
 
@@ -153,7 +160,8 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={signedIn ? 'Logout' : 'Login'}
             onPress={onHeaderAuthPress}
-            style={({ pressed }) => [styles.authBtn, pressed && styles.authBtnPressed]}
+            disabled={signBusy}
+            style={({ pressed }) => [styles.authBtn, pressed && styles.authBtnPressed, signBusy && styles.authBtnDisabled]}
           >
             {!signedIn ? (
               <MaterialCommunityIcons name="fingerprint" size={18} color={colors.accent} />
@@ -185,8 +193,10 @@ export default function HomeScreen() {
       >
         <Pressable style={styles.modalBackdrop} onPress={closeLoginModal}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Employee login</Text>
-            <Text style={styles.modalHint}>Required to confirm Metal / Alloy / Batch actions</Text>
+            <Text style={styles.modalTitle}>One-time setup</Text>
+            <Text style={styles.modalHint}>
+              Enter password once — then use Fingerprint / Face ID from Login
+            </Text>
             <Text style={styles.label}>Employee</Text>
             <TextInput
               autoCapitalize="none"
@@ -207,14 +217,6 @@ export default function HomeScreen() {
               placeholderTextColor={colors.textMuted}
             />
             {signError ? <Text style={styles.error}>{signError}</Text> : null}
-            {biometricAvailable && biometricEnrolled ? (
-              <BigButton
-                label={signBusy ? '…' : 'FACE ID'}
-                tone="success"
-                onPress={onFaceId}
-                disabled={signBusy}
-              />
-            ) : null}
             <BigButton
               label={signBusy ? 'SIGNING IN…' : 'SIGN IN'}
               onPress={onSignIn}
@@ -267,6 +269,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   authBtnPressed: { opacity: 0.75 },
+  authBtnDisabled: { opacity: 0.5 },
   authBtnText: {
     color: colors.accent,
     fontWeight: '700',

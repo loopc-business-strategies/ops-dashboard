@@ -151,17 +151,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const enrollBiometric = useCallback(async () => {
-    if (!employeeToken) throw new Error('Sign in with password first')
+    const token = employeeToken || (await safeGet(EMP_TOKEN_KEY))
+    if (!token) throw new Error('Sign in with password first')
     const compatible = await LocalAuthentication.hasHardwareAsync()
     const enrolled = await LocalAuthentication.isEnrolledAsync()
     if (!compatible || !enrolled) throw new Error('Biometrics not available on this device')
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Enable Face ID for MG Factory',
+      promptMessage: 'Enable Fingerprint / Face ID for MG Factory',
       cancelLabel: 'Cancel',
       disableDeviceFallback: false,
     })
     if (!result.success) throw new Error('Biometric enrollment cancelled')
-    const bio = await refreshBiometricToken(employeeToken)
+    const bio = await refreshBiometricToken(token)
     if (!bio.token) throw new Error('Could not create biometric token')
     await safeSet(BIOMETRIC_TOKEN_KEY, bio.token)
     setBiometricEnrolled(true)
@@ -170,13 +171,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithBiometric = useCallback(async () => {
     if (!departmentToken) throw new Error('Unlock department first')
     const stored = await safeGet(BIOMETRIC_TOKEN_KEY)
-    if (!stored) throw new Error('No Face ID credentials — sign in with password once')
+    if (!stored) throw new Error('No biometric credentials — sign in with password once')
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Employee Face ID',
+      promptMessage: 'Employee login',
       cancelLabel: 'Cancel',
       disableDeviceFallback: false,
     })
-    if (!result.success) throw new Error('Face ID cancelled')
+    if (!result.success) throw new Error('Biometric login cancelled')
     await safeSet(EMP_TOKEN_KEY, stored)
     await hydrateEmployee(stored, department)
   }, [departmentToken, department, hydrateEmployee])
