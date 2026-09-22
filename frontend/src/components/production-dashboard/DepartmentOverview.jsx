@@ -228,10 +228,7 @@ export default function DepartmentOverview({
     <section className="pd-dept-row" aria-label="Department status">
       <div className="pd-panel pd-dept-status">
         <div className="pd-panel-head pd-panel-head--slim">
-          <div>
-            <h2 className="pd-panel-title">Department Status</h2>
-            <p className="pd-panel-sub">Real-time production details by department</p>
-          </div>
+          <h2 className="pd-panel-title">Department Status</h2>
         </div>
         {!list.length ? (
           <p className="pd-empty">No departments configured</p>

@@ -10,6 +10,24 @@ import {
   IconTrendUp,
 } from './PdIcons'
 
+/** Reference-style KPI strip when there is no live production data. */
+const DEMO_COMPACT_KPIS = {
+  employees: '24',
+  employeesHint: '28 Total',
+  floorManager: 'Mr. Suresh',
+  floorManagerHint: '● Online',
+  vaultDisplay: '12,450 g',
+  vaultHint: 'Gold in Stock',
+  currentShift: 'Morning',
+  shiftHint: '6:00 AM – 6:00 PM',
+  totalProductionToday: '8,320 g',
+  productionHint: '↑ +12%',
+  underProduction: '5 Batches',
+  totalOutput: '7,980 g',
+  yesterdayVsToday: '↑ +18%',
+  yesterdayHint: '7,980 g vs 6,750 g',
+}
+
 function CompactKpi({ icon, label, value, hint, hintLines, className = '', iconTone = '' }) {
   return (
     <article className={`pd-kpi-compact${className ? ` ${className}` : ''}`}>
@@ -58,6 +76,70 @@ function deltaLabel(n) {
 
 export default function KpiRow({ model }) {
   if (!model) return null
+
+  if (!model.hasLiveProduction) {
+    const d = DEMO_COMPACT_KPIS
+    return (
+      <section className="pd-kpi-strip" aria-label="Production KPIs">
+        <CompactKpi
+          icon={<IconEmployees />}
+          iconTone="blue"
+          label="Employees"
+          value={d.employees}
+          hint={d.employeesHint}
+        />
+        <CompactKpi
+          icon={<IconManager />}
+          iconTone="blue"
+          label="Floor Manager"
+          value={d.floorManager}
+          hint={d.floorManagerHint}
+        />
+        <CompactKpi
+          icon={<IconVault />}
+          iconTone="green"
+          label="Vault Available"
+          value={d.vaultDisplay}
+          hint={d.vaultHint}
+          className="pd-kpi-compact--vault"
+        />
+        <CompactKpi
+          icon={<IconShift />}
+          iconTone="blue"
+          label="Current Shift"
+          value={d.currentShift}
+          hint={d.shiftHint}
+        />
+        <CompactKpi
+          icon={<IconProduction />}
+          iconTone="green"
+          label="Total Production Today"
+          value={d.totalProductionToday}
+          hint={d.productionHint}
+        />
+        <CompactKpi
+          icon={<IconUnderProduction />}
+          iconTone="green"
+          label="Under Production"
+          value={d.underProduction}
+        />
+        <CompactKpi
+          icon={<IconOutput />}
+          iconTone="green"
+          label="Total Output"
+          value={d.totalOutput}
+        />
+        <CompactKpi
+          icon={<IconTrendUp />}
+          iconTone="green"
+          label="Yesterday vs Today"
+          value={<span className="pd-delta pd-delta--up">{d.yesterdayVsToday}</span>}
+          hint={d.yesterdayHint}
+        />
+      </section>
+    )
+  }
+
   const k = model.compactKpis || {}
   const vault = model.vaultKpi || {}
   const emp = model.employeeKpi || {}
@@ -83,7 +165,7 @@ export default function KpiRow({ model }) {
     : (onDuty != null ? `${onDuty} On Duty` : null)
 
   const manager = k.floorManager || emp.floorManager || '—'
-  const managerOnline = Boolean(model.hasLiveProduction && manager !== '—')
+  const managerOnline = Boolean(manager !== '—')
   const shiftName = k.currentShift || shift.name || '—'
   const shiftHint = shift.startTime || shift.endTime
     ? `${formatShiftClock(shift.startTime)} – ${formatShiftClock(shift.endTime)}`
