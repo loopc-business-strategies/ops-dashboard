@@ -115,12 +115,11 @@ set "OPS_DASHBOARD_REPO_ROOT="
 set "OPS_REACT_NATIVE_ARCHS=arm64-v8a"
 set "GRADLE_OPTS=-Dorg.gradle.vfs.watch=false"
 
+REM Keep New Architecture on (SDK 55+ / Reanimated 4). Only pin ABI + disable vfs watch.
 powershell -NoProfile -Command ^
   "$p='%BUILD_ROOT%\android\gradle.properties';" ^
   "if (-not (Test-Path $p)) { exit 0 };" ^
   "$c=Get-Content $p;" ^
-  "$c=$c -replace 'newArchEnabled=true','newArchEnabled=false';" ^
-  "if ($c -notmatch 'newArchEnabled=') { $c += 'newArchEnabled=false' };" ^
   "if ($c -notmatch 'reactNativeArchitectures=') { $c += 'reactNativeArchitectures=arm64-v8a' } else { $c=$c -replace 'reactNativeArchitectures=.*','reactNativeArchitectures=arm64-v8a' };" ^
   "if ($c -notmatch 'org.gradle.vfs.watch') { $c += 'org.gradle.vfs.watch=false' };" ^
   "Set-Content $p $c"

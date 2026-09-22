@@ -1,10 +1,11 @@
 /**
- * Mobile adapter for shared money utilities (same source as web frontend).
- * Implementation lives in backend/shared/money.js; shared/money.js re-exports it.
+ * Mobile adapter for shared money utilities (same source as web/backend).
+ * Vendored copy: `src/vendor/money.js` (from backend/shared/money.js) so Metro
+ * release bundles do not depend on monorepo paths outside mobile/ (Windows
+ * junction builds hit SHA-1 failures for ../shared).
  */
-// Metro resolves CJS from the monorepo shared folder (watchFolders includes shared/).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const moneyModule = require('../../../shared/money.js')
+const moneyModule = require('../vendor/money-impl.js')
 const api = moneyModule?.default || moneyModule
 
 export const toMoney = api.toMoney as (value: unknown) => number

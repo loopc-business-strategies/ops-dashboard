@@ -16,7 +16,6 @@ const config = {
   icon: './assets/images/icon.png',
   scheme: 'mgfactory',
   userInterfaceStyle: 'light',
-  newArchEnabled: false,
   splash: {
     image: './assets/images/splash-icon.png',
     resizeMode: 'contain',
@@ -44,6 +43,7 @@ const config = {
     'expo-splash-screen',
     'expo-secure-store',
     'expo-screen-orientation',
+    'expo-status-bar',
     [
       'expo-local-authentication',
       {

@@ -4,7 +4,7 @@ const { APP_NAME } = require('./appName.cjs')
 const { EAS_PROJECT_ID } = require('./easProject.cjs')
 
 /** Keep in sync with `version`. Bare workflow requires a string `runtimeVersion`, not `{ policy: ... }`. */
-const APP_VERSION = '1.0.0'
+const APP_VERSION = '1.0.1'
 
 /** Neutral native shell — tenant colors apply after JS loads via TenantContext. */
 const NATIVE_SHELL_BACKGROUND = '#F8FAFC'
