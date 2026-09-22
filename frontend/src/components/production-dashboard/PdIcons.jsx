@@ -115,34 +115,6 @@ export function IconMark(props) {
   )
 }
 
-/** Gold geometric cube mark for Production Control Center header. */
-export function IconMarkCube(props) {
-  return (
-    <Svg {...props} strokeWidth="1.5">
-      <path d="M12 2 3.5 7v10L12 22l8.5-5V7L12 2z" />
-      <path d="M12 22V12" />
-      <path d="M3.5 7 12 12l8.5-5" />
-    </Svg>
-  )
-}
-
-export function IconRefresh(props) {
-  return (
-    <Svg {...props}>
-      <path d="M21 12a9 9 0 1 1-2.6-6.3" />
-      <path d="M21 3v6h-6" />
-    </Svg>
-  )
-}
-
-export function IconChevronDown(props) {
-  return (
-    <Svg {...props}>
-      <path d="M6 9l6 6 6-6" />
-    </Svg>
-  )
-}
-
 export function IconVault(props) {
   return (
     <Svg {...props}>

@@ -1,20 +1,17 @@
 import { formatClock, formatDateLong, formatShiftClock } from './formatters'
-import { IconCalendar, IconMarkCube, IconRefresh, IconChevronDown } from './PdIcons'
+import { IconCalendar, IconMark } from './PdIcons'
 
-export default function HeaderBar({ header, lastUpdated, connection: _connection, hasLiveProduction, onRefresh, loading }) {
+export default function HeaderBar({ header, lastUpdated, connection, onRefresh, loading }) {
   const h = header || {}
-  const shiftName = h.shiftName || 'Morning'
-  const shiftHint = h.shiftStart || h.shiftEnd
-    ? ` (${formatShiftClock(h.shiftStart)} – ${formatShiftClock(h.shiftEnd)})`
-    : ''
-
-  const productionConnected = Boolean(hasLiveProduction)
+  const shiftLabel = h.shiftName
+    ? `${h.shiftName}${h.shiftStart || h.shiftEnd ? ` (${formatShiftClock(h.shiftStart)} – ${formatShiftClock(h.shiftEnd)})` : ''}`
+    : '—'
 
   return (
-    <header className="pd-header pd-header--navy pd-header--control">
+    <header className="pd-header pd-header--navy">
       <div className="pd-header-brand">
-        <span className="pd-header-mark pd-header-mark--cube" aria-hidden>
-          <IconMarkCube />
+        <span className="pd-header-mark" aria-hidden>
+          <IconMark />
         </span>
         <div>
           <h1 className="pd-title">{h.title || 'PRODUCTION CONTROL CENTER'}</h1>
@@ -28,37 +25,29 @@ export default function HeaderBar({ header, lastUpdated, connection: _connection
           {h.dateLabel || formatDateLong()}
           {h.timeLabel ? ` | ${h.timeLabel}` : ''}
         </span>
-        <span className="pd-conn pd-conn--ok">
-          <span className="pd-conn-dot" aria-hidden />
-          Vault connected
+        <span className={`pd-factory-status pd-factory-status--${h.statusTone || 'muted'}`}>
+          <span className="pd-factory-pulse" aria-hidden />
+          {h.status || 'No production activity today'}
         </span>
-        <span className={`pd-conn ${productionConnected ? 'pd-conn--ok' : 'pd-conn--bad'}`}>
-          <span className="pd-conn-dot" aria-hidden />
-          {productionConnected ? 'Production connected' : 'Production not connected'}
-        </span>
-        <span className="pd-header-chip pd-header-chip--shift" title={`Current shift${shiftHint}`}>
-          <span className="pd-shift-label">Shift: {shiftName}</span>
-          <IconChevronDown size={14} className="pd-shift-chevron" />
-          <select
-            className="pd-shift-select"
-            value={shiftName}
-            disabled
-            aria-label="Current shift"
-            tabIndex={-1}
-          >
-            <option value={shiftName}>{shiftName}</option>
-          </select>
+        <span className="pd-header-chip pd-header-chip--shift" title="Current shift">
+          Shift: {shiftLabel}
         </span>
       </div>
 
       <div className="pd-header-actions">
         {lastUpdated ? (
           <span className="pd-header-meta-light">
-            Updated {formatClock(lastUpdated)}
+            Updated {formatClock(lastUpdated)} · {connection}
           </span>
         ) : null}
-        <button type="button" className="pd-btn pd-btn--refresh" onClick={onRefresh} disabled={loading}>
-          <IconRefresh size={14} />
+        {h.floorManager ? (
+          <span className="pd-header-avatar" title={h.floorManager}>
+            {String(h.floorManager).slice(0, 2).toUpperCase()}
+          </span>
+        ) : (
+          <span className="pd-header-avatar pd-header-avatar--muted" title="Manager not assigned">—</span>
+        )}
+        <button type="button" className="pd-btn pd-btn--primary" onClick={onRefresh} disabled={loading}>
           Refresh
         </button>
       </div>

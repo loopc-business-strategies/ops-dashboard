@@ -159,7 +159,6 @@ export default function ProductionDashboardTab() {
         header={model?.header}
         lastUpdated={lastUpdated}
         connection={connection}
-        hasLiveProduction={model?.hasLiveProduction}
         onRefresh={() => refresh()}
         loading={loading}
       />
