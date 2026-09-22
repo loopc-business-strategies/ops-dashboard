@@ -119,6 +119,11 @@ router.post('/metal/in', ...mgProtect, requireProductionPermission('receivePass'
   varianceReason: Joi.string().trim().allow(''),
   expectedBatchVersion: Joi.number().integer().min(0),
   allowManualWeight: Joi.boolean().default(false),
+  materials: Joi.array().items(Joi.object({
+    code: Joi.string().trim().required(),
+    label: Joi.string().trim().allow('', null),
+    weight: Joi.number().min(0).required(),
+  }).unknown(true)).max(16),
 }).unknown(true)), async (req, res) => {
   try {
     const result = await mgFloor.metalIn(req, req.body)
@@ -177,6 +182,9 @@ router.get('/history', ...mgProtect, requireProductionPermission('view'), valida
   batchId: Joi.string().hex().length(24),
   type: Joi.string().trim(),
   department: Joi.string().trim(),
+  from: Joi.date().iso(),
+  to: Joi.date().iso(),
+  motion: Joi.string().valid('in', 'out', 'all').default('all'),
 }).unknown(true)), async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 50
@@ -190,9 +198,50 @@ router.get('/history', ...mgProtect, requireProductionPermission('view'), valida
         { toDepartment: req.query.department },
       ]
     }
+    if (req.query.from || req.query.to) {
+      filter.createdAt = {}
+      if (req.query.from) filter.createdAt.$gte = new Date(req.query.from)
+      if (req.query.to) filter.createdAt.$lte = new Date(req.query.to)
+    }
+    if (req.query.motion === 'in') {
+      filter.receivedAt = { $ne: null }
+    } else if (req.query.motion === 'out') {
+      filter.issuedAt = { $ne: null }
+      filter.receivedAt = null
+    }
     const movements = await MetalMovement.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean()
     const total = await MetalMovement.countDocuments(filter)
     res.json({ success: true, movements, total, limit, skip })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/stats/summary', ...mgProtect, requireProductionPermission('view'), validateQuery(Joi.object({
+  from: Joi.date().iso(),
+  to: Joi.date().iso(),
+  department: Joi.string().trim(),
+}).unknown(true)), async (req, res) => {
+  try {
+    const result = await mgFloor.statsSummary(req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/alerts', ...mgProtect, requireProductionPermission('raiseAlert'), validateBody(Joi.object({
+  title: Joi.string().trim().required(),
+  message: Joi.string().trim().allow('', null),
+  department: Joi.string().trim().allow('', null),
+  batchId: Joi.string().hex().length(24).allow(null, ''),
+  batchNumber: Joi.string().trim().allow('', null),
+  operationId: Joi.string().trim().max(120).allow('', null),
+  severity: Joi.string().trim().default('warning'),
+}).unknown(true)), async (req, res) => {
+  try {
+    const result = await mgFloor.raiseFloorAlert(req, req.body)
+    res.status(201).json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }

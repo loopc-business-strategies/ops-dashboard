@@ -2,6 +2,7 @@ const Scale = require('../../models/Scale')
 const HardwareEvent = require('../../models/HardwareEvent')
 const FloorDevice = require('../../models/FloorDevice')
 const FloorSyncOperation = require('../../models/FloorSyncOperation')
+const MetalMovement = require('../../models/MetalMovement')
 const {
   passService,
   batchService,
@@ -240,6 +241,7 @@ async function metalIn(req, body = {}) {
     varianceReason = '',
     expectedBatchVersion,
     allowManualWeight = false,
+    materials = null,
   } = body
 
   if (!passId) throw new ProductionError('passId is required for Metal IN')
@@ -257,6 +259,24 @@ async function metalIn(req, body = {}) {
     scaleMeta = { scaleId: asserted.scale.scaleId, readingId: asserted.reading?._id, deviceId }
   }
 
+  let materialsNormalized = null
+  if (Array.isArray(materials) && materials.length) {
+    materialsNormalized = materials
+      .map((m) => ({
+        code: String(m.code || '').trim(),
+        label: String(m.label || m.code || '').trim(),
+        weight: Number(m.weight),
+      }))
+      .filter((m) => m.code && Number.isFinite(m.weight) && m.weight >= 0)
+    const sum = materialsNormalized.reduce((a, m) => a + m.weight, 0)
+    if (Math.abs(sum - weight) > 0.5) {
+      throw new ProductionError(
+        `Materials total (${sum.toFixed(2)} g) must match received weight (${weight.toFixed(2)} g)`,
+        400,
+      )
+    }
+  }
+
   const result = await passService.receivePass(req, passId, {
     receivedWeight: weight,
     expectedBatchVersion,
@@ -271,6 +291,7 @@ async function metalIn(req, body = {}) {
     reused: Boolean(result.reused),
     scale: scaleMeta,
     weight,
+    materials: materialsNormalized,
   }
 }
 
@@ -523,6 +544,57 @@ async function registerDevice(req, body = {}) {
   return device
 }
 
+function avgBucket(rows) {
+  const count = rows.length
+  const total = rows.reduce((a, r) => a + Number(r.weight || 0), 0)
+  return {
+    count,
+    total,
+    average: count ? total / count : 0,
+  }
+}
+
+async function statsSummary(query = {}) {
+  const filter = {}
+  if (query.from || query.to) {
+    filter.createdAt = {}
+    if (query.from) filter.createdAt.$gte = new Date(query.from)
+    if (query.to) filter.createdAt.$lte = new Date(query.to)
+  }
+  if (query.department) {
+    filter.$or = [
+      { fromDepartment: String(query.department) },
+      { toDepartment: String(query.department) },
+    ]
+  }
+  const rows = await MetalMovement.find(filter).select('weight receivedAt issuedAt status').lean()
+  const metalIn = rows.filter((r) => r.receivedAt)
+  const metalOut = rows.filter((r) => r.issuedAt && !r.receivedAt)
+  return {
+    metalIn: avgBucket(metalIn),
+    metalOut: avgBucket(metalOut),
+  }
+}
+
+async function raiseFloorAlert(req, body = {}) {
+  const machineAlertService = require('../productionControl/machineAlertService')
+  const alert = await machineAlertService.raiseAlert(req, {
+    category: 'process',
+    code: 'FLOOR_MANAGER_CALL',
+    title: body.title,
+    message: body.message || '',
+    severity: body.severity || 'warning',
+    batchId: body.batchId || null,
+    batchNumber: body.batchNumber || '',
+    metadata: {
+      department: body.department || req.user?.department || '',
+      operationId: body.operationId || null,
+      source: 'mg-floor',
+    },
+  })
+  return { alert }
+}
+
 module.exports = {
   DEFAULT_MG_SCALES,
   ensureDefaultScales,
@@ -544,6 +616,8 @@ module.exports = {
   registerDevice,
   assertScaleReading,
   captureStableReading,
+  statsSummary,
+  raiseFloorAlert,
   liveFloorService,
   departmentService,
   shiftService,

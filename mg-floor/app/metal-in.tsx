@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, ScrollView, StyleSheet, Text } from 'react-native'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
@@ -26,6 +26,12 @@ type PassRow = {
   status?: string
 }
 
+const DEFAULT_MATERIALS = [
+  { code: 'gold', label: 'Gold', weight: '' },
+  { code: 'alloy', label: 'Alloy', weight: '' },
+  { code: 'other', label: 'Other', weight: '' },
+]
+
 export default function MetalInScreen() {
   const params = useLocalSearchParams<{ passId?: string; scaleId?: string }>()
   const { user } = useAuth()
@@ -34,9 +40,14 @@ export default function MetalInScreen() {
   const [showList, setShowList] = useState(false)
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [materials, setMaterials] = useState(DEFAULT_MATERIALS)
   const inFlightOpId = useRef<string | null>(null)
   const capture = useStableScaleCapture(scaleId)
   const scales = useAuthorizedScaleIds(user?.department)
+
+  const materialsTotal = useMemo(() => {
+    return materials.reduce((a, m) => a + (Number(m.weight) || 0), 0)
+  }, [materials])
 
   const passes = useAsyncResource(
     useCallback(async (signal) => {
@@ -56,6 +67,10 @@ export default function MetalInScreen() {
     if (pre) setSelected(pre)
   }, [params.passId, passes.data])
 
+  const setMaterialWeight = (code: string, weight: string) => {
+    setMaterials((prev) => prev.map((m) => (m.code === code ? { ...m, weight } : m)))
+  }
+
   const submit = async () => {
     if (!selected) return
     if (!scaleId) {
@@ -66,17 +81,39 @@ export default function MetalInScreen() {
       Alert.alert('Capture stable weight', 'Capture a stable scale reading before confirming.')
       return
     }
+    for (const m of materials) {
+      if (m.weight.trim() === '') continue
+      const n = Number(m.weight)
+      if (!Number.isFinite(n) || n < 0) {
+        Alert.alert('Invalid weight', `${m.label} must be a non-negative number`)
+        return
+      }
+    }
+    if (materialsTotal > 0 && Math.abs(materialsTotal - capture.captured.weight) > 0.5) {
+      Alert.alert(
+        'Materials total mismatch',
+        `Materials (${materialsTotal.toFixed(2)} g) must match captured weight (${capture.captured.weight.toFixed(2)} g)`,
+      )
+      return
+    }
     if (busy) return
     setBusy(true)
     setSubmitError('')
     const operationId = inFlightOpId.current || createOperationId('metal_in')
     inFlightOpId.current = operationId
+    const materialsPayload =
+      materialsTotal > 0
+        ? materials
+            .filter((m) => m.weight.trim() !== '')
+            .map((m) => ({ code: m.code, label: m.label, weight: Number(m.weight) }))
+        : undefined
     const payload = {
       passId: selected._id,
       scaleId,
       stableReadingId: capture.captured.scaleReadingId,
       receivedWeight: capture.captured.weight,
       operationId,
+      ...(materialsPayload ? { materials: materialsPayload } : {}),
     }
     try {
       const net = await NetInfo.fetch()
@@ -92,9 +129,13 @@ export default function MetalInScreen() {
         return
       }
       await metalIn(payload)
-      Alert.alert('Success', 'Metal IN recorded')
+      Alert.alert(
+        'METAL IN RECORDED',
+        `Batch: ${selected.passNumber || selected._id}\nWeight: ${capture.captured.weight.toFixed(2)} g\nOperator: ${user?.name || '—'}`,
+      )
       inFlightOpId.current = null
       capture.clearCapture()
+      setMaterials(DEFAULT_MATERIALS.map((m) => ({ ...m })))
     } catch (err) {
       await enqueueOutbox({
         operationId,
@@ -117,7 +158,7 @@ export default function MetalInScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Scan → verify → scale → capture stable → confirm</Subtitle>
+        <Subtitle>Scan → verify → scale → materials → capture stable → confirm</Subtitle>
 
         <QrFirstResolve
           hint="Scan inbound pass / batch QR"
@@ -183,9 +224,26 @@ export default function MetalInScreen() {
         <Text style={styles.step}>STABLE CAPTURE</Text>
         <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
 
+        <Text style={styles.step}>MATERIAL BREAKDOWN (OPTIONAL)</Text>
+        {materials.map((m) => (
+          <View key={m.code} style={styles.matRow}>
+            <Text style={styles.matLabel}>{m.label}</Text>
+            <TextInput
+              style={styles.matInput}
+              keyboardType="decimal-pad"
+              value={m.weight}
+              onChangeText={(t) => setMaterialWeight(m.code, t)}
+              placeholder="0.00"
+              placeholderTextColor={colors.textMuted}
+            />
+            <Text style={styles.matUnit}>g</Text>
+          </View>
+        ))}
+        <Text style={styles.selected}>TOTAL {materialsTotal.toFixed(2)} g</Text>
+
         {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
         <BigButton
-          label={busy ? 'SUBMITTING…' : 'CONFIRM METAL IN'}
+          label={busy ? 'SAVING…' : 'CONFIRM METAL IN'}
           onPress={submit}
           disabled={busy || !selected || !scaleId || !capture.hasCapture}
         />
@@ -204,4 +262,18 @@ const styles = StyleSheet.create({
   },
   selected: { color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
   err: { color: colors.danger, marginVertical: spacing.sm },
+  matRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  matLabel: { color: colors.text, fontWeight: '700', width: 72 },
+  matInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 18,
+  },
+  matUnit: { color: colors.textMuted, fontWeight: '700' },
 })
