@@ -17,7 +17,7 @@ export default function HeaderBar({
     : ''
 
   const productionConnected = Boolean(hasLiveProduction)
-  const vaultOk = vaultConnected !== false
+  const vaultOk = Boolean(vaultConnected)
 
   return (
     <header className="pd-header pd-header--navy pd-header--control">

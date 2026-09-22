@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import HeaderBar from './HeaderBar'
 import KpiRow from './KpiRow'
 import LiveMetalControl from './LiveMetalControl'
@@ -49,23 +49,12 @@ export default function ProductionDashboardTab() {
   const [flowFilterKey, setFlowFilterKey] = useState(null)
   const [selectedOperatorId, setSelectedOperatorId] = useState(null)
   const [selectedMovementId, setSelectedMovementId] = useState(null)
-  const autoBatchRef = useRef(false)
 
   const permissions = model?.permissions || {}
   const selectedDept = useMemo(
     () => (model?.deptCards || []).find((c) => c.key === selectedDeptKey) || null,
     [model?.deptCards, selectedDeptKey],
   )
-
-  useEffect(() => {
-    if (!model?.hasLiveProduction) return
-    if (autoBatchRef.current || selectedBatchId || !model?.batchMonitorRows?.length) return
-    const first = model.batchMonitorRows[0]
-    if (first?.id) {
-      autoBatchRef.current = true
-      actions.selectBatch(first.id)
-    }
-  }, [model?.hasLiveProduction, model?.batchMonitorRows, selectedBatchId, actions])
 
   const openModal = (type, seed = {}) => {
     clearActionError?.()

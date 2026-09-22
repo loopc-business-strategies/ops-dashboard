@@ -79,7 +79,9 @@ function DeptCard({
 
       <div className="pd-dept-mid">
         <div className="pd-dept-emp-block">
-          <div className="pd-dept-section-label">Employees ({ui.employeeCount})</div>
+          <div className="pd-dept-section-label">
+            {ui.employeeCount > 0 ? `Employees (${ui.employeeCount})` : 'Employees'}
+          </div>
           <table className="pd-dept-emp-table">
             <thead>
               <tr>

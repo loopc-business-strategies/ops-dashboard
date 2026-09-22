@@ -1,6 +1,7 @@
 import { numOrNull } from './safeMath'
 
 export function formatGrams(value) {
+  if (value == null || value === '') return '—'
   const n = Number(value)
   if (!Number.isFinite(n)) return '—'
   return `${n.toLocaleString(undefined, { maximumFractionDigits: 3 })} g`

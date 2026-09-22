@@ -830,9 +830,6 @@ export function buildDashboardModel({
   const dayDelta = dayCmp.available
     ? percentChange(today.weightOut ?? today.weightIn, yesterday.weightOut ?? yesterday.weightIn)
     : null
-  const weekDelta = weekCmp.available
-    ? percentChange(thisWeek?.weightOut ?? thisWeek?.weightIn, lastWeek?.weightOut ?? lastWeek?.weightIn)
-    : null
 
   const vaultSource = stockOverview?.overview || widgetsRes?.stock || summaryRes?.stock || stock || null
   const pccNew = numOrNull(vaultSource?.newStock?.weight)
@@ -1022,7 +1019,6 @@ export function buildDashboardModel({
       underProduction: hasLiveProduction ? (remainingWeight ?? underProcessing) : null,
       totalOutput: hasLiveProduction ? weightOut : null,
       yesterdayVsToday: hasLiveProduction ? dayDelta : null,
-      weeklyComparison: hasLiveProduction ? weekDelta : null,
     },
     employeeKpi: {
       total: hasLiveProduction ? (empList.length || (Array.isArray(operators) ? operators.length : null)) : null,

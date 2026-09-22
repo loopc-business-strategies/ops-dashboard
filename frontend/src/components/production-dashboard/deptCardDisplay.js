@@ -63,9 +63,13 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   const key = String(card.key || '')
   const batches = rowsForDept(batchMonitorRows, card)
 
-  const batchCount = (hasNum(card.activeBatchCount) && Number(card.activeBatchCount) >= 0)
-    ? Number(card.activeBatchCount)
-    : (batches.length > 0 ? batches.length : null)
+  const batchCount = (() => {
+    if (batches.length > 0) return batches.length
+    if (hasNum(card.activeBatchCount) && Number(card.activeBatchCount) > 0) {
+      return Number(card.activeBatchCount)
+    }
+    return null
+  })()
 
   const timePerBatchMin = hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
     ? Number(card.elapsedMin ?? card.timeTakenMin)
@@ -140,7 +144,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     subtitle: card.subtitle || subtitleFor(key),
     status: card.status || 'Idle',
     employees,
-    employeeCount: employees.length || (hasNum(card.employeeCount) ? Number(card.employeeCount) : 0),
+    employeeCount: employees.length,
     batches: batchCount != null ? batchCount : '—',
     timePerBatchLabel: fmtMin(timePerBatchMin),
     avgTimeLabel: fmtMin(avgTimeMin ?? avgTimeFromRatings(employeeRatings, employees)),
