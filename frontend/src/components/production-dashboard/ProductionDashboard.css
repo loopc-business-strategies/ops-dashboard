@@ -1,4 +1,4 @@
-/* Production Dashboard ÃÂ¢ÃÂÃÂ light enterprise ops console */
+/* Production Dashboard ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ light enterprise ops console */
 
 .pd-page {
   --pd-bg: #F4F7F9;
@@ -742,7 +742,7 @@
   }
 }
 
-/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Reference layout (navy header + compact KPIs + dept cards) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
+/* ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Reference layout (navy header + compact KPIs + dept cards) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ */
 
 .pd-layout--reference {
   grid-template-rows: auto minmax(0, 1fr);
@@ -2101,7 +2101,7 @@
    Desktop 1440x900 (compact) | Large desktop 1920x1080 (comfortable)
 */
 
-/* Standard desktop 1440ÃÂ¢ÃÂÃÂ1919: locked viewport + base density */
+/* Standard desktop 1440ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ1919: locked viewport + base density */
 @media (min-width: 1440px) and (max-width: 1919px) {
   .pd-layout--control-center {
     gap: 0.35rem;
@@ -2509,7 +2509,7 @@
   }
 }
 
-/* Tablet landscape / smart display: 1200ÃÂ¢ÃÂÃÂ1439 */
+/* Tablet landscape / smart display: 1200ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ1439 */
 @media (min-width: 1200px) and (max-width: 1439px) {
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2548,7 +2548,7 @@
   }
 }
 
-/* Tablet portrait: 900ÃÂ¢ÃÂÃÂ1199 */
+/* Tablet portrait: 900ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ1199 */
 @media (min-width: 900px) and (max-width: 1199px) {
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2581,7 +2581,7 @@
   }
 }
 
-/* Phone landscape / small fold: 600ÃÂ¢ÃÂÃÂ899 */
+/* Phone landscape / small fold: 600ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ899 */
 @media (min-width: 600px) and (max-width: 899px) {
   .pd-layout--control-center .pd-kpi-strip,
   .pd-kpi-strip {
@@ -2631,7 +2631,7 @@
   }
 }
 
-/* Phone portrait ÃÂ¢ÃÂÃÂ¤599 */
+/* Phone portrait ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¤599 */
 @media (max-width: 599px) {
   .pd-fullscreen-nav {
     top: max(0.35rem, env(safe-area-inset-top, 0px));
@@ -2836,7 +2836,7 @@
   gap: 0.3rem;
 }
 
-/* Live Metal ÃÂ¢ÃÂÃÂ compact single-line chip rail */
+/* Live Metal ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ compact single-line chip rail */
 .pd-live-metal {
   padding: 0.3rem 0.5rem !important;
 }
@@ -3442,7 +3442,7 @@
 
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 0.55rem;
+    gap: 0.65rem;
   }
 
   .pd-layout--control-center .pd-kpi-compact {
@@ -3451,6 +3451,28 @@
 
   .pd-layout--control-center .pd-kpi-compact-value {
     font-size: 1.4rem;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-label {
+    font-size: 13.5px;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-hint {
+    font-size: 12px;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-icon {
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+
+  .pd-layout--control-center .pd-header-chip {
+    font-size: 14px;
+    padding: 0.35rem 0.75rem;
+  }
+
+  .pd-layout--control-center .pd-btn--refresh {
+    font-size: 13.5px;
   }
 
   .pd-layout--control-center .pd-dept-grid {
@@ -3477,6 +3499,20 @@
     font-size: 19px;
   }
 
+  .pd-layout--control-center .pd-status-pill,
+  .pd-layout--control-center .pd-status-pill--sm {
+    font-size: 13.5px;
+    padding: 0.2rem 0.55rem;
+  }
+
+  .pd-layout--control-center .pd-dept-people-label {
+    font-size: 13.5px;
+  }
+
+  .pd-layout--control-center .pd-dept-people-manager {
+    font-size: 16px;
+  }
+
   .pd-layout--control-center .pd-dept-metric-value {
     font-size: 23px;
   }
@@ -3491,6 +3527,22 @@
 
   .pd-layout--control-center .pd-batch-progress {
     margin-top: 0;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-caption {
+    font-size: 13px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-track {
+    height: 0.7rem;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-time {
+    font-size: 15px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-pct {
+    font-size: 14px;
   }
 }
 
@@ -3537,7 +3589,7 @@
   }
 
   .pd-layout--control-center .pd-kpi-strip {
-    gap: 0.65rem;
+    gap: 0.75rem;
   }
 
   .pd-layout--control-center .pd-kpi-compact-value {
@@ -3545,11 +3597,29 @@
   }
 
   .pd-layout--control-center .pd-kpi-compact-label {
+    font-size: 15.5px;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-hint {
     font-size: 14px;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-icon {
+    width: 2.5rem;
+    height: 2.5rem;
   }
 
   .pd-layout--control-center .pd-header--navy .pd-title {
     font-size: 1.5rem;
+  }
+
+  .pd-layout--control-center .pd-header-chip {
+    font-size: 16px;
+    padding: 0.4rem 0.85rem;
+  }
+
+  .pd-layout--control-center .pd-btn--refresh {
+    font-size: 15.5px;
   }
 
   .pd-layout--control-center .pd-dept-grid {
@@ -3580,8 +3650,18 @@
     font-size: 14px;
   }
 
+  .pd-layout--control-center .pd-status-pill,
+  .pd-layout--control-center .pd-status-pill--sm {
+    font-size: 15.5px;
+    padding: 0.25rem 0.65rem;
+  }
+
+  .pd-layout--control-center .pd-dept-people-label {
+    font-size: 15.5px;
+  }
+
   .pd-layout--control-center .pd-dept-people-manager {
-    font-size: 17px;
+    font-size: 18.5px;
   }
 
   .pd-layout--control-center .pd-dept-metric-value {
@@ -3598,6 +3678,14 @@
 
   .pd-layout--control-center .pd-dept-loss-list li strong {
     font-size: 20px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-caption {
+    font-size: 15px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-track {
+    height: 0.85rem;
   }
 
   .pd-layout--control-center .pd-batch-progress-time {
