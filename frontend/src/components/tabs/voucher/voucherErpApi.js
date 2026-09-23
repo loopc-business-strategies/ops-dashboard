@@ -14,6 +14,11 @@ export async function fetchVoucherParties(token) {
   }
 }
 
+export async function fetchVoucherAccounts(token) {
+  const res = await erpAccountingAPI.getAccounts(token, { page: 1, limit: 500 })
+  return Array.isArray(res?.accounts) ? res.accounts : []
+}
+
 export async function fetchVoucherCurrencies(token) {
   const res = await erpAccountingAPI.getCurrencies(token)
   return Array.isArray(res?.currencies) ? res.currencies : []

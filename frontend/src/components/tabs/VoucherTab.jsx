@@ -23,6 +23,7 @@ import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { useVoucherPendingOpen } from './voucher/useVoucherPendingOpen'
 import { isLikelyUnloadedReportBranding } from './erp/ERPBrandingUtils'
 import {
+  excludeLedgerAccountsRepresentedByParties,
   filterActiveAccounts,
   filterActiveCustomers,
   filterActiveVendors,
@@ -75,17 +76,21 @@ export default function VoucherTab({
   const voucherPreviewEnabled = isMasterDocumentSettingsEnabled(tenantKey)
   const keyboardNavEnabled = isVoucherKeyboardNavEnabled(tenantKey)
 
-  // ─── own customers/vendors state (always fresh, not stale props) ─────────────
+  // ─── own accounts/customers/vendors state (always fresh, not stale props) ───
+  const [localAccounts, setLocalAccounts] = useState(accounts)
   const [localCustomers, setLocalCustomers] = useState(propCustomers)
   const [localVendors, setLocalVendors] = useState(propVendors)
   const [localCurrencies, setLocalCurrencies] = useState(Array.isArray(currencies) ? currencies : [])
   const [latestMetalRates, setLatestMetalRates] = useState({ goldPrice: 0, silverPrice: 0, priceCurrency: 'USD', updatedAt: null })
+  const chartAccounts = localAccounts.length > 0 ? localAccounts : accounts
   const customers = localCustomers.length > 0 ? localCustomers : propCustomers
   const vendors = localVendors.length > 0 ? localVendors : propVendors
   const activeCustomers = filterActiveCustomers(customers)
   const activeVendors = filterActiveVendors(vendors)
-  const activeAccounts = filterActiveAccounts(accounts)
-  const partyChartAccounts = filterPartyAccounts(accounts)
+  const activeAccounts = filterActiveAccounts(chartAccounts)
+  const partyChartAccounts = filterPartyAccounts(
+    excludeLedgerAccountsRepresentedByParties(chartAccounts, customers, vendors),
+  )
   const mergedCurrencies = localCurrencies.length > 0 ? localCurrencies : (Array.isArray(currencies) ? currencies : [])
   const currencyOptions = mergedCurrencies
     .filter((item) => String(item?.code || '').trim())
@@ -110,14 +115,18 @@ export default function VoucherTab({
     return Number.isFinite(rate) && rate > 0 ? rate : 1
   }, [currencyOptions])
 
-  const { refreshParties, refreshCurrencies, refreshMetalRates, voucherErpApi } = useVoucherReferenceData({
+  const { refreshAccounts, refreshParties, refreshCurrencies, refreshMetalRates, voucherErpApi } = useVoucherReferenceData({
     token,
+    setLocalAccounts,
     setLocalCustomers,
     setLocalVendors,
     setLocalCurrencies,
     setLatestMetalRates,
   })
 
+  useEffect(() => {
+    if (canView) refreshAccounts()
+  }, [canView, refreshAccounts])
   useEffect(() => {
     if (canView) refreshParties()
   }, [canView, refreshParties])
@@ -218,7 +227,7 @@ export default function VoucherTab({
   }, [activeCustomers, activeVendors, voucherType])
 
   const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
-  const partyOptions = partyChartAccounts
+  const chartPartyOptions = partyChartAccounts
     .map((account) => {
       const code = getAccountCodeValue(account)
       const name = String(account?.accountName || account?.name || '').trim()
@@ -229,6 +238,7 @@ export default function VoucherTab({
         partyCode: code,
         partyName: name,
         accountType: String(account?.accountType || 'Other').trim() || 'Other',
+        group: String(account?.accountType || 'Other').trim() || 'Other',
       }
     })
     .filter((item) => Boolean(item.partyCode))
@@ -240,8 +250,46 @@ export default function VoucherTab({
       return String(a.partyCode).localeCompare(String(b.partyCode))
     })
 
+  const customerPartyOptions = activeCustomers
+    .map((customer) => {
+      const code = String(customer?.ledgerAccountId?.accountCode || '').trim()
+      const name = String(customer?.name || '').trim()
+      if (!code) return null
+      return {
+        id: `customer:${String(customer._id)}`,
+        accountId: String(customer?.ledgerAccountId?._id || customer._id),
+        label: `${code}${name ? ` - ${name}` : ''}`,
+        partyCode: code,
+        partyName: name,
+        accountType: 'Customers',
+        group: 'Customers',
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
+
+  const vendorPartyOptions = activeVendors
+    .map((vendor) => {
+      const code = String(vendor?.vendorCode || vendor?.ledgerAccountId?.accountCode || '').trim()
+      const name = String(vendor?.name || '').trim()
+      if (!code) return null
+      return {
+        id: `vendor:${String(vendor._id)}`,
+        accountId: String(vendor?.ledgerAccountId?._id || vendor._id),
+        label: `${code}${name ? ` - ${name}` : ''}`,
+        partyCode: code,
+        partyName: name,
+        accountType: 'Vendors',
+        group: 'Vendors',
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
+
+  const partyOptions = [...customerPartyOptions, ...vendorPartyOptions, ...chartPartyOptions]
+
   const partyGroupedOptions = partyOptions.reduce((groups, item) => {
-    const type = item.accountType
+    const type = item.group || item.accountType
     const existing = groups.find((g) => g.type === type)
     if (existing) existing.items.push(item)
     else groups.push({ type, items: [item] })

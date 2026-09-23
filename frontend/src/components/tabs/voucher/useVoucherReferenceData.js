@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import {
+  fetchVoucherAccounts,
   fetchVoucherCurrencies,
   fetchVoucherMetalRates,
   fetchVoucherParties,
@@ -7,10 +8,27 @@ import {
 } from './voucherErpApi'
 
 /**
- * Loads customers, vendors, currencies, and metal rates for the voucher tab.
+ * Loads accounts, customers, vendors, currencies, and metal rates for the voucher tab.
  * Extracted from VoucherTab.jsx to shrink the shell and centralize ERP API access.
  */
-export function useVoucherReferenceData({ token, setLocalCustomers, setLocalVendors, setLocalCurrencies, setLatestMetalRates }) {
+export function useVoucherReferenceData({
+  token,
+  setLocalAccounts,
+  setLocalCustomers,
+  setLocalVendors,
+  setLocalCurrencies,
+  setLatestMetalRates,
+}) {
+  const refreshAccounts = useCallback(async () => {
+    if (!token || !setLocalAccounts) return
+    try {
+      const accounts = await fetchVoucherAccounts(token)
+      if (accounts.length > 0) setLocalAccounts(accounts)
+    } catch {
+      // props fallback still available
+    }
+  }, [token, setLocalAccounts])
+
   const refreshParties = useCallback(async () => {
     if (!token) return
     try {
@@ -42,5 +60,5 @@ export function useVoucherReferenceData({ token, setLocalCustomers, setLocalVend
     }
   }, [token, setLatestMetalRates])
 
-  return { refreshParties, refreshCurrencies, refreshMetalRates, voucherErpApi }
+  return { refreshAccounts, refreshParties, refreshCurrencies, refreshMetalRates, voucherErpApi }
 }

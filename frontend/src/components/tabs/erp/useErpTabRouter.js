@@ -247,11 +247,10 @@ export function useErpTabRouter({
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token || erpTabBootstrapRef.current.vouchers) return
     erpTabBootstrapRef.current.vouchers = true
-    // Party Account combobox needs chart of accounts; currencies for FX headers.
-    const tasks = []
+    // Party Account combobox needs a fresh full CoA (not stale/summary); currencies for FX headers.
+    const tasks = [loadAccounts()]
     if (!currencies.length) tasks.push(loadCurrencies())
-    if (!accounts.length) tasks.push(loadAccounts())
-    if (tasks.length) void Promise.all(tasks).catch(() => {})
+    void Promise.all(tasks).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap per vouchers visit
   }, [activeTab, token])
 

@@ -107,7 +107,7 @@ describe('useErpTabRouter currency loading', () => {
     expect(props.loadAccounts).toHaveBeenCalled()
   })
 
-  it('skips catalog reload on vouchers when accounts and currencies exist', () => {
+  it('always reloads accounts on vouchers even when catalog already exists', () => {
     const props = buildRouterProps({
       activeTab: 'vouchers',
       accounts: [{ _id: 'a1', accountCode: '1100' }],
@@ -116,6 +116,6 @@ describe('useErpTabRouter currency loading', () => {
     renderHook(() => useErpTabRouter(props))
 
     expect(props.loadCurrencies).not.toHaveBeenCalled()
-    expect(props.loadAccounts).not.toHaveBeenCalled()
+    expect(props.loadAccounts).toHaveBeenCalled()
   })
 })

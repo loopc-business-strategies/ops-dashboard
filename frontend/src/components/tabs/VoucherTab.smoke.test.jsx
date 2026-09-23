@@ -22,8 +22,10 @@ vi.mock('../voucher/voucherErpApi', () => ({
 
 vi.mock('../../api/erp-accounting', () => ({
   default: {
+    getAccounts: vi.fn(async () => ({ accounts: [] })),
     getCurrencies: vi.fn(async () => ({ currencies: [] })),
     getCustomers: vi.fn(async () => ({ customers: [] })),
+    getVendors: vi.fn(async () => ({ vendors: [] })),
   },
 }))
 
