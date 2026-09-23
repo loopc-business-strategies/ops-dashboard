@@ -190,6 +190,8 @@ export default function ProductionDashboardTab() {
         <div className="pd-layout pd-layout--reference pd-layout--control-center">
           <KpiRow model={model} />
 
+          {/* Live metal flow rail hidden from UI (handlers retained). */}
+          {false ? (
           <LiveMetalControl
             materialFlow={model.materialFlow}
             activeStageKey={flowFilterKey}
@@ -207,6 +209,7 @@ export default function ProductionDashboardTab() {
               if (deptKey) actions.selectDepartment(deptKey)
             }}
           />
+          ) : null}
 
           <DepartmentOverview
             cards={model.deptCards}
