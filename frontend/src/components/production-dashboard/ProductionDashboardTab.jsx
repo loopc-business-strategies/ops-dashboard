@@ -240,6 +240,8 @@ export default function ProductionDashboardTab() {
             </div>
           ) : null}
 
+          {/* Mid/bottom panels hidden from Control Center UI (handlers retained). */}
+          {false ? (
           <div className="pd-mid-quad">
             <MetalMovementLedger
               rows={model.metalMovementRows}
@@ -285,7 +287,9 @@ export default function ProductionDashboardTab() {
               onResolve={(id) => actions.resolveAlert(id)}
             />
           </div>
+          ) : null}
 
+          {false ? (
           <div className="pd-row-bottom-split pd-row-bottom-terminal">
             <BatchTraceability
               batchRows={model.batchMonitorRows}
@@ -314,6 +318,7 @@ export default function ProductionDashboardTab() {
               })}
             />
           </div>
+          ) : null}
         </div>
       ) : null}
 
