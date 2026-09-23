@@ -36,6 +36,7 @@ export function useVoucherLineForm({
   clearError,
   showMsg,
   applyLineAutoCalc,
+  applyProductTypeAutoFill,
   resolvePaymentRate,
   baseCurrencyCode = 'USD',
 }) {
@@ -76,7 +77,7 @@ export function useVoucherLineForm({
     setEditingLineIdx(idx)
     const row = lineItems[idx] || {}
     const normalizedType = normalizeLineType(row?.type)
-    setLineForm({
+    let nextForm = {
       ...row,
       inventoryItemId: String(row?.inventoryItemId?._id || row?.inventoryItemId || ''),
       type: normalizedType,
@@ -84,7 +85,11 @@ export function useVoucherLineForm({
       rateType: normalizeRateType(row?.rateType),
       currRateSource: row?.currRateSource || 'manual',
       vatType: row?.vatType || 'VAT',
-    })
+    }
+    if (isMetalVoucher && String(nextForm.productType || '').trim() && typeof applyProductTypeAutoFill === 'function') {
+      nextForm = applyProductTypeAutoFill(nextForm, nextForm.productType)
+    }
+    setLineForm(nextForm)
     setShowLineForm(true)
   }
 

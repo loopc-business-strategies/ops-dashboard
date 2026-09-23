@@ -1114,6 +1114,7 @@ export default function VoucherTab({
     clearError,
     showMsg,
     applyLineAutoCalc,
+    applyProductTypeAutoFill,
     resolvePaymentRate,
     baseCurrencyCode,
   })

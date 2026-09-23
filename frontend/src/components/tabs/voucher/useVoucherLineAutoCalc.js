@@ -5,6 +5,7 @@ import { resolveProductLineVatFields } from './resolveProductLineVat'
 import {
   decodeFullMeta,
   decodeInventoryCategoryMeta,
+  getInventoryCatalogProductsForStock,
   isMetalStockVoucherType,
   isMetalTransferVoucherType,
   normalizeMetalSymbol,
@@ -12,6 +13,10 @@ import {
   normalizeStockGroup,
   toTitle,
 } from './voucherTabShared'
+import {
+  resolveCatalogProductForVoucherLine,
+  resolveVoucherLinePurityFromProduct,
+} from './voucherLinePurity'
 
 /**
  * Metal/product line auto-calc + inventory product lookup for VoucherTab.
@@ -115,9 +120,14 @@ export function useVoucherLineAutoCalc({
     const productName = String(productNameOverride ?? (line.productType || '')).trim()
     if (!productName) return line
 
-    const product = inventoryProducts.find(
-      (item) => item.name === productName && String(item.category || '').includes('recordType=product')
-    )
+    const stockScoped = getInventoryCatalogProductsForStock(inventoryProducts, line.stockCode)
+    const product = resolveCatalogProductForVoucherLine({
+      catalogProducts: stockScoped.length
+        ? stockScoped
+        : inventoryProducts.filter((item) => String(item.category || '').includes('recordType=product')),
+      productName,
+      inventoryItemId: line.inventoryItemId,
+    })
     if (!product) {
       return { ...line, productType: productName, inventoryItemId: '' }
     }
@@ -129,7 +139,10 @@ export function useVoucherLineAutoCalc({
     const grossWeight = unitWeight > 0
       ? (pcs > 0 ? unitWeight * pcs : unitWeight)
       : (parseFloat(line.grossWeight) || 0)
-    const rawPurity = parseFloat(meta.productPurity || simMeta.purity || '') || 0
+    const resolvedPurity = resolveVoucherLinePurityFromProduct({
+      productName: product.name || productName,
+      productPurity: meta.productPurity || simMeta.purity || '',
+    })
     const productTaxType = String(meta.taxType || 'VAT').trim()
     const { vatType, vatPer } = resolveProductLineVatFields({
       voucherType,
@@ -145,7 +158,7 @@ export function useVoucherLineAutoCalc({
       inventoryItemId: String(product._id),
       productType: productName,
       grossWeight: grossWeight > 0 ? String(Number(grossWeight.toFixed(3))) : line.grossWeight,
-      purity: rawPurity > 0 ? String(rawPurity) : line.purity,
+      purity: resolvedPurity || line.purity,
       vatType,
       vatPer,
     })
