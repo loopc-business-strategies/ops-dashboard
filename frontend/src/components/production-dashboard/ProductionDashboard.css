@@ -1,4 +1,4 @@
-/* Production Dashboard Ã¢ÂÂ light enterprise ops console */
+/* Production Dashboard ÃÂ¢ÃÂÃÂ light enterprise ops console */
 
 .pd-page {
   --pd-bg: #F4F7F9;
@@ -742,7 +742,7 @@
   }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Reference layout (navy header + compact KPIs + dept cards) Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Reference layout (navy header + compact KPIs + dept cards) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 
 .pd-layout--reference {
   grid-template-rows: auto minmax(0, 1fr);
@@ -2101,7 +2101,7 @@
    Desktop 1440x900 (compact) | Large desktop 1920x1080 (comfortable)
 */
 
-/* Standard desktop 1440Ã¢ÂÂ1919: locked viewport + base density */
+/* Standard desktop 1440ÃÂ¢ÃÂÃÂ1919: locked viewport + base density */
 @media (min-width: 1440px) and (max-width: 1919px) {
   .pd-layout--control-center {
     gap: 0.35rem;
@@ -2271,140 +2271,203 @@
   }
 }
 
-/* Large desktop 1920x1080: comfortable type/spacing, still one-screen */
+/* TV / wall 40-50in: fill card height + readable analytics text */
 @media (min-width: 1920px) {
   .pd-layout--control-center {
-    gap: 0.45rem;
-    padding-top: 0.4rem;
+    gap: 0.55rem;
+    padding-top: 0.45rem;
   }
 
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 0.45rem;
+    gap: 0.55rem;
   }
 
   .pd-layout--control-center .pd-kpi-compact {
-    padding: 0.4rem 0.45rem;
+    padding: 0.55rem 0.55rem;
   }
 
   .pd-layout--control-center .pd-kpi-compact-value {
-    font-size: 1.15rem;
+    font-size: 1.4rem;
   }
 
   .pd-layout--control-center .pd-kpi-compact-label {
-    font-size: 11px;
+    font-size: 12.5px;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-icon {
+    width: 2rem;
+    height: 2rem;
   }
 
   .pd-layout--control-center .pd-header--navy .pd-title {
-    font-size: 1.15rem;
+    font-size: 1.35rem;
   }
 
   .pd-layout--control-center .pd-header-chip {
-    font-size: 12.5px;
+    font-size: 14px;
+    padding: 0.35rem 0.75rem;
   }
 
   .pd-layout--control-center .pd-dept-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .pd-layout--control-center .pd-dept-card {
+    padding: 0.65rem 0.7rem;
+    gap: 0.45rem;
+    min-width: 0;
+    justify-content: space-between;
+  }
+
+  .pd-layout--control-center .pd-dept-card-head {
+    margin: -0.65rem -0.7rem 0;
+    padding: 0.65rem 0.7rem 0.7rem;
+    align-items: center;
     gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .pd-layout--control-center .pd-dept-icon-wrap {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .pd-layout--control-center .pd-dept-icon-wrap .pd-icon {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .pd-layout--control-center .pd-dept-name {
+    font-size: 19px;
+  }
+
+  .pd-layout--control-center .pd-dept-subtitle {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .pd-layout--control-center .pd-status-pill--sm {
+    font-size: 12px;
+    padding: 0.15rem 0.5rem;
+  }
+
+  .pd-layout--control-center .pd-dept-people {
+    padding: 0.45rem 0;
+  }
+
+  .pd-layout--control-center .pd-dept-people-label {
+    font-size: 12.5px;
+  }
+
+  .pd-layout--control-center .pd-dept-people-manager {
+    font-size: 15px;
+  }
+
+  .pd-layout--control-center .pd-dept-metrics {
+    padding: 0.55rem 0;
+    gap: 0.5rem;
+  }
+
+  .pd-layout--control-center .pd-dept-metric-ico,
+  .pd-layout--control-center .pd-dept-stat-icon {
+    width: 1.65rem;
+    height: 1.65rem;
+  }
+
+  .pd-layout--control-center .pd-dept-metric-label {
+    font-size: 12.5px;
+  }
+
+  .pd-layout--control-center .pd-dept-metric-value {
+    font-size: 23px;
+  }
+
+  .pd-layout--control-center .pd-dept-batches-count {
+    font-size: 20px;
+  }
+
+  .pd-layout--control-center .pd-dept-batches-row {
+    font-size: 13px;
+  }
+
+  .pd-layout--control-center .pd-dept-loss-block {
+    padding: 0.4rem 0 0.2rem;
+  }
+
+  .pd-layout--control-center .pd-dept-loss-head {
+    font-size: 13px;
+  }
+
+  .pd-layout--control-center .pd-dept-loss-icon {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+
+  .pd-layout--control-center .pd-dept-loss-list li {
+    font-size: 13px;
+  }
+
+  .pd-layout--control-center .pd-dept-loss-list li strong {
+    font-size: 17px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress {
+    margin-top: 0;
+    padding-top: 0.55rem;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-caption {
+    font-size: 12px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-time {
+    font-size: 15px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-pct {
+    font-size: 14px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-track {
+    height: 0.6rem;
+  }
+}
+
+/* Cap growth on short 1080p TV/desktop so one screen still fits */
+@media (min-width: 1920px) and (max-height: 1080px) {
+  .pd-layout--control-center {
+    gap: 0.45rem;
+  }
+
+  .pd-layout--control-center .pd-dept-grid {
+    gap: 0.5rem;
   }
 
   .pd-layout--control-center .pd-dept-card {
     padding: 0.55rem 0.6rem;
     gap: 0.35rem;
-    min-width: 0;
-  }
-
-  .pd-layout--control-center .pd-dept-card-head {
-    margin: -0.55rem -0.6rem 0;
-    padding: 0.55rem 0.65rem 0.6rem;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
   }
 
   .pd-layout--control-center .pd-dept-name {
-    font-size: 14.5px;
+    font-size: 17px;
   }
 
-  .pd-layout--control-center .pd-dept-subtitle {
-    font-size: 11px;
-    line-height: 1.25;
-  }
-
-  .pd-layout--control-center .pd-status-pill--sm {
-    font-size: 10.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-people-label {
-    font-size: 10.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-people-manager {
-    font-size: 13px;
-  }
-
-  .pd-layout--control-center .pd-dept-metric-label {
-    font-size: 10.5px;
+  .pd-layout--control-center .pd-kpi-compact-value {
+    font-size: 1.25rem;
   }
 
   .pd-layout--control-center .pd-dept-metric-value {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .pd-layout--control-center .pd-dept-batches-count {
-    font-size: 16px;
-  }
-
-  .pd-layout--control-center .pd-dept-batches-row {
-    font-size: 11.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-head {
-    font-size: 11.5px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-list li {
-    font-size: 11.5px;
+    font-size: 18px;
   }
 
   .pd-layout--control-center .pd-dept-loss-list li strong {
     font-size: 15px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-caption {
-    font-size: 10.5px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-time {
-    font-size: 13px;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-pct {
-    font-size: 12px;
-  }
-}
-
-/* Cap growth on short large desktops (1920x1080 and below) */
-@media (min-width: 1920px) and (max-height: 1080px) {
-  .pd-layout--control-center {
-    gap: 0.4rem;
-  }
-
-  .pd-layout--control-center .pd-dept-grid {
-    gap: 0.45rem;
-  }
-
-  .pd-layout--control-center .pd-dept-card {
-    padding: 0.5rem 0.55rem;
-    gap: 0.28rem;
-  }
-
-  .pd-layout--control-center .pd-dept-metric-value {
-    font-size: 17px;
-  }
-
-  .pd-layout--control-center .pd-dept-loss-list li strong {
-    font-size: 14px;
   }
 }
 
@@ -2446,7 +2509,7 @@
   }
 }
 
-/* Tablet landscape / smart display: 1200Ã¢ÂÂ1439 */
+/* Tablet landscape / smart display: 1200ÃÂ¢ÃÂÃÂ1439 */
 @media (min-width: 1200px) and (max-width: 1439px) {
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2485,7 +2548,7 @@
   }
 }
 
-/* Tablet portrait: 900Ã¢ÂÂ1199 */
+/* Tablet portrait: 900ÃÂ¢ÃÂÃÂ1199 */
 @media (min-width: 900px) and (max-width: 1199px) {
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2518,7 +2581,7 @@
   }
 }
 
-/* Phone landscape / small fold: 600Ã¢ÂÂ899 */
+/* Phone landscape / small fold: 600ÃÂ¢ÃÂÃÂ899 */
 @media (min-width: 600px) and (max-width: 899px) {
   .pd-layout--control-center .pd-kpi-strip,
   .pd-kpi-strip {
@@ -2568,7 +2631,7 @@
   }
 }
 
-/* Phone portrait Ã¢ÂÂ¤599 */
+/* Phone portrait ÃÂ¢ÃÂÃÂ¤599 */
 @media (max-width: 599px) {
   .pd-fullscreen-nav {
     top: max(0.35rem, env(safe-area-inset-top, 0px));
@@ -2773,7 +2836,7 @@
   gap: 0.3rem;
 }
 
-/* Live Metal Ã¢ÂÂ compact single-line chip rail */
+/* Live Metal ÃÂ¢ÃÂÃÂ compact single-line chip rail */
 .pd-live-metal {
   padding: 0.3rem 0.5rem !important;
 }
@@ -3370,49 +3433,95 @@
   }
 }
 
+/* TV cascade-winning overrides (after base control-center rules) */
 @media (min-width: 1920px) {
   .pd-layout--control-center {
-    gap: 0.45rem;
-    padding-top: 0.4rem;
+    gap: 0.55rem;
+    padding-top: 0.45rem;
   }
 
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 0.45rem;
+    gap: 0.55rem;
   }
 
   .pd-layout--control-center .pd-kpi-compact {
-    padding: 0.4rem 0.45rem;
+    padding: 0.55rem 0.55rem;
   }
 
   .pd-layout--control-center .pd-kpi-compact-value {
-    font-size: 1.15rem;
+    font-size: 1.4rem;
   }
 
   .pd-layout--control-center .pd-dept-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .pd-layout--control-center .pd-dept-card {
+    padding: 0.65rem 0.7rem;
+    gap: 0.45rem;
+    min-width: 0;
+    justify-content: space-between;
+  }
+
+  .pd-layout--control-center .pd-dept-card-head {
+    margin: -0.65rem -0.7rem 0;
+    padding: 0.65rem 0.7rem 0.7rem;
+    align-items: center;
     gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .pd-layout--control-center .pd-dept-name {
+    font-size: 19px;
+  }
+
+  .pd-layout--control-center .pd-dept-metric-value {
+    font-size: 23px;
+  }
+
+  .pd-layout--control-center .pd-dept-batches-count {
+    font-size: 20px;
+  }
+
+  .pd-layout--control-center .pd-dept-loss-list li strong {
+    font-size: 17px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress {
+    margin-top: 0;
+  }
+}
+
+@media (min-width: 1920px) and (max-height: 1080px) {
+  .pd-layout--control-center {
+    gap: 0.45rem;
+  }
+
+  .pd-layout--control-center .pd-dept-grid {
+    gap: 0.5rem;
   }
 
   .pd-layout--control-center .pd-dept-card {
     padding: 0.55rem 0.6rem;
     gap: 0.35rem;
-    min-width: 0;
-  }
-
-  .pd-layout--control-center .pd-dept-card-head {
-    margin: -0.55rem -0.6rem 0;
-    padding: 0.55rem 0.65rem 0.6rem;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
+    justify-content: space-between;
   }
 
   .pd-layout--control-center .pd-dept-name {
-    font-size: 14.5px;
+    font-size: 17px;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-value {
+    font-size: 1.25rem;
   }
 
   .pd-layout--control-center .pd-dept-metric-value {
+    font-size: 20px;
+  }
+
+  .pd-layout--control-center .pd-dept-batches-count {
     font-size: 18px;
   }
 
@@ -3421,25 +3530,85 @@
   }
 }
 
-@media (min-width: 1920px) and (max-height: 1080px) {
+/* 4K / large TV (~50in): extra type and icon step */
+@media (min-width: 2560px) {
   .pd-layout--control-center {
-    gap: 0.4rem;
+    gap: 0.65rem;
+  }
+
+  .pd-layout--control-center .pd-kpi-strip {
+    gap: 0.65rem;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-value {
+    font-size: 1.6rem;
+  }
+
+  .pd-layout--control-center .pd-kpi-compact-label {
+    font-size: 14px;
+  }
+
+  .pd-layout--control-center .pd-header--navy .pd-title {
+    font-size: 1.5rem;
   }
 
   .pd-layout--control-center .pd-dept-grid {
-    gap: 0.45rem;
+    gap: 0.75rem;
   }
 
   .pd-layout--control-center .pd-dept-card {
-    padding: 0.5rem 0.55rem;
-    gap: 0.28rem;
+    padding: 0.75rem 0.85rem;
+    gap: 0.55rem;
+    justify-content: space-between;
   }
 
-  .pd-layout--control-center .pd-dept-metric-value {
+  .pd-layout--control-center .pd-dept-card-head {
+    margin: -0.75rem -0.85rem 0;
+    padding: 0.75rem 0.85rem 0.8rem;
+  }
+
+  .pd-layout--control-center .pd-dept-icon-wrap {
+    width: 2.6rem;
+    height: 2.6rem;
+  }
+
+  .pd-layout--control-center .pd-dept-name {
+    font-size: 22px;
+  }
+
+  .pd-layout--control-center .pd-dept-subtitle {
+    font-size: 14px;
+  }
+
+  .pd-layout--control-center .pd-dept-people-manager {
     font-size: 17px;
   }
 
+  .pd-layout--control-center .pd-dept-metric-value {
+    font-size: 28px;
+  }
+
+  .pd-layout--control-center .pd-dept-batches-count {
+    font-size: 24px;
+  }
+
+  .pd-layout--control-center .pd-dept-batches-row {
+    font-size: 14.5px;
+  }
+
   .pd-layout--control-center .pd-dept-loss-list li strong {
-    font-size: 14px;
+    font-size: 20px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-time {
+    font-size: 17px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress-pct {
+    font-size: 16px;
+  }
+
+  .pd-layout--control-center .pd-batch-progress {
+    margin-top: 0;
   }
 }
