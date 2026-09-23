@@ -38,6 +38,8 @@ export {
   normalizeMetalSymbol,
   normalizeStockGroup,
   toTitle,
+  getInventoryStockMappingOptions,
+  getInventoryCatalogProductsForStock,
   decodeFullMeta,
   getAccountCodeValue,
   getAccountNameValue,

@@ -63,10 +63,11 @@ export async function fetchVoucherTransactions(token, params) {
   return res
 }
 
-export async function fetchVoucherInventoryProducts(token, params) {
-  const res = await erpAccountingAPI.getInventoryProducts(token)
-  if (params?.search) {
-    const q = String(params.search).trim().toLowerCase()
+export async function fetchVoucherInventoryProducts(token, params = {}) {
+  const { search, ...apiParams } = params || {}
+  const res = await erpAccountingAPI.getInventoryProducts(token, { limit: 500, ...apiParams })
+  if (search) {
+    const q = String(search).trim().toLowerCase()
     const products = Array.isArray(res?.products) ? res.products : []
     return { ...res, products: products.filter((p) => JSON.stringify(p).toLowerCase().includes(q)) }
   }

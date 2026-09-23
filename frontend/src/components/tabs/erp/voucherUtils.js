@@ -287,6 +287,90 @@ export const normalizeStockGroup = (mainStock, metalType) => {
 
 export const toTitle = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()).trim()
 
+const isInventoryCatalogProduct = (item) => String(item?.category || '').includes('recordType=product')
+
+const isInventoryStockMapping = (item) => {
+  const category = String(item?.category || '')
+  return category.includes('mainStock=') && !category.includes('recordType=product')
+}
+
+const inventoryItemRecency = (item) => {
+  const updated = Date.parse(item?.updatedAt || '')
+  if (Number.isFinite(updated)) return updated
+  const created = Date.parse(item?.createdAt || '')
+  if (Number.isFinite(created)) return created
+  return String(item?._id || '')
+}
+
+const preferNewerInventoryItem = (a, b) => {
+  const aKey = inventoryItemRecency(a)
+  const bKey = inventoryItemRecency(b)
+  if (typeof aKey === 'number' && typeof bKey === 'number') return aKey >= bKey ? a : b
+  return String(aKey) >= String(bKey) ? a : b
+}
+
+/** Stock dropdown options: mapping rows only (SKU + mainStock, not catalog products). */
+export const getInventoryStockMappingOptions = (inventoryProducts = []) => (
+  (Array.isArray(inventoryProducts) ? inventoryProducts : [])
+    .filter((item) => String(item?.sku || '').trim())
+    .filter(isInventoryStockMapping)
+    .map((item) => {
+      const meta = decodeInventoryCategoryMeta(item.category)
+      const mainStock = toTitle(meta.mainStock || meta.metalType || 'Metal')
+      return {
+        code: String(item.sku || '').trim().toUpperCase(),
+        metal: String(meta.mainStock || meta.metalType || 'zzzz').toLowerCase(),
+        label: mainStock,
+      }
+    })
+    .sort((a, b) => {
+      const byMetal = a.metal.localeCompare(b.metal)
+      if (byMetal !== 0) return byMetal
+      return a.code.localeCompare(b.code)
+    })
+)
+
+/**
+ * Catalog Product Type options for the selected stock code.
+ * Matches inventory create: products belong to a stock type (mainStock/metalType).
+ * Dedupes by normalized name (keeps newest).
+ */
+export const getInventoryCatalogProductsForStock = (inventoryProducts = [], stockCode = '') => {
+  const normalizedStockCode = String(stockCode || '').trim().toLowerCase()
+  if (!normalizedStockCode) return []
+
+  const list = Array.isArray(inventoryProducts) ? inventoryProducts : []
+  const stockItem = list.find((item) => (
+    isInventoryStockMapping(item)
+    && String(item?.sku || '').trim().toLowerCase() === normalizedStockCode
+  )) || list.find((item) => String(item?.sku || '').trim().toLowerCase() === normalizedStockCode)
+
+  if (!stockItem) return []
+
+  const stockMeta = decodeInventoryCategoryMeta(stockItem.category)
+  const stockMetal = String(stockMeta.mainStock || stockMeta.metalType || '').trim().toLowerCase()
+  if (!stockMetal) return []
+
+  const matched = list.filter((item) => {
+    if (!isInventoryCatalogProduct(item)) return false
+    const meta = decodeInventoryCategoryMeta(item.category)
+    const productMetal = String(meta.mainStock || meta.metalType || '').trim().toLowerCase()
+    return productMetal === stockMetal
+  })
+
+  const byName = new Map()
+  matched.forEach((item) => {
+    const nameKey = String(item?.name || '').trim().toLowerCase()
+    if (!nameKey) return
+    const existing = byName.get(nameKey)
+    byName.set(nameKey, existing ? preferNewerInventoryItem(existing, item) : item)
+  })
+
+  return [...byName.values()].sort((a, b) => (
+    String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
+  ))
+}
+
 export const decodeFullMeta = (category) => {
   const raw = String(category || '')
   const meta = {}

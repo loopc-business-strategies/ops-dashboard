@@ -8,6 +8,14 @@ import {
 } from './voucherTabShared'
 import { isVoucherTypeEnabled } from '../../../config/tenantBranding'
 
+/** True when a voucher should open unlocked for editing (draft/returned/rejected, not locked). */
+export function isVoucherOpenInEdit(v, { isReadOnly = false, isEntryLocked = () => false } = {}) {
+  const status = String(v?.status || '').toLowerCase()
+  const mutableStatus = ['draft', 'returned', 'rejected'].includes(status)
+  const locked = Boolean(isReadOnly) || Boolean(isEntryLocked(v))
+  return mutableStatus && !locked
+}
+
 /**
  * Open/create/switch voucher flows for VoucherTab.
  */
@@ -93,10 +101,7 @@ export function useVoucherOpenEdit({
       currRateSource: (lineCurrency === 'AED' && isReceiptPaymentVoucher) ? 'fixed_aed' : lineRateSource,
     }
   })
-  const status = String(v.status || '').toLowerCase()
-  const mutableStatus = ['draft', 'returned', 'rejected'].includes(status)
-  const locked = Boolean(isReadOnly) || Boolean(isEntryLocked(v))
-  const openInEdit = mutableStatus && !locked
+  const openInEdit = isVoucherOpenInEdit(v, { isReadOnly, isEntryLocked })
   setEditingId(v._id)
   setHeader(nextHeader)
   setSelectedPartyId(nextPartyId)
@@ -149,12 +154,18 @@ const openLastOrCreate = async (type) => {
     )
     setVouchers(txs)
     if (txs.length > 0) {
-      openVoucher(txs[txs.length - 1])
+      const last = txs[txs.length - 1]
+      // Posted/locked last voucher → blank create so Party Account is typeable (LoopC auto-post).
+      if (isVoucherOpenInEdit(last, { isReadOnly, isEntryLocked })) {
+        openVoucher(last)
+      } else {
+        await openCreate(txs, type)
+      }
     } else {
-      openCreate(txs, type)
+      await openCreate(txs, type)
     }
   } catch {
-    openCreate(undefined, type)
+    await openCreate(undefined, type)
   }
 }
 

@@ -108,7 +108,7 @@ function registerInventoryRoutes(deps) {
   router.get('/inventory/products', protect, async (req, res) => {
     try {
       if (!canReadErpInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-      const { page, limit, skip } = parsePagination(req.query, 25, 100)
+      const { page, limit, skip } = parsePagination(req.query, 25, 500)
       const query = { isDeleted: { $ne: true } }
       const [products, total] = await Promise.all([
         InventoryItem.find(query)

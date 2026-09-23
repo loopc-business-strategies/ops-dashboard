@@ -8,7 +8,7 @@ import {
   classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName,
   classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue,
   classicRightGrid, classicLabel, classicInput, classicReadInput, metalWin, metalTopInlineRow,
-  metalTopField, normalizeLineType, isMetalStockVoucherType,
+  metalTopField, normalizeLineType, isMetalStockVoucherType, getInventoryCatalogProductsForStock,
 } from './voucherTabShared'
 import {
   focusElement,
@@ -873,8 +873,7 @@ export default function VoucherEditorPanel({
                               }}
                             >
                               <option value="">Select product type</option>
-                              {inventoryProducts
-                                .filter(p => String(p.category || '').includes('recordType=product'))
+                              {getInventoryCatalogProductsForStock(inventoryProducts, lineForm.stockCode)
                                 .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
                               }
                             </select>

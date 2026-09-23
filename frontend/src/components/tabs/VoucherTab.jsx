@@ -4,7 +4,7 @@ import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
 import { liveRatesToMetalRatesState } from '../../utils/liveMetalRates'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
-import { fmt, S, btn, tabBtn, emptyLine, emptyHeader, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, formatPartyAddress, decodeInventoryCategoryMeta, toTitle, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { fmt, S, btn, tabBtn, emptyLine, emptyHeader, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, formatPartyAddress, getInventoryStockMappingOptions, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
 import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
 import { useVoucherLineAutoCalc } from './voucher/useVoucherLineAutoCalc'
 import { useVoucherLineForm } from './voucher/useVoucherLineForm'
@@ -1326,24 +1326,7 @@ export default function VoucherTab({
       ? ['No.', 'Stock Code', 'Product Type', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', '']
       : ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', ''])
     : ['No.', 'A/C Code', 'Type', 'Curr', 'Amount FC', 'Amount LC', '']
-  const inventoryStockOptions = inventoryProducts
-    .filter((item) => String(item.sku || '').trim())
-    // Keep mapped inventory records only, so legacy records do not show duplicate-like stock choices.
-    .filter((item) => String(item.category || '').includes('mainStock='))
-    .map((item) => {
-      const meta = decodeInventoryCategoryMeta(item.category)
-      const mainStock = toTitle(meta.mainStock || meta.metalType || 'Metal')
-      return {
-        code: String(item.sku || '').trim().toUpperCase(),
-        metal: String(meta.mainStock || meta.metalType || 'zzzz').toLowerCase(),
-        label: mainStock,
-      }
-    })
-    .sort((a, b) => {
-      const byMetal = a.metal.localeCompare(b.metal)
-      if (byMetal !== 0) return byMetal
-      return a.code.localeCompare(b.code)
-    })
+  const inventoryStockOptions = getInventoryStockMappingOptions(inventoryProducts)
 
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER

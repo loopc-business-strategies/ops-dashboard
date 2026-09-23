@@ -1,6 +1,8 @@
 import { BASE, axios, getAuthConfig } from './client'
 
-const getInventoryProducts = async (token) => (await axios.get(`${BASE}/inventory/products`, getAuthConfig(token))).data
+const getInventoryProducts = async (token, params = {}) => (
+  await axios.get(`${BASE}/inventory/products`, getAuthConfig(token, { limit: 500, ...params }))
+).data
 const createInventoryProduct = async (token, payload) => (await axios.post(`${BASE}/inventory/products`, payload, getAuthConfig(token))).data
 const updateInventoryProduct = async (token, id, payload) => (await axios.put(`${BASE}/inventory/products/${id}`, payload, getAuthConfig(token))).data
 const deleteInventoryProduct = async (token, id) => (await axios.delete(`${BASE}/inventory/products/${id}`, getAuthConfig(token))).data

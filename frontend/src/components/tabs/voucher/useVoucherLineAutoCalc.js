@@ -154,14 +154,14 @@ export function useVoucherLineAutoCalc({
   const handleStockSelection = useCallback((selectedStockCode) => {
     const normalizedStockCode = String(selectedStockCode || '').trim()
     if (!normalizedStockCode) {
-      setLineForm((prev) => ({ ...prev, stockCode: '', inventoryItemId: '' }))
+      setLineForm((prev) => ({ ...prev, stockCode: '', inventoryItemId: '', productType: '' }))
       return
     }
 
     const product = inventoryProducts.find((item) => String(item.sku || '').trim().toLowerCase() === normalizedStockCode.toLowerCase())
 
     if (!product) {
-      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode, inventoryItemId: '' }))
+      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode, inventoryItemId: '', productType: '' }))
       return
     }
 
@@ -204,6 +204,8 @@ export function useVoucherLineAutoCalc({
         currCode: storedCurrency,
         vatType,
         vatPer,
+        // Reset product when stock changes so Product Type stays aligned to inventory stock type.
+        productType: '',
       })
     })
   }, [applyLineAutoCalc, inventoryProducts, latestMetalRates, resolveLineCurrency, setLineForm, voucherType])
@@ -215,7 +217,7 @@ export function useVoucherLineAutoCalc({
     const loadInventoryProducts = async () => {
       setLoadingInventoryProducts(true)
       try {
-        const res = await voucherErpApi.getInventoryProducts(token)
+        const res = await voucherErpApi.getInventoryProducts(token, { limit: 500 })
         if (!mounted) return
         setInventoryProducts(res.products || [])
       } catch {
