@@ -5,37 +5,36 @@ import { tabletDashboard as td } from '@/src/theme'
 type Props = {
   onLogin: () => void
   onLogout: () => void
+  loggedIn: boolean
   loginDisabled?: boolean
-  logoutDisabled?: boolean
 }
 
-export function LoginLogoutRow({ onLogin, onLogout, loginDisabled, logoutDisabled }: Props) {
+/** Logout is hidden until logged in. */
+export function LoginLogoutRow({ onLogin, onLogout, loggedIn, loginDisabled }: Props) {
   return (
     <View style={styles.row}>
       <Pressable
         accessibilityRole="button"
-        disabled={loginDisabled}
+        disabled={loginDisabled || loggedIn}
         onPress={onLogin}
         style={({ pressed }) => [
           styles.btn,
           styles.login,
-          { opacity: loginDisabled ? 0.45 : pressed ? 0.85 : 1 },
+          loggedIn ? styles.btnHalf : styles.btnFull,
+          { opacity: loginDisabled || loggedIn ? 0.45 : pressed ? 0.85 : 1 },
         ]}
       >
         <Text style={styles.loginText}>Login</Text>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        disabled={logoutDisabled}
-        onPress={onLogout}
-        style={({ pressed }) => [
-          styles.btn,
-          styles.logout,
-          { opacity: logoutDisabled ? 0.45 : pressed ? 0.85 : 1 },
-        ]}
-      >
-        <Text style={styles.logoutText}>Logout</Text>
-      </Pressable>
+      {loggedIn ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onLogout}
+          style={({ pressed }) => [styles.btn, styles.logout, styles.btnHalf, { opacity: pressed ? 0.85 : 1 }]}
+        >
+          <Text style={styles.logoutText}>Logout</Text>
+        </Pressable>
+      ) : null}
     </View>
   )
 }
@@ -43,13 +42,14 @@ export function LoginLogoutRow({ onLogin, onLogout, loginDisabled, logoutDisable
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10 },
   btn: {
-    flex: 1,
     minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderRadius: td.radius,
   },
+  btnFull: { flex: 1 },
+  btnHalf: { flex: 1 },
   login: {
     backgroundColor: td.orange,
     borderColor: td.orange,
@@ -69,4 +69,3 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
 })
-

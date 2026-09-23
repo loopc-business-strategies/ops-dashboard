@@ -1,4 +1,7 @@
-import type { MetalBatchBlock } from './MetalProcessPanel'
+import type { MetalBatchEdit } from './MetalProcessPanel'
+
+export type MetalBatchBlock = MetalBatchEdit
+export type MetalLine = MetalBatchEdit['lines'][number]
 
 export type MovementLike = {
   _id?: string

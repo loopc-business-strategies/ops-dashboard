@@ -1,94 +1,128 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { tabletDashboard as td } from '@/src/theme'
 
-export type MetalLine = {
+export type MetalLineEdit = {
   metal: string
   qty: string
   purity: string
   time: string
 }
 
-export type MetalBatchBlock = {
+export type MetalBatchEdit = {
   batchLabel: string
-  lines: MetalLine[]
+  lines: MetalLineEdit[]
 }
 
 type Props = {
   title: string
-  batches: MetalBatchBlock[]
-  onHeaderPress?: () => void
+  batches: MetalBatchEdit[]
+  onChange: (batches: MetalBatchEdit[]) => void
+  onConfirm: () => void
+  confirmLabel?: string
+  confirmDisabled?: boolean
+  compact?: boolean
 }
 
-function DataCols({ line, isHeader }: { line: MetalLine; isHeader?: boolean }) {
-  return (
-    <>
-      <Text style={[styles.cell, styles.colMetal, isHeader && styles.headerCell]}>{line.metal}</Text>
-      <Text style={[styles.cell, styles.colQty, isHeader && styles.headerCell]}>{line.qty}</Text>
-      <Text style={[styles.cell, styles.colPurity, isHeader && styles.headerCell]}>{line.purity}</Text>
-      <Text style={[styles.cell, styles.colTime, isHeader && styles.headerCell]}>{line.time}</Text>
-    </>
-  )
-}
+export function MetalProcessPanel({
+  title,
+  batches,
+  onChange,
+  onConfirm,
+  confirmLabel = 'Confirm',
+  confirmDisabled,
+  compact,
+}: Props) {
+  const pad = compact ? 6 : 8
+  const fontSize = compact ? 12 : 14
 
-export function MetalProcessPanel({ title, batches, onHeaderPress }: Props) {
-  const HeaderWrap = onHeaderPress ? Pressable : View
+  const setField = (batchIdx: number, lineIdx: number, key: keyof MetalLineEdit, value: string) => {
+    const next = batches.map((b, bi) => {
+      if (bi !== batchIdx) return b
+      return {
+        ...b,
+        lines: b.lines.map((line, li) => (li === lineIdx ? { ...line, [key]: value } : line)),
+      }
+    })
+    onChange(next)
+  }
+
   return (
     <View style={styles.wrap}>
-      <HeaderWrap
-        accessibilityRole={onHeaderPress ? 'button' : undefined}
-        onPress={onHeaderPress}
-        style={styles.header}
-      >
-        <Text style={styles.headerText}>{title}</Text>
-      </HeaderWrap>
+      <View style={[styles.header, compact && styles.headerCompact]}>
+        <Text style={[styles.headerText, compact && { fontSize: 18 }]}>{title}</Text>
+      </View>
       <View style={styles.body}>
         <View style={styles.subHeader}>
           <Text style={styles.subHeaderText}>Total Process</Text>
         </View>
-        <View style={styles.table}>
-          <View style={[styles.row, styles.headerRow]}>
-            <Text style={[styles.cell, styles.colBatch, styles.headerCell]}>Batch</Text>
-            <DataCols line={{ metal: 'Metal', qty: 'Qty', purity: 'Purity', time: 'Time' }} isHeader />
-          </View>
-          {batches.map((batch, batchIdx) => (
-            <View
-              key={batch.batchLabel}
-              style={[styles.batchGroup, batchIdx === batches.length - 1 && styles.batchGroupLast]}
-            >
-              <View style={styles.batchLabelCol}>
-                <Text style={styles.batchText}>{batch.batchLabel}</Text>
-              </View>
-              <View style={styles.batchLines}>
-                {batch.lines.map((line, idx) => (
-                  <View
-                    key={`${batch.batchLabel}-${line.metal}-${idx}`}
-                    style={[styles.lineRow, idx === batch.lines.length - 1 && styles.lineRowLast]}
-                  >
-                    <DataCols
-                      line={{
-                        metal: line.metal,
-                        qty: line.qty || '--',
-                        purity: line.purity || '--',
-                        time: line.time || '--',
-                      }}
-                    />
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
+        <View style={[styles.row, styles.headerRow]}>
+          <Text style={[styles.cell, styles.colBatch, styles.headerCell, { fontSize }]}>Batch</Text>
+          <Text style={[styles.cell, styles.colMetal, styles.headerCell, { fontSize }]}>Metal</Text>
+          <Text style={[styles.cell, styles.colQty, styles.headerCell, { fontSize }]}>Qty</Text>
+          <Text style={[styles.cell, styles.colPurity, styles.headerCell, { fontSize }]}>Purity</Text>
+          <Text style={[styles.cell, styles.colTime, styles.headerCell, { fontSize }]}>Time</Text>
         </View>
+        {batches.map((batch, batchIdx) => (
+          <View key={batch.batchLabel} style={styles.batchGroup}>
+            <View style={styles.batchLabelCol}>
+              <Text style={[styles.batchText, compact && { fontSize: 14 }]}>{batch.batchLabel}</Text>
+            </View>
+            <View style={styles.batchLines}>
+              {batch.lines.map((line, lineIdx) => (
+                <View
+                  key={`${batch.batchLabel}-${line.metal}`}
+                  style={[styles.lineRow, lineIdx === batch.lines.length - 1 && styles.lineRowLast]}
+                >
+                  <Text style={[styles.cell, styles.colMetal, { fontSize, paddingVertical: pad }]}>
+                    {line.metal}
+                  </Text>
+                  <TextInput
+                    style={[styles.input, styles.colQty, { fontSize, paddingVertical: pad }]}
+                    value={line.qty}
+                    onChangeText={(v) => setField(batchIdx, lineIdx, 'qty', v)}
+                    placeholder="--"
+                    placeholderTextColor={td.textMuted}
+                    keyboardType="decimal-pad"
+                  />
+                  <TextInput
+                    style={[styles.input, styles.colPurity, { fontSize, paddingVertical: pad }]}
+                    value={line.purity}
+                    onChangeText={(v) => setField(batchIdx, lineIdx, 'purity', v)}
+                    placeholder="--"
+                    placeholderTextColor={td.textMuted}
+                    keyboardType="decimal-pad"
+                  />
+                  <TextInput
+                    style={[styles.input, styles.colTime, { fontSize, paddingVertical: pad }]}
+                    value={line.time}
+                    onChangeText={(v) => setField(batchIdx, lineIdx, 'time', v)}
+                    placeholder="--"
+                    placeholderTextColor={td.textMuted}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          disabled={confirmDisabled}
+          onPress={onConfirm}
+          style={({ pressed }) => [
+            styles.confirmBtn,
+            { opacity: confirmDisabled ? 0.45 : pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Text style={styles.confirmText}>{confirmLabel}</Text>
+        </Pressable>
       </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    minHeight: 0,
-  },
+  wrap: { flex: 1, minHeight: 0 },
   header: {
     backgroundColor: td.orange,
     minHeight: 52,
@@ -97,6 +131,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: td.radius,
     borderTopRightRadius: td.radius,
   },
+  headerCompact: { minHeight: 44 },
   headerText: {
     color: td.white,
     fontWeight: '800',
@@ -121,12 +156,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  subHeaderText: {
-    color: td.text,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  table: { flex: 1 },
+  subHeaderText: { color: td.text, fontWeight: '700', fontSize: 15 },
   row: {
     flexDirection: 'row',
     minHeight: 40,
@@ -137,16 +167,12 @@ const styles = StyleSheet.create({
   headerRow: {
     backgroundColor: td.cream,
     borderBottomColor: td.borderLight,
-    minHeight: 40,
   },
   batchGroup: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: td.borderLight,
     minHeight: 80,
-  },
-  batchGroupLast: {
-    borderBottomWidth: 0,
   },
   batchLabelCol: {
     width: 56,
@@ -156,11 +182,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: td.cream,
   },
-  batchText: {
-    color: td.text,
-    fontWeight: '800',
-    fontSize: 16,
-  },
+  batchText: { color: td.text, fontWeight: '800', fontSize: 16 },
   batchLines: { flex: 1 },
   lineRow: {
     flexDirection: 'row',
@@ -172,21 +194,35 @@ const styles = StyleSheet.create({
   lineRowLast: { borderBottomWidth: 0 },
   cell: {
     color: td.text,
-    fontSize: 14,
     fontWeight: '500',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     textAlign: 'center',
   },
   headerCell: {
     fontWeight: '700',
     color: td.textMuted,
-    fontSize: 13,
-    letterSpacing: 0.2,
+  },
+  input: {
+    color: td.text,
+    fontWeight: '600',
+    paddingHorizontal: 4,
+    textAlign: 'center',
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: td.borderGrid,
+    minHeight: 36,
   },
   colBatch: { width: 56 },
-  colMetal: { flex: 1.15, textAlign: 'left' },
+  colMetal: { flex: 1.1, textAlign: 'left' },
   colQty: { flex: 1 },
   colPurity: { flex: 1 },
   colTime: { flex: 1 },
+  confirmBtn: {
+    margin: 10,
+    minHeight: 44,
+    backgroundColor: td.orange,
+    borderRadius: td.radius,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmText: { color: td.white, fontWeight: '800', fontSize: 16 },
 })
