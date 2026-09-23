@@ -77,6 +77,31 @@ export function computeInventoryProductPurityWeight(productForm) {
   return (Number(productForm.weight || 0) || 0) * (Number.isFinite(purityFactor) ? purityFactor : 0)
 }
 
+/** Normalize stored purity (ratio or millesimal) to a 0–1 factor; invalid/blank → 0. */
+export function resolveInventoryPurityFactor(purity) {
+  const purityNumeric = Number(purity || 0)
+  if (!Number.isFinite(purityNumeric) || purityNumeric <= 0) return 0
+  return purityNumeric > 1.2 ? purityNumeric / 1000 : purityNumeric
+}
+
+/** Pure on-hand qty from gross qty × purity; missing/zero purity → 0 (do not treat as 1). */
+export function computeInventoryPureStockQty(quantity, purity) {
+  const qty = Math.max(0, Number(quantity || 0))
+  const factor = resolveInventoryPurityFactor(purity)
+  if (!(factor > 0)) return 0
+  return qty * factor
+}
+
+/** Inventory value: use pure qty when purity is set, otherwise gross qty. */
+export function computeInventoryStockValue(quantity, unitCost, purity) {
+  const cost = Number(unitCost || 0)
+  const factor = resolveInventoryPurityFactor(purity)
+  const qtyForValue = factor > 0
+    ? computeInventoryPureStockQty(quantity, purity)
+    : Math.max(0, Number(quantity || 0))
+  return qtyForValue * (Number.isFinite(cost) ? cost : 0)
+}
+
 export function sanitizeInventoryMetaText(value) {
   return String(value || '').replace(/[;\n\r]/g, ' ').trim()
 }

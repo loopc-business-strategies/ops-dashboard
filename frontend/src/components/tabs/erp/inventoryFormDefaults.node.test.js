@@ -2,7 +2,10 @@ import { describe, expect, test } from 'vitest'
 import {
   buildInventoryMappingPayload,
   computeInventoryProductPurityWeight,
+  computeInventoryPureStockQty,
+  computeInventoryStockValue,
   mappingProductToFormState,
+  resolveInventoryPurityFactor,
 } from './inventoryFormDefaults'
 
 describe('inventoryFormDefaults', () => {
@@ -69,5 +72,27 @@ describe('inventoryFormDefaults', () => {
   test('computeInventoryProductPurityWeight applies purity factor', () => {
     expect(computeInventoryProductPurityWeight({ weight: '10', purity: '0.999' })).toBeCloseTo(9.99)
     expect(computeInventoryProductPurityWeight({ weight: '10', purity: '999' })).toBeCloseTo(9.99)
+  })
+
+  test('resolveInventoryPurityFactor handles ratio and millesimal', () => {
+    expect(resolveInventoryPurityFactor('')).toBe(0)
+    expect(resolveInventoryPurityFactor('0')).toBe(0)
+    expect(resolveInventoryPurityFactor('1')).toBe(1)
+    expect(resolveInventoryPurityFactor('0.916')).toBeCloseTo(0.916)
+    expect(resolveInventoryPurityFactor('916')).toBeCloseTo(0.916)
+  })
+
+  test('computeInventoryPureStockQty does not treat missing purity as 1', () => {
+    expect(computeInventoryPureStockQty(1000, '')).toBe(0)
+    expect(computeInventoryPureStockQty(1000, '0')).toBe(0)
+    expect(computeInventoryPureStockQty(1000, '1')).toBe(1000)
+    expect(computeInventoryPureStockQty(1000, '0.916')).toBeCloseTo(916)
+  })
+
+  test('computeInventoryStockValue uses pure qty when purity is set', () => {
+    expect(computeInventoryStockValue(1000, 10, '')).toBe(10000)
+    expect(computeInventoryStockValue(1000, 10, '0')).toBe(10000)
+    expect(computeInventoryStockValue(1000, 10, '1')).toBe(10000)
+    expect(computeInventoryStockValue(1000, 10, '0.916')).toBeCloseTo(9160)
   })
 })

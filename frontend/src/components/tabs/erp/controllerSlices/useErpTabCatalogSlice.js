@@ -13,6 +13,11 @@ import { useErpCustomerMargin, useErpSupplierMargin, useErpMarginContextMenuDism
 import { resolveInventoryValuationUnitCost } from '../../../../utils/liveMetalRates'
 import { normalizeJvCurrencyCode } from '../journalVoucherHelpers'
 import { resolveCurrencyRowByCode } from '../erpCurrencyRowHelpers'
+import {
+  computeInventoryPureStockQty,
+  computeInventoryStockValue,
+  resolveInventoryPurityFactor,
+} from '../inventoryFormDefaults'
 
 
 
@@ -93,18 +98,15 @@ export function useErpTabCatalogSlice(scope) {
     const storedUnitCost = Number(item.unitCost || 0)
     const unitCost = resolveInventoryValuationUnitCost(storedUnitCost, metalName, erpLiveMetalSnapshot, priceUnit)
     const usesLivePrice = unitCost !== storedUnitCost && unitCost > 0
-    const stockValue = quantity * unitCost
     const minThreshold = Number(item.minThreshold || 0)
     const metal = titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || 'Unmapped')
     const categoryName = productMeta.productCategory || titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || item.name)
     const weight = Number(productMeta.grossWeight || productMeta.weight || item.weight || 0)
     const purity = productMeta.productPurity || productMeta.purity || categoryMeta.purity || ''
-    const purityNumeric = Number(purity || 0)
-    const purityFactor = purityNumeric > 1.2 ? purityNumeric / 1000 : purityNumeric
+    const purityFactor = resolveInventoryPurityFactor(purity)
     const purityWeight = Number(productMeta.purityWeight || 0)
-    const pureStockQty = Number.isFinite(purityFactor) && purityFactor > 0
-      ? quantity * purityFactor
-      : quantity
+    const pureStockQty = computeInventoryPureStockQty(quantity, purity)
+    const stockValue = computeInventoryStockValue(quantity, unitCost, purity)
     const isZeroStock = quantity <= 0
     const isBelowMinStock = minThreshold > 0 && quantity <= minThreshold
     return {
@@ -121,6 +123,7 @@ export function useErpTabCatalogSlice(scope) {
       categoryName,
       weight,
       purity,
+      purityFactor,
       purityWeight,
       pureStockQty,
       stockUnit: item.unit || 'units',

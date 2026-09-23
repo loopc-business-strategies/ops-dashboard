@@ -2,6 +2,7 @@ import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { formatAmount } from '../../../../utils/money'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
+import { createInventoryProductForm } from '../erpTabUtils'
 
 export default function ERPInventoryTab({
   activeTab,
@@ -168,6 +169,7 @@ export default function ERPInventoryTab({
                 type="button"
                 onClick={() => {
                   setEditingInventoryProductId('')
+                  setInventoryProductForm(createInventoryProductForm())
                   setInventoryProductModalOffset({ x: 0, y: 0 })
                   setShowInventoryProductModal(true)
                 }}
@@ -474,7 +476,7 @@ export default function ERPInventoryTab({
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
                     <select value={inventoryProductForm.stockTypeId} onChange={(e) => {
                       const option = inventoryStockTypeOptions.find((item) => item.id === e.target.value)
-                      setInventoryProductForm((prev) => ({ ...prev, stockTypeId: e.target.value, categoryName: option?.mainStock || '', purity: prev.purity || option?.purity || '' }))
+                      setInventoryProductForm((prev) => ({ ...prev, stockTypeId: e.target.value, categoryName: option?.mainStock || '', purity: option?.purity || '' }))
                     }} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}>
                       <option value="">Product Category</option>
                       {inventoryStockTypeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
