@@ -28,7 +28,8 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text,
         headerTitleStyle: { fontWeight: '800' },
-        headerRight: () => <AuthHeaderActions />,
+        // Phone: header Logout. Tablet: auth lives in sidebar only.
+        headerRight: tablet ? undefined : () => <AuthHeaderActions />,
         tabBarStyle: tablet
           ? { display: 'none' }
           : {

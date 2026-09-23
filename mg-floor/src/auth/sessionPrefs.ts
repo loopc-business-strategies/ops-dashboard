@@ -5,6 +5,7 @@ const DEPT_KEY = 'mg_factory_selected_department'
 const BIO_USER_KEY = 'mg_factory_bio_username'
 const BIO_PASS_KEY = 'mg_factory_bio_password'
 const BIO_ENABLED_KEY = 'mg_factory_bio_enabled'
+const SESSION_EXPIRED_KEY = 'mg_floor_session_expired_notice'
 
 export async function getSelectedDepartment(): Promise<string | null> {
   try {
@@ -27,6 +28,26 @@ export async function clearSelectedDepartment(): Promise<void> {
     await SecureStore.deleteItemAsync(DEPT_KEY)
   } catch {
     // ignore
+  }
+}
+
+export async function markSessionExpiredNotice(): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(SESSION_EXPIRED_KEY, '1')
+  } catch {
+    // ignore
+  }
+}
+
+/** Returns true once if a session-expired notice was queued, then clears it. */
+export async function consumeSessionExpiredNotice(): Promise<boolean> {
+  try {
+    const v = await SecureStore.getItemAsync(SESSION_EXPIRED_KEY)
+    if (v !== '1') return false
+    await SecureStore.deleteItemAsync(SESSION_EXPIRED_KEY)
+    return true
+  } catch {
+    return false
   }
 }
 

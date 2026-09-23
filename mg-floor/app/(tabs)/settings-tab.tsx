@@ -26,7 +26,13 @@ export default function SettingsTabScreen() {
           <BigButton label="XRF / QC" onPress={() => router.push('/xrf' as never)} tone="neutral" />
           <BigButton label="Devices" onPress={() => router.push('/devices' as never)} tone="neutral" />
           <BigButton label="Scales" onPress={() => router.push('/scales' as never)} tone="neutral" />
-          <BigButton label="Logout" onPress={() => logout()} tone="danger" />
+          <BigButton
+            label="Logout"
+            onPress={async () => {
+              await logout()
+            }}
+            tone="danger"
+          />
         </View>
       </ScrollView>
     </Screen>

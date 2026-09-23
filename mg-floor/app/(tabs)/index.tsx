@@ -65,7 +65,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 export default function HomeScreen() {
-  const { user, logout, permissions } = useAuth()
+  const { user, permissions } = useAuth()
   const router = useRouter()
   const tablet = useIsTablet()
   const { width } = useWindowDimensions()
@@ -165,7 +165,6 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.opName}>{user?.name || '—'}</Text>
         <Text style={styles.opId}>{user?.id ? `ID ${String(user.id).slice(-6)}` : ''}</Text>
-        <BigButton label="Logout" onPress={() => logout()} tone="neutral" />
       </View>
     </View>
   )

@@ -20,6 +20,7 @@ import {
   enrollBiometricCredentials,
   getSelectedDepartment,
   isBiometricEnabled,
+  consumeSessionExpiredNotice,
 } from '@/src/auth/sessionPrefs'
 
 export default function LoginScreen() {
@@ -43,6 +44,9 @@ export default function LoginScreen() {
       const avail = await biometricAvailable()
       const enabled = await isBiometricEnabled()
       setBioReady(avail && enabled)
+      if (await consumeSessionExpiredNotice()) {
+        Alert.alert('Session expired', 'Your session has expired. Please log in again.')
+      }
     })()
   }, [router])
 
@@ -139,12 +143,14 @@ export default function LoginScreen() {
             disabled={busy}
           />
         ) : null}
-        <BigButton
-          label="BACK TO APP"
-          onPress={() => router.replace('/')}
-          tone="neutral"
-          disabled={busy}
-        />
+        {dept ? (
+          <BigButton
+            label="BACK TO HOME"
+            onPress={() => router.replace('/')}
+            tone="neutral"
+            disabled={busy}
+          />
+        ) : null}
         <BigButton
           label="CHANGE DEPARTMENT"
           onPress={() => router.replace('/department')}

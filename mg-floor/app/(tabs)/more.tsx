@@ -25,7 +25,13 @@ export default function MoreScreen() {
           {items.map((item) => (
             <BigButton key={item.key} label={item.label} onPress={() => router.push(item.href as never)} />
           ))}
-          <BigButton label="SIGN OUT" onPress={() => logout()} tone="danger" />
+          <BigButton
+            label="SIGN OUT"
+            onPress={async () => {
+              await logout()
+            }}
+            tone="danger"
+          />
         </View>
       </ScrollView>
     </Screen>

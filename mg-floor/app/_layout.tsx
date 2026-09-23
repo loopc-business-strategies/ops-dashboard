@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/src/components/ErrorBoundary'
 import { AppChrome } from '@/src/navigation/AppChrome'
 import { AuthHeaderActions } from '@/src/navigation/AuthHeaderActions'
 import { startAutoSync } from '@/src/offline/sync'
-import { BigButton, LoadingBlock, Screen } from '@/src/components/ui'
+import { BigButton, LoadingBlock, Screen, useIsTablet } from '@/src/components/ui'
 import { getSelectedDepartment } from '@/src/auth/sessionPrefs'
 import { API_CONFIG_ERROR } from '@/src/config/env'
 import { colors } from '@/src/theme'
@@ -34,6 +34,13 @@ function ConfigErrorScreen({ message }: { message: string }) {
       <Text style={styles.configMeta}>The app opened safely. Fix the build env and reinstall.</Text>
     </View>
   )
+}
+
+function StackAuthHeader() {
+  const tablet = useIsTablet()
+  // Tablet auth lives in the sidebar; phone/stack shows Login or Logout.
+  if (tablet) return null
+  return <AuthHeaderActions />
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -61,6 +68,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         router.replace('/department')
         return
       }
+      // Optional employee login only — do not force /login after department.
       if (token && onLogin) {
         router.replace('/')
       }
@@ -100,7 +108,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         <BigButton label="RETRY" onPress={() => retryHydrate()} />
         <BigButton label="SIGN IN" onPress={() => router.replace('/login')} tone="neutral" />
         {hasDepartment ? (
-          <BigButton label="CONTINUE WITHOUT SIGN-IN" onPress={() => router.replace('/')} tone="neutral" />
+          <BigButton label="CONTINUE TO HOME" onPress={() => router.replace('/')} tone="neutral" />
         ) : null}
       </Screen>
     )
@@ -142,7 +150,7 @@ export default function RootLayout() {
                   headerTintColor: colors.text,
                   contentStyle: { backgroundColor: colors.bg },
                   headerTitleStyle: { fontWeight: '800' },
-                  headerRight: () => <AuthHeaderActions />,
+                  headerRight: () => <StackAuthHeader />,
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

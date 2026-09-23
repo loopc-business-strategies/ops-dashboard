@@ -5,6 +5,7 @@ import { setAuthToken, setUnauthorizedHandler } from '@/src/api/client'
 import { userFacingMessage } from '@/src/api/errors'
 import { registerDevice } from '@/src/api/floor'
 import { forceReleaseFloorSocket } from '@/src/realtime/floorSocket'
+import { markSessionExpiredNotice } from '@/src/auth/sessionPrefs'
 import { Platform } from 'react-native'
 
 const TOKEN_KEY = 'mg_floor_session_token'
@@ -140,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false
     setUnauthorizedHandler(() => {
+      markSessionExpiredNotice().catch(() => {})
       logout()
     })
     ;(async () => {

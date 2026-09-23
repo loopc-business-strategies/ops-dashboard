@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { StyleSheet, Text } from 'react-native'
+import { useRouter } from 'expo-router'
 import { BigButton, Screen, StatusPill, Subtitle, Title } from '@/src/components/ui'
 import { useAuth } from '@/src/context/AuthContext'
 import { pendingCount } from '@/src/offline/outbox'
@@ -10,6 +11,7 @@ import { colors, spacing } from '@/src/theme'
 
 export default function ProfileScreen() {
   const { user, shift, permissions, logout, refresh } = useAuth()
+  const router = useRouter()
   const [pending, setPending] = useState(0)
   const [syncMsg, setSyncMsg] = useState('')
 
@@ -34,12 +36,19 @@ export default function ProfileScreen() {
       <Text style={styles.line}>Env: {APP_ENV}</Text>
       <Text style={styles.line}>API: {API_URL}</Text>
       <StatusPill label={`PENDING SYNC ${pending}`} tone={pending ? 'warn' : 'ok'} />
-      <Text style={styles.perms}>Permissions: {Object.entries(permissions).filter(([, v]) => v).map(([k]) => k).join(', ') || '—'}</Text>
+      <Text style={styles.perms}>
+        Permissions:{' '}
+        {Object.entries(permissions)
+          .filter(([, v]) => v)
+          .map(([k]) => k)
+          .join(', ') || '—'}
+      </Text>
       {syncMsg ? <Text style={styles.line}>{syncMsg}</Text> : null}
       <BigButton
         label="SYNC NOW"
         onPress={async () => {
           try {
+            setSyncMsg('Syncing…')
             await flushOutbox()
             setPending(await pendingCount())
             setSyncMsg('Sync complete')
@@ -49,7 +58,14 @@ export default function ProfileScreen() {
         }}
       />
       <BigButton label="REFRESH PROFILE" onPress={() => refresh()} tone="neutral" />
-      <BigButton label="SIGN OUT" onPress={() => logout()} tone="danger" />
+      <BigButton
+        label="SIGN OUT"
+        onPress={async () => {
+          await logout()
+          router.replace('/')
+        }}
+        tone="danger"
+      />
     </Screen>
   )
 }
