@@ -491,7 +491,7 @@ export default function VoucherEditorPanel({
                           <input
                             ref={partyCodeRef}
                             style={formReadOnly ? classicReadInput : classicInput}
-                            value={header.partyCode}
+                            value={header.partyCode ?? ''}
                             onChange={e => setHdr('partyCode', e.target.value)}
                             onKeyDown={(e) => {
                               handlePartyCodeEnter(e)
@@ -522,7 +522,7 @@ export default function VoucherEditorPanel({
                                 <div style={classicPartyCardCode}>
                                   <input
                                     style={classicPartyCardCodeInput}
-                                    value={header.partyCode}
+                                    value={header.partyCode ?? ''}
                                     onChange={e => setHdr('partyCode', e.target.value)}
                                     onKeyDown={handlePartyCodeEnter}
                                     placeholder="Code"

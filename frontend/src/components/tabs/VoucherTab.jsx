@@ -734,6 +734,8 @@ export default function VoucherTab({
     findPartyOptionByCode,
     initialFormSnapshotRef,
     baseCurrencyCode,
+    isReadOnly,
+    isEntryLocked,
   })
 
   openVoucherRef.current = openVoucher

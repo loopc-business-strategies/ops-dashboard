@@ -44,6 +44,8 @@ export function useVoucherOpenEdit({
   findPartyOptionByCode,
   initialFormSnapshotRef,
   baseCurrencyCode = 'USD',
+  isReadOnly = false,
+  isEntryLocked = () => false,
 }) {
   const openVoucher = (v) => {
   const m = v.voucherMeta || {}
@@ -91,6 +93,10 @@ export function useVoucherOpenEdit({
       currRateSource: (lineCurrency === 'AED' && isReceiptPaymentVoucher) ? 'fixed_aed' : lineRateSource,
     }
   })
+  const status = String(v.status || '').toLowerCase()
+  const mutableStatus = ['draft', 'returned', 'rejected'].includes(status)
+  const locked = Boolean(isReadOnly) || Boolean(isEntryLocked(v))
+  const openInEdit = mutableStatus && !locked
   setEditingId(v._id)
   setHeader(nextHeader)
   setSelectedPartyId(nextPartyId)
@@ -99,7 +105,7 @@ export function useVoucherOpenEdit({
   setMenuTab('header')
   setWorkflowNote('')
   setError('')
-  setMode('view')
+  setMode(openInEdit ? 'create' : 'view')
   initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, nextLineItems, nextPartyId)
 }
 

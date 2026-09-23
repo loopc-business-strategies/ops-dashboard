@@ -205,23 +205,23 @@ export const classicPartyCardTitle = {
 
 export const classicPartyCardCodeWrap = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(96px, auto) 28px',
+  gridTemplateColumns: 'minmax(96px, 1fr) 28px',
   background: '#FFFFFF',
+  alignItems: 'stretch',
 }
 
 export const classicPartyCardCode = {
-  padding: '0.42rem 0.55rem',
-  fontSize: '0.78rem',
-  fontWeight: '700',
-  color: '#374151',
+  display: 'flex',
+  alignItems: 'stretch',
+  minWidth: '96px',
   background: '#FFFFFF',
   borderRight: `1px solid ${S.border}`,
-  minWidth: '96px',
-  textAlign: 'left',
 }
 
 export const classicPartyCardCodeInput = {
   width: '100%',
+  minWidth: '96px',
+  minHeight: '100%',
   border: 0,
   outline: 'none',
   background: '#FFFFFF',
