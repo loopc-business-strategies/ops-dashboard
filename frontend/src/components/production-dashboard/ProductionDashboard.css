@@ -1,4 +1,4 @@
-/* Production Dashboard â light enterprise ops console */
+/* Production Dashboard Ã¢ÂÂ light enterprise ops console */
 
 .pd-page {
   --pd-bg: #F4F7F9;
@@ -742,7 +742,7 @@
   }
 }
 
-/* ââ Reference layout (navy header + compact KPIs + dept cards) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Reference layout (navy header + compact KPIs + dept cards) Ã¢ÂÂÃ¢ÂÂ */
 
 .pd-layout--reference {
   grid-template-rows: auto minmax(0, 1fr);
@@ -2095,13 +2095,13 @@
   color: var(--pd-muted);
 }
 
-/* ââ Control Center responsive system ââ
-   Phone â¤599 | Phablet/fold 600â899 | Tablet 900â1199 |
-   Smart display / tablet landscape 1200â1439 |
-   Desktop 1440Ã--900 (compact) | Large desktop 1920Ã--1080 (comfortable)
+/* Control Center responsive system
+   Phone <=599 | Phablet/fold 600-899 | Tablet 900-1199 |
+   Smart display / tablet landscape 1200-1439 |
+   Desktop 1440x900 (compact) | Large desktop 1920x1080 (comfortable)
 */
 
-/* Standard desktop 1440â1919: locked viewport + base density */
+/* Standard desktop 1440Ã¢ÂÂ1919: locked viewport + base density */
 @media (min-width: 1440px) and (max-width: 1919px) {
   .pd-layout--control-center {
     gap: 0.35rem;
@@ -2204,7 +2204,7 @@
   }
 }
 
-/* Short desktop height (e.g. 1440Ã--900): extra densify so cards fit 100dvh */
+/* Short desktop height (e.g. 1440x900): extra densify so cards fit 100dvh */
 @media (min-width: 1440px) and (max-width: 1919px) and (max-height: 900px) {
   .pd-layout--control-center {
     gap: 0.25rem;
@@ -2271,7 +2271,7 @@
   }
 }
 
-/* Large desktop 1920Ã--1080: comfortable type/spacing, still one-screen */
+/* Large desktop 1920x1080: comfortable type/spacing, still one-screen */
 @media (min-width: 1920px) {
   .pd-layout--control-center {
     gap: 0.45rem;
@@ -2384,7 +2384,7 @@
   }
 }
 
-/* Cap growth on short large desktops (1920Ã--1080 and below) */
+/* Cap growth on short large desktops (1920x1080 and below) */
 @media (min-width: 1920px) and (max-height: 1080px) {
   .pd-layout--control-center {
     gap: 0.4rem;
@@ -2446,7 +2446,7 @@
   }
 }
 
-/* Tablet landscape / smart display: 1200â1439 */
+/* Tablet landscape / smart display: 1200Ã¢ÂÂ1439 */
 @media (min-width: 1200px) and (max-width: 1439px) {
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2485,7 +2485,7 @@
   }
 }
 
-/* Tablet portrait: 900â1199 */
+/* Tablet portrait: 900Ã¢ÂÂ1199 */
 @media (min-width: 900px) and (max-width: 1199px) {
   .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2518,7 +2518,7 @@
   }
 }
 
-/* Phone landscape / small fold: 600â899 */
+/* Phone landscape / small fold: 600Ã¢ÂÂ899 */
 @media (min-width: 600px) and (max-width: 899px) {
   .pd-layout--control-center .pd-kpi-strip,
   .pd-kpi-strip {
@@ -2568,7 +2568,7 @@
   }
 }
 
-/* Phone portrait â¤599 */
+/* Phone portrait Ã¢ÂÂ¤599 */
 @media (max-width: 599px) {
   .pd-fullscreen-nav {
     top: max(0.35rem, env(safe-area-inset-top, 0px));
@@ -2773,7 +2773,7 @@
   gap: 0.3rem;
 }
 
-/* Live Metal â compact single-line chip rail */
+/* Live Metal Ã¢ÂÂ compact single-line chip rail */
 .pd-live-metal {
   padding: 0.3rem 0.5rem !important;
 }
@@ -2936,7 +2936,8 @@
 }
 
 .pd-layout--control-center .pd-panel-head--slim {
-  margin-bottom: 0.25rem;
+  display: none;
+  margin-bottom: 0;
 }
 
 .pd-layout--control-center .pd-panel-head--slim .pd-panel-title {
@@ -3289,7 +3290,7 @@
   gap: 0.45rem;
 }
 
-/* -- Desktop height-fit overrides (after base control-center rules) --
+/* Desktop height-fit overrides (after base control-center rules)
    Ensures 1440x900 densify and 1920x1080 comfort win the cascade.
 */
 
