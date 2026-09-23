@@ -17,6 +17,21 @@ export const colors = {
   unstable: '#F59E0B',
 }
 
+/** Tablet landscape dashboard tokens (reference mockup). */
+export const tabletDashboard = {
+  orange: '#F4510B',
+  cream: '#FFF7EA',
+  white: '#FFFFFF',
+  text: '#111827',
+  textMuted: '#6B7280',
+  /** Outer panel / section outline */
+  border: '#4B5563',
+  /** Soft internal row separators (avoids Excel cell-cage look) */
+  borderGrid: '#E5E7EB',
+  borderLight: '#D1D5DB',
+  radius: 4,
+}
+
 export const spacing = {
   xs: 6,
   sm: 10,

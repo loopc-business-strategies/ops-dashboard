@@ -1,6 +1,6 @@
 import React from 'react'
 import { Tabs } from 'expo-router'
-import { Text } from 'react-native'
+import { Text, useWindowDimensions } from 'react-native'
 import { colors } from '@/src/theme'
 import { useIsTablet } from '@/src/components/ui'
 import { AuthHeaderActions } from '@/src/navigation/AuthHeaderActions'
@@ -22,6 +22,9 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
 
 export default function TabsLayout() {
   const tablet = useIsTablet()
+  const { width, height } = useWindowDimensions()
+  const landscapeHome = tablet && width > height
+
   return (
     <Tabs
       screenOptions={{
@@ -46,7 +49,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'MG FLOOR',
+          title: landscapeHome ? '' : 'MG FLOOR',
+          headerShown: !landscapeHome,
           tabBarLabel: ({ focused }) => <TabLabel label="HOME" focused={focused} />,
         }}
       />

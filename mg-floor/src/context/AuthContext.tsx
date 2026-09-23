@@ -5,7 +5,11 @@ import { setAuthToken, setUnauthorizedHandler } from '@/src/api/client'
 import { userFacingMessage } from '@/src/api/errors'
 import { registerDevice } from '@/src/api/floor'
 import { forceReleaseFloorSocket } from '@/src/realtime/floorSocket'
-import { markSessionExpiredNotice } from '@/src/auth/sessionPrefs'
+import {
+  clearSessionLoginAt,
+  markSessionExpiredNotice,
+  setSessionLoginAt,
+} from '@/src/auth/sessionPrefs'
 import { Platform } from 'react-native'
 
 const TOKEN_KEY = 'mg_floor_session_token'
@@ -76,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setHydrateError(null)
     setStoredToken(null)
     await clearStoredToken()
+    await clearSessionLoginAt()
   }, [])
 
   const hydrateFromMe = useCallback(async (tok: string) => {
@@ -124,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!data.token) throw new Error('Login failed — no token')
     await writeStoredToken(data.token)
     setStoredToken(data.token)
+    await setSessionLoginAt(new Date().toISOString())
     await hydrateFromMe(data.token)
     try {
       await registerDevice({

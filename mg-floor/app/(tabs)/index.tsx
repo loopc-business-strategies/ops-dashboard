@@ -14,6 +14,7 @@ import { useAuth } from '@/src/context/AuthContext'
 import { BigButton, Screen, StatusPill, useIsTablet } from '@/src/components/ui'
 import { ModernGoldLogo } from '@/src/components/ModernGoldLogo'
 import { ErrorState, SectionLoading } from '@/src/components/async'
+import { MGFloorTabletDashboard } from '@/src/components/tablet-dashboard'
 import { fetchHistory, fetchJobs, fetchStatsSummary, callFloorManager } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { getSelectedDepartment } from '@/src/auth/sessionPrefs'
@@ -68,7 +69,32 @@ export default function HomeScreen() {
   const { user, permissions } = useAuth()
   const router = useRouter()
   const tablet = useIsTablet()
-  const { width } = useWindowDimensions()
+  const { width, height } = useWindowDimensions()
+  const landscape = width > height
+
+  // Tablet landscape: exact reference dashboard (replaces old tablet home).
+  if (tablet && landscape) {
+    return (
+      <Screen style={{ padding: 0, backgroundColor: '#FFFFFF' }}>
+        <MGFloorTabletDashboard />
+      </Screen>
+    )
+  }
+
+  return <MobileHomeScreen user={user} permissions={permissions} router={router} tablet={tablet} />
+}
+
+function MobileHomeScreen({
+  user,
+  permissions,
+  router,
+  tablet,
+}: {
+  user: ReturnType<typeof useAuth>['user']
+  permissions: Record<string, boolean>
+  router: ReturnType<typeof useRouter>
+  tablet: boolean
+}) {
   const [dept, setDept] = useState('')
   const [selected, setSelected] = useState<Job | null>(null)
   const [now, setNow] = useState(new Date())
@@ -187,9 +213,7 @@ export default function HomeScreen() {
             Expected: {Number(selected.expectedWeight ?? selected.targetWeight ?? 0).toFixed(2)} g
           </Text>
           <StatusPill label={String(selected.status || '—').toUpperCase()} tone="neutral" />
-          <Text style={styles.meta}>
-            Operator: {user?.name || '—'}
-          </Text>
+          <Text style={styles.meta}>Operator: {user?.name || '—'}</Text>
           <BigButton label="CHANGE BATCH" tone="neutral" onPress={() => router.push('/jobs' as never)} />
         </View>
       ) : null}
@@ -221,7 +245,7 @@ export default function HomeScreen() {
   )
 
   const metalPanels = (
-    <View style={tablet ? styles.metalRow : undefined}>
+    <View>
       <Card title="METAL IN">
         <Text style={styles.meta}>Selected: {selected?.batchNumber || '—'}</Text>
         <Text style={styles.meta}>
@@ -320,7 +344,9 @@ export default function HomeScreen() {
       {(history.data || []).slice(0, 10).map((m) => (
         <View key={String(m._id)} style={styles.histRow}>
           <Text style={styles.histCell}>
-            {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+            {m.createdAt
+              ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '—'}
           </Text>
           <Text style={styles.histCell}>{m.batchNumber || '—'}</Text>
           <Text style={styles.histCell}>{m.status === 'RECEIVED' ? 'Metal In' : 'Metal Out'}</Text>
@@ -331,31 +357,17 @@ export default function HomeScreen() {
     </Card>
   )
 
-  const wide = tablet || width >= 900
-
   return (
     <Screen style={{ paddingBottom: 0 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         {header}
-        {wide ? (
-          <View>
-            <View style={styles.row3}>
-              <View style={styles.col}>{currentBatch}{batchList}</View>
-              <View style={styles.col}>{metalPanels}</View>
-              <View style={styles.col}>{previousCard}{averageCard}{managerCard}</View>
-            </View>
-            {historyCard}
-          </View>
-        ) : (
-          <View>
-            {currentBatch}
-            {metalPanels}
-            {historyCard}
-            {averageCard}
-            {managerCard}
-            {batchList}
-          </View>
-        )}
+        {currentBatch}
+        {metalPanels}
+        {historyCard}
+        {averageCard}
+        {managerCard}
+        {previousCard}
+        {batchList}
       </ScrollView>
     </Screen>
   )
@@ -417,9 +429,6 @@ const styles = StyleSheet.create({
   batchRowActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   batchRowTitle: { color: colors.text, fontWeight: '800' },
   onOrange: { color: colors.onAccent },
-  metalRow: { gap: 0 },
-  row3: { flexDirection: 'row', gap: spacing.md },
-  col: { flex: 1, minWidth: 0 },
   sectionLabel: { color: colors.text, fontWeight: '800', marginBottom: 4 },
   histRow: {
     flexDirection: 'row',

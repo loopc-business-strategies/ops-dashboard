@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
 import { useIsTablet } from '@/src/components/ui'
@@ -13,6 +13,16 @@ function isActive(pathname: string, href: string) {
     return pathname === '/' || pathname === '/index' || pathname.endsWith('/(tabs)') || pathname.endsWith('/(tabs)/')
   }
   return pathname === href || pathname.includes(href)
+}
+
+function isHomePath(pathname: string) {
+  return (
+    pathname === '/' ||
+    pathname === '/index' ||
+    pathname.endsWith('/(tabs)') ||
+    pathname.endsWith('/(tabs)/') ||
+    pathname.includes('/(tabs)/index')
+  )
 }
 
 export function TabletSidebar() {
@@ -51,7 +61,13 @@ export function TabletSidebar() {
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const tablet = useIsTablet()
-  if (tablet) {
+  const pathname = usePathname()
+  const { width, height } = useWindowDimensions()
+  const landscape = width > height
+  // Reference tablet landscape home: full-bleed, no sidebar.
+  const hideSidebar = tablet && landscape && isHomePath(pathname)
+
+  if (tablet && !hideSidebar) {
     return (
       <View style={styles.tabletRow}>
         <TabletSidebar />

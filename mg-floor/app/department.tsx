@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { BigButton, Screen, Subtitle, Title } from '@/src/components/ui'
 import { ModernGoldLogo } from '@/src/components/ModernGoldLogo'
@@ -22,6 +22,7 @@ export default function DepartmentScreen() {
   const router = useRouter()
   const [selected, setSelected] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     getSelectedDepartment().then((saved) => {
@@ -32,9 +33,19 @@ export default function DepartmentScreen() {
   const selectedLabel = DEPARTMENTS.find((d) => d.key === selected)?.label
 
   const continueNext = async () => {
-    if (!selected) return
-    await setSelectedDepartment(selected)
-    router.replace('/')
+    if (!selected || busy) return
+    setBusy(true)
+    try {
+      await setSelectedDepartment(selected)
+      const saved = await getSelectedDepartment()
+      if (saved !== selected) {
+        Alert.alert('Could not save department', 'Please try CONTINUE again.')
+        return
+      }
+      router.replace('/')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -57,7 +68,11 @@ export default function DepartmentScreen() {
           <Text style={styles.chevron}>▼</Text>
         </Pressable>
 
-        <BigButton label="CONTINUE" onPress={continueNext} disabled={!selected} />
+        <BigButton
+          label={busy ? 'PLEASE WAIT…' : 'CONTINUE'}
+          onPress={continueNext}
+          disabled={!selected || busy}
+        />
       </View>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
