@@ -226,67 +226,69 @@ export default function VoucherTab({
     return null
   }, [activeCustomers, activeVendors, voucherType])
 
-  const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
-  const chartPartyOptions = partyChartAccounts
-    .map((account) => {
-      const code = getAccountCodeValue(account)
-      const name = String(account?.accountName || account?.name || '').trim()
-      return {
-        id: `account:${String(account?._id || code)}`,
-        accountId: String(account?._id || code),
-        label: `${code}${name ? ` - ${name}` : ''}`,
-        partyCode: code,
-        partyName: name,
-        accountType: String(account?.accountType || 'Other').trim() || 'Other',
-        group: String(account?.accountType || 'Other').trim() || 'Other',
-      }
-    })
-    .filter((item) => Boolean(item.partyCode))
-    .sort((a, b) => {
-      const ai = PARTY_TYPE_ORDER.indexOf(a.accountType)
-      const bi = PARTY_TYPE_ORDER.indexOf(b.accountType)
-      const tc = (ai === -1 ? PARTY_TYPE_ORDER.length : ai) - (bi === -1 ? PARTY_TYPE_ORDER.length : bi)
-      if (tc !== 0) return tc
-      return String(a.partyCode).localeCompare(String(b.partyCode))
-    })
+  const partyOptions = useMemo(() => {
+    const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
+    const chartPartyOptions = partyChartAccounts
+      .map((account) => {
+        const code = getAccountCodeValue(account)
+        const name = String(account?.accountName || account?.name || '').trim()
+        return {
+          id: `account:${String(account?._id || code)}`,
+          accountId: String(account?._id || code),
+          label: `${code}${name ? ` - ${name}` : ''}`,
+          partyCode: code,
+          partyName: name,
+          accountType: String(account?.accountType || 'Other').trim() || 'Other',
+          group: String(account?.accountType || 'Other').trim() || 'Other',
+        }
+      })
+      .filter((item) => Boolean(item.partyCode))
+      .sort((a, b) => {
+        const ai = PARTY_TYPE_ORDER.indexOf(a.accountType)
+        const bi = PARTY_TYPE_ORDER.indexOf(b.accountType)
+        const tc = (ai === -1 ? PARTY_TYPE_ORDER.length : ai) - (bi === -1 ? PARTY_TYPE_ORDER.length : bi)
+        if (tc !== 0) return tc
+        return String(a.partyCode).localeCompare(String(b.partyCode))
+      })
 
-  const customerPartyOptions = activeCustomers
-    .map((customer) => {
-      const code = String(customer?.ledgerAccountId?.accountCode || '').trim()
-      const name = String(customer?.name || '').trim()
-      if (!code) return null
-      return {
-        id: `customer:${String(customer._id)}`,
-        accountId: String(customer?.ledgerAccountId?._id || customer._id),
-        label: `${code}${name ? ` - ${name}` : ''}`,
-        partyCode: code,
-        partyName: name,
-        accountType: 'Customers',
-        group: 'Customers',
-      }
-    })
-    .filter(Boolean)
-    .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
+    const customerPartyOptions = activeCustomers
+      .map((customer) => {
+        const code = String(customer?.ledgerAccountId?.accountCode || '').trim()
+        const name = String(customer?.name || '').trim()
+        if (!code) return null
+        return {
+          id: `customer:${String(customer._id)}`,
+          accountId: String(customer?.ledgerAccountId?._id || customer._id),
+          label: `${code}${name ? ` - ${name}` : ''}`,
+          partyCode: code,
+          partyName: name,
+          accountType: 'Customers',
+          group: 'Customers',
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
 
-  const vendorPartyOptions = activeVendors
-    .map((vendor) => {
-      const code = String(vendor?.vendorCode || vendor?.ledgerAccountId?.accountCode || '').trim()
-      const name = String(vendor?.name || '').trim()
-      if (!code) return null
-      return {
-        id: `vendor:${String(vendor._id)}`,
-        accountId: String(vendor?.ledgerAccountId?._id || vendor._id),
-        label: `${code}${name ? ` - ${name}` : ''}`,
-        partyCode: code,
-        partyName: name,
-        accountType: 'Vendors',
-        group: 'Vendors',
-      }
-    })
-    .filter(Boolean)
-    .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
+    const vendorPartyOptions = activeVendors
+      .map((vendor) => {
+        const code = String(vendor?.vendorCode || vendor?.ledgerAccountId?.accountCode || '').trim()
+        const name = String(vendor?.name || '').trim()
+        if (!code) return null
+        return {
+          id: `vendor:${String(vendor._id)}`,
+          accountId: String(vendor?.ledgerAccountId?._id || vendor._id),
+          label: `${code}${name ? ` - ${name}` : ''}`,
+          partyCode: code,
+          partyName: name,
+          accountType: 'Vendors',
+          group: 'Vendors',
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
 
-  const partyOptions = [...customerPartyOptions, ...vendorPartyOptions, ...chartPartyOptions]
+    return [...customerPartyOptions, ...vendorPartyOptions, ...chartPartyOptions]
+  }, [activeCustomers, activeVendors, partyChartAccounts])
 
   const partyGroupedOptions = partyOptions.reduce((groups, item) => {
     const type = item.group || item.accountType
