@@ -1,6 +1,7 @@
 /**
  * Department card display mapping.
- * Live metrics win; when a card has no live signal, reference-style demo values fill the UI.
+ * Live metrics win; when a card has no live signal, reference-style demo values fill the UI
+ * (unless options.suppressDemo — used for LoopC so demo placeholders are never injected).
  */
 
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
@@ -257,7 +258,8 @@ function resolveBatchProgress(card, batches) {
   }
 }
 
-export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employeeRatings = []) {
+export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employeeRatings = [], options = {}) {
+  const suppressDemo = Boolean(options.suppressDemo)
   const key = String(card.key || '')
   const batches = rowsForDept(batchMonitorRows, card)
 
@@ -332,28 +334,31 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
 
   const live = hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows })
   const demo = DEMO_BY_DEPT[key]
-  if (!live && demo) {
-    status = demo.status
-    employeeCount = demo.employeeCount
-    managerName = demo.managerName
-    batchesDisplay = demo.batches
-    timePerBatchLabel = demo.timePerBatchLabel
-    avgTimeLabel = demo.avgTimeLabel
-    metalIn = demo.metalIn
-    metalOut = demo.metalOut
-    lossRows = demo.lossRows
-    lossAvg = demo.lossAvg
-    batchStartedLabel = demo.batchStartedLabel
-    batchOverLabel = demo.batchOverLabel
-    progressPercent = demo.progressPercent
-  } else {
-    if (!managerName) managerName = DEMO_MANAGER_BY_DEPT[key] || 'Mr. Rajesh'
-    if (!hasNum(employeeCount)) employeeCount = 3
-    if (timePerBatchLabel === '—') timePerBatchLabel = demo?.timePerBatchLabel || '5 min'
-    if (avgTimeLabel === '—') avgTimeLabel = demo?.avgTimeLabel || '4.8 min'
-    if (!batchStartedLabel) batchStartedLabel = DEMO_PROGRESS.batchStartedLabel
-    if (!batchOverLabel) batchOverLabel = DEMO_PROGRESS.batchOverLabel
-    if (progressPercent == null) progressPercent = DEMO_PROGRESS.progressPercent
+
+  if (!suppressDemo) {
+    if (!live && demo) {
+      status = demo.status
+      employeeCount = demo.employeeCount
+      managerName = demo.managerName
+      batchesDisplay = demo.batches
+      timePerBatchLabel = demo.timePerBatchLabel
+      avgTimeLabel = demo.avgTimeLabel
+      metalIn = demo.metalIn
+      metalOut = demo.metalOut
+      lossRows = demo.lossRows
+      lossAvg = demo.lossAvg
+      batchStartedLabel = demo.batchStartedLabel
+      batchOverLabel = demo.batchOverLabel
+      progressPercent = demo.progressPercent
+    } else {
+      if (!managerName) managerName = DEMO_MANAGER_BY_DEPT[key] || 'Mr. Rajesh'
+      if (!hasNum(employeeCount)) employeeCount = 3
+      if (timePerBatchLabel === '—') timePerBatchLabel = demo?.timePerBatchLabel || '5 min'
+      if (avgTimeLabel === '—') avgTimeLabel = demo?.avgTimeLabel || '4.8 min'
+      if (!batchStartedLabel) batchStartedLabel = DEMO_PROGRESS.batchStartedLabel
+      if (!batchOverLabel) batchOverLabel = DEMO_PROGRESS.batchOverLabel
+      if (progressPercent == null) progressPercent = DEMO_PROGRESS.progressPercent
+    }
   }
 
   return {
@@ -361,7 +366,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     name: card.name || key,
     subtitle: card.subtitle || subtitleFor(key),
     status,
-    employeeCount: Number(employeeCount) || 0,
+    employeeCount: hasNum(employeeCount) ? Number(employeeCount) : (suppressDemo ? null : 0),
     managerName: managerName || '—',
     batches: batchesDisplay,
     timePerBatchLabel,
@@ -370,9 +375,15 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     metalOut,
     lossRows,
     lossAvg,
-    batchStartedLabel: batchStartedLabel || DEMO_PROGRESS.batchStartedLabel,
-    batchOverLabel: batchOverLabel || DEMO_PROGRESS.batchOverLabel,
-    progressPercent: progressPercent ?? DEMO_PROGRESS.progressPercent,
+    batchStartedLabel: suppressDemo
+      ? (batchStartedLabel || '—')
+      : (batchStartedLabel || DEMO_PROGRESS.batchStartedLabel),
+    batchOverLabel: suppressDemo
+      ? (batchOverLabel || '—')
+      : (batchOverLabel || DEMO_PROGRESS.batchOverLabel),
+    progressPercent: suppressDemo
+      ? (progressPercent ?? null)
+      : (progressPercent ?? DEMO_PROGRESS.progressPercent),
     isAssembly: Boolean(card.isAssembly),
     tableCount: card.tableCount || null,
   }
