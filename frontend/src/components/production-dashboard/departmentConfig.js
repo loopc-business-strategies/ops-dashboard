@@ -56,18 +56,6 @@ export const DASHBOARD_DEPARTMENTS = [
     aliases: ['assembly', 'assembly_area', 'assembly area', 'packing', 'packaging'],
     tableCount: ASSEMBLY_TABLE_COUNT,
   },
-  {
-    key: 'qc',
-    label: 'QC',
-    subtitle: 'Quality Control',
-    aliases: ['qc', 'quality', 'quality control', 'quality_control'],
-  },
-  {
-    key: 'finished_goods',
-    label: 'Finished Goods',
-    subtitle: 'Finished Goods Storage',
-    aliases: ['finished', 'finished_goods', 'finished goods', 'fg', 'warehouse'],
-  },
 ]
 
 /** Material flow stages shown under department strip (labels only; weights from live data). */

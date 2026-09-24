@@ -103,7 +103,7 @@ function DeptCard({
             <IconEmployees size={14} />
           </span>
           <span className="pd-dept-people-label">
-            {ui.employeeCount > 0 ? `Employees (${ui.employeeCount})` : 'Employees (0)'}
+            {ui.employeeCount > 0 ? `EMPLOYEES (${ui.employeeCount})` : 'EMPLOYEES'}
           </span>
         </div>
         <div className="pd-dept-people-divider" aria-hidden />
@@ -111,9 +111,7 @@ function DeptCard({
           <span className="pd-dept-people-ico" aria-hidden>
             <IconManager size={14} />
           </span>
-          <span className="pd-dept-people-manager">
-            Department Manager: {ui.managerName || '—'}
-          </span>
+          <span className="pd-dept-people-manager">{ui.managerName}</span>
         </div>
       </div>
 

@@ -4,19 +4,11 @@ import { MemoryRouter } from 'react-router-dom'
 import { render, screen } from '@testing-library/react'
 
 vi.mock('../../context/AuthContext', () => ({
-  useAuth: () => ({ user: { role: 'super_admin', company: 'mg' }, token: 't', company: 'mg' }),
+  useAuth: () => ({ user: { role: 'super_admin' }, token: 't' }),
 }))
 
 vi.mock('../../hooks/usePermissions', () => ({
-  usePermissions: () => ({
-    canViewTab: () => true,
-    canEditTab: () => true,
-    isSuperAdmin: true,
-    isDepartmentHead: false,
-    isManagement: false,
-    isDepartmentUser: false,
-    isExternal: false,
-  }),
+  usePermissions: () => ({ canViewTab: () => true, canEditTab: () => true }),
 }))
 
 vi.mock('../../context/LanguageContext', () => ({

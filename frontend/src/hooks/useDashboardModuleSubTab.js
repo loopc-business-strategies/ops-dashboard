@@ -37,14 +37,13 @@ export function shouldAcceptModuleSubTabClick(event) {
 
 /**
  * Sync a module's top-level sub-tab with ?sub= when ?tab= matches moduleTabId.
- * When `embedded` is true, sub-tabs are local-only (for nesting under another module).
  */
 export function useDashboardModuleSubTab(
   moduleTabId,
   allowedSubIds,
   defaultSub,
   company,
-  { isModuleActive = true, embedded = false } = {},
+  { isModuleActive = true } = {},
 ) {
   const [searchParams] = useSearchParams()
   const includeCompany = typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname)
@@ -52,7 +51,6 @@ export function useDashboardModuleSubTab(
   const tabParam = searchParams.get('tab')
   const subFromUrl = searchParams.get('sub')
   const allowedKey = allowedSubIds.join(',')
-  const syncActive = embedded ? false : isModuleActive
 
   const resolvedFromUrl = useMemo(
     () => resolveModuleSubTabFromUrl({
@@ -61,28 +59,25 @@ export function useDashboardModuleSubTab(
       moduleTabId,
       allowedSubIds,
       defaultSub,
-      isModuleActive: syncActive,
+      isModuleActive,
     }),
-    [tabParam, subFromUrl, moduleTabId, allowedSubIds, defaultSub, syncActive],
+    [tabParam, subFromUrl, moduleTabId, allowedSubIds, defaultSub, isModuleActive],
   )
 
   const [subTab, setSubTabInternal] = useState(() => (
-    (embedded
-      ? defaultSub
-      : resolveModuleSubTabFromUrl({
-        tabParam,
-        subFromUrl,
-        moduleTabId,
-        allowedSubIds,
-        defaultSub,
-        isModuleActive: syncActive,
-      })) ?? defaultSub
+    resolveModuleSubTabFromUrl({
+      tabParam,
+      subFromUrl,
+      moduleTabId,
+      allowedSubIds,
+      defaultSub,
+      isModuleActive,
+    }) ?? defaultSub
   ))
 
   const lastSyncedRef = useRef({ tab: undefined, sub: undefined, allowedKey: '' })
 
   useEffect(() => {
-    if (embedded) return
     const prev = lastSyncedRef.current
     const urlChanged = shouldSyncSubTabFromUrl(prev.tab, prev.sub, tabParam, subFromUrl)
     const allowlistChanged = prev.allowedKey !== allowedKey
@@ -91,19 +86,16 @@ export function useDashboardModuleSubTab(
     lastSyncedRef.current = { tab: tabParam, sub: subFromUrl, allowedKey }
     if (resolvedFromUrl === undefined) return
     setSubTabInternal(resolvedFromUrl)
-  }, [tabParam, subFromUrl, resolvedFromUrl, allowedKey, embedded])
+  }, [tabParam, subFromUrl, resolvedFromUrl, allowedKey])
 
   const buildSubHref = useCallback(
-    (subId) => {
-      if (embedded) return undefined
-      return buildDashboardHref({
-        tabId: moduleTabId,
-        sub: subId,
-        company,
-        includeCompany,
-      })
-    },
-    [moduleTabId, company, includeCompany, embedded],
+    (subId) => buildDashboardHref({
+      tabId: moduleTabId,
+      sub: subId,
+      company,
+      includeCompany,
+    }),
+    [moduleTabId, company, includeCompany],
   )
 
   const [, setSearchParams] = useSearchParams()
@@ -111,7 +103,6 @@ export function useDashboardModuleSubTab(
   const setSubTab = useCallback((nextSub) => {
     const allowed = allowedSubIds.includes(nextSub) ? nextSub : defaultSub
     setSubTabInternal(allowed)
-    if (embedded) return
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.set('tab', moduleTabId)
@@ -119,7 +110,7 @@ export function useDashboardModuleSubTab(
       if (includeCompany && company) next.set('company', company)
       return next
     }, { replace: true })
-  }, [allowedSubIds, defaultSub, moduleTabId, company, includeCompany, setSearchParams, embedded])
+  }, [allowedSubIds, defaultSub, moduleTabId, company, includeCompany, setSearchParams])
 
   const handleSubTabClick = useCallback((subId, event) => {
     if (!shouldAcceptModuleSubTabClick(event)) return

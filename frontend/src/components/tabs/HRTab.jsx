@@ -478,7 +478,7 @@ function CurrentUpdates() {
 }
 
 // ── Main HRTab component ─────────────────────────
-export default function HRTab({ embedded = false } = {}) {
+export default function HRTab() {
   const { token, company } = useAuth()
   const { t } = useLanguage()
   const HR_SUB_TABS = getHRSubTabs(t)
@@ -488,7 +488,6 @@ export default function HRTab({ embedded = false } = {}) {
     allowedSubIds,
     'employee_list',
     company,
-    { embedded },
   )
 
   const renderSubTab = () => {

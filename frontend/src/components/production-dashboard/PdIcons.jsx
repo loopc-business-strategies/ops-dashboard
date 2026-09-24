@@ -381,8 +381,6 @@ const DEPT_ICONS = {
   pendent_section: IconPendant,
   welding_area: IconWelding,
   assembly: IconAssembly,
-  qc: IconFlowQc,
-  finished_goods: IconFlowFinished,
 }
 
 const FLOW_ICONS = {

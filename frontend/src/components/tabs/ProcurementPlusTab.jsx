@@ -39,7 +39,7 @@ function Input({ value, onChange, placeholder, type = 'text' }) {
   return <input className="form-input" type={type} value={value} onChange={onChange} placeholder={placeholder} style={{ marginBottom: 0 }} />
 }
 
-export default function ProcurementPlusTab({ embedded = false } = {}) {
+export default function ProcurementPlusTab() {
   const { token, company } = useAuth()
   const { isReadOnly } = usePermissions()
   const allowedSubIds = useMemo(() => TABS.map((tab) => tab.id), [])
@@ -48,7 +48,6 @@ export default function ProcurementPlusTab({ embedded = false } = {}) {
     allowedSubIds,
     'suppliers',
     company,
-    { embedded },
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

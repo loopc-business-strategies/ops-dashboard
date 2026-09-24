@@ -69,15 +69,13 @@ const DEMO_PROGRESS = {
 
 const DEMO_MANAGER_BY_DEPT = {
   vault_room: 'Mr. Rajesh',
-  melting: 'Mr. Kumar',
+  melting: 'Mr. Rajesh',
   rolling: 'Mr. Suresh',
-  bangle_area: 'Mr. Pravin',
-  stamping: 'Mr. Arvind',
-  pendent_section: 'Mr. Dinesh',
-  welding_area: 'Mr. Ganesh',
+  bangle_area: 'Mr. Rajesh',
+  stamping: 'Mr. Suresh',
+  pendent_section: 'Mr. Rajesh',
+  welding_area: 'Mr. Suresh',
   assembly: 'Mr. Nikhil',
-  qc: 'Mr. Vivek',
-  finished_goods: 'Mr. Anil',
 }
 
 /** Reference-style demo when a department has no live production signal. */
@@ -101,7 +99,7 @@ const DEMO_BY_DEPT = {
   melting: {
     status: 'Running',
     employeeCount: 3,
-    managerName: 'Mr. Kumar',
+    managerName: 'Mr. Rajesh',
     batches: 2,
     timePerBatchLabel: '5 min',
     avgTimeLabel: '4.8 min',
@@ -133,7 +131,7 @@ const DEMO_BY_DEPT = {
   bangle_area: {
     status: 'Running',
     employeeCount: 3,
-    managerName: 'Mr. Pravin',
+    managerName: 'Mr. Rajesh',
     batches: 3,
     timePerBatchLabel: '6 min',
     avgTimeLabel: '5.2 min',
@@ -149,7 +147,7 @@ const DEMO_BY_DEPT = {
   stamping: {
     status: 'Running',
     employeeCount: 3,
-    managerName: 'Mr. Arvind',
+    managerName: 'Mr. Suresh',
     batches: 2,
     timePerBatchLabel: '4 min',
     avgTimeLabel: '4.2 min',
@@ -165,7 +163,7 @@ const DEMO_BY_DEPT = {
   pendent_section: {
     status: 'Idle',
     employeeCount: 3,
-    managerName: 'Mr. Dinesh',
+    managerName: 'Mr. Rajesh',
     batches: 1,
     timePerBatchLabel: '7 min',
     avgTimeLabel: '6.5 min',
@@ -181,7 +179,7 @@ const DEMO_BY_DEPT = {
   welding_area: {
     status: 'Running',
     employeeCount: 3,
-    managerName: 'Mr. Ganesh',
+    managerName: 'Mr. Suresh',
     batches: 2,
     timePerBatchLabel: '5 min',
     avgTimeLabel: '4.9 min',
@@ -208,38 +206,6 @@ const DEMO_BY_DEPT = {
       { index: 2, label: 'Batch 2', loss: 0.12 },
     ],
     lossAvg: 0.1,
-    ...DEMO_PROGRESS,
-  },
-  qc: {
-    status: 'Idle',
-    employeeCount: 2,
-    managerName: 'Mr. Vivek',
-    batches: 1,
-    timePerBatchLabel: '8 min',
-    avgTimeLabel: '7.5 min',
-    metalIn: 300,
-    metalOut: 295,
-    lossRows: [
-      { index: 1, label: 'Batch 1', loss: 0.05 },
-      { index: 2, label: 'Batch 2', loss: 0.08 },
-    ],
-    lossAvg: 0.07,
-    ...DEMO_PROGRESS,
-  },
-  finished_goods: {
-    status: 'Idle',
-    employeeCount: 2,
-    managerName: 'Mr. Anil',
-    batches: 1,
-    timePerBatchLabel: '3 min',
-    avgTimeLabel: '3.2 min',
-    metalIn: 280,
-    metalOut: 280,
-    lossRows: [
-      { index: 1, label: 'Batch 1', loss: 0 },
-      { index: 2, label: 'Batch 2', loss: 0 },
-    ],
-    lossAvg: 0,
     ...DEMO_PROGRESS,
   },
 }
