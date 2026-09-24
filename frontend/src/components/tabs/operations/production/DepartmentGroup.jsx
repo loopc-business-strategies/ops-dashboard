@@ -11,7 +11,7 @@ const groupWrap = {
 
 const headerBar = {
   display: 'flex',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
   alignItems: 'center',
   gap: '0.55rem 0.75rem',
   width: '100%',
@@ -21,6 +21,7 @@ const headerBar = {
   background: '#F1F5F9',
   padding: '0.55rem 0.85rem',
   color: '#0F172A',
+  overflowX: 'auto',
 }
 
 const headerBarOpen = {
@@ -42,7 +43,7 @@ const expandBtn = {
   font: 'inherit',
   textAlign: 'left',
   minWidth: 0,
-  flex: '1 1 12rem',
+  flex: '1 1 auto',
 }
 
 const nameStyle = {
@@ -61,10 +62,12 @@ const meta = {
 
 const filterCluster = {
   display: 'flex',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
   alignItems: 'center',
   gap: '0.35rem 0.5rem',
   marginLeft: 'auto',
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
 }
 
 const filterLabel = {

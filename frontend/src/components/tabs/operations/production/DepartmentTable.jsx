@@ -79,6 +79,29 @@ const btnBase = {
   marginRight: 4,
 }
 
+const stickyActionsTh = {
+  ...thBase,
+  position: 'sticky',
+  top: 0,
+  right: 0,
+  zIndex: 4,
+  width: 150,
+  minWidth: 150,
+  boxShadow: '-4px 0 8px rgba(15, 23, 42, 0.08)',
+}
+
+const stickyActionsTd = (bg) => ({
+  ...tdBase,
+  position: 'sticky',
+  right: 0,
+  zIndex: 1,
+  width: 150,
+  minWidth: 150,
+  whiteSpace: 'nowrap',
+  background: bg,
+  boxShadow: '-4px 0 8px rgba(15, 23, 42, 0.06)',
+})
+
 const footerBar = {
   display: 'flex',
   alignItems: 'center',
@@ -359,11 +382,12 @@ export default function DepartmentTable({
     const busy = savingId != null && String(savingId) === String(row.id)
     const editing = editable && isEditing(row)
     const displayRow = editing ? getDraft(row) : row
+    const rowBg = row._isNew || editing ? '#FFFBEB' : (idx % 2 ? '#F8FAFC' : '#FFFFFF')
 
     return (
       <tr
         key={row.id || idx}
-        style={{ background: row._isNew || editing ? '#FFFBEB' : (idx % 2 ? '#F8FAFC' : '#FFFFFF') }}
+        style={{ background: rowBg }}
       >
         {SHEET_COLUMNS.map((col) => (
           <td
@@ -379,7 +403,7 @@ export default function DepartmentTable({
           </td>
         ))}
         {editable ? (
-          <td style={{ ...tdBase, whiteSpace: 'nowrap' }}>
+          <td style={stickyActionsTd(rowBg)}>
             {!editing ? (
               <button
                 type="button"
@@ -434,7 +458,7 @@ export default function DepartmentTable({
                 </th>
               ))}
               {editable ? (
-                <th style={{ ...thBase, width: 140 }}>Actions</th>
+                <th style={stickyActionsTh}>Actions</th>
               ) : null}
             </tr>
           </thead>
