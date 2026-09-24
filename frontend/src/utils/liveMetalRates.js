@@ -62,9 +62,14 @@ export function resolveLiveInventoryUnitCost(metalName, snapshot, targetUnit = '
 }
 
 export function resolveInventoryValuationUnitCost(storedUnitCost, metalName, snapshot, priceUnit = 'OZ') {
-  const liveCost = resolveLiveInventoryUnitCost(metalName, snapshot, priceUnit)
+  const targetUnit = normalizeInventoryPriceUnit(priceUnit)
+  const liveCost = resolveLiveInventoryUnitCost(metalName, snapshot, targetUnit)
   if (liveCost != null && liveCost > 0) return liveCost
-  return Number(storedUnitCost || 0)
+  const stored = Number(storedUnitCost || 0)
+  if (!(stored > 0)) return 0
+  // Metal inventory qty is grams; legacy book/live costs are usually OZ — convert when valuing in G.
+  if (targetUnit === 'G') return convertLivePriceUnit(stored, 'OZ', 'G')
+  return stored
 }
 
 export function liveRatesToMetalRatesState(snapshot) {
