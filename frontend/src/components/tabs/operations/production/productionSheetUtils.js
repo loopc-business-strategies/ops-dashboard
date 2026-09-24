@@ -241,6 +241,22 @@ export function applyGlobalFilters(rows, filters) {
   })
 }
 
+/** Narrow rows by a department-local date from/to (yyyy-mm-dd). */
+export function applyDeptDateFilter(rows, dateFrom, dateTo) {
+  if (!dateFrom && !dateTo) return rows
+  let from = dateFrom ? startOfDay(dateFrom) : null
+  let to = dateTo ? endOfDay(dateTo) : null
+  if (from && !Number.isFinite(from.getTime())) from = null
+  if (to && !Number.isFinite(to.getTime())) to = null
+  if (!from && !to) return rows
+  return rows.filter((row) => {
+    if (!row.dateRaw) return false
+    if (from && row.dateRaw < from) return false
+    if (to && row.dateRaw > to) return false
+    return true
+  })
+}
+
 export function sortRows(rows, sortKey, sortDir) {
   if (!sortKey) return rows
   const col = SHEET_COLUMNS.find((c) => c.key === sortKey)

@@ -76,6 +76,7 @@ const btnBase = {
   cursor: 'pointer',
   background: '#F8FAFC',
   color: '#0F172A',
+  marginRight: 4,
 }
 
 const footerBar = {
@@ -170,7 +171,7 @@ function patchDraft(prev, patch) {
 
 /**
  * Excel-style department table with sticky headers and independent scroll.
- * When editable, renders inline inputs + Save / Delete / Add row.
+ * When editable: view mode by default; Edit unlocks inputs; Save / Del in Actions.
  */
 export default function DepartmentTable({
   rows,
@@ -183,6 +184,7 @@ export default function DepartmentTable({
   const [sortKey, setSortKey] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
   const [drafts, setDrafts] = useState({})
+  const [editingIds, setEditingIds] = useState(() => new Set())
 
   useEffect(() => {
     setDrafts((prev) => {
@@ -190,6 +192,14 @@ export default function DepartmentTable({
       const ids = new Set((rows || []).map((r) => String(r.id)))
       Object.keys(next).forEach((id) => {
         if (!ids.has(id)) delete next[id]
+      })
+      return next
+    })
+    setEditingIds((prev) => {
+      const next = new Set()
+      ;(rows || []).forEach((r) => {
+        const id = String(r.id)
+        if (r._isNew || prev.has(id)) next.add(id)
       })
       return next
     })
@@ -214,6 +224,8 @@ export default function DepartmentTable({
     }
   }
 
+  const isEditing = (row) => editingIds.has(String(row.id)) || Boolean(row._isNew)
+
   const getDraft = (row) => {
     const id = String(row.id)
     return drafts[id] || row
@@ -227,13 +239,29 @@ export default function DepartmentTable({
     }))
   }
 
+  const startEdit = (row) => {
+    const id = String(row.id)
+    setEditingIds((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+    setDrafts((prev) => (prev[id] ? prev : { ...prev, [id]: { ...row } }))
+  }
+
   const handleSave = async (row) => {
     if (!onSaveRow) return
     const draft = getDraft(row)
     await onSaveRow(draft)
+    const id = String(row.id)
     setDrafts((prev) => {
       const next = { ...prev }
-      delete next[String(row.id)]
+      delete next[id]
+      return next
+    })
+    setEditingIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
       return next
     })
   }
@@ -329,10 +357,13 @@ export default function DepartmentTable({
 
   const renderRow = (row, idx) => {
     const busy = savingId != null && String(savingId) === String(row.id)
+    const editing = editable && isEditing(row)
+    const displayRow = editing ? getDraft(row) : row
+
     return (
       <tr
         key={row.id || idx}
-        style={{ background: row._isNew ? '#FFFBEB' : (idx % 2 ? '#F8FAFC' : '#FFFFFF') }}
+        style={{ background: row._isNew || editing ? '#FFFBEB' : (idx % 2 ? '#F8FAFC' : '#FFFFFF') }}
       >
         {SHEET_COLUMNS.map((col) => (
           <td
@@ -344,22 +375,33 @@ export default function DepartmentTable({
               fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
             }}
           >
-            {editable ? renderEditableCell(row, col) : cellDisplay(row, col.key)}
+            {editing ? renderEditableCell(row, col) : cellDisplay(displayRow, col.key)}
           </td>
         ))}
         {editable ? (
           <td style={{ ...tdBase, whiteSpace: 'nowrap' }}>
+            {!editing ? (
+              <button
+                type="button"
+                style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD' }}
+                disabled={busy}
+                onClick={() => startEdit(row)}
+              >
+                Edit
+              </button>
+            ) : (
+              <button
+                type="button"
+                style={{ ...btnBase, background: '#DCFCE7', borderColor: '#86EFAC' }}
+                disabled={busy}
+                onClick={() => handleSave(row)}
+              >
+                {busy ? '…' : 'Save'}
+              </button>
+            )}
             <button
               type="button"
-              style={{ ...btnBase, background: '#DCFCE7', borderColor: '#86EFAC', marginRight: 4 }}
-              disabled={busy}
-              onClick={() => handleSave(row)}
-            >
-              {busy ? '…' : 'Save'}
-            </button>
-            <button
-              type="button"
-              style={{ ...btnBase, background: '#FEE2E2', borderColor: '#FECACA', color: '#991B1B' }}
+              style={{ ...btnBase, background: '#FEE2E2', borderColor: '#FECACA', color: '#991B1B', marginRight: 0 }}
               disabled={busy}
               onClick={() => onDeleteRow?.(row)}
             >
@@ -392,7 +434,7 @@ export default function DepartmentTable({
                 </th>
               ))}
               {editable ? (
-                <th style={{ ...thBase, width: 110 }}>Actions</th>
+                <th style={{ ...thBase, width: 140 }}>Actions</th>
               ) : null}
             </tr>
           </thead>
@@ -423,7 +465,7 @@ export default function DepartmentTable({
         <div style={footerBar}>
           <button
             type="button"
-            style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD' }}
+            style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD', marginRight: 0 }}
             onClick={() => onAddRow?.()}
           >
             + Add row

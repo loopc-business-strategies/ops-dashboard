@@ -6,6 +6,7 @@ import ProductionFilters from './ProductionFilters'
 import DepartmentGroup from './DepartmentGroup'
 import {
   EMPTY_FILTERS,
+  applyDeptDateFilter,
   applyGlobalFilters,
   computeSummary,
   emptyDraftRow,
@@ -33,6 +34,7 @@ export default function LoopCProductionSheets() {
   const [savingId, setSavingId] = useState(null)
   const [draftFilters, setDraftFilters] = useState({ ...EMPTY_FILTERS })
   const [appliedFilters, setAppliedFilters] = useState({ ...EMPTY_FILTERS })
+  const [deptDateFilters, setDeptDateFilters] = useState({})
   const [expanded, setExpanded] = useState(() => {
     const init = {}
     LOOPC_PRODUCTION_DEPARTMENTS.forEach((d) => { init[d.key] = true })
@@ -85,8 +87,6 @@ export default function LoopCProductionSheets() {
     [allRows, appliedFilters],
   )
 
-  const summary = useMemo(() => computeSummary(filteredRows), [filteredRows])
-
   const groups = useMemo(() => {
     const byDept = new Map()
     LOOPC_PRODUCTION_DEPARTMENTS.forEach((d) => byDept.set(d.key, []))
@@ -94,11 +94,18 @@ export default function LoopCProductionSheets() {
       if (!row.deptKey || !byDept.has(row.deptKey)) return
       byDept.get(row.deptKey).push(row)
     })
-    return LOOPC_PRODUCTION_DEPARTMENTS.map((dept) => ({
-      department: dept,
-      rows: byDept.get(dept.key) || [],
-    }))
-  }, [filteredRows])
+    return LOOPC_PRODUCTION_DEPARTMENTS.map((dept) => {
+      const deptFilter = deptDateFilters[dept.key] || {}
+      const raw = byDept.get(dept.key) || []
+      const rows = applyDeptDateFilter(raw, deptFilter.dateFrom, deptFilter.dateTo)
+      return { department: dept, rows }
+    })
+  }, [filteredRows, deptDateFilters])
+
+  const summary = useMemo(() => {
+    const visible = groups.flatMap((g) => g.rows)
+    return computeSummary(visible)
+  }, [groups])
 
   const handleApply = () => setAppliedFilters({ ...draftFilters })
   const handleClear = () => {
@@ -108,6 +115,16 @@ export default function LoopCProductionSheets() {
 
   const toggleDept = (key) => {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const handleDeptDateFilter = (departmentKey, next) => {
+    setDeptDateFilters((prev) => ({
+      ...prev,
+      [departmentKey]: {
+        dateFrom: next?.dateFrom || '',
+        dateTo: next?.dateTo || '',
+      },
+    }))
   }
 
   const handleAddRow = (departmentKey) => {
@@ -173,7 +190,7 @@ export default function LoopCProductionSheets() {
           Production
         </h2>
         <p style={{ margin: '0.3rem 0 0', color: '#64748B', fontSize: '0.85rem' }}>
-          Department workbook — edit rows inline; date filters apply across all tables. Source of truth for the Production Dashboard.
+          Department workbook — use Edit to change a row; each department has its own date filter. Source of truth for the Production Dashboard.
         </p>
       </div>
 
@@ -194,20 +211,26 @@ export default function LoopCProductionSheets() {
       ) : null}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        {groups.map(({ department, rows }) => (
-          <DepartmentGroup
-            key={department.key}
-            department={department}
-            rows={rows}
-            expanded={expanded[department.key] !== false}
-            onToggle={() => toggleDept(department.key)}
-            editable
-            savingId={savingId}
-            onSaveRow={handleSaveRow}
-            onDeleteRow={handleDeleteRow}
-            onAddRow={() => handleAddRow(department.key)}
-          />
-        ))}
+        {groups.map(({ department, rows }) => {
+          const df = deptDateFilters[department.key] || {}
+          return (
+            <DepartmentGroup
+              key={department.key}
+              department={department}
+              rows={rows}
+              expanded={expanded[department.key] !== false}
+              onToggle={() => toggleDept(department.key)}
+              editable
+              savingId={savingId}
+              onSaveRow={handleSaveRow}
+              onDeleteRow={handleDeleteRow}
+              onAddRow={() => handleAddRow(department.key)}
+              dateFrom={df.dateFrom || ''}
+              dateTo={df.dateTo || ''}
+              onDateFilterChange={(next) => handleDeptDateFilter(department.key, next)}
+            />
+          )
+        })}
       </div>
     </div>
   )
