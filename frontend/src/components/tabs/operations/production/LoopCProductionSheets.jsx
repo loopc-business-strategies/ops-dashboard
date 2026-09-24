@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { productionControlApi } from '../../../../api/productionControl'
 import { LOOPC_PRODUCTION_DEPARTMENTS } from './loopcProductionDepartments'
 import ProductionSummary from './ProductionSummary'
@@ -8,8 +8,10 @@ import {
   EMPTY_FILTERS,
   applyGlobalFilters,
   computeSummary,
-  fetchAllBatches,
-  mapBatchToRow,
+  emptyDraftRow,
+  fetchAllOperationsEntries,
+  mapEntryToRow,
+  rowToEntryPayload,
 } from './productionSheetUtils'
 
 const wrap = {
@@ -21,12 +23,14 @@ const wrap = {
 }
 
 /**
- * LoopC Operations → Production: Excel-style department workbook.
+ * LoopC Operations → Production: Excel-style department workbook (CRUD ledger).
  */
 export default function LoopCProductionSheets() {
-  const [batches, setBatches] = useState([])
+  const [entries, setEntries] = useState([])
+  const [draftRows, setDraftRows] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [savingId, setSavingId] = useState(null)
   const [draftFilters, setDraftFilters] = useState({ ...EMPTY_FILTERS })
   const [appliedFilters, setAppliedFilters] = useState({ ...EMPTY_FILTERS })
   const [expanded, setExpanded] = useState(() => {
@@ -35,18 +39,32 @@ export default function LoopCProductionSheets() {
     return init
   })
 
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const list = await fetchAllOperationsEntries(productionControlApi.listOperationsEntries)
+      setEntries(Array.isArray(list) ? list : [])
+    } catch (err) {
+      setEntries([])
+      setError(err?.response?.data?.message || err?.message || 'Failed to load production entries')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     let mounted = true
     const load = async () => {
       setLoading(true)
       setError('')
       try {
-        const list = await fetchAllBatches(productionControlApi.listBatches)
-        if (mounted) setBatches(Array.isArray(list) ? list : [])
+        const list = await fetchAllOperationsEntries(productionControlApi.listOperationsEntries)
+        if (mounted) setEntries(Array.isArray(list) ? list : [])
       } catch (err) {
         if (mounted) {
-          setBatches([])
-          setError(err?.response?.data?.message || err?.message || 'Failed to load production batches')
+          setEntries([])
+          setError(err?.response?.data?.message || err?.message || 'Failed to load production entries')
         }
       } finally {
         if (mounted) setLoading(false)
@@ -56,10 +74,11 @@ export default function LoopCProductionSheets() {
     return () => { mounted = false }
   }, [])
 
-  const allRows = useMemo(
-    () => (Array.isArray(batches) ? batches : []).map(mapBatchToRow),
-    [batches],
-  )
+  const allRows = useMemo(() => {
+    const mapped = (Array.isArray(entries) ? entries : []).map(mapEntryToRow)
+    const drafts = Object.values(draftRows || {})
+    return [...mapped, ...drafts]
+  }, [entries, draftRows])
 
   const filteredRows = useMemo(
     () => applyGlobalFilters(allRows, appliedFilters),
@@ -91,6 +110,62 @@ export default function LoopCProductionSheets() {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const handleAddRow = (departmentKey) => {
+    const draft = emptyDraftRow(departmentKey)
+    setDraftRows((prev) => ({ ...prev, [draft.id]: draft }))
+    setExpanded((prev) => ({ ...prev, [departmentKey]: true }))
+  }
+
+  const handleSaveRow = async (row) => {
+    const departmentKey = row.deptKey
+    if (!departmentKey) {
+      setError('Missing department for row')
+      return
+    }
+    const payload = rowToEntryPayload(row, departmentKey)
+    setSavingId(row.id)
+    setError('')
+    try {
+      if (row._isNew) {
+        await productionControlApi.createOperationsEntry(payload)
+        setDraftRows((prev) => {
+          const next = { ...prev }
+          delete next[row.id]
+          return next
+        })
+      } else {
+        await productionControlApi.updateOperationsEntry(row.id, payload)
+      }
+      await reload()
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to save entry')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const handleDeleteRow = async (row) => {
+    if (row._isNew) {
+      setDraftRows((prev) => {
+        const next = { ...prev }
+        delete next[row.id]
+        return next
+      })
+      return
+    }
+    if (!window.confirm('Delete this production entry?')) return
+    setSavingId(row.id)
+    setError('')
+    try {
+      await productionControlApi.deleteOperationsEntry(row.id)
+      await reload()
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to delete entry')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   return (
     <div style={wrap}>
       <div>
@@ -98,7 +173,7 @@ export default function LoopCProductionSheets() {
           Production
         </h2>
         <p style={{ margin: '0.3rem 0 0', color: '#64748B', fontSize: '0.85rem' }}>
-          Department workbook — date filters apply across all department tables.
+          Department workbook — edit rows inline; date filters apply across all tables. Source of truth for the Production Dashboard.
         </p>
       </div>
 
@@ -126,6 +201,11 @@ export default function LoopCProductionSheets() {
             rows={rows}
             expanded={expanded[department.key] !== false}
             onToggle={() => toggleDept(department.key)}
+            editable
+            savingId={savingId}
+            onSaveRow={handleSaveRow}
+            onDeleteRow={handleDeleteRow}
+            onAddRow={() => handleAddRow(department.key)}
           />
         ))}
       </div>

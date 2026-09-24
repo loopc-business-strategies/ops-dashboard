@@ -80,6 +80,11 @@ export default function DepartmentGroup({
   rows,
   expanded,
   onToggle,
+  editable = false,
+  savingId = null,
+  onSaveRow,
+  onDeleteRow,
+  onAddRow,
 }) {
   const count = rows?.length || 0
   const status = groupStatusLabel(rows || [])
@@ -100,7 +105,16 @@ export default function DepartmentGroup({
         <span style={meta}>{count} {count === 1 ? 'Record' : 'Records'}</span>
         <span style={statusPill(status)}>{status}</span>
       </button>
-      {open ? <DepartmentTable rows={rows} /> : null}
+      {open ? (
+        <DepartmentTable
+          rows={rows}
+          editable={editable}
+          savingId={savingId}
+          onSaveRow={onSaveRow}
+          onDeleteRow={onDeleteRow}
+          onAddRow={onAddRow}
+        />
+      ) : null}
     </section>
   )
 }

@@ -25,6 +25,7 @@ const get = async (path, params, config = {}) => {
 const post = async (path, body) => (await axios.post(`${BASE}${path}`, body || {})).data
 const put = async (path, body) => (await axios.put(`${BASE}${path}`, body || {})).data
 const patch = async (path, body) => (await axios.patch(`${BASE}${path}`, body || {})).data
+const del = async (path) => (await axios.delete(`${BASE}${path}`)).data
 
 export const productionControlApi = {
   me: (config) => get('/me', undefined, config),
@@ -111,6 +112,12 @@ export const productionControlApi = {
   updateMaintenance: (id, body) => patch(`/maintenance/${id}`, body),
   completeMaintenance: (id, body) => post(`/maintenance/${id}/complete`, body),
   evaluateMaintenanceOverdue: () => post('/maintenance/evaluate-overdue'),
+
+  /** LoopC Operations production ledger (source of truth). */
+  listOperationsEntries: (params, config) => get('/operations-entries', params, config),
+  createOperationsEntry: (body) => post('/operations-entries', body),
+  updateOperationsEntry: (id, body) => patch(`/operations-entries/${id}`, body),
+  deleteOperationsEntry: (id) => del(`/operations-entries/${id}`),
 }
 
 export default productionControlApi

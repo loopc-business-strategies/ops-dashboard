@@ -367,3 +367,148 @@ export async function fetchAllBatches(listBatches) {
   }
   return all
 }
+
+function entryDurationMinutes(entry) {
+  const start = entry?.batchStartedAt ? new Date(entry.batchStartedAt) : null
+  if (!start || !Number.isFinite(start.getTime())) return null
+  const end = entry?.batchOverAt ? new Date(entry.batchOverAt) : new Date()
+  if (!Number.isFinite(end.getTime())) return null
+  const mins = (end.getTime() - start.getTime()) / 60000
+  return mins >= 0 ? mins : null
+}
+
+/** Map OperationsProductionEntry → sheet row shape. */
+export function mapEntryToRow(entry) {
+  const dateKey = String(entry?.date || '').trim()
+  const dateObj = dateKey ? new Date(`${dateKey}T12:00:00`) : null
+  const inn = toNum(entry?.metalIn)
+  const out = toNum(entry?.metalOut)
+  let loss = toNum(entry?.metalLoss)
+  if (loss == null && inn != null && out != null) loss = Math.max(0, inn - out)
+  const duration = entryDurationMinutes(entry)
+  const deptKey = String(entry?.departmentKey || '').trim() || null
+
+  return {
+    id: entry?._id || entry?.id,
+    deptKey,
+    employee: String(entry?.employeeName || '').trim() || '—',
+    departmentManager: String(entry?.departmentManagerName || '').trim() || '—',
+    batch: String(entry?.batchNumber || '').trim() || '—',
+    title: '—',
+    metalIn: inn,
+    metalOut: out,
+    metalLoss: loss,
+    metalInDisplay: formatWeight(inn),
+    metalOutDisplay: formatWeight(out),
+    metalLossDisplay: formatWeight(loss),
+    timeBatch: duration,
+    averageTime: duration,
+    timeBatchDisplay: formatMinutes(duration),
+    averageTimeDisplay: formatMinutes(duration),
+    batchStarted: formatDateTimeDisplay(entry?.batchStartedAt),
+    batchOver: formatDateTimeDisplay(entry?.batchOverAt),
+    batchStartedRaw: entry?.batchStartedAt || null,
+    batchOverRaw: entry?.batchOverAt || null,
+    rating: entry?.rating != null && entry?.rating !== '' ? String(entry.rating) : '—',
+    breakdown: String(entry?.breakdown || '').trim() || '—',
+    requests: String(entry?.requests || '').trim() || '—',
+    status: entry?.batchOverAt ? 'Completed' : (entry?.batchStartedAt ? 'Running' : 'Idle'),
+    statusRaw: '',
+    date: dateObj && Number.isFinite(dateObj.getTime()) ? formatDateDisplay(dateObj) : (dateKey || '—'),
+    dateRaw: dateObj && Number.isFinite(dateObj.getTime()) ? dateObj : null,
+    dateKey,
+    shift: dateObj && Number.isFinite(dateObj.getTime()) ? shiftFromDate(dateObj) : '',
+  }
+}
+
+export async function fetchAllOperationsEntries(listEntries, params = {}) {
+  const pageSize = 200
+  const all = []
+  let skip = 0
+  let hasMore = true
+  let guard = 0
+  while (hasMore && guard < 50) {
+    guard += 1
+    const res = await listEntries({ ...params, limit: pageSize, skip, includeCount: 1 })
+    const list = res?.entries || res?.items || res?.data || (Array.isArray(res) ? res : [])
+    const chunk = Array.isArray(list) ? list : []
+    all.push(...chunk)
+    hasMore = Boolean(res?.hasMore) && chunk.length > 0
+    if (!hasMore && chunk.length === pageSize && typeof res?.total === 'number') {
+      hasMore = all.length < res.total
+    }
+    skip += pageSize
+    if (chunk.length < pageSize) hasMore = false
+  }
+  return all
+}
+
+/** Build API payload from editable draft / row fields. */
+export function rowToEntryPayload(row, departmentKey) {
+  const dateKey = String(row.dateKey || '').trim()
+    || (row.dateRaw instanceof Date && Number.isFinite(row.dateRaw.getTime()) ? isoDate(row.dateRaw) : '')
+    || isoDate(new Date())
+
+  const inn = toNum(row.metalIn)
+  const out = toNum(row.metalOut)
+  let loss = toNum(row.metalLoss)
+  if (loss == null && inn != null && out != null) loss = Math.max(0, inn - out)
+
+  const blank = (v) => {
+    const s = String(v ?? '').trim()
+    return !s || s === '—' ? '' : s
+  }
+
+  return {
+    departmentKey,
+    batchNumber: blank(row.batch),
+    metalIn: inn,
+    metalOut: out,
+    metalLoss: loss,
+    employeeName: blank(row.employee),
+    departmentManagerName: blank(row.departmentManager),
+    batchStartedAt: row.batchStartedRaw || null,
+    batchOverAt: row.batchOverRaw || null,
+    rating: blank(row.rating),
+    breakdown: blank(row.breakdown),
+    requests: blank(row.requests),
+    date: dateKey,
+  }
+}
+
+export function emptyDraftRow(departmentKey) {
+  const today = isoDate(new Date())
+  return {
+    id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    _isNew: true,
+    deptKey: departmentKey,
+    employee: '',
+    departmentManager: '',
+    batch: '',
+    title: '',
+    metalIn: null,
+    metalOut: null,
+    metalLoss: null,
+    metalInDisplay: '—',
+    metalOutDisplay: '—',
+    metalLossDisplay: '—',
+    timeBatch: null,
+    averageTime: null,
+    timeBatchDisplay: '—',
+    averageTimeDisplay: '—',
+    batchStarted: '—',
+    batchOver: '—',
+    batchStartedRaw: null,
+    batchOverRaw: null,
+    rating: '',
+    breakdown: '',
+    requests: '',
+    status: 'Idle',
+    statusRaw: '',
+    date: formatDateDisplay(new Date()),
+    dateRaw: new Date(),
+    dateKey: today,
+    shift: shiftFromDate(new Date()),
+  }
+}
+
