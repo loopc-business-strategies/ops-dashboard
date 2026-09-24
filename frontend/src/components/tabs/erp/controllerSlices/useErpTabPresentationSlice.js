@@ -13,6 +13,7 @@ import { resolveStatementPrintSettings } from '../documentBranding'
 import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from '../erpPrintHelpers'
 import { useErpExportActions } from '../useErpExportActions'
 import { formatMoney as formatMoneyShared } from '../../../../utils/money'
+import { formatDirectionalBalanceValue } from '../formatDirectionalBalanceValue'
 
 
 
@@ -145,16 +146,13 @@ export function useErpTabPresentationSlice(scope) {
     if (raw === 'credit' || raw === 'cr') return 'Cr'
     return ''
   }
-  const formatDirectionalBalance = (value, options = {}) => {
-    const amount = Number(value || 0)
-    const preferredDirection = normalizeBalanceDirection(options.preferredDirection)
-    const direction = preferredDirection || (amount < 0 ? 'Cr' : 'Dr')
-    const absAmount = Math.abs(amount)
-    const currency = options.currencyCode || baseCurrencyCode
-    const formatted = formatMoneyShared(absAmount, currency)
-    if (absAmount === 0) return formatted
-    return `${formatted} ${direction}`
-  }
+  const formatDirectionalBalance = (value, options = {}) => (
+    formatDirectionalBalanceValue(
+      value,
+      options,
+      (absAmount, currencyCode) => formatMoneyShared(absAmount, currencyCode || baseCurrencyCode),
+    )
+  )
   const getDepartmentBadgeStyle = (department) => {
     const deptValue = String(department || '').trim().toLowerCase()
     if (deptValue === 'finance') return { background: '#DBEAFE', color: '#1D4ED8' }

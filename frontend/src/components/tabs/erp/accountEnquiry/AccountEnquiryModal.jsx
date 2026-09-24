@@ -299,7 +299,7 @@ export default function AccountEnquiryModal({
                                   <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>
-                                    {formatDirectionalBalance(row.balance, { minDigits: 6, maxDigits: 6 })}
+                                    {formatDirectionalBalance(row.balance, { asWeight: true, minDigits: 2, maxDigits: 6 })}
                                   </td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>
@@ -753,7 +753,7 @@ export default function AccountEnquiryModal({
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementNullableValue(debitPureWeight, 2)}</td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementNullableValue(creditPureWeight, 2)}</td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balancePureWeight), fontWeight: '700' }}>
-                                    {balancePureWeight === null ? '-' : formatDirectionalBalance(balancePureWeight)}
+                                    {balancePureWeight === null ? '-' : formatDirectionalBalance(balancePureWeight, { asWeight: true })}
                                   </td>
                                 </tr>
                               )

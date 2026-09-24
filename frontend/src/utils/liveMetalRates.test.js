@@ -42,9 +42,17 @@ describe('liveMetalRates helpers', () => {
 
   test('values inventory with live snapshot when metal matches', () => {
     const snapshot = { gold: 4500, silver: 30, platinum: 1000, unit: 'TOZ', currency: 'USD' }
-    const liveCost = resolveInventoryValuationUnitCost(100, 'Gold', snapshot, 'OZ')
-    expect(liveCost).toBe(4500)
+    const liveCostOz = resolveInventoryValuationUnitCost(100, 'Gold', snapshot, 'OZ')
+    expect(liveCostOz).toBe(4500)
     expect(resolveInventoryValuationUnitCost(100, 'Copper', snapshot, 'OZ')).toBe(100)
+  })
+
+  test('values gram-stock inventory with live TOZ converted to per-gram', () => {
+    const snapshot = { gold: 4500, silver: 30, platinum: 1000, unit: 'TOZ', currency: 'USD' }
+    const liveCostG = resolveInventoryValuationUnitCost(100, 'Gold', snapshot, 'G')
+    expect(liveCostG).toBeCloseTo(4500 / 31.1034768, 4)
+    // No live match: convert stored OZ-style book cost to G
+    expect(resolveInventoryValuationUnitCost(4500, 'Copper', snapshot, 'G')).toBeCloseTo(4500 / 31.1034768, 4)
   })
 
   test('prefers live gram prices for account enquiry spot', () => {

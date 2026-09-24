@@ -10,7 +10,7 @@ import { getAvailableTransactionTypes } from '../accessPolicy'
 import { DEFAULT_INVENTORY_STOCK_CODE_SETTINGS, decodeInventoryCategoryMeta, decodeInventoryCategoryPairs, titleCaseWords } from '../erpTabUtils'
 import { useErpCustomerMargin, useErpSupplierMargin, useErpMarginContextMenuDismissal } from '../useErpMarginTabs'
 
-import { resolveInventoryValuationUnitCost } from '../../../../utils/liveMetalRates'
+import { resolveInventoryValuationUnitCost, resolveLiveMetalKey } from '../../../../utils/liveMetalRates'
 import { normalizeJvCurrencyCode } from '../journalVoucherHelpers'
 import { resolveCurrencyRowByCode } from '../erpCurrencyRowHelpers'
 import {
@@ -96,7 +96,17 @@ export function useErpTabCatalogSlice(scope) {
     const metalName = productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || ''
     const priceUnit = categoryMeta.priceUnit || productMeta.priceUnit || 'OZ'
     const storedUnitCost = Number(item.unitCost || 0)
-    const unitCost = resolveInventoryValuationUnitCost(storedUnitCost, metalName, erpLiveMetalSnapshot, priceUnit)
+    // Metal stock qty is grams — value with $/g so Total Value aligns with account MTM.
+    const stockUnit = String(item.unit || 'grams').trim().toLowerCase()
+    const stockIsGrams = ['g', 'gram', 'grams'].includes(stockUnit)
+    const isLiveMetal = Boolean(resolveLiveMetalKey(metalName))
+    const valuationPriceUnit = (stockIsGrams || isLiveMetal) ? 'G' : priceUnit
+    const unitCost = resolveInventoryValuationUnitCost(
+      storedUnitCost,
+      metalName,
+      erpLiveMetalSnapshot,
+      valuationPriceUnit,
+    )
     const usesLivePrice = unitCost !== storedUnitCost && unitCost > 0
     const minThreshold = Number(item.minThreshold || 0)
     const metal = titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || 'Unmapped')
