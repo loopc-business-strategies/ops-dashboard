@@ -79,28 +79,19 @@ const btnBase = {
   marginRight: 4,
 }
 
-const stickyActionsTh = {
+const actionsTh = {
   ...thBase,
-  position: 'sticky',
-  top: 0,
-  right: 0,
-  zIndex: 4,
-  width: 150,
-  minWidth: 150,
-  boxShadow: '-4px 0 8px rgba(15, 23, 42, 0.08)',
+  width: 190,
+  minWidth: 190,
+  whiteSpace: 'nowrap',
 }
 
-const stickyActionsTd = (bg) => ({
+const actionsTd = {
   ...tdBase,
-  position: 'sticky',
-  right: 0,
-  zIndex: 1,
-  width: 150,
-  minWidth: 150,
+  width: 190,
+  minWidth: 190,
   whiteSpace: 'nowrap',
-  background: bg,
-  boxShadow: '-4px 0 8px rgba(15, 23, 42, 0.06)',
-})
+}
 
 const footerBar = {
   display: 'flex',
@@ -403,26 +394,23 @@ export default function DepartmentTable({
           </td>
         ))}
         {editable ? (
-          <td style={stickyActionsTd(rowBg)}>
-            {!editing ? (
-              <button
-                type="button"
-                style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD' }}
-                disabled={busy}
-                onClick={() => startEdit(row)}
-              >
-                Edit
-              </button>
-            ) : (
-              <button
-                type="button"
-                style={{ ...btnBase, background: '#DCFCE7', borderColor: '#86EFAC' }}
-                disabled={busy}
-                onClick={() => handleSave(row)}
-              >
-                {busy ? '…' : 'Save'}
-              </button>
-            )}
+          <td style={actionsTd}>
+            <button
+              type="button"
+              style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD' }}
+              disabled={busy || editing}
+              onClick={() => startEdit(row)}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              style={{ ...btnBase, background: '#DCFCE7', borderColor: '#86EFAC' }}
+              disabled={busy || !editing}
+              onClick={() => handleSave(row)}
+            >
+              {busy ? '…' : 'Save'}
+            </button>
             <button
               type="button"
               style={{ ...btnBase, background: '#FEE2E2', borderColor: '#FECACA', color: '#991B1B', marginRight: 0 }}
@@ -458,7 +446,7 @@ export default function DepartmentTable({
                 </th>
               ))}
               {editable ? (
-                <th style={stickyActionsTh}>Actions</th>
+                <th style={actionsTh}>Actions</th>
               ) : null}
             </tr>
           </thead>
