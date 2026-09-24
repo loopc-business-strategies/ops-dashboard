@@ -8,6 +8,7 @@ import {
   isMetalStockVoucherType,
   isMetalTransferVoucherType,
 } from './voucherTabShared'
+import { hydrateMetalLineWeights } from './hydrateMetalLineWeights'
 import { parseAmount } from '../../../utils/money'
 
 const moneyOrZero = (value) => parseAmount(value) ?? 0
@@ -155,21 +156,30 @@ export function useVoucherSave({
       },
       ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
       ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
-      lineItems: effectiveLineItems.map((l) => ({
-        ...l,
-        inventoryItemId: normalizeMongoIdField(l.inventoryItemId),
-        currRateSource: l.currRateSource || 'manual',
-        amountFC: moneyOrZero(l.amountFC),
-        amountLC: moneyOrZero(l.amountLC),
-        headerAmt: moneyOrZero(l.headerAmt),
-        currRate: displayRateToBackendRate(l.currRate, l.currCode || header.currCode, isReceiptPayment),
-        ...(l.referenceRate ? { referenceRate: displayRateToBackendRate(l.referenceRate, l.currCode || header.currCode, isReceiptPayment) } : {}),
-        vatPer: moneyOrZero(l.vatPer),
-        vatAmountFC: moneyOrZero(l.vatAmountFC),
-        vatAmountLC: moneyOrZero(l.vatAmountLC),
-        amountWithVAT: moneyOrZero(l.amountWithVAT) || moneyOrZero(l.amountLC),
-        headerAmountWithVAT: moneyOrZero(l.headerAmountWithVAT),
-      })),
+      lineItems: effectiveLineItems.map((l) => {
+        const metalLine = isMetalStockVoucherType(voucherType) ? hydrateMetalLineWeights(l) : l
+        return {
+          ...metalLine,
+          inventoryItemId: normalizeMongoIdField(metalLine.inventoryItemId),
+          currRateSource: metalLine.currRateSource || 'manual',
+          pcs: moneyOrZero(metalLine.pcs),
+          grossWeight: moneyOrZero(metalLine.grossWeight),
+          purity: moneyOrZero(metalLine.purity),
+          pureWeight: moneyOrZero(metalLine.pureWeight),
+          metalAmount: moneyOrZero(metalLine.metalAmount),
+          metalRate: moneyOrZero(metalLine.metalRate),
+          amountFC: moneyOrZero(metalLine.amountFC),
+          amountLC: moneyOrZero(metalLine.amountLC),
+          headerAmt: moneyOrZero(metalLine.headerAmt),
+          currRate: displayRateToBackendRate(metalLine.currRate, metalLine.currCode || header.currCode, isReceiptPayment),
+          ...(metalLine.referenceRate ? { referenceRate: displayRateToBackendRate(metalLine.referenceRate, metalLine.currCode || header.currCode, isReceiptPayment) } : {}),
+          vatPer: moneyOrZero(metalLine.vatPer),
+          vatAmountFC: moneyOrZero(metalLine.vatAmountFC),
+          vatAmountLC: moneyOrZero(metalLine.vatAmountLC),
+          amountWithVAT: moneyOrZero(metalLine.amountWithVAT) || moneyOrZero(metalLine.amountLC),
+          headerAmountWithVAT: moneyOrZero(metalLine.headerAmountWithVAT),
+        }
+      }),
     },
     ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave
       ? { metalFixStatus: normalizeVoucherFixingType(header.fixingType) === 'non-fixing' ? 'unfixed' : 'fixed' }

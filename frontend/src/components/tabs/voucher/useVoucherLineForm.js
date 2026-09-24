@@ -8,6 +8,7 @@ import {
   normalizeRateType,
   pickDefaultAccountCodeByType,
 } from './voucherTabShared'
+import { hydrateMetalLineWeights } from './hydrateMetalLineWeights'
 
 /**
  * Line-item form open/edit/save and payment/receipt amount helpers for VoucherTab.
@@ -86,6 +87,9 @@ export function useVoucherLineForm({
       currRateSource: row?.currRateSource || 'manual',
       vatType: row?.vatType || 'VAT',
     }
+    if (isMetalVoucher) {
+      nextForm = hydrateMetalLineWeights(nextForm)
+    }
     if (isMetalVoucher && String(nextForm.productType || '').trim() && typeof applyProductTypeAutoFill === 'function') {
       nextForm = applyProductTypeAutoFill(nextForm, nextForm.productType)
     }
@@ -141,7 +145,10 @@ export function useVoucherLineForm({
       setError('Amount is required')
       return
     }
-    const computedLineForm = isMetalVoucher && !isSimpleMetalVoucher ? applyLineAutoCalc(lineForm) : lineForm
+    const hydratedLineForm = isMetalVoucher ? hydrateMetalLineWeights(lineForm) : lineForm
+    const computedLineForm = isMetalVoucher && !isSimpleMetalVoucher
+      ? applyLineAutoCalc(hydratedLineForm)
+      : hydratedLineForm
     const line = {
       ...computedLineForm,
       type: normalizeLineType(computedLineForm.type),

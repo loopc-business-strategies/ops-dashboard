@@ -6,6 +6,7 @@ import {
   normalizeVoucherFixingType,
   today,
 } from './voucherTabShared'
+import { hydrateMetalLineWeights } from './hydrateMetalLineWeights'
 import { isVoucherTypeEnabled } from '../../../config/tenantBranding'
 
 /** True when a voucher should open unlocked for editing (draft/returned/rejected, not locked). */
@@ -92,7 +93,7 @@ export function useVoucherOpenEdit({
     const lineRateSource = line?.currRateSource || 'manual'
     const lineRate = parseFloat(line?.currRate)
     const normalizedLineRate = backendRateToDisplayRate(lineRate, lineCurrency, isReceiptPaymentVoucher)
-    return {
+    const normalized = {
       ...line,
       inventoryItemId: line.inventoryItemId ? String(line.inventoryItemId._id || line.inventoryItemId) : '',
       type: normalizeLineType(line.type),
@@ -100,6 +101,8 @@ export function useVoucherOpenEdit({
       currRate: normalizedLineRate.toFixed(6),
       currRateSource: (lineCurrency === 'AED' && isReceiptPaymentVoucher) ? 'fixed_aed' : lineRateSource,
     }
+    // Restore purity/pureWeight for metal lines saved with amount but blank purity columns.
+    return hydrateMetalLineWeights(normalized)
   })
   const openInEdit = isVoucherOpenInEdit(v, { isReadOnly, isEntryLocked })
   setEditingId(v._id)
