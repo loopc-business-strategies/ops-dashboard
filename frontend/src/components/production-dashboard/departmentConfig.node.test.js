@@ -8,8 +8,8 @@ import {
 } from './departmentConfig.js'
 
 describe('departmentConfig', () => {
-  test('dashboard departments are the eight reference names', () => {
-    expect(DASHBOARD_DEPARTMENTS).toHaveLength(8)
+  test('dashboard departments are the ten reference names', () => {
+    expect(DASHBOARD_DEPARTMENTS).toHaveLength(10)
     expect(DASHBOARD_DEPARTMENTS.map((d) => d.label)).toEqual([
       'Vault Room',
       'Melting',
@@ -19,8 +19,9 @@ describe('departmentConfig', () => {
       'Pendent Section',
       'Welding Area',
       'Assembly Area',
+      'QC',
+      'Finished Goods',
     ])
-    expect(DASHBOARD_DEPARTMENTS.some((d) => /cast|polish|receiving|wire|finish/i.test(d.label))).toBe(false)
   })
 
   test('aliases map live batch departments', () => {
@@ -29,6 +30,8 @@ describe('departmentConfig', () => {
     expect(matchDashboardDeptKey('pendant')).toBe('pendent_section')
     expect(matchDashboardDeptKey('welding')).toBe('welding_area')
     expect(matchDashboardDeptKey('assembly_area')).toBe('assembly')
+    expect(matchDashboardDeptKey('quality control')).toBe('qc')
+    expect(matchDashboardDeptKey('finished goods')).toBe('finished_goods')
   })
 
   test('assembly tables are 1–15 and parse machine names', () => {
