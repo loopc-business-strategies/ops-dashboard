@@ -1,19 +1,19 @@
 import { LOOPC_PRODUCTION_DEPARTMENTS, matchLoopcDeptKey } from './loopcProductionDepartments'
 
 export const SHEET_COLUMNS = [
-  { key: 'employee', label: 'Employee', align: 'left', filter: 'select', sortable: true },
-  { key: 'departmentManager', label: 'Department Manager', align: 'left', filter: 'select', sortable: true },
+  { key: 'date', label: 'Date', align: 'left', filter: 'date', sortable: true },
   { key: 'batch', label: 'Batch', align: 'left', filter: 'search', sortable: true },
-  { key: 'title', label: 'Title', align: 'left', filter: 'search', sortable: true },
   { key: 'metalIn', label: 'Metal IN', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalOut', label: 'Metal OUT', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalLoss', label: 'Metal Loss', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'timeBatch', label: 'Time / Batch', align: 'right', filter: null, sortable: true, numeric: true },
-  { key: 'averageTime', label: 'Average Time', align: 'right', filter: null, sortable: true, numeric: true },
-  { key: 'batchStarted', label: 'Batch Started', align: 'left', filter: null, sortable: true },
+  { key: 'batchStarted', label: 'Batch Start', align: 'left', filter: null, sortable: true },
   { key: 'batchOver', label: 'Batch Over', align: 'left', filter: null, sortable: true },
-  { key: 'status', label: 'Status', align: 'left', filter: 'select', sortable: true },
-  { key: 'date', label: 'Date', align: 'left', filter: 'date', sortable: true },
+  { key: 'departmentManager', label: 'Department Manager', align: 'left', filter: 'select', sortable: true },
+  { key: 'employee', label: 'Employee', align: 'left', filter: 'select', sortable: true },
+  { key: 'rating', label: 'Rating', align: 'left', filter: 'search', sortable: true },
+  { key: 'breakdown', label: 'Breakdown', align: 'left', filter: 'search', sortable: true },
+  { key: 'requests', label: 'Requests', align: 'left', filter: 'search', sortable: true },
 ]
 
 export const STATUS_BUCKETS = {
@@ -193,6 +193,9 @@ export function mapBatchToRow(batch) {
     batchOver: formatDateTimeDisplay(batch?.completedAt),
     batchStartedRaw: batch?.startedAt || null,
     batchOverRaw: batch?.completedAt || null,
+    rating: batch?.rating != null && batch?.rating !== '' ? String(batch.rating) : '—',
+    breakdown: String(batch?.breakdown || batch?.breakdownNotes || '').trim() || '—',
+    requests: String(batch?.requests || batch?.requestNotes || batch?.notes || '').trim() || '—',
     status,
     statusRaw: batch?.status || '',
     date: formatDateDisplay(dateRaw),
@@ -285,7 +288,7 @@ export function applyColumnFilters(rows, columnFilters) {
       if (!q) continue
       if (key === 'employee' || key === 'departmentManager' || key === 'status') {
         if (String(row[key]).toLowerCase() !== q) return false
-      } else if (key === 'batch' || key === 'title') {
+      } else if (key === 'batch' || key === 'title' || key === 'rating' || key === 'breakdown' || key === 'requests') {
         if (!String(row[key]).toLowerCase().includes(q)) return false
       } else if (key === 'dateFrom') {
         const from = startOfDay(value)
