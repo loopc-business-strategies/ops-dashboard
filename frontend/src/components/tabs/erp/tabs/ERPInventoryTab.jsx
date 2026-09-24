@@ -177,12 +177,12 @@ export default function ERPInventoryTab({
               >
                 + Create Product
               </button>
-              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem' }}>
-                {Object.entries(inventoryProductsByMetal).slice(0, 4).map(([metal, entries]) => (
+              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem', maxHeight: '28rem', overflowY: 'auto' }}>
+                {Object.entries(inventoryProductsByMetal).map(([metal, entries]) => (
                   <div key={metal} style={{ border: '1px solid #FDE68A', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
                     <div style={{ fontWeight: '800', color: '#92400E', fontSize: '0.78rem', marginBottom: '0.35rem' }}>{metal}</div>
                     <div style={{ display: 'grid', gap: '0.4rem' }}>
-                      {entries.slice(0, 3).map(({ item, meta }) => (
+                      {entries.map(({ item, meta }) => (
                         <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', borderTop: '1px solid #FEF3C7', paddingTop: '0.35rem' }}>
                           <div>
                             <div style={{ fontWeight: '700', color: C.ink, fontSize: '0.76rem' }}>{item.name}</div>
