@@ -1,14 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import HeaderBar from './HeaderBar'
 import KpiRow from './KpiRow'
-import LiveMetalControl from './LiveMetalControl'
 import DepartmentOverview from './DepartmentOverview'
-import MetalMovementLedger from './MetalMovementLedger'
-import OperatorPresence from './OperatorPresence'
-import VaultInventory from './VaultInventory'
-import AlertsReconciliation from './AlertsReconciliation'
-import BatchTraceability from './BatchTraceability'
-import ShopFloorTerminal from './ShopFloorTerminal'
 import ActionModal from './ActionModal'
 import { useProductionDashboard } from './useProductionDashboard'
 import { DASHBOARD_DEPARTMENTS } from './departmentConfig'
@@ -34,11 +27,8 @@ export default function ProductionDashboardTab() {
     lastUpdated,
     connection,
     refresh,
-    stockLedger,
-    stockLedgerLoading,
     selectedDeptKey,
     selectedBatchId,
-    batchDetail,
     deptDetail,
     actions,
   } = useProductionDashboard()
@@ -46,9 +36,6 @@ export default function ProductionDashboardTab() {
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
   const [awaitingBatches, setAwaitingBatches] = useState([])
-  const [flowFilterKey, setFlowFilterKey] = useState(null)
-  const [selectedOperatorId, setSelectedOperatorId] = useState(null)
-  const [selectedMovementId, setSelectedMovementId] = useState(null)
   const autoBatchRef = useRef(false)
 
   const permissions = model?.permissions || {}
@@ -190,27 +177,6 @@ export default function ProductionDashboardTab() {
         <div className="pd-layout pd-layout--reference pd-layout--control-center">
           <KpiRow model={model} />
 
-          {/* Live metal flow rail hidden from UI (handlers retained). */}
-          {false ? (
-          <LiveMetalControl
-            materialFlow={model.materialFlow}
-            activeStageKey={flowFilterKey}
-            onStageClick={(stage) => {
-              setFlowFilterKey(stage.key)
-              const map = {
-                vault: 'vault_room',
-                melting: 'melting',
-                rolling: 'rolling',
-                production: null,
-                qc: null,
-                finished: 'assembly',
-              }
-              const deptKey = map[stage.key]
-              if (deptKey) actions.selectDepartment(deptKey)
-            }}
-          />
-          ) : null}
-
           <DepartmentOverview
             cards={model.deptCards}
             assemblyTables={model.assemblyTables}
@@ -241,86 +207,6 @@ export default function ProductionDashboardTab() {
                 Close
               </button>
             </div>
-          ) : null}
-
-          {/* Mid/bottom panels hidden from Control Center UI (handlers retained). */}
-          {false ? (
-          <div className="pd-mid-quad">
-            <MetalMovementLedger
-              rows={model.metalMovementRows}
-              stockLedger={model.hasLiveProduction ? stockLedger : []}
-              loading={model.hasLiveProduction ? stockLedgerLoading : false}
-              filterDept={selectedDeptKey || flowFilterKey}
-              filterBatch={selectedBatchId}
-              selectedId={selectedMovementId}
-              onRowClick={(row) => {
-                setSelectedMovementId(row.id)
-                if (row.batchId) actions.selectBatch(row.batchId)
-              }}
-            />
-            <OperatorPresence
-              rows={model.operatorPresenceRows}
-              selectedId={selectedOperatorId}
-              canFloorSession={permissions.canFloorSession}
-              onRowClick={(row) => setSelectedOperatorId(row.id)}
-              onOperatorIn={() => openModal('operator-in', { employeeId: '' })}
-              onOperatorOut={() => openModal('operator-out')}
-            />
-            <VaultInventory
-              lines={model.vaultLines}
-              canIssue={permissions.canIssue}
-              onIssueMetal={() => {
-                const line = model.vaultLines?.[0]
-                openModal('issue', {
-                  inventoryItemId: line?.inventoryItemId || '',
-                  lineMetalType: line?.metalType || 'Gold',
-                  linePurity: line?.purity || '',
-                  weight: line?.weight || '',
-                  batchId: '',
-                  createNew: false,
-                })
-              }}
-            />
-            <AlertsReconciliation
-              reconciliationRows={model.reconciliationRows}
-              mismatchAlerts={model.mismatchAlerts}
-              alerts={model.alertItems}
-              canResolve={permissions.canResolveAlert}
-              onAcknowledge={(id) => actions.acknowledgeAlert(id)}
-              onResolve={(id) => actions.resolveAlert(id)}
-            />
-          </div>
-          ) : null}
-
-          {false ? (
-          <div className="pd-row-bottom-split pd-row-bottom-terminal">
-            <BatchTraceability
-              batchRows={model.batchMonitorRows}
-              selectedBatchId={selectedBatchId}
-              batchDetail={batchDetail}
-              metalMovements={model.metalMovementRows}
-              onSelectBatch={(id) => actions.selectBatch(id)}
-            />
-            <ShopFloorTerminal
-              department={selectedDept}
-              permissions={permissions}
-              onFaceScan={() => openModal('face-scan', { employeeId: '' })}
-              onOperatorIn={() => openModal('operator-in', { employeeId: '' })}
-              onOperatorOut={() => openModal('operator-out')}
-              onMetalIn={() => openModal('metal-in', {
-                batchId: selectedDept?.batchId || '',
-                passId: selectedDept?.passId || '',
-                toDepartment: selectedDept?.key || selectedDept?.name || '',
-                weight: selectedDept?.metalIn || selectedDept?.metalBalance || '',
-              })}
-              onMetalOut={() => openModal('metal-out', {
-                batchId: selectedDept?.batchId || '',
-                fromDepartment: selectedDept?.key || '',
-                toDepartment: '',
-                weight: selectedDept?.metalBalance || selectedDept?.quantity || '',
-              })}
-            />
-          </div>
           ) : null}
         </div>
       ) : null}
