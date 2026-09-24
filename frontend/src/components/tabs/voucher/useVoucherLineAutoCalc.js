@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { resolveLiveVoucherMetalRate } from '../../../utils/liveMetalRates'
 import { parseAmount, roundMoney } from '../../../utils/money'
 import { resolveProductLineVatFields } from './resolveProductLineVat'
+import { resolveProductTypeGrossWeight } from './resolveProductTypeGrossWeight'
 import {
   decodeFullMeta,
   decodeInventoryCategoryMeta,
@@ -145,9 +146,11 @@ export function useVoucherLineAutoCalc({
     const simMeta = decodeInventoryCategoryMeta(product.category)
     const unitWeight = parseFloat(meta.weight || product.weight || '') || 0
     const pcs = Math.max(0, parseFloat(line.pcs) || 0)
-    const grossWeight = unitWeight > 0
-      ? (pcs > 0 ? unitWeight * pcs : unitWeight)
-      : (parseFloat(line.grossWeight) || 0)
+    const grossWeight = resolveProductTypeGrossWeight({
+      unitWeight,
+      pcs,
+      existingGrossWeight: parseFloat(line.grossWeight) || 0,
+    })
     const resolvedPurity = resolveVoucherLinePurityFromProduct({
       productName: product.name || productName,
       productPurity: meta.productPurity || simMeta.purity || '',
