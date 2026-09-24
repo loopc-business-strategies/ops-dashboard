@@ -5,6 +5,7 @@ import { lazy, Suspense, useState, useMemo, useEffect, useCallback } from 'react
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
+import { getTenantBranding } from '../../config/tenantBranding'
 import { inventoryApi } from '../../api/operations/inventory'
 import projectsAPI from '../../api/projects'
 import authAPI from '../../api/auth'
@@ -34,6 +35,8 @@ import {
   NotifPanel,
 } from './operations/OpsModals'
 
+const LoopCOperationsTab = lazy(() => import('./operations/LoopCOperationsTab'))
+
 const TabKPI = lazy(() => import('./operations/TabKPI'))
 const TabChecklist = lazy(() => import('./operations/TabChecklist'))
 const TabSupply = lazy(() => import('./operations/TabSupply'))
@@ -56,6 +59,26 @@ function OpsSubTabFallback() {
 }
 
 export default function OperationsTab() {
+  const { user, company } = useAuth()
+  const tenantKey = String(
+    getTenantBranding(user?.company || company)?.key
+    || user?.company
+    || company
+    || '',
+  ).trim().toLowerCase()
+
+  if (tenantKey === 'loopc') {
+    return (
+      <Suspense fallback={<OpsSubTabFallback />}>
+        <LoopCOperationsTab />
+      </Suspense>
+    )
+  }
+
+  return <LegacyOperationsTab />
+}
+
+function LegacyOperationsTab() {
   const perms = usePermissions()
   const isAdmin    = perms.isSuperAdmin
   const { t } = useLanguage()

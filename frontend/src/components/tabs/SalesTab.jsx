@@ -795,7 +795,7 @@ function ContactProfile({ contact, tab, setTab, activities, deals, canSeeKyc, on
   )
 }
 
-export default function SalesTab() {
+export default function SalesTab({ embedded = false } = {}) {
   const { user, company } = useAuth()
   const perms = usePermissions()
   const { t } = useLanguage()
@@ -808,6 +808,7 @@ export default function SalesTab() {
     SALES_SECTIONS,
     'dashboard',
     company,
+    { embedded },
   )
   const role = user?.role || ''
   const dep = (user?.department || '').toLowerCase()
