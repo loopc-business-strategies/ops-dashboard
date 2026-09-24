@@ -2,13 +2,10 @@ import { useMemo, useState } from 'react'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import {
   SHEET_COLUMNS,
-  applyColumnFilters,
   sortRows,
-  uniqueOptions,
 } from './productionSheetUtils'
 
 const TABLE_VIEWPORT_H = 360
-const FILTER_ROW_H = 32
 
 const pane = {
   border: '1px solid #94A3B8',
@@ -32,19 +29,9 @@ const table = {
   color: '#0F172A',
 }
 
-const filterTh = {
-  position: 'sticky',
-  top: 0,
-  zIndex: 3,
-  background: '#F1F5F9',
-  borderBottom: '1px solid #94A3B8',
-  borderRight: '1px solid #CBD5E1',
-  padding: '0.25rem 0.35rem',
-}
-
 const thBase = {
   position: 'sticky',
-  top: FILTER_ROW_H,
+  top: 0,
   zIndex: 2,
   background: '#E2E8F0',
   borderBottom: '1px solid #94A3B8',
@@ -64,16 +51,6 @@ const tdBase = {
   verticalAlign: 'middle',
 }
 
-const filterInput = {
-  width: '100%',
-  boxSizing: 'border-box',
-  border: '1px solid #CBD5E1',
-  borderRadius: '0.25rem',
-  padding: '0.2rem 0.35rem',
-  fontSize: '0.75rem',
-  background: '#FFFFFF',
-}
-
 function cellDisplay(row, key) {
   if (key === 'metalIn') return row.metalInDisplay
   if (key === 'metalOut') return row.metalOutDisplay
@@ -84,29 +61,20 @@ function cellDisplay(row, key) {
 
 /**
  * Excel-style department table with sticky headers and independent scroll.
- * Column filters sit above the sortable heading row.
  */
 export default function DepartmentTable({ rows }) {
   const [sortKey, setSortKey] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
-  const [columnFilters, setColumnFilters] = useState({})
 
-  const filtered = useMemo(
-    () => applyColumnFilters(rows || [], columnFilters),
-    [rows, columnFilters],
-  )
   const sorted = useMemo(
-    () => sortRows(filtered, sortKey, sortDir),
-    [filtered, sortKey, sortDir],
+    () => sortRows(rows || [], sortKey, sortDir),
+    [rows, sortKey, sortDir],
   )
 
   const { scrollRef, enabled, virtualItems, paddingTop, paddingBottom } = useVirtualTableRows(
     sorted.length,
     { estimateSize: 38, threshold: 60, overscan: 10 },
   )
-
-  const employeeOpts = useMemo(() => uniqueOptions(rows || [], 'employee'), [rows])
-  const managerOpts = useMemo(() => uniqueOptions(rows || [], 'departmentManager'), [rows])
 
   const toggleSort = (key) => {
     if (sortKey === key) {
@@ -115,68 +83,6 @@ export default function DepartmentTable({ rows }) {
       setSortKey(key)
       setSortDir(key === 'employee' || key === 'batch' || key === 'departmentManager' ? 'asc' : 'desc')
     }
-  }
-
-  const setColFilter = (key, value) => {
-    setColumnFilters((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const renderFilterCell = (col) => {
-    if (col.filter === 'select' && col.key === 'employee') {
-      return (
-        <select
-          style={filterInput}
-          value={columnFilters.employee || ''}
-          onChange={(e) => setColFilter('employee', e.target.value)}
-        >
-          <option value="">All</option>
-          {employeeOpts.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      )
-    }
-    if (col.filter === 'select' && col.key === 'departmentManager') {
-      return (
-        <select
-          style={filterInput}
-          value={columnFilters.departmentManager || ''}
-          onChange={(e) => setColFilter('departmentManager', e.target.value)}
-        >
-          <option value="">All</option>
-          {managerOpts.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      )
-    }
-    if (col.filter === 'search') {
-      return (
-        <input
-          style={filterInput}
-          value={columnFilters[col.key] || ''}
-          onChange={(e) => setColFilter(col.key, e.target.value)}
-          placeholder="Filter…"
-        />
-      )
-    }
-    if (col.filter === 'date') {
-      return (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <input
-            type="date"
-            style={filterInput}
-            value={columnFilters.dateFrom || ''}
-            onChange={(e) => setColFilter('dateFrom', e.target.value)}
-            title="From"
-          />
-          <input
-            type="date"
-            style={filterInput}
-            value={columnFilters.dateTo || ''}
-            onChange={(e) => setColFilter('dateTo', e.target.value)}
-            title="To"
-          />
-        </div>
-      )
-    }
-    return <span style={{ display: 'block', height: 22 }} />
   }
 
   const renderRow = (row, idx) => (
@@ -207,13 +113,6 @@ export default function DepartmentTable({ rows }) {
       <div ref={scrollRef} style={scrollBox}>
         <table style={table}>
           <thead>
-            <tr>
-              {SHEET_COLUMNS.map((col) => (
-                <th key={`f-${col.key}`} style={filterTh}>
-                  {renderFilterCell(col)}
-                </th>
-              ))}
-            </tr>
             <tr>
               {SHEET_COLUMNS.map((col) => (
                 <th

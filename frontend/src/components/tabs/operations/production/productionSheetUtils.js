@@ -1,19 +1,19 @@
 import { LOOPC_PRODUCTION_DEPARTMENTS, matchLoopcDeptKey } from './loopcProductionDepartments'
 
 export const SHEET_COLUMNS = [
-  { key: 'date', label: 'Date', align: 'left', filter: 'date', sortable: true },
-  { key: 'batch', label: 'Batch', align: 'left', filter: 'search', sortable: true },
+  { key: 'date', label: 'Date', align: 'left', filter: null, sortable: true },
+  { key: 'batch', label: 'Batch', align: 'left', filter: null, sortable: true },
   { key: 'metalIn', label: 'Metal IN', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalOut', label: 'Metal OUT', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalLoss', label: 'Metal Loss', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'timeBatch', label: 'Time / Batch', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'batchStarted', label: 'Batch Start', align: 'left', filter: null, sortable: true },
   { key: 'batchOver', label: 'Batch Over', align: 'left', filter: null, sortable: true },
-  { key: 'departmentManager', label: 'Department Manager', align: 'left', filter: 'select', sortable: true },
-  { key: 'employee', label: 'Employee', align: 'left', filter: 'select', sortable: true },
-  { key: 'rating', label: 'Rating', align: 'left', filter: 'search', sortable: true },
-  { key: 'breakdown', label: 'Breakdown', align: 'left', filter: 'search', sortable: true },
-  { key: 'requests', label: 'Requests', align: 'left', filter: 'search', sortable: true },
+  { key: 'departmentManager', label: 'Department Manager', align: 'left', filter: null, sortable: true },
+  { key: 'employee', label: 'Employee', align: 'left', filter: null, sortable: true },
+  { key: 'rating', label: 'Rating', align: 'left', filter: null, sortable: true },
+  { key: 'breakdown', label: 'Breakdown', align: 'left', filter: null, sortable: true },
+  { key: 'requests', label: 'Requests', align: 'left', filter: null, sortable: true },
 ]
 
 export const STATUS_BUCKETS = {

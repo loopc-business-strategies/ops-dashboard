@@ -10,7 +10,6 @@ import {
   computeSummary,
   fetchAllBatches,
   mapBatchToRow,
-  uniqueOptions,
 } from './productionSheetUtils'
 
 const wrap = {
@@ -82,10 +81,6 @@ export default function LoopCProductionSheets() {
     }))
   }, [filteredRows])
 
-  const employeeOptions = useMemo(() => uniqueOptions(allRows, 'employee'), [allRows])
-  const managerOptions = useMemo(() => uniqueOptions(allRows, 'departmentManager'), [allRows])
-  const titleOptions = useMemo(() => uniqueOptions(allRows, 'title'), [allRows])
-
   const handleApply = () => setAppliedFilters({ ...draftFilters })
   const handleClear = () => {
     setDraftFilters({ ...EMPTY_FILTERS })
@@ -103,7 +98,7 @@ export default function LoopCProductionSheets() {
           Production
         </h2>
         <p style={{ margin: '0.3rem 0 0', color: '#64748B', fontSize: '0.85rem' }}>
-          Department workbook — filters apply across all department tables.
+          Department workbook — date filters apply across all department tables.
         </p>
       </div>
 
@@ -114,9 +109,6 @@ export default function LoopCProductionSheets() {
         onDraftChange={setDraftFilters}
         onApply={handleApply}
         onClear={handleClear}
-        employeeOptions={employeeOptions}
-        managerOptions={managerOptions}
-        titleOptions={titleOptions}
       />
 
       {loading ? (
