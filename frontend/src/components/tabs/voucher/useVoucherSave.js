@@ -55,6 +55,9 @@ export function useVoucherSave({
     return
   }
 
+  const normalizedVoucherType = String(voucherType || '').toLowerCase()
+  const isSimpleMetalSave = isMetalTransferVoucherType(normalizedVoucherType)
+
   let effectiveLineItems = [...lineItems]
   if (showLineForm) {
     const hasLineAmount = isSimpleMetalSave
@@ -103,9 +106,7 @@ export function useVoucherSave({
     }
     return ''
   }
-  const normalizedVoucherType = String(voucherType || '').toLowerCase()
   const resolvedDocNo = coerceVoucherDocNo(normalizedVoucherType, header.vocNo, header.docDate)
-  const isSimpleMetalSave = isMetalTransferVoucherType(normalizedVoucherType)
   const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode || 'USD').trim().toUpperCase()
   const isReceiptPayment = ['receipt', 'payment'].includes(normalizedVoucherType)
   const backendHeaderRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency, isReceiptPayment)

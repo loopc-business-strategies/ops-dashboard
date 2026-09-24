@@ -286,7 +286,20 @@ async function cancelLotsForVoidedPurchase({ user, tx, session = null, deleteRea
 }
 
 /**
+ * Free vault weight in inventory (gross) units.
+ * Prefer grossWeight so stock-out matches ERP inventory qty; fall back to netWeight for legacy lots.
+ */
+function lotFreeGrossWeight(lot = {}) {
+  const gross = Number(lot.grossWeight || 0)
+  const net = Number(lot.netWeight || 0)
+  const allocated = Number(lot.allocatedWeight || 0)
+  const basis = gross > 0 ? gross : net
+  return Math.max(0, basis - allocated)
+}
+
+/**
  * Ensure vault/lot (or inventory) weight covers metal stock-out, then soft-consume unused lots FIFO.
+ * Requested quantity and availability use inventory/gross grams (not pure/net).
  * Throws with the product message when insufficient.
  */
 async function assertAndConsumeVaultLotsForStockOut({
@@ -310,10 +323,7 @@ async function assertAndConsumeVaultLotsForStockOut({
     session,
   )
 
-  const lotAvailable = (lots || []).reduce((sum, lot) => {
-    const free = Math.max(0, Number(lot.netWeight || 0) - Number(lot.allocatedWeight || 0))
-    return sum + free
-  }, 0)
+  const lotAvailable = (lots || []).reduce((sum, lot) => sum + lotFreeGrossWeight(lot), 0)
   const inventoryAvailable = Math.max(0, Number(item.quantity || 0))
 
   // Prefer lot free weight when lots exist; otherwise inventory qty (legacy / pre-bridge).
@@ -331,7 +341,7 @@ async function assertAndConsumeVaultLotsForStockOut({
   const consumed = []
   for (const lot of lots || []) {
     if (remaining <= 1e-9) break
-    const free = Math.max(0, Number(lot.netWeight || 0) - Number(lot.allocatedWeight || 0))
+    const free = lotFreeGrossWeight(lot)
     if (free <= 0) continue
     const take = Math.min(free, remaining)
     const remark = reason || 'Consumed by customer metal OUT'
@@ -356,8 +366,14 @@ async function assertAndConsumeVaultLotsForStockOut({
       lot.remarks = prev ? `${prev}\n${remark}` : remark
       await lot.save(writeOpts(session))
     } else {
-      lot.netWeight = Math.max(0, Number(lot.netWeight || 0) - take)
-      lot.grossWeight = Math.max(Number(lot.grossWeight || 0) - take, lot.netWeight)
+      const beforeGross = Number(lot.grossWeight || 0)
+      const beforeNet = Number(lot.netWeight || 0)
+      const nextGross = Math.max(0, (beforeGross > 0 ? beforeGross : beforeNet) - take)
+      // Keep purity: reduce net proportionally to gross take.
+      const netRatio = beforeGross > 0 ? beforeNet / beforeGross : 1
+      const nextNet = Math.max(0, beforeNet - (take * netRatio))
+      lot.grossWeight = nextGross
+      lot.netWeight = nextNet
       lot.quantity = Math.max(0, Number(lot.quantity || 0) - take)
       lot.version = (lot.version || 0) + 1
       const prev = String(lot.remarks || '').trim()

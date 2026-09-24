@@ -6,6 +6,7 @@ import {
   computeInventoryStockValue,
   mappingProductToFormState,
   resolveInventoryPurityFactor,
+  resolveProductLinePurity,
 } from './inventoryFormDefaults'
 
 describe('inventoryFormDefaults', () => {
@@ -94,5 +95,23 @@ describe('inventoryFormDefaults', () => {
     expect(computeInventoryStockValue(1000, 10, '0')).toBe(10000)
     expect(computeInventoryStockValue(1000, 10, '1')).toBe(10000)
     expect(computeInventoryStockValue(1000, 10, '0.916')).toBeCloseTo(9160)
+  })
+})
+
+describe('resolveProductLinePurity', () => {
+  test('catalog purity wins over karat name', () => {
+    expect(resolveProductLinePurity({ productPurity: '916', productName: '22k alloy' })).toBe('916')
+    expect(resolveProductLinePurity({ productPurity: '0.916', productName: '22k alloy' })).toBe('0.916')
+  })
+
+  test('infers karat from product name when catalog purity is 0/missing', () => {
+    expect(resolveProductLinePurity({ productPurity: '0', productName: '22k alloy' })).toBe('0.917')
+    expect(resolveProductLinePurity({ productPurity: '', productName: '18k' })).toBe('0.750')
+    expect(resolveProductLinePurity({ productPurity: null, productName: '14K ring' })).toBe('0.583')
+  })
+
+  test('returns empty when no catalog purity and no karat in name', () => {
+    expect(resolveProductLinePurity({ productPurity: '0', productName: 'Pure Gold' })).toBe('')
+    expect(resolveProductLinePurity({ productPurity: '', productName: 'pure copper' })).toBe('')
   })
 })

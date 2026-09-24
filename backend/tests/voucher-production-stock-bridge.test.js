@@ -216,4 +216,90 @@ describe('voucherProductionStockBridge', () => {
     expect(Number(after.netWeight)).toBe(300)
     expect(after.status).toBe('AVAILABLE')
   })
+
+  test('allows metal OUT of full gross when lot netWeight is pure (lower than gross)', async () => {
+    const user = await User.create({
+      name: 'purity-out-user',
+      email: 'purity-out@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: '22k scrap',
+      sku: 'AU-22K-OUT',
+      category: 'gold',
+      quantity: 100,
+      unit: 'grams',
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    const lot = await ProductionStockLot.create({
+      stockCode: 'STK-22K-1',
+      product: '22k scrap',
+      status: 'NEW_STOCK',
+      inventoryItemId: item._id,
+      grossWeight: 100,
+      netWeight: 91.7,
+      metalType: 'Gold',
+      purity: '0.917',
+      createdById: user._id,
+      createdByName: user.name,
+    })
+
+    const result = await assertAndConsumeVaultLotsForStockOut({
+      user,
+      item,
+      quantity: 100,
+      reason: 'full gross OUT',
+    })
+    expect(result.consumed).toHaveLength(1)
+    expect(Number(result.consumed[0].weight)).toBe(100)
+
+    const after = await ProductionStockLot.findById(lot._id)
+    expect(after.status).toBe('CANCELLED')
+  })
+
+  test('partial metal OUT reduces netWeight proportionally to gross take', async () => {
+    const user = await User.create({
+      name: 'ratio-out-user',
+      email: 'ratio-out@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: '22k bar',
+      sku: 'AU-22K-PARTIAL',
+      category: 'gold',
+      quantity: 100,
+      unit: 'grams',
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    const lot = await ProductionStockLot.create({
+      stockCode: 'STK-22K-2',
+      product: '22k bar',
+      status: 'AVAILABLE',
+      inventoryItemId: item._id,
+      grossWeight: 100,
+      netWeight: 91.7,
+      metalType: 'Gold',
+      purity: '0.917',
+      createdById: user._id,
+      createdByName: user.name,
+    })
+
+    const result = await assertAndConsumeVaultLotsForStockOut({
+      user,
+      item,
+      quantity: 40,
+      reason: 'partial OUT',
+    })
+    expect(result.consumed).toHaveLength(1)
+    expect(Number(result.consumed[0].weight)).toBe(40)
+
+    const after = await ProductionStockLot.findById(lot._id)
+    expect(after.status).toBe('AVAILABLE')
+    expect(Number(after.grossWeight)).toBeCloseTo(60, 5)
+    expect(Number(after.netWeight)).toBeCloseTo(55.02, 5)
+  })
 })

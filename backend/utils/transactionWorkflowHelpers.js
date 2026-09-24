@@ -27,7 +27,7 @@ function appendTransactionAudit(transaction, user, action, options = {}) {
 function getTransactionWorkflowErrorStatus(message) {
   if (/Only Admin\/Finance|Forbidden/i.test(message || '')) return 403
   if (/not found/i.test(message || '')) return 404
-  if (/Only draft|Only submitted|must be approved|required|greater than zero|Credit limit exceeded|Invalid|Unable to resolve|returned|rejected/i.test(message || '')) return 400
+  if (/Only draft|Only submitted|must be approved|required|greater than zero|Credit limit exceeded|Invalid|Unable to resolve|returned|rejected|Insufficient vault stock/i.test(message || '')) return 400
   return 500
 }
 

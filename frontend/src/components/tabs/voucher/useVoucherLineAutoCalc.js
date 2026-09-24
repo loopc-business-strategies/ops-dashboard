@@ -129,7 +129,16 @@ export function useVoucherLineAutoCalc({
       inventoryItemId: line.inventoryItemId,
     })
     if (!product) {
-      return { ...line, productType: productName, inventoryItemId: '' }
+      const inferredPurity = resolveVoucherLinePurityFromProduct({
+        productName,
+        productPurity: '',
+      })
+      return applyLineAutoCalc({
+        ...line,
+        productType: productName,
+        inventoryItemId: '',
+        purity: inferredPurity,
+      })
     }
 
     const meta = decodeFullMeta(product.category)
@@ -167,14 +176,14 @@ export function useVoucherLineAutoCalc({
   const handleStockSelection = useCallback((selectedStockCode) => {
     const normalizedStockCode = String(selectedStockCode || '').trim()
     if (!normalizedStockCode) {
-      setLineForm((prev) => ({ ...prev, stockCode: '', inventoryItemId: '', productType: '' }))
+      setLineForm((prev) => ({ ...prev, stockCode: '', inventoryItemId: '', productType: '', purity: '' }))
       return
     }
 
     const product = inventoryProducts.find((item) => String(item.sku || '').trim().toLowerCase() === normalizedStockCode.toLowerCase())
 
     if (!product) {
-      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode, inventoryItemId: '', productType: '' }))
+      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode, inventoryItemId: '', productType: '', purity: '' }))
       return
     }
 
@@ -211,7 +220,8 @@ export function useVoucherLineAutoCalc({
         metalName: toTitle(mainStock || meta.metalType || product.name || 'Metal'),
         location: String(product.wipStage || prev.location || ''),
         availStock: `${Number(product.quantity || 0).toLocaleString()} ${String(product.unit || '').trim()}`.trim(),
-        purity: String(meta.purity || prev.purity || ''),
+        // Purity is owned by Product Type autofill, not stock mapping fine purity.
+        purity: '',
         metalRate: defaultRate > 0 ? String(roundMoney(defaultRate, storedCurrency || resolveLineCurrency(prev))) : prev.metalRate,
         rateType: resolvedRateType,
         currCode: storedCurrency,

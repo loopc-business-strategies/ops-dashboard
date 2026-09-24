@@ -102,6 +102,28 @@ export function computeInventoryStockValue(quantity, unitCost, purity) {
   return qtyForValue * (Number.isFinite(cost) ? cost : 0)
 }
 
+/**
+ * Resolve metal voucher line purity from catalog product, else karat in the name (22k → 0.917).
+ * Never falls back to a prior stock fine-purity value.
+ */
+export function resolveProductLinePurity({ productPurity, productName } = {}) {
+  const catalogRaw = String(productPurity ?? '').trim()
+  const catalogNumeric = Number(catalogRaw)
+  if (catalogRaw !== '' && Number.isFinite(catalogNumeric) && catalogNumeric > 0) {
+    return String(catalogRaw)
+  }
+
+  const karatMatch = String(productName || '').match(/\b(\d{1,2})\s*k\b/i)
+  if (karatMatch) {
+    const karat = Number(karatMatch[1])
+    if (Number.isFinite(karat) && karat > 0 && karat <= 24) {
+      return (karat / 24).toFixed(3)
+    }
+  }
+
+  return ''
+}
+
 export function sanitizeInventoryMetaText(value) {
   return String(value || '').replace(/[;\n\r]/g, ' ').trim()
 }
