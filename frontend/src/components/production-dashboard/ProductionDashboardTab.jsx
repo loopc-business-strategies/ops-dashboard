@@ -19,7 +19,7 @@ function Field({ label, children }) {
 
 export default function ProductionDashboardTab() {
   const { company } = useAuth()
-  const hideCardValues = company?.tenantKey === 'loopc'
+  const suppressDemo = company?.tenantKey === 'loopc'
   const {
     loading,
     error,
@@ -186,7 +186,7 @@ export default function ProductionDashboardTab() {
             selectedDeptKey={selectedDeptKey}
             onSelectDept={(key) => actions.selectDepartment(key)}
             permissions={permissions}
-            hideCardValues={hideCardValues}
+            suppressDemo={suppressDemo}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',

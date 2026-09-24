@@ -25,18 +25,23 @@ function formatLoss(v) {
   return Number(v).toFixed(2)
 }
 
-function BatchProgressBar({ startedLabel, overLabel, percent, hideValues }) {
-  const pct = hideValues ? 0 : Math.max(0, Math.min(100, Number(percent) || 0))
-  const empty = '—'
+function displayOrDash(value) {
+  if (value == null || value === '') return '—'
+  return value
+}
+
+function BatchProgressBar({ startedLabel, overLabel, percent }) {
+  const hasPct = percent != null && Number.isFinite(Number(percent))
+  const pct = hasPct ? Math.max(0, Math.min(100, Number(percent) || 0)) : 0
   return (
-    <div className="pd-batch-progress" aria-label={hideValues ? 'Batch progress' : `Batch progress ${pct}%`}>
+    <div className="pd-batch-progress" aria-label={hasPct ? `Batch progress ${pct}%` : 'Batch progress'}>
       <div className="pd-batch-progress-end pd-batch-progress-end--start">
         <span className="pd-batch-progress-ico pd-batch-progress-ico--play" aria-hidden>
           <IconPlay size={12} />
         </span>
         <div className="pd-batch-progress-meta">
           <span className="pd-batch-progress-caption">Batch Started</span>
-          <strong className="pd-batch-progress-time">{hideValues ? empty : (startedLabel || '—')}</strong>
+          <strong className="pd-batch-progress-time">{displayOrDash(startedLabel)}</strong>
         </div>
       </div>
 
@@ -44,7 +49,7 @@ function BatchProgressBar({ startedLabel, overLabel, percent, hideValues }) {
         <div className="pd-batch-progress-track">
           <div className="pd-batch-progress-fill" style={{ width: `${pct}%` }} />
         </div>
-        <span className="pd-batch-progress-pct">{hideValues ? empty : `${pct}%`}</span>
+        <span className="pd-batch-progress-pct">{hasPct ? `${pct}%` : '—'}</span>
       </div>
 
       <div className="pd-batch-progress-end pd-batch-progress-end--over">
@@ -53,7 +58,7 @@ function BatchProgressBar({ startedLabel, overLabel, percent, hideValues }) {
         </span>
         <div className="pd-batch-progress-meta pd-batch-progress-meta--end">
           <span className="pd-batch-progress-caption">Batch Over</span>
-          <strong className="pd-batch-progress-time">{hideValues ? empty : (overLabel || '—')}</strong>
+          <strong className="pd-batch-progress-time">{displayOrDash(overLabel)}</strong>
         </div>
       </div>
     </div>
@@ -66,11 +71,13 @@ function DeptCard({
   employeeRatings,
   selected,
   onSelect,
-  hideCardValues = false,
+  suppressDemo = false,
 }) {
-  const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings)
+  const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo })
   const tone = statusClass(ui.status)
-  const empty = '—'
+  const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
+    ? `EMPLOYEES (${ui.employeeCount})`
+    : (suppressDemo ? 'EMPLOYEES (—)' : 'EMPLOYEES')
 
   return (
     <article
@@ -96,7 +103,7 @@ function DeptCard({
         </div>
         <span className={`pd-status-pill pd-status-pill--${tone}`}>
           <span className="pd-status-dot" aria-hidden />
-          {hideCardValues ? '\u00A0' : (ui.status || 'Idle')}
+          {ui.status || 'Idle'}
         </span>
       </div>
 
@@ -105,18 +112,14 @@ function DeptCard({
           <span className="pd-dept-people-ico" aria-hidden>
             <IconEmployees size={14} />
           </span>
-          <span className="pd-dept-people-label">
-            {hideCardValues
-              ? 'EMPLOYEES'
-              : (ui.employeeCount > 0 ? `EMPLOYEES (${ui.employeeCount})` : 'EMPLOYEES')}
-          </span>
+          <span className="pd-dept-people-label">{employeeLabel}</span>
         </div>
         <div className="pd-dept-people-divider" aria-hidden />
         <div className="pd-dept-people-side pd-dept-people-side--manager">
           <span className="pd-dept-people-ico" aria-hidden>
             <IconManager size={14} />
           </span>
-          <span className="pd-dept-people-manager">{hideCardValues ? empty : ui.managerName}</span>
+          <span className="pd-dept-people-manager">{displayOrDash(ui.managerName)}</span>
         </div>
       </div>
 
@@ -128,7 +131,9 @@ function DeptCard({
             </span>
             <span className="pd-dept-metric-label">Metal IN</span>
           </div>
-          <strong className="pd-dept-metric-value">{hideCardValues ? empty : formatGrams(ui.metalIn)}</strong>
+          <strong className="pd-dept-metric-value">
+            {ui.metalIn == null ? '—' : formatGrams(ui.metalIn)}
+          </strong>
         </div>
         <div className="pd-dept-metric pd-dept-metric--out">
           <div className="pd-dept-metric-head">
@@ -137,7 +142,9 @@ function DeptCard({
             </span>
             <span className="pd-dept-metric-label">Metal OUT</span>
           </div>
-          <strong className="pd-dept-metric-value">{hideCardValues ? empty : formatGrams(ui.metalOut)}</strong>
+          <strong className="pd-dept-metric-value">
+            {ui.metalOut == null ? '—' : formatGrams(ui.metalOut)}
+          </strong>
         </div>
         <div className="pd-dept-metric pd-dept-metric--batches">
           <div className="pd-dept-batches-head">
@@ -145,15 +152,15 @@ function DeptCard({
               <IconBriefcase size={14} />
             </span>
             <span className="pd-dept-metric-label">Batches</span>
-            <strong className="pd-dept-batches-count">{hideCardValues ? empty : ui.batches}</strong>
+            <strong className="pd-dept-batches-count">{displayOrDash(ui.batches)}</strong>
           </div>
           <div className="pd-dept-batches-row">
             <span>Time / Batch</span>
-            <strong>{hideCardValues ? empty : ui.timePerBatchLabel}</strong>
+            <strong>{displayOrDash(ui.timePerBatchLabel)}</strong>
           </div>
           <div className="pd-dept-batches-row">
             <span>Avg. Time</span>
-            <strong>{hideCardValues ? empty : ui.avgTimeLabel}</strong>
+            <strong>{displayOrDash(ui.avgTimeLabel)}</strong>
           </div>
         </div>
       </div>
@@ -166,18 +173,7 @@ function DeptCard({
           <span>Metal Loss (g)</span>
         </div>
         <ul className="pd-dept-loss-list">
-          {hideCardValues ? (
-            <>
-              <li>
-                <span>Batch</span>
-                <strong>{empty}</strong>
-              </li>
-              <li className="pd-dept-loss-avg">
-                <span>Avg</span>
-                <strong>{empty}</strong>
-              </li>
-            </>
-          ) : ui.lossRows.length ? (
+          {ui.lossRows.length ? (
             <>
               {ui.lossRows.map((r) => (
                 <li key={`${ui.key}-loss-${r.index}`}>
@@ -203,7 +199,6 @@ function DeptCard({
         startedLabel={ui.batchStartedLabel}
         overLabel={ui.batchOverLabel}
         percent={ui.progressPercent}
-        hideValues={hideCardValues}
       />
     </article>
   )
@@ -221,7 +216,7 @@ export default function DepartmentOverview({
   onViewDepartment: _onViewDepartment,
   onViewAll: _onViewAll,
   permissions: _permissions,
-  hideCardValues = false,
+  suppressDemo = false,
 }) {
   const list = cards || []
 
@@ -240,7 +235,7 @@ export default function DepartmentOverview({
                 employeeRatings={employeeRatings}
                 selected={selectedDeptKey === card.key}
                 onSelect={onSelectDept}
-                hideCardValues={hideCardValues}
+                suppressDemo={suppressDemo}
               />
             ))}
           </div>
