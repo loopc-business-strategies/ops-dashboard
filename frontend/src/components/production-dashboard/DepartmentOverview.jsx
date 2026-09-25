@@ -154,10 +154,19 @@ function DeptCard({
             <span className="pd-dept-metric-label">Batches</span>
             <strong className="pd-dept-batches-count">{displayOrDash(ui.batches)}</strong>
           </div>
-          <div className="pd-dept-batches-row">
-            <span>Time / Batch</span>
-            <strong>{displayOrDash(ui.timePerBatchLabel)}</strong>
-          </div>
+          {suppressDemo && ui.timeRows?.length ? (
+            ui.timeRows.map((r) => (
+              <div key={`${ui.key}-time-${r.index}`} className="pd-dept-batches-row">
+                <span>{r.label}</span>
+                <strong>{displayOrDash(r.timeLabel)}</strong>
+              </div>
+            ))
+          ) : (
+            <div className="pd-dept-batches-row">
+              <span>Time / Batch</span>
+              <strong>{displayOrDash(ui.timePerBatchLabel)}</strong>
+            </div>
+          )}
           <div className="pd-dept-batches-row">
             <span>Avg. Time</span>
             <strong>{displayOrDash(ui.avgTimeLabel)}</strong>

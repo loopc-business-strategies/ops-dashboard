@@ -80,6 +80,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
     let hasOut = false
     let hasLoss = false
     const lossRows = []
+    const timeRows = []
     const employees = []
     const nameSet = new Set()
     let manager = null
@@ -92,12 +93,17 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       const inn = numOrNull(e.metalIn)
       const out = numOrNull(e.metalOut)
       const loss = metalLossOf(e)
+      const batchLabel = e.batchNumber ? String(e.batchNumber) : `Batch ${i + 1}`
       if (inn != null) { metalIn += inn; hasIn = true }
       if (out != null) { metalOut += out; hasOut = true }
       if (loss != null) {
         metalLossSum += loss
         hasLoss = true
-        lossRows.push({ index: i + 1, label: e.batchNumber ? String(e.batchNumber) : `Batch ${i + 1}`, loss })
+        lossRows.push({ index: i + 1, label: batchLabel, loss })
+      }
+      const batchMins = opsTimeBatchMinutes(e)
+      if (batchMins != null && Number.isFinite(batchMins)) {
+        timeRows.push({ index: i + 1, label: batchLabel, minutes: Math.round(batchMins) })
       }
       const emp = String(e.employeeName || '').trim()
       if (emp) {
@@ -170,6 +176,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       metalBalance,
       metalLoss: metalLossVal,
       lossRows,
+      timeRows,
       lossTodayAvg: meanLoss(rows),
       lossTotalAvg: meanLoss(rowsAll),
       lossPct: metalInVal && metalLossVal != null && metalInVal > 0

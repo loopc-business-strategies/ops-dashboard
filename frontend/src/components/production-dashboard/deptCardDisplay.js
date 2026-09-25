@@ -358,6 +358,16 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   // LoopC: match Ops sheet Time/Batch style (e.g. 6h, 5h 20m)
   let timePerBatchLabel = suppressDemo ? formatOpsMinutes(timePerBatchMin) : fmtMin(timePerBatchMin)
   let avgTimeLabel = suppressDemo ? formatOpsMinutes(avgTimeMin) : fmtMin(avgTimeMin)
+  const timeRows = suppressDemo && Array.isArray(card.timeRows) && card.timeRows.length
+    ? card.timeRows
+      .map((r, i) => ({
+        index: r.index ?? i + 1,
+        label: r.label || `Batch ${i + 1}`,
+        minutes: hasNum(r.minutes) ? Number(r.minutes) : null,
+        timeLabel: hasNum(r.minutes) ? formatOpsMinutes(Number(r.minutes)) : null,
+      }))
+      .filter((r) => r.timeLabel && r.timeLabel !== '—')
+    : []
   let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches, {
     hour24: suppressDemo,
   })
@@ -401,6 +411,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     batches: batchesDisplay,
     timePerBatchLabel,
     avgTimeLabel,
+    timeRows,
     metalIn,
     metalOut,
     lossRows,
