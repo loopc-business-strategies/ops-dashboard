@@ -101,6 +101,8 @@ const transactionSchema = new mongoose.Schema(
           acCode: { type: String, trim: true, default: '' },
           stockCode: { type: String, trim: true, default: '' },
           productType: { type: String, trim: true, default: '' },
+          /** Metal Transfer product reclass: 'from' | 'to' */
+          transferSide: { type: String, trim: true, default: '', enum: ['', 'from', 'to'] },
           type: { type: String, trim: true, default: 'Cash' }, // Cash, Cheque, Transfer
           typeCode: { type: String, trim: true, default: '' },
           currCode: { type: String, trim: true, default: 'USD' },
