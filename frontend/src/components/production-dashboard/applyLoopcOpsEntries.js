@@ -6,14 +6,17 @@ function numOrNull(v) {
   return Number.isFinite(n) ? n : null
 }
 
-function elapsedMinutes(start, end) {
-  if (!start) return null
-  const s = new Date(start)
-  if (!Number.isFinite(s.getTime())) return null
-  const e = end ? new Date(end) : new Date()
-  if (!Number.isFinite(e.getTime())) return null
-  const mins = (e.getTime() - s.getTime()) / 60000
-  return mins >= 0 ? Math.round(mins) : null
+/**
+ * Same formula as Operations sheet Time / Batch (productionSheetUtils.entryDurationMinutes).
+ * Returns unrounded minutes; caller rounds for display/avg as needed.
+ */
+function opsTimeBatchMinutes(entry) {
+  const start = entry?.batchStartedAt ? new Date(entry.batchStartedAt) : null
+  if (!start || !Number.isFinite(start.getTime())) return null
+  const end = entry?.batchOverAt ? new Date(entry.batchOverAt) : new Date()
+  if (!Number.isFinite(end.getTime())) return null
+  const mins = (end.getTime() - start.getTime()) / 60000
+  return mins >= 0 ? mins : null
 }
 
 function entryStatus(entry) {
@@ -106,14 +109,16 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
     })
 
     const times = rows
-      .map((e) => elapsedMinutes(e.batchStartedAt, e.batchOverAt))
-      .filter((n) => n != null)
+      .map((e) => opsTimeBatchMinutes(e))
+      .filter((n) => n != null && Number.isFinite(n))
+    // Avg. Time = sum(Ops Time/Batch) / n
     const avgTimeMin = times.length
       ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
       : null
-    const primaryElapsed = elapsedMinutes(primary?.batchStartedAt, primary?.batchOverAt)
-      ?? (times.length ? times[times.length - 1] : null)
-      ?? elapsedMinutes(startedAt, completedAt)
+    const primaryRaw = opsTimeBatchMinutes(primary)
+    const primaryElapsed = primaryRaw != null
+      ? Math.round(primaryRaw)
+      : (times.length ? Math.round(times[times.length - 1]) : null)
 
     const metalInVal = hasIn ? metalIn : null
     const metalOutVal = hasOut ? metalOut : null
@@ -167,6 +172,7 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
     const out = numOrNull(e.metalOut)
     const loss = metalLossOf(e)
     const status = entryStatus(e)
+    const durationRaw = opsTimeBatchMinutes(e)
     return {
       id: e._id || e.id,
       batchNumber: e.batchNumber || '—',
@@ -177,7 +183,7 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
       qtyIn: inn,
       qtyOut: out,
       metalLoss: loss,
-      durationMin: elapsedMinutes(e.batchStartedAt, e.batchOverAt),
+      durationMin: durationRaw != null ? Math.round(durationRaw) : null,
       startedAt: e.batchStartedAt || null,
       completedAt: e.batchOverAt || null,
     }

@@ -5,6 +5,7 @@
  */
 
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
+import { formatMinutes as formatOpsMinutes } from '../tabs/operations/production/productionSheetUtils'
 
 function hasNum(v) {
   return v != null && Number.isFinite(Number(v))
@@ -283,17 +284,25 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   })()
 
   const durations = batches.map((b) => Number(b.durationMin)).filter(Number.isFinite)
-  const timePerBatchMin = hasNum(batches[0]?.durationMin)
-    ? Number(batches[0].durationMin)
-    : (hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
-      ? Number(card.elapsedMin ?? card.timeTakenMin)
-      : null)
+  const timePerBatchMin = hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
+    ? Number(card.elapsedMin ?? card.timeTakenMin)
+    : (hasNum(batches[0]?.durationMin) ? Number(batches[0].durationMin) : null)
 
-  const avgFromBatches = mean(durations)
+  const avgFromBatches = durations.length
+    ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+    : null
   const avgFromCard = hasNum(card.avgTimeMin) ? Number(card.avgTimeMin) : null
-  const avgTimeMin = avgFromBatches
-    ?? avgFromCard
-    ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+  // LoopC: prefer card.avgTimeMin (sum of Ops Time/Batch ÷ n). Never use primary alone when n > 1.
+  let avgTimeMin
+  if (suppressDemo) {
+    avgTimeMin = avgFromCard
+      ?? avgFromBatches
+      ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+  } else {
+    avgTimeMin = avgFromBatches
+      ?? avgFromCard
+      ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+  }
 
   let metalIn = hasNum(card.metalIn) ? Number(card.metalIn) : null
   let metalOut = hasNum(card.metalOut) ? Number(card.metalOut) : null
@@ -344,8 +353,9 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   let managerName = card.floorManager || null
   let status = card.status || 'Idle'
   let batchesDisplay = batchCount != null ? batchCount : '—'
-  let timePerBatchLabel = fmtMin(timePerBatchMin)
-  let avgTimeLabel = fmtMin(avgTimeMin)
+  // LoopC: match Ops sheet Time/Batch style (e.g. 6h, 5h 20m)
+  let timePerBatchLabel = suppressDemo ? formatOpsMinutes(timePerBatchMin) : fmtMin(timePerBatchMin)
+  let avgTimeLabel = suppressDemo ? formatOpsMinutes(avgTimeMin) : fmtMin(avgTimeMin)
   let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches, {
     hour24: suppressDemo,
   })
