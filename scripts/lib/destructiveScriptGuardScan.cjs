@@ -24,6 +24,9 @@ const ALLOWLIST = Object.freeze({
   // Additive ERP bootstrap; production-capable with own dry-run/--apply gates (not staging-only).
   'backend/scripts/bootstrap-new-tenant-erp.js':
     'Additive tenant ERP upsert; intentional production use with script-owned dry-run/--apply semantics.',
+  // MG reconciliation write-blocking Mongo proxy; mutation names only in the blocklist that throws.
+  'backend/scripts/mg-reconciliation/lib/readOnlyMongo.mjs':
+    'Read-only Mongo proxy for MG audits; mutation method names appear only in the write blocklist.',
   // Cross-cluster copy utility; gated by explicit production confirmation flags/env.
   'scripts/copy-mongo-database.mjs':
     'Explicit Mongo cross-cluster copy; gated by I_UNDERSTAND production confirmation.',
