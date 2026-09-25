@@ -34,10 +34,16 @@ function subtitleFor(key) {
 
 function rowsForDept(batchMonitorRows, card) {
   const key = String(card.key || '')
-  return (batchMonitorRows || []).filter((row) => {
-    const rowKey = matchDashboardDeptKey(row.department)
+  const matched = (batchMonitorRows || []).filter((row) => {
+    const rowKey = matchDashboardDeptKey(row.departmentKey || row.department)
     if (rowKey && rowKey === key) return true
     return normName(row.department) === normName(card.name)
+      || normName(row.departmentKey) === normName(key)
+  })
+  return matched.sort((a, b) => {
+    const ta = a.startedAt ? new Date(a.startedAt).getTime() : 0
+    const tb = b.startedAt ? new Date(b.startedAt).getTime() : 0
+    return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0)
   })
 }
 
@@ -276,13 +282,18 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     return null
   })()
 
-  const timePerBatchMin = hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
-    ? Number(card.elapsedMin ?? card.timeTakenMin)
-    : (hasNum(batches[0]?.durationMin) ? Number(batches[0].durationMin) : null)
+  const durations = batches.map((b) => Number(b.durationMin)).filter(Number.isFinite)
+  const timePerBatchMin = hasNum(batches[0]?.durationMin)
+    ? Number(batches[0].durationMin)
+    : (hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
+      ? Number(card.elapsedMin ?? card.timeTakenMin)
+      : null)
 
-  const avgFromBatches = mean(batches.map((b) => Number(b.durationMin)).filter(Number.isFinite))
+  const avgFromBatches = mean(durations)
   const avgFromCard = hasNum(card.avgTimeMin) ? Number(card.avgTimeMin) : null
-  const avgTimeMin = avgFromBatches ?? avgFromCard ?? (hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+  const avgTimeMin = avgFromBatches
+    ?? avgFromCard
+    ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
 
   let metalIn = hasNum(card.metalIn) ? Number(card.metalIn) : null
   let metalOut = hasNum(card.metalOut) ? Number(card.metalOut) : null

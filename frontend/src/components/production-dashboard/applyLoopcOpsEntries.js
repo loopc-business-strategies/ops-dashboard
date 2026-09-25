@@ -87,6 +87,10 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
         if (Number.isFinite(t.getTime()) && (!startedAt || t < new Date(startedAt))) {
           startedAt = e.batchStartedAt
         }
+        // Primary = latest started batch (Time / Batch)
+        if (!primary || t > new Date(primary.batchStartedAt || 0)) {
+          primary = e
+        }
       }
       if (e.batchOverAt) {
         const t = new Date(e.batchOverAt)
@@ -106,7 +110,10 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
       .filter((n) => n != null)
     const avgTimeMin = times.length
       ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
-      : elapsedMinutes(startedAt, completedAt)
+      : null
+    const primaryElapsed = elapsedMinutes(primary?.batchStartedAt, primary?.batchOverAt)
+      ?? (times.length ? times[times.length - 1] : null)
+      ?? elapsedMinutes(startedAt, completedAt)
 
     const metalInVal = hasIn ? metalIn : null
     const metalOutVal = hasOut ? metalOut : null
@@ -130,8 +137,8 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
       shiftName: null,
       startedAt,
       completedAt,
-      elapsedMin: avgTimeMin,
-      avgTimeMin,
+      elapsedMin: primaryElapsed,
+      avgTimeMin: avgTimeMin ?? primaryElapsed,
       metalIn: metalInVal,
       metalOut: metalOutVal,
       metalBalance,
@@ -145,7 +152,7 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
       passStatus: null,
       progress: { mode: 'determinate', percent: status === 'Completed' ? 100 : (status === 'Running' ? 50 : 0) },
       quantity: metalOutVal ?? metalInVal,
-      timeTakenMin: avgTimeMin,
+      timeTakenMin: primaryElapsed,
       hasData,
       isMelting: dept.key === 'melting',
       isAssembly: dept.key === 'assembly',
