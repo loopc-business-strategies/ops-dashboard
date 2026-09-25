@@ -19,24 +19,17 @@
 *.woff2 binary
 *.ttf binary
 *.eot binary
-# Normalize line endings for text files in the repository.
-* text=auto eol=lf
 
-# Keep Windows-native script endings where expected.
-*.bat text eol=crlf
-*.cmd text eol=crlf
-*.ps1 text eol=crlf
-
-# Common binary formats.
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.webp binary
-*.ico binary
-*.pdf binary
-*.zip binary
-*.woff binary
-*.woff2 binary
-*.ttf binary
-*.eot binary
+# Omit Windows helper scripts from GitHub "Download ZIP" / git archive.
+# They are legitimate tooling but Defender ML (Wacatac) often false-positives
+# on unsigned zips that contain subst/mklink/PowerShell automation.
+# `git clone` still includes these files.
+restart-dev.ps1 export-ignore
+stop-dev.ps1 export-ignore
+scripts/build-mg-floor-apk-subst-q.cmd export-ignore
+scripts/build-mobile-apk-subst-q.cmd export-ignore
+mobile/scripts/Enable-WindowsLongPaths.ps1 export-ignore
+tools/mt4-price-bridge/scripts/verify-bridge.ps1 export-ignore
+backend/scripts/railway-set-expo-access-token.ps1 export-ignore
+tools/mt4-price-bridge/scripts/print-mg-bridge-settings.ps1 export-ignore
+device-gateway/start-gateway.cmd export-ignore
