@@ -122,12 +122,13 @@ export const isSaveSubmitOnlyVoucherType = (type) => isMetalStockVoucherType(typ
 
 /**
  * User-facing workflow label for metal vouchers without migrating DB statuses.
- * Posted/approved metal stock vouchers display as "Submitted".
+ * Keep Save→Submit UX, but show actual `posted` so inventory recon is clear
+ * (posted metal vouchers already moved stock). Mid-flight `approved` still shows as submitted.
  */
 export function formatVoucherWorkflowStatusLabel(status, type) {
   const st = String(status || '').toLowerCase()
   if (!isSaveSubmitOnlyVoucherType(type)) return st || '—'
-  if (st === 'posted' || st === 'approved') return 'submitted'
+  if (st === 'approved') return 'submitted'
   return st || '—'
 }
 

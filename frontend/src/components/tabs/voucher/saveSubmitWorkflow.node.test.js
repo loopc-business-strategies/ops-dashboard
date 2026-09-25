@@ -15,8 +15,8 @@ describe('Save→Submit metal voucher helpers', () => {
     expect(isSaveSubmitOnlyVoucherType('payment')).toBe(false)
   })
 
-  test('formatVoucherWorkflowStatusLabel maps posted/approved metal to submitted', () => {
-    expect(formatVoucherWorkflowStatusLabel('posted', 'purchase')).toBe('submitted')
+  test('formatVoucherWorkflowStatusLabel keeps posted metal as posted', () => {
+    expect(formatVoucherWorkflowStatusLabel('posted', 'purchase')).toBe('posted')
     expect(formatVoucherWorkflowStatusLabel('approved', 'metal_payment')).toBe('submitted')
     expect(formatVoucherWorkflowStatusLabel('draft', 'purchase')).toBe('draft')
     expect(formatVoucherWorkflowStatusLabel('posted', 'journal')).toBe('posted')
