@@ -68,8 +68,6 @@ const TAB_CHUNK_PREFETCHERS = {
 
 const prefetchedTabs = new Set()
 function prefetchTabChunk(tabId) {
-  const key = tabId === 'erp' || String(tabId || '').startsWith('erp-') ? 'erp' : tabId
-  if (!key || prefetchedTabs.has(key)) return
   try {
     const conn = typeof navigator !== 'undefined' ? navigator.connection || navigator.mozConnection || navigator.webkitConnection : null
     if (conn?.saveData) return
@@ -78,6 +76,16 @@ function prefetchTabChunk(tabId) {
   } catch {
     // Ignore Network Information API gaps
   }
+
+  // Nested ERP sub-tab chunks (beyond the ERP shell)
+  if (tabId === 'erp-vouchers' || tabId === 'vouchers') {
+    void import('../components/tabs/erp/voucherTabChunk')
+      .then((m) => m.prefetchVoucherTabChunk())
+      .catch(() => {})
+  }
+
+  const key = tabId === 'erp' || String(tabId || '').startsWith('erp-') ? 'erp' : tabId
+  if (!key || prefetchedTabs.has(key)) return
   const loader = TAB_CHUNK_PREFETCHERS[key]
   if (!loader) return
   prefetchedTabs.add(key)

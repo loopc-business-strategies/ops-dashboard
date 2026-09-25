@@ -1,9 +1,11 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
+import LazyChunkGate from '../../LazyChunkGate'
 import {
   ERPAccountsTabContainer,
   ERPVouchersTabContainer,
 } from './ERPTabContainers'
+import { importVoucherTab, prefetchVoucherTabChunk } from './voucherTabChunk'
 const ERPDashboardTab = lazy(() => import('./tabs/ERPDashboardTab'))
 const ErpEditRecordModal = lazy(() => import('./ErpEditRecordModal'))
 
@@ -23,7 +25,7 @@ const ERPMappingsTab = lazy(() => import('./tabs/ERPMappingsTab'))
 const ERPEnquiryTab = lazy(() => import('./tabs/ERPEnquiryTab'))
 const ERPSettingsTab = lazy(() => import('./tabs/ERPSettingsTab'))
 const ERPCurrenciesTab = lazy(() => import('./tabs/ERPCurrenciesTab'))
-const VoucherTab = lazy(() => import('../VoucherTab'))
+const VoucherTab = lazy(() => importVoucherTab())
 
 function ErpSubTabFallback() {
   return (
@@ -406,6 +408,13 @@ export default function ERPTabPanels({
   const masterDocumentSettingsEnabled = isMasterDocumentSettingsEnabled(
     String(user?.company || user?.tenant?.key || '').trim().toLowerCase(),
   )
+  const [voucherChunkKey, setVoucherChunkKey] = useState(0)
+
+  useEffect(() => {
+    if (activeTab === 'vouchers' || jumpToVoucher) {
+      prefetchVoucherTabChunk()
+    }
+  }, [activeTab, jumpToVoucher])
 
   return (
     <>
@@ -971,7 +980,13 @@ export default function ERPTabPanels({
       {/* VOUCHERS TAB */}
       {(activeTab === 'vouchers' || jumpToVoucher) && (
       <ERPVouchersTabContainer activeTab={activeTab}>
-        <Suspense fallback={<div style={{ padding: '1rem', color: C.inkSoft }}>Loading vouchers...</div>}>
+        <LazyChunkGate
+          key={voucherChunkKey}
+          resetKey={voucherChunkKey}
+          label="Loading vouchers..."
+          color={C.inkSoft}
+          onRetry={() => setVoucherChunkKey((k) => k + 1)}
+        >
           <VoucherTab
             token={token}
             user={user}
@@ -986,7 +1001,7 @@ export default function ERPTabPanels({
             pendingOpenTransactionType={jumpToVoucher?.type || null}
             onPendingOpenTransactionConsumed={onJumpToVoucherConsumed}
           />
-        </Suspense>
+        </LazyChunkGate>
       </ERPVouchersTabContainer>
       )}
       {/* DIRECT DEALS TAB */}
