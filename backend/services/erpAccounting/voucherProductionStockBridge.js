@@ -7,7 +7,7 @@ const ProductionStockLot = require('../../models/ProductionStockLot')
 const ProductionStockStatusEvent = require('../../models/ProductionStockStatusEvent')
 const { nextStockCode } = require('../productionControl/numbering')
 const { METAL_TYPES } = require('../productionControl/constants')
-const { isMetalStockInType } = require('../../utils/metalStockVoucherTypes')
+const { isMetalLotBridgeInType, isMetalProductTransferType } = require('../../utils/metalStockVoucherTypes')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
 function sanitizeStockToken(value) {
@@ -81,12 +81,12 @@ function isLotUnused(lot) {
 }
 
 /**
- * Create NEW_STOCK lots for each inventory plan on metal stock-in vouchers.
+ * Create NEW_STOCK lots for each inventory plan on metal stock-in / Metal Transfer To.
  * Idempotent via unique sparse idempotencyKey.
  */
 async function createLotsFromPurchasePlans({ user, tx, plans, session = null } = {}) {
   const transactionType = String(tx?.type || '').toLowerCase()
-  if (!isMetalStockInType(transactionType)) {
+  if (!isMetalLotBridgeInType(transactionType)) {
     return { created: [], reused: [], warnings: [] }
   }
 
@@ -101,6 +101,7 @@ async function createLotsFromPurchasePlans({ user, tx, plans, session = null } =
   const actorId = user?._id || null
   const actorName = user?.name || 'system'
   const purchaseRef = purchaseRefForTx(tx)
+  const isProductTransfer = isMetalProductTransferType(transactionType)
   const supplier = String(
     tx?.voucherMeta?.partyName
     || tx?.voucherMeta?.vendorName
@@ -108,6 +109,10 @@ async function createLotsFromPurchasePlans({ user, tx, plans, session = null } =
     || '',
   ).trim()
   const purchaseDate = tx?.date || tx?.voucherMeta?.valueDate || new Date()
+  const stockCodePrefix = isProductTransfer ? 'MTR' : 'PUR'
+  const statusReason = isProductTransfer
+    ? `Metal transfer stock-in ${purchaseRef || tx._id}`
+    : `Purchase voucher stock-in ${purchaseRef || tx._id}`
 
   for (let lineIndex = 0; lineIndex < list.length; lineIndex += 1) {
     const plan = list[lineIndex]
@@ -138,7 +143,7 @@ async function createLotsFromPurchasePlans({ user, tx, plans, session = null } =
       const productCode = String(item.sku || line.sku || line.productCode || '').trim()
       const category = String(item.category || line.category || '').trim()
       const vocToken = sanitizeStockToken(purchaseRef) || 'TX'
-      let stockCode = `PUR-${vocToken}-${String(lineIndex).padStart(2, '0')}`
+      let stockCode = `${stockCodePrefix}-${vocToken}-${String(lineIndex).padStart(2, '0')}`
       const clash = await withSession(
         ProductionStockLot.findOne({ stockCode }).select('_id').lean(),
         session,
@@ -183,7 +188,7 @@ async function createLotsFromPurchasePlans({ user, tx, plans, session = null } =
             stockCode: lot.stockCode,
             fromStatus: '',
             toStatus: 'NEW_STOCK',
-            reason: `Purchase voucher stock-in ${purchaseRef || tx._id}`,
+            reason: statusReason,
             actorId,
             actorName,
           },
@@ -213,12 +218,12 @@ async function createLotsFromPurchasePlans({ user, tx, plans, session = null } =
 }
 
 /**
- * On void/reverse of metal stock-in: cancel unused purchase-linked lots (no hard delete).
+ * On void/reverse of metal stock-in / Metal Transfer To: cancel unused purchase-linked lots (no hard delete).
  * Used lots are annotated with a reversal remark only.
  */
 async function cancelLotsForVoidedPurchase({ user, tx, session = null, deleteReason = '' } = {}) {
   const transactionType = String(tx?.type || '').toLowerCase()
-  if (!isMetalStockInType(transactionType) || !tx?._id) {
+  if (!isMetalLotBridgeInType(transactionType) || !tx?._id) {
     return { cancelled: [], annotated: [], warnings: [] }
   }
 
@@ -283,6 +288,140 @@ async function cancelLotsForVoidedPurchase({ user, tx, session = null, deleteRea
   }
 
   return { cancelled, annotated, warnings }
+}
+
+/**
+ * After voiding a Metal Transfer: recreate NEW_STOCK lots for From-side qty restored to inventory.
+ * Consumed From lots are not surgically un-done; a restore lot replaces the voided OUT weight.
+ */
+async function restoreLotsForVoidedProductTransferOut({
+  user,
+  tx,
+  outMovements = [],
+  session = null,
+  deleteReason = '',
+} = {}) {
+  const transactionType = String(tx?.type || '').toLowerCase()
+  if (!isMetalProductTransferType(transactionType) || !tx?._id) {
+    return { created: [], reused: [], warnings: [] }
+  }
+
+  const list = Array.isArray(outMovements) ? outMovements : []
+  if (!list.length) return { created: [], reused: [], warnings: [] }
+
+  const created = []
+  const reused = []
+  const warnings = []
+  const actorId = user?._id || null
+  const actorName = user?.name || 'system'
+  const purchaseRef = purchaseRefForTx(tx)
+  const purchaseDate = tx?.date || tx?.voucherMeta?.valueDate || new Date()
+  const vocToken = sanitizeStockToken(purchaseRef) || 'TX'
+  const remarkExtra = deleteReason ? `: ${String(deleteReason).slice(0, 80)}` : ''
+
+  for (let i = 0; i < list.length; i += 1) {
+    const mov = list[i]
+    const qty = Math.abs(Number(mov?.change || 0))
+    const itemId = mov?.itemId
+    if (!(qty > 0) || !itemId) continue
+
+    const key = `voucher-stock-restore:${String(tx._id)}:${String(itemId)}`
+    try {
+      const existing = await withSession(
+        ProductionStockLot.findOne({ idempotencyKey: key }),
+        session,
+      )
+      if (existing) {
+        reused.push(existing)
+        continue
+      }
+
+      const line = Array.isArray(tx?.voucherMeta?.lineItems)
+        ? tx.voucherMeta.lineItems.find((l) => String(l?.transferSide || '').toLowerCase() === 'from')
+        : null
+      const purity = derivePurity(line || {}, {})
+      const metalType = deriveMetalType(line || {}, { name: mov.itemName })
+      const product = String(mov.itemName || metalType).trim()
+      const pureRatio = (() => {
+        const p = Number(line?.purity || 0)
+        if (!(p > 0)) return 1
+        return p > 1.2 ? (p / 1000) : p
+      })()
+      const grossWeight = qty
+      const netWeight = Math.max(0, qty * pureRatio)
+
+      let stockCode = `MTR-R-${vocToken}-${String(i).padStart(2, '0')}`
+      const clash = await withSession(
+        ProductionStockLot.findOne({ stockCode }).select('_id').lean(),
+        session,
+      )
+      if (clash) {
+        stockCode = await nextStockCode(ProductionStockLot, session)
+      }
+
+      const [lot] = await ProductionStockLot.create(
+        [
+          {
+            stockCode,
+            purchaseRef,
+            supplier: '',
+            purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
+            product,
+            productCode: '',
+            category: '',
+            quantity: grossWeight,
+            grossWeight,
+            netWeight,
+            metalType: METAL_TYPES.includes(metalType) ? metalType : 'Gold',
+            purity,
+            remarks: `Restored by metal transfer void ${purchaseRef || tx._id}${remarkExtra}`,
+            receivedById: actorId,
+            receivedByName: actorName,
+            status: 'NEW_STOCK',
+            inventoryItemId: itemId,
+            createdById: actorId,
+            createdByName: actorName,
+            version: 0,
+            idempotencyKey: key,
+          },
+        ],
+        writeOpts(session),
+      )
+
+      await ProductionStockStatusEvent.create(
+        [
+          {
+            stockLotId: lot._id,
+            stockCode: lot.stockCode,
+            fromStatus: '',
+            toStatus: 'NEW_STOCK',
+            reason: `Metal transfer void restore ${purchaseRef || tx._id}`,
+            actorId,
+            actorName,
+          },
+        ],
+        writeOpts(session),
+      )
+
+      created.push(lot)
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        const existing = await withSession(
+          ProductionStockLot.findOne({ idempotencyKey: key }),
+          session,
+        )
+        if (existing) {
+          reused.push(existing)
+          continue
+        }
+      }
+      const msg = err?.message || String(err)
+      console.warn('[voucherProductionStockBridge] restore lot failed:', msg)
+      warnings.push(`Restore ${itemId}: ${msg}`)
+    }
+  }
+
+  return { created, reused, warnings }
 }
 
 /**
@@ -391,6 +530,7 @@ async function assertAndConsumeVaultLotsForStockOut({
 module.exports = {
   createLotsFromPurchasePlans,
   cancelLotsForVoidedPurchase,
+  restoreLotsForVoidedProductTransferOut,
   assertAndConsumeVaultLotsForStockOut,
   idempotencyKeyForLine,
   deriveMetalType,

@@ -161,8 +161,18 @@ function createVoucherInventoryImpactService({
         inventoryAccountId,
         transferSide: transferSide || null,
         costAmount: isOutPlan ? toMoney(quantity * Number(item.unitCost || 0)) : 0,
+        incomingValue: 0,
       }
     })
+
+    // Product Metal Transfer: move From book value onto To (weighted-average unitCost).
+    if (isMetalProductTransferType(transactionType)) {
+      const fromPlan = inventoryPlans.find((p) => p.transferSide === 'from')
+      const toPlan = inventoryPlans.find((p) => p.transferSide === 'to')
+      if (fromPlan && toPlan) {
+        toPlan.incomingValue = Number(fromPlan.costAmount || 0)
+      }
+    }
 
     return {
       inventoryPlans,
@@ -187,15 +197,24 @@ function createVoucherInventoryImpactService({
     const movementQty = Number(plan.quantity || 0)
     const nextQty = toQty(beforeQty + movementQty)
     const currentValue = beforeQty * Number(item.unitCost || 0)
-    const treatAsTransfer = isMetalTransferType(transactionType) || isMetalProductTransferType(transactionType)
-    const incomingValue = treatAsTransfer ? 0 : Number(plan.lineAmount || 0)
+    // Party metal_receipt: dilute with 0 value. Product Metal Transfer: carry From costAmount.
+    const isPartyTransfer = isMetalTransferType(transactionType)
+    const isProductTransfer = isMetalProductTransferType(transactionType)
+    const incomingValue = isPartyTransfer
+      ? 0
+      : isProductTransfer
+        ? toMoney(Number(plan.incomingValue || 0))
+        : Number(plan.lineAmount || 0)
     item.quantity = nextQty
     item.lastRestockedAt = tx.date || new Date()
     item.updatedBy = user._id
-    if (treatAsTransfer) {
+    if (isPartyTransfer) {
       item.unitCost = nextQty > 0 ? toMoney(currentValue / nextQty) : 0
     } else if (incomingValue > 0 && nextQty > 0) {
       item.unitCost = toMoney((currentValue + incomingValue) / nextQty)
+    } else if (isProductTransfer && nextQty > 0) {
+      // Zero-cost transfer still dilutes average cost
+      item.unitCost = toMoney(currentValue / nextQty)
     }
     await item.save(writeOpts(session))
 
@@ -205,6 +224,7 @@ function createVoucherInventoryImpactService({
       change: movementQty,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
+      valueDelta: isProductTransfer ? incomingValue : 0,
       reason: buildStockMovementReason(tx, transactionType),
       actorId: user._id,
       actorName: user.name,

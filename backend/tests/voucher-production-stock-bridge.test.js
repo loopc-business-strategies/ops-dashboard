@@ -137,6 +137,54 @@ describe('voucherProductionStockBridge', () => {
     expect(await ProductionStockLot.countDocuments({})).toBe(0)
   })
 
+  test('creates NEW_STOCK lot for metal_transfer To plans and voids via cancel', async () => {
+    const user = await User.create({
+      name: 'mtr-bridge-user',
+      email: 'mtr-bridge@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: 'Pure Gold',
+      sku: 'AU-PURE',
+      category: 'gold',
+      quantity: 0,
+      unit: 'grams',
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    const tx = {
+      _id: new mongoose.Types.ObjectId(),
+      type: 'metal_transfer',
+      date: new Date('2026-03-01'),
+      voucherMeta: {
+        vocNo: 'MTr/2026/bridge-1',
+        lineItems: [{ transferSide: 'to', grossWeight: 5.833, pureWeight: 5.833, purity: 1 }],
+      },
+    }
+    const plans = [{
+      item,
+      quantity: 5.833,
+      line: tx.voucherMeta.lineItems[0],
+      transferSide: 'to',
+    }]
+
+    const first = await createLotsFromPurchasePlans({ user, tx, plans })
+    expect(first.created).toHaveLength(1)
+    expect(first.created[0].status).toBe('NEW_STOCK')
+    expect(String(first.created[0].stockCode)).toMatch(/^MTR-/)
+    expect(first.created[0].remarks).toMatch(/metal_transfer/)
+
+    const voided = await cancelLotsForVoidedPurchase({
+      user,
+      tx,
+      deleteReason: 'unit test void',
+    })
+    expect(voided.cancelled).toHaveLength(1)
+    const lot = await ProductionStockLot.findById(first.created[0]._id)
+    expect(lot.status).toBe('CANCELLED')
+  })
+
   test('rejects metal OUT when vault available is insufficient', async () => {
     const user = await User.create({
       name: 'out-user',

@@ -25,6 +25,11 @@ const stockMovementSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    /** Book-value delta applied with this movement (e.g. Metal Transfer To IN). Used on void to restore unitCost. */
+    valueDelta: {
+      type: Number,
+      default: 0,
+    },
     reason: {
       type: String,
       required: true,

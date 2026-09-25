@@ -14,6 +14,8 @@ const isMetalStockOutType = (type) => METAL_STOCK_OUT_TYPES.includes(String(type
 const isMetalStockType = (type) => METAL_STOCK_TYPES.includes(String(type || '').toLowerCase())
 const isMetalTransferType = (type) => METAL_TRANSFER_TYPES.includes(String(type || '').toLowerCase())
 const isMetalProductTransferType = (type) => METAL_PRODUCT_TRANSFER_TYPES.includes(String(type || '').toLowerCase())
+/** Purchase/receipt stock-in OR product Metal Transfer To-side — create/cancel production vault lots. */
+const isMetalLotBridgeInType = (type) => isMetalStockInType(type) || isMetalProductTransferType(type)
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -97,6 +99,7 @@ module.exports = {
   isMetalStockType,
   isMetalTransferType,
   isMetalProductTransferType,
+  isMetalLotBridgeInType,
   stockMovementReferenceType,
   buildStockMovementReason,
   stockMovementReasonPattern,
