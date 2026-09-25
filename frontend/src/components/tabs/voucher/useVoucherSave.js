@@ -170,7 +170,10 @@ export function useVoucherSave({
     voucherMeta: {
       partyCode: isProductTransferSave ? '' : header.partyCode,
       partyName: isProductTransferSave ? '' : (header.partyName || resolvedParty?.partyName || ''),
-      partyAccountId: isProductTransferSave ? '' : (selectedAccount?.accountId || partyLedgerIdFromResolved() || ''),
+      // Never send '' — ObjectId cast fails with Server error. Metal Transfer has no party.
+      partyAccountId: isProductTransferSave
+        ? null
+        : normalizeMongoIdField(selectedAccount?.accountId || partyLedgerIdFromResolved() || ''),
       salesman: header.salesman,
       vocNo: resolvedDocNo,
       docDate: header.docDate || null,

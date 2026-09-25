@@ -467,6 +467,13 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
       voucherMetaPayload = { ...(voucherMetaPayload || {}), vocNo: allocated }
     }
 
+    if (voucherMetaPayload && typeof voucherMetaPayload === 'object') {
+      voucherMetaPayload = {
+        ...voucherMetaPayload,
+        partyAccountId: sanitizeOptionalRef(voucherMetaPayload.partyAccountId),
+      }
+    }
+
     const createPayload = {
       type,
       amount: normalizedAmount,
@@ -624,7 +631,15 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     if (req.body.mappingId !== undefined) tx.mappingId = sanitizeOptionalRef(req.body.mappingId)
     if (req.body.debitAccountId !== undefined) tx.debitAccountId = sanitizeOptionalRef(req.body.debitAccountId)
     if (req.body.creditAccountId !== undefined) tx.creditAccountId = sanitizeOptionalRef(req.body.creditAccountId)
-    if (req.body.voucherMeta !== undefined) tx.voucherMeta = req.body.voucherMeta
+    if (req.body.voucherMeta !== undefined) {
+      const meta = req.body.voucherMeta && typeof req.body.voucherMeta === 'object'
+        ? { ...req.body.voucherMeta }
+        : req.body.voucherMeta
+      if (meta && typeof meta === 'object') {
+        meta.partyAccountId = sanitizeOptionalRef(meta.partyAccountId)
+      }
+      tx.voucherMeta = meta
+    }
     if (req.body.metalFixStatus !== undefined) {
       const normalizedMetalFixStatus = normalizeMetalFixStatus(req.body.metalFixStatus)
       if (!tx.voucherMeta || typeof tx.voucherMeta !== 'object') tx.voucherMeta = {}
@@ -634,6 +649,9 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     }
     if (tx.voucherMeta) {
       tx.voucherMeta = normalizeVoucherMetaDocNo(tx.type, tx.voucherMeta)
+      if (tx.voucherMeta && typeof tx.voucherMeta === 'object') {
+        tx.voucherMeta.partyAccountId = sanitizeOptionalRef(tx.voucherMeta.partyAccountId)
+      }
     }
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })

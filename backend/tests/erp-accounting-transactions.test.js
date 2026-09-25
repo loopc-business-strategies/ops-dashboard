@@ -591,6 +591,85 @@ describe('ERP accounting transactions workflow', () => {
     expect(ledgers).toHaveLength(0)
   })
 
+  test('creates metal_transfer draft without party (empty partyAccountId does not 500)', async () => {
+    const financeUser = await createUser({ name: 'Finance Metal Transfer Create' })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Gold Inventory - MTr',
+      accountCode: '1306',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const fromItem = await InventoryItem.create({
+      name: '14k alloyed Gold',
+      sku: 'AU-14K-MTR',
+      category: 'recordType=product;mainStock=gold;purity=0.583',
+      quantity: 1000,
+      unit: 'grams',
+      unitCost: 80,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const toItem = await InventoryItem.create({
+      name: '14k bangle',
+      sku: 'AU-14K-BANG',
+      category: 'recordType=product;mainStock=gold;purity=0.583',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'metal_transfer',
+        amount: 0.01,
+        description: 'Metal transfer product reclass',
+        currency: 'USD',
+        voucherMeta: {
+          vocNo: 'MTr/2026/create-1',
+          partyCode: '',
+          partyName: '',
+          partyAccountId: '',
+          lineItems: [
+            {
+              transferSide: 'from',
+              inventoryItemId: fromItem._id.toString(),
+              stockCode: fromItem.sku,
+              productType: fromItem.name,
+              grossWeight: 10,
+              purity: 0.583,
+              pureWeight: 5.83,
+            },
+            {
+              transferSide: 'to',
+              inventoryItemId: toItem._id.toString(),
+              stockCode: toItem.sku,
+              productType: toItem.name,
+              grossWeight: 9.999,
+              purity: 0.583,
+              pureWeight: 5.83,
+            },
+          ],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+    expect(createRes.body.transaction.type).toBe('metal_transfer')
+    expect(createRes.body.transaction.status).toBe('draft')
+    expect(createRes.body.transaction.voucherMeta.partyAccountId == null).toBe(true)
+
+    const lines = createRes.body.transaction.voucherMeta.lineItems || []
+    expect(lines).toHaveLength(2)
+    expect(lines.map((l) => l.transferSide).sort()).toEqual(['from', 'to'])
+    expect(String(lines.find((l) => l.transferSide === 'from').inventoryItemId)).toBe(String(fromItem._id))
+    expect(String(lines.find((l) => l.transferSide === 'to').inventoryItemId)).toBe(String(toItem._id))
+  })
+
   test('posting metal payment voucher updates inventory without monetary ledger entry', async () => {
     const financeUser = await createUser({ name: 'Finance Metal Payment' })
     const partyAccount = await ChartOfAccount.create({
