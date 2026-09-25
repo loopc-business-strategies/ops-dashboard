@@ -41,11 +41,16 @@ function rowsForDept(batchMonitorRows, card) {
   })
 }
 
-function formatBatchClock(value) {
+function formatBatchClock(value, { hour24 = false } = {}) {
   if (!value) return null
   try {
     const d = value instanceof Date ? value : new Date(value)
     if (Number.isNaN(d.getTime())) return null
+    if (hour24) {
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mi = String(d.getMinutes()).padStart(2, '0')
+      return `${hh}:${mi}`
+    }
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
   } catch {
     return null
@@ -221,7 +226,7 @@ function hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows 
   )
 }
 
-function resolveBatchProgress(card, batches) {
+function resolveBatchProgress(card, batches, { hour24 = false } = {}) {
   const primary = batches[0] || null
   const startedRaw = primary?.startedAt || card.startedAt || card.processStartTime || null
   const endedRaw = primary?.completedAt || primary?.processEndTime || card.completedAt || card.processEndTime || null
@@ -252,8 +257,8 @@ function resolveBatchProgress(card, batches) {
   }
 
   return {
-    batchStartedLabel: formatBatchClock(startedRaw),
-    batchOverLabel: formatBatchClock(batchOverRaw),
+    batchStartedLabel: formatBatchClock(startedRaw, { hour24 }),
+    batchOverLabel: formatBatchClock(batchOverRaw, { hour24 }),
     progressPercent: percent,
   }
 }
@@ -330,7 +335,9 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   let batchesDisplay = batchCount != null ? batchCount : '—'
   let timePerBatchLabel = fmtMin(timePerBatchMin)
   let avgTimeLabel = fmtMin(avgTimeMin)
-  let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches)
+  let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches, {
+    hour24: suppressDemo,
+  })
 
   const live = hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows })
   const demo = DEMO_BY_DEPT[key]

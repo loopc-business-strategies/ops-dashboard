@@ -94,6 +94,16 @@ export function formatDateTimeDisplay(value) {
   return `${formatDateDisplay(d)} ${hh}:${mi}`
 }
 
+/** Time only HH:MM (24h) for Batch Start / Batch Over display. */
+export function formatTimeDisplay(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (!Number.isFinite(d.getTime())) return '—'
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mi}`
+}
+
 export function formatMinutes(mins) {
   if (mins == null || !Number.isFinite(mins) || mins < 0) return '—'
   if (mins < 60) return `${Math.round(mins)}m`
@@ -189,8 +199,8 @@ export function mapBatchToRow(batch) {
     averageTime: duration,
     timeBatchDisplay: formatMinutes(duration),
     averageTimeDisplay: formatMinutes(duration),
-    batchStarted: formatDateTimeDisplay(batch?.startedAt),
-    batchOver: formatDateTimeDisplay(batch?.completedAt),
+    batchStarted: formatTimeDisplay(batch?.startedAt),
+    batchOver: formatTimeDisplay(batch?.completedAt),
     batchStartedRaw: batch?.startedAt || null,
     batchOverRaw: batch?.completedAt || null,
     rating: batch?.rating != null && batch?.rating !== '' ? String(batch.rating) : '—',
@@ -421,8 +431,8 @@ export function mapEntryToRow(entry) {
     averageTime: duration,
     timeBatchDisplay: formatMinutes(duration),
     averageTimeDisplay: formatMinutes(duration),
-    batchStarted: formatDateTimeDisplay(entry?.batchStartedAt),
-    batchOver: formatDateTimeDisplay(entry?.batchOverAt),
+    batchStarted: formatTimeDisplay(entry?.batchStartedAt),
+    batchOver: formatTimeDisplay(entry?.batchOverAt),
     batchStartedRaw: entry?.batchStartedAt || null,
     batchOverRaw: entry?.batchOverAt || null,
     rating: entry?.rating != null && entry?.rating !== '' ? String(entry.rating) : '—',
