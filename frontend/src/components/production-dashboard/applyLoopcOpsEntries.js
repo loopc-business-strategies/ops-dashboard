@@ -42,14 +42,22 @@ function meanLoss(entries) {
   return Math.round((losses.reduce((a, b) => a + b, 0) / losses.length) * 100) / 100
 }
 
+function meanTime(entries) {
+  const times = (entries || [])
+    .map((e) => opsTimeBatchMinutes(e))
+    .filter((n) => n != null && Number.isFinite(n))
+  if (!times.length) return null
+  return Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+}
+
 /**
  * Build Production Dashboard dept cards + KPI overlays from LoopC Operations entries (today).
  * @param {object[]} entries — today's entries
- * @param {object[]} [entriesAll] — all-time entries for Total Avg metal loss
+ * @param {object[]} [entriesAll] — all-time entries for Total Avg (loss + time); never fall back to today
  */
 export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
   const list = Array.isArray(entries) ? entries : []
-  const allList = Array.isArray(entriesAll) ? entriesAll : list
+  const allList = Array.isArray(entriesAll) ? entriesAll : []
 
   const byDept = new Map()
   const byDeptAll = new Map()
@@ -179,6 +187,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       timeRows,
       lossTodayAvg: meanLoss(rows),
       lossTotalAvg: meanLoss(rowsAll),
+      timeTotalAvgMin: meanTime(rowsAll),
       lossPct: metalInVal && metalLossVal != null && metalInVal > 0
         ? Math.round((metalLossVal / metalInVal) * 1000) / 10
         : null,

@@ -171,6 +171,12 @@ function DeptCard({
             <span>Avg. Time</span>
             <strong>{displayOrDash(ui.avgTimeLabel)}</strong>
           </div>
+          {suppressDemo ? (
+            <div className="pd-dept-batches-row">
+              <span>Total Avg Time</span>
+              <strong>{displayOrDash(ui.timeTotalAvgLabel)}</strong>
+            </div>
+          ) : null}
         </div>
       </div>
 

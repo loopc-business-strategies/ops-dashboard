@@ -358,6 +358,8 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   // LoopC: match Ops sheet Time/Batch style (e.g. 6h, 5h 20m)
   let timePerBatchLabel = suppressDemo ? formatOpsMinutes(timePerBatchMin) : fmtMin(timePerBatchMin)
   let avgTimeLabel = suppressDemo ? formatOpsMinutes(avgTimeMin) : fmtMin(avgTimeMin)
+  const timeTotalAvgMin = hasNum(card.timeTotalAvgMin) ? Number(card.timeTotalAvgMin) : null
+  const timeTotalAvgLabel = suppressDemo ? formatOpsMinutes(timeTotalAvgMin) : null
   const timeRows = suppressDemo && Array.isArray(card.timeRows) && card.timeRows.length
     ? card.timeRows
       .map((r, i) => ({
@@ -411,6 +413,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     batches: batchesDisplay,
     timePerBatchLabel,
     avgTimeLabel,
+    timeTotalAvgLabel: suppressDemo ? timeTotalAvgLabel : null,
     timeRows,
     metalIn,
     metalOut,
