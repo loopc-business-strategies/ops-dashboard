@@ -105,22 +105,44 @@ export function computeInventoryStockValue(quantity, unitCost, purity) {
 /**
  * Resolve metal voucher line purity from catalog product, else karat in the name (22k → 0.917).
  * Never falls back to a prior stock fine-purity value.
+ * Rejects productPurity=1 when the name implies karat &lt; 24 (Pure Gold form leak).
  */
 export function resolveProductLinePurity({ productPurity, productName } = {}) {
+  return sanitizeCatalogProductPurity({ productName, productPurity })
+}
+
+/**
+ * Catalog purity guard: if name has karat &lt; 24 and stored purity is blank/0 or exact fine (1),
+ * replace with karat/24 so Product Creation cannot persist the Pure Gold leak.
+ */
+export function sanitizeCatalogProductPurity({ productName = '', productPurity = '' } = {}) {
+  const karatMatch = String(productName || '').trim().match(/(\d+)\s*k\b/i)
+  const karat = karatMatch ? Number(karatMatch[1]) : null
+  const karatOk = Number.isFinite(karat) && karat >= 1 && karat <= 24
+  const karatRatio = karatOk ? Number((karat / 24).toFixed(6)) : null
+
   const catalogRaw = String(productPurity ?? '').trim()
-  const catalogNumeric = Number(catalogRaw)
-  if (catalogRaw !== '' && Number.isFinite(catalogNumeric) && catalogNumeric > 0) {
-    return String(catalogRaw)
+  const catalogNumeric = Number.parseFloat(catalogRaw)
+  const stored = Number.isFinite(catalogNumeric) && catalogNumeric > 0 ? catalogNumeric : 0
+  const storedRatio = stored > 1.2 ? stored / 1000 : stored
+
+  const storedIsLeakAsPure =
+    karatOk
+    && karat < 24
+    && storedRatio > 0
+    && Math.abs(storedRatio - 1) < 1e-9
+
+  if (stored > 0 && !storedIsLeakAsPure) {
+    return String(stored)
   }
 
-  const karatMatch = String(productName || '').match(/\b(\d{1,2})\s*k\b/i)
-  if (karatMatch) {
-    const karat = Number(karatMatch[1])
-    if (Number.isFinite(karat) && karat > 0 && karat <= 24) {
-      return (karat / 24).toFixed(3)
-    }
+  if (karatRatio != null && karatRatio > 0 && karat < 24) {
+    return String(karatRatio)
   }
 
+  // Fine / 24k / no karat: keep stored fine purity when present.
+  if (stored > 0) return String(stored)
+  if (karatRatio != null && karatRatio > 0) return String(karatRatio)
   return ''
 }
 
@@ -178,13 +200,22 @@ export function buildCatalogProductPayload({
   const productDescription = sanitizeInventoryMetaText(inventoryProductForm.description)
   const productWeight = Number(inventoryProductForm.weight || 0)
   const productGrossWeight = Number(inventoryProductForm.grossWeight || inventoryProductForm.weight || 0)
-  const productPurity = String(inventoryProductForm.purity || '').trim()
+  const productPurity = sanitizeCatalogProductPurity({
+    productName: inventoryProductForm.name,
+    productPurity: inventoryProductForm.purity,
+  })
   const productTaxType = sanitizeInventoryMetaText(inventoryProductForm.taxType || 'VAT')
   const vatPercentRaw = Number(inventoryProductForm.vatPercent || 0)
   const productVatPercent = Number.isFinite(vatPercentRaw) && vatPercentRaw >= 0
     ? Number(vatPercentRaw.toFixed(2))
     : 0
-  const purityWeight = Number(productPurityWeight || 0)
+  const purityWeightFromForm = Number(productPurityWeight || 0)
+  const purityWeight = purityWeightFromForm > 0
+    ? purityWeightFromForm
+    : computeInventoryProductPurityWeight({
+      weight: productWeight,
+      purity: productPurity,
+    })
   const existingCurrency = editingInventoryProductId
     ? inventoryCatalogProducts.find((p) => p._id === editingInventoryProductId)?.currency
     : null

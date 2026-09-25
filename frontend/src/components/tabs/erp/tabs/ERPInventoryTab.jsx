@@ -3,6 +3,7 @@ import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../u
 import { formatAmount } from '../../../../utils/money'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { createInventoryProductForm } from '../erpTabUtils'
+import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
 
 export default function ERPInventoryTab({
   activeTab,
@@ -481,7 +482,31 @@ export default function ERPInventoryTab({
                       <option value="">Product Category</option>
                       {inventoryStockTypeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                     </select>
-                    <input placeholder="Product Name" value={inventoryProductForm.name} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, name: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
+                    <input
+                      placeholder="Product Name"
+                      value={inventoryProductForm.name}
+                      onChange={(e) => {
+                        const nextName = e.target.value
+                        setInventoryProductForm((prev) => {
+                          const nextPurity = sanitizeCatalogProductPurity({
+                            productName: nextName,
+                            productPurity: prev.purity,
+                          })
+                          const shouldAutofill = nextPurity
+                            && (
+                              !String(prev.purity || '').trim()
+                              || String(prev.purity).trim() === '1'
+                              || String(prev.purity).trim() === '1.0'
+                            )
+                          return {
+                            ...prev,
+                            name: nextName,
+                            ...(shouldAutofill ? { purity: nextPurity } : {}),
+                          }
+                        })
+                      }}
+                      style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}
+                    />
                     <input placeholder="Description" value={inventoryProductForm.description} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, description: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
                     <input type="number" step="0.0001" placeholder="Weight" value={inventoryProductForm.weight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, weight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
                     <input type="number" step="0.0001" placeholder="Gross Weight" value={inventoryProductForm.grossWeight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, grossWeight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
