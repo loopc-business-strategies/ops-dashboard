@@ -1,4 +1,5 @@
 import { DASHBOARD_DEPARTMENTS } from './departmentConfig'
+import { dayKey } from './safeMath'
 
 function numOrNull(v) {
   if (v == null || v === '') return null
@@ -53,11 +54,14 @@ function meanTime(entries) {
 /**
  * Build Production Dashboard dept cards + KPI overlays from LoopC Operations entries (today).
  * @param {object[]} entries — today's entries
- * @param {object[]} [entriesAll] — all-time entries for Total Avg (loss + time); never fall back to today
+ * @param {object[]} [entriesAll] — prior-days entries for Total Avg (loss + time); today excluded
  */
 export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
   const list = Array.isArray(entries) ? entries : []
-  const allList = Array.isArray(entriesAll) ? entriesAll : []
+  const today = dayKey()
+  // Total Avg must never include today — previous days only
+  const allList = (Array.isArray(entriesAll) ? entriesAll : [])
+    .filter((e) => String(e?.date || '').trim() !== today)
 
   const byDept = new Map()
   const byDeptAll = new Map()

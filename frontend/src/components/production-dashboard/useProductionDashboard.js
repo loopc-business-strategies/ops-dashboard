@@ -190,13 +190,14 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.me({ signal: ac.signal }).catch(() => null),
       ]
       if (isLoopc) {
+        const yesterday = dayKey(addDays(new Date(), -1))
         corePromises.push(
           productionControlApi.listOperationsEntries(
             { date: today, limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
           productionControlApi.listOperationsEntries(
-            { limit: 500 },
+            { limit: 500, dateTo: yesterday },
             { signal: ac.signal },
           ).catch(() => null),
         )
@@ -303,13 +304,14 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.getCurrentShift({ signal: ac.signal }).catch(() => null),
       ]
       if (isLoopc) {
+        const yesterday = dayKey(addDays(new Date(), -1))
         tasks.push(
           productionControlApi.listOperationsEntries(
             { date: dayKey(), limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
           productionControlApi.listOperationsEntries(
-            { limit: 500 },
+            { limit: 500, dateTo: yesterday },
             { signal: ac.signal },
           ).catch(() => null),
         )
