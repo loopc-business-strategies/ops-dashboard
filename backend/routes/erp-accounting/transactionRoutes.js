@@ -776,6 +776,10 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), tx.type)
+    if (disabledTypeMessage) {
+      return res.status(403).json({ success: false, message: disabledTypeMessage })
+    }
     if (!canCreateTransactionFor(req.user, tx.type)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
@@ -869,6 +873,10 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), tx.type)
+    if (disabledTypeMessage) {
+      return res.status(403).json({ success: false, message: disabledTypeMessage })
+    }
     if (tx.status === 'posted') {
       return res.status(409).json({ success: false, message: 'Transaction is already posted.' })
     }
@@ -1195,6 +1203,12 @@ router.post('/transactions/bulk-action', protect, validateBody(transactionBulkAc
 
     for (const tx of transactions) {
       try {
+        if (action === 'submit' || action === 'post') {
+          const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), tx.type)
+          if (disabledTypeMessage) {
+            throw new Error(disabledTypeMessage)
+          }
+        }
         const allowed = action === 'submit'
           ? canCreateTransactionFor(req.user, tx.type)
           : canManageTransactionWorkflow(req.user)

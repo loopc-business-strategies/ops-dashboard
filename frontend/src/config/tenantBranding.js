@@ -414,16 +414,29 @@ export function isDepartmentsComingSoonEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.departmentsComingSoon === true
 }
 
+/** Types enabled only on LoopC (allowlist). Mirrors backend tenantVoucherPolicy. */
+export const LOOPC_ONLY_VOUCHER_TYPES = Object.freeze(['metal_transfer'])
+
 export function getDisabledVoucherTypes(tenant) {
   const branding = getTenantBranding(tenant)
-  return Array.isArray(branding?.featureFlags?.disabledVoucherTypes)
+  const fromFlags = Array.isArray(branding?.featureFlags?.disabledVoucherTypes)
     ? branding.featureFlags.disabledVoucherTypes.map((type) => String(type || '').trim().toLowerCase()).filter(Boolean)
     : []
+  const key = String(tenant || '').trim().toLowerCase()
+  // LoopC-only types stay disabled for every non-loopc tenant (allowlist).
+  if (key !== 'loopc') {
+    return [...new Set([...fromFlags, ...LOOPC_ONLY_VOUCHER_TYPES])]
+  }
+  return fromFlags.filter((type) => !LOOPC_ONLY_VOUCHER_TYPES.includes(type))
 }
 
 export function isVoucherTypeEnabled(tenant, type) {
+  const normalized = String(type || '').trim().toLowerCase()
+  if (LOOPC_ONLY_VOUCHER_TYPES.includes(normalized)) {
+    return String(tenant || '').trim().toLowerCase() === 'loopc'
+  }
   const disabled = new Set(getDisabledVoucherTypes(tenant))
-  return !disabled.has(String(type || '').trim().toLowerCase())
+  return !disabled.has(normalized)
 }
 
 /** LoopC-only structured Employee → PayrollRun → Payslip. Mirror of backend tenantCapabilities. */
@@ -433,9 +446,7 @@ export function isStructuredPayrollEnabled(tenant) {
 }
 
 export function filterTransactionTypesForTenant(tenant, types = []) {
-  const disabled = new Set(getDisabledVoucherTypes(tenant))
-  if (!disabled.size) return types
-  return types.filter((type) => !disabled.has(String(type || '').trim().toLowerCase()))
+  return (Array.isArray(types) ? types : []).filter((type) => isVoucherTypeEnabled(tenant, type))
 }
 
 function hostAllowsTenantFallback(hostname) {

@@ -132,13 +132,15 @@ export function canManageAccountingPeriods(user) {
 }
 
 export function getAvailableTransactionTypes(user, tenant) {
+  /** Metal Transfer is created only via VoucherTab From/To UI — keep out of ERP Transactions composer. */
+  const composerTypes = TRANSACTION_TYPES.filter((type) => type !== 'metal_transfer')
   const isSuperAdmin = evaluatePredicate(user, 'isSuperAdmin')
   const isFinance = evaluatePredicate(user, 'isFinance')
   if (isSuperAdmin || isFinance || canCreateTransaction(user)) {
-    return filterTransactionTypesForTenant(tenant, TRANSACTION_TYPES)
+    return filterTransactionTypesForTenant(tenant, composerTypes)
   }
   if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) {
-    return filterTransactionTypesForTenant(tenant, TRANSACTION_TYPES)
+    return filterTransactionTypesForTenant(tenant, composerTypes)
   }
   const isSalesRole = evaluatePredicate(user, 'isSalesRole')
   const isOperationsRole = evaluatePredicate(user, 'isOperationsRole')
@@ -146,7 +148,7 @@ export function getAvailableTransactionTypes(user, tenant) {
   const dept = getDept(user)
   const isProduction = getRole(user) === 'department_head' && dept === 'production'
   if (isSalesRole) return filterTransactionTypesForTenant(tenant, ['sale', 'receipt', 'metal_payment'])
-  if (isOperationsRole || isProduction) return filterTransactionTypesForTenant(tenant, ['purchase', 'expense', 'metal_receipt', 'metal_transfer'])
+  if (isOperationsRole || isProduction) return filterTransactionTypesForTenant(tenant, ['purchase', 'expense', 'metal_receipt'])
   if (isHRRole) return filterTransactionTypesForTenant(tenant, ['payroll'])
   return []
 }
