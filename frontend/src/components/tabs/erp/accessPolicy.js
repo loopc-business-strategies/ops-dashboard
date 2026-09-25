@@ -7,7 +7,7 @@ import {
   hasGranularModulePermissions,
 } from '../../../utils/erpSubTabPermissions'
 
-const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment']
+const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment', 'metal_transfer']
 
 function getRole(user) {
   return String(user?.role || '').toLowerCase()
@@ -146,7 +146,7 @@ export function getAvailableTransactionTypes(user, tenant) {
   const dept = getDept(user)
   const isProduction = getRole(user) === 'department_head' && dept === 'production'
   if (isSalesRole) return filterTransactionTypesForTenant(tenant, ['sale', 'receipt', 'metal_payment'])
-  if (isOperationsRole || isProduction) return filterTransactionTypesForTenant(tenant, ['purchase', 'expense', 'metal_receipt'])
+  if (isOperationsRole || isProduction) return filterTransactionTypesForTenant(tenant, ['purchase', 'expense', 'metal_receipt', 'metal_transfer'])
   if (isHRRole) return filterTransactionTypesForTenant(tenant, ['payroll'])
   return []
 }

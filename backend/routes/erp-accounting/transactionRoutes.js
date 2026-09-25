@@ -453,7 +453,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     }
 
     const normalizedMetalFixStatus = normalizeMetalFixStatus(metalFixStatus)
-    let voucherMetaPayload = (['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
+    let voucherMetaPayload = (['sale', 'purchase', 'metal_receipt', 'metal_payment', 'metal_transfer'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
       ? normalizeVoucherMetaDocNo(type, {
           ...(voucherMeta || {}),
           fixingType: normalizedMetalFixStatus === 'unfixed' ? 'non-fixing' : 'fixing',

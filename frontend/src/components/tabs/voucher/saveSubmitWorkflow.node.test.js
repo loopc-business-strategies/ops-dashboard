@@ -23,7 +23,7 @@ describe('Save→Submit metal voucher helpers', () => {
   })
 
   test('isMetalStockVoucherType aligns with Save→Submit set', () => {
-    for (const t of ['purchase', 'sale', 'metal_receipt', 'metal_payment']) {
+    for (const t of ['purchase', 'sale', 'metal_receipt', 'metal_payment', 'metal_transfer']) {
       expect(isMetalStockVoucherType(t)).toBe(true)
       expect(isSaveSubmitOnlyVoucherType(t)).toBe(true)
     }

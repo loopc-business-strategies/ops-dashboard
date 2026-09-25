@@ -15,6 +15,7 @@ import {
   handleRecommendedTab,
   shouldSkipAutofilledAmountLc,
 } from './voucherKeyboardNav'
+import MetalTransferEditor from './MetalTransferEditor'
 
 export default function VoucherEditorPanel({
   applyLineAutoCalc,
@@ -70,10 +71,12 @@ export default function VoucherEditorPanel({
   isMetalVoucher,
   isReadOnly,
   isSimpleMetalVoucher,
+  isProductTransferVoucher = false,
   keyboardNavEnabled = false,
   lineAccountComboGroups,
   lineForm,
   lineItems,
+  setLineItems,
   lineTableHeaders,
   loadingInventoryProducts,
   loadingRecentPartyVouchers,
@@ -449,7 +452,7 @@ export default function VoucherEditorPanel({
           {menuTab === 'header' && (
             <div style={sectionBox}>
               <div style={sectionBody}>
-                {isMetalVoucher && (
+                {isMetalVoucher && !isProductTransferVoucher && (
                   <div style={metalTopInlineRow}>
                     <div style={metalTopField}>
                       <label style={classicLabel}>Party Account</label>
@@ -468,6 +471,7 @@ export default function VoucherEditorPanel({
                 )}
                 <div style={classicHeaderShell}>
                   <div style={classicHeaderGrid}>
+                    {!isProductTransferVoucher && (
                     <div style={{ ...classicPanel, flex: '0 1 640px', minWidth: '320px' }}>
                       <div style={classicPanelTitle}>Party Details</div>
                       <div style={classicPartyGrid}>
@@ -559,8 +563,9 @@ export default function VoucherEditorPanel({
                         )
                       })()}
                     </div>
+                    )}
 
-                    <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '300px' }}>
+                    <div style={{ ...classicPanel, flex: isProductTransferVoucher ? '1 1 100%' : '0 1 430px', minWidth: '300px' }}>
                       <div style={classicRightGrid}>
                         <label style={classicLabel}>Doc No :</label>
                         <input
@@ -569,7 +574,7 @@ export default function VoucherEditorPanel({
                           readOnly
                         />
 
-                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
+                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher && !isProductTransferVoucher ? (
                           <>
                             <label style={classicLabel}>Fixing Type :</label>
                             <select
@@ -600,7 +605,7 @@ export default function VoucherEditorPanel({
                           readOnly={formReadOnly}
                         />
 
-                        {!isSimpleMetalVoucher && (
+                        {!isSimpleMetalVoucher && !isProductTransferVoucher && (
                           <>
                             <label style={classicLabel}>Value Date :</label>
                             <input
@@ -756,9 +761,19 @@ export default function VoucherEditorPanel({
           {(menuTab === 'header' || menuTab === 'lineItems') && (
             <div style={sectionBox}>
               <div style={{ ...(isMetalVoucher ? { ...classicPanelTitle, ...metalWin.tabLabel } : classicPanelTitle), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>{isMetalVoucher ? 'Stock Details' : 'LINE ITEMS'}</span>
+                <span>{isProductTransferVoucher ? 'From / To Transfer' : (isMetalVoucher ? 'Stock Details' : 'LINE ITEMS')}</span>
               </div>
 
+              {isProductTransferVoucher ? (
+                <MetalTransferEditor
+                  lineItems={lineItems}
+                  setLineItems={setLineItems}
+                  inventoryProducts={inventoryProducts}
+                  formReadOnly={formReadOnly}
+                  loadingInventoryProducts={loadingInventoryProducts}
+                />
+              ) : (
+              <>
               {/* Line items table */}
               <div style={{ overflowX: 'auto', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
@@ -1219,6 +1234,8 @@ export default function VoucherEditorPanel({
                   </div>
                 </div>
               </div>
+              </>
+              )}
             </div>
           )}
 

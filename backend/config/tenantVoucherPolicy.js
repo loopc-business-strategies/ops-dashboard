@@ -1,4 +1,9 @@
-const DISABLED_VOUCHER_TYPES_BY_TENANT = {}
+/** Product Metal Transfer is LoopC-only; hide/reject on other tenants. */
+const DISABLED_VOUCHER_TYPES_BY_TENANT = {
+  mg: ['metal_transfer'],
+  cg: ['metal_transfer'],
+  vb: ['metal_transfer'],
+}
 
 function normalizeTenantKey(value) {
   return String(value || '').trim().toLowerCase()

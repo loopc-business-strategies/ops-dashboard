@@ -1,12 +1,19 @@
 const METAL_STOCK_IN_TYPES = ['purchase', 'metal_receipt']
 const METAL_STOCK_OUT_TYPES = ['sale', 'metal_payment']
-const METAL_STOCK_TYPES = [...METAL_STOCK_IN_TYPES, ...METAL_STOCK_OUT_TYPES]
 const METAL_TRANSFER_TYPES = ['metal_receipt', 'metal_payment']
+/** Product-to-product inventory reclass (LoopC Metal Transfer). Not a party metal transfer. */
+const METAL_PRODUCT_TRANSFER_TYPES = ['metal_transfer']
+const METAL_STOCK_TYPES = [
+  ...METAL_STOCK_IN_TYPES,
+  ...METAL_STOCK_OUT_TYPES,
+  ...METAL_PRODUCT_TRANSFER_TYPES,
+]
 
 const isMetalStockInType = (type) => METAL_STOCK_IN_TYPES.includes(String(type || '').toLowerCase())
 const isMetalStockOutType = (type) => METAL_STOCK_OUT_TYPES.includes(String(type || '').toLowerCase())
 const isMetalStockType = (type) => METAL_STOCK_TYPES.includes(String(type || '').toLowerCase())
 const isMetalTransferType = (type) => METAL_TRANSFER_TYPES.includes(String(type || '').toLowerCase())
+const isMetalProductTransferType = (type) => METAL_PRODUCT_TRANSFER_TYPES.includes(String(type || '').toLowerCase())
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -15,6 +22,7 @@ const stockMovementReferenceType = (type) => {
   const normalized = String(type || '').toLowerCase()
   if (normalized === 'metal_receipt') return 'metal receipt'
   if (normalized === 'metal_payment') return 'metal payment'
+  if (normalized === 'metal_transfer') return 'metal transfer'
   return isMetalStockInType(normalized) ? 'purchase' : 'sale'
 }
 
@@ -24,7 +32,7 @@ const buildStockMovementReason = (tx, type) => {
   const kind = stockMovementReferenceType(transactionType)
   const vocSuffix = tx?.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''
 
-  if (isMetalTransferType(transactionType)) {
+  if (isMetalTransferType(transactionType) || isMetalProductTransferType(transactionType)) {
     return `Voucher ${kind}${vocSuffix}`
   }
 
@@ -43,6 +51,8 @@ const stockMovementReasonPattern = (type, vocNo) => {
     kindAlternatives = '(?:metal\\s+receipt|purchase)'
   } else if (normalized === 'metal_payment') {
     kindAlternatives = '(?:metal\\s+payment|sale)'
+  } else if (normalized === 'metal_transfer') {
+    kindAlternatives = 'metal\\s+transfer'
   } else {
     kindAlternatives = escapeRegExp(stockMovementReferenceType(normalized))
   }
@@ -81,10 +91,12 @@ module.exports = {
   METAL_STOCK_OUT_TYPES,
   METAL_STOCK_TYPES,
   METAL_TRANSFER_TYPES,
+  METAL_PRODUCT_TRANSFER_TYPES,
   isMetalStockInType,
   isMetalStockOutType,
   isMetalStockType,
   isMetalTransferType,
+  isMetalProductTransferType,
   stockMovementReferenceType,
   buildStockMovementReason,
   stockMovementReasonPattern,

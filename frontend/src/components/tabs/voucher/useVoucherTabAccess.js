@@ -24,6 +24,7 @@ export function useVoucherTabAccess(user) {
     canCreateSale: isVoucherTypeEnabled(tenantKey, 'sale') && canCreateTransactionFor(user || {}, 'sale'),
     canCreateMetalReceipt: isVoucherTypeEnabled(tenantKey, 'metal_receipt') && canCreateTransactionFor(user || {}, 'metal_receipt'),
     canCreateMetalPayment: isVoucherTypeEnabled(tenantKey, 'metal_payment') && canCreateTransactionFor(user || {}, 'metal_payment'),
+    canCreateMetalTransfer: isVoucherTypeEnabled(tenantKey, 'metal_transfer') && canCreateTransactionFor(user || {}, 'metal_transfer'),
     isReadOnly: erpAccess.isManagementRole && !erpAccess.canCreateTransaction,
   }
 }

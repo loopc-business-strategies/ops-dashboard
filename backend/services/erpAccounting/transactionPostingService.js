@@ -17,6 +17,7 @@ function createTransactionPostingService(deps) {
     applyVoucherInventoryImpact,
     resolveVatPostingAccounts,
     isMetalTransferType,
+    isMetalProductTransferType,
     appendTransactionComment,
     appendTransactionAudit,
     assertAccountingPeriodOpen,
@@ -138,7 +139,7 @@ function createTransactionPostingService(deps) {
       balanceBeforeByAccount.set(id, Number(await getEnquiryNetBalanceForAccount(id, session) || 0))
     }
 
-    const skipMainLedger = isMetalTransferType(transactionType)
+    const skipMainLedger = isMetalTransferType(transactionType) || isMetalProductTransferType(transactionType)
 
     if (skipMainLedger) {
       await Ledger.updateMany(

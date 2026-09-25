@@ -30,7 +30,7 @@ const {
 } = require('../services/erpAccounting/transactionAccountResolutionService')
 const { applyPartyAccountPriority } = require('../utils/transactionPartyAccounts')
 const { parseOffsetPagination } = require('../utils/pagination')
-const { isMetalTransferType } = require('../utils/metalStockVoucherTypes')
+const { isMetalTransferType, isMetalProductTransferType } = require('../utils/metalStockVoucherTypes')
 const { getNextPrefixedCode } = require('../utils/sequentialPartyCode')
 const {
   idParam,
@@ -386,6 +386,7 @@ transactionPostingService = createTransactionPostingService({
   applyVoucherInventoryImpact,
   resolveVatPostingAccounts,
   isMetalTransferType,
+  isMetalProductTransferType,
   appendTransactionComment,
   appendTransactionAudit,
   assertAccountingPeriodOpen,

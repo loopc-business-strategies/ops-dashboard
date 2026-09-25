@@ -4,6 +4,7 @@ const DOC_PREFIX_BY_TYPE = {
   purchase: 'Pur',
   sale: 'Sal',
   metal_receipt: 'MRec',
+  metal_transfer: 'MTr',
   metal_payment: 'MPay',
 }
 

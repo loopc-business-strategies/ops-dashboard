@@ -5,7 +5,7 @@ const transactionSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment'],
+      enum: ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment', 'metal_transfer'],
       required: true,
     },
     amount: { type: Number, required: true, min: 0 },

@@ -5,4 +5,5 @@ export const VOUCHER_TAB_TYPES = Object.freeze([
   'sale',
   'metal_receipt',
   'metal_payment',
+  'metal_transfer',
 ])

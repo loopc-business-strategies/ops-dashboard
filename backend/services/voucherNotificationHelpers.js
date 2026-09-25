@@ -80,6 +80,7 @@ function voucherKindLabel(type) {
   if (!t) return 'Voucher'
   if (t === 'metal_receipt') return 'Metal receipt'
   if (t === 'metal_payment') return 'Metal payment'
+  if (t === 'metal_transfer') return 'Metal transfer'
   return `${t.charAt(0).toUpperCase()}${t.slice(1)}`
 }
 

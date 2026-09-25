@@ -27,7 +27,7 @@ const {
 // TRANSACTION DOMAIN CONSTANTS
 // ==========================================
 
-const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment']
+const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment', 'metal_transfer']
 const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
 const BASE_CURRENCY_CODE = 'USD'
 const MAX_TRANSACTION_AMOUNT = Number(process.env.MAX_TRANSACTION_AMOUNT || 1_000_000_000)
@@ -88,7 +88,7 @@ const getRoleTransactionTypes = (user, tenant) => {
   if (isSuperAdmin(user) || isFinance(user)) types = TRANSACTION_TYPES
   else if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) types = TRANSACTION_TYPES
   else if (isSales(user)) types = ['sale', 'receipt', 'metal_payment']
-  else if (isOperations(user) || isProduction(user)) types = ['purchase', 'expense', 'metal_receipt']
+  else if (isOperations(user) || isProduction(user)) types = ['purchase', 'expense', 'metal_receipt', 'metal_transfer']
   else if (isHR(user)) types = ['payroll']
   else types = []
   return filterTransactionTypesForTenant(tenant, types)

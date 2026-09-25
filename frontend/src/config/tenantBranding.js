@@ -272,6 +272,7 @@ const tenantBranding = {
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
       voucher24HourLock: true,
+      disabledVoucherTypes: ['metal_transfer'],
     },
   },
   cg: {
@@ -306,6 +307,7 @@ const tenantBranding = {
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
       voucher24HourLock: true,
+      disabledVoucherTypes: ['metal_transfer'],
     },
   },
   loopc: {
@@ -366,6 +368,7 @@ const tenantBranding = {
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
       voucher24HourLock: true,
+      disabledVoucherTypes: ['metal_transfer'],
     },
   },
 }

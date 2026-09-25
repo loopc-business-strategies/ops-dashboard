@@ -4,7 +4,7 @@
  */
 
 const { applyPartyAccountPriority } = require('../../utils/transactionPartyAccounts')
-const { isMetalTransferType, isMetalStockType } = require('../../utils/metalStockVoucherTypes')
+const { isMetalTransferType, isMetalProductTransferType, isMetalStockType } = require('../../utils/metalStockVoucherTypes')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
 function createTransactionAccountResolutionService({
@@ -313,7 +313,7 @@ function createTransactionAccountResolutionService({
         return acc._id
       }
 
-      if (isMetalTransferType(transactionType)) {
+      if (isMetalTransferType(transactionType) || isMetalProductTransferType(transactionType)) {
         if (transactionType === 'metal_receipt') {
           if (!debitAccountId) {
             debitAccountId = preparedVoucherImpact?.purchaseDebitAccountId
@@ -322,6 +322,15 @@ function createTransactionAccountResolutionService({
           if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
         } else if (transactionType === 'metal_payment') {
           if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
+          if (!creditAccountId) {
+            creditAccountId = preparedVoucherImpact?.inventoryCreditAccountId
+              || await ensureAccount({ name: 'Metal Inventory', code: '1300', type: 'Asset' })
+          }
+        } else if (transactionType === 'metal_transfer') {
+          if (!debitAccountId) {
+            debitAccountId = preparedVoucherImpact?.purchaseDebitAccountId
+              || await ensureAccount({ name: 'Metal Inventory', code: '1300', type: 'Asset' })
+          }
           if (!creditAccountId) {
             creditAccountId = preparedVoucherImpact?.inventoryCreditAccountId
               || await ensureAccount({ name: 'Metal Inventory', code: '1300', type: 'Asset' })
