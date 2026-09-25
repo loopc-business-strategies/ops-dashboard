@@ -173,7 +173,31 @@ function DeptCard({
           <span>Metal Loss (g)</span>
         </div>
         <ul className="pd-dept-loss-list">
-          {ui.lossRows.length ? (
+          {suppressDemo ? (
+            ui.lossRows.length || ui.lossTodayAvg != null || ui.lossTotalAvg != null ? (
+              <>
+                {ui.lossRows.map((r) => (
+                  <li key={`${ui.key}-loss-${r.index}`}>
+                    <span>{r.label}</span>
+                    <strong>{formatLoss(r.loss)}</strong>
+                  </li>
+                ))}
+                <li className="pd-dept-loss-avg">
+                  <span>Today Avg</span>
+                  <strong>{formatLoss(ui.lossTodayAvg)}</strong>
+                </li>
+                <li className="pd-dept-loss-avg">
+                  <span>Total Avg</span>
+                  <strong>{formatLoss(ui.lossTotalAvg)}</strong>
+                </li>
+              </>
+            ) : (
+              <li>
+                <span>—</span>
+                <strong>—</strong>
+              </li>
+            )
+          ) : ui.lossRows.length ? (
             <>
               {ui.lossRows.map((r) => (
                 <li key={`${ui.key}-loss-${r.index}`}>

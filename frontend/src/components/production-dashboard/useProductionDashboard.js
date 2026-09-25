@@ -122,7 +122,11 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       metalMovements: movements,
     })
     if (isLoopc) {
-      return applyLoopcOpsEntriesToModel(base, payload.opsEntries || [])
+      return applyLoopcOpsEntriesToModel(
+        base,
+        payload.opsEntries || [],
+        payload.opsEntriesAll || null,
+      )
     }
     return base
   }, [user, isLoopc])
@@ -191,10 +195,24 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
             { date: today, limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
+          productionControlApi.listOperationsEntries(
+            { limit: 500 },
+            { signal: ac.signal },
+          ).catch(() => null),
         )
       }
 
-      const [summaryRes, boardRes, widgetsRes, shiftRes, flowRes, todayReport, meRes, opsEntriesRes] = await Promise.all(corePromises)
+      const [
+        summaryRes,
+        boardRes,
+        widgetsRes,
+        shiftRes,
+        flowRes,
+        todayReport,
+        meRes,
+        opsEntriesRes,
+        opsEntriesAllRes,
+      ] = await Promise.all(corePromises)
       if (ac.signal.aborted) return
 
       if (!isLoopc && !summaryRes && !boardRes && !widgetsRes) {
@@ -204,6 +222,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       }
 
       const opsEntries = opsEntriesRes?.entries || opsEntriesRes?.items || []
+      const opsEntriesAll = opsEntriesAllRes?.entries || opsEntriesAllRes?.items || []
       publish({
         summaryRes,
         boardRes,
@@ -212,7 +231,10 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         flowRes,
         todayReport,
         meRes,
-        ...(isLoopc ? { opsEntries: Array.isArray(opsEntries) ? opsEntries : [] } : {}),
+        ...(isLoopc ? {
+          opsEntries: Array.isArray(opsEntries) ? opsEntries : [],
+          opsEntriesAll: Array.isArray(opsEntriesAll) ? opsEntriesAll : [],
+        } : {}),
       })
       if (!soft) setLoading(false)
 
@@ -286,17 +308,25 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
             { date: dayKey(), limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
+          productionControlApi.listOperationsEntries(
+            { limit: 500 },
+            { signal: ac.signal },
+          ).catch(() => null),
         )
       }
-      const [summaryRes, boardRes, widgetsRes, shiftRes, opsEntriesRes] = await Promise.all(tasks)
+      const [summaryRes, boardRes, widgetsRes, shiftRes, opsEntriesRes, opsEntriesAllRes] = await Promise.all(tasks)
       if (!isLoopc && !summaryRes && !boardRes && !widgetsRes) return
       const opsEntries = opsEntriesRes?.entries || opsEntriesRes?.items || []
+      const opsEntriesAll = opsEntriesAllRes?.entries || opsEntriesAllRes?.items || []
       publish({
         summaryRes,
         boardRes,
         widgetsRes,
         shiftRes,
-        ...(isLoopc ? { opsEntries: Array.isArray(opsEntries) ? opsEntries : [] } : {}),
+        ...(isLoopc ? {
+          opsEntries: Array.isArray(opsEntries) ? opsEntries : [],
+          opsEntriesAll: Array.isArray(opsEntriesAll) ? opsEntriesAll : [],
+        } : {}),
       })
     } catch {
       /* ignore soft refresh errors */
