@@ -34,22 +34,43 @@ function metalLossOf(entry) {
   return null
 }
 
+function meanLoss(entries) {
+  const losses = (entries || [])
+    .map((e) => metalLossOf(e))
+    .filter((n) => n != null && Number.isFinite(n))
+  if (!losses.length) return null
+  return Math.round((losses.reduce((a, b) => a + b, 0) / losses.length) * 100) / 100
+}
+
 /**
  * Build Production Dashboard dept cards + KPI overlays from LoopC Operations entries (today).
+ * @param {object[]} entries — today's entries
+ * @param {object[]} [entriesAll] — all-time entries for Total Avg metal loss
  */
-export function buildLoopcOpsDashboardOverlay(entries = []) {
+export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
   const list = Array.isArray(entries) ? entries : []
+  const allList = Array.isArray(entriesAll) ? entriesAll : list
 
   const byDept = new Map()
-  DASHBOARD_DEPARTMENTS.forEach((d) => byDept.set(d.key, []))
+  const byDeptAll = new Map()
+  DASHBOARD_DEPARTMENTS.forEach((d) => {
+    byDept.set(d.key, [])
+    byDeptAll.set(d.key, [])
+  })
   list.forEach((e) => {
     const key = String(e?.departmentKey || '').trim()
     if (!byDept.has(key)) return
     byDept.get(key).push(e)
   })
+  allList.forEach((e) => {
+    const key = String(e?.departmentKey || '').trim()
+    if (!byDeptAll.has(key)) return
+    byDeptAll.get(key).push(e)
+  })
 
   const deptCards = DASHBOARD_DEPARTMENTS.map((dept) => {
     const rows = byDept.get(dept.key) || []
+    const rowsAll = byDeptAll.get(dept.key) || []
     const hasData = rows.length > 0
 
     let metalIn = 0
@@ -127,6 +148,9 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
       ? Math.max(0, metalInVal - metalOutVal)
       : metalInVal
 
+    const lossTodayAvg = meanLoss(rows)
+    const lossTotalAvg = meanLoss(rowsAll)
+
     return {
       key: dept.key,
       name: dept.label,
@@ -149,6 +173,8 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
       metalBalance,
       metalLoss: metalLossVal,
       lossRows,
+      lossTodayAvg,
+      lossTotalAvg,
       lossPct: metalInVal && metalLossVal != null && metalInVal > 0
         ? Math.round((metalLossVal / metalInVal) * 1000) / 10
         : null,
@@ -235,10 +261,13 @@ export function buildLoopcOpsDashboardOverlay(entries = []) {
 /**
  * Merge LoopC Operations overlay onto an existing dashboard model.
  * Replaces idle/empty dept cards and KPI totals when ops entries exist for today.
+ * @param {object} model
+ * @param {object[]} entries — today's entries
+ * @param {object[]} [entriesAll] — all-time entries for Total Avg metal loss
  */
-export function applyLoopcOpsEntriesToModel(model, entries) {
+export function applyLoopcOpsEntriesToModel(model, entries, entriesAll) {
   if (!model) return model
-  const overlay = buildLoopcOpsDashboardOverlay(entries)
+  const overlay = buildLoopcOpsDashboardOverlay(entries, entriesAll)
   if (!overlay.hasOpsData) {
     return {
       ...model,
