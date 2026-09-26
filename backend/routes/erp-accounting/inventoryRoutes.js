@@ -1,6 +1,7 @@
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
+const { sanitizeInventoryCategoryPurity } = require('../../utils/catalogProductPurity')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -137,6 +138,7 @@ function registerInventoryRoutes(deps) {
       const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
       const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
       const resolvedCurrency = String(currency || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
+      const sanitizedCategory = sanitizeInventoryCategoryPurity(category, name)
 
       const accountCode = await nextInventoryAccountCode()
       const stockAccount = await ChartOfAccount.create({
@@ -151,7 +153,7 @@ function registerInventoryRoutes(deps) {
       const product = await InventoryItem.create({
         sku,
         name,
-        category,
+        category: sanitizedCategory,
         unit: unit || 'pcs',
         minThreshold: Number(minThreshold || 0),
         unitCost: Number(unitCost || 0),
@@ -310,7 +312,11 @@ function registerInventoryRoutes(deps) {
       const { sku, name, category, unit, unitCost, sellingPrice, minThreshold, supplierName, weight, wipStage } = req.body
       if (name !== undefined) product.name = name
       if (sku !== undefined) product.sku = sku
-      if (category !== undefined) product.category = category
+      if (category !== undefined || name !== undefined) {
+        const nextName = name !== undefined ? name : product.name
+        const nextCategory = category !== undefined ? category : product.category
+        product.category = sanitizeInventoryCategoryPurity(nextCategory, nextName)
+      }
       if (unit !== undefined) product.unit = unit
       if (minThreshold !== undefined) product.minThreshold = Number(minThreshold || 0)
       if (unitCost !== undefined) product.unitCost = Number(unitCost || 0)

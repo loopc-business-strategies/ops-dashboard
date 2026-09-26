@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { getTenantBranding } from '../../config/tenantBranding'
 import HeaderBar from './HeaderBar'
 import KpiRow from './KpiRow'
 import DepartmentOverview from './DepartmentOverview'
@@ -18,8 +19,14 @@ function Field({ label, children }) {
 }
 
 export default function ProductionDashboardTab() {
-  const { company } = useAuth()
-  const hideCardValues = company?.tenantKey === 'loopc'
+  const { user, company } = useAuth()
+  const tenantKey = String(
+    getTenantBranding(user?.company || company)?.key
+    || user?.company
+    || company
+    || '',
+  ).trim().toLowerCase()
+  const suppressDemo = tenantKey === 'loopc'
   const {
     loading,
     error,
@@ -186,7 +193,7 @@ export default function ProductionDashboardTab() {
             selectedDeptKey={selectedDeptKey}
             onSelectDept={(key) => actions.selectDepartment(key)}
             permissions={permissions}
-            hideCardValues={hideCardValues}
+            suppressDemo={suppressDemo}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',

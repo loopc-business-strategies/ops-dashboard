@@ -7,7 +7,7 @@ import {
   hasGranularModulePermissions,
 } from '../../../utils/erpSubTabPermissions'
 
-const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment']
+const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment', 'metal_transfer']
 
 function getRole(user) {
   return String(user?.role || '').toLowerCase()
@@ -132,13 +132,15 @@ export function canManageAccountingPeriods(user) {
 }
 
 export function getAvailableTransactionTypes(user, tenant) {
+  /** Metal Transfer is created only via VoucherTab From/To UI — keep out of ERP Transactions composer. */
+  const composerTypes = TRANSACTION_TYPES.filter((type) => type !== 'metal_transfer')
   const isSuperAdmin = evaluatePredicate(user, 'isSuperAdmin')
   const isFinance = evaluatePredicate(user, 'isFinance')
   if (isSuperAdmin || isFinance || canCreateTransaction(user)) {
-    return filterTransactionTypesForTenant(tenant, TRANSACTION_TYPES)
+    return filterTransactionTypesForTenant(tenant, composerTypes)
   }
   if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) {
-    return filterTransactionTypesForTenant(tenant, TRANSACTION_TYPES)
+    return filterTransactionTypesForTenant(tenant, composerTypes)
   }
   const isSalesRole = evaluatePredicate(user, 'isSalesRole')
   const isOperationsRole = evaluatePredicate(user, 'isOperationsRole')

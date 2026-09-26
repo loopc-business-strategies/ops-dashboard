@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import {
   SHEET_COLUMNS,
-  applyColumnFilters,
+  formatMinutes,
+  formatWeight,
+  isoDate,
   sortRows,
-  uniqueOptions,
 } from './productionSheetUtils'
 
 const TABLE_VIEWPORT_H = 360
@@ -24,7 +25,7 @@ const scrollBox = {
 
 const table = {
   width: '100%',
-  minWidth: 1480,
+  minWidth: 1680,
   borderCollapse: 'separate',
   borderSpacing: 0,
   fontSize: '0.88rem',
@@ -45,112 +46,384 @@ const thBase = {
   userSelect: 'none',
 }
 
-const filterTh = {
-  position: 'sticky',
-  top: 36,
-  zIndex: 2,
-  background: '#F1F5F9',
-  borderBottom: '1px solid #94A3B8',
-  borderRight: '1px solid #CBD5E1',
-  padding: '0.25rem 0.35rem',
-}
-
 const tdBase = {
   borderBottom: '1px solid #E2E8F0',
   borderRight: '1px solid #E2E8F0',
-  padding: '0.4rem 0.55rem',
+  padding: '0.3rem 0.35rem',
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',
 }
 
-const filterInput = {
+const inputStyle = {
   width: '100%',
+  minWidth: 72,
   boxSizing: 'border-box',
   border: '1px solid #CBD5E1',
-  borderRadius: '0.25rem',
-  padding: '0.2rem 0.35rem',
-  fontSize: '0.75rem',
+  borderRadius: 4,
+  padding: '0.25rem 0.35rem',
+  fontSize: '0.85rem',
+  fontFamily: 'inherit',
+  color: '#0F172A',
   background: '#FFFFFF',
 }
+
+const btnBase = {
+  border: '1px solid #94A3B8',
+  borderRadius: 4,
+  padding: '0.2rem 0.45rem',
+  fontSize: '0.75rem',
+  fontWeight: 700,
+  cursor: 'pointer',
+  background: '#F8FAFC',
+  color: '#0F172A',
+  marginRight: 4,
+}
+
+const actionsTh = {
+  ...thBase,
+  width: 190,
+  minWidth: 190,
+  whiteSpace: 'nowrap',
+}
+
+const actionsTd = {
+  ...tdBase,
+  width: 190,
+  minWidth: 190,
+  whiteSpace: 'nowrap',
+}
+
+const footerBar = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  padding: '0.45rem 0.65rem',
+  borderTop: '1px solid #CBD5E1',
+  background: '#F8FAFC',
+}
+
+const EDITABLE_KEYS = new Set([
+  'date',
+  'batch',
+  'metalIn',
+  'metalOut',
+  'batchStarted',
+  'batchOver',
+  'departmentManager',
+  'employee',
+  'rating',
+  'breakdown',
+  'requests',
+])
 
 function cellDisplay(row, key) {
   if (key === 'metalIn') return row.metalInDisplay
   if (key === 'metalOut') return row.metalOutDisplay
   if (key === 'metalLoss') return row.metalLossDisplay
   if (key === 'timeBatch') return row.timeBatchDisplay
-  if (key === 'averageTime') return row.averageTimeDisplay
   return row[key] ?? '—'
 }
 
-function statusColor(status) {
-  if (status === 'Running') return '#166534'
-  if (status === 'Completed') return '#1E40AF'
-  if (status === 'Idle') return '#92400E'
-  return '#334155'
+function toDatetimeLocal(value) {
+  if (!value) return ''
+  const d = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function fromDatetimeLocal(value) {
+  if (!value) return null
+  const d = new Date(value)
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null
+}
+
+function computeLoss(inn, out) {
+  if (inn == null || out == null) return null
+  if (!Number.isFinite(inn) || !Number.isFinite(out)) return null
+  return Math.max(0, inn - out)
+}
+
+function durationFrom(startIso, endIso) {
+  if (!startIso) return null
+  const start = new Date(startIso)
+  if (!Number.isFinite(start.getTime())) return null
+  const end = endIso ? new Date(endIso) : new Date()
+  if (!Number.isFinite(end.getTime())) return null
+  const mins = (end.getTime() - start.getTime()) / 60000
+  return mins >= 0 ? mins : null
+}
+
+function patchDraft(prev, patch) {
+  const next = { ...prev, ...patch }
+  if (patch.metalIn !== undefined || patch.metalOut !== undefined) {
+    const inn = next.metalIn == null || next.metalIn === '' ? null : Number(next.metalIn)
+    const out = next.metalOut == null || next.metalOut === '' ? null : Number(next.metalOut)
+    next.metalIn = Number.isFinite(inn) ? inn : null
+    next.metalOut = Number.isFinite(out) ? out : null
+    next.metalLoss = computeLoss(next.metalIn, next.metalOut)
+    next.metalInDisplay = formatWeight(next.metalIn)
+    next.metalOutDisplay = formatWeight(next.metalOut)
+    next.metalLossDisplay = formatWeight(next.metalLoss)
+  }
+  if (patch.batchStartedRaw !== undefined || patch.batchOverRaw !== undefined) {
+    const mins = durationFrom(next.batchStartedRaw, next.batchOverRaw)
+    next.timeBatch = mins
+    next.timeBatchDisplay = formatMinutes(mins)
+  }
+  if (patch.dateKey !== undefined) {
+    const d = patch.dateKey ? new Date(`${patch.dateKey}T12:00:00`) : null
+    next.dateRaw = d && Number.isFinite(d.getTime()) ? d : null
+    if (next.dateRaw) {
+      const dd = String(next.dateRaw.getDate()).padStart(2, '0')
+      const mm = String(next.dateRaw.getMonth() + 1).padStart(2, '0')
+      next.date = `${dd}/${mm}/${next.dateRaw.getFullYear()}`
+    }
+  }
+  return next
 }
 
 /**
  * Excel-style department table with sticky headers and independent scroll.
+ * When editable: view mode by default; Edit unlocks inputs; Save / Del in Actions.
  */
-export default function DepartmentTable({ rows }) {
+export default function DepartmentTable({
+  rows,
+  editable = false,
+  savingId = null,
+  onSaveRow,
+  onDeleteRow,
+  onAddRow,
+}) {
   const [sortKey, setSortKey] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
-  const [columnFilters, setColumnFilters] = useState({})
+  const [drafts, setDrafts] = useState({})
+  const [editingIds, setEditingIds] = useState(() => new Set())
 
-  const filtered = useMemo(
-    () => applyColumnFilters(rows || [], columnFilters),
-    [rows, columnFilters],
-  )
+  useEffect(() => {
+    setDrafts((prev) => {
+      const next = { ...prev }
+      const ids = new Set((rows || []).map((r) => String(r.id)))
+      Object.keys(next).forEach((id) => {
+        if (!ids.has(id)) delete next[id]
+      })
+      return next
+    })
+    setEditingIds((prev) => {
+      const next = new Set()
+      ;(rows || []).forEach((r) => {
+        const id = String(r.id)
+        if (r._isNew || prev.has(id)) next.add(id)
+      })
+      return next
+    })
+  }, [rows])
+
   const sorted = useMemo(
-    () => sortRows(filtered, sortKey, sortDir),
-    [filtered, sortKey, sortDir],
+    () => sortRows(rows || [], sortKey, sortDir),
+    [rows, sortKey, sortDir],
   )
 
   const { scrollRef, enabled, virtualItems, paddingTop, paddingBottom } = useVirtualTableRows(
     sorted.length,
-    { estimateSize: 38, threshold: 60, overscan: 10 },
+    { estimateSize: 42, threshold: editable ? 9999 : 60, overscan: 10 },
   )
-
-  const employeeOpts = useMemo(() => uniqueOptions(rows || [], 'employee'), [rows])
-  const managerOpts = useMemo(() => uniqueOptions(rows || [], 'departmentManager'), [rows])
-  const statusOpts = useMemo(() => uniqueOptions(rows || [], 'status'), [rows])
 
   const toggleSort = (key) => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     } else {
       setSortKey(key)
-      setSortDir(key === 'employee' || key === 'status' || key === 'batch' ? 'asc' : 'desc')
+      setSortDir(key === 'employee' || key === 'batch' || key === 'departmentManager' ? 'asc' : 'desc')
     }
   }
 
-  const setColFilter = (key, value) => {
-    setColumnFilters((prev) => ({ ...prev, [key]: value }))
+  const isEditing = (row) => editingIds.has(String(row.id)) || Boolean(row._isNew)
+
+  const getDraft = (row) => {
+    const id = String(row.id)
+    return drafts[id] || row
   }
 
-  const renderRow = (row, idx) => (
-    <tr
-      key={row.id || idx}
-      style={{ background: idx % 2 ? '#F8FAFC' : '#FFFFFF' }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = '#ECFDF5' }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = idx % 2 ? '#F8FAFC' : '#FFFFFF' }}
-    >
-      {SHEET_COLUMNS.map((col) => (
-        <td
-          key={col.key}
-          style={{
-            ...tdBase,
-            textAlign: col.align || 'left',
-            color: col.key === 'status' ? statusColor(row.status) : undefined,
-            fontWeight: col.key === 'status' ? 700 : 500,
-            fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
+  const setField = (row, patch) => {
+    const id = String(row.id)
+    setDrafts((prev) => ({
+      ...prev,
+      [id]: patchDraft(prev[id] || row, patch),
+    }))
+  }
+
+  const startEdit = (row) => {
+    const id = String(row.id)
+    setEditingIds((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+    setDrafts((prev) => (prev[id] ? prev : { ...prev, [id]: { ...row } }))
+  }
+
+  const handleSave = async (row) => {
+    if (!onSaveRow) return
+    const draft = getDraft(row)
+    await onSaveRow(draft)
+    const id = String(row.id)
+    setDrafts((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setEditingIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
+  const colSpan = SHEET_COLUMNS.length + (editable ? 1 : 0)
+
+  const renderEditableCell = (row, col) => {
+    const draft = getDraft(row)
+    const key = col.key
+
+    if (key === 'metalLoss' || key === 'timeBatch') {
+      return (
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {key === 'metalLoss' ? formatWeight(draft.metalLoss) : formatMinutes(draft.timeBatch)}
+        </span>
+      )
+    }
+
+    if (!EDITABLE_KEYS.has(key)) {
+      return cellDisplay(draft, key)
+    }
+
+    if (key === 'date') {
+      return (
+        <input
+          type="date"
+          style={inputStyle}
+          value={draft.dateKey || isoDate(new Date())}
+          onChange={(e) => setField(row, { dateKey: e.target.value })}
+        />
+      )
+    }
+
+    if (key === 'metalIn' || key === 'metalOut') {
+      return (
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          style={{ ...inputStyle, textAlign: 'right', minWidth: 88 }}
+          value={draft[key] == null ? '' : draft[key]}
+          onChange={(e) => {
+            const v = e.target.value
+            setField(row, { [key]: v === '' ? null : v })
           }}
-        >
-          {cellDisplay(row, col.key)}
-        </td>
-      ))}
-    </tr>
-  )
+        />
+      )
+    }
+
+    if (key === 'batchStarted') {
+      return (
+        <input
+          type="datetime-local"
+          style={{ ...inputStyle, minWidth: 160 }}
+          value={toDatetimeLocal(draft.batchStartedRaw)}
+          onChange={(e) => setField(row, { batchStartedRaw: fromDatetimeLocal(e.target.value) })}
+        />
+      )
+    }
+
+    if (key === 'batchOver') {
+      return (
+        <input
+          type="datetime-local"
+          style={{ ...inputStyle, minWidth: 160 }}
+          value={toDatetimeLocal(draft.batchOverRaw)}
+          onChange={(e) => setField(row, { batchOverRaw: fromDatetimeLocal(e.target.value) })}
+        />
+      )
+    }
+
+    const fieldMap = {
+      batch: 'batch',
+      departmentManager: 'departmentManager',
+      employee: 'employee',
+      rating: 'rating',
+      breakdown: 'breakdown',
+      requests: 'requests',
+    }
+    const field = fieldMap[key]
+    const raw = draft[field]
+    const display = raw === '—' ? '' : (raw ?? '')
+
+    return (
+      <input
+        type="text"
+        style={{ ...inputStyle, minWidth: key === 'breakdown' || key === 'requests' ? 120 : 90 }}
+        value={display}
+        onChange={(e) => setField(row, { [field]: e.target.value })}
+      />
+    )
+  }
+
+  const renderRow = (row, idx) => {
+    const busy = savingId != null && String(savingId) === String(row.id)
+    const editing = editable && isEditing(row)
+    const displayRow = editing ? getDraft(row) : row
+    const rowBg = row._isNew || editing ? '#FFFBEB' : (idx % 2 ? '#F8FAFC' : '#FFFFFF')
+
+    return (
+      <tr
+        key={row.id || idx}
+        style={{ background: rowBg }}
+      >
+        {SHEET_COLUMNS.map((col) => (
+          <td
+            key={col.key}
+            style={{
+              ...tdBase,
+              textAlign: col.align || 'left',
+              fontWeight: 500,
+              fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
+            }}
+          >
+            {editing ? renderEditableCell(row, col) : cellDisplay(displayRow, col.key)}
+          </td>
+        ))}
+        {editable ? (
+          <td style={actionsTd}>
+            <button
+              type="button"
+              style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD' }}
+              disabled={busy || editing}
+              onClick={() => startEdit(row)}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              style={{ ...btnBase, background: '#DCFCE7', borderColor: '#86EFAC' }}
+              disabled={busy || !editing}
+              onClick={() => handleSave(row)}
+            >
+              {busy ? '…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              style={{ ...btnBase, background: '#FEE2E2', borderColor: '#FECACA', color: '#991B1B', marginRight: 0 }}
+              disabled={busy}
+              onClick={() => onDeleteRow?.(row)}
+            >
+              Del
+            </button>
+          </td>
+        ) : null}
+      </tr>
+    )
+  }
 
   return (
     <div style={pane}>
@@ -172,86 +445,26 @@ export default function DepartmentTable({ rows }) {
                   ) : null}
                 </th>
               ))}
-            </tr>
-            <tr>
-              {SHEET_COLUMNS.map((col) => (
-                <th key={`f-${col.key}`} style={filterTh}>
-                  {col.filter === 'select' && col.key === 'employee' ? (
-                    <select
-                      style={filterInput}
-                      value={columnFilters.employee || ''}
-                      onChange={(e) => setColFilter('employee', e.target.value)}
-                    >
-                      <option value="">All</option>
-                      {employeeOpts.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : null}
-                  {col.filter === 'select' && col.key === 'departmentManager' ? (
-                    <select
-                      style={filterInput}
-                      value={columnFilters.departmentManager || ''}
-                      onChange={(e) => setColFilter('departmentManager', e.target.value)}
-                    >
-                      <option value="">All</option>
-                      {managerOpts.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : null}
-                  {col.filter === 'select' && col.key === 'status' ? (
-                    <select
-                      style={filterInput}
-                      value={columnFilters.status || ''}
-                      onChange={(e) => setColFilter('status', e.target.value)}
-                    >
-                      <option value="">All</option>
-                      {statusOpts.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : null}
-                  {col.filter === 'search' ? (
-                    <input
-                      style={filterInput}
-                      value={columnFilters[col.key] || ''}
-                      onChange={(e) => setColFilter(col.key, e.target.value)}
-                      placeholder="Filter…"
-                    />
-                  ) : null}
-                  {col.filter === 'date' ? (
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <input
-                        type="date"
-                        style={filterInput}
-                        value={columnFilters.dateFrom || ''}
-                        onChange={(e) => setColFilter('dateFrom', e.target.value)}
-                        title="From"
-                      />
-                      <input
-                        type="date"
-                        style={filterInput}
-                        value={columnFilters.dateTo || ''}
-                        onChange={(e) => setColFilter('dateTo', e.target.value)}
-                        title="To"
-                      />
-                    </div>
-                  ) : null}
-                  {!col.filter ? <span style={{ display: 'block', height: 22 }} /> : null}
-                </th>
-              ))}
+              {editable ? (
+                <th style={actionsTh}>Actions</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
             {!sorted.length ? (
               <tr>
-                <td style={tdBase} colSpan={SHEET_COLUMNS.length}>
+                <td style={tdBase} colSpan={colSpan}>
                   No production rows for this department.
                 </td>
               </tr>
             ) : enabled && virtualItems ? (
               <>
                 {paddingTop > 0 ? (
-                  <tr><td colSpan={SHEET_COLUMNS.length} style={{ height: paddingTop, padding: 0, border: 0 }} /></tr>
+                  <tr><td colSpan={colSpan} style={{ height: paddingTop, padding: 0, border: 0 }} /></tr>
                 ) : null}
                 {virtualItems.map((v) => renderRow(sorted[v.index], v.index))}
                 {paddingBottom > 0 ? (
-                  <tr><td colSpan={SHEET_COLUMNS.length} style={{ height: paddingBottom, padding: 0, border: 0 }} /></tr>
+                  <tr><td colSpan={colSpan} style={{ height: paddingBottom, padding: 0, border: 0 }} /></tr>
                 ) : null}
               </>
             ) : (
@@ -260,6 +473,17 @@ export default function DepartmentTable({ rows }) {
           </tbody>
         </table>
       </div>
+      {editable ? (
+        <div style={footerBar}>
+          <button
+            type="button"
+            style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD', marginRight: 0 }}
+            onClick={() => onAddRow?.()}
+          >
+            + Add row
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

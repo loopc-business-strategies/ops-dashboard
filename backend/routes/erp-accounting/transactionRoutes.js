@@ -453,7 +453,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     }
 
     const normalizedMetalFixStatus = normalizeMetalFixStatus(metalFixStatus)
-    let voucherMetaPayload = (['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
+    let voucherMetaPayload = (['sale', 'purchase', 'metal_receipt', 'metal_payment', 'metal_transfer'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
       ? normalizeVoucherMetaDocNo(type, {
           ...(voucherMeta || {}),
           fixingType: normalizedMetalFixStatus === 'unfixed' ? 'non-fixing' : 'fixing',
@@ -465,6 +465,13 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     if (!requestedVocNo || await voucherDocNoExists(Transaction, requestedVocNo)) {
       const allocated = await allocateNextVoucherDocNo(Transaction, type, docDateForVoc)
       voucherMetaPayload = { ...(voucherMetaPayload || {}), vocNo: allocated }
+    }
+
+    if (voucherMetaPayload && typeof voucherMetaPayload === 'object') {
+      voucherMetaPayload = {
+        ...voucherMetaPayload,
+        partyAccountId: sanitizeOptionalRef(voucherMetaPayload.partyAccountId),
+      }
     }
 
     const createPayload = {
@@ -624,7 +631,15 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     if (req.body.mappingId !== undefined) tx.mappingId = sanitizeOptionalRef(req.body.mappingId)
     if (req.body.debitAccountId !== undefined) tx.debitAccountId = sanitizeOptionalRef(req.body.debitAccountId)
     if (req.body.creditAccountId !== undefined) tx.creditAccountId = sanitizeOptionalRef(req.body.creditAccountId)
-    if (req.body.voucherMeta !== undefined) tx.voucherMeta = req.body.voucherMeta
+    if (req.body.voucherMeta !== undefined) {
+      const meta = req.body.voucherMeta && typeof req.body.voucherMeta === 'object'
+        ? { ...req.body.voucherMeta }
+        : req.body.voucherMeta
+      if (meta && typeof meta === 'object') {
+        meta.partyAccountId = sanitizeOptionalRef(meta.partyAccountId)
+      }
+      tx.voucherMeta = meta
+    }
     if (req.body.metalFixStatus !== undefined) {
       const normalizedMetalFixStatus = normalizeMetalFixStatus(req.body.metalFixStatus)
       if (!tx.voucherMeta || typeof tx.voucherMeta !== 'object') tx.voucherMeta = {}
@@ -634,6 +649,9 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     }
     if (tx.voucherMeta) {
       tx.voucherMeta = normalizeVoucherMetaDocNo(tx.type, tx.voucherMeta)
+      if (tx.voucherMeta && typeof tx.voucherMeta === 'object') {
+        tx.voucherMeta.partyAccountId = sanitizeOptionalRef(tx.voucherMeta.partyAccountId)
+      }
     }
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })
@@ -776,6 +794,10 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), tx.type)
+    if (disabledTypeMessage) {
+      return res.status(403).json({ success: false, message: disabledTypeMessage })
+    }
     if (!canCreateTransactionFor(req.user, tx.type)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
@@ -869,6 +891,10 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), tx.type)
+    if (disabledTypeMessage) {
+      return res.status(403).json({ success: false, message: disabledTypeMessage })
+    }
     if (tx.status === 'posted') {
       return res.status(409).json({ success: false, message: 'Transaction is already posted.' })
     }
@@ -1195,6 +1221,12 @@ router.post('/transactions/bulk-action', protect, validateBody(transactionBulkAc
 
     for (const tx of transactions) {
       try {
+        if (action === 'submit' || action === 'post') {
+          const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), tx.type)
+          if (disabledTypeMessage) {
+            throw new Error(disabledTypeMessage)
+          }
+        }
         const allowed = action === 'submit'
           ? canCreateTransactionFor(req.user, tx.type)
           : canManageTransactionWorkflow(req.user)

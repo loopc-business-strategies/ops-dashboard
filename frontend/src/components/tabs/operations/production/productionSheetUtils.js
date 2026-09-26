@@ -1,19 +1,19 @@
 import { LOOPC_PRODUCTION_DEPARTMENTS, matchLoopcDeptKey } from './loopcProductionDepartments'
 
 export const SHEET_COLUMNS = [
-  { key: 'employee', label: 'Employee', align: 'left', filter: 'select', sortable: true },
-  { key: 'departmentManager', label: 'Department Manager', align: 'left', filter: 'select', sortable: true },
-  { key: 'batch', label: 'Batch', align: 'left', filter: 'search', sortable: true },
-  { key: 'title', label: 'Title', align: 'left', filter: 'search', sortable: true },
+  { key: 'date', label: 'Date', align: 'left', filter: null, sortable: true },
+  { key: 'batch', label: 'Batch', align: 'left', filter: null, sortable: true },
   { key: 'metalIn', label: 'Metal IN', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalOut', label: 'Metal OUT', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalLoss', label: 'Metal Loss', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'timeBatch', label: 'Time / Batch', align: 'right', filter: null, sortable: true, numeric: true },
-  { key: 'averageTime', label: 'Average Time', align: 'right', filter: null, sortable: true, numeric: true },
-  { key: 'batchStarted', label: 'Batch Started', align: 'left', filter: null, sortable: true },
+  { key: 'batchStarted', label: 'Batch Start', align: 'left', filter: null, sortable: true },
   { key: 'batchOver', label: 'Batch Over', align: 'left', filter: null, sortable: true },
-  { key: 'status', label: 'Status', align: 'left', filter: 'select', sortable: true },
-  { key: 'date', label: 'Date', align: 'left', filter: 'date', sortable: true },
+  { key: 'departmentManager', label: 'Department Manager', align: 'left', filter: null, sortable: true },
+  { key: 'employee', label: 'Employee', align: 'left', filter: null, sortable: true },
+  { key: 'rating', label: 'Rating', align: 'left', filter: null, sortable: true },
+  { key: 'breakdown', label: 'Breakdown', align: 'left', filter: null, sortable: true },
+  { key: 'requests', label: 'Requests', align: 'left', filter: null, sortable: true },
 ]
 
 export const STATUS_BUCKETS = {
@@ -92,6 +92,16 @@ export function formatDateTimeDisplay(value) {
   const hh = String(d.getHours()).padStart(2, '0')
   const mi = String(d.getMinutes()).padStart(2, '0')
   return `${formatDateDisplay(d)} ${hh}:${mi}`
+}
+
+/** Time only HH:MM (24h) for Batch Start / Batch Over display. */
+export function formatTimeDisplay(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (!Number.isFinite(d.getTime())) return '—'
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mi}`
 }
 
 export function formatMinutes(mins) {
@@ -189,10 +199,13 @@ export function mapBatchToRow(batch) {
     averageTime: duration,
     timeBatchDisplay: formatMinutes(duration),
     averageTimeDisplay: formatMinutes(duration),
-    batchStarted: formatDateTimeDisplay(batch?.startedAt),
-    batchOver: formatDateTimeDisplay(batch?.completedAt),
+    batchStarted: formatTimeDisplay(batch?.startedAt),
+    batchOver: formatTimeDisplay(batch?.completedAt),
     batchStartedRaw: batch?.startedAt || null,
     batchOverRaw: batch?.completedAt || null,
+    rating: batch?.rating != null && batch?.rating !== '' ? String(batch.rating) : '—',
+    breakdown: String(batch?.breakdown || batch?.breakdownNotes || '').trim() || '—',
+    requests: String(batch?.requests || batch?.requestNotes || batch?.notes || '').trim() || '—',
     status,
     statusRaw: batch?.status || '',
     date: formatDateDisplay(dateRaw),
@@ -234,6 +247,22 @@ export function applyGlobalFilters(rows, filters) {
       const hay = `${row.employee} ${row.departmentManager} ${row.batch} ${row.title} ${row.status}`.toLowerCase()
       if (!hay.includes(searchQ)) return false
     }
+    return true
+  })
+}
+
+/** Narrow rows by a department-local date from/to (yyyy-mm-dd). */
+export function applyDeptDateFilter(rows, dateFrom, dateTo) {
+  if (!dateFrom && !dateTo) return rows
+  let from = dateFrom ? startOfDay(dateFrom) : null
+  let to = dateTo ? endOfDay(dateTo) : null
+  if (from && !Number.isFinite(from.getTime())) from = null
+  if (to && !Number.isFinite(to.getTime())) to = null
+  if (!from && !to) return rows
+  return rows.filter((row) => {
+    if (!row.dateRaw) return false
+    if (from && row.dateRaw < from) return false
+    if (to && row.dateRaw > to) return false
     return true
   })
 }
@@ -285,7 +314,7 @@ export function applyColumnFilters(rows, columnFilters) {
       if (!q) continue
       if (key === 'employee' || key === 'departmentManager' || key === 'status') {
         if (String(row[key]).toLowerCase() !== q) return false
-      } else if (key === 'batch' || key === 'title') {
+      } else if (key === 'batch' || key === 'title' || key === 'rating' || key === 'breakdown' || key === 'requests') {
         if (!String(row[key]).toLowerCase().includes(q)) return false
       } else if (key === 'dateFrom') {
         const from = startOfDay(value)
@@ -364,3 +393,148 @@ export async function fetchAllBatches(listBatches) {
   }
   return all
 }
+
+function entryDurationMinutes(entry) {
+  const start = entry?.batchStartedAt ? new Date(entry.batchStartedAt) : null
+  if (!start || !Number.isFinite(start.getTime())) return null
+  const end = entry?.batchOverAt ? new Date(entry.batchOverAt) : new Date()
+  if (!Number.isFinite(end.getTime())) return null
+  const mins = (end.getTime() - start.getTime()) / 60000
+  return mins >= 0 ? mins : null
+}
+
+/** Map OperationsProductionEntry → sheet row shape. */
+export function mapEntryToRow(entry) {
+  const dateKey = String(entry?.date || '').trim()
+  const dateObj = dateKey ? new Date(`${dateKey}T12:00:00`) : null
+  const inn = toNum(entry?.metalIn)
+  const out = toNum(entry?.metalOut)
+  let loss = toNum(entry?.metalLoss)
+  if (loss == null && inn != null && out != null) loss = Math.max(0, inn - out)
+  const duration = entryDurationMinutes(entry)
+  const deptKey = String(entry?.departmentKey || '').trim() || null
+
+  return {
+    id: entry?._id || entry?.id,
+    deptKey,
+    employee: String(entry?.employeeName || '').trim() || '—',
+    departmentManager: String(entry?.departmentManagerName || '').trim() || '—',
+    batch: String(entry?.batchNumber || '').trim() || '—',
+    title: '—',
+    metalIn: inn,
+    metalOut: out,
+    metalLoss: loss,
+    metalInDisplay: formatWeight(inn),
+    metalOutDisplay: formatWeight(out),
+    metalLossDisplay: formatWeight(loss),
+    timeBatch: duration,
+    averageTime: duration,
+    timeBatchDisplay: formatMinutes(duration),
+    averageTimeDisplay: formatMinutes(duration),
+    batchStarted: formatTimeDisplay(entry?.batchStartedAt),
+    batchOver: formatTimeDisplay(entry?.batchOverAt),
+    batchStartedRaw: entry?.batchStartedAt || null,
+    batchOverRaw: entry?.batchOverAt || null,
+    rating: entry?.rating != null && entry?.rating !== '' ? String(entry.rating) : '—',
+    breakdown: String(entry?.breakdown || '').trim() || '—',
+    requests: String(entry?.requests || '').trim() || '—',
+    status: entry?.batchOverAt ? 'Completed' : (entry?.batchStartedAt ? 'Running' : 'Idle'),
+    statusRaw: '',
+    date: dateObj && Number.isFinite(dateObj.getTime()) ? formatDateDisplay(dateObj) : (dateKey || '—'),
+    dateRaw: dateObj && Number.isFinite(dateObj.getTime()) ? dateObj : null,
+    dateKey,
+    shift: dateObj && Number.isFinite(dateObj.getTime()) ? shiftFromDate(dateObj) : '',
+  }
+}
+
+export async function fetchAllOperationsEntries(listEntries, params = {}) {
+  const pageSize = 200
+  const all = []
+  let skip = 0
+  let hasMore = true
+  let guard = 0
+  while (hasMore && guard < 50) {
+    guard += 1
+    const res = await listEntries({ ...params, limit: pageSize, skip, includeCount: 1 })
+    const list = res?.entries || res?.items || res?.data || (Array.isArray(res) ? res : [])
+    const chunk = Array.isArray(list) ? list : []
+    all.push(...chunk)
+    hasMore = Boolean(res?.hasMore) && chunk.length > 0
+    if (!hasMore && chunk.length === pageSize && typeof res?.total === 'number') {
+      hasMore = all.length < res.total
+    }
+    skip += pageSize
+    if (chunk.length < pageSize) hasMore = false
+  }
+  return all
+}
+
+/** Build API payload from editable draft / row fields. */
+export function rowToEntryPayload(row, departmentKey) {
+  const dateKey = String(row.dateKey || '').trim()
+    || (row.dateRaw instanceof Date && Number.isFinite(row.dateRaw.getTime()) ? isoDate(row.dateRaw) : '')
+    || isoDate(new Date())
+
+  const inn = toNum(row.metalIn)
+  const out = toNum(row.metalOut)
+  let loss = toNum(row.metalLoss)
+  if (loss == null && inn != null && out != null) loss = Math.max(0, inn - out)
+
+  const blank = (v) => {
+    const s = String(v ?? '').trim()
+    return !s || s === '—' ? '' : s
+  }
+
+  return {
+    departmentKey,
+    batchNumber: blank(row.batch),
+    metalIn: inn,
+    metalOut: out,
+    metalLoss: loss,
+    employeeName: blank(row.employee),
+    departmentManagerName: blank(row.departmentManager),
+    batchStartedAt: row.batchStartedRaw || null,
+    batchOverAt: row.batchOverRaw || null,
+    rating: blank(row.rating),
+    breakdown: blank(row.breakdown),
+    requests: blank(row.requests),
+    date: dateKey,
+  }
+}
+
+export function emptyDraftRow(departmentKey) {
+  const today = isoDate(new Date())
+  return {
+    id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    _isNew: true,
+    deptKey: departmentKey,
+    employee: '',
+    departmentManager: '',
+    batch: '',
+    title: '',
+    metalIn: null,
+    metalOut: null,
+    metalLoss: null,
+    metalInDisplay: '—',
+    metalOutDisplay: '—',
+    metalLossDisplay: '—',
+    timeBatch: null,
+    averageTime: null,
+    timeBatchDisplay: '—',
+    averageTimeDisplay: '—',
+    batchStarted: '—',
+    batchOver: '—',
+    batchStartedRaw: null,
+    batchOverRaw: null,
+    rating: '',
+    breakdown: '',
+    requests: '',
+    status: 'Idle',
+    statusRaw: '',
+    date: formatDateDisplay(new Date()),
+    dateRaw: new Date(),
+    dateKey: today,
+    shift: shiftFromDate(new Date()),
+  }
+}
+

@@ -64,7 +64,16 @@ echo.
 REM Cover 32-bit and 64-bit factory tablets/phones (avoids UnsatisfiedLinkError on older devices).
 set OPS_REACT_NATIVE_ARCHS=armeabi-v7a,arm64-v8a
 REM Keep New Architecture enabled (required by RN 0.85 + Reanimated 4).
-powershell -NoProfile -Command "(Get-Content '%REPO%\mg-floor\android\gradle.properties') -replace 'newArchEnabled=false','newArchEnabled=true' | Set-Content '%REPO%\mg-floor\android\gradle.properties'"
+REM Use Node (not PowerShell) so GitHub Source ZIPs are less likely to trip Defender ML.
+node -e "const fs=require('fs');const path=require('path');const root=process.env.REPO;if(!root){console.error('REPO env missing');process.exit(1);}const p=path.join(root,'mg-floor','android','gradle.properties');let t=fs.readFileSync(p,'utf8');t=t.replace(/newArchEnabled=false/g,'newArchEnabled=true');fs.writeFileSync(p,t);"
+if errorlevel 1 (
+  echo ERROR: failed to enable newArchEnabled in gradle.properties
+  cd /d "%REPO%"
+  if "%MG_FLOOR_JUNC_CREATED%"=="1" if exist "%MG_FLOOR_JUNC%" rmdir "%MG_FLOOR_JUNC%"
+  subst Q: /d >nul 2>&1
+  popd
+  exit /b 1
+)
 echo Running: npm run mg-floor:build:android:local:apk
 echo.
 call npm run mg-floor:build:android:local:apk

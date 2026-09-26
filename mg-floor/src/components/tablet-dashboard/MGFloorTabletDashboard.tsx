@@ -31,7 +31,6 @@ import { MetalProcessPanel, type MetalBatchEdit } from './MetalProcessPanel'
 import { AssignedMetalInPanel } from './AssignedMetalInPanel'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
-import { ScaleConfirmModal } from './ScaleConfirmModal'
 import {
   buildMetalProcessBatches,
   formatClock,
@@ -88,7 +87,6 @@ export function MGFloorTabletDashboard() {
   const [manager, setManager] = useState<AssignedManager | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [callOpen, setCallOpen] = useState(false)
-  const [confirmKind, setConfirmKind] = useState<'in' | 'out' | null>(null)
   const [metalInBatches, setMetalInBatches] = useState<MetalBatchEdit[]>(emptyEditableBatches)
   const [metalOutBatches, setMetalOutBatches] = useState<MetalBatchEdit[]>(emptyEditableBatches)
   const [assignedMetal, setAssignedMetal] = useState({ batch1: '', batch2: '' })
@@ -197,9 +195,6 @@ export function MGFloorTabletDashboard() {
               title="Metal In"
               batches={metalInBatches}
               onChange={setMetalInBatches}
-              onConfirm={() => setConfirmKind('in')}
-              confirmLabel="Confirm"
-              confirmDisabled={!token}
               compact={compact}
             />
           </View>
@@ -212,9 +207,6 @@ export function MGFloorTabletDashboard() {
                 title="Metal Out"
                 batches={metalOutBatches}
                 onChange={setMetalOutBatches}
-                onConfirm={() => setConfirmKind('out')}
-                confirmLabel="Confirm"
-                confirmDisabled={!token}
                 compact={compact}
               />
             </View>
@@ -240,16 +232,6 @@ export function MGFloorTabletDashboard() {
         operatorName={user?.name || ''}
         operatorId={user?.id || ''}
         manager={manager}
-      />
-      <ScaleConfirmModal
-        visible={confirmKind != null}
-        kind={confirmKind || 'in'}
-        batches={confirmKind === 'out' ? metalOutBatches : metalInBatches}
-        onClose={() => setConfirmKind(null)}
-        onSaved={() => {
-          setSeeded(false)
-          history.reload()
-        }}
       />
     </ScrollView>
   )

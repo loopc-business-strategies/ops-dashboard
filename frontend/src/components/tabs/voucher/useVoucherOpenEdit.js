@@ -5,9 +5,11 @@ import {
   backendRateToDisplayRate,
   normalizeVoucherFixingType,
   today,
+  isMetalProductTransferVoucherType,
 } from './voucherTabShared'
 import { hydrateMetalLineWeights } from './hydrateMetalLineWeights'
 import { isVoucherTypeEnabled } from '../../../config/tenantBranding'
+import { emptyMetalTransferLines } from './metalTransferCalc'
 
 /** True when a voucher should open unlocked for editing (draft/returned/rejected, not locked). */
 export function isVoucherOpenInEdit(v, { isReadOnly = false, isEntryLocked = () => false } = {}) {
@@ -120,7 +122,12 @@ export function useVoucherOpenEdit({
   const openCreate = async (freshList, forcedType = voucherType) => {
   // If already filling a new form, ask before discarding
   if (mode === 'create' && !editingId) {
-    const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
+    const hasTransferData = isMetalProductTransferVoucherType(forcedType || voucherType)
+      && lineItems.some((line) => String(line?.inventoryItemId || '').trim() || Number(line?.grossWeight || 0) > 0)
+    const hasData = String(header.partyCode || '').trim()
+      || (!isMetalProductTransferVoucherType(forcedType || voucherType) && lineItems.length > 0)
+      || hasTransferData
+      || String(header.narration || '').trim()
     if (hasData && !window.confirm('Discard current unsaved form and open a new one?')) return
     // Don’t overwrite lastViewedIdRef — it already points to the voucher before the first New
   } else {
@@ -133,11 +140,12 @@ export function useVoucherOpenEdit({
     ...baseHeader,
     vocNo: serverVocNo || resolveNextVocNo(freshList, forcedType, baseHeader.docDate),
   }
+  const initialLines = isMetalProductTransferVoucherType(forcedType) ? emptyMetalTransferLines() : []
   setEditingId(null)
   setHeader(nextHeader)
   setSelectedPartyId('')
   setRecentPartyVouchers([])
-  setLineItems([])
+  setLineItems(initialLines)
   setShowLineForm(false)
   setMenuTab('header')
   setWorkflowNote('')
@@ -145,7 +153,7 @@ export function useVoucherOpenEdit({
   setModalDrag(null)
   setError('')
   setMode('create')
-  initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, [], '')
+  initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, initialLines, '')
 }
 
 const openLastOrCreate = async (type) => {

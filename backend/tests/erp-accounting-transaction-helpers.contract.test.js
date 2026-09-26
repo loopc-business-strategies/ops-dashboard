@@ -40,9 +40,9 @@ const {
 describe('transactionHelpers – constants', () => {
   test('TRANSACTION_TYPES includes all standard types', () => {
     expect(TRANSACTION_TYPES).toEqual(
-      expect.arrayContaining(['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment'])
+      expect.arrayContaining(['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment', 'metal_transfer'])
     )
-    expect(TRANSACTION_TYPES).toHaveLength(8)
+    expect(TRANSACTION_TYPES).toHaveLength(9)
   })
 
   test('TRANSACTION_STATUSES includes all lifecycle states', () => {
@@ -139,8 +139,8 @@ describe('transactionHelpers – getRoleTransactionTypes', () => {
     expect(getRoleTransactionTypes({ role: 'sales' })).toEqual(['sale', 'receipt', 'metal_payment'])
   })
 
-  test('operations gets purchase and expense only', () => {
-    expect(getRoleTransactionTypes({ role: 'operations' })).toEqual(['purchase', 'expense', 'metal_receipt'])
+  test('operations gets purchase, expense, metal_receipt, metal_transfer', () => {
+    expect(getRoleTransactionTypes({ role: 'operations' })).toEqual(['purchase', 'expense', 'metal_receipt', 'metal_transfer'])
   })
 
   test('hr gets payroll only', () => {

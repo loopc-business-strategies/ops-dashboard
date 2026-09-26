@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { productionControlApi } from '../../api/productionControl'
 import hrAPI from '../../api/hr'
 import { useAuth } from '../../context/AuthContext'
+import { getTenantBranding } from '../../config/tenantBranding'
 import { buildDashboardModel, dayKey, addDays } from './buildDashboardModel'
+import { applyLoopcOpsEntriesToModel } from './applyLoopcOpsEntries'
 
 /** Sum department-performance rows into a period totals object. */
 export function summarizeDeptPerf(res) {
@@ -56,6 +58,13 @@ function errMsg(err, fallback) {
  */
 export function useProductionDashboard({ refreshMs = 45000 } = {}) {
   const { company, user } = useAuth()
+  const tenantKey = String(
+    getTenantBranding(user?.company || company)?.key
+    || user?.company
+    || company
+    || '',
+  ).trim().toLowerCase()
+  const isLoopc = tenantKey === 'loopc'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [actionError, setActionError] = useState(null)
@@ -85,7 +94,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     const movements = payload.metalMovements
       || payload.movementsRes?.movements
       || (Array.isArray(payload.movementsRes) ? payload.movementsRes : [])
-    return buildDashboardModel({
+    const base = buildDashboardModel({
       summaryRes: payload.summaryRes,
       boardRes: payload.boardRes,
       widgetsRes: payload.widgetsRes,
@@ -112,7 +121,15 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       weightVarianceRes: payload.weightVarianceRes,
       metalMovements: movements,
     })
-  }, [user])
+    if (isLoopc) {
+      return applyLoopcOpsEntriesToModel(
+        base,
+        payload.opsEntries || [],
+        payload.opsEntriesAll || null,
+      )
+    }
+    return base
+  }, [user, isLoopc])
 
   const publish = useCallback((partial) => {
     payloadRef.current = { ...payloadRef.current, ...partial }
@@ -163,7 +180,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     try {
       const today = dayKey()
 
-      const [summaryRes, boardRes, widgetsRes, shiftRes, flowRes, todayReport, meRes] = await Promise.all([
+      const corePromises = [
         productionControlApi.getLiveFloorSummary({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorBoard({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorWidgets({ signal: ac.signal }).catch(() => null),
@@ -171,15 +188,42 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.getFlow({ signal: ac.signal }).catch(() => null),
         productionControlApi.reportDaily({ date: today }, { signal: ac.signal }).catch(() => null),
         productionControlApi.me({ signal: ac.signal }).catch(() => null),
-      ])
+      ]
+      if (isLoopc) {
+        const yesterday = dayKey(addDays(new Date(), -1))
+        corePromises.push(
+          productionControlApi.listOperationsEntries(
+            { date: today, limit: 500 },
+            { signal: ac.signal },
+          ).catch(() => null),
+          productionControlApi.listOperationsEntries(
+            { limit: 500, dateTo: yesterday },
+            { signal: ac.signal },
+          ).catch(() => null),
+        )
+      }
+
+      const [
+        summaryRes,
+        boardRes,
+        widgetsRes,
+        shiftRes,
+        flowRes,
+        todayReport,
+        meRes,
+        opsEntriesRes,
+        opsEntriesAllRes,
+      ] = await Promise.all(corePromises)
       if (ac.signal.aborted) return
 
-      if (!summaryRes && !boardRes && !widgetsRes) {
+      if (!isLoopc && !summaryRes && !boardRes && !widgetsRes) {
         setError('Unable to load production floor data')
       } else {
         setError(null)
       }
 
+      const opsEntries = opsEntriesRes?.entries || opsEntriesRes?.items || []
+      const opsEntriesAll = opsEntriesAllRes?.entries || opsEntriesAllRes?.items || []
       publish({
         summaryRes,
         boardRes,
@@ -188,6 +232,10 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         flowRes,
         todayReport,
         meRes,
+        ...(isLoopc ? {
+          opsEntries: Array.isArray(opsEntries) ? opsEntries : [],
+          opsEntriesAll: Array.isArray(opsEntriesAll) ? opsEntriesAll : [],
+        } : {}),
       })
       if (!soft) setLoading(false)
 
@@ -244,23 +292,48 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load Production Dashboard')
       if (!soft) setLoading(false)
     }
-  }, [publish])
+  }, [publish, isLoopc])
 
   const softRefreshFloor = useCallback(async () => {
     const ac = new AbortController()
     try {
-      const [summaryRes, boardRes, widgetsRes, shiftRes] = await Promise.all([
+      const tasks = [
         productionControlApi.getLiveFloorSummary({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorBoard({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorWidgets({ signal: ac.signal }).catch(() => null),
         productionControlApi.getCurrentShift({ signal: ac.signal }).catch(() => null),
-      ])
-      if (!summaryRes && !boardRes && !widgetsRes) return
-      publish({ summaryRes, boardRes, widgetsRes, shiftRes })
+      ]
+      if (isLoopc) {
+        const yesterday = dayKey(addDays(new Date(), -1))
+        tasks.push(
+          productionControlApi.listOperationsEntries(
+            { date: dayKey(), limit: 500 },
+            { signal: ac.signal },
+          ).catch(() => null),
+          productionControlApi.listOperationsEntries(
+            { limit: 500, dateTo: yesterday },
+            { signal: ac.signal },
+          ).catch(() => null),
+        )
+      }
+      const [summaryRes, boardRes, widgetsRes, shiftRes, opsEntriesRes, opsEntriesAllRes] = await Promise.all(tasks)
+      if (!isLoopc && !summaryRes && !boardRes && !widgetsRes) return
+      const opsEntries = opsEntriesRes?.entries || opsEntriesRes?.items || []
+      const opsEntriesAll = opsEntriesAllRes?.entries || opsEntriesAllRes?.items || []
+      publish({
+        summaryRes,
+        boardRes,
+        widgetsRes,
+        shiftRes,
+        ...(isLoopc ? {
+          opsEntries: Array.isArray(opsEntries) ? opsEntries : [],
+          opsEntriesAll: Array.isArray(opsEntriesAll) ? opsEntriesAll : [],
+        } : {}),
+      })
     } catch {
       /* ignore soft refresh errors */
     }
-  }, [publish])
+  }, [publish, isLoopc])
 
   const afterWrite = useCallback(async () => {
     await softRefreshFloor()

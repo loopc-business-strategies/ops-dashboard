@@ -129,7 +129,10 @@ export default function AppSidebar({
                 openInNewTab={false}
                 onSameTabNavigate={() => onErpNavigate?.(item.erpSub)}
                 onAfterClick={sidebarLinkAfterClick}
-                onPrefetch={() => prefetchTabChunk('erp')}
+                onPrefetch={() => {
+                  prefetchTabChunk('erp')
+                  prefetchTabChunk(item.id)
+                }}
               />
             ))}
           </>

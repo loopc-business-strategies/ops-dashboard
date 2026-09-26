@@ -1,9 +1,11 @@
 /**
  * Department card display mapping.
- * Live metrics win; when a card has no live signal, reference-style demo values fill the UI.
+ * Live metrics win; when a card has no live signal, reference-style demo values fill the UI
+ * (unless options.suppressDemo — used for LoopC so demo placeholders are never injected).
  */
 
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
+import { formatMinutes as formatOpsMinutes } from '../tabs/operations/production/productionSheetUtils'
 
 function hasNum(v) {
   return v != null && Number.isFinite(Number(v))
@@ -33,18 +35,29 @@ function subtitleFor(key) {
 
 function rowsForDept(batchMonitorRows, card) {
   const key = String(card.key || '')
-  return (batchMonitorRows || []).filter((row) => {
-    const rowKey = matchDashboardDeptKey(row.department)
+  const matched = (batchMonitorRows || []).filter((row) => {
+    const rowKey = matchDashboardDeptKey(row.departmentKey || row.department)
     if (rowKey && rowKey === key) return true
     return normName(row.department) === normName(card.name)
+      || normName(row.departmentKey) === normName(key)
+  })
+  return matched.sort((a, b) => {
+    const ta = a.startedAt ? new Date(a.startedAt).getTime() : 0
+    const tb = b.startedAt ? new Date(b.startedAt).getTime() : 0
+    return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0)
   })
 }
 
-function formatBatchClock(value) {
+function formatBatchClock(value, { hour24 = false } = {}) {
   if (!value) return null
   try {
     const d = value instanceof Date ? value : new Date(value)
     if (Number.isNaN(d.getTime())) return null
+    if (hour24) {
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mi = String(d.getMinutes()).padStart(2, '0')
+      return `${hh}:${mi}`
+    }
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
   } catch {
     return null
@@ -220,7 +233,7 @@ function hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows 
   )
 }
 
-function resolveBatchProgress(card, batches) {
+function resolveBatchProgress(card, batches, { hour24 = false } = {}) {
   const primary = batches[0] || null
   const startedRaw = primary?.startedAt || card.startedAt || card.processStartTime || null
   const endedRaw = primary?.completedAt || primary?.processEndTime || card.completedAt || card.processEndTime || null
@@ -251,13 +264,14 @@ function resolveBatchProgress(card, batches) {
   }
 
   return {
-    batchStartedLabel: formatBatchClock(startedRaw),
-    batchOverLabel: formatBatchClock(batchOverRaw),
+    batchStartedLabel: formatBatchClock(startedRaw, { hour24 }),
+    batchOverLabel: formatBatchClock(batchOverRaw, { hour24 }),
     progressPercent: percent,
   }
 }
 
-export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employeeRatings = []) {
+export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employeeRatings = [], options = {}) {
+  const suppressDemo = Boolean(options.suppressDemo)
   const key = String(card.key || '')
   const batches = rowsForDept(batchMonitorRows, card)
 
@@ -269,13 +283,26 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     return null
   })()
 
+  const durations = batches.map((b) => Number(b.durationMin)).filter(Number.isFinite)
   const timePerBatchMin = hasNum(card.elapsedMin) || hasNum(card.timeTakenMin)
     ? Number(card.elapsedMin ?? card.timeTakenMin)
     : (hasNum(batches[0]?.durationMin) ? Number(batches[0].durationMin) : null)
 
-  const avgFromBatches = mean(batches.map((b) => Number(b.durationMin)).filter(Number.isFinite))
+  const avgFromBatches = durations.length
+    ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+    : null
   const avgFromCard = hasNum(card.avgTimeMin) ? Number(card.avgTimeMin) : null
-  const avgTimeMin = avgFromBatches ?? avgFromCard ?? (hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+  // LoopC: prefer card.avgTimeMin (sum of Ops Time/Batch ÷ n). Never use primary alone when n > 1.
+  let avgTimeMin
+  if (suppressDemo) {
+    avgTimeMin = avgFromCard
+      ?? avgFromBatches
+      ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+  } else {
+    avgTimeMin = avgFromBatches
+      ?? avgFromCard
+      ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
+  }
 
   let metalIn = hasNum(card.metalIn) ? Number(card.metalIn) : null
   let metalOut = hasNum(card.metalOut) ? Number(card.metalOut) : null
@@ -305,6 +332,8 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   }
 
   let lossAvg = mean(lossRows.map((r) => r.loss))
+  const lossTodayAvg = hasNum(card.lossTodayAvg) ? Number(card.lossTodayAvg) : (suppressDemo ? lossAvg : null)
+  const lossTotalAvg = hasNum(card.lossTotalAvg) ? Number(card.lossTotalAvg) : null
 
   let employeeCount = hasNum(card.employeeCount)
     ? Number(card.employeeCount)
@@ -326,34 +355,52 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   let managerName = card.floorManager || null
   let status = card.status || 'Idle'
   let batchesDisplay = batchCount != null ? batchCount : '—'
-  let timePerBatchLabel = fmtMin(timePerBatchMin)
-  let avgTimeLabel = fmtMin(avgTimeMin)
-  let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches)
+  // LoopC: match Ops sheet Time/Batch style (e.g. 6h, 5h 20m)
+  let timePerBatchLabel = suppressDemo ? formatOpsMinutes(timePerBatchMin) : fmtMin(timePerBatchMin)
+  let avgTimeLabel = suppressDemo ? formatOpsMinutes(avgTimeMin) : fmtMin(avgTimeMin)
+  const timeTotalAvgMin = hasNum(card.timeTotalAvgMin) ? Number(card.timeTotalAvgMin) : null
+  const timeTotalAvgLabel = suppressDemo ? formatOpsMinutes(timeTotalAvgMin) : null
+  const timeRows = suppressDemo && Array.isArray(card.timeRows) && card.timeRows.length
+    ? card.timeRows
+      .map((r, i) => ({
+        index: r.index ?? i + 1,
+        label: r.label || `Batch ${i + 1}`,
+        minutes: hasNum(r.minutes) ? Number(r.minutes) : null,
+        timeLabel: hasNum(r.minutes) ? formatOpsMinutes(Number(r.minutes)) : null,
+      }))
+      .filter((r) => r.timeLabel && r.timeLabel !== '—')
+    : []
+  let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches, {
+    hour24: suppressDemo,
+  })
 
   const live = hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows })
   const demo = DEMO_BY_DEPT[key]
-  if (!live && demo) {
-    status = demo.status
-    employeeCount = demo.employeeCount
-    managerName = demo.managerName
-    batchesDisplay = demo.batches
-    timePerBatchLabel = demo.timePerBatchLabel
-    avgTimeLabel = demo.avgTimeLabel
-    metalIn = demo.metalIn
-    metalOut = demo.metalOut
-    lossRows = demo.lossRows
-    lossAvg = demo.lossAvg
-    batchStartedLabel = demo.batchStartedLabel
-    batchOverLabel = demo.batchOverLabel
-    progressPercent = demo.progressPercent
-  } else {
-    if (!managerName) managerName = DEMO_MANAGER_BY_DEPT[key] || 'Mr. Rajesh'
-    if (!hasNum(employeeCount)) employeeCount = 3
-    if (timePerBatchLabel === '—') timePerBatchLabel = demo?.timePerBatchLabel || '5 min'
-    if (avgTimeLabel === '—') avgTimeLabel = demo?.avgTimeLabel || '4.8 min'
-    if (!batchStartedLabel) batchStartedLabel = DEMO_PROGRESS.batchStartedLabel
-    if (!batchOverLabel) batchOverLabel = DEMO_PROGRESS.batchOverLabel
-    if (progressPercent == null) progressPercent = DEMO_PROGRESS.progressPercent
+
+  if (!suppressDemo) {
+    if (!live && demo) {
+      status = demo.status
+      employeeCount = demo.employeeCount
+      managerName = demo.managerName
+      batchesDisplay = demo.batches
+      timePerBatchLabel = demo.timePerBatchLabel
+      avgTimeLabel = demo.avgTimeLabel
+      metalIn = demo.metalIn
+      metalOut = demo.metalOut
+      lossRows = demo.lossRows
+      lossAvg = demo.lossAvg
+      batchStartedLabel = demo.batchStartedLabel
+      batchOverLabel = demo.batchOverLabel
+      progressPercent = demo.progressPercent
+    } else {
+      if (!managerName) managerName = DEMO_MANAGER_BY_DEPT[key] || 'Mr. Rajesh'
+      if (!hasNum(employeeCount)) employeeCount = 3
+      if (timePerBatchLabel === '—') timePerBatchLabel = demo?.timePerBatchLabel || '5 min'
+      if (avgTimeLabel === '—') avgTimeLabel = demo?.avgTimeLabel || '4.8 min'
+      if (!batchStartedLabel) batchStartedLabel = DEMO_PROGRESS.batchStartedLabel
+      if (!batchOverLabel) batchOverLabel = DEMO_PROGRESS.batchOverLabel
+      if (progressPercent == null) progressPercent = DEMO_PROGRESS.progressPercent
+    }
   }
 
   return {
@@ -361,18 +408,28 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     name: card.name || key,
     subtitle: card.subtitle || subtitleFor(key),
     status,
-    employeeCount: Number(employeeCount) || 0,
+    employeeCount: hasNum(employeeCount) ? Number(employeeCount) : (suppressDemo ? null : 0),
     managerName: managerName || '—',
     batches: batchesDisplay,
     timePerBatchLabel,
     avgTimeLabel,
+    timeTotalAvgLabel: suppressDemo ? timeTotalAvgLabel : null,
+    timeRows,
     metalIn,
     metalOut,
     lossRows,
     lossAvg,
-    batchStartedLabel: batchStartedLabel || DEMO_PROGRESS.batchStartedLabel,
-    batchOverLabel: batchOverLabel || DEMO_PROGRESS.batchOverLabel,
-    progressPercent: progressPercent ?? DEMO_PROGRESS.progressPercent,
+    lossTodayAvg: suppressDemo ? lossTodayAvg : null,
+    lossTotalAvg: suppressDemo ? lossTotalAvg : null,
+    batchStartedLabel: suppressDemo
+      ? (batchStartedLabel || '—')
+      : (batchStartedLabel || DEMO_PROGRESS.batchStartedLabel),
+    batchOverLabel: suppressDemo
+      ? (batchOverLabel || '—')
+      : (batchOverLabel || DEMO_PROGRESS.batchOverLabel),
+    progressPercent: suppressDemo
+      ? (progressPercent ?? null)
+      : (progressPercent ?? DEMO_PROGRESS.progressPercent),
     isAssembly: Boolean(card.isAssembly),
     tableCount: card.tableCount || null,
   }

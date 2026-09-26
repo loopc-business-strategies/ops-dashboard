@@ -247,6 +247,8 @@ export function useErpTabRouter({
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token || erpTabBootstrapRef.current.vouchers) return
     erpTabBootstrapRef.current.vouchers = true
+    // Warm the nested VoucherTab chunk before / while Suspense waits.
+    void import('./voucherTabChunk').then((m) => m.prefetchVoucherTabChunk()).catch(() => {})
     // Party Account combobox needs a fresh full CoA (not stale/summary); currencies for FX headers.
     const tasks = [loadAccounts()]
     if (!currencies.length) tasks.push(loadCurrencies())

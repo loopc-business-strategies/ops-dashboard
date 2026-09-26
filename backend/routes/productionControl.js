@@ -15,9 +15,14 @@ const WeightAdjustment = require('../models/WeightAdjustment')
 const AuditLog = require('../models/AuditLog')
 const { METAL_TYPES, QC_RESULTS, MACHINE_STATUSES } = require('../services/productionControl/constants')
 
+const operationsProductionRoutes = require('./operationsProduction')
+
 const router = express.Router()
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+
+/** LoopC Operations production ledger (source of truth for Ops sheets + LoopC dashboard). */
+router.use('/operations-entries', operationsProductionRoutes)
 
 /**
  * Defense-in-depth: reject mutations when client signals demo mode.

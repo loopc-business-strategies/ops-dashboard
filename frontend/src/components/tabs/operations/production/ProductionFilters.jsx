@@ -1,4 +1,3 @@
-import { LOOPC_PRODUCTION_DEPARTMENTS } from './loopcProductionDepartments'
 import { resolveDatePreset } from './productionSheetUtils'
 
 const bar = {
@@ -13,7 +12,7 @@ const bar = {
 
 const grid = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+  gridTemplateColumns: 'repeat(2, minmax(12rem, 16rem))',
   gap: '0.65rem 0.75rem',
   width: '100%',
 }
@@ -93,22 +92,14 @@ const PRESETS = [
 ]
 
 /**
- * Global filter bar for LoopC Production sheets.
- * Draft vs applied: Apply commits draft to parent.
+ * Global date-only filter bar for LoopC Production sheets.
  */
 export default function ProductionFilters({
   draft,
   onDraftChange,
   onApply,
   onClear,
-  employeeOptions = [],
-  managerOptions = [],
-  titleOptions = [],
 }) {
-  const setField = (key, value) => {
-    onDraftChange({ ...draft, [key]: value })
-  }
-
   const applyPreset = (presetId) => {
     if (presetId === 'custom') {
       onDraftChange({ ...draft, datePreset: 'custom' })
@@ -139,37 +130,7 @@ export default function ProductionFilters({
         ))}
       </div>
 
-      <div style={grid} className="loopc-prod-filters-grid">
-        <label style={field}>
-          <span style={labelStyle}>Title</span>
-          <input
-            list="loopc-prod-titles"
-            style={control}
-            value={draft.title || ''}
-            onChange={(e) => setField('title', e.target.value)}
-            placeholder="Search / select title"
-          />
-          <datalist id="loopc-prod-titles">
-            {titleOptions.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
-        </label>
-
-        <label style={field}>
-          <span style={labelStyle}>Department</span>
-          <select
-            style={control}
-            value={draft.department || ''}
-            onChange={(e) => setField('department', e.target.value)}
-          >
-            <option value="">All departments</option>
-            {LOOPC_PRODUCTION_DEPARTMENTS.map((d) => (
-              <option key={d.key} value={d.key}>{d.label}</option>
-            ))}
-          </select>
-        </label>
-
+      <div style={grid}>
         <label style={field}>
           <span style={labelStyle}>Date From</span>
           <input
@@ -197,97 +158,12 @@ export default function ProductionFilters({
             })}
           />
         </label>
-
-        <label style={field}>
-          <span style={labelStyle}>Employee</span>
-          <select
-            style={control}
-            value={draft.employee || ''}
-            onChange={(e) => setField('employee', e.target.value)}
-          >
-            <option value="">All employees</option>
-            {employeeOptions.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-
-        <label style={field}>
-          <span style={labelStyle}>Department Manager</span>
-          <select
-            style={control}
-            value={draft.departmentManager || ''}
-            onChange={(e) => setField('departmentManager', e.target.value)}
-          >
-            <option value="">All managers</option>
-            {managerOptions.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-
-        <label style={field}>
-          <span style={labelStyle}>Batch</span>
-          <input
-            style={control}
-            value={draft.batch || ''}
-            onChange={(e) => setField('batch', e.target.value)}
-            placeholder="Search batch"
-          />
-        </label>
-
-        <label style={field}>
-          <span style={labelStyle}>Status</span>
-          <select
-            style={control}
-            value={draft.status || ''}
-            onChange={(e) => setField('status', e.target.value)}
-          >
-            <option value="">All statuses</option>
-            <option value="Running">Running</option>
-            <option value="Idle">Idle</option>
-            <option value="Completed">Completed</option>
-          </select>
-        </label>
-
-        <label style={field}>
-          <span style={labelStyle}>Shift</span>
-          <select
-            style={control}
-            value={draft.shift || ''}
-            onChange={(e) => setField('shift', e.target.value)}
-          >
-            <option value="">All shifts</option>
-            <option value="Morning">Morning</option>
-            <option value="Afternoon">Afternoon</option>
-            <option value="Night">Night</option>
-          </select>
-        </label>
-
-        <label style={field}>
-          <span style={labelStyle}>Search</span>
-          <input
-            style={control}
-            value={draft.search || ''}
-            onChange={(e) => setField('search', e.target.value)}
-            placeholder="Search rows…"
-          />
-        </label>
       </div>
 
       <div style={actions}>
         <button type="button" style={btnPrimary} onClick={onApply}>Apply Filters</button>
         <button type="button" style={btnGhost} onClick={onClear}>Clear Filters</button>
       </div>
-
-      <style>{`
-        @media (max-width: 1200px) {
-          .loopc-prod-filters-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
-        }
-        @media (max-width: 720px) {
-          .loopc-prod-filters-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-        }
-      `}</style>
     </div>
   )
 }

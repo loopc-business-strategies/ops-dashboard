@@ -4,7 +4,7 @@ import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
 import { liveRatesToMetalRatesState } from '../../utils/liveMetalRates'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
-import { fmt, S, btn, tabBtn, emptyLine, emptyHeader, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, formatPartyAddress, getInventoryStockMappingOptions, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { fmt, S, btn, tabBtn, emptyLine, emptyHeader, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, formatPartyAddress, getInventoryStockMappingOptions, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, isMetalProductTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
 import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
 import { useVoucherLineAutoCalc } from './voucher/useVoucherLineAutoCalc'
 import { useVoucherLineForm } from './voucher/useVoucherLineForm'
@@ -64,6 +64,7 @@ export default function VoucherTab({
     canCreateSale,
     canCreateMetalReceipt,
     canCreateMetalPayment,
+    canCreateMetalTransfer,
     isReadOnly,
   } = useVoucherTabAccess(user)
 
@@ -71,6 +72,7 @@ export default function VoucherTab({
   const [voucherType, setVoucherType] = useState(() => enabledVoucherTypes[0] || 'payment')
   const isMetalVoucher = isMetalStockVoucherType(voucherType)
   const isSimpleMetalVoucher = isMetalTransferVoucherType(voucherType)
+  const isProductTransferVoucher = isMetalProductTransferVoucherType(voucherType)
   const [showVoucherPreview, setShowVoucherPreview] = useState(false)
   const pendingPrintActionRef = useRef(null)
   const voucherPreviewEnabled = isMasterDocumentSettingsEnabled(tenantKey)
@@ -611,7 +613,9 @@ export default function VoucherTab({
           ? canCreateMetalReceipt
           : voucherType === 'metal_payment'
             ? canCreateMetalPayment
-            : canCreateSale
+            : voucherType === 'metal_transfer'
+              ? canCreateMetalTransfer
+              : canCreateSale
 
   const sortVouchers = useCallback((items, type) => sortVouchersByDocNo(items, type), [])
 
@@ -1361,6 +1365,7 @@ export default function VoucherTab({
             sale: { icon: '🟨', label: 'Metal Sale' },
             metal_receipt: { icon: '📥', label: 'Metal Receipt' },
             metal_payment: { icon: '📤', label: 'Metal Payment' },
+            metal_transfer: { icon: '🔁', label: 'Metal Transfer' },
           }
           const tab = tabLabels[type] || { icon: '', label: type }
           return (
@@ -1470,9 +1475,11 @@ export default function VoucherTab({
         isMetalVoucher={isMetalVoucher}
         isReadOnly={mutateReadOnly}
         isSimpleMetalVoucher={isSimpleMetalVoucher}
+        isProductTransferVoucher={isProductTransferVoucher}
         lineAccountComboGroups={lineAccountComboGroups}
         lineForm={lineForm}
         lineItems={lineItems}
+        setLineItems={setLineItems}
         lineTableHeaders={lineTableHeaders}
         loadingInventoryProducts={loadingInventoryProducts}
         loadingRecentPartyVouchers={loadingRecentPartyVouchers}

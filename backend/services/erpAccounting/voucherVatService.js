@@ -7,6 +7,7 @@ const {
   isMetalStockOutType,
   isMetalStockType,
   isMetalTransferType,
+  isMetalProductTransferType,
 } = require('../../utils/metalStockVoucherTypes')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
@@ -139,7 +140,7 @@ function createVoucherVatService({
 
   const applyVoucherVatImpact = async ({ user, tx, resolvedAccounts, session = null }) => {
     const transactionType = String(tx?.type || '').toLowerCase()
-    if (!isMetalStockType(transactionType) || isMetalTransferType(transactionType)) return null
+    if (!isMetalStockType(transactionType) || isMetalTransferType(transactionType) || isMetalProductTransferType(transactionType)) return null
 
     await Ledger.updateMany(
       {

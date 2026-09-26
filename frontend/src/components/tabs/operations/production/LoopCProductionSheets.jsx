@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { productionControlApi } from '../../../../api/productionControl'
 import { LOOPC_PRODUCTION_DEPARTMENTS } from './loopcProductionDepartments'
 import ProductionSummary from './ProductionSummary'
@@ -6,11 +6,13 @@ import ProductionFilters from './ProductionFilters'
 import DepartmentGroup from './DepartmentGroup'
 import {
   EMPTY_FILTERS,
+  applyDeptDateFilter,
   applyGlobalFilters,
   computeSummary,
-  fetchAllBatches,
-  mapBatchToRow,
-  uniqueOptions,
+  emptyDraftRow,
+  fetchAllOperationsEntries,
+  mapEntryToRow,
+  rowToEntryPayload,
 } from './productionSheetUtils'
 
 const wrap = {
@@ -22,19 +24,36 @@ const wrap = {
 }
 
 /**
- * LoopC Operations → Production: Excel-style department workbook.
+ * LoopC Operations → Production: Excel-style department workbook (CRUD ledger).
  */
 export default function LoopCProductionSheets() {
-  const [batches, setBatches] = useState([])
+  const [entries, setEntries] = useState([])
+  const [draftRows, setDraftRows] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [savingId, setSavingId] = useState(null)
   const [draftFilters, setDraftFilters] = useState({ ...EMPTY_FILTERS })
   const [appliedFilters, setAppliedFilters] = useState({ ...EMPTY_FILTERS })
+  const [deptDateFilters, setDeptDateFilters] = useState({})
   const [expanded, setExpanded] = useState(() => {
     const init = {}
     LOOPC_PRODUCTION_DEPARTMENTS.forEach((d) => { init[d.key] = true })
     return init
   })
+
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const list = await fetchAllOperationsEntries(productionControlApi.listOperationsEntries)
+      setEntries(Array.isArray(list) ? list : [])
+    } catch (err) {
+      setEntries([])
+      setError(err?.response?.data?.message || err?.message || 'Failed to load production entries')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -42,12 +61,12 @@ export default function LoopCProductionSheets() {
       setLoading(true)
       setError('')
       try {
-        const list = await fetchAllBatches(productionControlApi.listBatches)
-        if (mounted) setBatches(Array.isArray(list) ? list : [])
+        const list = await fetchAllOperationsEntries(productionControlApi.listOperationsEntries)
+        if (mounted) setEntries(Array.isArray(list) ? list : [])
       } catch (err) {
         if (mounted) {
-          setBatches([])
-          setError(err?.response?.data?.message || err?.message || 'Failed to load production batches')
+          setEntries([])
+          setError(err?.response?.data?.message || err?.message || 'Failed to load production entries')
         }
       } finally {
         if (mounted) setLoading(false)
@@ -57,17 +76,16 @@ export default function LoopCProductionSheets() {
     return () => { mounted = false }
   }, [])
 
-  const allRows = useMemo(
-    () => (Array.isArray(batches) ? batches : []).map(mapBatchToRow),
-    [batches],
-  )
+  const allRows = useMemo(() => {
+    const mapped = (Array.isArray(entries) ? entries : []).map(mapEntryToRow)
+    const drafts = Object.values(draftRows || {})
+    return [...mapped, ...drafts]
+  }, [entries, draftRows])
 
   const filteredRows = useMemo(
     () => applyGlobalFilters(allRows, appliedFilters),
     [allRows, appliedFilters],
   )
-
-  const summary = useMemo(() => computeSummary(filteredRows), [filteredRows])
 
   const groups = useMemo(() => {
     const byDept = new Map()
@@ -76,15 +94,18 @@ export default function LoopCProductionSheets() {
       if (!row.deptKey || !byDept.has(row.deptKey)) return
       byDept.get(row.deptKey).push(row)
     })
-    return LOOPC_PRODUCTION_DEPARTMENTS.map((dept) => ({
-      department: dept,
-      rows: byDept.get(dept.key) || [],
-    }))
-  }, [filteredRows])
+    return LOOPC_PRODUCTION_DEPARTMENTS.map((dept) => {
+      const deptFilter = deptDateFilters[dept.key] || {}
+      const raw = byDept.get(dept.key) || []
+      const rows = applyDeptDateFilter(raw, deptFilter.dateFrom, deptFilter.dateTo)
+      return { department: dept, rows }
+    })
+  }, [filteredRows, deptDateFilters])
 
-  const employeeOptions = useMemo(() => uniqueOptions(allRows, 'employee'), [allRows])
-  const managerOptions = useMemo(() => uniqueOptions(allRows, 'departmentManager'), [allRows])
-  const titleOptions = useMemo(() => uniqueOptions(allRows, 'title'), [allRows])
+  const summary = useMemo(() => {
+    const visible = groups.flatMap((g) => g.rows)
+    return computeSummary(visible)
+  }, [groups])
 
   const handleApply = () => setAppliedFilters({ ...draftFilters })
   const handleClear = () => {
@@ -96,6 +117,72 @@ export default function LoopCProductionSheets() {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const handleDeptDateFilter = (departmentKey, next) => {
+    setDeptDateFilters((prev) => ({
+      ...prev,
+      [departmentKey]: {
+        dateFrom: next?.dateFrom || '',
+        dateTo: next?.dateTo || '',
+      },
+    }))
+  }
+
+  const handleAddRow = (departmentKey) => {
+    const draft = emptyDraftRow(departmentKey)
+    setDraftRows((prev) => ({ ...prev, [draft.id]: draft }))
+    setExpanded((prev) => ({ ...prev, [departmentKey]: true }))
+  }
+
+  const handleSaveRow = async (row) => {
+    const departmentKey = row.deptKey
+    if (!departmentKey) {
+      setError('Missing department for row')
+      return
+    }
+    const payload = rowToEntryPayload(row, departmentKey)
+    setSavingId(row.id)
+    setError('')
+    try {
+      if (row._isNew) {
+        await productionControlApi.createOperationsEntry(payload)
+        setDraftRows((prev) => {
+          const next = { ...prev }
+          delete next[row.id]
+          return next
+        })
+      } else {
+        await productionControlApi.updateOperationsEntry(row.id, payload)
+      }
+      await reload()
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to save entry')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const handleDeleteRow = async (row) => {
+    if (row._isNew) {
+      setDraftRows((prev) => {
+        const next = { ...prev }
+        delete next[row.id]
+        return next
+      })
+      return
+    }
+    if (!window.confirm('Delete this production entry?')) return
+    setSavingId(row.id)
+    setError('')
+    try {
+      await productionControlApi.deleteOperationsEntry(row.id)
+      await reload()
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to delete entry')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   return (
     <div style={wrap}>
       <div>
@@ -103,7 +190,7 @@ export default function LoopCProductionSheets() {
           Production
         </h2>
         <p style={{ margin: '0.3rem 0 0', color: '#64748B', fontSize: '0.85rem' }}>
-          Department workbook — filters apply across all department tables.
+          Department workbook — use Edit to change a row; each department has its own date filter. Source of truth for the Production Dashboard.
         </p>
       </div>
 
@@ -114,9 +201,6 @@ export default function LoopCProductionSheets() {
         onDraftChange={setDraftFilters}
         onApply={handleApply}
         onClear={handleClear}
-        employeeOptions={employeeOptions}
-        managerOptions={managerOptions}
-        titleOptions={titleOptions}
       />
 
       {loading ? (
@@ -127,15 +211,26 @@ export default function LoopCProductionSheets() {
       ) : null}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        {groups.map(({ department, rows }) => (
-          <DepartmentGroup
-            key={department.key}
-            department={department}
-            rows={rows}
-            expanded={expanded[department.key] !== false}
-            onToggle={() => toggleDept(department.key)}
-          />
-        ))}
+        {groups.map(({ department, rows }) => {
+          const df = deptDateFilters[department.key] || {}
+          return (
+            <DepartmentGroup
+              key={department.key}
+              department={department}
+              rows={rows}
+              expanded={expanded[department.key] !== false}
+              onToggle={() => toggleDept(department.key)}
+              editable
+              savingId={savingId}
+              onSaveRow={handleSaveRow}
+              onDeleteRow={handleDeleteRow}
+              onAddRow={() => handleAddRow(department.key)}
+              dateFrom={df.dateFrom || ''}
+              dateTo={df.dateTo || ''}
+              onDateFilterChange={(next) => handleDeptDateFilter(department.key, next)}
+            />
+          )
+        })}
       </div>
     </div>
   )

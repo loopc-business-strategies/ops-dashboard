@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { tabletDashboard as td } from '@/src/theme'
 
 export type MetalLineEdit = {
@@ -18,9 +18,6 @@ type Props = {
   title: string
   batches: MetalBatchEdit[]
   onChange: (batches: MetalBatchEdit[]) => void
-  onConfirm: () => void
-  confirmLabel?: string
-  confirmDisabled?: boolean
   compact?: boolean
 }
 
@@ -28,9 +25,6 @@ export function MetalProcessPanel({
   title,
   batches,
   onChange,
-  onConfirm,
-  confirmLabel = 'Confirm',
-  confirmDisabled,
   compact,
 }: Props) {
   const pad = compact ? 6 : 8
@@ -105,17 +99,6 @@ export function MetalProcessPanel({
             </View>
           </View>
         ))}
-        <Pressable
-          accessibilityRole="button"
-          disabled={confirmDisabled}
-          onPress={onConfirm}
-          style={({ pressed }) => [
-            styles.confirmBtn,
-            { opacity: confirmDisabled ? 0.45 : pressed ? 0.85 : 1 },
-          ]}
-        >
-          <Text style={styles.confirmText}>{confirmLabel}</Text>
-        </Pressable>
       </View>
     </View>
   )
@@ -216,13 +199,4 @@ const styles = StyleSheet.create({
   colQty: { flex: 1 },
   colPurity: { flex: 1 },
   colTime: { flex: 1 },
-  confirmBtn: {
-    margin: 10,
-    minHeight: 44,
-    backgroundColor: td.orange,
-    borderRadius: td.radius,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmText: { color: td.white, fontWeight: '800', fontSize: 16 },
 })

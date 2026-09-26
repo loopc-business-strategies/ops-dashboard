@@ -1,5 +1,14 @@
 # Developing on Windows only
 
+## Prefer `git clone` over GitHub “Download ZIP”
+
+Windows Defender sometimes flags the GitHub **Source code (zip)** of this repo as `Trojan:Script/Wacatac.B!ml`. That is a known **machine-learning false positive** on unsigned archives that contain Windows automation helpers (`*.ps1` / `*.cmd`), not malware in the application code.
+
+- Use **`git clone`** (or pull in an existing clone) instead of **Download ZIP**.
+- Root [`.gitattributes`](../.gitattributes) uses `export-ignore` so those helpers are omitted from Source ZIPs; they remain available after a normal clone.
+- Do **not** turn Defender off. If needed, submit the zip to [Microsoft WDSI](https://www.microsoft.com/en-us/wdsi/filesubmission) as a false positive.
+- Local dev: prefer **`npm run dev`** over root PowerShell launchers.
+
 ## If `npm run test:fast` fails in `beforeAll` (MongoMemoryServer)
 
 Install the **Microsoft Visual C++ Redistributable (x64)** (latest supported):  

@@ -92,18 +92,23 @@ export const DOC_PREFIX_BY_TYPE = {
   sale: 'Sal',
   metal_receipt: 'MRec',
   metal_payment: 'MPay',
+  metal_transfer: 'MTr',
 }
 
-export const METAL_STOCK_VOUCHER_TYPES = ['purchase', 'sale', 'metal_receipt', 'metal_payment']
+export const METAL_STOCK_VOUCHER_TYPES = ['purchase', 'sale', 'metal_receipt', 'metal_payment', 'metal_transfer']
 export const METAL_STOCK_IN_VOUCHER_TYPES = ['purchase', 'metal_receipt']
 export const METAL_STOCK_OUT_VOUCHER_TYPES = ['sale', 'metal_payment']
 export const METAL_TRANSFER_VOUCHER_TYPES = ['metal_receipt', 'metal_payment']
+export const METAL_PRODUCT_TRANSFER_VOUCHER_TYPES = ['metal_transfer']
 
 export const isMetalStockVoucherType = (type) => (
   METAL_STOCK_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
 )
 export const isMetalTransferVoucherType = (type) => (
   METAL_TRANSFER_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
+)
+export const isMetalProductTransferVoucherType = (type) => (
+  METAL_PRODUCT_TRANSFER_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
 )
 export const hasMetalTransferLineQuantity = (line = {}) => (
   (parseFloat(line.grossWeight) || 0) > 0
@@ -122,12 +127,13 @@ export const isSaveSubmitOnlyVoucherType = (type) => isMetalStockVoucherType(typ
 
 /**
  * User-facing workflow label for metal vouchers without migrating DB statuses.
- * Posted/approved metal stock vouchers display as "Submitted".
+ * Keep Save→Submit UX, but show actual `posted` so inventory recon is clear
+ * (posted metal vouchers already moved stock). Mid-flight `approved` still shows as submitted.
  */
 export function formatVoucherWorkflowStatusLabel(status, type) {
   const st = String(status || '').toLowerCase()
   if (!isSaveSubmitOnlyVoucherType(type)) return st || '—'
-  if (st === 'posted' || st === 'approved') return 'submitted'
+  if (st === 'approved') return 'submitted'
   return st || '—'
 }
 

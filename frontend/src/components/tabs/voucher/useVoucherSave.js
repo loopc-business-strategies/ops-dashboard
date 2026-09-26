@@ -7,9 +7,11 @@ import {
   hasMetalTransferLineQuantity,
   isMetalStockVoucherType,
   isMetalTransferVoucherType,
+  isMetalProductTransferVoucherType,
 } from './voucherTabShared'
 import { hydrateMetalLineWeights } from './hydrateMetalLineWeights'
 import { parseAmount } from '../../../utils/money'
+import { getTransferSideLine } from './metalTransferCalc'
 
 const moneyOrZero = (value) => parseAmount(value) ?? 0
 
@@ -58,9 +60,10 @@ export function useVoucherSave({
 
   const normalizedVoucherType = String(voucherType || '').toLowerCase()
   const isSimpleMetalSave = isMetalTransferVoucherType(normalizedVoucherType)
+  const isProductTransferSave = isMetalProductTransferVoucherType(normalizedVoucherType)
 
   let effectiveLineItems = [...lineItems]
-  if (showLineForm) {
+  if (showLineForm && !isProductTransferSave) {
     const hasLineAmount = isSimpleMetalSave
       ? hasMetalTransferLineQuantity(lineForm)
       : Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
@@ -86,14 +89,39 @@ export function useVoucherSave({
     setEditingLineIdx(null)
   }
 
-  if (!header.partyCode.trim()) { setError('Party Code is required'); return }
-  if (!effectiveLineItems.length) { setError('Add at least one line item'); return }
-  const resolvedParty = resolveVoucherParty(header.partyCode)
-  const selectedAccount = findPartyOptionByCode(header.partyCode)
-  if (!resolvedParty && !selectedAccount) {
-    setError('Party must match a customer, vendor, or chart account')
-    return
+  if (isProductTransferSave) {
+    const fromLine = getTransferSideLine(effectiveLineItems, 'from')
+    const toLine = getTransferSideLine(effectiveLineItems, 'to')
+    if (!fromLine.inventoryItemId || !toLine.inventoryItemId) {
+      setError('Select both From and To products')
+      return
+    }
+    if (String(fromLine.inventoryItemId) === String(toLine.inventoryItemId)) {
+      setError('From and To products must be different')
+      return
+    }
+    if (!(parseFloat(fromLine.grossWeight) > 0) || !(parseFloat(toLine.grossWeight) > 0)) {
+      setError('Enter From gross weight (To gross is calculated from pure conservation)')
+      return
+    }
+    if (!(parseFloat(fromLine.pureWeight) > 0) || !(parseFloat(toLine.pureWeight) > 0)) {
+      setError('Pure weight must be positive on From and To')
+      return
+    }
+    effectiveLineItems = [fromLine, toLine]
+  } else {
+    if (!header.partyCode.trim()) { setError('Party Code is required'); return }
+    if (!effectiveLineItems.length) { setError('Add at least one line item'); return }
+    const resolvedPartyCheck = resolveVoucherParty(header.partyCode)
+    const selectedAccountCheck = findPartyOptionByCode(header.partyCode)
+    if (!resolvedPartyCheck && !selectedAccountCheck) {
+      setError('Party must match a customer, vendor, or chart account')
+      return
+    }
   }
+
+  const resolvedParty = isProductTransferSave ? null : resolveVoucherParty(header.partyCode)
+  const selectedAccount = isProductTransferSave ? null : findPartyOptionByCode(header.partyCode)
 
   const partyLedgerIdFromResolved = () => {
     if (!resolvedParty) return ''
@@ -120,7 +148,7 @@ export function useVoucherSave({
   const receiptPaymentDocTotal = isReceiptPayment
     ? effectiveLineItems.reduce((s, l) => s + moneyOrZero(l.amountFC), 0)
     : 0
-  const resolvedDocAmount = isSimpleMetalSave
+  const resolvedDocAmount = (isSimpleMetalSave || isProductTransferSave)
     ? 0.01
     : isReceiptPayment && receiptPaymentDocTotal > 0
       ? receiptPaymentDocTotal
@@ -133,20 +161,23 @@ export function useVoucherSave({
   const payload = {
     type: voucherType,
     amount: resolvedDocAmount,
-    date: isSimpleMetalSave ? (header.docDate || header.valueDate || header.vocDate) : (header.valueDate || header.vocDate),
+    date: (isSimpleMetalSave || isProductTransferSave) ? (header.docDate || header.valueDate || header.vocDate) : (header.valueDate || header.vocDate),
     description: firstLineNarration || `${voucherType} voucher`,
     currency: isReceiptPayment ? normalizedHeaderCurrency : baseCurrencyCode,
     exchangeRate: isReceiptPayment ? backendHeaderRate : 1,
     customerId: resolvedParty?.customerId || undefined,
     vendorId: resolvedParty?.vendorId || undefined,
     voucherMeta: {
-      partyCode: header.partyCode,
-      partyName: header.partyName || resolvedParty?.partyName || '',
-      partyAccountId: selectedAccount?.accountId || partyLedgerIdFromResolved() || '',
+      partyCode: isProductTransferSave ? '' : header.partyCode,
+      partyName: isProductTransferSave ? '' : (header.partyName || resolvedParty?.partyName || ''),
+      // Never send '' — ObjectId cast fails with Server error. Metal Transfer has no party.
+      partyAccountId: isProductTransferSave
+        ? null
+        : normalizeMongoIdField(selectedAccount?.accountId || partyLedgerIdFromResolved() || ''),
       salesman: header.salesman,
       vocNo: resolvedDocNo,
       docDate: header.docDate || null,
-      valueDate: isSimpleMetalSave ? (header.docDate || header.valueDate || null) : (header.valueDate || null),
+      valueDate: (isSimpleMetalSave || isProductTransferSave) ? (header.docDate || header.valueDate || null) : (header.valueDate || null),
       currRateSource: header.currRateSource || 'manual',
       rateMeta: {
         headerRateSource: header.currRateSource || 'manual',
@@ -155,11 +186,12 @@ export function useVoucherSave({
         goldPriceUpdatedAt: latestMetalRates.updatedAt || null,
       },
       ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
-      ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
+      ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave && !isProductTransferSave ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
       lineItems: effectiveLineItems.map((l) => {
         const metalLine = isMetalStockVoucherType(voucherType) ? hydrateMetalLineWeights(l) : l
         return {
           ...metalLine,
+          transferSide: metalLine.transferSide || undefined,
           inventoryItemId: normalizeMongoIdField(metalLine.inventoryItemId),
           currRateSource: metalLine.currRateSource || 'manual',
           pcs: moneyOrZero(metalLine.pcs),
@@ -181,14 +213,14 @@ export function useVoucherSave({
         }
       }),
     },
-    ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave
+    ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave && !isProductTransferSave
       ? { metalFixStatus: normalizeVoucherFixingType(header.fixingType) === 'non-fixing' ? 'unfixed' : 'fixed' }
       : {}),
   }
   const payloadLineTotal = isReceiptPayment && receiptPaymentDocTotal > 0
     ? receiptPaymentDocTotal
     : effectiveLineItems.reduce((s, l) => s + (moneyOrZero(l.amountWithVAT) || moneyOrZero(l.amountLC)), 0)
-  payload.amount = isSimpleMetalSave ? 0.01 : (payloadLineTotal || 0.01)
+  payload.amount = (isSimpleMetalSave || isProductTransferSave) ? 0.01 : (payloadLineTotal || 0.01)
   setSaving(true)
   try {
     let savedId = editingId

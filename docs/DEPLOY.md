@@ -32,6 +32,8 @@ Config files: root [`vercel.json`](../vercel.json), [`railway.json`](../railway.
 
 You do **not** need local `vercel` or `railway` CLI for normal releases.
 
+On **Windows**, use **`git clone` / pull** rather than GitHub **Download ZIP** if Defender flags the Source archive (`Trojan:Script/Wacatac.B!ml`) — that is a known ML false positive on Windows helper scripts; see [WINDOWS-DEV.md](./WINDOWS-DEV.md).
+
 ### Before you push
 
 ```bash

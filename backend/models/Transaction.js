@@ -5,7 +5,7 @@ const transactionSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment'],
+      enum: ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment', 'metal_transfer'],
       required: true,
     },
     amount: { type: Number, required: true, min: 0 },
@@ -101,6 +101,8 @@ const transactionSchema = new mongoose.Schema(
           acCode: { type: String, trim: true, default: '' },
           stockCode: { type: String, trim: true, default: '' },
           productType: { type: String, trim: true, default: '' },
+          /** Metal Transfer product reclass: 'from' | 'to' */
+          transferSide: { type: String, trim: true, default: '', enum: ['', 'from', 'to'] },
           type: { type: String, trim: true, default: 'Cash' }, // Cash, Cheque, Transfer
           typeCode: { type: String, trim: true, default: '' },
           currCode: { type: String, trim: true, default: 'USD' },

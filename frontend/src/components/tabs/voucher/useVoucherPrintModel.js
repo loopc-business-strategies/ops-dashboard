@@ -64,6 +64,7 @@ export function buildVoucherPrintModel({
     sale: 'Metal Sale Voucher',
     metal_receipt: 'Metal Receipt Voucher',
     metal_payment: 'Metal Payment Voucher',
+    metal_transfer: 'Metal Transfer Voucher',
   }
   const printTitle = printTitleByType[voucherType] || voucherLabel
   const printMeta = [

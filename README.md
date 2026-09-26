@@ -22,7 +22,7 @@ Multi-tenant operations and ERP platform for mg, cg, loopc, and vb (Venus Bullio
 | [docs/MOBILE-NO-EAS.md](docs/MOBILE-NO-EAS.md) | Mobile dev without EAS |
 | [docs/archive/README.md](docs/archive/README.md) | Historical snapshots only (archived) — do not use for deploy or ops |
 
-**Windows-only development:** see `docs/WINDOWS-DEV.md` (Jest, Mongo memory server / VC++ redist, Node version). **CI uses Node 24** (`.github/workflows/ci.yml`). At the repo root, **`.nvmrc`** pins **24** for `nvm use`, `fnm use`, or Volta so local runs match CI when debugging “passes in CI, fails locally.”
+**Windows-only development:** see `docs/WINDOWS-DEV.md` (Jest, Mongo memory server / VC++ redist, Node version). **Prefer `git clone` over GitHub “Download ZIP”** — Defender ML may false-positive the Source ZIP (`Wacatac`); details in that doc. **CI uses Node 24** (`.github/workflows/ci.yml`). At the repo root, **`.nvmrc`** pins **24** for `nvm use`, `fnm use`, or Volta so local runs match CI when debugging “passes in CI, fails locally.”
 
 **Ad-hoc ops / cleanup scripts** (historically at the repo root) live under **`scripts/ops-misc/`** — see `scripts/ops-misc/README.md`. Example: `node scripts/ops-misc/verify-deployment.js`. Root **`ops_dashboard*.html`** scratch exports are listed in **`.gitignore`** and should not be committed.
 
