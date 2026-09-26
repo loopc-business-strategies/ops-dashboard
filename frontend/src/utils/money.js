@@ -1,9 +1,10 @@
 /**
- * ESM adapter for frontend — shared/money.js re-exports backend/shared/money.js.
+ * ESM adapter for frontend — import backend CJS money helpers via Vite interop.
+ * Avoid shared/money.js re-export (no default export under Vite ESM).
  */
-import money from '../../../shared/money.js'
+import * as moneyNs from '../../../backend/shared/money.js'
 
-const api = money?.default || money
+const api = moneyNs.default || moneyNs
 
 export const toMoney = api.toMoney
 export const roundMoney = api.roundMoney

@@ -301,7 +301,9 @@ function createApp() {
         }
       }
       if (allowedOrigins.includes(origin)) return callback(null, true)
-      callback(new Error(`CORS: origin not allowed — ${origin}`))
+      // Deny without throwing — `callback(Error)` becomes Express 500 "Something went wrong."
+      // (e.g. local Vite on *.localhost against production API).
+      return callback(null, false)
     },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-metal-rates-bridge-token', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID'],

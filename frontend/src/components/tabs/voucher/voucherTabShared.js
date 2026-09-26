@@ -142,6 +142,103 @@ export const tabBtn = (active) => ({
   minWidth: '88px',
 })
 
+/** Compact tabs for LoopC metal_transfer only — do not use on other voucher types. */
+export const productTransferTabBtn = (active) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: 32,
+  padding: '0 0.85rem',
+  fontSize: '0.75rem',
+  fontWeight: '700',
+  color: active ? 'var(--brand-dark)' : '#4B5563',
+  background: active ? 'var(--brand-soft)' : '#FFFFFF',
+  border: `1px solid ${active ? 'var(--brand-border)' : 'var(--border, #E5E7EB)'}`,
+  borderBottom: active ? '2px solid var(--brand-primary, var(--brand-dark))' : '1px solid var(--border, #E5E7EB)',
+  boxShadow: 'none',
+  borderRadius: '4px 4px 0 0',
+  cursor: 'pointer',
+  minWidth: 0,
+})
+
+/** Fixed-width Doc No / Doc Date row for metal_transfer. */
+export const productTransferDocHeader = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: '8px 14px',
+  padding: '10px 12px',
+  border: `1px solid ${S.border}`,
+  borderRadius: 6,
+  background: '#FFFFFF',
+  width: 'fit-content',
+  maxWidth: '100%',
+}
+
+export const productTransferDocField = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+}
+
+export const productTransferDocLabel = {
+  fontSize: '0.7rem',
+  fontWeight: '700',
+  color: '#4B5563',
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+  whiteSpace: 'nowrap',
+}
+
+export const productTransferDocInput = {
+  ...inputStyle,
+  width: 200,
+  maxWidth: '100%',
+  height: 32,
+  minHeight: 32,
+  padding: '0.2rem 0.45rem',
+  fontSize: '0.8125rem',
+  borderRadius: 4,
+  boxSizing: 'border-box',
+}
+
+export const productTransferDocDateInput = {
+  ...productTransferDocInput,
+  width: 160,
+}
+
+export const productTransferSectionBox = {
+  ...sectionBox,
+  borderRadius: 6,
+  marginBottom: '0.55rem',
+}
+
+export const productTransferSectionBody = {
+  padding: '10px 12px',
+}
+
+export const productTransferFooter = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  alignItems: 'center',
+  gap: '0.5rem',
+  marginTop: '0.65rem',
+  paddingTop: '0.65rem',
+  borderTop: `1px solid ${S.border}`,
+}
+
+export const productTransferActionBtn = (variant = 'primary') => ({
+  ...btn(variant),
+  height: 32,
+  padding: '0 0.85rem',
+  fontSize: '0.8rem',
+  borderRadius: 6,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+})
+
 export const classicHeaderShell = {
   padding: '0.1rem 0',
 }

@@ -9,6 +9,9 @@ import {
   classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue,
   classicRightGrid, classicLabel, classicInput, classicReadInput, metalWin, metalTopInlineRow,
   metalTopField, normalizeLineType, isMetalStockVoucherType, getInventoryCatalogProductsForStock,
+  productTransferTabBtn, productTransferDocHeader, productTransferDocField, productTransferDocLabel,
+  productTransferDocInput, productTransferDocDateInput, productTransferSectionBox,
+  productTransferSectionBody, productTransferFooter, productTransferActionBtn,
 } from './voucherTabShared'
 import {
   focusElement,
@@ -436,23 +439,70 @@ export default function VoucherEditorPanel({
           )}
 
           {/* ── Body padding wrapper ── */}
-          <div style={isMetalVoucher ? metalWin.body : { padding: '0.75rem 0.9rem' }}>
+          <div style={
+            isProductTransferVoucher
+              ? { padding: '0.55rem 0.7rem', background: '#FFFFFF' }
+              : (isMetalVoucher ? metalWin.body : { padding: '0.75rem 0.9rem' })
+          }
+          >
 
           {/* ── Voucher section menu ── */}
-          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0', flexWrap: 'wrap', alignItems: 'flex-end', padding: '0 0.15rem', borderBottom: '1px solid #BFC5CB' }}>
-            <button style={tabBtn(menuTab === 'header')} onClick={() => setMenuTab('header')}>
+          <div style={{
+            display: 'flex',
+            gap: isProductTransferVoucher ? '0.25rem' : '0.35rem',
+            marginBottom: '0',
+            flexWrap: 'wrap',
+            alignItems: 'flex-end',
+            padding: isProductTransferVoucher ? '0' : '0 0.15rem',
+            borderBottom: '1px solid #BFC5CB',
+          }}
+          >
+            <button
+              style={(isProductTransferVoucher ? productTransferTabBtn : tabBtn)(menuTab === 'header')}
+              onClick={() => setMenuTab('header')}
+            >
               {isMetalVoucher ? 'Stock Details' : 'Header Details'}
             </button>
-            <button style={tabBtn(menuTab === 'attachments')} onClick={() => setMenuTab('attachments')}>
+            <button
+              style={(isProductTransferVoucher ? productTransferTabBtn : tabBtn)(menuTab === 'attachments')}
+              onClick={() => setMenuTab('attachments')}
+            >
               {t('attachments')}
             </button>
           </div>
 
           {/* ── Header Details ── */}
           {menuTab === 'header' && (
-            <div style={sectionBox}>
-              <div style={sectionBody}>
-                {isMetalVoucher && !isProductTransferVoucher && (
+            <div style={isProductTransferVoucher ? productTransferSectionBox : sectionBox}>
+              <div style={isProductTransferVoucher ? productTransferSectionBody : sectionBody}>
+                {isProductTransferVoucher ? (
+                  <div style={productTransferDocHeader}>
+                    <div style={productTransferDocField}>
+                      <label style={productTransferDocLabel}>Doc No :</label>
+                      <input
+                        style={{ ...productTransferDocInput, background: '#F8FAFB', color: '#4B5563' }}
+                        value={header.vocNo}
+                        readOnly
+                      />
+                    </div>
+                    <div style={productTransferDocField}>
+                      <label style={productTransferDocLabel}>Doc Date :</label>
+                      <input
+                        ref={docDateRef}
+                        style={formReadOnly
+                          ? { ...productTransferDocDateInput, background: '#F8FAFB', color: '#4B5563' }
+                          : productTransferDocDateInput}
+                        type="date"
+                        value={header.docDate}
+                        onChange={e => setHdr('docDate', e.target.value)}
+                        onKeyDown={handleHeaderNavKeyDown}
+                        readOnly={formReadOnly}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                <>
+                {isMetalVoucher && (
                   <div style={metalTopInlineRow}>
                     <div style={metalTopField}>
                       <label style={classicLabel}>Party Account</label>
@@ -471,7 +521,6 @@ export default function VoucherEditorPanel({
                 )}
                 <div style={classicHeaderShell}>
                   <div style={classicHeaderGrid}>
-                    {!isProductTransferVoucher && (
                     <div style={{ ...classicPanel, flex: '0 1 640px', minWidth: '320px' }}>
                       <div style={classicPanelTitle}>Party Details</div>
                       <div style={classicPartyGrid}>
@@ -563,9 +612,8 @@ export default function VoucherEditorPanel({
                         )
                       })()}
                     </div>
-                    )}
 
-                    <div style={{ ...classicPanel, flex: isProductTransferVoucher ? '1 1 100%' : '0 1 430px', minWidth: '300px' }}>
+                    <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '300px' }}>
                       <div style={classicRightGrid}>
                         <label style={classicLabel}>Doc No :</label>
                         <input
@@ -574,7 +622,7 @@ export default function VoucherEditorPanel({
                           readOnly
                         />
 
-                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher && !isProductTransferVoucher ? (
+                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
                           <>
                             <label style={classicLabel}>Fixing Type :</label>
                             <select
@@ -605,7 +653,7 @@ export default function VoucherEditorPanel({
                           readOnly={formReadOnly}
                         />
 
-                        {!isSimpleMetalVoucher && !isProductTransferVoucher && (
+                        {!isSimpleMetalVoucher && (
                           <>
                             <label style={classicLabel}>Value Date :</label>
                             <input
@@ -654,6 +702,8 @@ export default function VoucherEditorPanel({
                     </div>
                   </div>
                 </div>
+                </>
+                )}
               </div>
             </div>
           )}
@@ -759,8 +809,15 @@ export default function VoucherEditorPanel({
 
           {/* ── Line Items panel ── */}
           {(menuTab === 'header' || menuTab === 'lineItems') && (
-            <div style={sectionBox}>
-              <div style={{ ...(isMetalVoucher ? { ...classicPanelTitle, ...metalWin.tabLabel } : classicPanelTitle), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={isProductTransferVoucher ? productTransferSectionBox : sectionBox}>
+              <div style={{
+                ...(isMetalVoucher ? { ...classicPanelTitle, ...metalWin.tabLabel } : classicPanelTitle),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                ...(isProductTransferVoucher ? { padding: '6px 10px', fontSize: '0.7rem', borderRadius: 0 } : {}),
+              }}
+              >
                 <span>{isProductTransferVoucher ? 'From / To Transfer' : (isMetalVoucher ? 'Stock Details' : 'LINE ITEMS')}</span>
               </div>
 
@@ -1250,7 +1307,13 @@ export default function VoucherEditorPanel({
               onUpload={handleUploadVoucherAttachments}
               onPreview={handlePreviewVoucherAttachment}
               onDelete={handleDeleteVoucherAttachment}
-              styles={{ sectionBox, sectionHeader, sectionBody, btn, S }}
+              styles={{
+                sectionBox: isProductTransferVoucher ? productTransferSectionBox : sectionBox,
+                sectionHeader,
+                sectionBody: isProductTransferVoucher ? productTransferSectionBody : sectionBody,
+                btn: isProductTransferVoucher ? productTransferActionBtn : btn,
+                S,
+              }}
             />
           )}
 
@@ -1306,22 +1369,39 @@ export default function VoucherEditorPanel({
 
           {/* ── Action buttons ── */}
           {!isReadOnly && (
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${S.border}` }}>
+            <div style={isProductTransferVoucher
+              ? productTransferFooter
+              : { display: 'flex', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${S.border}` }}
+            >
               <button
-                style={{ ...btn('primary'), opacity: saving ? 0.7 : 1 }}
+                style={{
+                  ...(isProductTransferVoucher ? productTransferActionBtn('primary') : btn('primary')),
+                  opacity: saving ? 0.7 : 1,
+                }}
                 onClick={saveVoucher}
                 disabled={saving}
               >
                 {saving ? 'Saving...' : (editingId ? '💾 Update Voucher' : '💾 Save Voucher')}
               </button>
-              <button style={btn('secondary')} onClick={() => setMode('list')}>
+              <button
+                style={isProductTransferVoucher ? productTransferActionBtn('secondary') : btn('secondary')}
+                onClick={() => setMode('list')}
+              >
                 {t('cancel')}
               </button>
             </div>
           )}
           {isReadOnly && (
-            <div style={{ marginTop: '0.75rem' }}>
-              <button style={btn('secondary')} onClick={() => setMode('list')}>← Back</button>
+            <div style={isProductTransferVoucher
+              ? { ...productTransferFooter, borderTop: 'none', paddingTop: 0 }
+              : { marginTop: '0.75rem' }}
+            >
+              <button
+                style={isProductTransferVoucher ? productTransferActionBtn('secondary') : btn('secondary')}
+                onClick={() => setMode('list')}
+              >
+                ← Back
+              </button>
             </div>
           )}
           </div>

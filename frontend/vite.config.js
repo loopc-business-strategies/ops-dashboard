@@ -56,8 +56,87 @@ viteLogger.warn = (msg, options) => {
   viteWarn(msg, options)
 }
 
+/** Same-origin /api → upstream without forwarding browser Origin (prod CORS 500 on *.localhost). */
+function createDevApiProxyPlugin() {
+  const target = String(process.env.DEV_API_PROXY || process.env.VITE_API_URL || '').replace(/\/$/, '')
+  if (!target) return null
+
+  return {
+    name: 'dev-api-proxy-no-cors-origin',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api')) return next()
+
+        try {
+          const upstreamUrl = new URL(req.url, `${target}/`)
+          const headers = {}
+          for (const [key, value] of Object.entries(req.headers || {})) {
+            if (!value || key.startsWith(':')) continue
+            const lower = key.toLowerCase()
+            if (
+              lower === 'host'
+              || lower === 'origin'
+              || lower === 'referer'
+              || lower === 'connection'
+              || lower === 'content-length'
+              || lower === 'transfer-encoding'
+              || lower === 'accept-encoding'
+              || lower === 'expect'
+            ) continue
+            headers[key] = value
+          }
+
+          const method = String(req.method || 'GET').toUpperCase()
+          const hasBody = method !== 'GET' && method !== 'HEAD'
+          const body = hasBody
+            ? await new Promise((resolve, reject) => {
+                const chunks = []
+                req.on('data', (c) => chunks.push(c))
+                req.on('end', () => resolve(Buffer.concat(chunks)))
+                req.on('error', reject)
+              })
+            : undefined
+
+          const upstream = await fetch(upstreamUrl, {
+            method,
+            headers,
+            body,
+            redirect: 'manual',
+          })
+
+          res.statusCode = upstream.status
+          upstream.headers.forEach((value, key) => {
+            const lower = key.toLowerCase()
+            if (lower === 'transfer-encoding' || lower === 'content-encoding') return
+            if (lower === 'set-cookie') {
+              const cookies = typeof upstream.headers.getSetCookie === 'function'
+                ? upstream.headers.getSetCookie()
+                : [value]
+              res.setHeader('set-cookie', cookies.map((cookie) => String(cookie)
+                .replace(/;\s*Domain=[^;]*/gi, '')
+                .replace(/;\s*Secure/gi, '')
+                .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')))
+              return
+            }
+            res.setHeader(key, value)
+          })
+          const buf = Buffer.from(await upstream.arrayBuffer())
+          res.end(buf)
+        } catch (err) {
+          const detail = err?.cause?.message || err?.message || 'Dev API proxy failed'
+          res.statusCode = 502
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ success: false, message: detail }))
+        }
+      })
+    },
+  }
+}
+
+const devApiProxyPlugin = createDevApiProxyPlugin()
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), ...(devApiProxyPlugin ? [devApiProxyPlugin] : [])],
   customLogger: viteLogger,
   define: {
     __APP_BUILD_META__: JSON.stringify(appBuildMeta),
@@ -124,8 +203,18 @@ export default defineConfig({
       allow: ['..'],
     },
     port: 5173,
-    proxy: {
-      '/api': { target: process.env.VITE_API_URL || 'http://localhost:5000', changeOrigin: true },
-    },
+    // Built-in proxy only when DEV_API_PROXY is unset (local backend on :5000).
+    // When DEV_API_PROXY is set, createDevApiProxyPlugin handles /api without CORS Origin.
+    ...(process.env.DEV_API_PROXY
+      ? {}
+      : {
+          proxy: {
+            '/api': {
+              target: process.env.VITE_API_URL || 'http://localhost:5000',
+              changeOrigin: true,
+            },
+          },
+        }),
   },
 })
+

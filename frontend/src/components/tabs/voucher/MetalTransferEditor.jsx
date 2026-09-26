@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { S, inputStyle, labelStyle, decodeInventoryCategoryMeta, decodeFullMeta } from './voucherTabShared'
+import { S, decodeInventoryCategoryMeta, decodeFullMeta } from './voucherTabShared'
 import { resolveVoucherLinePurityFromProduct } from './voucherLinePurity'
 import {
   computeConservedToGross,
@@ -7,6 +7,42 @@ import {
   getTransferSideLine,
   upsertTransferSideLine,
 } from './metalTransferCalc'
+
+const fieldLabel = {
+  display: 'block',
+  fontSize: '0.72rem',
+  fontWeight: 700,
+  color: '#64748B',
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+  marginBottom: 4,
+}
+
+const compactInput = {
+  width: '100%',
+  height: 32,
+  minHeight: 32,
+  padding: '0.2rem 0.45rem',
+  fontSize: '0.8125rem',
+  border: `1px solid var(--border-input, #9CA3AF)`,
+  borderRadius: 4,
+  background: S.white,
+  color: S.ink,
+  boxSizing: 'border-box',
+  outline: 'none',
+}
+
+const compactReadInput = {
+  ...compactInput,
+  background: '#F8FAFC',
+  color: '#4B5563',
+}
+
+const fieldStack = {
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+}
 
 function catalogProducts(inventoryProducts = []) {
   return (Array.isArray(inventoryProducts) ? inventoryProducts : [])
@@ -38,11 +74,18 @@ function SidePanel({
   const selected = products.find((p) => String(p._id) === productId) || null
 
   return (
-    <div style={{ border: `1px solid ${S.border}`, background: S.white, flex: 1, minWidth: 280 }}>
+    <div style={{
+      border: `1px solid ${S.border}`,
+      background: S.white,
+      borderRadius: 4,
+      minWidth: 0,
+      width: '100%',
+    }}
+    >
       <div style={{
-        padding: '0.4rem 0.65rem',
+        padding: '6px 10px',
         fontWeight: 700,
-        fontSize: '0.78rem',
+        fontSize: '0.72rem',
         letterSpacing: '0.04em',
         textTransform: 'uppercase',
         background: S.headerBg,
@@ -52,11 +95,11 @@ function SidePanel({
       >
         {title}
       </div>
-      <div style={{ padding: '0.75rem', display: 'grid', gap: '0.55rem' }}>
-        <div>
-          <label style={labelStyle}>Product</label>
+      <div style={{ padding: 10, display: 'grid', gap: 8 }}>
+        <div style={fieldStack}>
+          <label style={fieldLabel}>Product</label>
           <select
-            style={inputStyle}
+            style={compactInput}
             disabled={formReadOnly}
             value={productId}
             onChange={(e) => {
@@ -89,21 +132,21 @@ function SidePanel({
             ))}
           </select>
           {selected ? (
-            <div style={{ marginTop: 4, fontSize: '0.72rem', color: '#64748B' }}>
+            <div style={{ marginTop: 3, fontSize: '0.7rem', color: '#64748B' }}>
               On hand: {Number(selected.quantity || 0).toFixed(3)} g
             </div>
           ) : null}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
-          <div>
-            <label style={labelStyle}>Purity</label>
-            <input style={{ ...inputStyle, background: '#F8FAFC' }} readOnly value={line.purity || ''} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div style={fieldStack}>
+            <label style={fieldLabel}>Purity</label>
+            <input style={compactReadInput} readOnly value={line.purity || ''} />
           </div>
-          <div>
-            <label style={labelStyle}>Qty (PCS)</label>
+          <div style={fieldStack}>
+            <label style={fieldLabel}>Qty (PCS)</label>
             <input
-              style={inputStyle}
+              style={compactInput}
               type="number"
               step="1"
               disabled={formReadOnly}
@@ -113,11 +156,11 @@ function SidePanel({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
-          <div>
-            <label style={labelStyle}>Gross Weight (g)</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div style={fieldStack}>
+            <label style={fieldLabel}>Gross Weight (g)</label>
             <input
-              style={{ ...inputStyle, ...(grossReadOnly ? { background: '#F8FAFC' } : {}) }}
+              style={grossReadOnly ? compactReadInput : compactInput}
               type="number"
               step="0.001"
               disabled={formReadOnly || grossReadOnly}
@@ -126,10 +169,10 @@ function SidePanel({
               onChange={(e) => onChangeSide(side, { grossWeight: e.target.value })}
             />
           </div>
-          <div>
-            <label style={labelStyle}>Pure Weight (g)</label>
+          <div style={fieldStack}>
+            <label style={fieldLabel}>Pure Weight (g)</label>
             <input
-              style={{ ...inputStyle, background: '#F8FAFC' }}
+              style={compactReadInput}
               readOnly
               value={line.pureWeight || ''}
             />
@@ -180,11 +223,11 @@ export default function MetalTransferEditor({
   }
 
   return (
-    <div style={{ marginTop: '0.75rem' }}>
+    <div style={{ marginTop: 0 }}>
       <div style={{
-        padding: '0.35rem 0.65rem',
+        padding: '6px 10px',
         fontWeight: 700,
-        fontSize: '0.75rem',
+        fontSize: '0.7rem',
         letterSpacing: '0.04em',
         textTransform: 'uppercase',
         background: 'var(--brand-soft)',
@@ -196,9 +239,18 @@ export default function MetalTransferEditor({
         Metal Transfer — conserve pure weight
       </div>
       {loadingInventoryProducts ? (
-        <div style={{ padding: '0.75rem', border: `1px solid ${S.border}`, color: '#64748B' }}>Loading products…</div>
+        <div style={{ padding: 10, border: `1px solid ${S.border}`, color: '#64748B', fontSize: '0.8rem' }}>Loading products…</div>
       ) : (
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', border: `1px solid ${S.border}`, padding: '0.75rem', background: '#F8FAFC' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 8,
+            border: `1px solid ${S.border}`,
+            padding: 10,
+            background: '#F8FAFC',
+          }}
+        >
           <SidePanel
             title="From"
             side="from"
@@ -219,7 +271,7 @@ export default function MetalTransferEditor({
           />
         </div>
       )}
-      <div style={{ marginTop: '0.45rem', fontSize: '0.72rem', color: '#64748B' }}>
+      <div style={{ marginTop: 6, fontSize: '0.7rem', color: '#64748B' }}>
         To gross is calculated as From pure ÷ To purity so pure metal stays the same.
       </div>
     </div>
