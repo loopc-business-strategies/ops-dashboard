@@ -44,6 +44,12 @@ if (
 ) {
   env.GRADLE_USER_HOME = path.join(os.homedir(), '.gradle')
 }
+const isReleaseTask = /release/i.test(task)
+// app.config.ts (evaluated by expo-constants during the build) only uses the production API URL
+// for release builds it can recognise; without this a local release APK embeds http://localhost:5000.
+if (isReleaseTask && !env.GRADLE_TASK) {
+  env.GRADLE_TASK = task
+}
 if (env.SENTRY_DISABLE_AUTO_UPLOAD === undefined) {
   env.SENTRY_DISABLE_AUTO_UPLOAD = 'true'
 }
@@ -110,11 +116,55 @@ if (isWin) {
   })
 }
 
-const code = result.status === null ? 1 : result.status
+function findFiles(dir, name, out = []) {
+  let entries
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) findFiles(full, name, out)
+    else if (entry.name === name) out.push(full)
+  }
+  return out
+}
+
+/** Fails the build if the app.config bundled into a release APK/AAB still targets a local API. */
+function checkEmbeddedApiUrl() {
+  const assetsRoot = path.join(dirNorm, 'app', 'build', 'intermediates', 'assets')
+  const configs = findFiles(assetsRoot, 'app.config').filter((p) => /release/i.test(path.relative(assetsRoot, p)))
+  if (!configs.length) {
+    console.error(`Release check: no bundled app.config found under ${assetsRoot}`)
+    return false
+  }
+  let ok = true
+  for (const file of configs) {
+    let apiUrl = ''
+    try {
+      apiUrl = String(JSON.parse(fs.readFileSync(file, 'utf8'))?.extra?.apiUrl || '')
+    } catch {
+      /* reported below as missing */
+    }
+    if (!/^https?:\/\//i.test(apiUrl) || /localhost|127\.0\.0\.1/i.test(apiUrl)) {
+      console.error(`Release check FAILED: ${file} has apiUrl "${apiUrl || '(missing)'}"`)
+      ok = false
+    } else {
+      console.log(`Release check: API URL ${apiUrl}`)
+    }
+  }
+  return ok
+}
+
+let code = result.status === null ? 1 : result.status
 if (result.error) {
   console.error('Failed to start Gradle:', result.error)
 }
 if (code !== 0) {
   console.error(`Gradle exited with code ${code} (task: ${task})`)
+} else if (isReleaseTask && !checkEmbeddedApiUrl()) {
+  console.error('Do not install this build. Set EXPO_PUBLIC_API_URL to the server URL and rebuild.')
+  code = 1
 }
 process.exit(code)
