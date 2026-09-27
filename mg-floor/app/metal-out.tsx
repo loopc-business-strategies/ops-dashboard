@@ -4,15 +4,18 @@ import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
 import { AsyncSection } from '@/src/components/async'
-import { StableCapturePanel } from '@/src/components/StableCapturePanel'
+import { WeightCapturePanel } from '@/src/components/weightCapture/WeightCapturePanel'
 import { QrFirstResolve } from '@/src/components/QrFirstResolve'
 import { AuthorizedScalePicker } from '@/src/components/AuthorizedScalePicker'
 import { fetchJobs, metalOut } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
-import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
+import { useWeightCapture } from '@/src/hooks/useWeightCapture'
 import { useAuthorizedScaleIds } from '@/src/hooks/useAuthorizedScaleIds'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
+import { flushOutbox } from '@/src/offline/sync'
 import { useAuth } from '@/src/context/AuthContext'
+import { getDeviceId } from '@/src/device/deviceIdentity'
+import { weightSourcePayload } from '@/src/scaleCamera/weightCaptureService'
 import { colors, spacing } from '@/src/theme'
 
 type Job = {
@@ -31,10 +34,18 @@ export default function MetalOutScreen() {
   const [scaleId, setScaleId] = useState(String(params.scaleId || ''))
   const [showList, setShowList] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const inFlightOpId = useRef<string | null>(null)
-  const capture = useStableScaleCapture(scaleId)
+  const submittingRef = useRef(false)
   const scales = useAuthorizedScaleIds(user?.department)
+  const capture = useWeightCapture(scaleId, scales.profiles[scaleId] || null)
+
+  useEffect(() => {
+    if (!saved) return
+    const t = setTimeout(() => setSaved(false), 2500)
+    return () => clearTimeout(t)
+  }, [saved])
 
   const jobs = useAsyncResource(
     useCallback(async (signal) => {
@@ -72,41 +83,52 @@ export default function MetalOutScreen() {
       Alert.alert('Select a scale', 'Choose an authorized scale before submitting.')
       return
     }
-    if (!capture.captured?.scaleReadingId) {
-      Alert.alert('Capture stable weight', 'Capture a stable scale reading before confirming.')
+    const captured = capture.captured
+    if (!captured) {
+      Alert.alert('Capture weight', 'Capture a stable scale reading or confirm a camera weight before confirming.')
       return
     }
-    if (busy) return
+    if (busy || submittingRef.current) return
+    submittingRef.current = true
     setBusy(true)
     setSubmitError('')
     const operationId = inFlightOpId.current || createOperationId('metal_out')
     inFlightOpId.current = operationId
+    const deviceId = await getDeviceId().catch(() => '')
     const payload = {
       batchId,
       toDepartment: toDepartment.trim(),
       fromDepartment: selected?.currentDepartment,
       scaleId,
-      stableReadingId: capture.captured.scaleReadingId,
-      weight: capture.captured.weight,
+      ...weightSourcePayload(captured),
+      weight: captured.weight,
       operationId,
+      ...(deviceId ? { deviceId } : {}),
       purpose: 'MG Floor Metal OUT',
     }
+    const queued = { operationId, operationType: 'metal_out' as const, payload, scaleId, deviceId: deviceId || undefined }
     try {
       const net = await NetInfo.fetch()
-      if (!net.isConnected) {
-        await enqueueOutbox({ operationId, operationType: 'metal_out', payload, scaleId })
+      // A capture still in the outbox must sync first, so the metal op queues behind it.
+      if (!net.isConnected || captured.queued) {
+        await enqueueOutbox(queued)
         Alert.alert('Saved offline', 'Metal OUT queued')
         inFlightOpId.current = null
+        capture.clearCapture()
+        setSaved(true)
+        if (net.isConnected) flushOutbox().catch(() => undefined)
         return
       }
       await metalOut(payload)
       Alert.alert('Success', 'Metal OUT recorded')
       inFlightOpId.current = null
       capture.clearCapture()
+      setSaved(true)
     } catch (err) {
-      await enqueueOutbox({ operationId, operationType: 'metal_out', payload, scaleId })
+      await enqueueOutbox(queued)
       setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
     } finally {
+      submittingRef.current = false
       setBusy(false)
     }
   }
@@ -114,7 +136,7 @@ export default function MetalOutScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Scan → verify → destination → capture stable → confirm</Subtitle>
+        <Subtitle>Scan → verify → destination → capture weight → confirm</Subtitle>
 
         <QrFirstResolve
           hint="Scan job / batch QR"
@@ -172,8 +194,13 @@ export default function MetalOutScreen() {
         <Text style={styles.step}>AUTHORIZED SCALE</Text>
         <AuthorizedScalePicker scaleId={scaleId} onSelect={setScaleId} scales={scales} />
 
-        <Text style={styles.step}>STABLE CAPTURE</Text>
-        <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
+        <Text style={styles.step}>WEIGHT CAPTURE</Text>
+        <WeightCapturePanel
+          scaleId={scaleId}
+          capture={capture}
+          busy={busy}
+          context={{ department: user?.department, batchId, batchNumber: selected?.batchNumber }}
+        />
 
         <Text style={styles.label}>Destination department</Text>
         <TextInput
@@ -184,7 +211,7 @@ export default function MetalOutScreen() {
         />
         {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
         <BigButton
-          label={busy ? 'SUBMITTING…' : 'CONFIRM METAL OUT'}
+          label={busy ? 'SAVING…' : saved ? 'SAVED' : 'CONFIRM METAL OUT'}
           onPress={submit}
           disabled={busy || !scaleId || !capture.hasCapture}
         />

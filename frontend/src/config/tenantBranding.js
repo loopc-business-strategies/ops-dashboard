@@ -272,7 +272,6 @@ const tenantBranding = {
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
       voucher24HourLock: true,
-      disabledVoucherTypes: ['metal_transfer'],
     },
   },
   cg: {
@@ -307,7 +306,6 @@ const tenantBranding = {
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
       voucher24HourLock: true,
-      disabledVoucherTypes: ['metal_transfer'],
     },
   },
   loopc: {
@@ -368,7 +366,6 @@ const tenantBranding = {
       professionalVoucherPrint: true,
       accountingPeriodClosing: true,
       voucher24HourLock: true,
-      disabledVoucherTypes: ['metal_transfer'],
     },
   },
 }
@@ -415,7 +412,7 @@ export function isDepartmentsComingSoonEnabled(tenant) {
 }
 
 /** Types enabled only on LoopC (allowlist). Mirrors backend tenantVoucherPolicy. */
-export const LOOPC_ONLY_VOUCHER_TYPES = Object.freeze(['metal_transfer'])
+export const LOOPC_ONLY_VOUCHER_TYPES = Object.freeze([])
 
 export function getDisabledVoucherTypes(tenant) {
   const branding = getTenantBranding(tenant)

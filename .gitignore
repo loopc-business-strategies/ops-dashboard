@@ -33,6 +33,10 @@ mg-floor/android/app/build/
 mg-floor/android/app/.cxx/
 mg-floor/android/build/
 mg-floor/android/
+mg-floor/modules/*/android/build/
+mg-floor/modules/*/android/.cxx/
+mg-floor/credentials/*
+!mg-floor/credentials/keystore.properties.example
 mg-floor/.expo/
 device-gateway/node_modules/
 device-gateway/gateway.local.env

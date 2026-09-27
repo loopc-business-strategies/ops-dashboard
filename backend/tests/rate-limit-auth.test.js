@@ -1,6 +1,7 @@
 const request = require('supertest')
 const createApp = require('../app')
 const { resetLocalCoordinationForTests } = require('../utils/sharedCoordination')
+const { closeAllTenantConnections } = require('../db/tenantConnections')
 
 describe('rate limiting', () => {
   const originalEnv = { ...process.env }
@@ -8,6 +9,10 @@ describe('rate limiting', () => {
   afterEach(() => {
     process.env = { ...originalEnv }
     resetLocalCoordinationForTests()
+  })
+
+  afterAll(async () => {
+    await closeAllTenantConnections()
   })
 
   test('login is not blocked by the global API rate limiter', async () => {

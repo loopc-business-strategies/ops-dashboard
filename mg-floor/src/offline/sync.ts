@@ -1,6 +1,7 @@
 import NetInfo from '@react-native-community/netinfo'
 import { syncOperations } from '@/src/api/floor'
 import { clearSynced, listOutbox, markOutbox, pendingCount } from '@/src/offline/outbox'
+import { flushPhotoQueue, pendingPhotoCount } from '@/src/offline/photoQueue'
 
 export async function flushOutbox() {
   const pending = (await listOutbox()).filter(
@@ -51,6 +52,14 @@ export function startAutoSync(intervalMs = 15000) {
     if (n > 0) {
       try {
         await flushOutbox()
+      } catch {
+        // retry next interval
+      }
+    }
+    // Photos upload after the outbox so their capture records exist server-side.
+    if ((await pendingPhotoCount()) > 0) {
+      try {
+        await flushPhotoQueue()
       } catch {
         // retry next interval
       }

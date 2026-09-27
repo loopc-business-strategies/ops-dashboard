@@ -3,7 +3,7 @@ const { isWeakJwtSecret, isRedisRequired, expectedReplicaCount } = require('../u
 const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
 const { connectTenant } = require('../db/tenantConnections')
 const { getBackendBuildMeta } = require('./buildMeta')
-const { getUploadStorageStatus } = require('./uploadStorage')
+const { getUploadStorageStatus, getMgFloorCaptureStorageStatus } = require('./uploadStorage')
 const { pingRedis } = require('../utils/sharedCoordination')
 const { getSocketIoRedisAdapterAttached } = require('../realtime/RealtimeServer')
 
@@ -90,6 +90,10 @@ async function getReadinessStatus() {
   }
   if (isProduction && uploadStorage.volumeMountPath && !uploadStorage.volumeAligned) {
     warnings.push(`UPLOAD_STORAGE_ROOT does not match RAILWAY_VOLUME_MOUNT_PATH (${uploadStorage.volumeMountPath}).`)
+  }
+  const captureStorage = getMgFloorCaptureStorageStatus()
+  if (isProduction && captureStorage.dir && !captureStorage.writable) {
+    warnings.push('MG Floor capture photo directory is not writable — scale camera photos will fail to upload.')
   }
 
   return {

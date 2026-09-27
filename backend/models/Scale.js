@@ -1,5 +1,12 @@
 const mongoose = require('mongoose')
 const { createTenantModel } = require('../db/tenantModelProxy')
+const {
+  SCALE_CAPTURE_METHODS: CAPTURE_METHODS,
+  OVER_CAPACITY_POLICIES,
+  MIN_CAMERA_OCR_CONFIDENCE,
+  CAMERA_OCR_DEFAULTS,
+  CAMERA_OCR_TUNING_LIMITS,
+} = require('../constants/mgFloorWeightCapture')
 
 const SCALE_STATUSES = [
   'CONNECTED',
@@ -11,7 +18,39 @@ const SCALE_STATUSES = [
   'DISABLED',
 ]
 
-const CONNECTION_TYPES = ['RS232', 'USB', 'BLUETOOTH', 'ETHERNET', 'WIFI', 'SIMULATOR']
+const CONNECTION_TYPES = ['RS232', 'USB', 'BLUETOOTH', 'ETHERNET', 'WIFI', 'SIMULATOR', 'CAMERA']
+
+const cameraOcrSchema = new mongoose.Schema(
+  {
+    enabled: { type: Boolean, default: CAMERA_OCR_DEFAULTS.enabled },
+    minConfidence: { type: Number, min: MIN_CAMERA_OCR_CONFIDENCE, max: 1, default: CAMERA_OCR_DEFAULTS.minConfidence },
+    consecutiveFrames: { type: Number, min: 2, max: 30, default: CAMERA_OCR_DEFAULTS.consecutiveFrames },
+    stableDurationMs: { type: Number, min: 0, max: 30000, default: CAMERA_OCR_DEFAULTS.stableDurationMs },
+    allowedVariation: { type: Number, min: 0, default: CAMERA_OCR_DEFAULTS.allowedVariation },
+    overCapacityPolicy: { type: String, enum: OVER_CAPACITY_POLICIES, default: CAMERA_OCR_DEFAULTS.overCapacityPolicy },
+    imageQuality: { type: Number, min: 0.2, max: 1, default: CAMERA_OCR_DEFAULTS.imageQuality },
+    sevenSegmentCrossCheck: { type: Boolean, default: CAMERA_OCR_DEFAULTS.sevenSegmentCrossCheck },
+    segmentThreshold: {
+      type: Number,
+      min: CAMERA_OCR_TUNING_LIMITS.segmentThreshold[0],
+      max: CAMERA_OCR_TUNING_LIMITS.segmentThreshold[1],
+      default: CAMERA_OCR_DEFAULTS.segmentThreshold,
+    },
+    guideBoxAspect: {
+      type: Number,
+      min: CAMERA_OCR_TUNING_LIMITS.guideBoxAspect[0],
+      max: CAMERA_OCR_TUNING_LIMITS.guideBoxAspect[1],
+      default: CAMERA_OCR_DEFAULTS.guideBoxAspect,
+    },
+    guideBoxWidth: {
+      type: Number,
+      min: CAMERA_OCR_TUNING_LIMITS.guideBoxWidth[0],
+      max: CAMERA_OCR_TUNING_LIMITS.guideBoxWidth[1],
+      default: CAMERA_OCR_DEFAULTS.guideBoxWidth,
+    },
+  },
+  { _id: false },
+)
 
 const scaleSchema = new mongoose.Schema(
   {
@@ -43,6 +82,17 @@ const scaleSchema = new mongoose.Schema(
     lastSeenAt: { type: Date, default: null },
     lastError: { type: String, trim: true, default: '' },
     enabled: { type: Boolean, default: true },
+    captureMethods: {
+      type: [{ type: String, enum: CAPTURE_METHODS }],
+      default: () => ['DIGITAL_RS232'],
+    },
+    capacity: { type: Number, default: null },
+    resolution: { type: Number, default: null },
+    cameraOcr: { type: cameraOcrSchema, default: () => ({}) },
+    archived: { type: Boolean, default: false },
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    archiveReason: { type: String, trim: true, default: '' },
   },
   { timestamps: true },
 )

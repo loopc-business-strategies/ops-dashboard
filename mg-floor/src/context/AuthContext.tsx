@@ -11,6 +11,8 @@ import {
   setSessionLoginAt,
 } from '@/src/auth/sessionPrefs'
 import { Platform } from 'react-native'
+import Constants from 'expo-constants'
+import { getDeviceId } from '@/src/device/deviceIdentity'
 
 const TOKEN_KEY = 'mg_floor_session_token'
 
@@ -133,8 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await hydrateFromMe(data.token)
     try {
       await registerDevice({
-        deviceId: `mg-floor-${Platform.OS}-${Date.now()}`,
-        appVersion: '1.0.0',
+        deviceId: await getDeviceId(),
+        appVersion: Constants.expoConfig?.version || '1.0.0',
         os: Platform.OS,
         model: Platform.OS,
         department: data.user?.department || '',
@@ -150,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       markSessionExpiredNotice().catch(() => {})
       logout()
     })
+    getDeviceId().catch(() => {})
     ;(async () => {
       try {
         const stored = await readStoredToken()

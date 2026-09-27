@@ -82,13 +82,15 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', token = authToken, body, params, signal, retrySafeGet } = options
   const tenant = getTenant()
+  const isMultipart = typeof FormData !== 'undefined' && body instanceof FormData
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'Content-Type': 'application/json',
     'x-tenant': tenant,
     'x-company': tenant,
     'X-Client': 'mg-floor',
   }
+  // fetch sets the multipart boundary itself.
+  if (!isMultipart) headers['Content-Type'] = 'application/json'
   if (token) headers.Authorization = `Bearer ${token}`
 
   const doFetch = async (): Promise<T> => {
@@ -97,7 +99,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       {
         method,
         headers,
-        body: body ? JSON.stringify(body) : undefined,
+        body: isMultipart ? (body as FormData) : body ? JSON.stringify(body) : undefined,
       },
       signal,
     )

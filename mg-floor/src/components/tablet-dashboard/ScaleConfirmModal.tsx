@@ -10,15 +10,18 @@ import {
   View,
 } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
-import { StableCapturePanel } from '@/src/components/StableCapturePanel'
+import { WeightCapturePanel } from '@/src/components/weightCapture/WeightCapturePanel'
 import { AuthorizedScalePicker } from '@/src/components/AuthorizedScalePicker'
 import { fetchJobs, fetchOpenPasses, metalIn, metalOut } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
-import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
+import { useWeightCapture } from '@/src/hooks/useWeightCapture'
 import { useAuthorizedScaleIds } from '@/src/hooks/useAuthorizedScaleIds'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
+import { flushOutbox } from '@/src/offline/sync'
 import { useAuth } from '@/src/context/AuthContext'
 import { userFacingMessage } from '@/src/api/errors'
+import { getDeviceId } from '@/src/device/deviceIdentity'
+import { weightSourcePayload } from '@/src/scaleCamera/weightCaptureService'
 import { tabletDashboard as td } from '@/src/theme'
 import type { MetalBatchEdit } from './MetalProcessPanel'
 
@@ -56,8 +59,9 @@ export function ScaleConfirmModal({ visible, kind, batches, onClose, onSaved }: 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const inFlight = useRef<string | null>(null)
-  const capture = useStableScaleCapture(scaleId)
+  const submittingRef = useRef(false)
   const scales = useAuthorizedScaleIds(user?.department)
+  const capture = useWeightCapture(scaleId, scales.profiles[scaleId] || null)
   const weights = useMemo(() => goldAlloyWeights(batches), [batches])
 
   useEffect(() => {
@@ -99,13 +103,14 @@ export function ScaleConfirmModal({ visible, kind, batches, onClose, onSaved }: 
   }, [kind, passId, batchId, passes.data, jobs.data])
 
   const submit = async () => {
-    if (busy) return
+    if (busy || submittingRef.current) return
     if (!scaleId) {
       setError('Select a scale')
       return
     }
-    if (!capture.captured?.scaleReadingId) {
-      setError('Capture a stable scale reading first')
+    const captured = capture.captured
+    if (!captured) {
+      setError('Capture a stable scale reading or confirm a camera weight first')
       return
     }
     if (kind === 'in' && !passId) {
@@ -116,17 +121,20 @@ export function ScaleConfirmModal({ visible, kind, batches, onClose, onSaved }: 
       setError('Select a job and destination department')
       return
     }
-    if (weights.total > 0 && Math.abs(weights.total - capture.captured.weight) > 0.5) {
+    if (weights.total > 0 && Math.abs(weights.total - captured.weight) > 0.5) {
       setError(
-        `Materials (${weights.total.toFixed(2)} g) must match captured weight (${capture.captured.weight.toFixed(2)} g)`,
+        `Materials (${weights.total.toFixed(2)} g) must match captured weight (${captured.weight.toFixed(2)} g)`,
       )
       return
     }
 
+    submittingRef.current = true
     setBusy(true)
     setError('')
     const operationId = inFlight.current || createOperationId(kind === 'in' ? 'metal_in' : 'metal_out')
     inFlight.current = operationId
+    const deviceId = await getDeviceId().catch(() => '')
+    const weightSource = weightSourcePayload(captured)
 
     const materials =
       weights.total > 0
@@ -138,21 +146,24 @@ export function ScaleConfirmModal({ visible, kind, batches, onClose, onSaved }: 
 
     try {
       const net = await NetInfo.fetch()
+      // A capture still in the outbox must sync first, so the metal op queues behind it.
+      const queueOnly = !net.isConnected || Boolean(captured.queued)
       if (kind === 'in') {
         const payload = {
           passId,
           scaleId,
-          stableReadingId: capture.captured.scaleReadingId,
-          receivedWeight: capture.captured.weight,
+          ...weightSource,
+          receivedWeight: captured.weight,
           operationId,
+          ...(deviceId ? { deviceId } : {}),
           ...(materials ? { materials } : {}),
         }
-        if (!net.isConnected) {
-          await enqueueOutbox({ operationId, operationType: 'metal_in', payload, scaleId })
+        if (queueOnly) {
+          await enqueueOutbox({ operationId, operationType: 'metal_in', payload, scaleId, deviceId: deviceId || undefined })
           Alert.alert('Saved offline', 'Metal IN queued — will sync when online.')
         } else {
           await metalIn(payload)
-          Alert.alert('METAL IN RECORDED', `Weight: ${capture.captured.weight.toFixed(2)} g`)
+          Alert.alert('METAL IN RECORDED', `Weight: ${captured.weight.toFixed(2)} g`)
         }
       } else {
         const job = (jobs.data || []).find((j) => String(j._id || j.batchId) === batchId)
@@ -161,19 +172,21 @@ export function ScaleConfirmModal({ visible, kind, batches, onClose, onSaved }: 
           toDepartment: toDepartment.trim(),
           fromDepartment: job?.currentDepartment || user?.department || '',
           scaleId,
-          stableReadingId: capture.captured.scaleReadingId,
-          weight: capture.captured.weight,
+          ...weightSource,
+          weight: captured.weight,
           operationId,
+          ...(deviceId ? { deviceId } : {}),
           purpose: 'MG Floor Metal OUT',
         }
-        if (!net.isConnected) {
-          await enqueueOutbox({ operationId, operationType: 'metal_out', payload, scaleId })
+        if (queueOnly) {
+          await enqueueOutbox({ operationId, operationType: 'metal_out', payload, scaleId, deviceId: deviceId || undefined })
           Alert.alert('Saved offline', 'Metal OUT queued')
         } else {
           await metalOut(payload)
           Alert.alert('Success', 'Metal OUT recorded')
         }
       }
+      if (queueOnly && net.isConnected) flushOutbox().catch(() => undefined)
       inFlight.current = null
       capture.clearCapture()
       onSaved()
@@ -181,6 +194,7 @@ export function ScaleConfirmModal({ visible, kind, batches, onClose, onSaved }: 
     } catch (err) {
       setError(userFacingMessage(err) || 'Save failed')
     } finally {
+      submittingRef.current = false
       setBusy(false)
     }
   }
@@ -247,7 +261,15 @@ export function ScaleConfirmModal({ visible, kind, batches, onClose, onSaved }: 
               </View>
             )}
 
-            <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
+            <WeightCapturePanel
+              scaleId={scaleId}
+              capture={capture}
+              busy={busy}
+              context={{
+                department: user?.department,
+                ...(kind === 'in' ? { passId } : { batchId }),
+              }}
+            />
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </ScrollView>
 

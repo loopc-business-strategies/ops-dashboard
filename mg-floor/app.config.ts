@@ -61,7 +61,7 @@ const config = {
     [
       'expo-camera',
       {
-        cameraPermission: 'Allow MG Floor to scan job and batch barcodes.',
+        cameraPermission: 'MG FLOOR needs camera access to scan job and batch barcodes and to read the scale display.',
       },
     ],
     'expo-secure-store',
@@ -71,6 +71,7 @@ const config = {
         faceIDPermission: 'Allow MG Floor to use Face ID for employee sign-in.',
       },
     ],
+    './plugins/withReleaseSigning',
   ],
   extra: {
     tenant: 'mg',

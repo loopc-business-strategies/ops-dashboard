@@ -36,7 +36,7 @@ router.get('/contract', protect, (_req, res) => {
       'Do not depend on browser WebUSB/serial hacks for production weighing.',
       'Gateway must authenticate as a service user or device credential.',
       'Idempotency-Key header recommended for ingest retries.',
-      'MG Floor weighing scales must be registered (MG-SCALE-001..007).',
+      'MG Floor weighing scales must be registered in the MG Floor scale registry.',
     ],
   })
 })

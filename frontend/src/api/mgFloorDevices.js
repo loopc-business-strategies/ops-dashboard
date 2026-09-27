@@ -11,6 +11,7 @@ export const mgFloorDevicesApi = {
   listScales: (params) => get('/scales', params),
   createScale: (body) => post('/scales', body),
   updateScale: (scaleId, body) => patch(`/scales/${encodeURIComponent(scaleId)}`, body),
+  archiveScale: (scaleId, reason) => post(`/scales/${encodeURIComponent(scaleId)}/archive`, { reason }),
   listXrf: (params) => get('/xrf/devices', params),
   createXrf: (body) => post('/xrf/devices', body),
   updateXrf: (id, body) => patch(`/xrf/devices/${encodeURIComponent(id)}`, body),
