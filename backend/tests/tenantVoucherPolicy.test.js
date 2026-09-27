@@ -5,35 +5,34 @@ const {
   isLoopcOnlyVoucherType,
 } = require('../config/tenantVoucherPolicy')
 
+const TENANTS = ['mg', 'cg', 'loopc', 'vb']
+
 describe('tenantVoucherPolicy', () => {
-  test('metal_transfer is LoopC-only allowlist', () => {
-    expect(isLoopcOnlyVoucherType('metal_transfer')).toBe(true)
-    expect(isVoucherTypeEnabledForTenant('loopc', 'metal_transfer')).toBe(true)
-    expect(isVoucherTypeEnabledForTenant('mg', 'metal_transfer')).toBe(false)
-    expect(isVoucherTypeEnabledForTenant('cg', 'metal_transfer')).toBe(false)
-    expect(isVoucherTypeEnabledForTenant('vb', 'metal_transfer')).toBe(false)
-    expect(isVoucherTypeEnabledForTenant('unknown', 'metal_transfer')).toBe(false)
-    expect(isVoucherTypeEnabledForTenant('', 'metal_transfer')).toBe(false)
+  test('metal_transfer is enabled for every tenant', () => {
+    expect(isLoopcOnlyVoucherType('metal_transfer')).toBe(false)
+    for (const tenant of TENANTS) {
+      expect(isVoucherTypeEnabledForTenant(tenant, 'metal_transfer')).toBe(true)
+    }
   })
 
-  test('mg/cg/vb keep other metal vouchers enabled', () => {
-    expect(isVoucherTypeEnabledForTenant('mg', 'purchase')).toBe(true)
-    expect(isVoucherTypeEnabledForTenant('mg', 'metal_receipt')).toBe(true)
-    expect(isVoucherTypeEnabledForTenant('mg', 'sale')).toBe(true)
-    expect(isVoucherTypeEnabledForTenant('mg', 'metal_payment')).toBe(true)
+  test('all tenants keep the other metal vouchers enabled', () => {
+    for (const tenant of TENANTS) {
+      for (const type of ['purchase', 'sale', 'metal_receipt', 'metal_payment']) {
+        expect(isVoucherTypeEnabledForTenant(tenant, type)).toBe(true)
+      }
+    }
   })
 
-  test('getDisabledVoucherTypes includes metal_transfer for non-loopc', () => {
-    expect(getDisabledVoucherTypes('mg')).toEqual(expect.arrayContaining(['metal_transfer']))
-    expect(getDisabledVoucherTypes('cg')).toEqual(expect.arrayContaining(['metal_transfer']))
-    expect(getDisabledVoucherTypes('vb')).toEqual(expect.arrayContaining(['metal_transfer']))
-    expect(getDisabledVoucherTypes('loopc')).not.toEqual(expect.arrayContaining(['metal_transfer']))
-    expect(getDisabledVoucherTypes('other')).toEqual(expect.arrayContaining(['metal_transfer']))
+  test('getDisabledVoucherTypes no longer lists metal_transfer', () => {
+    for (const tenant of TENANTS) {
+      expect(getDisabledVoucherTypes(tenant)).not.toEqual(expect.arrayContaining(['metal_transfer']))
+    }
   })
 
-  test('filterTransactionTypesForTenant removes metal_transfer off loopc', () => {
+  test('filterTransactionTypesForTenant keeps metal_transfer', () => {
     const types = ['purchase', 'sale', 'metal_receipt', 'metal_payment', 'metal_transfer']
-    expect(filterTransactionTypesForTenant('mg', types)).toEqual(['purchase', 'sale', 'metal_receipt', 'metal_payment'])
-    expect(filterTransactionTypesForTenant('loopc', types)).toEqual(types)
+    for (const tenant of TENANTS) {
+      expect(filterTransactionTypesForTenant(tenant, types)).toEqual(types)
+    }
   })
 })

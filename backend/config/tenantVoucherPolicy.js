@@ -1,12 +1,12 @@
 /** Per-tenant voucher denylist (defense-in-depth). */
 const DISABLED_VOUCHER_TYPES_BY_TENANT = {
-  mg: ['metal_transfer'],
-  cg: ['metal_transfer'],
-  vb: ['metal_transfer'],
+  mg: [],
+  cg: [],
+  vb: [],
 }
 
 /** Types enabled only on LoopC (allowlist). Takes precedence over denylist. */
-const LOOPC_ONLY_VOUCHER_TYPES = ['metal_transfer']
+const LOOPC_ONLY_VOUCHER_TYPES = []
 
 function normalizeTenantKey(value) {
   return String(value || '').trim().toLowerCase()
