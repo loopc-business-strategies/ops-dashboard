@@ -18,7 +18,9 @@ import {
 import {
   getAssignedManager,
   getAssignedMetalLabels,
+  getSavedMetalTables,
   setAssignedMetalLabels,
+  setSavedMetalTables,
   type AssignedManager,
 } from '@/src/auth/floorDashboardPrefs'
 import { fetchHistory } from '@/src/api/floor'
@@ -31,7 +33,7 @@ import { CallFMButton } from './CallFMButton'
 import { DashboardLinksRow, type DashboardLink } from './DashboardLinksRow'
 import { MetalProcessPanel, type MetalBatchEdit } from './MetalProcessPanel'
 import { AssignedMetalInPanel } from './AssignedMetalInPanel'
-import { fillNextQty, takePendingFill, type CaptureSide } from './captureFill'
+import { dayKey, fillNextQty, takePendingFill, type CaptureSide } from './captureFill'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
 import {
@@ -94,6 +96,7 @@ export function MGFloorTabletDashboard() {
   const [metalOutBatches, setMetalOutBatches] = useState<MetalBatchEdit[]>(emptyEditableBatches)
   const [assignedMetal, setAssignedMetal] = useState({ batch1: '', batch2: '' })
   const [seeded, setSeeded] = useState(false)
+  const [restored, setRestored] = useState(false)
 
   useEffect(() => {
     getSelectedDepartment().then((d) => setDept(d || user?.department || ''))
@@ -120,15 +123,38 @@ export function MGFloorTabletDashboard() {
     { cacheKey: 'mg-floor:dash-history-today', isEmpty: (d) => !d.length },
   )
 
+  // Today's saved tables (captured weights, operator edits) win over the history seed.
   useEffect(() => {
-    if (!history.data || seeded) return
+    let cancelled = false
+    getSavedMetalTables(dayKey()).then((saved) => {
+      if (cancelled) return
+      if (saved) {
+        setMetalInBatches(saved.metalIn)
+        setMetalOutBatches(saved.metalOut)
+        setSeeded(true)
+      }
+      setRestored(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!restored || !history.data || seeded) return
     setMetalInBatches(toEditable(buildMetalProcessBatches(history.data, 'in')))
     setMetalOutBatches(toEditable(buildMetalProcessBatches(history.data, 'out')))
     setSeeded(true)
-  }, [history.data, seeded])
+  }, [restored, history.data, seeded])
+
+  useEffect(() => {
+    if (!seeded) return
+    setSavedMetalTables({ day: dayKey(), metalIn: metalInBatches, metalOut: metalOutBatches }).catch(() => {})
+  }, [seeded, metalInBatches, metalOutBatches])
 
   useFocusEffect(
     useCallback(() => {
+      if (!restored) return
       const fill = takePendingFill()
       if (!fill) return
       const out = fill.side === 'out'
@@ -142,7 +168,8 @@ export function MGFloorTabletDashboard() {
       }
       if (out) setMetalOutBatches(result.batches)
       else setMetalInBatches(result.batches)
-    }, [metalInBatches, metalOutBatches]),
+      setSeeded(true)
+    }, [restored, metalInBatches, metalOutBatches]),
   )
 
   const openCapture = (side: CaptureSide) => {
@@ -229,7 +256,10 @@ export function MGFloorTabletDashboard() {
             <MetalProcessPanel
               title="Metal In"
               batches={metalInBatches}
-              onChange={setMetalInBatches}
+              onChange={(next) => {
+                setMetalInBatches(next)
+                setSeeded(true)
+              }}
               action={{
                 label: 'CAPTURE WEIGHT',
                 onPress: () => openCapture('in'),
@@ -247,7 +277,10 @@ export function MGFloorTabletDashboard() {
               <MetalProcessPanel
                 title="Metal Out"
                 batches={metalOutBatches}
-                onChange={setMetalOutBatches}
+                onChange={(next) => {
+                  setMetalOutBatches(next)
+                  setSeeded(true)
+                }}
                 action={{
                   label: 'CAPTURE WEIGHT',
                   onPress: () => openCapture('out'),

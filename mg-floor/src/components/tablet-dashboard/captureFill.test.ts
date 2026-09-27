@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fillNextQty, setPendingFill, takePendingFill } from './captureFill'
+import { dayKey, fillNextQty, parseSavedTables, setPendingFill, takePendingFill } from './captureFill'
 import type { MetalBatchEdit } from './MetalProcessPanel'
 
 function table(qtys: string[][]): MetalBatchEdit[] {
@@ -36,6 +36,27 @@ describe('fillNextQty', () => {
     const { batches, filled } = fillNextQty(full, '9.00 g', '09:34')
     expect(filled).toBe(false)
     expect(batches).toBe(full)
+  })
+})
+
+describe('saved tables', () => {
+  const metalIn = table([['10.00 g', ''], ['', '']])
+  const metalOut = table([['', ''], ['', '']])
+
+  it('uses a local YYYY-MM-DD day key', () => {
+    expect(dayKey(new Date(2026, 8, 5, 23, 59))).toBe('2026-09-05')
+  })
+
+  it('restores tables saved today', () => {
+    const raw = JSON.stringify({ day: '2026-09-28', metalIn, metalOut })
+    expect(parseSavedTables(raw, '2026-09-28')).toEqual({ day: '2026-09-28', metalIn, metalOut })
+  })
+
+  it('ignores tables from another day, missing or malformed data', () => {
+    expect(parseSavedTables(JSON.stringify({ day: '2026-09-27', metalIn, metalOut }), '2026-09-28')).toBeNull()
+    expect(parseSavedTables(null, '2026-09-28')).toBeNull()
+    expect(parseSavedTables('{not json', '2026-09-28')).toBeNull()
+    expect(parseSavedTables(JSON.stringify({ day: '2026-09-28', metalIn: [{}], metalOut }), '2026-09-28')).toBeNull()
   })
 })
 
