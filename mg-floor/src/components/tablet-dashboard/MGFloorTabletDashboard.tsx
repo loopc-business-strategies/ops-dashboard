@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   View,
@@ -30,6 +31,7 @@ import { CallFMButton } from './CallFMButton'
 import { DashboardLinksRow, type DashboardLink } from './DashboardLinksRow'
 import { MetalProcessPanel, type MetalBatchEdit } from './MetalProcessPanel'
 import { AssignedMetalInPanel } from './AssignedMetalInPanel'
+import { fillNextQty, takePendingFill, type CaptureSide } from './captureFill'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
 import {
@@ -118,32 +120,33 @@ export function MGFloorTabletDashboard() {
     { cacheKey: 'mg-floor:dash-history-today', isEmpty: (d) => !d.length },
   )
 
-  // Set when leaving for a capture screen: the next history load replaces the tables with fresh data.
-  const reseedAfterCapture = useRef(false)
-  const refreshOnReturn = useRef(false)
-
   useEffect(() => {
-    if (!history.data) return
-    if (seeded && !reseedAfterCapture.current) return
-    reseedAfterCapture.current = false
+    if (!history.data || seeded) return
     setMetalInBatches(toEditable(buildMetalProcessBatches(history.data, 'in')))
     setMetalOutBatches(toEditable(buildMetalProcessBatches(history.data, 'out')))
     setSeeded(true)
   }, [history.data, seeded])
 
-  const reloadHistory = history.reload
   useFocusEffect(
     useCallback(() => {
-      if (!refreshOnReturn.current) return
-      refreshOnReturn.current = false
-      reseedAfterCapture.current = true
-      reloadHistory()
-    }, [reloadHistory]),
+      const fill = takePendingFill()
+      if (!fill) return
+      const out = fill.side === 'out'
+      const result = fillNextQty(out ? metalOutBatches : metalInBatches, fill.qty, formatClock(fill.at))
+      if (!result.filled) {
+        Alert.alert(
+          'Table full',
+          `${fill.qty} was saved in Weight Captures, but every Qty cell in Metal ${out ? 'Out' : 'In'} is filled. Clear a cell to add it.`,
+        )
+        return
+      }
+      if (out) setMetalOutBatches(result.batches)
+      else setMetalInBatches(result.batches)
+    }, [metalInBatches, metalOutBatches]),
   )
 
-  const openScreen = (pathname: string, refreshAfter = false) => {
-    if (refreshAfter) refreshOnReturn.current = true
-    router.push(pathname as never)
+  const openCapture = (side: CaptureSide) => {
+    router.push({ pathname: '/quick-capture', params: { side } } as never)
   }
 
   const managerLinks = useMemo<DashboardLink[]>(() => {
@@ -151,9 +154,6 @@ export function MGFloorTabletDashboard() {
     const links: DashboardLink[] = []
     if (permissions.viewAudit || permissions.manageScales) {
       links.push({ key: 'captures', label: 'Weight Captures', onPress: () => router.push('/weight-captures' as never) })
-    }
-    if (permissions.manageScales) {
-      links.push({ key: 'scales', label: 'Scales', onPress: () => router.push('/scales' as never) })
     }
     return links
   }, [token, permissions.viewAudit, permissions.manageScales, router])
@@ -232,7 +232,7 @@ export function MGFloorTabletDashboard() {
               onChange={setMetalInBatches}
               action={{
                 label: 'CAPTURE WEIGHT',
-                onPress: () => openScreen('/metal-in', true),
+                onPress: () => openCapture('in'),
                 disabled: !token,
                 disabledHint: 'Login to capture',
               }}
@@ -250,7 +250,7 @@ export function MGFloorTabletDashboard() {
                 onChange={setMetalOutBatches}
                 action={{
                   label: 'CAPTURE WEIGHT',
-                  onPress: () => openScreen('/metal-out', true),
+                  onPress: () => openCapture('out'),
                   disabled: !token,
                   disabledHint: 'Login to capture',
                 }}
