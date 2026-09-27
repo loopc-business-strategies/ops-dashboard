@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useAuth } from '@/src/context/AuthContext'
 import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
 import {
   type CaptureMethod,
@@ -9,26 +8,21 @@ import {
 } from '@/src/scaleCamera/cameraSettings'
 import type { CapturedWeight } from '@/src/scaleCamera/weightCaptureService'
 
-export function availableCaptureMethods(profile: ScaleWeighProfile | null, canEnterManual: boolean): CaptureMethod[] {
+export function availableCaptureMethods(profile: ScaleWeighProfile | null): CaptureMethod[] {
   const methods: CaptureMethod[] = []
   // Unknown profile (still loading / cached list without profiles) keeps the existing digital flow.
   if (!profile || supportsDigital(profile)) methods.push('DIGITAL_RS232')
   if (profile && supportsCameraOcr(profile)) methods.push('CAMERA_OCR')
-  if (profile && canEnterManual) methods.push('MANUAL')
   return methods.length ? methods : ['DIGITAL_RS232']
 }
 
 /**
- * Weight source for Metal IN/OUT: the existing digital stable capture plus camera OCR and
- * permission-gated manual entry. Exposes one `captured` value whatever method produced it.
+ * Weight source for Metal IN/OUT: the existing digital stable capture plus single-photo camera OCR,
+ * as enabled per scale. Exposes one `captured` value whatever method produced it.
  */
 export function useWeightCapture(scaleId: string, profile: ScaleWeighProfile | null) {
   const digital = useStableScaleCapture(scaleId)
-  const { permissions } = useAuth()
-  const methods = useMemo(
-    () => availableCaptureMethods(profile, Boolean(permissions.adjustWeight)),
-    [profile, permissions.adjustWeight],
-  )
+  const methods = useMemo(() => availableCaptureMethods(profile), [profile])
   const [method, setMethodState] = useState<CaptureMethod>(methods[0])
   const [recorded, setRecorded] = useState<CapturedWeight | null>(null)
 

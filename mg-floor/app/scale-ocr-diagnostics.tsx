@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react'
 import { StyleSheet, Text } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
-import { Screen, Subtitle } from '@/src/components/ui'
+import { BackBar, Screen, Subtitle } from '@/src/components/ui'
 import { AsyncSection, SectionLoading } from '@/src/components/async'
 import { ScaleOcrDiagnostics } from '@/src/components/weightCapture/ScaleOcrDiagnostics'
 import { fetchScale } from '@/src/api/floor'
@@ -31,6 +31,7 @@ export default function ScaleOcrDiagnosticsScreen() {
   if (!canManage) {
     return (
       <Screen>
+        <BackBar title="SCALE OCR DIAGNOSTICS" />
         <Subtitle>Not authorized — scale managers only</Subtitle>
       </Screen>
     )
@@ -38,6 +39,7 @@ export default function ScaleOcrDiagnosticsScreen() {
   if (!scaleId) {
     return (
       <Screen>
+        <BackBar title="SCALE OCR DIAGNOSTICS" />
         <Subtitle>Open this screen from a scale in the Scales list</Subtitle>
       </Screen>
     )
@@ -46,7 +48,7 @@ export default function ScaleOcrDiagnosticsScreen() {
   const profile = scale.data
   return (
     <Screen>
-      <Subtitle>SCALE OCR DIAGNOSTICS — {scaleId}</Subtitle>
+      <BackBar title={`SCALE OCR DIAGNOSTICS — ${scaleId}`} />
       {scale.status === 'loading' && !profile ? <SectionLoading label="Loading scale…" /> : null}
       <AsyncSection
         status={scale.status}

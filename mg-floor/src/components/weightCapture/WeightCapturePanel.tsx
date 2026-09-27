@@ -12,13 +12,12 @@ import {
   type CaptureContext,
 } from '@/src/scaleCamera/weightCaptureService'
 import { colors, spacing } from '@/src/theme'
-import { ManualWeightEntry } from './ManualWeightEntry'
 import { ScaleCameraCapture, type ConfirmedCameraReading } from './ScaleCameraCapture'
 import { WeightCaptureMethodSelector } from './WeightCaptureMethodSelector'
 
 /**
- * Weight capture for Metal IN/OUT: DIGITAL SCALE (unchanged stable capture), SCALE CAMERA (OCR)
- * or permission-gated MANUAL. Camera/manual readings are saved as a capture record on confirm.
+ * Weight capture for Metal IN/OUT: DIGITAL SCALE (unchanged stable capture) or SCALE CAMERA (OCR),
+ * as enabled per scale. Camera readings are saved as a capture record on confirm.
  */
 export function WeightCapturePanel({
   scaleId,
@@ -88,12 +87,6 @@ export function WeightCapturePanel({
     [save],
   )
 
-  const onManualSubmit = useCallback(
-    (e: { weight: number; reason: string; reviewAcknowledged: boolean }) =>
-      save({ method: 'MANUAL', weight: e.weight, manualReason: e.reason, reviewAcknowledged: e.reviewAcknowledged }),
-    [save],
-  )
-
   if (!scaleId) {
     return <Text style={styles.hint}>Select a scale to start weighing.</Text>
   }
@@ -129,10 +122,6 @@ export function WeightCapturePanel({
 
       {method === 'CAMERA_OCR' && !captured && profile ? (
         <ScaleCameraCapture profile={profile} saving={saving} onConfirm={onCameraConfirm} />
-      ) : null}
-
-      {method === 'MANUAL' && !captured && profile ? (
-        <ManualWeightEntry profile={profile} saving={saving} onSubmit={onManualSubmit} />
       ) : null}
     </View>
   )

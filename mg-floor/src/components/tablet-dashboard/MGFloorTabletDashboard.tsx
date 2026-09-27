@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
 import {
   authenticateWithBiometric,
@@ -27,6 +27,7 @@ import { LoginLogoutRow } from './LoginLogoutRow'
 import { AssignManagerButton } from './AssignManagerButton'
 import { EmployeeTable } from './EmployeeTable'
 import { CallFMButton } from './CallFMButton'
+import { DashboardLinksRow, type DashboardLink } from './DashboardLinksRow'
 import { MetalProcessPanel, type MetalBatchEdit } from './MetalProcessPanel'
 import { AssignedMetalInPanel } from './AssignedMetalInPanel'
 import { AssignManagerModal } from './AssignManagerModal'
@@ -77,7 +78,7 @@ function toEditable(batches: ReturnType<typeof buildMetalProcessBatches>): Metal
 }
 
 export function MGFloorTabletDashboard() {
-  const { user, token, logout, login } = useAuth()
+  const { user, token, permissions, logout, login } = useAuth()
   const router = useRouter()
   const { width } = useWindowDimensions()
   const compact = width < 900
@@ -117,12 +118,45 @@ export function MGFloorTabletDashboard() {
     { cacheKey: 'mg-floor:dash-history-today', isEmpty: (d) => !d.length },
   )
 
+  // Set when leaving for a capture screen: the next history load replaces the tables with fresh data.
+  const reseedAfterCapture = useRef(false)
+  const refreshOnReturn = useRef(false)
+
   useEffect(() => {
-    if (seeded || !history.data) return
+    if (!history.data) return
+    if (seeded && !reseedAfterCapture.current) return
+    reseedAfterCapture.current = false
     setMetalInBatches(toEditable(buildMetalProcessBatches(history.data, 'in')))
     setMetalOutBatches(toEditable(buildMetalProcessBatches(history.data, 'out')))
     setSeeded(true)
   }, [history.data, seeded])
+
+  const reloadHistory = history.reload
+  useFocusEffect(
+    useCallback(() => {
+      if (!refreshOnReturn.current) return
+      refreshOnReturn.current = false
+      reseedAfterCapture.current = true
+      reloadHistory()
+    }, [reloadHistory]),
+  )
+
+  const openScreen = (pathname: string, refreshAfter = false) => {
+    if (refreshAfter) refreshOnReturn.current = true
+    router.push(pathname as never)
+  }
+
+  const managerLinks = useMemo<DashboardLink[]>(() => {
+    if (!token) return []
+    const links: DashboardLink[] = []
+    if (permissions.viewAudit || permissions.manageScales) {
+      links.push({ key: 'captures', label: 'Weight Captures', onPress: () => router.push('/weight-captures' as never) })
+    }
+    if (permissions.manageScales) {
+      links.push({ key: 'scales', label: 'Scales', onPress: () => router.push('/scales' as never) })
+    }
+    return links
+  }, [token, permissions.viewAudit, permissions.manageScales, router])
 
   const employees = useMemo(() => {
     if (!token || !user) return []
@@ -184,6 +218,7 @@ export function MGFloorTabletDashboard() {
               loginDisabled={Boolean(token)}
             />
             <AssignManagerButton onPress={() => setAssignOpen(true)} />
+            <DashboardLinksRow links={managerLinks} compact={compact} />
             <EmployeeTable employees={employees} />
             <CallFMButton onPress={() => setCallOpen(true)} />
           </View>
@@ -195,6 +230,12 @@ export function MGFloorTabletDashboard() {
               title="Metal In"
               batches={metalInBatches}
               onChange={setMetalInBatches}
+              action={{
+                label: 'CAPTURE WEIGHT',
+                onPress: () => openScreen('/metal-in', true),
+                disabled: !token,
+                disabledHint: 'Login to capture',
+              }}
               compact={compact}
             />
           </View>
@@ -207,6 +248,12 @@ export function MGFloorTabletDashboard() {
                 title="Metal Out"
                 batches={metalOutBatches}
                 onChange={setMetalOutBatches}
+                action={{
+                  label: 'CAPTURE WEIGHT',
+                  onPress: () => openScreen('/metal-out', true),
+                  disabled: !token,
+                  disabledHint: 'Login to capture',
+                }}
                 compact={compact}
               />
             </View>

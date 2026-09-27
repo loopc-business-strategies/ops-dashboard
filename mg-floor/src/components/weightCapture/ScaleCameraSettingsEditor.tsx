@@ -72,9 +72,6 @@ export function ScaleCameraSettingsEditor({ scale, onSaved, onClose }: Props) {
   const [resolution, setResolution] = useState(profile.resolution != null ? String(profile.resolution) : '')
   const [enabled, setEnabled] = useState(profile.cameraOcr.enabled)
   const [minConfidence, setMinConfidence] = useState(String(profile.cameraOcr.minConfidence))
-  const [frames, setFrames] = useState(String(profile.cameraOcr.consecutiveFrames))
-  const [durationMs, setDurationMs] = useState(String(profile.cameraOcr.stableDurationMs))
-  const [variation, setVariation] = useState(String(profile.cameraOcr.allowedVariation))
   const [imageQuality, setImageQuality] = useState(String(profile.cameraOcr.imageQuality))
   const [policy, setPolicy] = useState<OverCapacityPolicy>(profile.cameraOcr.overCapacityPolicy)
   const [crossCheck, setCrossCheck] = useState(profile.cameraOcr.sevenSegmentCrossCheck)
@@ -104,9 +101,10 @@ export function ScaleCameraSettingsEditor({ scale, onSaved, onClose }: Props) {
         cameraOcr: {
           enabled,
           minConfidence: inRange(minConfidence, CAMERA_OCR_LIMITS.minConfidence, 'Minimum confidence'),
-          consecutiveFrames: Math.round(inRange(frames, CAMERA_OCR_LIMITS.consecutiveFrames, 'Consecutive frames')),
-          stableDurationMs: Math.round(inRange(durationMs, CAMERA_OCR_LIMITS.stableDurationMs, 'Stable duration')),
-          allowedVariation: inRange(variation, CAMERA_OCR_LIMITS.allowedVariation, 'Allowed variation'),
+          // Single-photo capture ignores the multi-frame stability settings; keep the stored values.
+          consecutiveFrames: profile.cameraOcr.consecutiveFrames,
+          stableDurationMs: profile.cameraOcr.stableDurationMs,
+          allowedVariation: profile.cameraOcr.allowedVariation,
           imageQuality: inRange(imageQuality, CAMERA_OCR_LIMITS.imageQuality, 'Photo quality'),
           overCapacityPolicy: policy,
           sevenSegmentCrossCheck: crossCheck,
@@ -167,14 +165,9 @@ export function ScaleCameraSettingsEditor({ scale, onSaved, onClose }: Props) {
       </View>
       <View style={styles.row}>
         <NumberField label="Min confidence (0.6–1)" value={minConfidence} onChange={setMinConfidence} />
-        <NumberField label="Consecutive frames" value={frames} onChange={setFrames} />
-      </View>
-      <View style={styles.row}>
-        <NumberField label="Stable duration (ms)" value={durationMs} onChange={setDurationMs} />
-        <NumberField label={`Allowed variation (${profile.unit})`} value={variation} onChange={setVariation} />
-      </View>
-      <View style={styles.row}>
         <NumberField label="Photo quality (0.2–1)" value={imageQuality} onChange={setImageQuality} />
+      </View>
+      <View style={styles.row}>
         <View style={styles.field}>
           <Text style={styles.label}>Above capacity</Text>
           <View style={styles.row}>
