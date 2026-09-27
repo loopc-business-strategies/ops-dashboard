@@ -113,6 +113,14 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
     return () => sub.remove()
   }, [])
 
+  // Open straight into the camera: ask once on arrival instead of waiting for ALLOW CAMERA.
+  const askedPermission = useRef(false)
+  useEffect(() => {
+    if (!supported || !permission || permission.granted || !permission.canAskAgain || askedPermission.current) return
+    askedPermission.current = true
+    requestPermission().catch(() => undefined)
+  }, [supported, permission, requestPermission])
+
   useEffect(() => {
     if (!cameraActive) setReady(false)
   }, [cameraActive])
@@ -223,7 +231,7 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
       <View style={styles.block}>
         <StatusPill label="CAMERA OCR UNAVAILABLE" tone="warn" />
         <Text style={styles.hint}>
-          This app build has no on-device OCR. Use the digital scale or ask a manager for manual entry.
+          Reading the scale from a photo only works in the MG Floor Android app, not in a browser.
         </Text>
       </View>
     )
