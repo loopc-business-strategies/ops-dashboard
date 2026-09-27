@@ -71,6 +71,7 @@ const config = {
         faceIDPermission: 'Allow MG Floor to use Face ID for employee sign-in.',
       },
     ],
+    './plugins/withReleaseSigning',
   ],
   extra: {
     tenant: 'mg',

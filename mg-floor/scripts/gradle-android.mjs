@@ -24,14 +24,14 @@ const androidDir = mgFloorJunction
     ? path.resolve(repoRoot, 'mg-floor', 'android')
     : path.resolve(__dirname, '..', 'android')
 const task = process.argv[2] || 'bundleRelease'
-const keystorePropertiesPath = path.join(androidDir, 'keystore.properties')
+const keystorePropertiesPath = path.join(androidDir, '..', 'credentials', 'keystore.properties')
 const allowDebugReleaseSigning =
   process.env.ANDROID_ALLOW_DEBUG_RELEASE_SIGNING === 'true'
   || !fs.existsSync(keystorePropertiesPath)
 const signingGradleArg = allowDebugReleaseSigning ? ' -PallowDebugReleaseSigning=true' : ''
 if (allowDebugReleaseSigning && !fs.existsSync(keystorePropertiesPath)) {
   console.warn(
-    'android/keystore.properties not found — using debug signing for release (internal QA only, not Play Store).',
+    'credentials/keystore.properties not found — using debug signing for release (internal QA only, not Play Store).',
   )
 }
 
