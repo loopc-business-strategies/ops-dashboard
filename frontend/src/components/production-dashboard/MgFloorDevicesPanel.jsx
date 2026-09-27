@@ -55,13 +55,29 @@ export default function MgFloorDevicesPanel() {
     setError('')
     try {
       if (tab === 'scales') {
+        const captureMethods = [
+          form.captureDigital !== false ? 'DIGITAL_RS232' : null,
+          form.captureCamera ? 'CAMERA_OCR' : null,
+        ].filter(Boolean)
+        if (!captureMethods.length) throw new Error('Choose at least one capture method')
+        const usesDigital = captureMethods.includes('DIGITAL_RS232')
         await mgFloorDevicesApi.createScale({
           scaleId: form.scaleId,
-          gatewayId: form.gatewayId || 'MG-GATEWAY-001',
           name: form.name,
           department: form.department,
-          connectionType: form.connectionType || 'RS232',
-          port: form.port,
+          manufacturer: form.manufacturer,
+          model: form.model,
+          unit: form.unit || 'g',
+          capacity: form.capacity ? Number(form.capacity) : null,
+          resolution: form.resolution ? Number(form.resolution) : null,
+          captureMethods,
+          ...(usesDigital
+            ? {
+                gatewayId: form.gatewayId || 'MG-GATEWAY-001',
+                connectionType: form.connectionType || 'RS232',
+                port: form.port,
+              }
+            : { connectionType: 'CAMERA' }),
         })
       } else if (tab === 'xrf') {
         await mgFloorDevicesApi.createXrf({
@@ -105,6 +121,37 @@ export default function MgFloorDevicesPanel() {
     }
   }
 
+  const removeScale = async (row) => {
+    const reason = window.prompt(`Remove ${row.scaleId} from the registry? History and readings are kept.\nReason:`)
+    if (reason == null) return
+    if (reason.trim().length < 3) {
+      setError('A reason (at least 3 characters) is required to remove a scale')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      await mgFloorDevicesApi.archiveScale(row.scaleId, reason.trim())
+      await load()
+    } catch (err) {
+      setError(err?.response?.data?.message || err.message || 'Remove failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const applyGj2000Profile = () => {
+    setForm({
+      ...form,
+      manufacturer: 'Shinko Denshi',
+      model: 'GJ-2000',
+      unit: 'g',
+      capacity: '2200',
+      resolution: '0.01',
+    })
+  }
+
+  const scaleUsesDigital = form.captureDigital !== false
   const idKey = tab === 'scales' ? 'scaleId' : tab === 'xrf' ? 'analyzerId' : 'gatewayId'
 
   return (
@@ -128,7 +175,8 @@ export default function MgFloorDevicesPanel() {
       </div>
 
       <p style={{ opacity: 0.75, marginTop: 0 }}>
-        Registry is dynamic — seed includes MG-SCALE-001…007; add more without code changes.
+        Registry is dynamic — it starts empty unless <code>MG_FLOOR_SEED_DEFAULT_SCALES=true</code>; add scales
+        without code changes. Camera-only scales (scale camera OCR) need no gateway.
         Secrets stay in Railway <code>MG_GATEWAY_SECRETS</code>.
       </p>
 
@@ -149,17 +197,49 @@ export default function MgFloorDevicesPanel() {
           {tab === 'scales' ? (
             <>
               <input required placeholder="scaleId e.g. MG-SCALE-008" value={form.scaleId || ''} onChange={(e) => setForm({ ...form, scaleId: e.target.value })} />
-              <input required placeholder="gatewayId e.g. MG-GATEWAY-001" value={form.gatewayId || 'MG-GATEWAY-001'} onChange={(e) => setForm({ ...form, gatewayId: e.target.value })} />
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.captureDigital !== false}
+                    onChange={(e) => setForm({ ...form, captureDigital: e.target.checked })}
+                  />{' '}
+                  Digital scale (RS-232 via gateway)
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.captureCamera)}
+                    onChange={(e) => setForm({ ...form, captureCamera: e.target.checked })}
+                  />{' '}
+                  Scale camera (OCR on tablet)
+                </label>
+              </div>
               <input placeholder="name" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <input placeholder="department" value={form.department || ''} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-              <input placeholder="port / COM" value={form.port || ''} onChange={(e) => setForm({ ...form, port: e.target.value })} />
-              <select value={form.connectionType || 'RS232'} onChange={(e) => setForm({ ...form, connectionType: e.target.value })}>
-                <option value="RS232">RS232</option>
-                <option value="ETHERNET">ETHERNET</option>
-                <option value="SIMULATOR">SIMULATOR</option>
-                <option value="USB">USB (stub)</option>
-                <option value="BLUETOOTH">BLUETOOTH (stub)</option>
-              </select>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input style={{ flex: 1 }} placeholder="manufacturer" value={form.manufacturer || ''} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} />
+                <input style={{ flex: 1 }} placeholder="model" value={form.model || ''} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+                <button type="button" className="pd-btn" onClick={applyGj2000Profile}>GJ-2000</button>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input style={{ flex: 1 }} type="number" step="any" min="0" placeholder="capacity (g)" value={form.capacity || ''} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
+                <input style={{ flex: 1 }} type="number" step="any" min="0" placeholder="resolution (g)" value={form.resolution || ''} onChange={(e) => setForm({ ...form, resolution: e.target.value })} />
+                <input style={{ width: 64 }} placeholder="unit" value={form.unit || 'g'} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+              </div>
+              {scaleUsesDigital ? (
+                <>
+                  <input required placeholder="gatewayId e.g. MG-GATEWAY-001" value={form.gatewayId || 'MG-GATEWAY-001'} onChange={(e) => setForm({ ...form, gatewayId: e.target.value })} />
+                  <input placeholder="port / COM" value={form.port || ''} onChange={(e) => setForm({ ...form, port: e.target.value })} />
+                  <select value={form.connectionType || 'RS232'} onChange={(e) => setForm({ ...form, connectionType: e.target.value })}>
+                    <option value="RS232">RS232</option>
+                    <option value="ETHERNET">ETHERNET</option>
+                    <option value="SIMULATOR">SIMULATOR</option>
+                    <option value="USB">USB (stub)</option>
+                    <option value="BLUETOOTH">BLUETOOTH (stub)</option>
+                  </select>
+                </>
+              ) : null}
             </>
           ) : null}
           {tab === 'xrf' ? (
@@ -191,6 +271,8 @@ export default function MgFloorDevicesPanel() {
               <th align="left">Gateway</th>
               <th align="left">Dept / Loc</th>
               <th align="left">Conn</th>
+              {tab === 'scales' ? <th align="left">Capture</th> : null}
+              {tab === 'scales' ? <th align="left">Capacity</th> : null}
               <th align="left">Enabled</th>
               <th />
             </tr>
@@ -203,11 +285,35 @@ export default function MgFloorDevicesPanel() {
                 <td>{row.gatewayId || '—'}</td>
                 <td>{row.department || row.location || '—'}</td>
                 <td>{row.connectionType || '—'}</td>
+                {tab === 'scales' ? (
+                  <td>
+                    {(row.captureMethods?.length ? row.captureMethods : ['DIGITAL_RS232'])
+                      .map((m) => (m === 'CAMERA_OCR' ? 'Camera OCR' : 'Digital'))
+                      .join(' + ')}
+                  </td>
+                ) : null}
+                {tab === 'scales' ? (
+                  <td>
+                    {row.capacity != null ? `${row.capacity} ${row.unit || 'g'}` : '—'}
+                    {row.resolution != null ? ` · d=${row.resolution}` : ''}
+                  </td>
+                ) : null}
                 <td>{row.enabled === false ? 'No' : 'Yes'}</td>
-                <td>
+                <td style={{ whiteSpace: 'nowrap' }}>
                   <button type="button" className="pd-btn" disabled={busy} onClick={() => toggleEnabled(row)}>
                     {row.enabled === false ? 'Enable' : 'Disable'}
                   </button>
+                  {tab === 'scales' ? (
+                    <button
+                      type="button"
+                      className="pd-btn"
+                      style={{ marginLeft: 6 }}
+                      disabled={busy}
+                      onClick={() => removeScale(row)}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))}

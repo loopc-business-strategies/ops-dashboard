@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export type OutboxItem = {
   operationId: string
-  operationType: 'metal_in' | 'metal_out' | 'transfer' | 'weight_adjust' | 'xrf_test'
+  operationType: 'metal_in' | 'metal_out' | 'transfer' | 'weight_adjust' | 'xrf_test' | 'weight_capture'
   payload: Record<string, unknown>
   deviceId?: string
   scaleId?: string

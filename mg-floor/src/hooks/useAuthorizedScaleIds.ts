@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { fetchScales } from '@/src/api/floor'
+import { toWeighProfile, type ScaleWeighProfile } from '@/src/scaleCamera/cameraSettings'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { userFacingMessage } from '@/src/api/errors'
 
@@ -11,6 +12,7 @@ export const SCALE_PAGE = 50
  */
 export function useAuthorizedScaleIds(department?: string | null) {
   const [extra, setExtra] = useState<string[]>([])
+  const [extraRows, setExtraRows] = useState<Array<Record<string, unknown>>>([])
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadMoreError, setLoadMoreError] = useState('')
 
@@ -28,9 +30,11 @@ export function useAuthorizedScaleIds(department?: string | null) {
           { signal },
         )
         setExtra([])
+        setExtraRows([])
         setLoadMoreError('')
         return {
           ids: (res.scales || []).map((x) => String(x.scaleId)),
+          rows: res.scales || [],
           total: Number(res.total ?? res.scales?.length ?? 0),
         }
       },
@@ -47,6 +51,16 @@ export function useAuthorizedScaleIds(department?: string | null) {
   const total = page.data?.total ?? ids.length
   const canLoadMore = ids.length < total
 
+  const baseRows = page.data?.rows
+  const profiles = useMemo(() => {
+    const map: Record<string, ScaleWeighProfile> = {}
+    for (const row of [...(baseRows || []), ...extraRows]) {
+      const profile = toWeighProfile(row as Parameters<typeof toWeighProfile>[0])
+      if (profile.scaleId) map[profile.scaleId] = profile
+    }
+    return map
+  }, [baseRows, extraRows])
+
   const loadMore = async () => {
     if (loadingMore || !canLoadMore) return
     setLoadingMore(true)
@@ -60,6 +74,7 @@ export function useAuthorizedScaleIds(department?: string | null) {
       })
       const more = (res.scales || []).map((x) => String(x.scaleId))
       setExtra((prev) => [...prev, ...more])
+      setExtraRows((prev) => [...prev, ...(res.scales || [])])
     } catch (err) {
       setLoadMoreError(userFacingMessage(err) || 'Unable to load more scales')
     } finally {
@@ -69,6 +84,8 @@ export function useAuthorizedScaleIds(department?: string | null) {
 
   return {
     ids,
+    /** Weigh profile per scaleId (capture methods, capacity, resolution, camera OCR settings). */
+    profiles,
     total,
     canLoadMore,
     loadMore,

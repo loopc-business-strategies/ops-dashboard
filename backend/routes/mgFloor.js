@@ -12,8 +12,33 @@ const Scale = require('../models/Scale')
 const HardwareEvent = require('../models/HardwareEvent')
 const AuditLog = require('../models/AuditLog')
 const mgFloor = require('../services/mgFloor')
+const { writeProductionAudit } = require('../services/productionControl/audit')
+const weightCapture = require('../services/mgFloor/weightCapture')
+const {
+  SCALE_CAPTURE_METHODS,
+  OVER_CAPACITY_POLICIES,
+  WEIGHT_CAPTURE_METHODS,
+  MIN_CAMERA_OCR_CONFIDENCE,
+  CAMERA_OCR_TUNING_LIMITS,
+} = require('../constants/mgFloorWeightCapture')
 
 const router = express.Router()
+
+const tuningNumber = (key) => Joi.number().min(CAMERA_OCR_TUNING_LIMITS[key][0]).max(CAMERA_OCR_TUNING_LIMITS[key][1])
+
+const cameraOcrSchema = Joi.object({
+  enabled: Joi.boolean(),
+  minConfidence: Joi.number().min(MIN_CAMERA_OCR_CONFIDENCE).max(1),
+  consecutiveFrames: Joi.number().integer().min(2).max(30),
+  stableDurationMs: Joi.number().integer().min(0).max(30000),
+  allowedVariation: Joi.number().min(0).max(100),
+  overCapacityPolicy: Joi.string().trim().uppercase().valid(...OVER_CAPACITY_POLICIES),
+  imageQuality: Joi.number().min(0.2).max(1),
+  sevenSegmentCrossCheck: Joi.boolean(),
+  segmentThreshold: tuningNumber('segmentThreshold'),
+  guideBoxAspect: tuningNumber('guideBoxAspect'),
+  guideBoxWidth: tuningNumber('guideBoxWidth'),
+})
 
 function handleError(res, err) {
   const status = err.statusCode || err.status || 500
@@ -114,6 +139,7 @@ router.post('/metal/in', ...mgProtect, requireProductionPermission('receivePass'
   scaleId: Joi.string().trim().required(),
   deviceId: Joi.string().trim().allow('', null),
   stableReadingId: Joi.string().hex().length(24).allow(null, ''),
+  weightCaptureId: Joi.string().trim().pattern(/^[A-Za-z0-9_-]{8,120}$/).allow(null, ''),
   receivedWeight: Joi.number().positive(),
   operationId: Joi.string().trim().max(120).allow('', null),
   varianceReason: Joi.string().trim().allow(''),
@@ -142,6 +168,7 @@ router.post('/metal/out', ...mgProtect, requireProductionPermission('createPass'
   scaleId: Joi.string().trim().required(),
   deviceId: Joi.string().trim().allow('', null),
   stableReadingId: Joi.string().hex().length(24).allow(null, ''),
+  weightCaptureId: Joi.string().trim().pattern(/^[A-Za-z0-9_-]{8,120}$/).allow(null, ''),
   weight: Joi.number().positive(),
   operationId: Joi.string().trim().max(120).allow('', null),
   allowManualWeight: Joi.boolean().default(false),
@@ -291,14 +318,52 @@ router.post('/scales', ...mgProtect, requireProductionPermission('manageMachines
   location: Joi.string().trim().allow('', null),
   unit: Joi.string().trim().allow('', null),
   precision: Joi.number().allow(null),
-  gatewayId: Joi.string().trim().required(),
+  // Required by the service when DIGITAL_RS232 is enabled; camera-only scales have no gateway.
+  gatewayId: Joi.string().trim().allow('', null),
   enabled: Joi.boolean(),
   calibrationDate: Joi.date().allow(null),
   nextCalibrationDate: Joi.date().allow(null),
+  captureMethods: Joi.array().items(Joi.string().trim().uppercase().valid(...SCALE_CAPTURE_METHODS)).min(1),
+  capacity: Joi.number().positive().allow(null),
+  resolution: Joi.number().positive().allow(null),
+  cameraOcr: cameraOcrSchema,
 }).unknown(true)), async (req, res) => {
   try {
     const scale = await mgFloor.createScale(req.body)
+    await writeProductionAudit(req, {
+      resource: 'Scale',
+      resourceId: scale._id,
+      action: 'mg_floor_scale_created',
+      detail: `Scale ${scale.scaleId} added`,
+      changes: {
+        scaleId: scale.scaleId,
+        manufacturer: scale.manufacturer,
+        model: scale.model,
+        captureMethods: scale.captureMethods,
+        department: scale.department,
+      },
+    }).catch(() => {})
     res.status(201).json({ success: true, scale })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/scales/:scaleId/archive', ...mgProtect, requireProductionPermission('manageMachines'), validateBody(Joi.object({
+  reason: Joi.string().trim().min(3).max(500).required(),
+})), async (req, res) => {
+  try {
+    const result = await mgFloor.archiveScale(req.params.scaleId, { reason: req.body.reason, user: req.user })
+    if (!result.reused) {
+      await writeProductionAudit(req, {
+        resource: 'Scale',
+        resourceId: result.scale._id,
+        action: 'mg_floor_scale_archived',
+        detail: req.body.reason,
+        changes: { scaleId: result.scale.scaleId, archived: true },
+      }).catch(() => {})
+    }
+    res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }
@@ -350,7 +415,118 @@ router.post('/scales/:scaleId/capture-stable', ...mgProtect, requireProductionPe
 router.patch('/scales/:scaleId', ...mgProtect, requireProductionPermission('manageMachines'), async (req, res) => {
   try {
     const scale = await mgFloor.updateScale(req.params.scaleId, req.body)
+    const weighProfileKeys = ['captureMethods', 'capacity', 'resolution', 'cameraOcr']
+      .filter((key) => req.body && req.body[key] !== undefined)
+    if (weighProfileKeys.length) {
+      await writeProductionAudit(req, {
+        resource: 'Scale',
+        resourceId: scale._id,
+        action: 'mg_floor_scale_capture_settings_updated',
+        detail: `Updated ${weighProfileKeys.join(', ')}`,
+        changes: Object.fromEntries(weighProfileKeys.map((key) => [key, req.body[key]])),
+      }).catch(() => {})
+    }
     res.json({ success: true, scale })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Scale camera / manual weight captures ──────────
+const captureIdParam = Joi.object({ captureId: Joi.string().trim().pattern(/^[A-Za-z0-9_-]{8,120}$/).required() })
+
+function runCapturePhotoUpload(req, res, next) {
+  weightCapture.photoUpload.single('photo')(req, res, (err) => {
+    if (err) {
+      const tooLarge = err.code === 'LIMIT_FILE_SIZE'
+      return res.status(tooLarge ? 413 : 400).json({
+        success: false,
+        message: tooLarge ? 'Photo is too large' : (err.message || 'Photo upload failed'),
+      })
+    }
+    return next()
+  })
+}
+
+router.post('/scale-camera-captures', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
+  captureId: Joi.string().trim().pattern(/^[A-Za-z0-9_-]{8,120}$/).required(),
+  scaleId: Joi.string().trim().required(),
+  weight: Joi.number().positive().required(),
+  unit: Joi.string().trim().max(8).default('g'),
+  captureMethod: Joi.string().trim().uppercase().valid(...WEIGHT_CAPTURE_METHODS).required(),
+  ocrConfidence: Joi.number().min(0).max(1).allow(null),
+  ocrRawText: Joi.string().trim().max(64).allow('', null),
+  crossCheckAgreed: Joi.boolean().allow(null),
+  stable: Joi.boolean().default(false),
+  stableFrames: Joi.number().integer().min(0).max(1000).allow(null),
+  reviewAcknowledged: Joi.boolean().default(false),
+  manualReason: Joi.string().trim().max(500).allow('', null),
+  hasPhoto: Joi.boolean().default(true),
+  deviceId: Joi.string().trim().max(120).allow('', null),
+  department: Joi.string().trim().max(80).allow('', null),
+  batchId: Joi.string().hex().length(24).allow('', null),
+  batchNumber: Joi.string().trim().max(80).allow('', null),
+  passId: Joi.string().hex().length(24).allow('', null),
+  capturedAt: Joi.date().iso().allow(null),
+}).unknown(false)), async (req, res) => {
+  try {
+    const result = await weightCapture.createWeightCapture(req, req.body)
+    res.status(result.reused ? 200 : 201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/scale-camera-captures', ...mgProtect, requireProductionPermission('view'), validateQuery(Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  skip: Joi.number().integer().min(0).default(0),
+  scaleId: Joi.string().trim(),
+  captureMethod: Joi.string().trim().uppercase().valid(...WEIGHT_CAPTURE_METHODS),
+  status: Joi.string().trim().uppercase().valid('CONFIRMED', 'CONSUMED'),
+  from: Joi.date().iso(),
+  to: Joi.date().iso(),
+})), async (req, res) => {
+  try {
+    const result = await weightCapture.listWeightCaptures(req, req.query)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/scale-camera-captures/:captureId', ...mgProtect, requireProductionPermission('view'), validateParams(captureIdParam), async (req, res) => {
+  try {
+    const capture = await weightCapture.getWeightCapture(req, req.params.captureId)
+    res.json({ success: true, capture })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post(
+  '/scale-camera-captures/:captureId/photo',
+  ...mgProtect,
+  requireProductionPermission('view'),
+  validateParams(captureIdParam),
+  runCapturePhotoUpload,
+  async (req, res) => {
+    try {
+      const result = await weightCapture.attachCapturePhoto(req, req.params.captureId, req.file)
+      res.status(result.reused ? 200 : 201).json({
+        success: true,
+        reused: result.reused,
+        captureId: result.capture.captureId,
+        photo: result.capture.photo,
+      })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
+router.get('/scale-camera-captures/:captureId/photo', ...mgProtect, requireProductionPermission('view'), validateParams(captureIdParam), async (req, res) => {
+  try {
+    await weightCapture.sendCapturePhoto(req, res, req.params.captureId)
   } catch (err) {
     handleError(res, err)
   }
@@ -439,7 +615,7 @@ router.post('/scales/ingest', ...mgGatewayProtect, validateBody(Joi.object({
 router.post('/sync', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
   operations: Joi.array().items(Joi.object({
     operationId: Joi.string().trim().required(),
-    operationType: Joi.string().valid('metal_in', 'metal_out', 'transfer', 'weight_adjust', 'xrf_test', 'scan', 'other').required(),
+    operationType: Joi.string().valid('metal_in', 'metal_out', 'transfer', 'weight_adjust', 'xrf_test', 'weight_capture', 'scan', 'other').required(),
     payload: Joi.object().unknown(true).default({}),
     deviceId: Joi.string().trim().allow('', null),
     scaleId: Joi.string().trim().allow('', null),

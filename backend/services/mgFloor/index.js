@@ -17,6 +17,7 @@ const {
 const { ProductionError } = require('../productionControl/errors')
 const xrf = require('./xrf')
 const deviceRegistry = require('./deviceRegistry')
+const weightCapture = require('./weightCapture')
 
 const {
   DEFAULT_MG_SCALES,
@@ -24,6 +25,8 @@ const {
   listScales,
   createScale,
   updateScale,
+  archiveScale,
+  resolveCaptureMethods,
   assertGatewayOwnsDevice,
   listGateways,
   createGateway,
@@ -70,7 +73,7 @@ async function assertScaleReading(scaleId, stableReadingId, expectedWeight, opts
 
   if (!scaleId) throw new ProductionError('scaleId is required for floor weight capture')
   const scale = await Scale.findOne({ scaleId: String(scaleId).toUpperCase() })
-  if (!scale || !scale.enabled) throw new ProductionError('Scale not found or disabled', 404)
+  if (!scale || scale.archived || !scale.enabled) throw new ProductionError('Scale not found or disabled', 404)
   if (scale.status === 'DISABLED') throw new ProductionError('Scale is disabled')
 
   const id = stableReadingId ? String(stableReadingId).trim() : ''
@@ -152,7 +155,90 @@ async function captureStableReading(scaleId, expectedWeight = null) {
 }
 
 /**
- * Metal OUT: create pass (if needed) + issue — weight from scale reading.
+ * Resolve the authoritative weight for a floor submit from exactly one source:
+ * supervisor manual override (existing), digital stableReadingId (HardwareEvent),
+ * or a confirmed camera/manual FloorWeightCapture (weightCaptureId, locked single-use).
+ */
+async function resolveSubmittedWeight(req, {
+  scaleId,
+  deviceId = '',
+  stableReadingId = null,
+  weightCaptureId = null,
+  clientWeight,
+  operationId = null,
+  allowManualWeight = false,
+  operationType,
+  manualWeightMessage,
+}) {
+  if (allowManualWeight && hasProductionPermission(req.user, 'adjustWeight')) {
+    const weight = Number(clientWeight)
+    if (!Number.isFinite(weight) || weight <= 0) throw new ProductionError(manualWeightMessage)
+    return {
+      weight,
+      scaleMeta: null,
+      ref: {
+        method: 'MANUAL',
+        scaleId: String(scaleId || '').toUpperCase(),
+        deviceId,
+        weight,
+        operationId: operationId || '',
+      },
+      lockedCaptureId: null,
+    }
+  }
+
+  if (weightCaptureId && !stableReadingId) {
+    const { scale, capture, weight } = await weightCapture.consumeWeightCapture(req, {
+      weightCaptureId,
+      scaleId,
+      expectedWeight: clientWeight,
+      operationId,
+      operationType,
+    })
+    const effectiveDeviceId = deviceId || capture.deviceId || ''
+    return {
+      weight,
+      scaleMeta: {
+        scaleId: scale.scaleId,
+        readingId: null,
+        weightCaptureId: capture.captureId,
+        captureMethod: capture.captureMethod,
+        deviceId: effectiveDeviceId,
+      },
+      ref: {
+        method: capture.captureMethod,
+        scaleId: scale.scaleId,
+        scaleReadingId: null,
+        weightCaptureId: capture.captureId,
+        deviceId: effectiveDeviceId,
+        weight,
+        operationId: String(operationId || ''),
+      },
+      lockedCaptureId: capture.captureId,
+    }
+  }
+
+  const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight, {
+    requireId: true,
+  })
+  return {
+    weight: asserted.weight,
+    scaleMeta: { scaleId: asserted.scale.scaleId, readingId: asserted.reading?._id, deviceId },
+    ref: {
+      method: 'DIGITAL_RS232',
+      scaleId: asserted.scale.scaleId,
+      scaleReadingId: asserted.reading?._id || null,
+      weightCaptureId: '',
+      deviceId,
+      weight: asserted.weight,
+      operationId: operationId || '',
+    },
+    lockedCaptureId: null,
+  }
+}
+
+/**
+ * Metal OUT: create pass (if needed) + issue — weight from scale reading or confirmed capture.
  */
 async function metalOut(req, body = {}) {
   const {
@@ -164,71 +250,95 @@ async function metalOut(req, body = {}) {
     scaleId,
     deviceId = '',
     stableReadingId = null,
+    weightCaptureId = null,
     weight: clientWeight,
     operationId = null,
     allowManualWeight = false,
   } = body
 
-  let weight
-  let scaleMeta = null
-  if (allowManualWeight && hasProductionPermission(req.user, 'adjustWeight')) {
-    weight = Number(clientWeight)
-    if (!Number.isFinite(weight) || weight <= 0) throw new ProductionError('Manual weight must be positive')
-  } else {
-    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight, {
-      requireId: true,
-    })
-    weight = asserted.weight
-    scaleMeta = { scaleId: asserted.scale.scaleId, readingId: asserted.reading?._id, deviceId }
-  }
+  const resolved = await resolveSubmittedWeight(req, {
+    scaleId,
+    deviceId,
+    stableReadingId,
+    weightCaptureId,
+    clientWeight,
+    operationId,
+    allowManualWeight,
+    operationType: 'metal_out',
+    manualWeightMessage: 'Manual weight must be positive',
+  })
+  const { weight, scaleMeta } = resolved
 
   const idempotencyKey = operationId || null
+  let passWritten = false
 
-  let pass
-  let reused = false
-  if (passId) {
-    const issued = await passService.issuePass(req, passId, { idempotencyKey })
-    pass = issued.pass
-    reused = Boolean(issued.reused)
-    return { type: 'metal_out', pass, movement: issued.movement, reused, scale: scaleMeta, weight: pass.weight }
+  const linkWeightSource = async (pass, movement, reused) => {
+    if (!resolved.ref || !pass) return
+    if (reused && pass.issueWeightCapture) return
+    await weightCapture.recordPassWeightCapture(req, {
+      pass,
+      field: 'issueWeightCapture',
+      ref: resolved.ref,
+      movementId: movement?._id || null,
+    })
   }
 
-  if (!batchId || !toDepartment) {
-    throw new ProductionError('batchId and toDepartment are required for Metal OUT')
-  }
-
-  const created = await passService.createPass(req, {
-    batchId,
-    fromDepartment,
-    toDepartment,
-    weight,
-    purpose: purpose || 'MG Floor Metal OUT',
-    idempotencyKey,
-  })
-  pass = created.pass
-  reused = Boolean(created.reused)
-
-  let movement = null
-  if (!reused || pass.status === 'REQUESTED' || pass.status === 'APPROVED') {
-    try {
-      const approved = pass.status === 'REQUESTED'
-        ? await passService.approvePass(req, pass._id)
-        : { pass }
-      const issued = await passService.issuePass(req, approved.pass._id || pass._id, { idempotencyKey })
+  try {
+    let pass
+    let reused = false
+    if (passId) {
+      const issued = await passService.issuePass(req, passId, { idempotencyKey })
+      passWritten = true
       pass = issued.pass
-      movement = issued.movement
-      if (issued.reused) reused = true
-    } catch (err) {
-      // Pass may already be in transit from a prior sync — return created pass
-      if (!/already|status/i.test(String(err.message || ''))) throw err
+      reused = Boolean(issued.reused)
+      await linkWeightSource(pass, issued.movement, reused)
+      return { type: 'metal_out', pass, movement: issued.movement, reused, scale: scaleMeta, weight: pass.weight }
     }
-  }
 
-  return { type: 'metal_out', pass, movement, reused, scale: scaleMeta, weight }
+    if (!batchId || !toDepartment) {
+      throw new ProductionError('batchId and toDepartment are required for Metal OUT')
+    }
+
+    const created = await passService.createPass(req, {
+      batchId,
+      fromDepartment,
+      toDepartment,
+      weight,
+      purpose: purpose || 'MG Floor Metal OUT',
+      idempotencyKey,
+    })
+    passWritten = true
+    pass = created.pass
+    reused = Boolean(created.reused)
+
+    let movement = null
+    if (!reused || pass.status === 'REQUESTED' || pass.status === 'APPROVED') {
+      try {
+        const approvedPass = pass.status === 'REQUESTED'
+          ? await passService.approvePass(req, pass._id)
+          : pass
+        const issued = await passService.issuePass(req, approvedPass?._id || pass._id, { idempotencyKey })
+        pass = issued.pass
+        movement = issued.movement
+        if (issued.reused) reused = true
+      } catch (err) {
+        // Pass may already be in transit from a prior sync — return created pass
+        if (!/already|status/i.test(String(err.message || ''))) throw err
+      }
+    }
+
+    await linkWeightSource(pass, movement, reused)
+    return { type: 'metal_out', pass, movement, reused, scale: scaleMeta, weight }
+  } catch (err) {
+    if (resolved.lockedCaptureId && !passWritten) {
+      await weightCapture.releaseWeightCapture(resolved.lockedCaptureId, operationId)
+    }
+    throw err
+  }
 }
 
 /**
- * Metal IN: receive open pass with scale-captured weight.
+ * Metal IN: receive open pass with scale-captured or confirmed camera weight.
  */
 async function metalIn(req, body = {}) {
   const {
@@ -236,6 +346,7 @@ async function metalIn(req, body = {}) {
     scaleId,
     deviceId = '',
     stableReadingId = null,
+    weightCaptureId = null,
     receivedWeight: clientWeight,
     operationId = null,
     varianceReason = '',
@@ -246,52 +357,68 @@ async function metalIn(req, body = {}) {
 
   if (!passId) throw new ProductionError('passId is required for Metal IN')
 
-  let weight
-  let scaleMeta = null
-  if (allowManualWeight && hasProductionPermission(req.user, 'adjustWeight')) {
-    weight = Number(clientWeight)
-    if (!Number.isFinite(weight) || weight <= 0) throw new ProductionError('Manual received weight invalid')
-  } else {
-    const asserted = await assertScaleReading(scaleId, stableReadingId, clientWeight, {
-      requireId: true,
-    })
-    weight = asserted.weight
-    scaleMeta = { scaleId: asserted.scale.scaleId, readingId: asserted.reading?._id, deviceId }
-  }
-
-  let materialsNormalized = null
-  if (Array.isArray(materials) && materials.length) {
-    materialsNormalized = materials
-      .map((m) => ({
-        code: String(m.code || '').trim(),
-        label: String(m.label || m.code || '').trim(),
-        weight: Number(m.weight),
-      }))
-      .filter((m) => m.code && Number.isFinite(m.weight) && m.weight >= 0)
-    const sum = materialsNormalized.reduce((a, m) => a + m.weight, 0)
-    if (Math.abs(sum - weight) > 0.5) {
-      throw new ProductionError(
-        `Materials total (${sum.toFixed(2)} g) must match received weight (${weight.toFixed(2)} g)`,
-        400,
-      )
-    }
-  }
-
-  const result = await passService.receivePass(req, passId, {
-    receivedWeight: weight,
-    expectedBatchVersion,
-    receiveIdempotencyKey: operationId || null,
-    varianceReason,
+  const resolved = await resolveSubmittedWeight(req, {
+    scaleId,
+    deviceId,
+    stableReadingId,
+    weightCaptureId,
+    clientWeight,
+    operationId,
+    allowManualWeight,
+    operationType: 'metal_in',
+    manualWeightMessage: 'Manual received weight invalid',
   })
+  const { weight, scaleMeta } = resolved
 
-  return {
-    type: 'metal_in',
-    pass: result.pass,
-    batch: result.batch,
-    reused: Boolean(result.reused),
-    scale: scaleMeta,
-    weight,
-    materials: materialsNormalized,
+  try {
+    let materialsNormalized = null
+    if (Array.isArray(materials) && materials.length) {
+      materialsNormalized = materials
+        .map((m) => ({
+          code: String(m.code || '').trim(),
+          label: String(m.label || m.code || '').trim(),
+          weight: Number(m.weight),
+        }))
+        .filter((m) => m.code && Number.isFinite(m.weight) && m.weight >= 0)
+      const sum = materialsNormalized.reduce((a, m) => a + m.weight, 0)
+      if (Math.abs(sum - weight) > 0.5) {
+        throw new ProductionError(
+          `Materials total (${sum.toFixed(2)} g) must match received weight (${weight.toFixed(2)} g)`,
+          400,
+        )
+      }
+    }
+
+    const result = await passService.receivePass(req, passId, {
+      receivedWeight: weight,
+      expectedBatchVersion,
+      receiveIdempotencyKey: operationId || null,
+      varianceReason,
+    })
+
+    const reused = Boolean(result.reused)
+    if (resolved.ref && result.pass && !(reused && result.pass.receiveWeightCapture)) {
+      await weightCapture.recordPassWeightCapture(req, {
+        pass: result.pass,
+        field: 'receiveWeightCapture',
+        ref: resolved.ref,
+      })
+    }
+
+    return {
+      type: 'metal_in',
+      pass: result.pass,
+      batch: result.batch,
+      reused,
+      scale: scaleMeta,
+      weight,
+      materials: materialsNormalized,
+    }
+  } catch (err) {
+    if (resolved.lockedCaptureId) {
+      await weightCapture.releaseWeightCapture(resolved.lockedCaptureId, operationId)
+    }
+    throw err
   }
 }
 
@@ -385,7 +512,7 @@ async function ingestScaleReading(req, body = {}) {
 
   await ensureDefaultScales()
   const scale = await Scale.findOne({ scaleId: normalizedScaleId })
-  if (!scale) {
+  if (!scale || scale.archived) {
     throw new ProductionError(`Unknown or unregistered scale: ${normalizedScaleId}`, 403)
   }
   if (!scale.enabled) throw new ProductionError('Scale is disabled', 403)
@@ -494,6 +621,19 @@ async function syncOperations(req, operations = []) {
         case 'xrf_test':
           result = await xrf.submitXrfTest(req, payload)
           break
+        case 'weight_capture': {
+          const created = await weightCapture.createWeightCapture(req, {
+            ...(op.payload || {}),
+            deviceId: op.payload?.deviceId || op.deviceId,
+          })
+          result = {
+            type: 'weight_capture',
+            captureId: created.capture.captureId,
+            weight: created.capture.weight,
+            reused: created.reused,
+          }
+          break
+        }
         case 'scan':
           result = { type: 'scan', skipped: true, message: 'scan sync is informational only' }
           break
@@ -601,6 +741,8 @@ module.exports = {
   listScales,
   createScale,
   updateScale,
+  archiveScale,
+  resolveCaptureMethods,
   listGateways,
   createGateway,
   updateGateway,

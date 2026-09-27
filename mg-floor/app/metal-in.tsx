@@ -4,16 +4,18 @@ import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
 import { AsyncSection } from '@/src/components/async'
-import { StableCapturePanel } from '@/src/components/StableCapturePanel'
+import { WeightCapturePanel } from '@/src/components/weightCapture/WeightCapturePanel'
 import { QrFirstResolve } from '@/src/components/QrFirstResolve'
 import { AuthorizedScalePicker } from '@/src/components/AuthorizedScalePicker'
 import { fetchOpenPasses, metalIn } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
-import { useStableScaleCapture } from '@/src/hooks/useStableScaleCapture'
+import { useWeightCapture } from '@/src/hooks/useWeightCapture'
 import { useAuthorizedScaleIds } from '@/src/hooks/useAuthorizedScaleIds'
 import { createOperationId, enqueueOutbox } from '@/src/offline/outbox'
 import { flushOutbox } from '@/src/offline/sync'
 import { useAuth } from '@/src/context/AuthContext'
+import { getDeviceId } from '@/src/device/deviceIdentity'
+import { captureMethodLabel, weightSourcePayload } from '@/src/scaleCamera/weightCaptureService'
 import { colors, spacing } from '@/src/theme'
 
 type PassRow = {
@@ -39,11 +41,19 @@ export default function MetalInScreen() {
   const [scaleId, setScaleId] = useState(String(params.scaleId || ''))
   const [showList, setShowList] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [materials, setMaterials] = useState(DEFAULT_MATERIALS)
   const inFlightOpId = useRef<string | null>(null)
-  const capture = useStableScaleCapture(scaleId)
+  const submittingRef = useRef(false)
   const scales = useAuthorizedScaleIds(user?.department)
+  const capture = useWeightCapture(scaleId, scales.profiles[scaleId] || null)
+
+  useEffect(() => {
+    if (!saved) return
+    const t = setTimeout(() => setSaved(false), 2500)
+    return () => clearTimeout(t)
+  }, [saved])
 
   const materialsTotal = useMemo(() => {
     return materials.reduce((a, m) => a + (Number(m.weight) || 0), 0)
@@ -77,8 +87,9 @@ export default function MetalInScreen() {
       Alert.alert('Select a scale', 'Choose an authorized scale before submitting.')
       return
     }
-    if (!capture.captured?.scaleReadingId) {
-      Alert.alert('Capture stable weight', 'Capture a stable scale reading before confirming.')
+    const captured = capture.captured
+    if (!captured) {
+      Alert.alert('Capture weight', 'Capture a stable scale reading or confirm a camera weight before confirming.')
       return
     }
     for (const m of materials) {
@@ -89,14 +100,15 @@ export default function MetalInScreen() {
         return
       }
     }
-    if (materialsTotal > 0 && Math.abs(materialsTotal - capture.captured.weight) > 0.5) {
+    if (materialsTotal > 0 && Math.abs(materialsTotal - captured.weight) > 0.5) {
       Alert.alert(
         'Materials total mismatch',
-        `Materials (${materialsTotal.toFixed(2)} g) must match captured weight (${capture.captured.weight.toFixed(2)} g)`,
+        `Materials (${materialsTotal.toFixed(2)} g) must match captured weight (${captured.weight.toFixed(2)} g)`,
       )
       return
     }
-    if (busy) return
+    if (busy || submittingRef.current) return
+    submittingRef.current = true
     setBusy(true)
     setSubmitError('')
     const operationId = inFlightOpId.current || createOperationId('metal_in')
@@ -107,34 +119,42 @@ export default function MetalInScreen() {
             .filter((m) => m.weight.trim() !== '')
             .map((m) => ({ code: m.code, label: m.label, weight: Number(m.weight) }))
         : undefined
+    const deviceId = await getDeviceId().catch(() => '')
     const payload = {
       passId: selected._id,
       scaleId,
-      stableReadingId: capture.captured.scaleReadingId,
-      receivedWeight: capture.captured.weight,
+      ...weightSourcePayload(captured),
+      receivedWeight: captured.weight,
       operationId,
+      ...(deviceId ? { deviceId } : {}),
       ...(materialsPayload ? { materials: materialsPayload } : {}),
     }
     try {
       const net = await NetInfo.fetch()
-      if (!net.isConnected) {
+      // A capture still in the outbox must sync first, so the metal op queues behind it.
+      if (!net.isConnected || captured.queued) {
         await enqueueOutbox({
           operationId,
           operationType: 'metal_in',
           payload,
           scaleId,
+          deviceId: deviceId || undefined,
         })
         Alert.alert('Saved offline', 'Metal IN queued — will sync when online.')
         inFlightOpId.current = null
+        capture.clearCapture()
+        setSaved(true)
+        if (net.isConnected) flushOutbox().catch(() => undefined)
         return
       }
       await metalIn(payload)
       Alert.alert(
         'METAL IN RECORDED',
-        `Batch: ${selected.passNumber || selected._id}\nWeight: ${capture.captured.weight.toFixed(2)} g\nOperator: ${user?.name || '—'}`,
+        `Batch: ${selected.passNumber || selected._id}\nWeight: ${captured.weight.toFixed(2)} g (${captureMethodLabel(captured.method)})\nOperator: ${user?.name || '—'}`,
       )
       inFlightOpId.current = null
       capture.clearCapture()
+      setSaved(true)
       setMaterials(DEFAULT_MATERIALS.map((m) => ({ ...m })))
     } catch (err) {
       await enqueueOutbox({
@@ -142,6 +162,7 @@ export default function MetalInScreen() {
         operationType: 'metal_in',
         payload,
         scaleId,
+        deviceId: deviceId || undefined,
       })
       setSubmitError(err instanceof Error ? err.message : 'Failed — queued offline')
       try {
@@ -151,6 +172,7 @@ export default function MetalInScreen() {
         /* keep same operationId for retry */
       }
     } finally {
+      submittingRef.current = false
       setBusy(false)
     }
   }
@@ -158,7 +180,7 @@ export default function MetalInScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <Subtitle>Scan → verify → scale → materials → capture stable → confirm</Subtitle>
+        <Subtitle>Scan → verify → scale → materials → capture weight → confirm</Subtitle>
 
         <QrFirstResolve
           hint="Scan inbound pass / batch QR"
@@ -221,8 +243,13 @@ export default function MetalInScreen() {
         <Text style={styles.step}>AUTHORIZED SCALE</Text>
         <AuthorizedScalePicker scaleId={scaleId} onSelect={setScaleId} scales={scales} />
 
-        <Text style={styles.step}>STABLE CAPTURE</Text>
-        <StableCapturePanel scaleId={scaleId} capture={capture} busy={busy} />
+        <Text style={styles.step}>WEIGHT CAPTURE</Text>
+        <WeightCapturePanel
+          scaleId={scaleId}
+          capture={capture}
+          busy={busy}
+          context={{ department: user?.department, passId: selected?._id, batchNumber: selected?.batchNumber }}
+        />
 
         <Text style={styles.step}>MATERIAL BREAKDOWN (OPTIONAL)</Text>
         {materials.map((m) => (
@@ -243,7 +270,7 @@ export default function MetalInScreen() {
 
         {submitError ? <Text style={styles.err}>{submitError}</Text> : null}
         <BigButton
-          label={busy ? 'SAVING…' : 'CONFIRM METAL IN'}
+          label={busy ? 'SAVING…' : saved ? 'SAVED' : 'CONFIRM METAL IN'}
           onPress={submit}
           disabled={busy || !selected || !scaleId || !capture.hasCapture}
         />

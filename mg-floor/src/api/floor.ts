@@ -109,6 +109,27 @@ export async function fetchScalesFull(
   })
 }
 
+export async function fetchScale(scaleId: string, opts?: SignalOpts) {
+  return apiRequest<{ success: boolean; scale: Record<string, unknown> }>(
+    `/api/mg-floor/scales/${encodeURIComponent(scaleId)}`,
+    { signal: opts?.signal },
+  )
+}
+
+export async function updateScale(scaleId: string, patch: Record<string, unknown>) {
+  return apiRequest<{ success: boolean; scale: Record<string, unknown> }>(
+    `/api/mg-floor/scales/${encodeURIComponent(scaleId)}`,
+    { method: 'PATCH', body: patch, retrySafeGet: false },
+  )
+}
+
+export async function archiveScale(scaleId: string, reason: string) {
+  return apiRequest<{ success: boolean; reused?: boolean; scale: Record<string, unknown> }>(
+    `/api/mg-floor/scales/${encodeURIComponent(scaleId)}/archive`,
+    { method: 'POST', body: { reason }, retrySafeGet: false },
+  )
+}
+
 export async function fetchScaleSummary(opts?: SignalOpts) {
   return fetchScales({ limit: 50, skip: 0 }, opts)
 }

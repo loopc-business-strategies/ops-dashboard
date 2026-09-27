@@ -68,6 +68,7 @@ beforeAll(async () => {
   process.env.ALLOW_XRF_SIMULATOR = 'true'
   delete process.env.MG_GATEWAY_ALLOW_JWT_FALLBACK
   process.env.NODE_ENV = 'test'
+  process.env.MG_FLOOR_SEED_DEFAULT_SCALES = 'true'
 }, 120000)
 
 afterEach(async () => {

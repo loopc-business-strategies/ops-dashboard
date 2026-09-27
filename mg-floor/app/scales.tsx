@@ -1,7 +1,9 @@
 import React, { useCallback, useState } from 'react'
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native'
+import { router } from 'expo-router'
 import { BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
 import { AsyncSection, ErrorState, HardwareStatus, SectionLoading } from '@/src/components/async'
+import { ScaleCameraSettingsEditor } from '@/src/components/weightCapture/ScaleCameraSettingsEditor'
 import { fetchScaleStatus, fetchScalesFull } from '@/src/api/floor'
 import { useAsyncResource } from '@/src/hooks/useAsyncResource'
 import { useAuth } from '@/src/context/AuthContext'
@@ -25,6 +27,7 @@ export default function ScalesScreen() {
   const [detailScaleId, setDetailScaleId] = useState('')
   const [detailError, setDetailError] = useState('')
   const [showRaw, setShowRaw] = useState(false)
+  const [editing, setEditing] = useState<ScaleRow | null>(null)
 
   const scales = useAsyncResource(
     useCallback(
@@ -80,10 +83,15 @@ export default function ScalesScreen() {
   }
 
   const canSeeRaw = permissions.manageScales !== false && Boolean(permissions.manageScales)
+  const canManage = Boolean(permissions.manageScales)
+  const canReviewCaptures = Boolean(permissions.viewAudit || permissions.manageScales)
 
   return (
     <Screen>
       <Subtitle>Registered MG scales — status & diagnostics</Subtitle>
+      {canReviewCaptures ? (
+        <BigButton label="CAMERA / MANUAL WEIGHT CAPTURES" tone="neutral" onPress={() => router.push('/weight-captures' as never)} />
+      ) : null}
       <TextInput
         style={styles.input}
         value={search}
@@ -151,6 +159,31 @@ export default function ScalesScreen() {
                     Last: {item.lastWeight != null ? `${item.lastWeight} g` : '—'} ·{' '}
                     {item.lastSeenAt ? new Date(String(item.lastSeenAt)).toLocaleString() : 'never'}
                   </Text>
+                  <Text style={styles.meta}>
+                    Capture: {(Array.isArray(item.captureMethods) && item.captureMethods.length
+                      ? (item.captureMethods as string[])
+                      : ['DIGITAL_RS232']
+                    )
+                      .map((m) => (m === 'CAMERA_OCR' ? 'CAMERA' : 'DIGITAL'))
+                      .join(' + ')}
+                    {item.capacity != null ? ` · max ${String(item.capacity)} ${String(item.unit || 'g')}` : ''}
+                    {item.resolution != null ? ` · d=${String(item.resolution)}` : ''}
+                  </Text>
+                  {canManage ? (
+                    <BigButton label="CAPTURE SETTINGS" tone="neutral" onPress={() => setEditing(item)} />
+                  ) : null}
+                  {canManage && Array.isArray(item.captureMethods) && item.captureMethods.includes('CAMERA_OCR') ? (
+                    <BigButton
+                      label="SCALE OCR DIAGNOSTICS"
+                      tone="neutral"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/scale-ocr-diagnostics',
+                          params: { scaleId: String(item.scaleId) },
+                        } as never)
+                      }
+                    />
+                  ) : null}
                   <BigButton
                     label="READ STATUS"
                     tone="neutral"
@@ -173,6 +206,15 @@ export default function ScalesScreen() {
           />
         ) : null}
       </AsyncSection>
+
+      {editing && canManage ? (
+        <ScaleCameraSettingsEditor
+          key={String(editing.scaleId)}
+          scale={editing}
+          onSaved={scales.reload}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
 
       {detailError ? <Text style={styles.err}>{detailError}</Text> : null}
       {detail ? (

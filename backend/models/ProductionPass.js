@@ -2,6 +2,20 @@ const mongoose = require('mongoose')
 const { createTenantModel } = require('../db/tenantModelProxy')
 const { PASS_STATUSES, METAL_TYPES } = require('../services/productionControl/constants')
 
+/** Which captured weight a floor issue/receive used (digital HardwareEvent or FloorWeightCapture). */
+const weightCaptureRefSchema = new mongoose.Schema(
+  {
+    method: { type: String, trim: true, default: '' },
+    scaleId: { type: String, trim: true, default: '' },
+    scaleReadingId: { type: mongoose.Schema.Types.ObjectId, ref: 'HardwareEvent', default: null },
+    weightCaptureId: { type: String, trim: true, default: '' },
+    deviceId: { type: String, trim: true, default: '' },
+    weight: { type: Number, default: null },
+    operationId: { type: String, trim: true, default: '' },
+  },
+  { _id: false },
+)
+
 const productionPassSchema = new mongoose.Schema(
   {
     passNumber: { type: String, required: true, trim: true },
@@ -36,6 +50,8 @@ const productionPassSchema = new mongoose.Schema(
     movementId: { type: mongoose.Schema.Types.ObjectId, ref: 'MetalMovement', default: null },
     idempotencyKey: { type: String, trim: true, default: null },
     receiveIdempotencyKey: { type: String, trim: true, default: null },
+    issueWeightCapture: { type: weightCaptureRefSchema, default: null },
+    receiveWeightCapture: { type: weightCaptureRefSchema, default: null },
   },
   { timestamps: true },
 )

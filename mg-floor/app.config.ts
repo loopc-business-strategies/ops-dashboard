@@ -61,7 +61,7 @@ const config = {
     [
       'expo-camera',
       {
-        cameraPermission: 'Allow MG Floor to scan job and batch barcodes.',
+        cameraPermission: 'MG FLOOR needs camera access to scan job and batch barcodes and to read the scale display.',
       },
     ],
     'expo-secure-store',
