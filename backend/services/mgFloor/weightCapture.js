@@ -11,10 +11,11 @@ const { createDiskUpload, resolveUploadDir } = require('../erpAccounting/uploadM
 const { storeUploadedAttachment, sendStoredAttachment } = require('../erpAccounting/attachmentStorageService')
 const {
   CAMERA_OCR_DEFAULTS,
+  DEFAULT_CAMERA_SCALE,
   MIN_CAMERA_OCR_CONFIDENCE,
   WEIGHT_CAPTURE_METHODS,
 } = require('../../constants/mgFloorWeightCapture')
-const { resolveCaptureMethods } = require('./deviceRegistry')
+const { createScale, resolveCaptureMethods } = require('./deviceRegistry')
 
 const PHOTO_BUCKET = 'mgFloorScaleCapturePhotos'
 const CAPTURE_ID_PATTERN = /^[A-Za-z0-9_-]{8,120}$/
@@ -86,6 +87,34 @@ async function loadActiveScale(scaleIdRaw) {
 }
 
 /**
+ * Like loadActiveScale, but provisions the built-in camera scale the first time it is used so
+ * camera capture works before any scale is registered. An existing (archived/disabled) record is
+ * never recreated here — that stays a manager decision.
+ */
+async function loadCaptureScale(req, scaleIdRaw, captureMethod) {
+  const scaleId = String(scaleIdRaw || '').trim().toUpperCase()
+  if (captureMethod !== 'CAMERA_OCR' || scaleId !== DEFAULT_CAMERA_SCALE.scaleId) {
+    return loadActiveScale(scaleId)
+  }
+  if (!(await Scale.exists({ scaleId }))) {
+    try {
+      const created = await createScale({ ...DEFAULT_CAMERA_SCALE, captureMethods: [...DEFAULT_CAMERA_SCALE.captureMethods] })
+      await writeProductionAudit(req, {
+        resource: 'Scale',
+        resourceId: created._id,
+        action: 'mg_floor_default_camera_scale_created',
+        detail: `Built-in camera scale ${scaleId} created on first camera capture`,
+        changes: { ...DEFAULT_CAMERA_SCALE },
+      }).catch((err) => console.warn('[mg-floor] default camera scale audit failed', err?.message || err))
+    } catch (err) {
+      // A concurrent first capture created it; fall through and load that record.
+      if (!(err instanceof ProductionError && err.status === 409) && err?.code !== 11000) throw err
+    }
+  }
+  return loadActiveScale(scaleId)
+}
+
+/**
  * Validate a weight against the scale profile. Shared by create and exposed for tests.
  * @returns {{ overCapacityReview: boolean }}
  */
@@ -147,7 +176,7 @@ async function createWeightCapture(req, body = {}) {
     return { capture: existing.toObject(), reused: true }
   }
 
-  const scale = await loadActiveScale(scaleId)
+  const scale = await loadCaptureScale(req, scaleId, captureMethod)
 
   if (scale.department && user?.department && !hasProductionPermission(user, 'manageMachines')
     && normDept(scale.department) !== normDept(user.department)) {

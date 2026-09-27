@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   View,
@@ -17,7 +18,9 @@ import {
 import {
   getAssignedManager,
   getAssignedMetalLabels,
+  getSavedMetalTables,
   setAssignedMetalLabels,
+  setSavedMetalTables,
   type AssignedManager,
 } from '@/src/auth/floorDashboardPrefs'
 import { fetchHistory } from '@/src/api/floor'
@@ -30,6 +33,7 @@ import { CallFMButton } from './CallFMButton'
 import { DashboardLinksRow, type DashboardLink } from './DashboardLinksRow'
 import { MetalProcessPanel, type MetalBatchEdit } from './MetalProcessPanel'
 import { AssignedMetalInPanel } from './AssignedMetalInPanel'
+import { dayKey, fillNextQty, takePendingFill, type CaptureSide } from './captureFill'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
 import {
@@ -92,6 +96,7 @@ export function MGFloorTabletDashboard() {
   const [metalOutBatches, setMetalOutBatches] = useState<MetalBatchEdit[]>(emptyEditableBatches)
   const [assignedMetal, setAssignedMetal] = useState({ batch1: '', batch2: '' })
   const [seeded, setSeeded] = useState(false)
+  const [restored, setRestored] = useState(false)
 
   useEffect(() => {
     getSelectedDepartment().then((d) => setDept(d || user?.department || ''))
@@ -118,32 +123,57 @@ export function MGFloorTabletDashboard() {
     { cacheKey: 'mg-floor:dash-history-today', isEmpty: (d) => !d.length },
   )
 
-  // Set when leaving for a capture screen: the next history load replaces the tables with fresh data.
-  const reseedAfterCapture = useRef(false)
-  const refreshOnReturn = useRef(false)
+  // Today's saved tables (captured weights, operator edits) win over the history seed.
+  useEffect(() => {
+    let cancelled = false
+    getSavedMetalTables(dayKey()).then((saved) => {
+      if (cancelled) return
+      if (saved) {
+        setMetalInBatches(saved.metalIn)
+        setMetalOutBatches(saved.metalOut)
+        setSeeded(true)
+      }
+      setRestored(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
-    if (!history.data) return
-    if (seeded && !reseedAfterCapture.current) return
-    reseedAfterCapture.current = false
+    if (!restored || !history.data || seeded) return
     setMetalInBatches(toEditable(buildMetalProcessBatches(history.data, 'in')))
     setMetalOutBatches(toEditable(buildMetalProcessBatches(history.data, 'out')))
     setSeeded(true)
-  }, [history.data, seeded])
+  }, [restored, history.data, seeded])
 
-  const reloadHistory = history.reload
+  useEffect(() => {
+    if (!seeded) return
+    setSavedMetalTables({ day: dayKey(), metalIn: metalInBatches, metalOut: metalOutBatches }).catch(() => {})
+  }, [seeded, metalInBatches, metalOutBatches])
+
   useFocusEffect(
     useCallback(() => {
-      if (!refreshOnReturn.current) return
-      refreshOnReturn.current = false
-      reseedAfterCapture.current = true
-      reloadHistory()
-    }, [reloadHistory]),
+      if (!restored) return
+      const fill = takePendingFill()
+      if (!fill) return
+      const out = fill.side === 'out'
+      const result = fillNextQty(out ? metalOutBatches : metalInBatches, fill.qty, formatClock(fill.at))
+      if (!result.filled) {
+        Alert.alert(
+          'Table full',
+          `${fill.qty} was saved in Weight Captures, but every Qty cell in Metal ${out ? 'Out' : 'In'} is filled. Clear a cell to add it.`,
+        )
+        return
+      }
+      if (out) setMetalOutBatches(result.batches)
+      else setMetalInBatches(result.batches)
+      setSeeded(true)
+    }, [restored, metalInBatches, metalOutBatches]),
   )
 
-  const openScreen = (pathname: string, refreshAfter = false) => {
-    if (refreshAfter) refreshOnReturn.current = true
-    router.push(pathname as never)
+  const openCapture = (side: CaptureSide) => {
+    router.push({ pathname: '/quick-capture', params: { side } } as never)
   }
 
   const managerLinks = useMemo<DashboardLink[]>(() => {
@@ -151,9 +181,6 @@ export function MGFloorTabletDashboard() {
     const links: DashboardLink[] = []
     if (permissions.viewAudit || permissions.manageScales) {
       links.push({ key: 'captures', label: 'Weight Captures', onPress: () => router.push('/weight-captures' as never) })
-    }
-    if (permissions.manageScales) {
-      links.push({ key: 'scales', label: 'Scales', onPress: () => router.push('/scales' as never) })
     }
     return links
   }, [token, permissions.viewAudit, permissions.manageScales, router])
@@ -229,10 +256,13 @@ export function MGFloorTabletDashboard() {
             <MetalProcessPanel
               title="Metal In"
               batches={metalInBatches}
-              onChange={setMetalInBatches}
+              onChange={(next) => {
+                setMetalInBatches(next)
+                setSeeded(true)
+              }}
               action={{
                 label: 'CAPTURE WEIGHT',
-                onPress: () => openScreen('/metal-in', true),
+                onPress: () => openCapture('in'),
                 disabled: !token,
                 disabledHint: 'Login to capture',
               }}
@@ -247,10 +277,13 @@ export function MGFloorTabletDashboard() {
               <MetalProcessPanel
                 title="Metal Out"
                 batches={metalOutBatches}
-                onChange={setMetalOutBatches}
+                onChange={(next) => {
+                  setMetalOutBatches(next)
+                  setSeeded(true)
+                }}
                 action={{
                   label: 'CAPTURE WEIGHT',
-                  onPress: () => openScreen('/metal-out', true),
+                  onPress: () => openCapture('out'),
                   disabled: !token,
                   disabledHint: 'Login to capture',
                 }}

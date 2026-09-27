@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { parseSavedTables, type SavedMetalTables } from '@/src/components/tablet-dashboard/captureFill'
 
 const MANAGER_KEY = 'mg_floor_assigned_manager'
 const ASSIGNED_METAL_KEY = 'mg_floor_assigned_metal_in'
 const MANAGER_OPTIONS_KEY = 'mg_floor_manager_options'
+const METAL_TABLES_KEY = 'mg_floor_metal_tables'
 
 export type AssignedManager = {
   id: string
@@ -73,4 +75,17 @@ export async function getAssignedMetalLabels(): Promise<AssignedMetalLabels> {
 
 export async function setAssignedMetalLabels(labels: AssignedMetalLabels): Promise<void> {
   await AsyncStorage.setItem(ASSIGNED_METAL_KEY, JSON.stringify(labels))
+}
+
+/** Today's Metal In / Metal Out dashboard tables, or null if none were saved today. */
+export async function getSavedMetalTables(today: string): Promise<SavedMetalTables | null> {
+  try {
+    return parseSavedTables(await AsyncStorage.getItem(METAL_TABLES_KEY), today)
+  } catch {
+    return null
+  }
+}
+
+export async function setSavedMetalTables(tables: SavedMetalTables): Promise<void> {
+  await AsyncStorage.setItem(METAL_TABLES_KEY, JSON.stringify(tables))
 }
