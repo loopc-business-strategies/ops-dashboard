@@ -1,5 +1,5 @@
 import React from 'react'
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { tabletDashboard as td } from '@/src/theme'
 
 export type MetalLineEdit = {
@@ -14,10 +14,19 @@ export type MetalBatchEdit = {
   lines: MetalLineEdit[]
 }
 
+export type MetalPanelAction = {
+  label: string
+  onPress: () => void
+  disabled?: boolean
+  /** Shown under the button while it is disabled. */
+  disabledHint?: string
+}
+
 type Props = {
   title: string
   batches: MetalBatchEdit[]
   onChange: (batches: MetalBatchEdit[]) => void
+  action?: MetalPanelAction
   compact?: boolean
 }
 
@@ -25,6 +34,7 @@ export function MetalProcessPanel({
   title,
   batches,
   onChange,
+  action,
   compact,
 }: Props) {
   const pad = compact ? 6 : 8
@@ -99,6 +109,26 @@ export function MetalProcessPanel({
             </View>
           </View>
         ))}
+        {action ? (
+          <View style={styles.actionWrap}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: Boolean(action.disabled) }}
+              disabled={action.disabled}
+              onPress={action.onPress}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                compact && { minHeight: 40 },
+                { opacity: action.disabled ? 0.45 : pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Text style={[styles.actionText, compact && { fontSize: 14 }]}>{action.label}</Text>
+            </Pressable>
+            {action.disabled && action.disabledHint ? (
+              <Text style={styles.actionHint}>{action.disabledHint}</Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     </View>
   )
@@ -199,4 +229,14 @@ const styles = StyleSheet.create({
   colQty: { flex: 1 },
   colPurity: { flex: 1 },
   colTime: { flex: 1 },
+  actionWrap: { margin: 10, gap: 4 },
+  actionBtn: {
+    minHeight: 48,
+    backgroundColor: td.orange,
+    borderRadius: td.radius,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionText: { color: td.white, fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
+  actionHint: { color: td.textMuted, fontSize: 12, textAlign: 'center' },
 })

@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react'
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native'
-import { BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
+import { BackBar, BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
 import { AsyncSection, ErrorState, SectionLoading } from '@/src/components/async'
 import {
   fetchWeightCaptures,
@@ -47,6 +47,7 @@ export default function WeightCapturesScreen() {
   if (!canReview) {
     return (
       <Screen>
+        <BackBar title="WEIGHT CAPTURES" />
         <Subtitle>Not authorized — floor / production managers only</Subtitle>
       </Screen>
     )
@@ -76,6 +77,7 @@ export default function WeightCapturesScreen() {
 
   return (
     <Screen>
+      <BackBar title="WEIGHT CAPTURES" />
       <Subtitle>Camera OCR and manual weight captures — compare each photo with the recorded weight</Subtitle>
       <View style={styles.filters}>
         {(['ALL', 'CAMERA_OCR', 'MANUAL'] as Filter[]).map((f) => (

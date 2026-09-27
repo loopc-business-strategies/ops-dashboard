@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
   type ViewStyle,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { colors, spacing } from '@/src/theme'
 
 export function useIsTablet() {
@@ -17,6 +18,25 @@ export function useIsTablet() {
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
   return <View style={[styles.screen, style]}>{children}</View>
+}
+
+/** Screens run without a native header, so pushed screens need their own way back to the dashboard. */
+export function BackBar({ title }: { title?: string }) {
+  const router = useRouter()
+  return (
+    <View style={styles.backBar}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+        hitSlop={8}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+        style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.7 : 1 }]}
+      >
+        <Text style={styles.backText}>‹ BACK</Text>
+      </Pressable>
+      {title ? <Text style={styles.backTitle} numberOfLines={1}>{title}</Text> : null}
+    </View>
+  )
 }
 
 export function Title({ children }: { children: React.ReactNode }) {
@@ -147,6 +167,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     padding: spacing.lg,
   },
+  backBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  backBtn: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+    justifyContent: 'center',
+  },
+  backText: { color: colors.text, fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
+  backTitle: { flex: 1, color: colors.text, fontWeight: '800', fontSize: 20, letterSpacing: 0.5 },
   title: {
     color: colors.text,
     fontSize: 28,

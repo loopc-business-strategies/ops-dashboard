@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react'
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native'
 import { router } from 'expo-router'
-import { BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
+import { BackBar, BigButton, Screen, StatusPill, Subtitle } from '@/src/components/ui'
 import { AsyncSection, ErrorState, HardwareStatus, SectionLoading } from '@/src/components/async'
 import { ScaleCameraSettingsEditor } from '@/src/components/weightCapture/ScaleCameraSettingsEditor'
 import { fetchScaleStatus, fetchScalesFull } from '@/src/api/floor'
@@ -88,6 +88,7 @@ export default function ScalesScreen() {
 
   return (
     <Screen>
+      <BackBar title="SCALES" />
       <Subtitle>Registered MG scales — status & diagnostics</Subtitle>
       {canReviewCaptures ? (
         <BigButton label="CAMERA / MANUAL WEIGHT CAPTURES" tone="neutral" onPress={() => router.push('/weight-captures' as never)} />

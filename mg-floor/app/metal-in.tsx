@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
-import { BigButton, Screen, Subtitle } from '@/src/components/ui'
+import { BackBar, BigButton, Screen, Subtitle } from '@/src/components/ui'
 import { AsyncSection } from '@/src/components/async'
 import { WeightCapturePanel } from '@/src/components/weightCapture/WeightCapturePanel'
 import { QrFirstResolve } from '@/src/components/QrFirstResolve'
@@ -179,6 +179,7 @@ export default function MetalInScreen() {
 
   return (
     <Screen>
+      <BackBar title="METAL IN" />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <Subtitle>Scan → verify → scale → materials → capture weight → confirm</Subtitle>
 
