@@ -41,12 +41,15 @@ Default scales `MG-SCALE-001…007` are **no longer auto-created**. Set `MG_FLOO
 
 Second capture method next to DIGITAL SCALE (RS-232/gateway), which is unchanged. Per scale, `captureMethods` may contain `DIGITAL_RS232`, `CAMERA_OCR`, `MANUAL`.
 
-Flow: camera frame → guide-box crop → grayscale/contrast (native `modules/scale-ocr`) → ML Kit text + seven-segment decoder cross-check → strict parser → capacity check → multi-frame stability → operator **CONFIRM WEIGHT** → `FloorWeightCapture` record + photo → normal Metal IN/OUT submit with `weightCaptureId`.
+Flow: operator taps **CAPTURE** (one photo) → guide-box crop → grayscale/contrast (native `modules/scale-ocr`) → ML Kit text + seven-segment decoder cross-check → strict parser → capacity check → operator compares the number with the photo, ticks "display was steady" and taps **CONFIRM WEIGHT** → `FloorWeightCapture` record + photo (`stableFrames: 1`) → normal Metal IN/OUT submit with `weightCaptureId`. An unreadable photo shows the reason and **RETAKE**; it never produces a weight.
+
+Dashboard: **CAPTURE WEIGHT** under the Metal In / Metal Out tables opens the capture screens (after login); the tables reload on return. **Weight Captures** (viewAudit / manageScales) and **Scales** (manageScales) links sit in the left column.
 
 - OCR never creates Metal IN/OUT on its own; the operator confirms the weight, then submits the transaction.
 - A capture is single-use and consumed atomically by the transaction (`ProductionPass.issueWeightCapture` / `receiveWeightCapture`). Camera readings never carry a `scaleReadingId`.
 - Minimum confidence floor is **0.6** (client + server). Readings where the two OCR engines disagree score ≤ 0.5, so they can never be confirmed.
-- Manual entry requires the `adjustWeight` permission and a reason, and is stored as `MANUAL`.
+- The tablet no longer offers manual weight entry. The backend still accepts `MANUAL` captures, and existing MANUAL records stay visible in Weight Captures.
+- Camera-only operation: in **Scales → CAPTURE SETTINGS** turn **DIGITAL (RS-232)** off and keep **SCALE CAMERA (OCR)** + **Camera capture enabled** on; the method buttons disappear and Metal IN/OUT opens straight into the camera. Turning DIGITAL back on restores the gateway flow.
 - Offline: the capture is queued in the outbox (`weight_capture`, idempotent by `captureId`) and the photo in a separate photo queue; both flush on reconnect.
 - Photos: JPEG, ~1280 px wide, stored on disk (not in the DB). Review in the tablet **CAMERA / MANUAL WEIGHT CAPTURES** screen.
 - Transfer and XRF screens stay digital-only.
@@ -65,15 +68,15 @@ Flow: camera frame → guide-box crop → grayscale/contrast (native `modules/sc
 3. **EXPORT SAMPLES**, copy the JSON into `mg-floor/src/scaleCamera/__fixtures__/gj2000/`, and run `npx vitest run gj2000Fixtures` in `mg-floor`. Try candidate settings with `GJ2000_TUNING='{"segmentThreshold":0.35}'` before changing the scale. Commit the fixtures so later decoder changes are replayed against real frames.
 4. Tune **Decoder tuning** in **CAPTURE SETTINGS** if needed: `segmentThreshold` (0.15–0.6, default 0.3; lower when lit segments read as off, higher when unlit ghost segments read as on), `guideBoxAspect` (2–6, default 3.2) and `guideBoxWidth` (0.5–0.9, default 0.72) so the box hugs the GJ-2000 digits.
 5. Deny camera permission → the permission message and **OPEN SETTINGS** appear; the app does not crash.
-6. Frame the display inside the guide box at 15–30 cm with even lighting; check that a stable reading locks within the configured frames/duration.
+6. Frame the display inside the guide box at 15–30 cm with even lighting, wait for the number to settle, tap **CAPTURE**; the read weight and the photo appear side by side.
 7. Test weights: ~1 g, ~100 g, ~1250 g and ~2200 g; each locked value must match the display exactly (all decimals).
-8. Glare, partly outside the box, and too far away → LOW CONFIDENCE / CLIPPED with **RETRY**, never a locked value.
-9. Change the weight while it is reading → status returns to CHANGING; no lock until stable.
+8. Glare, partly outside the box, and too far away → NOT CLEAR / KEEP DISPLAY IN BOX with **RETAKE**, never a weight.
+9. CONFIRM WEIGHT stays disabled until "display was steady" is ticked; RETAKE discards the photo.
 10. Over capacity (`2200.01`+) → REVIEW (acknowledgement required) or rejected per policy; `2500` is always rejected.
 11. Confirm → Metal IN and Metal OUT each save once (double tap shows SAVING… then SAVED); the capture shows as consumed and cannot be reused.
 12. Airplane mode → confirm and submit are queued; on reconnect the capture, photo and transaction sync without duplicates.
 13. Leave the screen or background the app → the camera light turns off (camera released).
-14. Tune the stability settings (`consecutiveFrames`, `stableDurationMs`, `allowedVariation`) in **CAPTURE SETTINGS** if readings are slow or unstable; every change is audited.
+14. If photos are often unreadable, tune **Decoder tuning** and **Min confidence** in **CAPTURE SETTINGS**; every change is audited.
 
 ## Data safety
 
