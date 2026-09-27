@@ -30,7 +30,24 @@ const CAMERA_OCR_TUNING_LIMITS = Object.freeze({
   guideBoxWidth: [0.5, 0.9],
 })
 
+/**
+ * Built-in camera-only scale (GJ-2000 profile) the tablet uses when no camera scale is registered.
+ * Created on its first capture; once it exists a manager's archive/disable is respected.
+ */
+const DEFAULT_CAMERA_SCALE = Object.freeze({
+  scaleId: 'MG-CAMERA',
+  name: 'Tablet camera (GJ-2000)',
+  manufacturer: 'Shinko Denshi',
+  model: 'GJ-2000',
+  connectionType: 'CAMERA',
+  captureMethods: ['CAMERA_OCR'],
+  capacity: 2200,
+  resolution: 0.01,
+  unit: 'g',
+})
+
 module.exports = {
+  DEFAULT_CAMERA_SCALE,
   SCALE_CAPTURE_METHODS,
   WEIGHT_CAPTURE_METHODS,
   OVER_CAPACITY_POLICIES,

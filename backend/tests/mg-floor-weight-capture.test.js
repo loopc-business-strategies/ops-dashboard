@@ -581,3 +581,90 @@ describe('MG Floor Metal OUT / IN with a camera capture', () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe('MG Floor built-in camera scale (MG-CAMERA)', () => {
+  const defaultCapture = (overrides = {}) => cameraCapture({ scaleId: 'MG-CAMERA', ...overrides })
+  const operatorUser = () => createTenantUser('mg', {
+    role: 'department_user',
+    department: 'production',
+    productionRole: 'operator',
+  })
+
+  test('first camera capture creates the camera-only scale; later captures reuse it', async () => {
+    const operator = await operatorUser()
+    const first = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(operator))
+      .send(defaultCapture())
+    expect(first.status).toBe(201)
+    expect(first.body.capture.scaleId).toBe('MG-CAMERA')
+
+    const ScaleMg = await require('../models/Scale').getTenantModel('mg')
+    const scale = await ScaleMg.findOne({ scaleId: 'MG-CAMERA' }).lean()
+    expect(scale.connectionType).toBe('CAMERA')
+    expect(scale.captureMethods).toEqual(['CAMERA_OCR'])
+    expect(scale.gatewayId).toBe('')
+    expect(scale.baudRate).toBeNull()
+    expect(scale.capacity).toBe(2200)
+    expect(scale.resolution).toBe(0.01)
+    expect(scale.department).toBe('')
+
+    const second = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(operator))
+      .send(defaultCapture({ weight: 640.12, ocrRawText: '640.12' }))
+    expect(second.status).toBe(201)
+    expect(await ScaleMg.countDocuments({ scaleId: 'MG-CAMERA' })).toBe(1)
+  })
+
+  test('existing safety checks still apply to the built-in scale', async () => {
+    const operator = await operatorUser()
+    const post = (body) => request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(operator))
+      .send(body)
+    expect((await post(defaultCapture({ stable: false }))).status).toBe(400)
+    expect((await post(defaultCapture({ ocrConfidence: 0.3 }))).status).toBe(400)
+    expect((await post(defaultCapture({ weight: 5000, ocrRawText: '5000.00' }))).status).toBe(400)
+  })
+
+  test('manual entry never provisions the built-in scale', async () => {
+    const admin = await createTenantUser('mg')
+    const res = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(admin))
+      .send({
+        captureId: newCaptureId(),
+        scaleId: 'MG-CAMERA',
+        weight: 812.4,
+        captureMethod: 'MANUAL',
+        manualReason: 'Display glare — OCR failed repeatedly',
+        hasPhoto: false,
+      })
+    expect(res.status).toBe(404)
+    const ScaleMg = await require('../models/Scale').getTenantModel('mg')
+    expect(await ScaleMg.exists({ scaleId: 'MG-CAMERA' })).toBeNull()
+  })
+
+  test('a manager archiving the built-in scale is respected (not recreated)', async () => {
+    const admin = await createTenantUser('mg')
+    const operator = await operatorUser()
+    const first = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(operator))
+      .send(defaultCapture())
+    expect(first.status).toBe(201)
+
+    const archived = await request(app)
+      .post('/api/mg-floor/scales/MG-CAMERA/archive')
+      .set(mgHeaders(admin))
+      .send({ reason: 'Tablet camera retired' })
+    expect(archived.status).toBe(200)
+
+    const after = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(operator))
+      .send(defaultCapture())
+    expect(after.status).toBe(404)
+  })
+})
