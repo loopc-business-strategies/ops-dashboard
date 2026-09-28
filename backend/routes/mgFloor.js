@@ -7,8 +7,6 @@ const { requireProductionPermission, resolveProductionRole, hasProductionPermiss
 const ProductionBatch = require('../models/ProductionBatch')
 const MetalMovement = require('../models/MetalMovement')
 const AuditLog = require('../models/AuditLog')
-const ProductionAlert = require('../models/ProductionAlert')
-const machineAlertService = require('../services/productionControl/machineAlertService')
 const mgFloor = require('../services/mgFloor')
 const batchEntries = require('../services/mgFloor/batchEntries')
 const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
@@ -56,7 +54,6 @@ function emitWorkbookUpdate(req, event, payload = {}) {
 }
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
-const FM_CALL_CODE = 'FLOOR_MANAGER_CALL'
 
 // ── Removed: scales, weight / camera capture, XRF, gateways, pass-based Metal IN / OUT / Transfer ──
 const REMOVED_PATHS = [
@@ -226,32 +223,6 @@ router.post('/alerts', ...mgProtect, requireProductionPermission('raiseAlert'), 
   try {
     const result = await mgFloor.raiseFloorAlert(req, req.body)
     res.status(201).json({ success: true, ...result })
-  } catch (err) {
-    handleError(res, err)
-  }
-})
-
-// ── Call F.M alerts (web Operations › FM) ──────────
-router.get('/fm-calls', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
-  try {
-    const calls = await ProductionAlert.find({ code: FM_CALL_CODE, status: 'OPEN' })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean()
-    res.json({ success: true, calls, canAcknowledge: hasProductionPermission(req.user, 'resolveAlert') })
-  } catch (err) {
-    handleError(res, err)
-  }
-})
-
-router.post('/fm-calls/:id/acknowledge', ...mgProtect, requireProductionPermission('resolveAlert'), validateParams(idParam), async (req, res) => {
-  try {
-    const existing = await ProductionAlert.findById(req.params.id).select('code').lean()
-    if (!existing || existing.code !== FM_CALL_CODE) {
-      return res.status(404).json({ success: false, message: 'Floor manager call not found' })
-    }
-    const alert = await machineAlertService.acknowledgeAlert(req, req.params.id)
-    res.json({ success: true, alert })
   } catch (err) {
     handleError(res, err)
   }

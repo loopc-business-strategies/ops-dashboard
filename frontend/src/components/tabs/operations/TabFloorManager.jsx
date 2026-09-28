@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { mgFloorBatchEntriesApi } from '../../../api/mgFloorBatchEntries'
 import { OPS_C as C } from './operationsTabTokens'
 import { B, Badge, TableWrap, TableHead, SH, Modal, ML, MTA, TH, TD } from './operationsTabUI'
-import FmCallAlerts from './FmCallAlerts'
 
 const POLL_MS = 30000
 const FILTERS = [
@@ -120,7 +119,6 @@ export default function TabFloorManager({ showToast, onChanged }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <FmCallAlerts showToast={showToast} />
       <SH
         title="Floor Manager approval"
         sub="Metal In / Out batches typed and confirmed on the MG Floor tablet. Approving fills the batch's row in Operations → Production and the Production Dashboard — it does not change stock, inventory or ERP."
