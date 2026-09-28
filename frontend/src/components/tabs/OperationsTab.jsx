@@ -13,6 +13,7 @@ import hrAPI from '../../api/hr'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { getOpsTabs } from './operations/operationsSeedData'
+import { useFloorManagerAccess } from './operations/useFloorManagerAccess'
 import { OPS_C as C } from './operations/operationsTabTokens'
 import { Toast } from './operations/operationsTabUI'
 import {
@@ -49,6 +50,7 @@ const TabLegalDocuments = lazy(() => import('./operations/LegalDocumentsPanel'))
 const TabMap = lazy(() => import('./operations/TabMap'))
 const TabAnalytics = lazy(() => import('./operations/TabAnalytics'))
 const TabProjects = lazy(() => import('./operations/TabProjects'))
+const TabFloorManager = lazy(() => import('./operations/TabFloorManager'))
 
 function OpsSubTabFallback() {
   return (
@@ -75,16 +77,22 @@ export default function OperationsTab() {
     )
   }
 
-  return <LegacyOperationsTab />
+  return <LegacyOperationsTab tenantKey={tenantKey} />
 }
 
-function LegacyOperationsTab() {
+function LegacyOperationsTab({ tenantKey }) {
   const perms = usePermissions()
   const isAdmin    = perms.isSuperAdmin
   const { t } = useLanguage()
   const { token, user, company } = useAuth()
-  const TABS = useMemo(() => getOpsTabs(t), [t])
-  const allowedSubIds = useMemo(() => TABS.map((tabItem) => tabItem.id), [TABS])
+  const fmAccess = useFloorManagerAccess(tenantKey)
+  const fmPending = fmAccess.canDecide ? fmAccess.pending : null
+  const TABS = useMemo(
+    () => getOpsTabs(t, { fm: fmPending == null ? null : { pending: fmPending } }),
+    [t, fmPending],
+  )
+  const allowedIdsKey = TABS.map((tabItem) => tabItem.id).join(',')
+  const allowedSubIds = useMemo(() => allowedIdsKey.split(','), [allowedIdsKey])
   const { subTab: activeTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
     'operations',
     allowedSubIds,
@@ -566,6 +574,11 @@ function LegacyOperationsTab() {
             onArchiveProject={archiveOpsProjectRow}
             onUnarchiveProject={unarchiveOpsProjectRow}
           />
+        </Suspense>
+      )}
+      {activeTab === 'fm' && fmPending != null && (
+        <Suspense fallback={<OpsSubTabFallback />}>
+          <TabFloorManager showToast={showToast} onChanged={fmAccess.refresh} />
         </Suspense>
       )}
 

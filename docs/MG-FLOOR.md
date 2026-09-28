@@ -43,7 +43,7 @@ Second capture method next to DIGITAL SCALE (RS-232/gateway), which is unchanged
 
 Flow: operator taps **CAPTURE** (one photo) → guide-box crop → grayscale/contrast (native `modules/scale-ocr`) → ML Kit text + seven-segment decoder cross-check → strict parser → capacity check → operator compares the number with the photo, ticks "display was steady" and taps **CONFIRM WEIGHT** → `FloorWeightCapture` record + photo (`stableFrames: 1`) → normal Metal IN/OUT submit with `weightCaptureId`. An unreadable photo shows the reason and **RETAKE**; it never produces a weight.
 
-Dashboard: the Metal In / Metal Out tables are filled in by hand (Qty / Purity / Time boxes); typed values are kept only while the app is open. There is no CAPTURE WEIGHT button, so the Metal IN / Metal OUT capture screens are not reachable from the dashboard (the code stays in the app). **Weight Captures** (viewAudit / manageScales) and **Scales** (manageScales) links sit in the left column.
+Dashboard: the Metal In / Metal Out tables are filled in by hand (Qty / Purity / Time boxes) and each batch is sent for Floor Manager approval (see below). There is no CAPTURE WEIGHT button, so the Metal IN / Metal OUT capture screens are not reachable from the dashboard (the code stays in the app). **Weight Captures** (viewAudit / manageScales) and **Scales** (manageScales) links sit in the left column.
 
 - OCR never creates Metal IN/OUT on its own; the operator confirms the weight, then submits the transaction.
 - A capture is single-use and consumed atomically by the transaction (`ProductionPass.issueWeightCapture` / `receiveWeightCapture`). Camera readings never carry a `scaleReadingId`.
@@ -78,8 +78,19 @@ Dashboard: the Metal In / Metal Out tables are filled in by hand (Qty / Purity /
 13. Leave the screen or background the app → the camera light turns off (camera released).
 14. If photos are often unreadable, tune **Decoder tuning** and **Min confidence** in **CAPTURE SETTINGS**; every change is audited.
 
+## Floor Manager approval (Metal In / Out batches)
+
+Record only: approving or rejecting changes no stock, batch, pass or ERP data.
+
+- **Tablet:** the logged-in operator types a batch and taps **CONFIRM BATCH N** (Metal In needs `receivePass`, Metal Out needs `createPass`). Empty rows are skipped; a row without a time gets the current time. The batch is stored as a `FloorBatchEntry` (`PENDING`) for the tablet's department and local day.
+- Status under each batch: **WAITING FOR F.M** and **APPROVED** lock the boxes; **REJECTED** shows the reason and unlocks them so the operator can fix and confirm again; **SAVED OFFLINE** means it is in the outbox (`batch_entry`, idempotent by `entryId`) and is sent on reconnect.
+- The tablet reloads today's entries for its department on login/restart and refreshes every 30 s.
+- One live entry per day + department + In/Out + batch: a second CONFIRM while one is pending or approved returns 409 `BATCH_ENTRY_EXISTS`.
+- **Web:** Operations → **FM** tab (MG only). It is shown only when the backend reports `canDecide` (`approvePass`: floor_manager / production_manager, which includes super_admin and management). Pending / Approved / Rejected lists with counts, refreshed every 30 s; **Approve**, or **Reject** with a reason (3–500 characters) that the operator sees on the tablet. Nobody can approve or reject their own batch.
+- API (`mgProtect`): `POST /api/mg-floor/batch-entries`, `GET /api/mg-floor/batch-entries` (status / direction / department / entryDate / from / to), `POST /api/mg-floor/batch-entries/:id/approve`, `POST /api/mg-floor/batch-entries/:id/reject`. Every submit and decision is written to the production audit log.
+
 ## Data safety
 
-- Additive models only: `Scale`, `HardwareEvent`, `FloorDevice`, `FloorSyncOperation`, `FloorWeightCapture`
+- Additive models only: `Scale`, `HardwareEvent`, `FloorDevice`, `FloorSyncOperation`, `FloorWeightCapture`, `FloorBatchEntry`
 - No database drops/resets
 - Weight corrections use existing `WeightAdjustment` (original + new + reason)

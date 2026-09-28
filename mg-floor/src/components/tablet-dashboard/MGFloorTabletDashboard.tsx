@@ -28,7 +28,10 @@ import { AssignManagerButton } from './AssignManagerButton'
 import { EmployeeTable } from './EmployeeTable'
 import { CallFMButton } from './CallFMButton'
 import { DashboardLinksRow, type DashboardLink } from './DashboardLinksRow'
-import { MetalProcessPanel, type MetalBatchEdit } from './MetalProcessPanel'
+import { MetalProcessPanel, type MetalBatchEdit, type PanelApproval } from './MetalProcessPanel'
+import { batchKey, batchStatusView, isBatchLocked } from './batchEntryMapping'
+import { useBatchApprovals } from './useBatchApprovals'
+import type { BatchDirection } from '@/src/api/batchEntries'
 import { AssignedMetalInPanel } from './AssignedMetalInPanel'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
@@ -118,12 +121,39 @@ export function MGFloorTabletDashboard() {
     { cacheKey: 'mg-floor:dash-history-today', isEmpty: (d) => !d.length },
   )
 
+  const setBatches = useCallback(
+    (direction: BatchDirection, update: (batches: MetalBatchEdit[]) => MetalBatchEdit[]) => {
+      if (direction === 'IN') setMetalInBatches(update)
+      else setMetalOutBatches(update)
+    },
+    [],
+  )
+  const approvals = useBatchApprovals({ token, department: dept, setBatches })
+  const { overlay } = approvals
+
   useEffect(() => {
     if (!history.data || seeded) return
-    setMetalInBatches(toEditable(buildMetalProcessBatches(history.data, 'in')))
-    setMetalOutBatches(toEditable(buildMetalProcessBatches(history.data, 'out')))
+    setMetalInBatches(overlay('IN', toEditable(buildMetalProcessBatches(history.data, 'in'))))
+    setMetalOutBatches(overlay('OUT', toEditable(buildMetalProcessBatches(history.data, 'out'))))
     setSeeded(true)
-  }, [history.data, seeded])
+  }, [history.data, seeded, overlay])
+
+  const approvalFor = (direction: BatchDirection, batches: MetalBatchEdit[]): PanelApproval => ({
+    rows: Object.fromEntries(
+      batches.map((b) => {
+        const key = batchKey(direction, b.batchLabel)
+        const state = approvals.states[key]
+        return [
+          b.batchLabel,
+          { locked: isBatchLocked(state), busy: approvals.busyKey === key, status: batchStatusView(state) },
+        ]
+      }),
+    ),
+    canConfirm: Boolean(token) && !approvals.busyKey,
+    hint: token ? undefined : 'Log in to send for Floor Manager approval',
+    message: approvals.message?.direction === direction ? approvals.message.text : null,
+    onConfirm: (batch) => approvals.confirm(direction, batch),
+  })
 
   const managerLinks = useMemo<DashboardLink[]>(() => {
     if (!token) return []
@@ -209,6 +239,7 @@ export function MGFloorTabletDashboard() {
               title="Metal In"
               batches={metalInBatches}
               onChange={setMetalInBatches}
+              approval={approvalFor('IN', metalInBatches)}
               compact={compact}
             />
           </View>
@@ -221,6 +252,7 @@ export function MGFloorTabletDashboard() {
                 title="Metal Out"
                 batches={metalOutBatches}
                 onChange={setMetalOutBatches}
+                approval={approvalFor('OUT', metalOutBatches)}
                 compact={compact}
               />
             </View>

@@ -14,6 +14,12 @@ const AuditLog = require('../models/AuditLog')
 const mgFloor = require('../services/mgFloor')
 const { writeProductionAudit } = require('../services/productionControl/audit')
 const weightCapture = require('../services/mgFloor/weightCapture')
+const batchEntries = require('../services/mgFloor/batchEntries')
+const {
+  BATCH_ENTRY_DIRECTIONS,
+  BATCH_ENTRY_STATUSES,
+  BATCH_ENTRY_MAX_LINES,
+} = require('../constants/mgFloorBatchEntry')
 const {
   SCALE_CAPTURE_METHODS,
   OVER_CAPACITY_POLICIES,
@@ -269,6 +275,67 @@ router.post('/alerts', ...mgProtect, requireProductionPermission('raiseAlert'), 
   try {
     const result = await mgFloor.raiseFloorAlert(req, req.body)
     res.status(201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Batch entries (typed Metal In / Out, Floor Manager approval) ──
+router.post('/batch-entries', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
+  entryId: Joi.string().trim().pattern(/^[A-Za-z0-9_-]{8,120}$/).required(),
+  direction: Joi.string().trim().uppercase().valid(...BATCH_ENTRY_DIRECTIONS).required(),
+  department: Joi.string().trim().max(80).allow('', null),
+  batchLabel: Joi.string().trim().max(20).required(),
+  entryDate: Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  deviceId: Joi.string().trim().max(120).allow('', null),
+  lines: Joi.array().min(1).max(BATCH_ENTRY_MAX_LINES).items(Joi.object({
+    metal: Joi.string().trim().max(40).required(),
+    qty: Joi.number().allow(null),
+    purity: Joi.number().allow(null),
+    time: Joi.string().trim().max(16).allow('', null),
+  }).unknown(false)).required(),
+}).unknown(false)), async (req, res) => {
+  try {
+    const result = await batchEntries.submitBatchEntry(req, req.body)
+    res.status(result.reused ? 200 : 201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/batch-entries', ...mgProtect, requireProductionPermission('view'), validateQuery(Joi.object({
+  status: Joi.string().trim().uppercase().valid(...BATCH_ENTRY_STATUSES),
+  direction: Joi.string().trim().uppercase().valid(...BATCH_ENTRY_DIRECTIONS),
+  department: Joi.string().trim().max(80),
+  entryDate: Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/),
+  from: Joi.date().iso(),
+  to: Joi.date().iso(),
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  skip: Joi.number().integer().min(0).default(0),
+})), async (req, res) => {
+  try {
+    const result = await batchEntries.listBatchEntries(req.query)
+    res.json({ success: true, canDecide: hasProductionPermission(req.user, 'approvePass'), ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/batch-entries/:id/approve', ...mgProtect, requireProductionPermission('approvePass'), validateParams(idParam), async (req, res) => {
+  try {
+    const result = await batchEntries.decideBatchEntry(req, req.params.id, 'APPROVED')
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/batch-entries/:id/reject', ...mgProtect, requireProductionPermission('approvePass'), validateParams(idParam), validateBody(Joi.object({
+  reason: Joi.string().trim().min(3).max(500).required(),
+})), async (req, res) => {
+  try {
+    const result = await batchEntries.decideBatchEntry(req, req.params.id, 'REJECTED', req.body.reason)
+    res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
   }
@@ -615,7 +682,7 @@ router.post('/scales/ingest', ...mgGatewayProtect, validateBody(Joi.object({
 router.post('/sync', ...mgProtect, requireProductionPermission('view'), validateBody(Joi.object({
   operations: Joi.array().items(Joi.object({
     operationId: Joi.string().trim().required(),
-    operationType: Joi.string().valid('metal_in', 'metal_out', 'transfer', 'weight_adjust', 'xrf_test', 'weight_capture', 'scan', 'other').required(),
+    operationType: Joi.string().valid('metal_in', 'metal_out', 'transfer', 'weight_adjust', 'xrf_test', 'weight_capture', 'batch_entry', 'scan', 'other').required(),
     payload: Joi.object().unknown(true).default({}),
     deviceId: Joi.string().trim().allow('', null),
     scaleId: Joi.string().trim().allow('', null),

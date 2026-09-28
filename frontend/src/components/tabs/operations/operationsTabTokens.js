@@ -56,6 +56,7 @@ export const OPS_BADGE_MAP = {
   Draft: { bg: 'rgba(255,255,255,.05)', color: '#475569', b: 'rgba(255,255,255,.1)' },
   Critical: { bg: 'rgba(255,71,87,.12)', color: '#ff4757', b: 'rgba(255,71,87,.3)' },
   Blocked: { bg: 'rgba(255,71,87,.12)', color: '#ff4757', b: 'rgba(255,71,87,.3)' },
+  Rejected: { bg: 'rgba(255,71,87,.12)', color: '#ff4757', b: 'rgba(255,71,87,.3)' },
   Overdue: { bg: 'rgba(255,71,87,.12)', color: '#ff4757', b: 'rgba(255,71,87,.3)' },
   High: { bg: 'rgba(255,71,87,.12)', color: '#ff4757', b: 'rgba(255,71,87,.3)' },
   Medium: { bg: 'rgba(255,214,0,.10)', color: '#ffd600', b: 'rgba(255,214,0,.3)' },

@@ -1,0 +1,57 @@
+import { apiRequest } from '@/src/api/client'
+
+type SignalOpts = { signal?: AbortSignal }
+
+export type BatchDirection = 'IN' | 'OUT'
+export type BatchEntryStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export type BatchEntryLine = {
+  metal: string
+  qty: number | null
+  purity: number | null
+  time: string
+}
+
+export type SubmitBatchEntryBody = {
+  entryId: string
+  direction: BatchDirection
+  department: string
+  batchLabel: string
+  entryDate: string
+  deviceId?: string | null
+  lines: BatchEntryLine[]
+}
+
+export type BatchEntryRow = {
+  _id: string
+  entryId: string
+  direction: BatchDirection
+  department: string
+  batchLabel: string
+  entryDate: string
+  lines: BatchEntryLine[]
+  employeeName?: string
+  status: BatchEntryStatus
+  submittedAt: string
+  decidedAt?: string | null
+  decidedByName?: string
+  rejectReason?: string
+}
+
+export async function submitBatchEntry(body: SubmitBatchEntryBody) {
+  return apiRequest<{ success: boolean; reused?: boolean; entry: BatchEntryRow }>('/api/mg-floor/batch-entries', {
+    method: 'POST',
+    body,
+    retrySafeGet: false,
+  })
+}
+
+export async function fetchBatchEntries(params: Record<string, string | number>, opts?: SignalOpts) {
+  return apiRequest<{
+    success: boolean
+    entries: BatchEntryRow[]
+    total: number
+    counts: Record<BatchEntryStatus, number>
+    canDecide: boolean
+  }>('/api/mg-floor/batch-entries', { params, signal: opts?.signal })
+}

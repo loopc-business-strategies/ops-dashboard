@@ -22,12 +22,38 @@ export type MetalPanelAction = {
   disabledHint?: string
 }
 
+export type BatchStatusTone = 'neutral' | 'warn' | 'ok' | 'bad'
+
+export type BatchApprovalRow = {
+  locked: boolean
+  busy: boolean
+  status: { label: string; tone: BatchStatusTone; note: string } | null
+}
+
+/** Per-batch CONFIRM for Floor Manager approval. */
+export type PanelApproval = {
+  rows: Record<string, BatchApprovalRow | undefined>
+  canConfirm: boolean
+  /** Shown beside the CONFIRM button while it cannot be used (e.g. not logged in). */
+  hint?: string
+  message?: string | null
+  onConfirm: (batch: MetalBatchEdit) => void
+}
+
 type Props = {
   title: string
   batches: MetalBatchEdit[]
   onChange: (batches: MetalBatchEdit[]) => void
   action?: MetalPanelAction
+  approval?: PanelApproval
   compact?: boolean
+}
+
+const TONES: Record<BatchStatusTone, { bg: string; fg: string }> = {
+  neutral: { bg: '#E5E7EB', fg: '#374151' },
+  warn: { bg: '#FEF3C7', fg: '#92400E' },
+  ok: { bg: '#DCFCE7', fg: '#166534' },
+  bad: { bg: '#FEE2E2', fg: '#991B1B' },
 }
 
 export function MetalProcessPanel({
@@ -35,6 +61,7 @@ export function MetalProcessPanel({
   batches,
   onChange,
   action,
+  approval,
   compact,
 }: Props) {
   const pad = compact ? 6 : 8
@@ -67,48 +94,93 @@ export function MetalProcessPanel({
           <Text style={[styles.cell, styles.colPurity, styles.headerCell, { fontSize }]}>Purity</Text>
           <Text style={[styles.cell, styles.colTime, styles.headerCell, { fontSize }]}>Time</Text>
         </View>
-        {batches.map((batch, batchIdx) => (
-          <View key={batch.batchLabel} style={styles.batchGroup}>
-            <View style={styles.batchLabelCol}>
-              <Text style={[styles.batchText, compact && { fontSize: 14 }]}>{batch.batchLabel}</Text>
-            </View>
-            <View style={styles.batchLines}>
-              {batch.lines.map((line, lineIdx) => (
-                <View
-                  key={`${batch.batchLabel}-${line.metal}`}
-                  style={[styles.lineRow, lineIdx === batch.lines.length - 1 && styles.lineRowLast]}
-                >
-                  <Text style={[styles.cell, styles.colMetal, { fontSize, paddingVertical: pad }]}>
-                    {line.metal}
-                  </Text>
-                  <TextInput
-                    style={[styles.input, styles.colQty, { fontSize, paddingVertical: pad }]}
-                    value={line.qty}
-                    onChangeText={(v) => setField(batchIdx, lineIdx, 'qty', v)}
-                    placeholder="--"
-                    placeholderTextColor={td.textMuted}
-                    keyboardType="decimal-pad"
-                  />
-                  <TextInput
-                    style={[styles.input, styles.colPurity, { fontSize, paddingVertical: pad }]}
-                    value={line.purity}
-                    onChangeText={(v) => setField(batchIdx, lineIdx, 'purity', v)}
-                    placeholder="--"
-                    placeholderTextColor={td.textMuted}
-                    keyboardType="decimal-pad"
-                  />
-                  <TextInput
-                    style={[styles.input, styles.colTime, { fontSize, paddingVertical: pad }]}
-                    value={line.time}
-                    onChangeText={(v) => setField(batchIdx, lineIdx, 'time', v)}
-                    placeholder="--"
-                    placeholderTextColor={td.textMuted}
-                  />
+        {batches.map((batch, batchIdx) => {
+          const row = approval?.rows[batch.batchLabel]
+          const locked = Boolean(row?.locked)
+          const inputStyle = [styles.input, locked && styles.inputLocked, { fontSize, paddingVertical: pad }]
+          const tone = row?.status ? TONES[row.status.tone] : null
+          const confirmDisabled = !approval?.canConfirm || Boolean(row?.busy)
+          return (
+            <View key={batch.batchLabel} style={styles.batchBlock}>
+              <View style={styles.batchGroup}>
+                <View style={styles.batchLabelCol}>
+                  <Text style={[styles.batchText, compact && { fontSize: 14 }]}>{batch.batchLabel}</Text>
                 </View>
-              ))}
+                <View style={styles.batchLines}>
+                  {batch.lines.map((line, lineIdx) => (
+                    <View
+                      key={`${batch.batchLabel}-${line.metal}`}
+                      style={[styles.lineRow, lineIdx === batch.lines.length - 1 && styles.lineRowLast]}
+                    >
+                      <Text style={[styles.cell, styles.colMetal, { fontSize, paddingVertical: pad }]}>
+                        {line.metal}
+                      </Text>
+                      <TextInput
+                        style={[...inputStyle, styles.colQty]}
+                        value={line.qty}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'qty', v)}
+                        editable={!locked}
+                        placeholder="--"
+                        placeholderTextColor={td.textMuted}
+                        keyboardType="decimal-pad"
+                      />
+                      <TextInput
+                        style={[...inputStyle, styles.colPurity]}
+                        value={line.purity}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'purity', v)}
+                        editable={!locked}
+                        placeholder="--"
+                        placeholderTextColor={td.textMuted}
+                        keyboardType="decimal-pad"
+                      />
+                      <TextInput
+                        style={[...inputStyle, styles.colTime]}
+                        value={line.time}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'time', v)}
+                        editable={!locked}
+                        placeholder="--"
+                        placeholderTextColor={td.textMuted}
+                      />
+                    </View>
+                  ))}
+                </View>
+              </View>
+              {approval ? (
+                <View style={styles.approvalRow}>
+                  <View style={styles.approvalInfo}>
+                    {row?.status && tone ? (
+                      <View style={[styles.pill, { backgroundColor: tone.bg }]}>
+                        <Text style={[styles.pillText, { color: tone.fg }]}>{row.status.label}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={styles.approvalNote} numberOfLines={2}>
+                      {row?.status?.note || (!approval.canConfirm && !locked ? approval.hint || '' : '')}
+                    </Text>
+                  </View>
+                  {!locked ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Confirm batch ${batch.batchLabel}`}
+                      accessibilityState={{ disabled: confirmDisabled, busy: Boolean(row?.busy) }}
+                      disabled={confirmDisabled}
+                      onPress={() => approval.onConfirm(batch)}
+                      style={({ pressed }) => [
+                        styles.confirmBtn,
+                        compact && { minHeight: 34, paddingHorizontal: 10 },
+                        { opacity: confirmDisabled ? 0.45 : pressed ? 0.85 : 1 },
+                      ]}
+                    >
+                      <Text style={[styles.confirmText, compact && { fontSize: 12 }]}>
+                        {row?.busy ? 'SENDING…' : `CONFIRM BATCH ${batch.batchLabel}`}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
-          </View>
-        ))}
+          )
+        })}
+        {approval?.message ? <Text style={styles.approvalError}>{approval.message}</Text> : null}
         {action ? (
           <View style={styles.actionWrap}>
             <Pressable
@@ -181,12 +253,39 @@ const styles = StyleSheet.create({
     backgroundColor: td.cream,
     borderBottomColor: td.borderLight,
   },
-  batchGroup: {
-    flexDirection: 'row',
+  batchBlock: {
     borderBottomWidth: 1,
     borderBottomColor: td.borderLight,
+  },
+  batchGroup: {
+    flexDirection: 'row',
     minHeight: 80,
   },
+  approvalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: td.borderGrid,
+    backgroundColor: td.cream,
+  },
+  approvalInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  pillText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  approvalNote: { flex: 1, color: td.textMuted, fontSize: 12, minWidth: 0 },
+  confirmBtn: {
+    minHeight: 38,
+    paddingHorizontal: 14,
+    backgroundColor: td.orange,
+    borderRadius: td.radius,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmText: { color: td.white, fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  approvalError: { color: '#B91C1C', fontSize: 13, fontWeight: '600', margin: 8 },
+  inputLocked: { color: td.textMuted, backgroundColor: '#F9FAFB' },
   batchLabelCol: {
     width: 56,
     borderRightWidth: 1,

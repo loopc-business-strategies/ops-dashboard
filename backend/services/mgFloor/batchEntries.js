@@ -1,0 +1,220 @@
+const mongoose = require('mongoose')
+const FloorBatchEntry = require('../../models/FloorBatchEntry')
+const { ProductionError } = require('../productionControl/errors')
+const { hasProductionPermission } = require('../productionControl/permissions')
+const { writeProductionAudit } = require('../productionControl/audit')
+const {
+  BATCH_ENTRY_DIRECTIONS,
+  BATCH_ENTRY_STATUSES,
+  BATCH_ENTRY_MAX_LINES,
+} = require('../../constants/mgFloorBatchEntry')
+
+const ENTRY_ID_PATTERN = /^[A-Za-z0-9_-]{8,120}$/
+const ENTRY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+function activeKeyFor({ entryDate, department, direction, batchLabel }) {
+  return [entryDate, String(department || '').trim().toLowerCase(), direction, batchLabel].join('|')
+}
+
+function cleanNumber(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function sanitizeLines(lines) {
+  return (Array.isArray(lines) ? lines : []).slice(0, BATCH_ENTRY_MAX_LINES).map((line) => ({
+    metal: String(line?.metal || '').trim().slice(0, 40),
+    qty: cleanNumber(line?.qty),
+    purity: cleanNumber(line?.purity),
+    time: String(line?.time || '').trim().slice(0, 16),
+  }))
+}
+
+function canDecide(user) {
+  return hasProductionPermission(user, 'approvePass')
+}
+
+function isSameUser(a, b) {
+  return a != null && b != null && String(a) === String(b)
+}
+
+/**
+ * Operator sends one typed Metal In / Metal Out batch for Floor Manager approval.
+ * Replaying the same entryId returns the stored entry (offline outbox retries).
+ */
+async function submitBatchEntry(req, body = {}) {
+  const user = req.user
+  const direction = String(body.direction || '').trim().toUpperCase()
+  if (!BATCH_ENTRY_DIRECTIONS.includes(direction)) {
+    throw new ProductionError('direction must be IN or OUT', 400)
+  }
+  if (!String(body.batchLabel || '').trim()) {
+    throw new ProductionError('batchLabel is required', 400)
+  }
+  const needed = direction === 'IN' ? 'receivePass' : 'createPass'
+  if (!hasProductionPermission(user, needed)) {
+    throw new ProductionError(`Insufficient production permission to send Metal ${direction === 'IN' ? 'In' : 'Out'}`, 403)
+  }
+
+  const entryId = String(body.entryId || '').trim()
+  if (!ENTRY_ID_PATTERN.test(entryId)) {
+    throw new ProductionError('entryId must be 8-120 characters (letters, digits, - or _)', 400)
+  }
+  const entryDate = String(body.entryDate || '').trim()
+  if (!ENTRY_DATE_PATTERN.test(entryDate)) {
+    throw new ProductionError('entryDate must be YYYY-MM-DD', 400)
+  }
+
+  const lines = sanitizeLines(body.lines)
+  if (!lines.some((l) => l.qty != null && l.qty > 0)) {
+    throw new ProductionError('Enter a quantity for at least one metal', 400)
+  }
+  if (lines.some((l) => l.qty != null && l.qty <= 0)) {
+    throw new ProductionError('Quantity must be greater than 0', 400)
+  }
+  if (lines.some((l) => l.purity != null && (l.purity <= 0 || l.purity > 1000))) {
+    throw new ProductionError('Purity must be between 0 and 1000', 400)
+  }
+
+  const existing = await FloorBatchEntry.findOne({ entryId }).lean()
+  if (existing) return { entry: existing, reused: true }
+
+  const doc = {
+    entryId,
+    direction,
+    department: String(body.department || user?.department || '').trim().slice(0, 80),
+    batchLabel: String(body.batchLabel || '').trim().slice(0, 20),
+    entryDate,
+    lines,
+    employeeId: user?._id || null,
+    employeeName: user?.name || '',
+    deviceId: String(body.deviceId || '').trim().slice(0, 120),
+    status: 'PENDING',
+    submittedAt: new Date(),
+  }
+  doc.activeKey = activeKeyFor(doc)
+
+  let created
+  try {
+    created = await FloorBatchEntry.create(doc)
+  } catch (err) {
+    if (err?.code === 11000) {
+      const again = await FloorBatchEntry.findOne({ entryId }).lean()
+      if (again) return { entry: again, reused: true }
+      const err409 = new ProductionError(
+        `Batch ${doc.batchLabel} Metal ${direction === 'IN' ? 'In' : 'Out'} for ${doc.entryDate} is already waiting for or has Floor Manager approval`,
+        409,
+      )
+      err409.code = 'BATCH_ENTRY_EXISTS'
+      throw err409
+    }
+    throw err
+  }
+
+  await writeProductionAudit(req, {
+    resource: 'FloorBatchEntry',
+    resourceId: created._id,
+    action: 'mg_floor_batch_entry_submitted',
+    detail: `Batch ${doc.batchLabel} Metal ${direction} ${doc.department || ''} sent for approval`.trim(),
+    changes: { entryId, direction, department: doc.department, batchLabel: doc.batchLabel, entryDate, lines },
+  }).catch((err) => console.warn('[mg-floor] batch entry audit failed', err?.message || err))
+
+  return { entry: created.toObject(), reused: false }
+}
+
+async function listBatchEntries(query = {}) {
+  const filter = {}
+  if (query.status && BATCH_ENTRY_STATUSES.includes(String(query.status).toUpperCase())) {
+    filter.status = String(query.status).toUpperCase()
+  }
+  if (query.direction) filter.direction = String(query.direction).toUpperCase()
+  if (query.department) filter.department = String(query.department).trim()
+  if (query.entryDate) filter.entryDate = String(query.entryDate).trim()
+  if (query.from || query.to) {
+    filter.submittedAt = {}
+    if (query.from) filter.submittedAt.$gte = new Date(query.from)
+    if (query.to) filter.submittedAt.$lte = new Date(query.to)
+  }
+  const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200)
+  const skip = Math.max(Number(query.skip) || 0, 0)
+
+  const countFilter = { ...filter }
+  delete countFilter.status
+  const [entries, total, grouped] = await Promise.all([
+    FloorBatchEntry.find(filter).sort({ submittedAt: -1 }).skip(skip).limit(limit).lean(),
+    FloorBatchEntry.countDocuments(filter),
+    FloorBatchEntry.aggregate([{ $match: countFilter }, { $group: { _id: '$status', n: { $sum: 1 } } }]),
+  ])
+  const counts = { PENDING: 0, APPROVED: 0, REJECTED: 0 }
+  for (const g of grouped) if (g._id in counts) counts[g._id] = g.n
+  return { entries, total, counts, limit, skip }
+}
+
+async function decideBatchEntry(req, id, decision, reason = '') {
+  const user = req.user
+  if (!canDecide(user)) {
+    throw new ProductionError('Only a Floor Manager or Production Manager can approve or reject', 403)
+  }
+  if (!mongoose.Types.ObjectId.isValid(String(id))) {
+    throw new ProductionError('Entry not found', 404)
+  }
+  const current = await FloorBatchEntry.findById(id).lean()
+  if (!current) throw new ProductionError('Entry not found', 404)
+  if (isSameUser(current.employeeId, user?._id)) {
+    throw new ProductionError('You cannot approve or reject a batch you sent yourself', 403)
+  }
+  if (current.status !== 'PENDING') {
+    const err = new ProductionError(`This batch is already ${current.status.toLowerCase()}`, 409)
+    err.code = 'BATCH_ENTRY_DECIDED'
+    throw err
+  }
+
+  const approve = decision === 'APPROVED'
+  const rejectReason = String(reason || '').trim().slice(0, 500)
+  if (!approve && rejectReason.length < 3) {
+    throw new ProductionError('A reason is required to reject', 400)
+  }
+
+  const update = {
+    $set: {
+      status: decision,
+      decidedAt: new Date(),
+      decidedById: user?._id || null,
+      decidedByName: user?.name || '',
+      rejectReason: approve ? '' : rejectReason,
+    },
+  }
+  if (!approve) update.$unset = { activeKey: 1 }
+
+  const updated = await FloorBatchEntry.findOneAndUpdate({ _id: id, status: 'PENDING' }, update, {
+    returnDocument: 'after',
+  }).lean()
+  if (!updated) {
+    const err = new ProductionError('This batch was already decided by someone else', 409)
+    err.code = 'BATCH_ENTRY_DECIDED'
+    throw err
+  }
+
+  await writeProductionAudit(req, {
+    resource: 'FloorBatchEntry',
+    resourceId: updated._id,
+    action: approve ? 'mg_floor_batch_entry_approved' : 'mg_floor_batch_entry_rejected',
+    detail: `Batch ${updated.batchLabel} Metal ${updated.direction} ${approve ? 'approved' : 'rejected'}`,
+    changes: {
+      entryId: updated.entryId,
+      status: decision,
+      rejectReason: approve ? undefined : rejectReason,
+      employeeName: updated.employeeName,
+    },
+  }).catch((err) => console.warn('[mg-floor] batch entry audit failed', err?.message || err))
+
+  return { entry: updated }
+}
+
+module.exports = {
+  submitBatchEntry,
+  listBatchEntries,
+  decideBatchEntry,
+  activeKeyFor,
+}

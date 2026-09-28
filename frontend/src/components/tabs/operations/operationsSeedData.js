@@ -1,5 +1,6 @@
-export function getOpsTabs(t) {
-  return [
+/** `fm`: MG Floor Manager approval tab, only for users the backend allows to approve. */
+export function getOpsTabs(t, { fm = null } = {}) {
+  const tabs = [
     { id: 'kpi', label: t('kpiOverview') },
     { id: 'checklist', label: t('readiness') },
     { id: 'supply', label: t('supplyChain') },
@@ -13,6 +14,8 @@ export function getOpsTabs(t) {
     { id: 'analytics', label: t('analytics') },
     { id: 'projects', label: t('opsProjectsNav') },
   ]
+  if (fm) tabs.push({ id: 'fm', label: fm.pending > 0 ? `FM (${fm.pending})` : 'FM' })
+  return tabs
 }
 
 export function opsPct(v, t) {

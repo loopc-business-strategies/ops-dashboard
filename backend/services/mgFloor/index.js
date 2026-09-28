@@ -18,6 +18,7 @@ const { ProductionError } = require('../productionControl/errors')
 const xrf = require('./xrf')
 const deviceRegistry = require('./deviceRegistry')
 const weightCapture = require('./weightCapture')
+const batchEntries = require('./batchEntries')
 
 const {
   DEFAULT_MG_SCALES,
@@ -631,6 +632,19 @@ async function syncOperations(req, operations = []) {
             captureId: created.capture.captureId,
             weight: created.capture.weight,
             reused: created.reused,
+          }
+          break
+        }
+        case 'batch_entry': {
+          const sent = await batchEntries.submitBatchEntry(req, {
+            ...(op.payload || {}),
+            deviceId: op.payload?.deviceId || op.deviceId,
+          })
+          result = {
+            type: 'batch_entry',
+            entryId: sent.entry.entryId,
+            status: sent.entry.status,
+            reused: sent.reused,
           }
           break
         }
