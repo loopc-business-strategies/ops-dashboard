@@ -12,6 +12,7 @@ import {
   canViewErpSubTab,
   hasGranularModulePermissions,
 } from '../utils/erpSubTabPermissions'
+import { canPcc, resolveProductionRole } from '../components/production-dashboard/permissions'
 
 export function usePermissions() {
   const { user } = useAuth()
@@ -62,6 +63,10 @@ export function usePermissions() {
     },
 
     hasGranularPermissions,
+
+    // MG Floor Managers approve tablet batches in Operations → FM, even without the Operations module
+    canApproveMgFloor: String(user?.company || '').toLowerCase() === 'mg'
+      && canPcc(resolveProductionRole(user), 'approvePass'),
 
     // Can see risk panel and 7-day plan
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),

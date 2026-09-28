@@ -25,6 +25,21 @@ export const PCC_PERMISSIONS = {
   manageStock: ['production_manager', 'floor_manager', 'vault_officer'],
 }
 
+const PRODUCTION_ROLES = ['production_manager', 'floor_manager', 'department_head', 'operator', 'qc_inspector', 'vault_officer']
+
+/** Mirrors backend resolveProductionRole (services/productionControl/permissions.js). */
+export function resolveProductionRole(user) {
+  if (!user) return null
+  const explicit = String(user.productionRole || '').trim()
+  if (PRODUCTION_ROLES.includes(explicit)) return explicit
+  if (user.role === 'super_admin' || user.role === 'management') return 'production_manager'
+  if (String(user.department || '').toLowerCase() === 'production') {
+    if (user.role === 'department_head') return 'floor_manager'
+    if (user.role === 'department_user') return 'operator'
+  }
+  return null
+}
+
 export function canPcc(role, permission) {
   if (!role) return false
   if (role === 'production_manager' || role === 'super_admin' || role === 'demo') return true

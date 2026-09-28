@@ -21,6 +21,8 @@ function PermissionsProbe() {
       <p data-testid="sales">{String(perms.canViewModule('sales'))}</p>
       <p data-testid="admin">{String(perms.canViewAdmin)}</p>
       <p data-testid="readonly">{String(perms.isReadOnly)}</p>
+      <p data-testid="operations">{String(perms.canViewModule('operations'))}</p>
+      <p data-testid="mg-floor-approver">{String(perms.canApproveMgFloor)}</p>
     </div>
   )
 }
@@ -95,5 +97,36 @@ describe('sidebar permission integration', () => {
     expect(screen.getByTestId('finance').textContent).toBe('true')
     expect(screen.getByTestId('sales').textContent).toBe('false')
     expect(screen.getByTestId('erp').textContent).toBe('false')
+  })
+
+  test('MG production heads are Floor Manager approvers without getting the Operations module', () => {
+    mockedUser = { role: 'department_head', department: 'production', company: 'mg', allowedModules: [], modulePermissions: {} }
+
+    render(<PermissionsProbe />)
+
+    expect(screen.getByTestId('mg-floor-approver').textContent).toBe('true')
+    expect(screen.getByTestId('operations').textContent).toBe('false')
+  })
+
+  test('operators, other tenants and other departments are not MG Floor approvers', () => {
+    const cases = [
+      { role: 'department_user', department: 'production', company: 'mg' },
+      { role: 'department_head', department: 'production', company: 'loopc' },
+      { role: 'department_head', department: 'finance', company: 'mg' },
+    ]
+    for (const user of cases) {
+      mockedUser = { ...user, allowedModules: [], modulePermissions: {} }
+      const { unmount } = render(<PermissionsProbe />)
+      expect(screen.getByTestId('mg-floor-approver').textContent).toBe('false')
+      unmount()
+    }
+  })
+
+  test('an explicit floor_manager productionRole counts as an MG Floor approver', () => {
+    mockedUser = { role: 'department_user', department: 'operations', productionRole: 'floor_manager', company: 'MG', allowedModules: [], modulePermissions: {} }
+
+    render(<PermissionsProbe />)
+
+    expect(screen.getByTestId('mg-floor-approver').textContent).toBe('true')
   })
 })

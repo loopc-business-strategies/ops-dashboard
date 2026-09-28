@@ -79,7 +79,7 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'production-new', label: 'Production Dashboard', group: 'departments', show: !departmentsComingSoon && perms.canViewModule('production') },
     { id: 'finance', label: t('finance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('finance') },
     { id: 'sales', label: t('sales'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('sales') },
-    { id: 'operations', label: t('operations'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('operations') },
+    { id: 'operations', label: t('operations'), group: 'departments', show: !departmentsComingSoon && (perms.canViewModule('operations') || Boolean(perms.canApproveMgFloor)) },
     { id: 'training', label: t('training'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('training') },
     { id: 'erp-dashboard', label: 'Dashboard', group: 'erp', erpSub: 'dashboard', show: canShowErpSubTab('dashboard') },
     { id: 'erp-accounts', label: 'Accounts', group: 'erp', erpSub: 'accounts', show: canShowErpSubTab('accounts') },

@@ -7,25 +7,28 @@ vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({ user: { role: 'super_admin', company: 'mg' }, token: 't', company: 'mg' }),
 }))
 
+const superAdminPerms = {
+  canViewTab: () => true,
+  canEditTab: () => true,
+  isSuperAdmin: true,
+  isDepartmentHead: false,
+  isManagement: false,
+  isDepartmentUser: false,
+  isExternal: false,
+}
+let mockPerms = superAdminPerms
 vi.mock('../../hooks/usePermissions', () => ({
-  usePermissions: () => ({
-    canViewTab: () => true,
-    canEditTab: () => true,
-    isSuperAdmin: true,
-    isDepartmentHead: false,
-    isManagement: false,
-    isDepartmentUser: false,
-    isExternal: false,
-  }),
+  usePermissions: () => mockPerms,
 }))
 
 vi.mock('../../context/LanguageContext', () => ({
   useLanguage: () => ({ t: (key) => key }),
 }))
 
+const getInventory = vi.fn(async () => ({ inventory: [] }))
 vi.mock('../../api/operations/inventory', () => ({
   inventoryApi: {
-    getInventory: vi.fn(async () => ({ inventory: [] })),
+    getInventory: (...args) => getInventory(...args),
   },
 }))
 
@@ -53,6 +56,7 @@ import OperationsTab from './OperationsTab'
 describe('OperationsTab smoke', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockPerms = superAdminPerms
     listBatchEntries.mockResolvedValue({ entries: [], counts: { PENDING: 0 }, canDecide: false })
     listOperationsEntries.mockResolvedValue({ entries: [], total: 0, hasMore: false })
   })
@@ -89,6 +93,26 @@ describe('OperationsTab smoke', () => {
     )
     await vi.waitFor(() => expect(listBatchEntries).toHaveBeenCalled())
     expect(screen.queryByText(/^FM/)).toBeNull()
+  })
+
+  it('gives a Floor Manager without the Operations module only the Production and FM tabs', async () => {
+    mockPerms = {
+      ...superAdminPerms,
+      isSuperAdmin: false,
+      isDepartmentHead: true,
+      canApproveMgFloor: true,
+      canViewModule: (module) => module === 'production',
+    }
+    listBatchEntries.mockResolvedValue({ entries: [], counts: { PENDING: 1 }, canDecide: true })
+    render(
+      <MemoryRouter>
+        <OperationsTab />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('FM (1)')).toBeTruthy()
+    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)'])
+    expect(screen.queryByText(/kpiOverview/i)).toBeNull()
+    expect(getInventory).not.toHaveBeenCalled()
   })
 
   it('mounts operations tab shell', async () => {

@@ -88,9 +88,10 @@ function LegacyOperationsTab({ tenantKey }) {
   const { token, user, company } = useAuth()
   const fmAccess = useFloorManagerAccess(tenantKey)
   const fmPending = fmAccess.canDecide ? fmAccess.pending : null
+  const floorOnly = Boolean(perms.canApproveMgFloor) && !perms.canViewModule('operations')
   const TABS = useMemo(
-    () => getOpsTabs(t, { fm: fmPending == null ? null : { pending: fmPending } }),
-    [t, fmPending],
+    () => getOpsTabs(t, { fm: fmPending == null ? null : { pending: fmPending }, floorOnly }),
+    [t, fmPending, floorOnly],
   )
   const allowedIdsKey = TABS.map((tabItem) => tabItem.id).join(',')
   const allowedSubIds = useMemo(() => allowedIdsKey.split(','), [allowedIdsKey])
@@ -241,7 +242,7 @@ function LegacyOperationsTab({ tenantKey }) {
     }
   }, [inventoryPage, inventorySearch, canEditInventory])
 
-  useEffect(() => { loadInventory() }, [loadInventory])
+  useEffect(() => { if (!floorOnly) loadInventory() }, [floorOnly, loadInventory])
 
   function addSupplier(f) {
     setSuppliers(p => [...p, { id:Date.now(), name:f.name.trim(), cat:f.cat, od:f.od||'—', ed:f.ed||'—', ad:'—', qty:f.qty||'—', qr:'0', pay:'Not Paid', qc:'Pending', st:f.st, notes:f.notes||'—' }])
