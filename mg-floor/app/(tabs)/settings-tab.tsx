@@ -19,13 +19,9 @@ export default function SettingsTabScreen() {
           {brand.appName} · {user?.name || '—'}
         </Subtitle>
         <View style={styles.stack}>
-          <BigButton label="Scan QR" onPress={() => router.push('/scan' as never)} tone="neutral" />
           <BigButton label="Profile" onPress={() => router.push('/profile' as never)} tone="neutral" />
           <BigButton label="Offline Sync" onPress={() => router.push('/offline-sync' as never)} tone="neutral" />
           <BigButton label="App Settings" onPress={() => router.push('/settings' as never)} tone="neutral" />
-          <BigButton label="XRF / QC" onPress={() => router.push('/xrf' as never)} tone="neutral" />
-          <BigButton label="Devices" onPress={() => router.push('/devices' as never)} tone="neutral" />
-          <BigButton label="Scales" onPress={() => router.push('/scales' as never)} tone="neutral" />
           <BigButton
             label="Logout"
             onPress={async () => {

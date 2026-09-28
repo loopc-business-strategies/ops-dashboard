@@ -11,7 +11,7 @@ export default function MoreScreen() {
   const { permissions, logout } = useAuth()
   const router = useRouter()
   const items = filterNavByPermissions(
-    NAV_ITEMS.filter((i) => ['reports', 'call-manager', 'xrf', 'devices', 'scales', 'offline', 'profile', 'transfer', 'correction'].includes(i.key)),
+    NAV_ITEMS.filter((i) => ['reports', 'call-manager', 'offline', 'profile', 'correction'].includes(i.key)),
     permissions,
   )
 
@@ -19,7 +19,7 @@ export default function MoreScreen() {
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <Title>Reports & More</Title>
-        <Subtitle>Production reports, QC, devices, system</Subtitle>
+        <Subtitle>Production reports and system</Subtitle>
         <View style={styles.stack}>
           <BigButton label="Reports" onPress={() => router.push('/reports' as never)} />
           {items.map((item) => (

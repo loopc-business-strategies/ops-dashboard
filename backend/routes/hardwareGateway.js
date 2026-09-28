@@ -2,7 +2,6 @@ const express = require('express')
 const Joi = require('joi')
 const { protect, restrictTo } = require('../middleware/auth')
 const { validateBody } = require('../middleware/validate')
-const mgFloor = require('../services/mgFloor')
 
 const router = express.Router()
 
@@ -10,10 +9,10 @@ const router = express.Router()
  * Hardware edge gateway contract.
  *
  * Device → Local Gateway → POST /api/hardware/ingest → Backend → DB → Dashboard
+ * Weighing scales are not accepted: MG Floor weights are entered manually and approved by the Floor Manager.
  */
 
 const DEVICE_TYPES = [
-  'weighing_scale',
   'barcode_scanner',
   'qr_scanner',
   'label_printer',
@@ -30,13 +29,11 @@ router.get('/contract', protect, (_req, res) => {
     deviceTypes: DEVICE_TYPES,
     ingestPath: 'POST /api/hardware/ingest',
     scanResolvePath: 'POST /api/scan/resolve',
-    mgFloorIngestPath: 'POST /api/mg-floor/scales/ingest',
     auth: 'Tenant-scoped session cookie or Bearer JWT + CSRF for cookie sessions',
     notes: [
-      'Do not depend on browser WebUSB/serial hacks for production weighing.',
       'Gateway must authenticate as a service user or device credential.',
       'Idempotency-Key header recommended for ingest retries.',
-      'MG Floor weighing scales must be registered in the MG Floor scale registry.',
+      'Weighing scale readings are not accepted; MG Floor uses manual batch entry.',
     ],
   })
 })
@@ -52,39 +49,11 @@ router.post(
     payload: Joi.object().unknown(true).default({}),
     recordedAt: Joi.date().allow(null),
     idempotencyKey: Joi.string().trim().max(120).allow('', null),
-    scaleId: Joi.string().trim().allow('', null),
     gatewayId: Joi.string().trim().allow('', null),
   })),
   async (req, res) => {
     try {
-      // Weighing scale events for MG persist via MG Floor ingest (tenant must be mg).
-      if (req.body.deviceType === 'weighing_scale') {
-        const tenant = String(req.tenant || req.user?.company || '').toLowerCase()
-        if (tenant !== 'mg') {
-          return res.status(403).json({
-            success: false,
-            message: 'Weighing scale ingest for production floor is MG-only.',
-            code: 'MG_TENANT_REQUIRED',
-          })
-        }
-        const result = await mgFloor.ingestScaleReading(req, {
-          ...req.body,
-          scaleId: req.body.scaleId || req.body.payload?.scaleId || req.body.deviceId,
-        })
-        const io = req.app?.get?.('io')
-        if (io && !result.reused) {
-          io.to('tenant:mg').emit('mg-floor:scale', {
-            scaleId: result.scale?.scaleId,
-            weight: result.event?.weight,
-            stable: result.event?.stable,
-            status: result.scale?.status,
-            timestamp: result.event?.recordedAt || result.event?.receivedAt,
-          })
-        }
-        return res.status(result.reused ? 200 : 202).json({ success: true, ...result })
-      }
-
-      // Non-scale devices: accept + echo (additive; no destructive behavior)
+      // Accept + echo (additive; no destructive behavior)
       const event = {
         id: `hw_${Date.now()}`,
         tenantHint: req.tenant || req.user?.company || null,

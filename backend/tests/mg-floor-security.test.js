@@ -13,6 +13,7 @@ const User = require('../models/User')
 let mongo
 let app
 
+const HOST = 'api.loopcstrategies.com'
 const tokenFor = (user, tenant) => jwt.sign({ id: user._id.toString(), company: tenant }, process.env.JWT_SECRET)
 
 function withDbName(uri, dbName) {
@@ -21,12 +22,14 @@ function withDbName(uri, dbName) {
   return parsed.toString()
 }
 
+let seq = 0
 const createTenantUser = async (tenant, overrides = {}) => {
   const TenantUser = await User.getTenantModel(tenant)
-  const now = Date.now().toString(36)
+  seq += 1
+  const tag = `${Date.now().toString(36)}${seq}`
   return TenantUser.create({
-    name: `${tenant}-floor-${now}`,
-    email: `${tenant}-floor-${now}@example.com`,
+    name: `${tenant}-floor-${tag}`,
+    email: `${tenant}-floor-${tag}@example.com`,
     password: 'password123',
     role: 'super_admin',
     department: 'production',
@@ -35,12 +38,10 @@ const createTenantUser = async (tenant, overrides = {}) => {
   })
 }
 
-const GATEWAY_ID = 'MG-GATEWAY-001'
-const GATEWAY_SECRET = 'test-gateway-secret'
-
-const gatewayHeaders = () => ({
-  'X-Gateway-Id': GATEWAY_ID,
-  'X-Gateway-Secret': GATEWAY_SECRET,
+const mgHeaders = (user) => ({
+  Host: HOST,
+  'x-tenant': 'mg',
+  Authorization: `Bearer ${tokenFor(user, 'mg')}`,
 })
 
 beforeAll(async () => {
@@ -49,9 +50,6 @@ beforeAll(async () => {
   process.env.RATE_LIMIT_MAX = '100000'
   process.env.AUTH_RATE_LIMIT_MAX = '100000'
   process.env.DEFAULT_TENANT = 'loopc'
-  process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET}`
-  process.env.ALLOW_XRF_SIMULATOR = 'true'
-  delete process.env.MG_GATEWAY_ALLOW_JWT_FALLBACK
 
   mongo = await startMongoMemoryServer()
   const baseUri = mongo.getUri()
@@ -63,12 +61,7 @@ beforeAll(async () => {
 
   await mongoose.connect(process.env.MONGO_URI_MG)
   app = createApp()
-  // createApp/dotenv may override — re-apply test gateway/XRF flags
-  process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET}`
-  process.env.ALLOW_XRF_SIMULATOR = 'true'
-  delete process.env.MG_GATEWAY_ALLOW_JWT_FALLBACK
   process.env.NODE_ENV = 'test'
-  process.env.MG_FLOOR_SEED_DEFAULT_SCALES = 'true'
 }, 120000)
 
 afterEach(async () => {
@@ -87,24 +80,23 @@ afterAll(async () => {
 }, 60000)
 
 describe('MG Floor cross-tenant security', () => {
-  test('MG user → MG Floor /me = ALLOWED', async () => {
-    const user = await createTenantUser('mg')
-    const res = await request(app)
-      .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${tokenFor(user, 'mg')}`)
+  test('MG user → MG Floor /me = ALLOWED, with floorDepartment and no scale permission', async () => {
+    const user = await createTenantUser('mg', { floorDepartment: 'casting' })
+    const res = await request(app).get('/api/mg-floor/me').set(mgHeaders(user))
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
     expect(res.body.tenant).toBe('mg')
+    expect(res.body.user.floorDepartment).toBe('casting')
+    expect(res.body.permissions).not.toHaveProperty('manageScales')
+    expect(res.body.permissions.approveBatches).toBe(true)
   })
 
   test('MG user with x-tenant cg on MG Floor = BLOCKED (session mismatch or MG gate)', async () => {
     const user = await createTenantUser('mg')
     const res = await request(app)
       .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'cg')
       .set('Authorization', `Bearer ${tokenFor(user, 'mg')}`)
 
@@ -115,7 +107,7 @@ describe('MG Floor cross-tenant security', () => {
     const user = await createTenantUser('cg')
     const res = await request(app)
       .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'cg')
       .set('Authorization', `Bearer ${tokenFor(user, 'cg')}`)
 
@@ -127,7 +119,7 @@ describe('MG Floor cross-tenant security', () => {
     const user = await createTenantUser('loopc')
     const res = await request(app)
       .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'loopc')
       .set('Authorization', `Bearer ${tokenFor(user, 'loopc')}`)
 
@@ -138,7 +130,7 @@ describe('MG Floor cross-tenant security', () => {
     const user = await createTenantUser('vb')
     const res = await request(app)
       .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'vb')
       .set('Authorization', `Bearer ${tokenFor(user, 'vb')}`)
 
@@ -146,18 +138,14 @@ describe('MG Floor cross-tenant security', () => {
   })
 
   test('No JWT = BLOCKED', async () => {
-    const res = await request(app)
-      .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-
+    const res = await request(app).get('/api/mg-floor/me').set('Host', HOST).set('x-tenant', 'mg')
     expect(res.status).toBe(401)
   })
 
   test('Invalid JWT = BLOCKED', async () => {
     const res = await request(app)
       .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'mg')
       .set('Authorization', 'Bearer not-a-real-token')
 
@@ -166,11 +154,10 @@ describe('MG Floor cross-tenant security', () => {
 
   test('Tampered JWT company claim does not unlock MG Floor for CG user DB', async () => {
     const cgUser = await createTenantUser('cg')
-    // Token claims mg but user id only exists in CG DB → auth fails or MG gate
     const bad = jwt.sign({ id: cgUser._id.toString(), company: 'mg' }, process.env.JWT_SECRET)
     const res = await request(app)
       .get('/api/mg-floor/me')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'mg')
       .set('Authorization', `Bearer ${bad}`)
 
@@ -178,746 +165,154 @@ describe('MG Floor cross-tenant security', () => {
   })
 })
 
-describe('MG Floor scales', () => {
-  test('ensures seven default scales and rejects unknown scale ingest', async () => {
+describe('MG Floor removed scale / capture / XRF / gateway / legacy metal endpoints', () => {
+  const REMOVED = [
+    ['get', '/api/mg-floor/scales'],
+    ['post', '/api/mg-floor/scales'],
+    ['patch', '/api/mg-floor/scales/MG-SCALE-001'],
+    ['get', '/api/mg-floor/scales/MG-SCALE-001/status'],
+    ['post', '/api/mg-floor/scales/MG-SCALE-001/capture-stable'],
+    ['post', '/api/mg-floor/scales/MG-SCALE-001/archive'],
+    ['post', '/api/mg-floor/scales/ingest'],
+    ['get', '/api/mg-floor/scale-camera-captures'],
+    ['post', '/api/mg-floor/scale-camera-captures'],
+    ['post', '/api/mg-floor/scale-camera-captures/cap_12345678/photo'],
+    ['get', '/api/mg-floor/xrf/devices'],
+    ['post', '/api/mg-floor/xrf/tests'],
+    ['post', '/api/mg-floor/xrf/ingest'],
+    ['get', '/api/mg-floor/gateways'],
+    ['post', '/api/mg-floor/gateways'],
+    ['get', '/api/mg-floor/gateway/devices'],
+    ['post', '/api/mg-floor/metal/in'],
+    ['post', '/api/mg-floor/metal/out'],
+    ['post', '/api/mg-floor/transfers'],
+    ['get', '/api/mg-floor/passes/open'],
+  ]
+
+  test.each(REMOVED)('%s %s → 410 MG_FLOOR_FEATURE_REMOVED', async (method, path) => {
     const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
+    const res = await request(app)[method](path)
+      .set(mgHeaders(user))
+      .send({ scaleId: 'MG-SCALE-001', weight: 10, stable: true, passId: 'aaaaaaaaaaaaaaaaaaaaaaaa' })
 
-    const list = await request(app)
-      .get('/api/mg-floor/scales')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(410)
+    expect(res.body).toMatchObject({ success: false, code: 'MG_FLOOR_FEATURE_REMOVED' })
+  })
 
-    expect(list.status).toBe(200)
-    expect(list.body.scales.length).toBeGreaterThanOrEqual(7)
-
-    const jwtBlocked = await request(app)
+  test('removed endpoints do not accept scale data without auth either', async () => {
+    const res = await request(app)
       .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'MG-SCALE-001',
-        eventType: 'weight_reading',
-        payload: { weight: 10, stable: true, unit: 'g' },
-      })
-    expect(jwtBlocked.status).toBe(401)
+      .set('Host', HOST)
+      .set('X-Gateway-Id', 'MG-GATEWAY-001')
+      .set('X-Gateway-Secret', 'secret')
+      .send({ deviceId: 'MG-GATEWAY-001', scaleId: 'MG-SCALE-001', payload: { weight: 10, stable: true } })
+    expect(res.status).toBe(410)
+  })
 
-    const bad = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'FAKE-SCALE-999',
-        eventType: 'weight_reading',
-        payload: { weight: 10, stable: true, unit: 'g' },
-      })
+  test('hardware ingest rejects weighing_scale device events', async () => {
+    const user = await createTenantUser('mg')
+    const res = await request(app)
+      .post('/api/hardware/ingest')
+      .set(mgHeaders(user))
+      .send({ deviceType: 'weighing_scale', deviceId: 'SCALE-1', eventType: 'weight_reading', payload: { grams: 10 } })
+    expect(res.status).toBe(400)
 
-    expect(bad.status).toBe(403)
-
-    const ok = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'MG-SCALE-001',
-        eventType: 'weight_reading',
-        payload: { weight: 125.36, stable: true, unit: 'g', connectionType: 'SIMULATOR' },
-        idempotencyKey: 'test-scale-reading-1',
-      })
-
-    expect([200, 202]).toContain(ok.status)
-    expect(ok.body.event.weight).toBe(125.36)
-    expect(ok.body.event.stable).toBe(true)
-
-    const again = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'MG-SCALE-001',
-        eventType: 'weight_reading',
-        payload: { weight: 125.36, stable: true, unit: 'g' },
-        idempotencyKey: 'test-scale-reading-1',
-      })
-
-    expect(again.body.reused).toBe(true)
-
-    const unknownGw = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('X-Gateway-Id', 'MG-GATEWAY-UNKNOWN')
-      .set('X-Gateway-Secret', GATEWAY_SECRET)
-      .send({
-        deviceId: 'MG-GATEWAY-UNKNOWN',
-        scaleId: 'MG-SCALE-001',
-        eventType: 'weight_reading',
-        payload: { weight: 1, stable: true },
-      })
-    expect(unknownGw.status).toBe(403)
+    const contract = await request(app).get('/api/hardware/contract').set(mgHeaders(user))
+    expect(contract.status).toBe(200)
+    expect(contract.body.deviceTypes).not.toContain('weighing_scale')
+    expect(contract.body).not.toHaveProperty('mgFloorIngestPath')
   })
 })
 
 describe('MG Floor sync idempotency', () => {
-  test('duplicate sync operationId does not double-apply', async () => {
-    const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-
-    // Seed a stable reading so metal_out weight assertion can pass
-    await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: 'GW',
-        scaleId: 'MG-SCALE-001',
-        eventType: 'weight_reading',
-        payload: { weight: 50, stable: true },
-        idempotencyKey: 'seed-reading',
-      })
-
-    // Sync with unsupported-without-batch should fail consistently (idempotent failure record)
-    const opId = 'sync-op-idem-1'
+  test('duplicate sync operationId does not double-apply a batch entry', async () => {
+    const user = await createTenantUser('mg', { floorDepartment: 'melting' })
+    const entryId = 'be_sync_idem_00000001'
     const body = {
       operations: [
         {
-          operationId: opId,
-          operationType: 'metal_out',
+          operationId: `be_${entryId}`,
+          operationType: 'batch_entry',
           payload: {
-            // missing batchId → fail
-            toDepartment: 'casting',
-            scaleId: 'MG-SCALE-001',
-            weight: 50,
+            entryId,
+            direction: 'IN',
+            batchLabel: '1',
+            entryDate: '2026-09-28',
+            lines: [{ metal: 'Gold', qty: 12.5, purity: 99.5, time: '09:00' }],
           },
         },
       ],
     }
 
-    const first = await request(app)
-      .post('/api/mg-floor/sync')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send(body)
-
+    const first = await request(app).post('/api/mg-floor/sync').set(mgHeaders(user)).send(body)
     expect(first.status).toBe(200)
-    expect(first.body.results[0].operationId).toBe(opId)
+    expect(first.body.results[0]).toMatchObject({ operationId: `be_${entryId}`, syncStatus: 'SYNCED' })
 
-    const second = await request(app)
-      .post('/api/mg-floor/sync')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send(body)
-
+    const second = await request(app).post('/api/mg-floor/sync').set(mgHeaders(user)).send(body)
     expect(second.status).toBe(200)
-    // Either reused SYNCED or same FAILED/CONFLICT — never silent duplicate success without key
-    expect(second.body.results[0].operationId).toBe(opId)
-  })
+    expect(second.body.results[0]).toMatchObject({ syncStatus: 'SYNCED', reused: true })
 
-  test('XRF integrity: app cannot invent Au; gateway ingest + confirm; sim gated', async () => {
-    const mgUser = await createTenantUser('mg')
-    const cgUser = await createTenantUser('cg')
-    const mgToken = tokenFor(mgUser, 'mg')
-    const cgToken = tokenFor(cgUser, 'cg')
-
-    const blocked = await request(app)
-      .get('/api/mg-floor/xrf/devices')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'cg')
-      .set('Authorization', `Bearer ${cgToken}`)
-    expect(blocked.status).toBe(403)
-
-    const devices = await request(app)
-      .get('/api/mg-floor/xrf/devices')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-    expect(devices.status).toBe(200)
-    expect(devices.body.devices.some((d) => d.analyzerId === 'MG-XRF-001')).toBe(true)
-
-    const invented = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-invent-blocked',
-        elements: [{ symbol: 'Au', value: 91.7, unit: '%' }],
-      })
-    expect(invented.status).toBe(403)
-
-    const ingested = await request(app)
-      .post('/api/mg-floor/xrf/ingest/result')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        analyzerId: 'MG-XRF-001',
-        source: 'hardware',
-        ingestId: 'hw-ingest-1',
-        elements: [
-          { symbol: 'Au', value: 91.72, unit: '%' },
-          { symbol: 'Ag', value: 5.41, unit: '%' },
-        ],
-      })
-    expect([200, 201]).toContain(ingested.status)
-    expect(ingested.body.test?.source).toBe('hardware')
-    expect(ingested.body.test?.confirmationStatus).toBe('PENDING_CONFIRM')
-    const xrfTestId = ingested.body.test.xrfTestId
-
-    const pending = await request(app)
-      .get('/api/mg-floor/xrf/tests')
-      .query({ pendingForConfirm: '1' })
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-    expect(pending.status).toBe(200)
-    expect(pending.body.tests.some((t) => t.xrfTestId === xrfTestId)).toBe(true)
-
-    const confirmOverride = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-confirm-override',
-        elements: [{ symbol: 'Au', value: 99.9, unit: '%' }],
-      })
-    expect(confirmOverride.status).toBe(403)
-
-    // Confirm without scaleReadingId → 403
-    const confirmNoReading = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-confirm-no-reading',
-        batchNumber: 'B-100',
-      })
-    expect(confirmNoReading.status).toBe(403)
-
-    // Unstable reading rejected
-    const unstableIngest = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'MG-SCALE-001',
-        eventType: 'weight_reading',
-        payload: { weight: 12.5, stable: false, unit: 'g' },
-        idempotencyKey: 'xrf-unstable-1',
-      })
-    expect([200, 202]).toContain(unstableIngest.status)
-    const unstableId = unstableIngest.body.event?._id
-
-    const confirmUnstable = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-confirm-unstable',
-        scaleReadingId: unstableId,
-      })
-    expect(confirmUnstable.status).toBe(403)
-
-    // Missing reading id
-    const confirmMissing = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-confirm-missing-reading',
-        scaleReadingId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-      })
-    expect(confirmMissing.status).toBe(404)
-
-    // Stable reading → confirm OK
-    const stableIngest = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'MG-SCALE-001',
-        eventType: 'weight_reading',
-        payload: { weight: 125.36, stable: true, unit: 'g' },
-        idempotencyKey: 'xrf-stable-1',
-      })
-    expect([200, 202]).toContain(stableIngest.status)
-    const scaleReadingId = stableIngest.body.event?._id
-    expect(scaleReadingId).toBeTruthy()
-
-    const captured = await request(app)
-      .post('/api/mg-floor/scales/MG-SCALE-001/capture-stable')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({ expectedWeight: 125.36 })
-    expect(captured.status).toBe(200)
-    expect(captured.body.scaleReadingId).toBeTruthy()
-
-    const confirmed = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-confirm-1',
-        batchNumber: 'B-100',
-        scaleId: 'MG-SCALE-001',
-        scaleReadingId,
-      })
-    expect([200, 201]).toContain(confirmed.status)
-    expect(confirmed.body.test?.confirmationStatus).toBe('CONFIRMED')
-    expect(confirmed.body.test?.elements?.[0]?.value).toBe(91.72)
-    expect(String(confirmed.body.test?.scaleReadingId)).toBe(String(scaleReadingId))
-    expect(confirmed.body.test?.scaleWeight).toBe(125.36)
-
-    const reused = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-confirm-1',
-      })
-    expect(reused.status).toBe(200)
-    expect(reused.body.reused).toBe(true)
-
-    // Second hardware result cannot reuse the same scaleReadingId
-    const ingested2 = await request(app)
-      .post('/api/mg-floor/xrf/ingest/result')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        analyzerId: 'MG-XRF-001',
-        source: 'hardware',
-        ingestId: 'hw-ingest-2',
-        elements: [{ symbol: 'Au', value: 90.1, unit: '%' }],
-      })
-    expect([200, 201]).toContain(ingested2.status)
-
-    const reuseReading = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId: ingested2.body.test.xrfTestId,
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-confirm-reuse-reading',
-        scaleReadingId,
-      })
-    expect(reuseReading.status).toBe(409)
-
-    // Simulator allowed in test (ALLOW_XRF_SIMULATOR=true)
-    const simOk = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        source: 'simulated',
-        analyzerId: 'MG-XRF-001',
-        operationId: 'xrf-sim-ok',
-        elements: [{ symbol: 'Au', value: 88.1, unit: '%' }],
-      })
-    expect([200, 201]).toContain(simOk.status)
-    expect(simOk.body.test?.source).toBe('simulated')
-
-    // Pending simulated row (allowed now) — confirm must fail when sim later disabled
-    const simPending = await request(app)
-      .post('/api/mg-floor/xrf/ingest/result')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        analyzerId: 'MG-XRF-001',
-        source: 'simulated',
-        ingestId: 'sim-pending-confirm-block',
-        elements: [{ symbol: 'Au', value: 77.7, unit: '%' }],
-      })
-    expect([200, 201]).toContain(simPending.status)
-    const simPendingId = simPending.body.test.xrfTestId
-
-    // Prod-like: block simulated create + confirm
-    const prevAllow = process.env.ALLOW_XRF_SIMULATOR
-    const prevNode = process.env.NODE_ENV
-    process.env.ALLOW_XRF_SIMULATOR = 'false'
-    process.env.NODE_ENV = 'production'
-    try {
-      const simBlocked = await request(app)
-        .post('/api/mg-floor/xrf/tests')
-        .set('Host', 'api.loopcstrategies.com')
-        .set('x-tenant', 'mg')
-        .set('Authorization', `Bearer ${mgToken}`)
-        .send({
-          source: 'simulated',
-          analyzerId: 'MG-XRF-001',
-          operationId: 'xrf-sim-blocked',
-          elements: [{ symbol: 'Au', value: 88.1, unit: '%' }],
-        })
-      expect(simBlocked.status).toBe(403)
-
-      const confirmSimBlocked = await request(app)
-        .post('/api/mg-floor/xrf/tests')
-        .set('Host', 'api.loopcstrategies.com')
-        .set('x-tenant', 'mg')
-        .set('Authorization', `Bearer ${mgToken}`)
-        .send({
-          xrfTestId: simPendingId,
-          analyzerId: 'MG-XRF-001',
-          operationId: 'xrf-confirm-sim-blocked',
-        })
-      expect(confirmSimBlocked.status).toBe(403)
-    } finally {
-      process.env.ALLOW_XRF_SIMULATOR = prevAllow
-      process.env.NODE_ENV = prevNode
-    }
-  })
-
-  test('XRF analyzerId required; unknown/mismatched analyzer rejected', async () => {
-    const mgUser = await createTenantUser('mg')
-    const mgToken = tokenFor(mgUser, 'mg')
-
-    const missingIngest = await request(app)
-      .post('/api/mg-floor/xrf/ingest/result')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        source: 'hardware',
-        ingestId: 'hw-missing-analyzer',
-        elements: [{ symbol: 'Au', value: 91.0, unit: '%' }],
-      })
-    expect(missingIngest.status).toBe(400)
-
-    const unknownIngest = await request(app)
-      .post('/api/mg-floor/xrf/ingest/result')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        analyzerId: 'MG-XRF-DOES-NOT-EXIST',
-        source: 'hardware',
-        ingestId: 'hw-unknown-analyzer',
-        elements: [{ symbol: 'Au', value: 91.0, unit: '%' }],
-      })
-    expect(unknownIngest.status).toBe(404)
-
-    const ingested = await request(app)
-      .post('/api/mg-floor/xrf/ingest/result')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        analyzerId: 'MG-XRF-001',
-        source: 'hardware',
-        ingestId: 'hw-analyzer-required',
-        elements: [{ symbol: 'Au', value: 90.5, unit: '%' }],
-      })
-    expect([200, 201]).toContain(ingested.status)
-    const xrfTestId = ingested.body.test.xrfTestId
-
-    const missingConfirm = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        operationId: 'xrf-confirm-missing-analyzer',
-      })
-    expect(missingConfirm.status).toBe(400)
-
-    const unknownConfirm = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-DOES-NOT-EXIST',
-        operationId: 'xrf-confirm-unknown-analyzer',
-        scaleReadingId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-      })
-    expect(unknownConfirm.status).toBe(404)
-
-    const mismatchConfirm = await request(app)
-      .post('/api/mg-floor/xrf/tests')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
-      .send({
-        xrfTestId,
-        analyzerId: 'MG-XRF-002',
-        operationId: 'xrf-confirm-mismatch-analyzer',
-        scaleReadingId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-      })
-    // MG-XRF-002 may not exist in seed → 404; if seeded disabled/other → 403 mismatch
-    expect([403, 404]).toContain(mismatchConfirm.status)
+    const FloorBatchEntry = await require('../models/FloorBatchEntry').getTenantModel('mg')
+    expect(await FloorBatchEntry.countDocuments({ entryId })).toBe(1)
+    await FloorBatchEntry.deleteMany({})
   })
 })
 
-describe('MG Floor dynamic device registry', () => {
-  test('can register scale beyond seed set and list/search it', async () => {
-    const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-
+describe('User.floorDepartment admin assignment', () => {
+  test('super admin sets a valid floor department; unknown values are rejected', async () => {
+    const admin = await createTenantUser('mg')
     const created = await request(app)
-      .post('/api/mg-floor/scales')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        scaleId: 'MG-SCALE-008',
-        gatewayId: GATEWAY_ID,
-        name: 'Extra scale 8',
-        connectionType: 'SIMULATOR',
-        department: 'casting',
-      })
+      .post('/api/auth/users')
+      .set(mgHeaders(admin))
+      .send({ name: `op-${Date.now().toString(36)}`, password: 'Password123!', role: 'department_user', department: 'production', floorDepartment: 'rolling' })
     expect(created.status).toBe(201)
-    expect(created.body.scale.scaleId).toBe('MG-SCALE-008')
-    expect(created.body.scale.gatewayId).toBe(GATEWAY_ID)
+    expect(created.body.user.floorDepartment).toBe('rolling')
 
-    const list = await request(app)
-      .get('/api/mg-floor/scales')
-      .query({ search: '008', limit: 50 })
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-    expect(list.status).toBe(200)
-    expect(list.body.total).toBeGreaterThanOrEqual(1)
-    expect(list.body.scales.some((s) => s.scaleId === 'MG-SCALE-008')).toBe(true)
+    const id = created.body.user._id
+    const badCreate = await request(app)
+      .post('/api/auth/users')
+      .set(mgHeaders(admin))
+      .send({ name: `op2-${Date.now().toString(36)}`, password: 'Password123!', floorDepartment: 'vault' })
+    expect(badCreate.status).toBe(400)
 
-    const ingestOk = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'MG-SCALE-008',
-        eventType: 'weight_reading',
-        payload: { weight: 10.5, stable: true, unit: 'g' },
-        idempotencyKey: 'dyn-scale-008-1',
-      })
-    expect([200, 202]).toContain(ingestOk.status)
+    const updated = await request(app)
+      .put(`/api/auth/users/${id}/role`)
+      .set(mgHeaders(admin))
+      .send({ role: 'department_user', department: 'production', floorDepartment: 'stamping' })
+    expect(updated.status).toBe(200)
+    expect(updated.body.user.floorDepartment).toBe('stamping')
+
+    const kept = await request(app)
+      .put(`/api/auth/users/${id}/role`)
+      .set(mgHeaders(admin))
+      .send({ role: 'department_user', department: 'production' })
+    expect(kept.status).toBe(200)
+    expect(kept.body.user.floorDepartment).toBe('stamping')
+
+    const badUpdate = await request(app)
+      .put(`/api/auth/users/${id}/role`)
+      .set(mgHeaders(admin))
+      .send({ role: 'department_user', floorDepartment: 'somewhere' })
+    expect(badUpdate.status).toBe(400)
   })
 
-  test('wrong gateway cannot ingest assigned scale (DEVICE_GATEWAY_MISMATCH)', async () => {
-    process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET},MG-GATEWAY-002=other-secret`
-
-    const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-
-    await request(app)
-      .post('/api/mg-floor/gateways')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ gatewayId: 'MG-GATEWAY-002', name: 'Second' })
-
-    await request(app)
-      .post('/api/mg-floor/scales')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        scaleId: 'MG-SCALE-009',
-        gatewayId: GATEWAY_ID,
-        connectionType: 'SIMULATOR',
-      })
-
-    const mismatch = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('X-Gateway-Id', 'MG-GATEWAY-002')
-      .set('X-Gateway-Secret', 'other-secret')
-      .send({
-        deviceId: 'MG-GATEWAY-002',
-        scaleId: 'MG-SCALE-009',
-        eventType: 'weight_reading',
-        payload: { weight: 1, stable: true },
-      })
-    expect(mismatch.status).toBe(403)
-    expect(mismatch.body.code).toBe('DEVICE_GATEWAY_MISMATCH')
-
-    process.env.MG_GATEWAY_SECRETS = `${GATEWAY_ID}=${GATEWAY_SECRET}`
-  })
-
-  test('register 43 scales, list/filter, ingest subset', async () => {
-    const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-
-    for (let i = 10; i <= 43; i += 1) {
-      const scaleId = `MG-SCALE-${String(i).padStart(3, '0')}`
-      const res = await request(app)
-        .post('/api/mg-floor/scales')
-        .set('Host', 'api.loopcstrategies.com')
-        .set('x-tenant', 'mg')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          scaleId,
-          gatewayId: GATEWAY_ID,
-          connectionType: 'SIMULATOR',
-          department: i % 2 === 0 ? 'melting' : 'casting',
-        })
-      expect([201, 409]).toContain(res.status)
-    }
-
-    const all = await request(app)
-      .get('/api/mg-floor/scales')
-      .query({ limit: 500 })
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-    expect(all.status).toBe(200)
-    expect(all.body.total).toBeGreaterThanOrEqual(43)
-
-    const melting = await request(app)
-      .get('/api/mg-floor/scales')
-      .query({ department: 'melting', limit: 200 })
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-    expect(melting.status).toBe(200)
-    expect(melting.body.scales.every((s) => s.department === 'melting')).toBe(true)
-
-    const ingest = await request(app)
-      .post('/api/mg-floor/scales/ingest')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-      .send({
-        deviceId: GATEWAY_ID,
-        scaleId: 'MG-SCALE-043',
-        eventType: 'weight_reading',
-        payload: { weight: 99.1, stable: true },
-        idempotencyKey: 'load-043-1',
-      })
-    expect([200, 202]).toContain(ingest.status)
-
-    const devices = await request(app)
-      .get('/api/mg-floor/gateway/devices')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-    expect(devices.status).toBe(200)
-    expect(devices.body.scales.length).toBeGreaterThanOrEqual(43)
-    expect(devices.body.scales.every((s) => s.gatewayId === GATEWAY_ID)).toBe(true)
-  })
-
-  test('register 100 scales smoke (same dynamic path)', async () => {
-    const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-
-    for (let i = 1; i <= 100; i += 1) {
-      const scaleId = `MG-SCALE-${String(i).padStart(3, '0')}`
-      const res = await request(app)
-        .post('/api/mg-floor/scales')
-        .set('Host', 'api.loopcstrategies.com')
-        .set('x-tenant', 'mg')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          scaleId,
-          gatewayId: GATEWAY_ID,
-          connectionType: 'SIMULATOR',
-          department: 'casting',
-        })
-      expect([201, 409]).toContain(res.status)
-    }
-
-    const all = await request(app)
-      .get('/api/mg-floor/scales')
-      .query({ limit: 500 })
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-    expect(all.status).toBe(200)
-    expect(all.body.total).toBeGreaterThanOrEqual(100)
-
-    const devices = await request(app)
-      .get('/api/mg-floor/gateway/devices')
-      .set('Host', 'api.loopcstrategies.com')
-      .set(gatewayHeaders())
-    expect(devices.status).toBe(200)
-    expect(devices.body.scales.length).toBeGreaterThanOrEqual(100)
-  })
-})
-
-describe('MG Floor stableReadingId required on metal submit', () => {
-  test('Metal IN without stableReadingId is rejected', async () => {
-    const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-    const fakePassId = 'aaaaaaaaaaaaaaaaaaaaaaaa'
+  test('operators cannot assign their own floor department', async () => {
+    const op = await createTenantUser('mg', { role: 'department_user', productionRole: 'operator', floorDepartment: 'melting' })
     const res = await request(app)
-      .post('/api/mg-floor/metal/in')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        passId: fakePassId,
-        scaleId: 'MG-SCALE-001',
-        receivedWeight: 10.5,
-        operationId: 'metal-in-no-stable-id',
-      })
-    expect(res.status).toBeGreaterThanOrEqual(400)
-    expect(res.status).toBeLessThan(500)
-    expect(String(res.body.message || '')).toMatch(/stableReadingId/i)
-  })
-
-  test('Metal OUT without stableReadingId is rejected', async () => {
-    const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-    const res = await request(app)
-      .post('/api/mg-floor/metal/out')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        batchId: 'bbbbbbbbbbbbbbbbbbbbbbbb',
-        toDepartment: 'casting',
-        scaleId: 'MG-SCALE-001',
-        weight: 10.5,
-        operationId: 'metal-out-no-stable-id',
-      })
-    expect(res.status).toBeGreaterThanOrEqual(400)
-    expect(res.status).toBeLessThan(500)
-    expect(String(res.body.message || '')).toMatch(/stableReadingId/i)
+      .put(`/api/auth/users/${op._id}/role`)
+      .set(mgHeaders(op))
+      .send({ role: 'department_user', floorDepartment: 'casting' })
+    expect(res.status).toBe(403)
   })
 })
 
 describe('MG Floor stats and floor alerts', () => {
   test('stats/summary requires auth and returns buckets', async () => {
-    const denied = await request(app)
-      .get('/api/mg-floor/stats/summary')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
+    const denied = await request(app).get('/api/mg-floor/stats/summary').set('Host', HOST).set('x-tenant', 'mg')
     expect(denied.status).toBe(401)
 
     const user = await createTenantUser('mg')
-    const token = tokenFor(user, 'mg')
-    const ok = await request(app)
-      .get('/api/mg-floor/stats/summary')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${token}`)
+    const ok = await request(app).get('/api/mg-floor/stats/summary').set(mgHeaders(user))
     expect(ok.status).toBe(200)
     expect(ok.body.metalIn).toBeTruthy()
     expect(ok.body.metalOut).toBeTruthy()
@@ -926,29 +321,25 @@ describe('MG Floor stats and floor alerts', () => {
   test('floor alert requires auth; CG tenant blocked', async () => {
     const mgUser = await createTenantUser('mg')
     const cgUser = await createTenantUser('cg')
-    const mgToken = tokenFor(mgUser, 'mg')
-    const cgToken = tokenFor(cgUser, 'cg')
 
     const noAuth = await request(app)
       .post('/api/mg-floor/alerts')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'mg')
       .send({ title: 'Need help' })
     expect(noAuth.status).toBe(401)
 
     const blocked = await request(app)
       .post('/api/mg-floor/alerts')
-      .set('Host', 'api.loopcstrategies.com')
+      .set('Host', HOST)
       .set('x-tenant', 'cg')
-      .set('Authorization', `Bearer ${cgToken}`)
+      .set('Authorization', `Bearer ${tokenFor(cgUser, 'cg')}`)
       .send({ title: 'Need help' })
     expect(blocked.status).toBe(403)
 
     const ok = await request(app)
       .post('/api/mg-floor/alerts')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('Authorization', `Bearer ${mgToken}`)
+      .set(mgHeaders(mgUser))
       .send({
         title: 'Floor assistance — melting',
         message: 'Operator needs help',

@@ -15,7 +15,6 @@ Related: `POST /api/scan/resolve` for barcode/QR identity resolution after decod
 
 ## Device types (interfaces ready)
 
-- weighing_scale
 - barcode_scanner
 - qr_scanner
 - label_printer
@@ -23,6 +22,8 @@ Related: `POST /api/scan/resolve` for barcode/QR identity resolution after decod
 - rfid
 - gps
 - machine_telemetry
+
+Weighing scales are not accepted (`weighing_scale` fails validation). MG Floor weights are entered manually and approved by the Floor Manager — see [MG-FLOOR.md](./MG-FLOOR.md).
 
 ## Auth
 
@@ -35,19 +36,19 @@ Same tenant session as the rest of the Ops Dashboard:
 
 ```json
 {
-  "deviceType": "weighing_scale",
-  "deviceId": "SCALE-LINE-A-01",
-  "eventType": "weight_reading",
-  "payload": { "grams": 125.42, "stable": true },
+  "deviceType": "barcode_scanner",
+  "deviceId": "SCANNER-LINE-A-01",
+  "eventType": "scan",
+  "payload": { "code": "BATCH-000123" },
   "recordedAt": "2026-09-16T00:00:00.000Z",
   "idempotencyKey": "optional-retry-key"
 }
 ```
 
-Response: `202 Accepted` with echoed event metadata. Persistence of a dedicated `HardwareEvent` collection is a follow-on when devices roll out.
+Response: `202 Accepted` with echoed event metadata (nothing is persisted yet).
 
 ## Non-goals (this phase)
 
-- No browser WebUSB / Web Serial production weighing
+- No production weighing through hardware
 - No vendor-specific SDK purchase
 - No fake hardware simulation that mutates stock/ledger

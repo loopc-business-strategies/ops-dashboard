@@ -164,9 +164,8 @@ function createApp() {
     '/api/erp-accounting/reports/market-prices',
     '/api/realtime',
   ]
-  // Hardware / MG Floor ingest must not share the tenant:ip ERP smoke bucket.
+  // Hardware ingest must not share the tenant:ip ERP smoke bucket.
   const hardwareIngestPaths = [
-    '/api/mg-floor/scales/ingest',
     '/api/hardware/ingest',
   ]
 
@@ -355,7 +354,6 @@ function createApp() {
   // Use /api/erp-accounting/attachments/download/:type/:filename for protected file access.
 
   app.use('/api', apiLimiter)
-  app.use('/api/mg-floor/scales/ingest', ingestLimiter)
   app.use('/api/hardware/ingest', ingestLimiter)
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/setup', authLimiter)

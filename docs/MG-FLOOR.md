@@ -7,7 +7,6 @@ Factory-floor production system for **Modern Gold (MG)** only.
 | Path | Role |
 |------|------|
 | `mg-floor/` | Expo React Native app (phone + tablet) |
-| `device-gateway/` | Local scale gateway (RS232/simulator) |
 | `backend/routes/mgFloor.js` | MG-locked API facade over Production Control |
 | `mobile/` | **Nexa — do not modify for MG Floor** |
 
@@ -19,78 +18,38 @@ MG Floor APIs reject any authenticated session whose JWT `company` / `req.tenant
 
 Cross-tenant tests: `backend/tests/mg-floor-security.test.js`
 
-## MH-708 serial checklist (on-site)
+## Manual entry only
 
-1. Identify COM/USB port for each of MG-SCALE-001…007
-2. Capture raw frame with a serial terminal
-3. Confirm baud, data bits, parity, stop bits
-4. Update `device-gateway/config/default.json` per scale (`connectionType: RS232`)
-5. Set `MG_GATEWAY_MODE` away from `simulator` for production
-6. Confirm readings appear in `GET /api/mg-floor/scales/:id/status`
+MG Floor is 100% manual entry. There are no weighing scales, camera / OCR capture, XRF analyzers, device gateways or scale-based Metal IN / OUT / Transfer screens. The only flow is:
 
-Never commit production JWT tokens into config files.
+Operator types Qty / Purity / Time → **CONFIRM BATCH** → `PENDING` → Operations → **FM** tab → **Approve** or **Reject** (with reason).
 
-## Scale registry (fresh start)
+The removed endpoints (`/api/mg-floor/scales*`, `/scale-camera-captures*`, `/xrf*`, `/gateways*`, `/gateway/*`, `/metal/in`, `/metal/out`, `/transfers`, `/passes/open`) answer **410** `MG_FLOOR_FEATURE_REMOVED` for every method. `POST /api/hardware/ingest` no longer accepts `weighing_scale`. Offline items of the removed types (`metal_in`, `metal_out`, `transfer`, `xrf_test`, `weight_capture`) left on an old tablet get a per-operation `FAILED / FEATURE_REMOVED` sync result; current builds drop them from the outbox on start.
 
-Default scales `MG-SCALE-001…007` are **no longer auto-created**. Set `MG_FLOOR_SEED_DEFAULT_SCALES=true` only if you want them seeded again.
+Existing collections from the old flows (`scales`, `hardwareevents`, `floorweightcaptures`, XRF, gateways) are left untouched in the database.
 
-- Add scales from the web **Production Dashboard → MG Floor devices** (GJ-2000 preset available) or `POST /api/mg-floor/scales`.
-- Remove a scale with **Remove** (web) / **REMOVE SCALE** (tablet) → `POST /api/mg-floor/scales/:scaleId/archive` with a reason. Scales are archived, never deleted; history and readings stay intact.
+## Floor department
 
-## Scale Camera (OCR) weight capture
+Each MG user has an admin-assigned **floor department** (`User.floorDepartment`: melting, casting, rolling, bangle_division, stamping, polishing, quality_control, packing). Set it in **Admin → Users → Create / Edit → Floor department (MG Floor)** (MG tenant only).
 
-Second capture method next to DIGITAL SCALE (RS-232/gateway), which is unchanged. Per scale, `captureMethods` may contain `DIGITAL_RS232`, `CAMERA_OCR`, `MANUAL`.
-
-Flow: operator taps **CAPTURE** (one photo) → guide-box crop → grayscale/contrast (native `modules/scale-ocr`) → ML Kit text + seven-segment decoder cross-check → strict parser → capacity check → operator compares the number with the photo, ticks "display was steady" and taps **CONFIRM WEIGHT** → `FloorWeightCapture` record + photo (`stableFrames: 1`) → normal Metal IN/OUT submit with `weightCaptureId`. An unreadable photo shows the reason and **RETAKE**; it never produces a weight.
-
-Dashboard: the Metal In / Metal Out tables are filled in by hand (Qty / Purity / Time boxes) and each batch is sent for Floor Manager approval (see below). There is no CAPTURE WEIGHT button, so the Metal IN / Metal OUT capture screens are not reachable from the dashboard (the code stays in the app). **Weight Captures** (viewAudit / manageScales) and **Scales** (manageScales) links sit in the left column.
-
-- OCR never creates Metal IN/OUT on its own; the operator confirms the weight, then submits the transaction.
-- A capture is single-use and consumed atomically by the transaction (`ProductionPass.issueWeightCapture` / `receiveWeightCapture`). Camera readings never carry a `scaleReadingId`.
-- Minimum confidence floor is **0.6** (client + server). Readings where the two OCR engines disagree score ≤ 0.5, so they can never be confirmed.
-- The tablet no longer offers manual weight entry. The backend still accepts `MANUAL` captures, and existing MANUAL records stay visible in Weight Captures.
-- Camera-only operation: in **Scales → CAPTURE SETTINGS** turn **DIGITAL (RS-232)** off and keep **SCALE CAMERA (OCR)** + **Camera capture enabled** on; the method buttons disappear and Metal IN/OUT opens straight into the camera. Turning DIGITAL back on restores the gateway flow.
-- Offline: the capture is queued in the outbox (`weight_capture`, idempotent by `captureId`) and the photo in a separate photo queue; both flush on reconnect.
-- Photos: JPEG, ~1280 px wide, stored on disk (not in the DB). Review in the tablet **CAMERA / MANUAL WEIGHT CAPTURES** screen.
-- Transfer and XRF screens stay digital-only.
-
-| Env var | Default | Purpose |
-|---------|---------|---------|
-| `MG_FLOOR_SEED_DEFAULT_SCALES` | unset (off) | `true` re-seeds MG-SCALE-001…007 |
-| `MG_WEIGHT_CAPTURE_MAX_AGE_MS` | 24 h | Max age of a capture when consumed by Metal IN/OUT |
-| `MG_FLOOR_CAPTURE_UPLOAD_DIR` | `<UPLOAD_STORAGE_ROOT>/mg-floor-captures` | Capture photo directory. Leave unset in production: the default is on the Railway volume (created by `railway.json`). An override outside `UPLOAD_STORAGE_ROOT` fails startup in production/staging; `/api/ready` warns if it is not writable. |
-| `MG_FLOOR_CAPTURE_PHOTO_MAX_BYTES` | 2 MB | Max photo upload size |
-
-### GJ-2000 physical test checklist (on-site)
-
-1. Register the scale with the GJ-2000 preset (2200 g, 0.01 g, `CAMERA_OCR`), then build and install the signed APK (`docs/MG-FLOOR-ANDROID-LOCAL-BUILD.md`).
-2. **Collect samples first.** Scales → **SCALE OCR DIAGNOSTICS** (needs `manageScales`; never records a weight). For each case, type what the display shows and **SAVE SAMPLE**; aim for ~20 samples: ~1 g, ~100 g, ~1250 g, ~2200 g, each in dim and bright light, plus a few **SHOULD NOT READ** frames (glare, display half outside the box, too far). Watch the per-digit segment fills: outlined segments sit within 0.1 of the threshold and are the ones likely to flip.
-3. **EXPORT SAMPLES**, copy the JSON into `mg-floor/src/scaleCamera/__fixtures__/gj2000/`, and run `npx vitest run gj2000Fixtures` in `mg-floor`. Try candidate settings with `GJ2000_TUNING='{"segmentThreshold":0.35}'` before changing the scale. Commit the fixtures so later decoder changes are replayed against real frames.
-4. Tune **Decoder tuning** in **CAPTURE SETTINGS** if needed: `segmentThreshold` (0.15–0.6, default 0.3; lower when lit segments read as off, higher when unlit ghost segments read as on), `guideBoxAspect` (2–6, default 3.2) and `guideBoxWidth` (0.5–0.9, default 0.72) so the box hugs the GJ-2000 digits.
-5. Deny camera permission → the permission message and **OPEN SETTINGS** appear; the app does not crash.
-6. Frame the display inside the guide box at 15–30 cm with even lighting, wait for the number to settle, tap **CAPTURE**; the read weight and the photo appear side by side.
-7. Test weights: ~1 g, ~100 g, ~1250 g and ~2200 g; each locked value must match the display exactly (all decimals).
-8. Glare, partly outside the box, and too far away → NOT CLEAR / KEEP DISPLAY IN BOX with **RETAKE**, never a weight.
-9. CONFIRM WEIGHT stays disabled until "display was steady" is ticked; RETAKE discards the photo.
-10. Over capacity (`2200.01`+) → REVIEW (acknowledgement required) or rejected per policy; `2500` is always rejected.
-11. Confirm → Metal IN and Metal OUT each save once (double tap shows SAVING… then SAVED); the capture shows as consumed and cannot be reused.
-12. Airplane mode → confirm and submit are queued; on reconnect the capture, photo and transaction sync without duplicates.
-13. Leave the screen or background the app → the camera light turns off (camera released).
-14. If photos are often unreadable, tune **Decoder tuning** and **Min confidence** in **CAPTURE SETTINGS**; every change is audited.
+- Operators always submit under their own floor department; the tablet shows it in the left column. No department assigned → 403 `FLOOR_DEPARTMENT_REQUIRED`; sending a different department → 403 `DEPARTMENT_MISMATCH`.
+- Floor / Production Managers (`approvePass`) may submit for the department chosen on the tablet, falling back to their own.
 
 ## Floor Manager approval (Metal In / Out batches)
 
-Record only: approving or rejecting changes no stock, batch, pass or ERP data.
+Record only: approving or rejecting posts nothing to inventory, stock, ERP, ledger, COGS, accounting or vouchers.
 
-- **Tablet:** the logged-in operator types a batch and taps **CONFIRM BATCH N** (Metal In needs `receivePass`, Metal Out needs `createPass`). Empty rows are skipped; a row without a time gets the current time. The batch is stored as a `FloorBatchEntry` (`PENDING`) for the tablet's department and local day.
-- Status under each batch: **WAITING FOR F.M** and **APPROVED** lock the boxes; **REJECTED** shows the reason and unlocks them so the operator can fix and confirm again; **SAVED OFFLINE** means it is in the outbox (`batch_entry`, idempotent by `entryId`) and is sent on reconnect.
+- **Tablet:** the logged-in operator types a batch and taps **CONFIRM BATCH N** (Metal In needs `receivePass`, Metal Out needs `createPass`). Empty rows are skipped; a row without a time gets the current time. The batch is stored as a `FloorBatchEntry` (`PENDING`) for the operator's floor department and local day.
+- Status under each batch: **WAITING FOR F.M** and **APPROVED** lock the boxes; **REJECTED** shows the reason and unlocks them so the operator can fix and confirm again; **SAVED OFFLINE** means it is in the outbox (`batch_entry`, idempotent by `entryId`) and is sent on reconnect. Approval itself is never done offline.
 - The tablet reloads today's entries for its department on login/restart and refreshes every 30 s.
 - One live entry per day + department + In/Out + batch: a second CONFIRM while one is pending or approved returns 409 `BATCH_ENTRY_EXISTS`.
+- Only `PENDING → APPROVED` or `PENDING → REJECTED`; an approved batch is immutable (409 `BATCH_ENTRY_DECIDED`).
 - **Web:** Operations → **FM** tab (MG only). It is shown only when the backend reports `canDecide` (`approvePass`: floor_manager / production_manager, which includes super_admin and management). Pending / Approved / Rejected lists with counts, refreshed every 30 s; **Approve**, or **Reject** with a reason (3–500 characters) that the operator sees on the tablet. Nobody can approve or reject their own batch.
-- API (`mgProtect`): `POST /api/mg-floor/batch-entries`, `GET /api/mg-floor/batch-entries` (status / direction / department / entryDate / from / to), `POST /api/mg-floor/batch-entries/:id/approve`, `POST /api/mg-floor/batch-entries/:id/reject`. Every submit and decision is written to the production audit log.
+- API (`mgProtect`): `POST /api/mg-floor/batch-entries`, `GET /api/mg-floor/batch-entries` (status / direction / department / entryDate / from / to), `POST /api/mg-floor/batch-entries/:id/approve`, `POST /api/mg-floor/batch-entries/:id/reject`.
+- Audit: `mg_floor_batch_entry_submitted`, `mg_floor_batch_entry_approved`, `mg_floor_batch_entry_rejected`, each with entryId, batch, direction, department, operator, status and (for decisions) decided by / at and reject reason.
 
 ## Data safety
 
-- Additive models only: `Scale`, `HardwareEvent`, `FloorDevice`, `FloorSyncOperation`, `FloorWeightCapture`, `FloorBatchEntry`
+- Additive models only: `FloorDevice`, `FloorSyncOperation`, `FloorBatchEntry`
 - No database drops/resets
 - Weight corrections use existing `WeightAdjustment` (original + new + reason)

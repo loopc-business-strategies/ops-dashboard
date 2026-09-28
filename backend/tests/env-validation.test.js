@@ -149,26 +149,6 @@ describe('envValidation', () => {
     delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
   })
 
-  test('validateHardenedDeploySecrets rejects MG Floor capture dir outside UPLOAD_STORAGE_ROOT', () => {
-    const os = require('os')
-    const path = require('path')
-    process.env.NODE_ENV = 'production'
-    process.env.UPLOAD_STORAGE_ROOT = path.join(os.tmpdir(), `upload-root-${process.pid}`)
-    const message = 'MG_FLOOR_CAPTURE_UPLOAD_DIR must be inside UPLOAD_STORAGE_ROOT'
-    try {
-      process.env.MG_FLOOR_CAPTURE_UPLOAD_DIR = path.join(os.tmpdir(), `ephemeral-captures-${process.pid}`)
-      expect(validateHardenedDeploySecrets().some((e) => e.includes(message))).toBe(true)
-
-      process.env.MG_FLOOR_CAPTURE_UPLOAD_DIR = path.join(process.env.UPLOAD_STORAGE_ROOT, 'mg-floor-captures')
-      expect(validateHardenedDeploySecrets().some((e) => e.includes(message))).toBe(false)
-
-      delete process.env.MG_FLOOR_CAPTURE_UPLOAD_DIR
-      expect(validateHardenedDeploySecrets().some((e) => e.includes(message))).toBe(false)
-    } finally {
-      delete process.env.MG_FLOOR_CAPTURE_UPLOAD_DIR
-    }
-  })
-
   test('validateHardenedDeploySecrets rejects shared MG/VB Mongo fingerprints', () => {
     process.env.NODE_ENV = 'production'
     process.env.JWT_SECRET = 'a'.repeat(32)

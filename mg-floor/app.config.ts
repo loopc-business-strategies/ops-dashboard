@@ -45,7 +45,8 @@ const config = {
   },
   android: {
     package: 'com.loopc.mgfloor',
-    permissions: ['CAMERA', 'INTERNET', 'USE_BIOMETRIC', 'USE_FINGERPRINT'],
+    permissions: ['INTERNET', 'USE_BIOMETRIC', 'USE_FINGERPRINT'],
+    blockedPermissions: ['android.permission.CAMERA'],
     usesCleartextTraffic,
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
@@ -58,12 +59,6 @@ const config = {
   plugins: [
     'expo-router',
     'expo-splash-screen',
-    [
-      'expo-camera',
-      {
-        cameraPermission: 'MG FLOOR needs camera access to scan job and batch barcodes and to read the scale display.',
-      },
-    ],
     'expo-secure-store',
     [
       'expo-local-authentication',
@@ -76,7 +71,6 @@ const config = {
   extra: {
     tenant: 'mg',
     apiUrl,
-    socketUrl: process.env.EXPO_PUBLIC_SOCKET_URL || apiUrl,
     appEnv: easProfile || process.env.MG_APP_ENV || (isLocalDev ? 'development' : 'production'),
     eas: {
       projectId: process.env.EAS_PROJECT_ID || 'mg-floor-local',

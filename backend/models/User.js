@@ -65,6 +65,13 @@ const userSchema = new mongoose.Schema(
       default: '',
     },
 
+    // MG Floor stage the operator submits batches for (admin-assigned; '' = none).
+    floorDepartment: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
     // Optional additive production-floor role (does not replace User.role).
     // unset → inferred from role + department in productionControl/permissions.js
     productionRole: {

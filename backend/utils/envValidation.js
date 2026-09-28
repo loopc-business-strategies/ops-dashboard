@@ -71,17 +71,10 @@ function validateHardenedDeploySecrets() {
     errors.push('UPLOAD_STORAGE_ROOT is required in production and staging for persistent attachments.')
   }
 
-  const { getUploadStorageStatus, getMgFloorCaptureStorageStatus } = require('../services/uploadStorage')
+  const { getUploadStorageStatus } = require('../services/uploadStorage')
   const uploadStatus = getUploadStorageStatus()
   if (uploadStatus.root && !uploadStatus.uploadStorageWritable) {
     errors.push('UPLOAD_STORAGE_ROOT is not writable — file uploads will fail.')
-  }
-
-  const captureStorage = getMgFloorCaptureStorageStatus()
-  if (captureStorage.overridden && uploadStatus.root && !captureStorage.insideUploadRoot) {
-    errors.push(
-      'MG_FLOOR_CAPTURE_UPLOAD_DIR must be inside UPLOAD_STORAGE_ROOT (persistent volume) in production and staging.',
-    )
   }
 
   const { fingerprintMongoUri, findTenantUriCollisions } = require('./mongoUriFingerprint')

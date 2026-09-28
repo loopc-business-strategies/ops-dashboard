@@ -12,16 +12,17 @@ MG Floor (Android phone/tablet)
         → /api/mg-floor/*
         → Production Control Center domain
         → MONGO_URI_MG
-
-7 scales → device-gateway/ → /api/mg-floor/scales/ingest
 ```
 
 ## Absolute rules
 
 - Tenant permanently locked to `mg` (no company selector)
 - No Mongo credentials in the app
-- Operators cannot type weight — capture from stable scale reading
+- Manual entry only: operators type Qty / Purity / Time and send each batch for Floor Manager approval (no scales, camera capture or XRF)
+- Operators submit under their admin-assigned floor department
 - Nexa (`mobile/`) must remain untouched
+
+See [docs/MG-FLOOR.md](../docs/MG-FLOOR.md) for the approval flow.
 
 ## Development
 
@@ -63,21 +64,12 @@ APK: `mg-floor/android/app/build/outputs/apk/release/app-release.apk`
 
 Production builds must not point at localhost/staging.
 
-## Device gateway
-
-See [device-gateway/README.md](../device-gateway/README.md).
-
 ## Backend surface
 
 - `GET /api/mg-floor/me`
-- `POST /api/mg-floor/metal/in|out`
-- `POST /api/mg-floor/transfers`
-- `GET /api/mg-floor/jobs|history|scales`
+- `POST|GET /api/mg-floor/batch-entries`, `POST /api/mg-floor/batch-entries/:id/approve|reject`
+- `GET /api/mg-floor/jobs|history|stats/summary`
 - `POST /api/mg-floor/sync`
 - `POST /api/mg-floor/corrections/weight`
 
 All routes enforce JWT auth + `requireMgTenant`.
-
-## Hardware still required on site
-
-Verify Ming Heng MH-708 baud/parity/stop bits/pinout before setting RS232 config in `device-gateway/config/default.json`.

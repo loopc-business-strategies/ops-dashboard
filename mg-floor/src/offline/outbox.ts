@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
+export type OutboxOperationType = 'weight_adjust' | 'batch_entry'
+
 export type OutboxItem = {
   operationId: string
-  operationType: 'metal_in' | 'metal_out' | 'transfer' | 'weight_adjust' | 'xrf_test' | 'weight_capture' | 'batch_entry'
+  operationType: OutboxOperationType
   payload: Record<string, unknown>
   deviceId?: string
-  scaleId?: string
   clientTimestamp: string
   syncStatus: 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED' | 'CONFLICT'
   errorMessage?: string
@@ -14,6 +15,20 @@ export type OutboxItem = {
 const STORAGE_KEY = 'mg_floor_outbox_v1'
 const SCHEMA_VERSION = 1
 const LEGACY_MEMORY_KEY = '__mg_floor_outbox__'
+/** Camera capture photo queue from builds that had scale capture. */
+const LEGACY_PHOTO_QUEUE_KEY = 'mg_floor_photo_queue_v1'
+const SUPPORTED_TYPES: ReadonlySet<string> = new Set<OutboxOperationType>(['weight_adjust', 'batch_entry'])
+
+/**
+ * Drops queued items of removed operation types (scale / camera capture, XRF, Metal IN / OUT / Transfer)
+ * left by older builds, so they are never sent.
+ */
+export function dropRemovedOperations(items: unknown[]): OutboxItem[] {
+  return items.filter(
+    (i): i is OutboxItem =>
+      Boolean(i) && typeof i === 'object' && SUPPORTED_TYPES.has(String((i as OutboxItem).operationType)),
+  )
+}
 
 type StoredShape = {
   version: number
@@ -40,18 +55,21 @@ function migrateLegacyMemory(): OutboxItem[] {
 
 async function load(): Promise<OutboxItem[]> {
   if (cache) return cache
+  AsyncStorage.removeItem(LEGACY_PHOTO_QUEUE_KEY).catch(() => {})
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as StoredShape
-      const items = Array.isArray(parsed?.items) ? parsed.items : []
-      cache = items
+      const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items : []
+      const kept = dropRemovedOperations(items)
+      if (kept.length !== items.length) await persist(kept)
+      cache = kept
       return cache
     }
   } catch (err) {
     console.warn('[MG Floor] outbox load failed', err)
   }
-  const migrated = migrateLegacyMemory()
+  const migrated = dropRemovedOperations(migrateLegacyMemory())
   cache = migrated
   if (migrated.length) await persist(migrated)
   return cache

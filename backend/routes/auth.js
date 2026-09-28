@@ -28,6 +28,7 @@ const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { normalizeTenant, getDefaultTenant } = require('../config/tenants')
 const { getTenantKeys } = require('../config/tenantRegistry')
+const { FLOOR_DEPARTMENTS } = require('../constants/mgFloorBatchEntry')
 const { resolveTenantFromRequest } = require('../utils/requestTenant')
 const { setCsrfCookie, clearCsrfCookie, generateCsrfToken } = require('../middleware/csrf')
 const {
@@ -88,6 +89,7 @@ const sendToken = async (user, status, res, company, req = null) => {
       email:          user.email,
       role:           user.role,
       department:     user.department,
+      floorDepartment: user.floorDepartment || '',
       allowedModules: user.allowedModules,
       assignedTasks:  user.assignedTasks,
       title:          user.title,
@@ -178,6 +180,7 @@ const createUserSchema = Joi.object({
   password: Joi.string().min(6).max(128).required(),
   role: Joi.string().valid('super_admin', 'management', 'department_head', 'department_user', 'external').optional(),
   department: Joi.string().allow('').max(80).optional(),
+  floorDepartment: Joi.string().valid('', ...FLOOR_DEPARTMENTS).optional(),
   allowedModules: Joi.array().items(Joi.string().trim().max(80)).max(30).optional(),
   assignedTasks: Joi.array().items(Joi.string().trim().max(120)).max(200).optional(),
   fullName: Joi.string().allow('').trim().max(120).optional(),
@@ -192,6 +195,7 @@ const createUserSchema = Joi.object({
 const updateRoleSchema = Joi.object({
   role: Joi.string().valid('super_admin', 'management', 'department_head', 'department_user', 'external').required(),
   department: Joi.string().allow('').max(80).optional(),
+  floorDepartment: Joi.string().valid('', ...FLOOR_DEPARTMENTS).optional(),
   allowedModules: Joi.array().items(Joi.string().trim().max(80)).max(30).optional(),
   assignedTasks: Joi.array().items(Joi.string().trim().max(120)).max(200).optional(),
   name: Joi.string().trim().min(2).max(80).optional(),
@@ -414,6 +418,7 @@ router.get('/me', protect, async (req, res) => {
       email:          req.user.email,
       role:           req.user.role,
       department:     req.user.department,
+      floorDepartment: req.user.floorDepartment || '',
       allowedModules: req.user.allowedModules,
       assignedTasks:  req.user.assignedTasks,
       title:          req.user.title,
@@ -703,7 +708,7 @@ router.get('/users', protect, restrictTo('super_admin'), async (req, res) => {
 // ==========================================
 router.post('/users', protect, restrictTo('super_admin'), validateBody(createUserSchema), async (req, res) => {
   try {
-    const { name, password, role, department, allowedModules, assignedTasks, fullName, title, phone, location, timezone, employeeCode, notes } = req.body
+    const { name, password, role, department, floorDepartment, allowedModules, assignedTasks, fullName, title, phone, location, timezone, employeeCode, notes } = req.body
 
     if (!name || !password)
       return res.status(400).json({ success: false, message: 'Name and password are required.' })
@@ -725,6 +730,7 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
       password,
       role:           role           || 'department_user',
       department:     department     || '',
+      floorDepartment: floorDepartment || '',
       allowedModules: allowedModules || [],
       assignedTasks:  assignedTasks  || [],
       fullName:       fullName       || '',
@@ -750,7 +756,7 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
 // ==========================================
 router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), validateBody(updateRoleSchema), async (req, res) => {
   try {
-    const { role, department, allowedModules, assignedTasks, name, fullName, title, phone, location, timezone, employeeCode, notes, password } = req.body
+    const { role, department, floorDepartment, allowedModules, assignedTasks, name, fullName, title, phone, location, timezone, employeeCode, notes, password } = req.body
 
     const TenantUser = await User.getTenantModel(req.tenant)
     const user = await TenantUser.findById(req.params.id).select('+password')
@@ -768,6 +774,7 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
 
     user.role = role
     user.department = department || ''
+    if (floorDepartment !== undefined) user.floorDepartment = floorDepartment
     user.allowedModules = allowedModules || []
     user.assignedTasks = assignedTasks || []
     user.fullName = fullName || ''

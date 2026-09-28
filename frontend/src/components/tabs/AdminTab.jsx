@@ -27,6 +27,19 @@ const DEPTS = [
   { value: 'management', label: 'Management' },
 ]
 
+/** MG Floor stage an operator submits batches for (backend FLOOR_DEPARTMENTS). */
+const FLOOR_DEPTS = [
+  { value: '', label: 'None' },
+  { value: 'melting', label: 'Melting' },
+  { value: 'casting', label: 'Casting' },
+  { value: 'rolling', label: 'Rolling' },
+  { value: 'bangle_division', label: 'Bangle Division' },
+  { value: 'stamping', label: 'Stamping' },
+  { value: 'polishing', label: 'Polishing' },
+  { value: 'quality_control', label: 'Quality Control' },
+  { value: 'packing', label: 'Packing' },
+]
+
 const ALL_MODULES = ['production', 'hr', 'finance', 'government', 'sales', 'operations', 'training', 'erp']
 
 const ALL_PERM_ROWS = [
@@ -82,6 +95,7 @@ const EMPTY_FORM = {
   password: '',
   role: 'department_user',
   department: '',
+  floorDepartment: '',
   allowedModules: [],
   assignedTasks: '',
   title: '',
@@ -241,11 +255,12 @@ function AdminInput({ value, onChange, type = 'text', placeholder = '' }) {
   )
 }
 
-function AdminSelect({ value, onChange, children }) {
+function AdminSelect({ value, onChange, children, 'aria-label': ariaLabel }) {
   return (
     <select
       value={value}
       onChange={onChange}
+      aria-label={ariaLabel}
       style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#F8FAFC', fontSize: '0.875rem', color: ADMIN.ink }}
     >
       {children}
@@ -290,6 +305,8 @@ function SettingsSection({ title, desc, accent = 'green', icon, children }) {
 }
 
 function UserFormFields({ form, setForm, isEdit = false }) {
+  const { company, user: me } = useAuth()
+  const isMg = String(company || me?.company || '').toLowerCase() === 'mg'
   const toggleModule = (mod) => {
     setForm((f) => ({
       ...f,
@@ -326,6 +343,16 @@ function UserFormFields({ form, setForm, isEdit = false }) {
 
       {(form.role === 'department_head' || form.role === 'department_user') && (
         <div><FieldLabel>Department</FieldLabel><AdminSelect value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>{DEPTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</AdminSelect></div>
+      )}
+
+      {isMg && (
+        <div>
+          <FieldLabel>Floor department (MG Floor)</FieldLabel>
+          <AdminSelect aria-label="Floor department (MG Floor)" value={form.floorDepartment || ''} onChange={(e) => setForm((f) => ({ ...f, floorDepartment: e.target.value }))}>
+            {FLOOR_DEPTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+          </AdminSelect>
+          <span style={{ display: 'block', fontSize: '0.72rem', color: ADMIN.inkSoft, marginTop: 4 }}>Operators can only send MG Floor batches for this department.</span>
+        </div>
       )}
 
       {form.role === 'external' && (
@@ -370,6 +397,7 @@ function CreateUserForm({ token, onCreated, onCancel }) {
         password: form.password,
         role: form.role,
         department: form.department,
+        floorDepartment: form.floorDepartment,
         allowedModules: form.allowedModules,
         assignedTasks: form.assignedTasks.split(',').map((s) => s.trim()).filter(Boolean),
         title: form.title.trim(),
@@ -410,6 +438,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
     password: '',
     role: u.role,
     department: u.department || '',
+    floorDepartment: u.floorDepartment || '',
     allowedModules: u.allowedModules || [],
     assignedTasks: (u.assignedTasks || []).join(', '),
     title: u.title || '',
@@ -435,6 +464,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
         password: form.password.trim(),
         role: form.role,
         department: form.department,
+        floorDepartment: form.floorDepartment,
         allowedModules: form.allowedModules,
         assignedTasks: form.assignedTasks.split(',').map((s) => s.trim()).filter(Boolean),
         title: form.title.trim(),
@@ -1306,5 +1336,5 @@ function AdminTab() {
   )
 }
 
-export { SettingsTab }
+export { SettingsTab, CreateUserForm }
 export default AdminTab

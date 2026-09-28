@@ -4,19 +4,8 @@ import { useRouter } from 'expo-router'
 import { BigButton, Screen, Subtitle, Title } from '@/src/components/ui'
 import { ModernGoldLogo } from '@/src/components/ModernGoldLogo'
 import { getSelectedDepartment, setSelectedDepartment } from '@/src/auth/sessionPrefs'
+import { FLOOR_DEPARTMENTS as DEPARTMENTS } from '@/src/config/floorDepartments'
 import { brand, colors, spacing } from '@/src/theme'
-
-/** Matches production-control DEFAULT_FLOW_STAGES — used before auth. */
-const DEPARTMENTS = [
-  { key: 'melting', label: 'Melting' },
-  { key: 'casting', label: 'Casting' },
-  { key: 'rolling', label: 'Rolling' },
-  { key: 'bangle_division', label: 'Bangle' },
-  { key: 'stamping', label: 'Stamping' },
-  { key: 'polishing', label: 'Polishing' },
-  { key: 'quality_control', label: 'Quality Control' },
-  { key: 'packing', label: 'Packaging' },
-]
 
 export default function DepartmentScreen() {
   const router = useRouter()

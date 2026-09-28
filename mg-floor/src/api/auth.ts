@@ -9,6 +9,7 @@ export type LoginResponse = {
     name: string
     role: string
     department?: string
+    floorDepartment?: string
     company?: string
   }
   message?: string
@@ -33,7 +34,7 @@ export async function fetchMe(token?: string | null) {
     success: boolean
     tenant: string
     productionRole: string | null
-    user: { id: string; name: string; role: string; department?: string }
+    user: { id: string; name: string; role: string; department?: string; floorDepartment?: string }
     shift: unknown
     permissions: Record<string, boolean>
   }>('/api/mg-floor/me', { token })

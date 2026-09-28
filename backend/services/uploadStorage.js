@@ -45,38 +45,7 @@ function getUploadStorageStatus() {
   }
 }
 
-function isPathInside(child, parent) {
-  const rel = path.relative(parent, child)
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
-}
-
-/** Scale camera photos: MG_FLOOR_CAPTURE_UPLOAD_DIR override, else <upload root>/mg-floor-captures. */
-function getMgFloorCaptureStorageStatus() {
-  const override = String(process.env.MG_FLOOR_CAPTURE_UPLOAD_DIR || '').trim()
-  const root = resolveUploadStorageRoot()
-  const dir = override ? path.resolve(override) : (root ? path.join(root, 'mg-floor-captures') : null)
-
-  let writable = false
-  if (dir) {
-    try {
-      fs.mkdirSync(dir, { recursive: true })
-      fs.accessSync(dir, fs.constants.W_OK)
-      writable = true
-    } catch {
-      writable = false
-    }
-  }
-
-  return {
-    dir,
-    overridden: Boolean(override),
-    insideUploadRoot: Boolean(dir && root && isPathInside(dir, root)),
-    writable,
-  }
-}
-
 module.exports = {
   getUploadStorageStatus,
-  getMgFloorCaptureStorageStatus,
   resolveUploadStorageRoot,
 }

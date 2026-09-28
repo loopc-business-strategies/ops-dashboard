@@ -236,7 +236,7 @@ export default function TabFloorManager({ showToast, onChanged }) {
             value={reason}
             maxLength={500}
             autoFocus
-            placeholder="e.g. Gold qty does not match the scale, please recheck"
+            placeholder="e.g. Gold qty looks wrong, please recheck and send again"
             onChange={(e) => setReason(e.target.value)}
           />
         </Modal>

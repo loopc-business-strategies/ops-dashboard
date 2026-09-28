@@ -4,7 +4,6 @@ import { fetchMe, login as apiLogin } from '@/src/api/auth'
 import { setAuthToken, setUnauthorizedHandler } from '@/src/api/client'
 import { userFacingMessage } from '@/src/api/errors'
 import { registerDevice } from '@/src/api/floor'
-import { forceReleaseFloorSocket } from '@/src/realtime/floorSocket'
 import {
   clearSessionLoginAt,
   markSessionExpiredNotice,
@@ -21,6 +20,7 @@ type FloorUser = {
   name: string
   role: string
   department?: string
+  floorDepartment?: string
   productionRole?: string | null
 }
 
@@ -73,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [storedToken, setStoredToken] = useState<string | null>(null)
 
   const logout = useCallback(async () => {
-    forceReleaseFloorSocket()
     setAuthToken(null)
     setToken(null)
     setUser(null)
@@ -98,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: me.user.name,
       role: me.user.role,
       department: me.user.department,
+      floorDepartment: me.user.floorDepartment || '',
       productionRole: me.productionRole,
     })
     setShift(me.shift)
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         appVersion: Constants.expoConfig?.version || '1.0.0',
         os: Platform.OS,
         model: Platform.OS,
-        department: data.user?.department || '',
+        department: data.user?.floorDepartment || data.user?.department || '',
       })
     } catch {
       // non-blocking

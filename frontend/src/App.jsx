@@ -16,8 +16,6 @@ import Setup           from './pages/Setup'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const ProductionDashboardPage = lazy(() => import('./pages/ProductionDashboardPage'))
-const MgFloorDevicesPage = lazy(() => import('./pages/MgFloorDevicesPage'))
-
 function App() {
   return (
     <LanguageProvider>
@@ -49,14 +47,6 @@ function App() {
             <ProtectedRoute>
               <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-gray-500">Loading…</div>}>
                 <ProductionDashboardPage />
-              </Suspense>
-            </ProtectedRoute>
-          } />
-
-          <Route path="/production-devices" element={
-            <ProtectedRoute>
-              <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-gray-500">Loading…</div>}>
-                <MgFloorDevicesPage />
               </Suspense>
             </ProtectedRoute>
           } />

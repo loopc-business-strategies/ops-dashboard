@@ -58,7 +58,7 @@ export function useBatchApprovals({ token, department, setBatches }: Options) {
   }, [])
 
   const load = useCallback(async () => {
-    if (!token) return
+    if (!token || !department) return
     const request = ++requestRef.current
     const day = localDateKey()
     const [res, outbox] = await Promise.all([
@@ -103,7 +103,7 @@ export function useBatchApprovals({ token, department, setBatches }: Options) {
     firstLoadRef.current = true
     sentRef.current = new Map()
     setStates({})
-    if (!token) return
+    if (!token || !department) return
     load()
     const timer = setInterval(load, POLL_MS)
     return () => {
@@ -120,7 +120,7 @@ export function useBatchApprovals({ token, department, setBatches }: Options) {
 
   const confirm = useCallback(
     async (direction: BatchDirection, batch: MetalBatchEdit) => {
-      if (!token || busyKey) return
+      if (!token || !department || busyKey) return
       const { lines, error } = prepareBatchLines(batch)
       if (error) {
         setMessage({ direction, text: error })

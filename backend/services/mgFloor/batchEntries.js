@@ -7,6 +7,7 @@ const {
   BATCH_ENTRY_DIRECTIONS,
   BATCH_ENTRY_STATUSES,
   BATCH_ENTRY_MAX_LINES,
+  FLOOR_DEPARTMENTS,
 } = require('../../constants/mgFloorBatchEntry')
 
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9_-]{8,120}$/
@@ -39,6 +40,46 @@ function isSameUser(a, b) {
   return a != null && b != null && String(a) === String(b)
 }
 
+function departmentError(message, status, code) {
+  const err = new ProductionError(message, status)
+  err.code = code
+  return err
+}
+
+/**
+ * Operators always submit under their admin-assigned floorDepartment; only Floor / Production
+ * Managers may submit for another stage.
+ */
+function resolveEntryDepartment(user, requested) {
+  const assigned = String(user?.floorDepartment || '').trim().toLowerCase()
+  const asked = String(requested || '').trim().toLowerCase()
+
+  if (canDecide(user)) {
+    const department = asked || assigned
+    if (!department) throw departmentError('department is required', 400, 'DEPARTMENT_REQUIRED')
+    if (!FLOOR_DEPARTMENTS.includes(department)) {
+      throw departmentError(`Unknown floor department: ${department}`, 400, 'INVALID_DEPARTMENT')
+    }
+    return department
+  }
+
+  if (!assigned) {
+    throw departmentError(
+      'No floor department is assigned to your account. Ask an admin to set it.',
+      403,
+      'FLOOR_DEPARTMENT_REQUIRED',
+    )
+  }
+  if (asked && asked !== assigned) {
+    throw departmentError(
+      `You can only send batches for your assigned department (${assigned}).`,
+      403,
+      'DEPARTMENT_MISMATCH',
+    )
+  }
+  return assigned
+}
+
 /**
  * Operator sends one typed Metal In / Metal Out batch for Floor Manager approval.
  * Replaying the same entryId returns the stored entry (offline outbox retries).
@@ -56,6 +97,7 @@ async function submitBatchEntry(req, body = {}) {
   if (!hasProductionPermission(user, needed)) {
     throw new ProductionError(`Insufficient production permission to send Metal ${direction === 'IN' ? 'In' : 'Out'}`, 403)
   }
+  const department = resolveEntryDepartment(user, body.department)
 
   const entryId = String(body.entryId || '').trim()
   if (!ENTRY_ID_PATTERN.test(entryId)) {
@@ -83,7 +125,7 @@ async function submitBatchEntry(req, body = {}) {
   const doc = {
     entryId,
     direction,
-    department: String(body.department || user?.department || '').trim().slice(0, 80),
+    department,
     batchLabel: String(body.batchLabel || '').trim().slice(0, 20),
     entryDate,
     lines,
@@ -116,8 +158,18 @@ async function submitBatchEntry(req, body = {}) {
     resource: 'FloorBatchEntry',
     resourceId: created._id,
     action: 'mg_floor_batch_entry_submitted',
-    detail: `Batch ${doc.batchLabel} Metal ${direction} ${doc.department || ''} sent for approval`.trim(),
-    changes: { entryId, direction, department: doc.department, batchLabel: doc.batchLabel, entryDate, lines },
+    detail: `Batch ${doc.batchLabel} Metal ${direction} ${doc.department} sent for approval`,
+    changes: {
+      entryId,
+      batchLabel: doc.batchLabel,
+      direction,
+      department: doc.department,
+      entryDate,
+      lines,
+      employeeId: doc.employeeId,
+      employeeName: doc.employeeName,
+      status: 'PENDING',
+    },
   }).catch((err) => console.warn('[mg-floor] batch entry audit failed', err?.message || err))
 
   return { entry: created.toObject(), reused: false }
@@ -203,9 +255,17 @@ async function decideBatchEntry(req, id, decision, reason = '') {
     detail: `Batch ${updated.batchLabel} Metal ${updated.direction} ${approve ? 'approved' : 'rejected'}`,
     changes: {
       entryId: updated.entryId,
+      batchLabel: updated.batchLabel,
+      direction: updated.direction,
+      department: updated.department,
+      entryDate: updated.entryDate,
+      employeeId: updated.employeeId,
+      employeeName: updated.employeeName,
+      decidedById: updated.decidedById,
+      decidedByName: updated.decidedByName,
+      decidedAt: updated.decidedAt,
       status: decision,
       rejectReason: approve ? undefined : rejectReason,
-      employeeName: updated.employeeName,
     },
   }).catch((err) => console.warn('[mg-floor] batch entry audit failed', err?.message || err))
 
@@ -217,4 +277,5 @@ module.exports = {
   listBatchEntries,
   decideBatchEntry,
   activeKeyFor,
+  resolveEntryDepartment,
 }

@@ -27,7 +27,8 @@ import { LoginLogoutRow } from './LoginLogoutRow'
 import { AssignManagerButton } from './AssignManagerButton'
 import { EmployeeTable } from './EmployeeTable'
 import { CallFMButton } from './CallFMButton'
-import { DashboardLinksRow, type DashboardLink } from './DashboardLinksRow'
+import { DepartmentBadge } from './DepartmentBadge'
+import { effectiveFloorDepartment } from '@/src/config/floorDepartments'
 import { MetalProcessPanel, type MetalBatchEdit, type PanelApproval } from './MetalProcessPanel'
 import { batchKey, batchStatusView, isBatchLocked } from './batchEntryMapping'
 import { useBatchApprovals } from './useBatchApprovals'
@@ -86,7 +87,7 @@ export function MGFloorTabletDashboard() {
   const { width } = useWindowDimensions()
   const compact = width < 900
 
-  const [dept, setDept] = useState('')
+  const [selectedDept, setSelectedDept] = useState('')
   const [loginAt, setLoginAt] = useState<string | null>(null)
   const [manager, setManager] = useState<AssignedManager | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
@@ -97,8 +98,15 @@ export function MGFloorTabletDashboard() {
   const [seeded, setSeeded] = useState(false)
 
   useEffect(() => {
-    getSelectedDepartment().then((d) => setDept(d || user?.department || ''))
-  }, [user?.department])
+    getSelectedDepartment().then((d) => setSelectedDept(d || ''))
+  }, [])
+
+  const canChooseDepartment = Boolean(permissions.approveBatches)
+  const dept = effectiveFloorDepartment({
+    floorDepartment: user?.floorDepartment,
+    selectedDepartment: selectedDept,
+    canChooseDepartment,
+  })
 
   useEffect(() => {
     getAssignedManager().then(setManager)
@@ -149,23 +157,15 @@ export function MGFloorTabletDashboard() {
         ]
       }),
     ),
-    canConfirm: Boolean(token) && !approvals.busyKey,
-    hint: token ? undefined : 'Log in to send for Floor Manager approval',
+    canConfirm: Boolean(token) && Boolean(dept) && !approvals.busyKey,
+    hint: !token
+      ? 'Log in to send for Floor Manager approval'
+      : !dept
+        ? 'No floor department is assigned to your account. Ask an admin.'
+        : undefined,
     message: approvals.message?.direction === direction ? approvals.message.text : null,
     onConfirm: (batch) => approvals.confirm(direction, batch),
   })
-
-  const managerLinks = useMemo<DashboardLink[]>(() => {
-    if (!token) return []
-    const links: DashboardLink[] = []
-    if (permissions.viewAudit || permissions.manageScales) {
-      links.push({ key: 'captures', label: 'Weight Captures', onPress: () => router.push('/weight-captures' as never) })
-    }
-    if (permissions.manageScales) {
-      links.push({ key: 'scales', label: 'Scales', onPress: () => router.push('/scales' as never) })
-    }
-    return links
-  }, [token, permissions.viewAudit, permissions.manageScales, router])
 
   const employees = useMemo(() => {
     if (!token || !user) return []
@@ -227,7 +227,7 @@ export function MGFloorTabletDashboard() {
               loginDisabled={Boolean(token)}
             />
             <AssignManagerButton onPress={() => setAssignOpen(true)} />
-            <DashboardLinksRow links={managerLinks} compact={compact} />
+            <DepartmentBadge department={dept} loggedIn={Boolean(token)} />
             <EmployeeTable employees={employees} />
             <CallFMButton onPress={() => setCallOpen(true)} />
           </View>

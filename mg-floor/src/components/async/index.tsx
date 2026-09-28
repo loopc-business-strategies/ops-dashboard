@@ -113,28 +113,6 @@ export function ConnectionStatus({
   return <StatusPill label={status} tone={tone} />
 }
 
-export function HardwareStatus({
-  label,
-  status,
-}: {
-  label: string
-  status: string
-}) {
-  const u = String(status || 'UNKNOWN').toUpperCase()
-  const tone =
-    u === 'CONNECTED' || u === 'STABLE' || u === 'READY' || u === 'ONLINE'
-      ? 'ok'
-      : u === 'ERROR' || u === 'DISABLED' || u === 'DISCONNECTED'
-        ? 'bad'
-        : 'warn'
-  return (
-    <View style={styles.hwRow}>
-      <Text style={styles.hwLabel}>{label}</Text>
-      <StatusPill label={u} tone={tone} />
-    </View>
-  )
-}
-
 export function AsyncSection({
   status,
   loadingLabel,
@@ -216,6 +194,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   retryText: { color: colors.text, fontWeight: '800', letterSpacing: 0.5 },
-  hwRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 4 },
-  hwLabel: { color: colors.text, fontWeight: '700' },
 })

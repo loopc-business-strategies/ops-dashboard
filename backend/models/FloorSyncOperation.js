@@ -17,7 +17,6 @@ const floorSyncOperationSchema = new mongoose.Schema(
     errorMessage: { type: String, trim: true, default: '' },
     employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     deviceId: { type: String, trim: true, default: '' },
-    scaleId: { type: String, trim: true, default: '' },
     clientTimestamp: { type: Date, default: null },
     syncedAt: { type: Date, default: null },
   },

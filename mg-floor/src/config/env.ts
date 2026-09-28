@@ -2,13 +2,11 @@ import Constants from 'expo-constants'
 
 const extra = (Constants.expoConfig?.extra || {}) as {
   apiUrl?: string
-  socketUrl?: string
   appEnv?: string
   tenant?: string
 }
 
 export const API_URL = String(extra.apiUrl || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000').trim()
-export const SOCKET_URL = String(extra.socketUrl || API_URL).trim()
 export const APP_ENV = String(extra.appEnv || 'development')
 export const IS_PRODUCTION = APP_ENV === 'production' || /api\.loopcstrategies\.com/i.test(API_URL)
 
