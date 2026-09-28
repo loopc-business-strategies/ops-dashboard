@@ -1773,6 +1773,15 @@
 
 .pd-dept-loss-avg strong { color: #B45309; }
 
+.pd-dept-total-basis,
+.pd-dept-loss-list li.pd-dept-total-basis {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--pd-muted);
+  line-height: 1.2;
+}
+
 .pd-batch-progress {
   display: flex;
   align-items: center;

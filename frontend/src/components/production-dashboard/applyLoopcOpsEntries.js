@@ -53,20 +53,24 @@ function completedBatchMinutes(entry) {
   return mins >= 0 ? mins : null
 }
 
-/** Average of per-day averages, so every day counts equally regardless of batch count. */
-function dailyMeanOf(entries, valueOf) {
-  const byDay = new Map()
+/**
+ * Pooled mean over finished batches only (unfinished = no Over time are skipped).
+ * Returns the mean plus how many batches and distinct days it is based on.
+ */
+function pooledStatsOf(entries, valueOf) {
+  const days = new Set()
+  let sum = 0
+  let batches = 0
   ;(entries || []).forEach((e) => {
-    const day = String(e?.date || '').trim()
-    if (!day) return
+    if (!e?.batchOverAt) return
     const v = valueOf(e)
     if (v == null || !Number.isFinite(v)) return
-    if (!byDay.has(day)) byDay.set(day, [])
-    byDay.get(day).push(v)
+    sum += v
+    batches += 1
+    const day = String(e?.date || '').trim()
+    if (day) days.add(day)
   })
-  if (!byDay.size) return null
-  const dayAvgs = [...byDay.values()].map((vals) => vals.reduce((a, b) => a + b, 0) / vals.length)
-  return dayAvgs.reduce((a, b) => a + b, 0) / dayAvgs.length
+  return { mean: batches ? sum / batches : null, batches, days: days.size }
 }
 
 function roundOrNull(n, decimals = 0) {
@@ -189,6 +193,8 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
     const metalBalance = metalInVal != null && metalOutVal != null
       ? Math.max(0, metalInVal - metalOutVal)
       : metalInVal
+    const lossTotal = pooledStatsOf(rowsAll, metalLossOf)
+    const timeTotal = pooledStatsOf(rowsAll, completedBatchMinutes)
 
     return {
       key: dept.key,
@@ -214,8 +220,10 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       lossRows,
       timeRows,
       lossTodayAvg: meanLoss(rows),
-      lossTotalAvg: roundOrNull(dailyMeanOf(rowsAll, metalLossOf), 2),
-      timeTotalAvgMin: roundOrNull(dailyMeanOf(rowsAll, completedBatchMinutes)),
+      lossTotalAvg: roundOrNull(lossTotal.mean, 2),
+      lossTotalBasis: { days: lossTotal.days, batches: lossTotal.batches },
+      timeTotalAvgMin: roundOrNull(timeTotal.mean),
+      timeTotalBasis: { days: timeTotal.days, batches: timeTotal.batches },
       lossPct: metalInVal && metalLossVal != null && metalInVal > 0
         ? Math.round((metalLossVal / metalInVal) * 1000) / 10
         : null,

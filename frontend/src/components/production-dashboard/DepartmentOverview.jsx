@@ -172,10 +172,15 @@ function DeptCard({
             <strong>{displayOrDash(ui.avgTimeLabel)}</strong>
           </div>
           {suppressDemo ? (
-            <div className="pd-dept-batches-row">
-              <span>Total Avg Time</span>
-              <strong>{displayOrDash(ui.timeTotalAvgLabel)}</strong>
-            </div>
+            <>
+              <div className="pd-dept-batches-row">
+                <span>Total Avg Time</span>
+                <strong>{displayOrDash(ui.timeTotalAvgLabel)}</strong>
+              </div>
+              {ui.timeTotalBasisLabel ? (
+                <div className="pd-dept-total-basis">{ui.timeTotalBasisLabel}</div>
+              ) : null}
+            </>
           ) : null}
         </div>
       </div>
@@ -205,6 +210,9 @@ function DeptCard({
                   <span>Total Avg</span>
                   <strong>{formatLoss(ui.lossTotalAvg)}</strong>
                 </li>
+                {ui.lossTotalBasisLabel ? (
+                  <li className="pd-dept-total-basis">{ui.lossTotalBasisLabel}</li>
+                ) : null}
               </>
             ) : (
               <li>
