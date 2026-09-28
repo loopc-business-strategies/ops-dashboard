@@ -25,7 +25,7 @@ export const CAMERA_OCR_DEFAULTS: CameraOcrSettings = {
   minConfidence: 0.9,
   consecutiveFrames: 5,
   stableDurationMs: 1500,
-  allowedVariation: 0.01,
+  allowedVariation: 0,
   overCapacityPolicy: 'REJECT',
   imageQuality: 0.6,
   sevenSegmentCrossCheck: true,
@@ -115,17 +115,6 @@ export function toWeighProfile(scale: RawScale): ScaleWeighProfile {
     cameraOcr: resolveCameraOcrSettings(scale.cameraOcr),
   }
 }
-
-/** Must match DEFAULT_CAMERA_SCALE in backend/constants/mgFloorWeightCapture.js (server creates it on first capture). */
-export const DEFAULT_CAMERA_SCALE_ID = 'MG-CAMERA'
-
-export const DEFAULT_CAMERA_SCALE_PROFILE: ScaleWeighProfile = toWeighProfile({
-  scaleId: DEFAULT_CAMERA_SCALE_ID,
-  unit: 'g',
-  capacity: 2200,
-  resolution: 0.01,
-  captureMethods: ['CAMERA_OCR'],
-})
 
 export function supportsCameraOcr(profile: ScaleWeighProfile) {
   return profile.captureMethods.includes('CAMERA_OCR') && profile.cameraOcr.enabled

@@ -22,19 +22,6 @@ import {
   readScaleFrame,
   type FrameOcrResult,
 } from '@/src/scaleCamera/scaleOcrService'
-import {
-  evaluateStability,
-  isFresh,
-  pushFrame,
-  stabilityConfigFor,
-  stabilitySnapshot,
-  stabilityStatus,
-  stabilityTolerance,
-  withinTolerance,
-  type OcrFrame,
-  type StabilitySnapshot,
-  type StabilityState,
-} from '@/src/scaleCamera/weightStability'
 import { colors, spacing } from '@/src/theme'
 
 export type ConfirmedCameraReading = {
@@ -44,23 +31,11 @@ export type ConfirmedCameraReading = {
   rawText: string
   crossCheckAgreed: boolean | null
   stableFrames: number
-  stability: StabilitySnapshot
   frameUri: string
   reviewAcknowledged: boolean
 }
 
-type Shot = {
-  reading: FrameOcrResult
-  frameUri: string
-  stability: StabilitySnapshot
-  /** Set when the photo's reading does not match the weight that was stable before CAPTURE. */
-  mismatch: string | null
-}
-
-/** Pause between background reads; each read also takes as long as the photo + OCR. */
-const SAMPLE_INTERVAL_MS = 300
-const NOT_STABLE_NOTICE_MS = 2500
-const PHOTO_OPTIONS = { quality: 0.8, skipProcessing: false, exif: false } as const
+type Shot = { reading: FrameOcrResult; frameUri: string }
 
 type Props = {
   profile: ScaleWeighProfile
@@ -74,9 +49,7 @@ function isReadable(reading: FrameOcrResult) {
 }
 
 /** Why a captured photo could not be used. */
-function failureView(shot: Shot) {
-  const { reading } = shot
-  if (shot.mismatch) return { label: 'WEIGHT CHANGED', tone: 'bad' as const, message: shot.mismatch }
+function failureView(reading: FrameOcrResult) {
   switch (reading.status) {
     case 'NO_READING':
       return { label: 'NO READING', tone: 'neutral' as const, message: 'No digits found. Point the camera at the scale display.' }
@@ -104,10 +77,10 @@ function AckRow({ checked, label, onToggle }: { checked: boolean; label: string;
 }
 
 /**
- * Scale camera capture: live preview with a guide box. While the preview is open the display is read
- * silently in the background; CAPTURE only works once several fresh readings over the configured time
- * agree within tolerance. The capture photo must match that stable weight, and nothing is recorded
- * until the operator confirms the weight against the photo.
+ * Scale camera capture: live preview with a guide box; the operator taps CAPTURE to take one photo,
+ * the display is read with on-device OCR, and nothing is recorded until the operator confirms the
+ * weight against the photo. A single photo cannot prove the display had settled, so the operator
+ * must also confirm it was steady.
  */
 export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
   const [permission, requestPermission] = useCameraPermissions()
@@ -128,100 +101,17 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
   const [steadyAck, setSteadyAck] = useState(false)
   const [unitAck, setUnitAck] = useState(false)
   const [reviewAck, setReviewAck] = useState(false)
-  const [stability, setStability] = useState<StabilityState | null>(null)
-  const [notStable, setNotStable] = useState(false)
   const frameUriRef = useRef<string | null>(null)
-  /** Bumped whenever background readings must be thrown away; late OCR results from an older session are ignored. */
-  const sessionRef = useRef(0)
-  const framesRef = useRef<OcrFrame[]>([])
-  /** The background read currently using the camera; CAPTURE waits for it so only one photo is taken at a time. */
-  const sampleRef = useRef<Promise<void> | null>(null)
-  const capturingRef = useRef(false)
 
   const supported = isCameraOcrSupported()
   const granted = Boolean(permission?.granted)
   const cameraActive = granted && supported && focused && appActive
-  const sampling = cameraActive && ready && previewSize != null && !capturing && !shot && !saving
-  const canCapture = sampling
-
-  const resetStability = useCallback(() => {
-    sessionRef.current += 1
-    framesRef.current = []
-    setStability(null)
-  }, [])
-
-  useEffect(() => {
-    if (!sampling || !previewSize) return
-    resetStability()
-    const session = sessionRef.current
-    const live = () => mountedRef.current && sessionRef.current === session
-    let timer: ReturnType<typeof setTimeout> | null = null
-
-    const record = (frame: OcrFrame) => {
-      framesRef.current = pushFrame(framesRef.current, frame)
-      setStability(evaluateStability(framesRef.current, stabilityConfigFor(profileRef.current)))
-    }
-
-    const readOnce = async () => {
-      const cam = cameraRef.current
-      if (!cam || capturingRef.current) return
-      let uri: string | null = null
-      try {
-        const pic = await cam.takePictureAsync({ ...PHOTO_OPTIONS, shutterSound: false })
-        uri = pic.uri
-        const at = Date.now()
-        if (!live()) return
-        const current = profileRef.current
-        const crop = mapGuideBoxToPhotoCrop(guideBoxForPreview(previewSize, guideBoxFractionFor(current)), previewSize, pic)
-        const reading = await readScaleFrame(uri, crop, current)
-        if (!live()) return
-        record(
-          isReadable(reading)
-            ? { weight: reading.weight as number, confidence: reading.confidence, at }
-            : { weight: null, confidence: 0, at },
-        )
-      } catch {
-        if (live()) record({ weight: null, confidence: 0, at: Date.now() })
-      } finally {
-        discardFrame(uri)
-      }
-    }
-
-    const tick = async () => {
-      timer = null
-      if (!live()) return
-      const run = readOnce()
-      sampleRef.current = run
-      await run
-      if (sampleRef.current === run) sampleRef.current = null
-      if (live()) timer = setTimeout(tick, SAMPLE_INTERVAL_MS)
-    }
-
-    timer = setTimeout(tick, SAMPLE_INTERVAL_MS)
-    return () => {
-      if (timer) clearTimeout(timer)
-      sessionRef.current += 1
-    }
-  }, [sampling, previewSize, resetStability])
-
-  useEffect(() => {
-    if (!notStable) return
-    const t = setTimeout(() => setNotStable(false), NOT_STABLE_NOTICE_MS)
-    return () => clearTimeout(t)
-  }, [notStable])
+  const canCapture = cameraActive && ready && previewSize != null && !capturing && !shot && !saving
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => setAppActive(state === 'active'))
     return () => sub.remove()
   }, [])
-
-  // Open straight into the camera: ask once on arrival instead of waiting for ALLOW CAMERA.
-  const askedPermission = useRef(false)
-  useEffect(() => {
-    if (!supported || !permission || permission.granted || !permission.canAskAgain || askedPermission.current) return
-    askedPermission.current = true
-    requestPermission().catch(() => undefined)
-  }, [supported, permission, requestPermission])
 
   useEffect(() => {
     if (!cameraActive) setReady(false)
@@ -230,7 +120,6 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
   useEffect(
     () => () => {
       mountedRef.current = false
-      sessionRef.current += 1
       discardFrame(frameUriRef.current)
       frameUriRef.current = null
     },
@@ -246,33 +135,18 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
     setUnitAck(false)
     setReviewAck(false)
     setError('')
-    setNotStable(false)
-    resetStability()
-  }, [resetStability])
+  }, [])
 
   const capture = useCallback(async () => {
     const cam = cameraRef.current
-    if (!cam || !previewSize || capturingRef.current) return
-    const current = profileRef.current
-    const tolerance = stabilityTolerance(current)
-    const frames = framesRef.current
-    const state = evaluateStability(frames, stabilityConfigFor(current))
-    if (!state.stable || state.weight == null || !isFresh(frames, Date.now())) {
-      setNotStable(true)
-      return
-    }
-    const snapshot = stabilitySnapshot(frames, state, tolerance)
-    const stableWeight = state.weight
-    capturingRef.current = true
+    if (!cam || !previewSize || capturing) return
     setCapturing(true)
-    setNotStable(false)
     setError('')
     let uri: string | null = null
     try {
-      const pending = sampleRef.current
-      if (pending) await pending.catch(() => undefined)
-      const pic = await cam.takePictureAsync({ ...PHOTO_OPTIONS })
+      const pic = await cam.takePictureAsync({ quality: 0.8, skipProcessing: false, exif: false })
       uri = pic.uri
+      const current = profileRef.current
       const crop = mapGuideBoxToPhotoCrop(
         guideBoxForPreview(previewSize, guideBoxFractionFor(current)),
         previewSize,
@@ -283,12 +157,8 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
         discardFrame(uri)
         return
       }
-      const mismatch =
-        isReadable(reading) && !withinTolerance(reading.weight as number, stableWeight, tolerance)
-          ? `The photo reads ${formatWeight(reading.weight as number, current.resolution)} ${current.unit} but the scale was stable at ${formatWeight(stableWeight, current.resolution)} ${current.unit}. Hold the item still and RETAKE.`
-          : null
       frameUriRef.current = uri
-      setShot({ reading, frameUri: uri, stability: snapshot, mismatch })
+      setShot({ reading, frameUri: uri })
     } catch (err) {
       discardFrame(uri)
       if (mountedRef.current) {
@@ -296,10 +166,9 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
         setError(`${message}. Tap CAPTURE to try again.`)
       }
     } finally {
-      capturingRef.current = false
       if (mountedRef.current) setCapturing(false)
     }
-  }, [previewSize])
+  }, [previewSize, capturing])
 
   const onCameraReady = useCallback(async () => {
     setReady(true)
@@ -324,16 +193,15 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
   }, [clearShot])
 
   const confirm = useCallback(async () => {
-    if (!shot || !isReadable(shot.reading) || shot.mismatch || !shot.stability.stable || saving) return
-    const { reading, frameUri, stability: snapshot } = shot
+    if (!shot || !isReadable(shot.reading) || saving) return
+    const { reading, frameUri } = shot
     const ok = await onConfirm({
       weight: reading.weight as number,
       unit: profile.unit,
       confidence: reading.confidence,
       rawText: reading.mlText || reading.sevenText || '',
       crossCheckAgreed: reading.crossCheckAgreed,
-      stableFrames: snapshot.stableFrames,
-      stability: snapshot,
+      stableFrames: 1,
       frameUri,
       reviewAcknowledged: reading.status === 'REVIEW' && reviewAck,
     })
@@ -355,7 +223,7 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
       <View style={styles.block}>
         <StatusPill label="CAMERA OCR UNAVAILABLE" tone="warn" />
         <Text style={styles.hint}>
-          Reading the scale from a photo only works in the MG Floor Android app, not in a browser.
+          This app build has no on-device OCR. Use the digital scale or ask a manager for manual entry.
         </Text>
       </View>
     )
@@ -378,11 +246,7 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
   }
 
   const reading = shot?.reading ?? null
-  const readable = Boolean(shot && reading && isReadable(reading) && !shot.mismatch && shot.stability.stable)
-  const liveStatus = notStable
-    ? { label: 'WAIT — WEIGHT NOT STABLE', tone: 'warn' as const }
-    : stabilityStatus(stability, (w) => `${formatWeight(w, profile.resolution)} ${profile.unit}`)
-  const failure = shot && !readable ? failureView(shot) : null
+  const readable = Boolean(reading && isReadable(reading))
   const needsUnitAck = Boolean(readable && reading && !reading.unitDetected)
   const needsReviewAck = readable && reading?.status === 'REVIEW'
   const canConfirm =
@@ -400,7 +264,7 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
             style={StyleSheet.absoluteFill}
             facing="back"
             active={cameraActive}
-            animateShutter={false}
+            animateShutter
             pictureSize={pictureSize}
             onCameraReady={onCameraReady}
             onMountError={(e) => setError(e?.message || 'Camera unavailable')}
@@ -437,9 +301,8 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
       {!shot ? (
         <>
           <Text style={styles.hint}>
-            Fill the box with the GJ display · avoid glare · hold still until it shows STABLE, then tap CAPTURE.
+            Fill the box with the GJ display · wait until the number stops changing · avoid glare, then tap CAPTURE.
           </Text>
-          {cameraActive ? <StatusPill label={capturing ? 'READING SCALE...' : liveStatus.label} tone={capturing ? 'neutral' : liveStatus.tone} /> : null}
           <BigButton label={capturing ? 'READING…' : 'CAPTURE'} onPress={capture} disabled={!canCapture} />
         </>
       ) : readable && reading ? (
@@ -451,7 +314,6 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
           <Text style={styles.meta}>
             Confidence {Math.round(reading.confidence * 100)}%
             {reading.crossCheckAgreed ? ' · both OCR engines agree' : ''}
-            {shot ? ` · stable over ${shot.stability.stableFrames} readings (${(shot.stability.durationMs / 1000).toFixed(1)} s)` : ''}
           </Text>
           <Text style={styles.message}>Compare this number with the photo above before confirming.</Text>
           <AckRow
@@ -476,15 +338,15 @@ export function ScaleCameraCapture({ profile, saving, onConfirm }: Props) {
           <BigButton label={saving ? 'SAVING…' : 'CONFIRM WEIGHT'} onPress={confirm} disabled={!canConfirm} />
           <BigButton label="RETAKE" tone="neutral" onPress={clearShot} disabled={saving} />
         </View>
-      ) : reading && failure ? (
+      ) : reading ? (
         <View style={styles.card}>
-          <StatusPill label={failure.label} tone={failure.tone} />
-          {reading.displayWeight != null && !shot?.mismatch ? (
+          <StatusPill label={failureView(reading).label} tone={failureView(reading).tone} />
+          {reading.displayWeight != null ? (
             <Text style={styles.meta}>
               Partly read {formatWeight(reading.displayWeight, profile.resolution)} {profile.unit} — not usable
             </Text>
           ) : null}
-          {failure.message ? <Text style={styles.message}>{failure.message}</Text> : null}
+          {failureView(reading).message ? <Text style={styles.message}>{failureView(reading).message}</Text> : null}
           <BigButton label="RETAKE" onPress={clearShot} />
         </View>
       ) : null}

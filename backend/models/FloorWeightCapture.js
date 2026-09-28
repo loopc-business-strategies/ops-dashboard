@@ -47,18 +47,6 @@ const floorWeightCaptureSchema = new mongoose.Schema(
     crossCheckAgreed: { type: Boolean, default: null },
     stable: { type: Boolean, default: false },
     stableFrames: { type: Number, default: 0 },
-    /** Camera OCR: background readings that agreed before CAPTURE (null/empty on legacy captures). */
-    stabilityDurationMs: { type: Number, default: null },
-    stabilityTolerance: { type: Number, default: null },
-    stabilityReadings: {
-      type: [
-        new mongoose.Schema(
-          { weight: Number, confidence: Number, offsetMs: Number },
-          { _id: false },
-        ),
-      ],
-      default: [],
-    },
     overCapacityReview: { type: Boolean, default: false },
     manualReason: { type: String, trim: true, default: '' },
     photo: { type: photoSchema, default: () => ({}) },

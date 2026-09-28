@@ -11,11 +11,10 @@ const { createDiskUpload, resolveUploadDir } = require('../erpAccounting/uploadM
 const { storeUploadedAttachment, sendStoredAttachment } = require('../erpAccounting/attachmentStorageService')
 const {
   CAMERA_OCR_DEFAULTS,
-  DEFAULT_CAMERA_SCALE,
   MIN_CAMERA_OCR_CONFIDENCE,
   WEIGHT_CAPTURE_METHODS,
 } = require('../../constants/mgFloorWeightCapture')
-const { createScale, resolveCaptureMethods } = require('./deviceRegistry')
+const { resolveCaptureMethods } = require('./deviceRegistry')
 
 const PHOTO_BUCKET = 'mgFloorScaleCapturePhotos'
 const CAPTURE_ID_PATTERN = /^[A-Za-z0-9_-]{8,120}$/
@@ -55,25 +54,6 @@ function optionalObjectId(value, label) {
   return new mongoose.Types.ObjectId(String(value))
 }
 
-const MAX_STABILITY_READINGS = 30
-
-function optionalNonNegative(value) {
-  if (value == null || value === '') return null
-  const n = Number(value)
-  return Number.isFinite(n) && n >= 0 ? n : null
-}
-
-/** Background OCR readings sent with a camera capture; legacy clients send none. */
-function sanitizeStabilityReadings(list) {
-  if (!Array.isArray(list)) return []
-  return list
-    .map((r) => ({ weight: Number(r?.weight), confidence: Number(r?.confidence), offsetMs: Number(r?.offsetMs) }))
-    .filter((r) => Number.isFinite(r.weight) && Number.isFinite(r.confidence) && Number.isFinite(r.offsetMs)
-      && r.confidence >= 0 && r.confidence <= 1 && r.offsetMs >= 0)
-    .slice(-MAX_STABILITY_READINGS)
-    .map((r) => ({ weight: r.weight, confidence: r.confidence, offsetMs: Math.round(r.offsetMs) }))
-}
-
 function cameraSettingsFor(scale) {
   const raw = scale?.cameraOcr && typeof scale.cameraOcr.toObject === 'function'
     ? scale.cameraOcr.toObject()
@@ -103,34 +83,6 @@ async function loadActiveScale(scaleIdRaw) {
     throw new ProductionError('Scale not found or disabled', 404)
   }
   return scale
-}
-
-/**
- * Like loadActiveScale, but provisions the built-in camera scale the first time it is used so
- * camera capture works before any scale is registered. An existing (archived/disabled) record is
- * never recreated here — that stays a manager decision.
- */
-async function loadCaptureScale(req, scaleIdRaw, captureMethod) {
-  const scaleId = String(scaleIdRaw || '').trim().toUpperCase()
-  if (captureMethod !== 'CAMERA_OCR' || scaleId !== DEFAULT_CAMERA_SCALE.scaleId) {
-    return loadActiveScale(scaleId)
-  }
-  if (!(await Scale.exists({ scaleId }))) {
-    try {
-      const created = await createScale({ ...DEFAULT_CAMERA_SCALE, captureMethods: [...DEFAULT_CAMERA_SCALE.captureMethods] })
-      await writeProductionAudit(req, {
-        resource: 'Scale',
-        resourceId: created._id,
-        action: 'mg_floor_default_camera_scale_created',
-        detail: `Built-in camera scale ${scaleId} created on first camera capture`,
-        changes: { ...DEFAULT_CAMERA_SCALE },
-      }).catch((err) => console.warn('[mg-floor] default camera scale audit failed', err?.message || err))
-    } catch (err) {
-      // A concurrent first capture created it; fall through and load that record.
-      if (!(err instanceof ProductionError && err.status === 409) && err?.code !== 11000) throw err
-    }
-  }
-  return loadActiveScale(scaleId)
 }
 
 /**
@@ -195,7 +147,7 @@ async function createWeightCapture(req, body = {}) {
     return { capture: existing.toObject(), reused: true }
   }
 
-  const scale = await loadCaptureScale(req, scaleId, captureMethod)
+  const scale = await loadActiveScale(scaleId)
 
   if (scale.department && user?.department && !hasProductionPermission(user, 'manageMachines')
     && normDept(scale.department) !== normDept(user.department)) {
@@ -265,9 +217,6 @@ async function createWeightCapture(req, body = {}) {
     crossCheckAgreed: typeof body.crossCheckAgreed === 'boolean' ? body.crossCheckAgreed : null,
     stable: captureMethod === 'CAMERA_OCR' ? true : false,
     stableFrames: Math.max(0, Math.round(Number(body.stableFrames) || 0)),
-    stabilityDurationMs: captureMethod === 'CAMERA_OCR' ? optionalNonNegative(body.stabilityDurationMs) : null,
-    stabilityTolerance: captureMethod === 'CAMERA_OCR' ? optionalNonNegative(body.stabilityTolerance) : null,
-    stabilityReadings: captureMethod === 'CAMERA_OCR' ? sanitizeStabilityReadings(body.stabilityReadings) : [],
     overCapacityReview,
     manualReason,
     photo: { status: body.hasPhoto === false ? 'NONE' : 'PENDING' },
@@ -309,8 +258,6 @@ async function createWeightCapture(req, body = {}) {
       captureMethod,
       ocrConfidence,
       crossCheckAgreed: doc.crossCheckAgreed,
-      stableFrames: doc.stableFrames,
-      stabilityDurationMs: doc.stabilityDurationMs ?? undefined,
       overCapacityReview,
       manualReason: manualReason || undefined,
       deviceId: doc.deviceId,

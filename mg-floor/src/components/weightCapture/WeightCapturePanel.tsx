@@ -81,7 +81,6 @@ export function WeightCapturePanel({
         rawText: r.rawText,
         crossCheckAgreed: r.crossCheckAgreed,
         stableFrames: r.stableFrames,
-        stability: r.stability,
         reviewAcknowledged: r.reviewAcknowledged,
         frameUri: r.frameUri,
       }),

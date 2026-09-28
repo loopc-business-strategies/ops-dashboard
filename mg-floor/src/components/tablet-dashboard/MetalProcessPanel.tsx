@@ -218,8 +218,6 @@ const styles = StyleSheet.create({
   input: {
     color: td.text,
     fontWeight: '600',
-    // Web inputs have an intrinsic width; without this the three columns overflow and Time is clipped.
-    minWidth: 0,
     paddingHorizontal: 4,
     textAlign: 'center',
     borderLeftWidth: StyleSheet.hairlineWidth,
