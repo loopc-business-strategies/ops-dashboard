@@ -121,7 +121,7 @@ export default function TabFloorManager({ showToast, onChanged }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <SH
         title="Floor Manager approval"
-        sub="Metal In / Out batches typed and confirmed on the MG Floor tablet. Approving records the batch only — it does not change stock, batches or ERP."
+        sub="Metal In / Out batches typed and confirmed on the MG Floor tablet. Approving fills the batch's row in Operations → Production and the Production Dashboard — it does not change stock, inventory or ERP."
       >
         <button type="button" className={B.sec} onClick={() => { setLoading(true); load() }}>Refresh</button>
       </SH>
