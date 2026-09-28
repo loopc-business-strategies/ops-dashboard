@@ -74,10 +74,10 @@ function deltaLabel(n) {
   return { text: `↓ ${Math.abs(v).toFixed(0)}%`, tone: 'down' }
 }
 
-export default function KpiRow({ model }) {
+export default function KpiRow({ model, hideDemoKpis = false }) {
   if (!model) return null
 
-  if (!model.hasLiveProduction) {
+  if (!model.hasLiveProduction && !hideDemoKpis) {
     const d = DEMO_COMPACT_KPIS
     return (
       <section className="pd-kpi-strip" aria-label="Production KPIs">

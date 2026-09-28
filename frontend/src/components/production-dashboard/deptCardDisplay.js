@@ -1,7 +1,8 @@
 /**
  * Department card display mapping.
  * Live metrics win; when a card has no live signal, reference-style demo values fill the UI
- * (unless options.suppressDemo — used for LoopC so demo placeholders are never injected).
+ * (unless options.suppressDemo — used for LoopC and MG so demo placeholders are never injected).
+ * options.loopcMode enables LoopC-only extras (per-batch time rows, Total Avgs, Ops time format).
  */
 
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
@@ -271,6 +272,7 @@ function resolveBatchProgress(card, batches, { hour24 = false } = {}) {
 
 export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employeeRatings = [], options = {}) {
   const suppressDemo = Boolean(options.suppressDemo)
+  const loopcMode = Boolean(options.loopcMode)
   const key = String(card.key || '')
   const batches = rowsForDept(batchMonitorRows, card)
 
@@ -293,7 +295,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   const avgFromCard = hasNum(card.avgTimeMin) ? Number(card.avgTimeMin) : null
   // LoopC: prefer card.avgTimeMin (sum of Ops Time/Batch ÷ n). Never use primary alone when n > 1.
   let avgTimeMin
-  if (suppressDemo) {
+  if (loopcMode) {
     avgTimeMin = avgFromCard
       ?? avgFromBatches
       ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)
@@ -331,7 +333,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   }
 
   let lossAvg = mean(lossRows.map((r) => r.loss))
-  const lossTodayAvg = hasNum(card.lossTodayAvg) ? Number(card.lossTodayAvg) : (suppressDemo ? lossAvg : null)
+  const lossTodayAvg = hasNum(card.lossTodayAvg) ? Number(card.lossTodayAvg) : (loopcMode ? lossAvg : null)
   const lossTotalAvg = hasNum(card.lossTotalAvg) ? Number(card.lossTotalAvg) : null
 
   let employeeCount = hasNum(card.employeeCount)
@@ -355,11 +357,11 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   let status = card.status || 'Idle'
   let batchesDisplay = batchCount != null ? batchCount : '—'
   // LoopC: match Ops sheet Time/Batch style (e.g. 6h, 5h 20m)
-  let timePerBatchLabel = suppressDemo ? formatOpsMinutes(timePerBatchMin) : fmtMin(timePerBatchMin)
-  let avgTimeLabel = suppressDemo ? formatOpsMinutes(avgTimeMin) : fmtMin(avgTimeMin)
+  let timePerBatchLabel = loopcMode ? formatOpsMinutes(timePerBatchMin) : fmtMin(timePerBatchMin)
+  let avgTimeLabel = loopcMode ? formatOpsMinutes(avgTimeMin) : fmtMin(avgTimeMin)
   const timeTotalAvgMin = hasNum(card.timeTotalAvgMin) ? Number(card.timeTotalAvgMin) : null
-  const timeTotalAvgLabel = suppressDemo ? formatOpsMinutes(timeTotalAvgMin) : null
-  const timeRows = suppressDemo && Array.isArray(card.timeRows) && card.timeRows.length
+  const timeTotalAvgLabel = loopcMode ? formatOpsMinutes(timeTotalAvgMin) : null
+  const timeRows = loopcMode && Array.isArray(card.timeRows) && card.timeRows.length
     ? card.timeRows
       .map((r, i) => ({
         index: r.index ?? i + 1,
@@ -370,7 +372,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
       .filter((r) => r.timeLabel && r.timeLabel !== '—')
     : []
   let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches, {
-    hour24: suppressDemo,
+    hour24: loopcMode,
   })
 
   const live = hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows })
@@ -412,13 +414,15 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     batches: batchesDisplay,
     timePerBatchLabel,
     avgTimeLabel,
-    timeTotalAvgLabel: suppressDemo ? timeTotalAvgLabel : null,    timeRows,
+    timeTotalAvgLabel: loopcMode ? timeTotalAvgLabel : null,
+    timeRows,
     metalIn,
     metalOut,
     lossRows,
     lossAvg,
-    lossTodayAvg: suppressDemo ? lossTodayAvg : null,
-    lossTotalAvg: suppressDemo ? lossTotalAvg : null,    batchStartedLabel: suppressDemo
+    lossTodayAvg: loopcMode ? lossTodayAvg : null,
+    lossTotalAvg: loopcMode ? lossTotalAvg : null,
+    batchStartedLabel: suppressDemo
       ? (batchStartedLabel || '—')
       : (batchStartedLabel || DEMO_PROGRESS.batchStartedLabel),
     batchOverLabel: suppressDemo

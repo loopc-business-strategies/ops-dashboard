@@ -72,8 +72,9 @@ function DeptCard({
   selected,
   onSelect,
   suppressDemo = false,
+  loopcMode = false,
 }) {
-  const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo })
+  const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode })
   const tone = statusClass(ui.status)
   const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
     ? `EMPLOYEES (${ui.employeeCount})`
@@ -154,7 +155,7 @@ function DeptCard({
             <span className="pd-dept-metric-label">Batches</span>
             <strong className="pd-dept-batches-count">{displayOrDash(ui.batches)}</strong>
           </div>
-          {suppressDemo && ui.timeRows?.length ? (
+          {loopcMode && ui.timeRows?.length ? (
             ui.timeRows.map((r) => (
               <div key={`${ui.key}-time-${r.index}`} className="pd-dept-batches-row">
                 <span>{r.label}</span>
@@ -171,7 +172,7 @@ function DeptCard({
             <span>Avg. Time</span>
             <strong>{displayOrDash(ui.avgTimeLabel)}</strong>
           </div>
-          {suppressDemo ? (
+          {loopcMode ? (
             <div className="pd-dept-batches-row">
               <span>Total Avg Time</span>
               <strong>{displayOrDash(ui.timeTotalAvgLabel)}</strong>
@@ -188,7 +189,7 @@ function DeptCard({
           <span>Metal Loss (g)</span>
         </div>
         <ul className="pd-dept-loss-list">
-          {suppressDemo ? (
+          {loopcMode ? (
             ui.lossRows.length || ui.lossTodayAvg != null || ui.lossTotalAvg != null ? (
               <>
                 {ui.lossRows.map((r) => (
@@ -256,6 +257,7 @@ export default function DepartmentOverview({
   onViewAll: _onViewAll,
   permissions: _permissions,
   suppressDemo = false,
+  loopcMode = false,
 }) {
   const list = cards || []
 
@@ -275,6 +277,7 @@ export default function DepartmentOverview({
                 selected={selectedDeptKey === card.key}
                 onSelect={onSelectDept}
                 suppressDemo={suppressDemo}
+                loopcMode={loopcMode}
               />
             ))}
           </div>

@@ -26,7 +26,8 @@ export default function ProductionDashboardTab() {
     || company
     || '',
   ).trim().toLowerCase()
-  const suppressDemo = tenantKey === 'loopc'
+  const loopcMode = tenantKey === 'loopc'
+  const suppressDemo = loopcMode || tenantKey === 'mg'
   const {
     loading,
     error,
@@ -185,7 +186,7 @@ export default function ProductionDashboardTab() {
 
       {model ? (
         <div className="pd-layout pd-layout--reference pd-layout--control-center">
-          <KpiRow model={model} />
+          <KpiRow model={model} hideDemoKpis={tenantKey === 'mg'} />
 
           <DepartmentOverview
             cards={model.deptCards}
@@ -194,6 +195,7 @@ export default function ProductionDashboardTab() {
             onSelectDept={(key) => actions.selectDepartment(key)}
             permissions={permissions}
             suppressDemo={suppressDemo}
+            loopcMode={loopcMode}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',
