@@ -43,12 +43,36 @@ function meanLoss(entries) {
   return Math.round((losses.reduce((a, b) => a + b, 0) / losses.length) * 100) / 100
 }
 
-function meanTime(entries) {
-  const times = (entries || [])
-    .map((e) => opsTimeBatchMinutes(e))
-    .filter((n) => n != null && Number.isFinite(n))
-  if (!times.length) return null
-  return Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+/** Minutes for a closed batch only; unfinished batches (no Over time) return null. */
+function completedBatchMinutes(entry) {
+  if (!entry?.batchStartedAt || !entry?.batchOverAt) return null
+  const start = new Date(entry.batchStartedAt)
+  const end = new Date(entry.batchOverAt)
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return null
+  const mins = (end.getTime() - start.getTime()) / 60000
+  return mins >= 0 ? mins : null
+}
+
+/** Average of per-day averages, so every day counts equally regardless of batch count. */
+function dailyMeanOf(entries, valueOf) {
+  const byDay = new Map()
+  ;(entries || []).forEach((e) => {
+    const day = String(e?.date || '').trim()
+    if (!day) return
+    const v = valueOf(e)
+    if (v == null || !Number.isFinite(v)) return
+    if (!byDay.has(day)) byDay.set(day, [])
+    byDay.get(day).push(v)
+  })
+  if (!byDay.size) return null
+  const dayAvgs = [...byDay.values()].map((vals) => vals.reduce((a, b) => a + b, 0) / vals.length)
+  return dayAvgs.reduce((a, b) => a + b, 0) / dayAvgs.length
+}
+
+function roundOrNull(n, decimals = 0) {
+  if (n == null || !Number.isFinite(n)) return null
+  const f = 10 ** decimals
+  return Math.round(n * f) / f
 }
 
 /**
@@ -190,8 +214,8 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       lossRows,
       timeRows,
       lossTodayAvg: meanLoss(rows),
-      lossTotalAvg: meanLoss(rowsAll),
-      timeTotalAvgMin: meanTime(rowsAll),
+      lossTotalAvg: roundOrNull(dailyMeanOf(rowsAll, metalLossOf), 2),
+      timeTotalAvgMin: roundOrNull(dailyMeanOf(rowsAll, completedBatchMinutes)),
       lossPct: metalInVal && metalLossVal != null && metalInVal > 0
         ? Math.round((metalLossVal / metalInVal) * 1000) / 10
         : null,

@@ -53,6 +53,26 @@ function errMsg(err, fallback) {
   return err?.response?.data?.message || err?.message || fallback
 }
 
+const PRIOR_OPS_PAGE_SIZE = 500
+const PRIOR_OPS_MAX_PAGES = 4
+
+/** LoopC prior-days ops entries (up to yesterday), paged past the API's 500-row cap. */
+async function fetchPriorOpsEntries(signal) {
+  const dateTo = dayKey(addDays(new Date(), -1))
+  const entries = []
+  for (let page = 0; page < PRIOR_OPS_MAX_PAGES; page += 1) {
+    const res = await productionControlApi.listOperationsEntries(
+      { dateTo, limit: PRIOR_OPS_PAGE_SIZE, skip: page * PRIOR_OPS_PAGE_SIZE },
+      { signal },
+    ).catch(() => null)
+    if (!res) return page === 0 ? null : { entries }
+    const rows = res.entries || res.items || []
+    if (Array.isArray(rows)) entries.push(...rows)
+    if (!res.hasMore || signal?.aborted) break
+  }
+  return { entries }
+}
+
 /**
  * Progressive Production Dashboard loader + floor actions.
  */
@@ -190,16 +210,12 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.me({ signal: ac.signal }).catch(() => null),
       ]
       if (isLoopc) {
-        const yesterday = dayKey(addDays(new Date(), -1))
         corePromises.push(
           productionControlApi.listOperationsEntries(
             { date: today, limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
-          productionControlApi.listOperationsEntries(
-            { limit: 500, dateTo: yesterday },
-            { signal: ac.signal },
-          ).catch(() => null),
+          fetchPriorOpsEntries(ac.signal),
         )
       }
 
@@ -304,16 +320,12 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.getCurrentShift({ signal: ac.signal }).catch(() => null),
       ]
       if (isLoopc) {
-        const yesterday = dayKey(addDays(new Date(), -1))
         tasks.push(
           productionControlApi.listOperationsEntries(
             { date: dayKey(), limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
-          productionControlApi.listOperationsEntries(
-            { limit: 500, dateTo: yesterday },
-            { signal: ac.signal },
-          ).catch(() => null),
+          fetchPriorOpsEntries(ac.signal),
         )
       }
       const [summaryRes, boardRes, widgetsRes, shiftRes, opsEntriesRes, opsEntriesAllRes] = await Promise.all(tasks)
