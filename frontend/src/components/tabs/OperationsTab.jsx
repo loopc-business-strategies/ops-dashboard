@@ -37,6 +37,7 @@ import {
 } from './operations/OpsModals'
 
 const LoopCOperationsTab = lazy(() => import('./operations/LoopCOperationsTab'))
+const ProductionSheets = lazy(() => import('./operations/LoopCProductionSheets'))
 
 const TabKPI = lazy(() => import('./operations/TabKPI'))
 const TabChecklist = lazy(() => import('./operations/TabChecklist'))
@@ -96,7 +97,7 @@ function LegacyOperationsTab({ tenantKey }) {
   const { subTab: activeTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
     'operations',
     allowedSubIds,
-    'kpi',
+    'production',
     company,
   )
   const isHead     = perms.isDepartmentHead
@@ -499,7 +500,12 @@ function LegacyOperationsTab({ tenantKey }) {
         ))}
       </ModuleSubTabRow>
 
-            {activeTab === 'kpi' && (
+      {activeTab === 'production' && (
+        <Suspense fallback={<OpsSubTabFallback />}>
+          <ProductionSheets dashboardSource={false} />
+        </Suspense>
+      )}
+      {activeTab === 'kpi' && (
         <Suspense fallback={<OpsSubTabFallback />}>
           <TabKPI {...shared} />
         </Suspense>

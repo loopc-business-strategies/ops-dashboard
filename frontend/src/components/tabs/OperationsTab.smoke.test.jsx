@@ -38,12 +38,36 @@ vi.mock('../../api/mgFloorBatchEntries', () => ({
   },
 }))
 
+const listOperationsEntries = vi.fn()
+vi.mock('../../api/productionControl', () => ({
+  productionControlApi: {
+    listOperationsEntries: (...args) => listOperationsEntries(...args),
+    createOperationsEntry: vi.fn(),
+    updateOperationsEntry: vi.fn(),
+    deleteOperationsEntry: vi.fn(),
+  },
+}))
+
 import OperationsTab from './OperationsTab'
 
 describe('OperationsTab smoke', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     listBatchEntries.mockResolvedValue({ entries: [], counts: { PENDING: 0 }, canDecide: false })
+    listOperationsEntries.mockResolvedValue({ entries: [], total: 0, hasMore: false })
+  })
+
+  it('opens the Production department workbook first for non-LoopC tenants', async () => {
+    render(
+      <MemoryRouter>
+        <OperationsTab />
+      </MemoryRouter>,
+    )
+    const tabLabels = screen.getAllByRole('link').map((el) => el.textContent)
+    expect(tabLabels[0]).toBe('Production')
+    expect(await screen.findByText('VAULT ROOM', { exact: false })).toBeTruthy()
+    expect(listOperationsEntries).toHaveBeenCalled()
+    expect(screen.queryByText(/Source of truth for the Production Dashboard/)).toBeNull()
   })
 
   it('shows the FM tab with the pending count when the backend allows approving', async () => {

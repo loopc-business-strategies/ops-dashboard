@@ -24,9 +24,10 @@ const wrap = {
 }
 
 /**
- * LoopC Operations → Production: Excel-style department workbook (CRUD ledger).
+ * Operations → Production: Excel-style department workbook (CRUD ledger), used by every tenant.
+ * `dashboardSource`: only LoopC's Production Dashboard is built from these rows.
  */
-export default function LoopCProductionSheets() {
+export default function LoopCProductionSheets({ dashboardSource = true }) {
   const [entries, setEntries] = useState([])
   const [draftRows, setDraftRows] = useState({})
   const [loading, setLoading] = useState(true)
@@ -190,7 +191,8 @@ export default function LoopCProductionSheets() {
           Production
         </h2>
         <p style={{ margin: '0.3rem 0 0', color: '#64748B', fontSize: '0.85rem' }}>
-          Department workbook — use Edit to change a row; each department has its own date filter. Source of truth for the Production Dashboard.
+          Department workbook — use Edit to change a row; each department has its own date filter.
+          {dashboardSource ? ' Source of truth for the Production Dashboard.' : ''}
         </p>
       </div>
 

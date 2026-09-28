@@ -1,6 +1,7 @@
 /** `fm`: MG Floor Manager approval tab, only for users the backend allows to approve. */
 export function getOpsTabs(t, { fm = null } = {}) {
   const tabs = [
+    { id: 'production', label: 'Production' },
     { id: 'kpi', label: t('kpiOverview') },
     { id: 'checklist', label: t('readiness') },
     { id: 'supply', label: t('supplyChain') },

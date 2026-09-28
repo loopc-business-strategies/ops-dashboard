@@ -2,7 +2,6 @@ const express = require('express')
 const Joi = require('joi')
 const { protect } = require('../middleware/auth')
 const { validateBody, validateQuery, validateParams } = require('../middleware/validate')
-const { requireLoopcTenant } = require('../middleware/requireLoopcTenant')
 const { requireProductionPermission } = require('../services/productionControl/permissions')
 const OperationsProductionEntry = require('../models/OperationsProductionEntry')
 
@@ -134,7 +133,7 @@ function normalizePayload(body, { partial = false } = {}) {
   return out
 }
 
-router.use(protect, requireLoopcTenant)
+router.use(protect)
 
 router.get(
   '/',

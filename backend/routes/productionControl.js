@@ -21,7 +21,7 @@ const router = express.Router()
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
-/** LoopC Operations production ledger (source of truth for Ops sheets + LoopC dashboard). */
+/** Operations → Production workbook ledger (per tenant; also the LoopC dashboard source). */
 router.use('/operations-entries', operationsProductionRoutes)
 
 /**
