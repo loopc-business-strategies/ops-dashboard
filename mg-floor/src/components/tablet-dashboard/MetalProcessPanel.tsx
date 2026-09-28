@@ -1,6 +1,15 @@
 import React from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { tabletDashboard as td } from '@/src/theme'
+import {
+  PURITY_MAX_LENGTH,
+  QTY_MAX_LENGTH,
+  TIME_MAX_LENGTH,
+  cleanNumberInput,
+  formatTimeTyping,
+  isImpossibleTime,
+  normalizeTime,
+} from './fieldInput'
 
 export type MetalLineEdit = {
   metal: string
@@ -43,7 +52,7 @@ export type PanelApproval = {
 type Props = {
   title: string
   batches: MetalBatchEdit[]
-  onChange: (batches: MetalBatchEdit[]) => void
+  onChange: React.Dispatch<React.SetStateAction<MetalBatchEdit[]>>
   action?: MetalPanelAction
   approval?: PanelApproval
   compact?: boolean
@@ -68,14 +77,15 @@ export function MetalProcessPanel({
   const fontSize = compact ? 12 : 14
 
   const setField = (batchIdx: number, lineIdx: number, key: keyof MetalLineEdit, value: string) => {
-    const next = batches.map((b, bi) => {
-      if (bi !== batchIdx) return b
-      return {
-        ...b,
-        lines: b.lines.map((line, li) => (li === lineIdx ? { ...line, [key]: value } : line)),
-      }
-    })
-    onChange(next)
+    onChange((current) =>
+      current.map((b, bi) => {
+        if (bi !== batchIdx) return b
+        return {
+          ...b,
+          lines: b.lines.map((line, li) => (li === lineIdx ? { ...line, [key]: value } : line)),
+        }
+      }),
+    )
   }
 
   return (
@@ -116,30 +126,47 @@ export function MetalProcessPanel({
                         {line.metal}
                       </Text>
                       <TextInput
+                        accessibilityLabel={`${title} batch ${batch.batchLabel} ${line.metal} Qty`}
                         style={[...inputStyle, styles.colQty]}
                         value={line.qty}
-                        onChangeText={(v) => setField(batchIdx, lineIdx, 'qty', v)}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'qty', cleanNumberInput(v, QTY_MAX_LENGTH))}
                         editable={!locked}
                         placeholder="--"
                         placeholderTextColor={td.textMuted}
                         keyboardType="decimal-pad"
+                        maxLength={QTY_MAX_LENGTH}
                       />
                       <TextInput
+                        accessibilityLabel={`${title} batch ${batch.batchLabel} ${line.metal} Purity`}
                         style={[...inputStyle, styles.colPurity]}
                         value={line.purity}
-                        onChangeText={(v) => setField(batchIdx, lineIdx, 'purity', v)}
+                        onChangeText={(v) =>
+                          setField(batchIdx, lineIdx, 'purity', cleanNumberInput(v, PURITY_MAX_LENGTH))
+                        }
                         editable={!locked}
                         placeholder="--"
                         placeholderTextColor={td.textMuted}
                         keyboardType="decimal-pad"
+                        maxLength={PURITY_MAX_LENGTH}
                       />
                       <TextInput
-                        style={[...inputStyle, styles.colTime]}
+                        accessibilityLabel={`${title} batch ${batch.batchLabel} ${line.metal} Time`}
+                        style={[
+                          ...inputStyle,
+                          styles.colTime,
+                          isImpossibleTime(line.time) && styles.inputInvalid,
+                        ]}
                         value={line.time}
-                        onChangeText={(v) => setField(batchIdx, lineIdx, 'time', v)}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'time', formatTimeTyping(v))}
+                        onBlur={() => {
+                          const time = normalizeTime(line.time)
+                          if (time && time !== line.time) setField(batchIdx, lineIdx, 'time', time)
+                        }}
                         editable={!locked}
-                        placeholder="--"
+                        placeholder="HH:MM"
                         placeholderTextColor={td.textMuted}
+                        keyboardType="decimal-pad"
+                        maxLength={TIME_MAX_LENGTH}
                       />
                     </View>
                   ))}
@@ -286,6 +313,7 @@ const styles = StyleSheet.create({
   confirmText: { color: td.white, fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
   approvalError: { color: '#B91C1C', fontSize: 13, fontWeight: '600', margin: 8 },
   inputLocked: { color: td.textMuted, backgroundColor: '#F9FAFB' },
+  inputInvalid: { backgroundColor: '#FEE2E2', color: '#991B1B' },
   batchLabelCol: {
     width: 56,
     borderRightWidth: 1,

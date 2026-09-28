@@ -40,6 +40,13 @@ describe('prepareBatchLines', () => {
     expect(prepareBatchLines(batch([['Gold', '12,5', '99,5', '']]), at).lines[0]).toMatchObject({ qty: 12.5, purity: 99.5 })
     expect(prepareBatchLines(batch([['Gold', '1,2,3', '', '']]), at).error).toMatch(/must be a number/)
   })
+
+  it('sends typed times as HH:MM and rejects times that are not real', () => {
+    const time = (t: string) => prepareBatchLines(batch([['Gold', '10', '', t]]), at)
+    expect(time('14.30').lines[0].time).toBe('14:30')
+    expect(time('9:30').lines[0].time).toBe('09:30')
+    expect(time('25:10').error).toBe('Time for Gold must be like 14:30 (00:00 to 23:59)')
+  })
 })
 
 const row = (over: Partial<BatchEntryRow>): BatchEntryRow => ({
