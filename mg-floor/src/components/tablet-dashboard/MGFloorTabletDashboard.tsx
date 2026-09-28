@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
 } from 'react-native'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
 import {
   authenticateWithBiometric,
@@ -118,33 +118,12 @@ export function MGFloorTabletDashboard() {
     { cacheKey: 'mg-floor:dash-history-today', isEmpty: (d) => !d.length },
   )
 
-  // Set when leaving for a capture screen: the next history load replaces the tables with fresh data.
-  const reseedAfterCapture = useRef(false)
-  const refreshOnReturn = useRef(false)
-
   useEffect(() => {
-    if (!history.data) return
-    if (seeded && !reseedAfterCapture.current) return
-    reseedAfterCapture.current = false
+    if (!history.data || seeded) return
     setMetalInBatches(toEditable(buildMetalProcessBatches(history.data, 'in')))
     setMetalOutBatches(toEditable(buildMetalProcessBatches(history.data, 'out')))
     setSeeded(true)
   }, [history.data, seeded])
-
-  const reloadHistory = history.reload
-  useFocusEffect(
-    useCallback(() => {
-      if (!refreshOnReturn.current) return
-      refreshOnReturn.current = false
-      reseedAfterCapture.current = true
-      reloadHistory()
-    }, [reloadHistory]),
-  )
-
-  const openScreen = (pathname: string, refreshAfter = false) => {
-    if (refreshAfter) refreshOnReturn.current = true
-    router.push(pathname as never)
-  }
 
   const managerLinks = useMemo<DashboardLink[]>(() => {
     if (!token) return []
@@ -230,12 +209,6 @@ export function MGFloorTabletDashboard() {
               title="Metal In"
               batches={metalInBatches}
               onChange={setMetalInBatches}
-              action={{
-                label: 'CAPTURE WEIGHT',
-                onPress: () => openScreen('/metal-in', true),
-                disabled: !token,
-                disabledHint: 'Login to capture',
-              }}
               compact={compact}
             />
           </View>
@@ -248,12 +221,6 @@ export function MGFloorTabletDashboard() {
                 title="Metal Out"
                 batches={metalOutBatches}
                 onChange={setMetalOutBatches}
-                action={{
-                  label: 'CAPTURE WEIGHT',
-                  onPress: () => openScreen('/metal-out', true),
-                  disabled: !token,
-                  disabledHint: 'Login to capture',
-                }}
                 compact={compact}
               />
             </View>

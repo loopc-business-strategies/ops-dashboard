@@ -43,7 +43,7 @@ Second capture method next to DIGITAL SCALE (RS-232/gateway), which is unchanged
 
 Flow: operator taps **CAPTURE** (one photo) → guide-box crop → grayscale/contrast (native `modules/scale-ocr`) → ML Kit text + seven-segment decoder cross-check → strict parser → capacity check → operator compares the number with the photo, ticks "display was steady" and taps **CONFIRM WEIGHT** → `FloorWeightCapture` record + photo (`stableFrames: 1`) → normal Metal IN/OUT submit with `weightCaptureId`. An unreadable photo shows the reason and **RETAKE**; it never produces a weight.
 
-Dashboard: **CAPTURE WEIGHT** under the Metal In / Metal Out tables opens the capture screens (after login); the tables reload on return. **Weight Captures** (viewAudit / manageScales) and **Scales** (manageScales) links sit in the left column.
+Dashboard: the Metal In / Metal Out tables are filled in by hand (Qty / Purity / Time boxes); typed values are kept only while the app is open. There is no CAPTURE WEIGHT button, so the Metal IN / Metal OUT capture screens are not reachable from the dashboard (the code stays in the app). **Weight Captures** (viewAudit / manageScales) and **Scales** (manageScales) links sit in the left column.
 
 - OCR never creates Metal IN/OUT on its own; the operator confirms the weight, then submits the transaction.
 - A capture is single-use and consumed atomically by the transaction (`ProductionPass.issueWeightCapture` / `receiveWeightCapture`). Camera readings never carry a `scaleReadingId`.

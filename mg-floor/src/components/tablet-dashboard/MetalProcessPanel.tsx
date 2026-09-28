@@ -223,6 +223,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: td.borderGrid,
     minHeight: 36,
+    minWidth: 0,
   },
   colBatch: { width: 56 },
   colMetal: { flex: 1.1, textAlign: 'left' },
