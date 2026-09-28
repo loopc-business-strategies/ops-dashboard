@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { getTenantBranding } from '../../config/tenantBranding'
 import { buildDashboardModel, dayKey, addDays } from './buildDashboardModel'
 import { applyLoopcOpsEntriesToModel } from './applyLoopcOpsEntries'
+import { subscribeRealtimeEvents } from '../../utils/realtimeEventsBus'
 
 /** Sum department-performance rows into a period totals object. */
 export function summarizeDeptPerf(res) {
@@ -564,6 +565,19 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       try { socket?.disconnect() } catch { /* ignore */ }
     }
   }, [company, user?.company, softRefreshFloor])
+
+  // Same nudge over SSE: on the hosted web app /socket.io is not proxied, /api/realtime/events is.
+  useEffect(() => {
+    if (!tenantKey) return undefined
+    const unsubscribe = subscribeRealtimeEvents(tenantKey, 'production:update', () => {
+      if (softTimerRef.current) clearTimeout(softTimerRef.current)
+      softTimerRef.current = setTimeout(() => softRefreshFloor(), 300)
+    })
+    return () => {
+      unsubscribe()
+      if (softTimerRef.current) clearTimeout(softTimerRef.current)
+    }
+  }, [tenantKey, softRefreshFloor])
 
   return {
     loading,

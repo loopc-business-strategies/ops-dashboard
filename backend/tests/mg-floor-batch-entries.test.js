@@ -499,20 +499,30 @@ describe('MG Floor approvals fill the Operations → Production workbook', () =>
   test('approving pushes a live update to open MG Production Dashboards; rejecting does not', async () => {
     const op = await createOperator()
     const fm = await createFloorManager()
+    const { bus } = require('../utils/realtimeBus')
     const broadcasts = []
+    const sseEvents = []
+    const onSse = (event) => { if (event.type === 'production:update') sseEvents.push(event) }
     const previous = app.get('realtimeServer')
     app.set('realtimeServer', { broadcastProductionUpdate: (...args) => broadcasts.push(args) })
+    bus.on('event', onSse)
     try {
       const rejected = await submit(op, batchBody({ batchLabel: '4' }))
       await reject(fm, rejected.body.entry._id, { reason: 'Wrong gold weight' })
       expect(broadcasts).toHaveLength(0)
+      expect(sseEvents).toHaveLength(0)
 
       const sent = await submit(op, batchBody({ batchLabel: '5' }))
       const approved = await approve(fm, sent.body.entry._id)
       expect(broadcasts).toEqual([
         ['mg', 'workbook.mg_floor_batch', { entryId: approved.body.workbookEntryId }],
       ])
+      expect(sseEvents).toEqual([expect.objectContaining({
+        tenant: 'mg',
+        data: { event: 'workbook.mg_floor_batch', entryId: approved.body.workbookEntryId },
+      })])
     } finally {
+      bus.off('event', onSse)
       app.set('realtimeServer', previous)
     }
   })

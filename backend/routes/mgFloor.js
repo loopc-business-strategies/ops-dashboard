@@ -11,6 +11,7 @@ const mgFloor = require('../services/mgFloor')
 const batchEntries = require('../services/mgFloor/batchEntries')
 const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
 const { writeProductionAudit } = require('../services/productionControl/audit')
+const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const {
   BATCH_ENTRY_DIRECTIONS,
   BATCH_ENTRY_STATUSES,
@@ -35,13 +36,18 @@ function handleError(res, err) {
 
 const mgProtect = [protect, requireMgTenant]
 
-/** Nudges open Production Dashboards to reload after the workbook changed. */
+/**
+ * Nudges open Production Dashboards to reload after the workbook changed. Sent on the Socket.IO
+ * /production namespace and the /api/realtime/events SSE stream (the only one that passes the
+ * web host's /api rewrite).
+ */
 function emitWorkbookUpdate(req, event, payload = {}) {
   try {
     const rt = req.app?.get?.('realtimeServer')
     if (rt && typeof rt.broadcastProductionUpdate === 'function') {
       rt.broadcastProductionUpdate('mg', event, payload)
     }
+    publishRealtimeEvent({ type: 'production:update', tenant: 'mg', data: { event, ...payload } })
   } catch (err) {
     console.warn('[mg-floor] realtime emit failed', err?.message || err)
   }
