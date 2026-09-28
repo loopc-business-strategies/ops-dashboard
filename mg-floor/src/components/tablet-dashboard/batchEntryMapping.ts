@@ -25,7 +25,7 @@ export function clockNow(d = new Date()) {
 }
 
 function parseNumber(raw: string) {
-  const text = raw.trim()
+  const text = raw.trim().replace(',', '.')
   if (!text) return { empty: true, value: null as number | null }
   const value = Number(text)
   return { empty: false, value: Number.isFinite(value) ? value : null }

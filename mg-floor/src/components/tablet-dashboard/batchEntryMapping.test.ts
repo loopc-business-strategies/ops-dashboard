@@ -31,9 +31,14 @@ describe('prepareBatchLines', () => {
 
   it('rejects purity or time without a quantity, and bad numbers', () => {
     expect(prepareBatchLines(batch([['Gold', '', '99.5', '']]), at).error).toBe('Enter Qty for Gold')
-    expect(prepareBatchLines(batch([['Gold', '12,5', '', '']]), at).error).toMatch(/must be a number/)
+    expect(prepareBatchLines(batch([['Gold', '1.2kg', '', '']]), at).error).toMatch(/must be a number/)
     expect(prepareBatchLines(batch([['Gold', '-3', '', '']]), at).error).toMatch(/above 0/)
     expect(prepareBatchLines(batch([['Gold', '10', '1200', '']]), at).error).toMatch(/Purity/)
+  })
+
+  it('reads a comma as the decimal point', () => {
+    expect(prepareBatchLines(batch([['Gold', '12,5', '99,5', '']]), at).lines[0]).toMatchObject({ qty: 12.5, purity: 99.5 })
+    expect(prepareBatchLines(batch([['Gold', '1,2,3', '', '']]), at).error).toMatch(/must be a number/)
   })
 })
 
