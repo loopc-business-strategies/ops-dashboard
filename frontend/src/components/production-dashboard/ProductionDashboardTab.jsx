@@ -50,6 +50,11 @@ export default function ProductionDashboardTab() {
   const autoBatchRef = useRef(false)
 
   const permissions = model?.permissions || {}
+  let mgFloorStatus = null
+  if (tenantKey === 'mg' && model) {
+    if (model.sourceOfTruth === 'operations-entries') mgFloorStatus = { label: 'MG Floor workbook', tone: 'ok' }
+    else if (!model.hasLiveProduction) mgFloorStatus = { label: 'MG Floor: no batches today', tone: 'muted' }
+  }
   const selectedDept = useMemo(
     () => (model?.deptCards || []).find((c) => c.key === selectedDeptKey) || null,
     [model?.deptCards, selectedDeptKey],
@@ -157,6 +162,9 @@ export default function ProductionDashboardTab() {
         header={model?.header}
         lastUpdated={lastUpdated}
         connection={connection}
+        hasLiveProduction={model?.hasLiveProduction}
+        vaultConnected={model?.vaultConnected}
+        productionStatus={mgFloorStatus}
         onRefresh={() => refresh()}
         loading={loading}
       />

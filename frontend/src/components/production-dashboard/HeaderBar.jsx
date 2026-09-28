@@ -7,6 +7,7 @@ export default function HeaderBar({
   connection: _connection,
   hasLiveProduction,
   vaultConnected,
+  productionStatus,
   onRefresh,
   loading,
 }) {
@@ -16,7 +17,10 @@ export default function HeaderBar({
     ? ` (${formatShiftClock(h.shiftStart)} – ${formatShiftClock(h.shiftEnd)})`
     : ''
 
-  const productionConnected = Boolean(hasLiveProduction)
+  const production = productionStatus || (hasLiveProduction
+    ? { label: 'Production connected', tone: 'ok' }
+    : { label: 'Production not connected', tone: 'bad' })
+  const productionToneClass = production.tone === 'ok' || production.tone === 'bad' ? ` pd-conn--${production.tone}` : ''
   const vaultOk = Boolean(vaultConnected)
 
   return (
@@ -41,9 +45,9 @@ export default function HeaderBar({
           <span className="pd-conn-dot" aria-hidden />
           {vaultOk ? 'Vault connected' : 'Vault not connected'}
         </span>
-        <span className={`pd-conn ${productionConnected ? 'pd-conn--ok' : 'pd-conn--bad'}`}>
+        <span className={`pd-conn${productionToneClass}`}>
           <span className="pd-conn-dot" aria-hidden />
-          {productionConnected ? 'Production connected' : 'Production not connected'}
+          {production.label}
         </span>
         <span className="pd-header-chip pd-header-chip--shift" title={`Current shift${shiftHint}`}>
           <span className="pd-shift-label">Shift: {shiftName}</span>
