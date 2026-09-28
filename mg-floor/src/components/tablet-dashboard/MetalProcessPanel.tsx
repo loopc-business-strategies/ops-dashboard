@@ -1,18 +1,6 @@
-import React, { useRef } from 'react'
+import React from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { tabletDashboard as td } from '@/src/theme'
-import {
-  PURITY_MAX_LENGTH,
-  QTY_MAX_LENGTH,
-  TIME_MAX_LENGTH,
-  cleanNumberInput,
-  cleanTimeInput,
-  normalizeTime,
-} from './fieldInput'
-
-const FIELDS = ['qty', 'purity', 'time'] as const
-type Field = (typeof FIELDS)[number]
-const FIELD_LABELS: Record<Field, string> = { qty: 'Qty', purity: 'Purity', time: 'Time' }
 
 export type MetalLineEdit = {
   metal: string
@@ -78,16 +66,6 @@ export function MetalProcessPanel({
 }: Props) {
   const pad = compact ? 6 : 8
   const fontSize = compact ? 12 : 14
-  const inputFontSize = compact ? 14 : 16
-  const inputs = useRef(new Map<string, TextInput | null>())
-
-  /** Editable cells in typing order, so the keyboard's Next key walks Qty → Purity → Time → next row. */
-  const order = batches.flatMap((batch, batchIdx) =>
-    approval?.rows[batch.batchLabel]?.locked
-      ? []
-      : batch.lines.flatMap((_, lineIdx) => FIELDS.map((field) => `${batchIdx}-${lineIdx}-${field}`)),
-  )
-  const focusAfter = (key: string) => inputs.current.get(order[order.indexOf(key) + 1])?.focus()
 
   const setField = (batchIdx: number, lineIdx: number, key: keyof MetalLineEdit, value: string) => {
     const next = batches.map((b, bi) => {
@@ -119,7 +97,7 @@ export function MetalProcessPanel({
         {batches.map((batch, batchIdx) => {
           const row = approval?.rows[batch.batchLabel]
           const locked = Boolean(row?.locked)
-          const inputStyle = [styles.input, locked && styles.inputLocked, { fontSize: inputFontSize, paddingVertical: pad }]
+          const inputStyle = [styles.input, locked && styles.inputLocked, { fontSize, paddingVertical: pad }]
           const tone = row?.status ? TONES[row.status.tone] : null
           const confirmDisabled = !approval?.canConfirm || Boolean(row?.busy)
           return (
@@ -137,48 +115,32 @@ export function MetalProcessPanel({
                       <Text style={[styles.cell, styles.colMetal, { fontSize, paddingVertical: pad }]}>
                         {line.metal}
                       </Text>
-                      {FIELDS.map((field) => {
-                        const key = `${batchIdx}-${lineIdx}-${field}`
-                        const isLast = order[order.length - 1] === key
-                        const badTime = field === 'time' && normalizeTime(line.time) == null
-                        return (
-                          <TextInput
-                            key={field}
-                            ref={(el) => {
-                              inputs.current.set(key, el)
-                            }}
-                            accessibilityLabel={`${title} batch ${batch.batchLabel} ${line.metal} ${FIELD_LABELS[field]}`}
-                            style={[...inputStyle, styles.colField, badTime && styles.inputInvalid]}
-                            value={line[field]}
-                            onChangeText={(v) =>
-                              setField(
-                                batchIdx,
-                                lineIdx,
-                                field,
-                                field === 'time'
-                                  ? cleanTimeInput(v)
-                                  : cleanNumberInput(v, field === 'qty' ? QTY_MAX_LENGTH : PURITY_MAX_LENGTH),
-                              )
-                            }
-                            onBlur={() => {
-                              if (field !== 'time') return
-                              const time = normalizeTime(line.time)
-                              if (time && time !== line.time) setField(batchIdx, lineIdx, 'time', time)
-                            }}
-                            onSubmitEditing={() => focusAfter(key)}
-                            editable={!locked}
-                            placeholder={field === 'time' ? 'HH:MM' : '--'}
-                            placeholderTextColor={td.textMuted}
-                            keyboardType="decimal-pad"
-                            maxLength={
-                              field === 'qty' ? QTY_MAX_LENGTH : field === 'purity' ? PURITY_MAX_LENGTH : TIME_MAX_LENGTH
-                            }
-                            selectTextOnFocus
-                            returnKeyType={isLast ? 'done' : 'next'}
-                            submitBehavior={isLast ? 'blurAndSubmit' : 'submit'}
-                          />
-                        )
-                      })}
+                      <TextInput
+                        style={[...inputStyle, styles.colQty]}
+                        value={line.qty}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'qty', v)}
+                        editable={!locked}
+                        placeholder="--"
+                        placeholderTextColor={td.textMuted}
+                        keyboardType="decimal-pad"
+                      />
+                      <TextInput
+                        style={[...inputStyle, styles.colPurity]}
+                        value={line.purity}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'purity', v)}
+                        editable={!locked}
+                        placeholder="--"
+                        placeholderTextColor={td.textMuted}
+                        keyboardType="decimal-pad"
+                      />
+                      <TextInput
+                        style={[...inputStyle, styles.colTime]}
+                        value={line.time}
+                        onChangeText={(v) => setField(batchIdx, lineIdx, 'time', v)}
+                        editable={!locked}
+                        placeholder="--"
+                        placeholderTextColor={td.textMuted}
+                      />
                     </View>
                   ))}
                 </View>
@@ -336,7 +298,7 @@ const styles = StyleSheet.create({
   batchLines: { flex: 1 },
   lineRow: {
     flexDirection: 'row',
-    minHeight: 44,
+    minHeight: 40,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: td.borderGrid,
     alignItems: 'center',
@@ -359,16 +321,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: td.borderGrid,
-    minHeight: 44,
+    minHeight: 36,
     minWidth: 0,
   },
-  inputInvalid: { backgroundColor: '#FEE2E2', color: '#991B1B' },
   colBatch: { width: 56 },
   colMetal: { flex: 1.1, textAlign: 'left' },
   colQty: { flex: 1 },
   colPurity: { flex: 1 },
   colTime: { flex: 1 },
-  colField: { flex: 1, alignSelf: 'stretch' },
   actionWrap: { margin: 10, gap: 4 },
   actionBtn: {
     minHeight: 48,

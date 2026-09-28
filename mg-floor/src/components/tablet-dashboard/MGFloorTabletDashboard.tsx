@@ -4,7 +4,6 @@ import {
   StyleSheet,
   View,
   useWindowDimensions,
-  type LayoutChangeEvent,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
@@ -97,7 +96,6 @@ export function MGFloorTabletDashboard() {
   const [metalOutBatches, setMetalOutBatches] = useState<MetalBatchEdit[]>(emptyEditableBatches)
   const [assignedMetal, setAssignedMetal] = useState({ batch1: '', batch2: '' })
   const [seeded, setSeeded] = useState(false)
-  const [fullSize, setFullSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
     getSelectedDepartment().then((d) => setSelectedDept(d || ''))
@@ -210,82 +208,63 @@ export function MGFloorTabletDashboard() {
   const padH = compact ? 8 : 14
   const gap = compact ? 6 : 10
 
-  /**
-   * The on-screen keyboard shrinks the view; keep the dashboard at its full (keyboard-closed)
-   * height so the rows under the keyboard can be scrolled to instead of being squeezed out.
-   */
-  const onBodyLayout = (e: LayoutChangeEvent) => {
-    const h = e.nativeEvent.layout.height
-    setFullSize((prev) => (prev.width === width && prev.height >= h ? prev : { width, height: h }))
-  }
-  const fullHeight = fullSize.width === width ? fullSize.height : 0
-
   return (
     <ScrollView
       horizontal
       bounces={false}
       showsHorizontalScrollIndicator
-      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ minWidth: DASH_MIN_WIDTH, flexGrow: 1 }}
       style={styles.hScroll}
     >
-      <ScrollView
-        bounces={false}
-        keyboardShouldPersistTaps="handled"
-        onLayout={onBodyLayout}
-        style={{ width: contentWidth }}
-        contentContainerStyle={{ flexGrow: 1, minHeight: fullHeight || undefined }}
-      >
-        <View style={[styles.root, { width: contentWidth, paddingHorizontal: padH }]}>
-          <View style={[styles.blankHeader, compact && { height: 10 }]} />
-          <View style={[styles.grid, { gap: 0 }]}>
-            <View style={[styles.col, styles.colLeft, { gap }]}>
-              <LoginLogoutRow
-                onLogin={onLogin}
-                onLogout={onLogout}
-                loggedIn={Boolean(token)}
-                loginDisabled={Boolean(token)}
-              />
-              <AssignManagerButton onPress={() => setAssignOpen(true)} />
-              <DepartmentBadge department={dept} loggedIn={Boolean(token)} />
-              <EmployeeTable employees={employees} />
-              <CallFMButton onPress={() => setCallOpen(true)} />
-            </View>
+      <View style={[styles.root, { width: contentWidth, paddingHorizontal: padH }]}>
+        <View style={[styles.blankHeader, compact && { height: 10 }]} />
+        <View style={[styles.grid, { gap: 0 }]}>
+          <View style={[styles.col, styles.colLeft, { gap }]}>
+            <LoginLogoutRow
+              onLogin={onLogin}
+              onLogout={onLogout}
+              loggedIn={Boolean(token)}
+              loginDisabled={Boolean(token)}
+            />
+            <AssignManagerButton onPress={() => setAssignOpen(true)} />
+            <DepartmentBadge department={dept} loggedIn={Boolean(token)} />
+            <EmployeeTable employees={employees} />
+            <CallFMButton onPress={() => setCallOpen(true)} />
+          </View>
 
-            <View style={styles.divider} />
+          <View style={styles.divider} />
 
-            <View style={[styles.col, styles.colMid, { gap }]}>
+          <View style={[styles.col, styles.colMid, { gap }]}>
+            <MetalProcessPanel
+              title="Metal In"
+              batches={metalInBatches}
+              onChange={setMetalInBatches}
+              approval={approvalFor('IN', metalInBatches)}
+              compact={compact}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={[styles.col, styles.colRight, { gap }]}>
+            <View style={styles.metalOutBlock}>
               <MetalProcessPanel
-                title="Metal In"
-                batches={metalInBatches}
-                onChange={setMetalInBatches}
-                approval={approvalFor('IN', metalInBatches)}
+                title="Metal Out"
+                batches={metalOutBatches}
+                onChange={setMetalOutBatches}
+                approval={approvalFor('OUT', metalOutBatches)}
                 compact={compact}
               />
             </View>
-
-            <View style={styles.divider} />
-
-            <View style={[styles.col, styles.colRight, { gap }]}>
-              <View style={styles.metalOutBlock}>
-                <MetalProcessPanel
-                  title="Metal Out"
-                  batches={metalOutBatches}
-                  onChange={setMetalOutBatches}
-                  approval={approvalFor('OUT', metalOutBatches)}
-                  compact={compact}
-                />
-              </View>
-              <AssignedMetalInPanel
-                batch1={assignedMetal.batch1}
-                batch2={assignedMetal.batch2}
-                onChange={onAssignedMetalChange}
-                compact={compact}
-              />
-            </View>
+            <AssignedMetalInPanel
+              batch1={assignedMetal.batch1}
+              batch2={assignedMetal.batch2}
+              onChange={onAssignedMetalChange}
+              compact={compact}
+            />
           </View>
         </View>
-      </ScrollView>
+      </View>
 
       <AssignManagerModal
         visible={assignOpen}
