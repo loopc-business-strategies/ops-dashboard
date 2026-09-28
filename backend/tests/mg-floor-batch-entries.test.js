@@ -194,6 +194,50 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
     expect((await submit(op, batchBody({ direction: 'OUT' }))).status).toBe(201)
   })
 
+  describe('without the unique activeKey index (hardened deploys run with autoIndex off)', () => {
+    let FloorBatchEntry
+    beforeEach(async () => {
+      FloorBatchEntry = await require('../models/FloorBatchEntry').getTenantModel('mg')
+      await FloorBatchEntry.createIndexes()
+      await FloorBatchEntry.collection.dropIndex('activeKey_1')
+    })
+    afterEach(async () => {
+      await FloorBatchEntry.deleteMany({})
+      await FloorBatchEntry.createIndexes()
+    })
+
+    test('a second live entry for the same batch is still 409', async () => {
+      const op = await createOperator()
+      expect((await submit(op, batchBody())).status).toBe(201)
+
+      const dup = await submit(op, batchBody())
+      expect(dup.status).toBe(409)
+      expect(dup.body.code).toBe('BATCH_ENTRY_EXISTS')
+      expect(await FloorBatchEntry.countDocuments({})).toBe(1)
+    })
+
+    test('a duplicate that slipped in cannot be approved once the batch is approved', async () => {
+      const op = await createOperator()
+      const fm = await createFloorManager()
+      const first = await submit(op, batchBody())
+      expect((await approve(fm, first.body.entry._id)).status).toBe(200)
+
+      const { direction, department, batchLabel, entryDate, lines, employeeId, employeeName, activeKey } = first.body.entry
+      const stray = await FloorBatchEntry.create({
+        entryId: `be_stray_${Date.now().toString(36)}`,
+        direction, department, batchLabel, entryDate, lines, employeeId, employeeName, activeKey,
+        status: 'PENDING',
+        submittedAt: new Date(),
+      })
+      const res = await approve(fm, stray._id)
+      expect(res.status).toBe(409)
+      expect(res.body.code).toBe('BATCH_ENTRY_EXISTS')
+      expect((await FloorBatchEntry.findById(stray._id).lean()).status).toBe('PENDING')
+
+      expect((await reject(fm, stray._id, { reason: 'duplicate entry' })).status).toBe(200)
+    })
+  })
+
   test('6. department spoofing: operators always submit under their assigned floor department', async () => {
     const op = await createOperator()
 

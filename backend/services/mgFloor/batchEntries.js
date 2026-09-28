@@ -49,6 +49,15 @@ function isSameUser(a, b) {
   return a != null && b != null && String(a) === String(b)
 }
 
+function batchExistsError({ batchLabel, direction, entryDate }) {
+  const err = new ProductionError(
+    `Batch ${batchLabel} Metal ${direction === 'IN' ? 'In' : 'Out'} for ${entryDate} is already waiting for or has Floor Manager approval`,
+    409,
+  )
+  err.code = 'BATCH_ENTRY_EXISTS'
+  return err
+}
+
 function departmentError(message, status, code) {
   const err = new ProductionError(message, status)
   err.code = code
@@ -147,6 +156,9 @@ async function submitBatchEntry(req, body = {}) {
   }
   doc.activeKey = activeKeyFor(doc)
 
+  // Hardened deploys run without autoIndex, so the unique activeKey index may be missing.
+  if (await FloorBatchEntry.exists({ activeKey: doc.activeKey })) throw batchExistsError(doc)
+
   let created
   try {
     created = await FloorBatchEntry.create(doc)
@@ -154,12 +166,7 @@ async function submitBatchEntry(req, body = {}) {
     if (err?.code === 11000) {
       const again = await FloorBatchEntry.findOne({ entryId }).lean()
       if (again) return { entry: again, reused: true }
-      const err409 = new ProductionError(
-        `Batch ${doc.batchLabel} Metal ${direction === 'IN' ? 'In' : 'Out'} for ${doc.entryDate} is already waiting for or has Floor Manager approval`,
-        409,
-      )
-      err409.code = 'BATCH_ENTRY_EXISTS'
-      throw err409
+      throw batchExistsError(doc)
     }
     throw err
   }
@@ -237,6 +244,14 @@ async function decideBatchEntry(req, id, decision, reason = '') {
   }
 
   const approve = decision === 'APPROVED'
+  if (approve && current.activeKey) {
+    const alreadyApproved = await FloorBatchEntry.exists({
+      activeKey: current.activeKey,
+      status: 'APPROVED',
+      _id: { $ne: current._id },
+    })
+    if (alreadyApproved) throw batchExistsError(current)
+  }
   const rejectReason = String(reason || '').trim().slice(0, 500)
   if (!approve && rejectReason.length < 3) {
     throw new ProductionError('A reason is required to reject', 400)
