@@ -31,9 +31,21 @@ describe('prepareBatchLines', () => {
 
   it('rejects purity or time without a quantity, and bad numbers', () => {
     expect(prepareBatchLines(batch([['Gold', '', '99.5', '']]), at).error).toBe('Enter Qty for Gold')
-    expect(prepareBatchLines(batch([['Gold', '12,5', '', '']]), at).error).toMatch(/must be a number/)
+    expect(prepareBatchLines(batch([['Gold', '1.2kg', '', '']]), at).error).toMatch(/must be a number/)
     expect(prepareBatchLines(batch([['Gold', '-3', '', '']]), at).error).toMatch(/above 0/)
     expect(prepareBatchLines(batch([['Gold', '10', '1200', '']]), at).error).toMatch(/Purity/)
+  })
+
+  it('reads a comma as the decimal point', () => {
+    expect(prepareBatchLines(batch([['Gold', '12,5', '99,5', '']]), at).lines[0]).toMatchObject({ qty: 12.5, purity: 99.5 })
+  })
+
+  it('sends typed times as HH:MM and rejects times that are not real', () => {
+    const time = (t: string) => prepareBatchLines(batch([['Gold', '10', '', t]]), at)
+    expect(time('22.45').lines[0].time).toBe('22:45')
+    expect(time('945').lines[0].time).toBe('09:45')
+    expect(time('25:10').error).toBe('Time for Gold must be like 14:30 (00:00 to 23:59)')
+    expect(time('10:75').error).toMatch(/Time for Gold/)
   })
 })
 
