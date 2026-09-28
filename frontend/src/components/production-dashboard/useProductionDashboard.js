@@ -85,6 +85,9 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     || '',
   ).trim().toLowerCase()
   const isLoopc = tenantKey === 'loopc'
+  // MG: today's workbook rows (filled by approved MG Floor batches) drive the cards and KPIs.
+  const isMg = tenantKey === 'mg'
+  const usesWorkbook = isLoopc || isMg
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [actionError, setActionError] = useState(null)
@@ -141,15 +144,16 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       weightVarianceRes: payload.weightVarianceRes,
       metalMovements: movements,
     })
-    if (isLoopc) {
+    if (usesWorkbook) {
       return applyLoopcOpsEntriesToModel(
         base,
         payload.opsEntries || [],
         payload.opsEntriesAll || null,
+        { keepModelWhenEmpty: isMg },
       )
     }
     return base
-  }, [user, isLoopc])
+  }, [user, usesWorkbook, isMg])
 
   const publish = useCallback((partial) => {
     payloadRef.current = { ...payloadRef.current, ...partial }
@@ -209,15 +213,15 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.reportDaily({ date: today }, { signal: ac.signal }).catch(() => null),
         productionControlApi.me({ signal: ac.signal }).catch(() => null),
       ]
-      if (isLoopc) {
+      if (usesWorkbook) {
         corePromises.push(
           productionControlApi.listOperationsEntries(
             { date: today, limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
-          fetchPriorOpsEntries(ac.signal),
         )
       }
+      if (isLoopc) corePromises.push(fetchPriorOpsEntries(ac.signal))
 
       const [
         summaryRes,
@@ -232,7 +236,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       ] = await Promise.all(corePromises)
       if (ac.signal.aborted) return
 
-      if (!isLoopc && !summaryRes && !boardRes && !widgetsRes) {
+      if (!isLoopc && !summaryRes && !boardRes && !widgetsRes && !opsEntriesRes) {
         setError('Unable to load production floor data')
       } else {
         setError(null)
@@ -248,7 +252,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         flowRes,
         todayReport,
         meRes,
-        ...(isLoopc ? {
+        ...(usesWorkbook ? {
           opsEntries: Array.isArray(opsEntries) ? opsEntries : [],
           opsEntriesAll: Array.isArray(opsEntriesAll) ? opsEntriesAll : [],
         } : {}),
@@ -308,7 +312,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load Production Dashboard')
       if (!soft) setLoading(false)
     }
-  }, [publish, isLoopc])
+  }, [publish, isLoopc, usesWorkbook])
 
   const softRefreshFloor = useCallback(async () => {
     const ac = new AbortController()
@@ -319,17 +323,17 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.getLiveFloorWidgets({ signal: ac.signal }).catch(() => null),
         productionControlApi.getCurrentShift({ signal: ac.signal }).catch(() => null),
       ]
-      if (isLoopc) {
+      if (usesWorkbook) {
         tasks.push(
           productionControlApi.listOperationsEntries(
             { date: dayKey(), limit: 500 },
             { signal: ac.signal },
           ).catch(() => null),
-          fetchPriorOpsEntries(ac.signal),
         )
       }
+      if (isLoopc) tasks.push(fetchPriorOpsEntries(ac.signal))
       const [summaryRes, boardRes, widgetsRes, shiftRes, opsEntriesRes, opsEntriesAllRes] = await Promise.all(tasks)
-      if (!isLoopc && !summaryRes && !boardRes && !widgetsRes) return
+      if (!isLoopc && !summaryRes && !boardRes && !widgetsRes && !opsEntriesRes) return
       const opsEntries = opsEntriesRes?.entries || opsEntriesRes?.items || []
       const opsEntriesAll = opsEntriesAllRes?.entries || opsEntriesAllRes?.items || []
       publish({
@@ -337,7 +341,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         boardRes,
         widgetsRes,
         shiftRes,
-        ...(isLoopc ? {
+        ...(usesWorkbook ? {
           opsEntries: Array.isArray(opsEntries) ? opsEntries : [],
           opsEntriesAll: Array.isArray(opsEntriesAll) ? opsEntriesAll : [],
         } : {}),
@@ -345,7 +349,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     } catch {
       /* ignore soft refresh errors */
     }
-  }, [publish, isLoopc])
+  }, [publish, isLoopc, usesWorkbook])
 
   const afterWrite = useCallback(async () => {
     await softRefreshFloor()

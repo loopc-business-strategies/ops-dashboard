@@ -496,6 +496,27 @@ describe('MG Floor approvals fill the Operations → Production workbook', () =>
     expect(new Date(rows[0].batchOverAt).toISOString()).toBe('2026-09-28T05:00:00.000Z')
   })
 
+  test('approving pushes a live update to open MG Production Dashboards; rejecting does not', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+    const broadcasts = []
+    const previous = app.get('realtimeServer')
+    app.set('realtimeServer', { broadcastProductionUpdate: (...args) => broadcasts.push(args) })
+    try {
+      const rejected = await submit(op, batchBody({ batchLabel: '4' }))
+      await reject(fm, rejected.body.entry._id, { reason: 'Wrong gold weight' })
+      expect(broadcasts).toHaveLength(0)
+
+      const sent = await submit(op, batchBody({ batchLabel: '5' }))
+      const approved = await approve(fm, sent.body.entry._id)
+      expect(broadcasts).toEqual([
+        ['mg', 'workbook.mg_floor_batch', { entryId: approved.body.workbookEntryId }],
+      ])
+    } finally {
+      app.set('realtimeServer', previous)
+    }
+  })
+
   test('MG Floor rows are locked: only rating, breakdown and requests can be edited; no delete', async () => {
     const op = await createOperator()
     const fm = await createFloorManager()

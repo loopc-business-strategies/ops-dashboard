@@ -35,6 +35,18 @@ function handleError(res, err) {
 
 const mgProtect = [protect, requireMgTenant]
 
+/** Nudges open Production Dashboards to reload after the workbook changed. */
+function emitWorkbookUpdate(req, event, payload = {}) {
+  try {
+    const rt = req.app?.get?.('realtimeServer')
+    if (rt && typeof rt.broadcastProductionUpdate === 'function') {
+      rt.broadcastProductionUpdate('mg', event, payload)
+    }
+  } catch (err) {
+    console.warn('[mg-floor] realtime emit failed', err?.message || err)
+  }
+}
+
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
 // ── Removed: scales, weight / camera capture, XRF, gateways, pass-based Metal IN / OUT / Transfer ──
@@ -255,6 +267,9 @@ router.get('/batch-entries', ...mgProtect, requireProductionPermission('view'), 
 router.post('/batch-entries/:id/approve', ...mgProtect, requireProductionPermission('approvePass'), validateParams(idParam), async (req, res) => {
   try {
     const result = await batchEntries.decideBatchEntry(req, req.params.id, 'APPROVED')
+    if (result.workbookEntryId) {
+      emitWorkbookUpdate(req, 'workbook.mg_floor_batch', { entryId: String(result.workbookEntryId) })
+    }
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
@@ -271,6 +286,7 @@ router.post('/batch-entries/sync-workbook', ...mgProtect, requireProductionPermi
       detail: `MG Floor workbook sync: ${result.linked} of ${result.approved} approved batches linked`,
       changes: result,
     }).catch((err) => console.warn('[mg-floor] workbook sync audit failed', err?.message || err))
+    if (result.linked) emitWorkbookUpdate(req, 'workbook.mg_floor_sync', { linked: result.linked })
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)

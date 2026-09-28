@@ -67,7 +67,7 @@ describe('OperationsTab smoke', () => {
     expect(tabLabels[0]).toBe('Production')
     expect(await screen.findByText('VAULT ROOM', { exact: false })).toBeTruthy()
     expect(listOperationsEntries).toHaveBeenCalled()
-    expect(screen.queryByText(/Source of truth for the Production Dashboard/)).toBeNull()
+    expect(screen.getByText(/Source of truth for the Production Dashboard/)).toBeTruthy()
   })
 
   it('shows the FM tab with the pending count when the backend allows approving', async () => {

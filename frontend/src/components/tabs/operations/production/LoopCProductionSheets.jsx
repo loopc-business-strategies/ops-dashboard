@@ -26,7 +26,7 @@ const wrap = {
 
 /**
  * Operations → Production: Excel-style department workbook (CRUD ledger), used by every tenant.
- * `dashboardSource`: only LoopC's Production Dashboard is built from these rows.
+ * `dashboardSource`: the Production Dashboard is built from these rows (LoopC always; MG on days with rows).
  * `mgFloorSync`: MG Floor / Production Managers can re-apply approved MG Floor batches.
  */
 export default function LoopCProductionSheets({ dashboardSource = true, mgFloorSync = false }) {

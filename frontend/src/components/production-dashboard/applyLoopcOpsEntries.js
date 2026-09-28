@@ -306,13 +306,15 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
 }
 
 /**
- * Merge LoopC Operations overlay onto an existing dashboard model.
+ * Merge the Operations → Production workbook overlay onto an existing dashboard model.
  * Replaces idle/empty dept cards and KPI totals when ops entries exist for today.
+ * `keepModelWhenEmpty` (MG): with no workbook rows today the model is returned unchanged.
  */
-export function applyLoopcOpsEntriesToModel(model, entries, entriesAll = null) {
+export function applyLoopcOpsEntriesToModel(model, entries, entriesAll = null, { keepModelWhenEmpty = false } = {}) {
   if (!model) return model
   const overlay = buildLoopcOpsDashboardOverlay(entries, entriesAll)
   if (!overlay.hasOpsData) {
+    if (keepModelWhenEmpty) return model
     return {
       ...model,
       deptCards: overlay.deptCards,
@@ -348,6 +350,10 @@ export function applyLoopcOpsEntriesToModel(model, entries, entriesAll = null) {
       totalProductionToday: k.totalProductionToday,
       underProduction: k.underProduction,
       totalOutput: k.totalOutput,
+    },
+    underProductionKpi: {
+      ...(model.underProductionKpi || {}),
+      activeBatches: k.activeBatches,
     },
     employeeKpi: {
       ...(model.employeeKpi || {}),
