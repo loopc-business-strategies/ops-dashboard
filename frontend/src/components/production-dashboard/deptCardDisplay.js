@@ -27,14 +27,6 @@ function fmtMin(v) {
 function normName(v) {
   return String(v || '').trim().toLowerCase()
 }
-
-function totalBasisLabel(basis) {
-  const batches = Number(basis?.batches) || 0
-  if (!batches) return null
-  const days = Number(basis?.days) || 0
-  return `from ${days} ${days === 1 ? 'day' : 'days'}, ${batches} ${batches === 1 ? 'batch' : 'batches'}`
-}
-
 function subtitleFor(key) {
   const dept = DASHBOARD_DEPARTMENTS.find((d) => d.key === key)
   return dept?.subtitle || ''
@@ -420,17 +412,13 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     batches: batchesDisplay,
     timePerBatchLabel,
     avgTimeLabel,
-    timeTotalAvgLabel: suppressDemo ? timeTotalAvgLabel : null,
-    timeTotalBasisLabel: suppressDemo ? totalBasisLabel(card.timeTotalBasis) : null,
-    timeRows,
+    timeTotalAvgLabel: suppressDemo ? timeTotalAvgLabel : null,    timeRows,
     metalIn,
     metalOut,
     lossRows,
     lossAvg,
     lossTodayAvg: suppressDemo ? lossTodayAvg : null,
-    lossTotalAvg: suppressDemo ? lossTotalAvg : null,
-    lossTotalBasisLabel: suppressDemo ? totalBasisLabel(card.lossTotalBasis) : null,
-    batchStartedLabel: suppressDemo
+    lossTotalAvg: suppressDemo ? lossTotalAvg : null,    batchStartedLabel: suppressDemo
       ? (batchStartedLabel || '—')
       : (batchStartedLabel || DEMO_PROGRESS.batchStartedLabel),
     batchOverLabel: suppressDemo

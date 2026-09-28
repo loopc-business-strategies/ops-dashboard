@@ -221,9 +221,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       timeRows,
       lossTodayAvg: meanLoss(rows),
       lossTotalAvg: roundOrNull(lossTotal.mean, 2),
-      lossTotalBasis: { days: lossTotal.days, batches: lossTotal.batches },
       timeTotalAvgMin: roundOrNull(timeTotal.mean),
-      timeTotalBasis: { days: timeTotal.days, batches: timeTotal.batches },
       lossPct: metalInVal && metalLossVal != null && metalInVal > 0
         ? Math.round((metalLossVal / metalInVal) * 1000) / 10
         : null,
