@@ -204,6 +204,7 @@ export default function ProductionDashboardTab() {
             permissions={permissions}
             suppressDemo={suppressDemo}
             loopcMode={loopcMode}
+            currentBatchTimes={tenantKey === 'mg'}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',

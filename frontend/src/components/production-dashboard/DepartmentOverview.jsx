@@ -73,8 +73,9 @@ function DeptCard({
   onSelect,
   suppressDemo = false,
   loopcMode = false,
+  currentBatchTimes = false,
 }) {
-  const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode })
+  const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode, currentBatchTimes })
   const tone = statusClass(ui.status)
   const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
     ? `EMPLOYEES (${ui.employeeCount})`
@@ -258,6 +259,7 @@ export default function DepartmentOverview({
   permissions: _permissions,
   suppressDemo = false,
   loopcMode = false,
+  currentBatchTimes = false,
 }) {
   const list = cards || []
 
@@ -278,6 +280,7 @@ export default function DepartmentOverview({
                 onSelect={onSelectDept}
                 suppressDemo={suppressDemo}
                 loopcMode={loopcMode}
+                currentBatchTimes={currentBatchTimes}
               />
             ))}
           </div>

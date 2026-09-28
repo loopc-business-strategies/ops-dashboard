@@ -233,7 +233,15 @@ function hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows 
   )
 }
 
-function resolveBatchProgress(card, batches, { hour24 = false } = {}) {
+function resolveBatchProgress(card, batches, { hour24 = false, currentBatchTimes = false } = {}) {
+  // Workbook cards (MG): the latest-started batch's own times; no Over until its Metal OUT is in.
+  if (currentBatchTimes && 'currentBatchStartedAt' in card) {
+    return {
+      batchStartedLabel: formatBatchClock(card.currentBatchStartedAt, { hour24 }),
+      batchOverLabel: formatBatchClock(card.currentBatchOverAt, { hour24 }),
+      progressPercent: progressPct(card.progress),
+    }
+  }
   const primary = batches[0] || null
   const startedRaw = primary?.startedAt || card.startedAt || card.processStartTime || null
   const endedRaw = primary?.completedAt || primary?.processEndTime || card.completedAt || card.processEndTime || null
@@ -373,6 +381,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     : []
   let { batchStartedLabel, batchOverLabel, progressPercent } = resolveBatchProgress(card, batches, {
     hour24: loopcMode,
+    currentBatchTimes: Boolean(options.currentBatchTimes),
   })
 
   const live = hasLiveSignal({ employeeCount, batchCount, metalIn, metalOut, lossRows })

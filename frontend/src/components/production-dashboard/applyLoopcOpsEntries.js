@@ -211,6 +211,8 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       shiftName: null,
       startedAt,
       completedAt,
+      currentBatchStartedAt: primary?.batchStartedAt || null,
+      currentBatchOverAt: primary?.batchOverAt || null,
       elapsedMin: primaryElapsed,
       avgTimeMin: avgTimeMin ?? primaryElapsed,
       metalIn: metalInVal,
