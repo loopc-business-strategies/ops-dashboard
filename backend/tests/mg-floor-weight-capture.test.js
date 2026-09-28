@@ -269,6 +269,47 @@ describe('MG Floor scale camera captures', () => {
     expect(conflict.status).toBe(409)
   })
 
+  test('stores the stability readings sent with a camera capture', async () => {
+    const user = await createTenantUser('mg')
+    await createCameraScale(user)
+    const readings = [
+      { weight: 1250.35, confidence: 0.97, offsetMs: 0 },
+      { weight: 1250.35, confidence: 0.98, offsetMs: 410 },
+      { weight: 1250.36, confidence: 0.96, offsetMs: 820 },
+      { weight: 1250.35, confidence: 0.98, offsetMs: 1230 },
+      { weight: 1250.34, confidence: 0.97, offsetMs: 1640 },
+    ]
+    const res = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(user))
+      .send(cameraCapture({ stabilityDurationMs: 1640, stabilityTolerance: 0.01, stabilityReadings: readings }))
+    expect(res.status).toBe(201)
+    expect(res.body.capture.stableFrames).toBe(5)
+    expect(res.body.capture.stabilityDurationMs).toBe(1640)
+    expect(res.body.capture.stabilityTolerance).toBe(0.01)
+    expect(res.body.capture.stabilityReadings).toEqual(readings)
+
+    const bad = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(user))
+      .send(cameraCapture({ stabilityReadings: [{ weight: 1250.35, confidence: 2, offsetMs: 0 }] }))
+    expect(bad.status).toBe(400)
+  })
+
+  test('legacy captures without stability metadata (queued offline before the update) still sync', async () => {
+    const user = await createTenantUser('mg')
+    await createCameraScale(user)
+    const res = await request(app)
+      .post('/api/mg-floor/scale-camera-captures')
+      .set(mgHeaders(user))
+      .send(cameraCapture({ stableFrames: 1 }))
+    expect(res.status).toBe(201)
+    expect(res.body.capture.stableFrames).toBe(1)
+    expect(res.body.capture.stabilityDurationMs).toBeNull()
+    expect(res.body.capture.stabilityTolerance).toBeNull()
+    expect(res.body.capture.stabilityReadings).toEqual([])
+  })
+
   test.each([100.0, 500.0, 999.99, 1250.35, 1500.25, 2200.0])('accepts %p g', async (weight) => {
     const user = await createTenantUser('mg')
     await createCameraScale(user)

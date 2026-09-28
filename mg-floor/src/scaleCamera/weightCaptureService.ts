@@ -10,6 +10,7 @@ import { enqueueOutbox } from '@/src/offline/outbox'
 import { enqueueCapturePhoto } from '@/src/offline/photoQueue'
 import type { CaptureMethod, ScaleWeighProfile } from './cameraSettings'
 import { deleteCapturePhoto, saveCapturePhoto } from './capturePhoto'
+import { MAX_STORED_READINGS, type StabilitySnapshot } from './weightStability'
 
 /** Weight locked for a Metal IN/OUT submission, whatever method produced it. */
 export type CapturedWeight = {
@@ -43,6 +44,8 @@ export type RecordWeightCaptureInput = {
   rawText?: string | null
   crossCheckAgreed?: boolean | null
   stableFrames?: number | null
+  /** CAMERA_OCR — background readings that proved the display had settled before CAPTURE. */
+  stability?: StabilitySnapshot | null
   reviewAcknowledged?: boolean
   manualReason?: string | null
   frameUri?: string | null
@@ -75,6 +78,7 @@ export async function recordWeightCapture(input: RecordWeightCaptureInput): Prom
     photoUri = await saveCapturePhoto(input.frameUri, input.captureId, profile.cameraOcr.imageQuality)
   }
 
+  const camStability = input.method === 'CAMERA_OCR' ? input.stability ?? null : null
   const body: CreateWeightCaptureBody = {
     captureId: input.captureId,
     scaleId: profile.scaleId,
@@ -86,6 +90,13 @@ export async function recordWeightCapture(input: RecordWeightCaptureInput): Prom
     crossCheckAgreed: input.crossCheckAgreed ?? null,
     stable: input.method === 'CAMERA_OCR',
     stableFrames: input.stableFrames ?? null,
+    ...(camStability
+      ? {
+          stabilityDurationMs: Math.round(camStability.durationMs),
+          stabilityTolerance: camStability.tolerance,
+          stabilityReadings: camStability.readings.slice(-MAX_STORED_READINGS),
+        }
+      : {}),
     reviewAcknowledged: Boolean(input.reviewAcknowledged),
     manualReason: input.method === 'MANUAL' ? input.manualReason || null : null,
     hasPhoto: Boolean(photoUri),

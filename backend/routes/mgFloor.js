@@ -459,6 +459,13 @@ router.post('/scale-camera-captures', ...mgProtect, requireProductionPermission(
   crossCheckAgreed: Joi.boolean().allow(null),
   stable: Joi.boolean().default(false),
   stableFrames: Joi.number().integer().min(0).max(1000).allow(null),
+  stabilityDurationMs: Joi.number().min(0).max(600000).allow(null),
+  stabilityTolerance: Joi.number().min(0).max(100000).allow(null),
+  stabilityReadings: Joi.array().max(60).items(Joi.object({
+    weight: Joi.number().required(),
+    confidence: Joi.number().min(0).max(1).required(),
+    offsetMs: Joi.number().min(0).max(600000).required(),
+  }).unknown(false)),
   reviewAcknowledged: Joi.boolean().default(false),
   manualReason: Joi.string().trim().max(500).allow('', null),
   hasPhoto: Joi.boolean().default(true),

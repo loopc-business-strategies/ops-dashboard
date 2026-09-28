@@ -6,6 +6,8 @@ type SignalOpts = { signal?: AbortSignal }
 
 export type WeightCaptureMethod = 'CAMERA_OCR' | 'MANUAL'
 
+export type StabilityReadingBody = { weight: number; confidence: number; offsetMs: number }
+
 export type CreateWeightCaptureBody = {
   captureId: string
   scaleId: string
@@ -17,6 +19,9 @@ export type CreateWeightCaptureBody = {
   crossCheckAgreed?: boolean | null
   stable?: boolean
   stableFrames?: number | null
+  stabilityDurationMs?: number | null
+  stabilityTolerance?: number | null
+  stabilityReadings?: StabilityReadingBody[]
   reviewAcknowledged?: boolean
   manualReason?: string | null
   hasPhoto?: boolean
@@ -37,6 +42,9 @@ export type WeightCaptureRow = {
   ocrConfidence?: number | null
   ocrRawText?: string
   crossCheckAgreed?: boolean | null
+  stableFrames?: number | null
+  stabilityDurationMs?: number | null
+  stabilityTolerance?: number | null
   overCapacityReview?: boolean
   manualReason?: string
   deviceId?: string

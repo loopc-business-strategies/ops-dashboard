@@ -55,6 +55,25 @@ function optionalObjectId(value, label) {
   return new mongoose.Types.ObjectId(String(value))
 }
 
+const MAX_STABILITY_READINGS = 30
+
+function optionalNonNegative(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/** Background OCR readings sent with a camera capture; legacy clients send none. */
+function sanitizeStabilityReadings(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .map((r) => ({ weight: Number(r?.weight), confidence: Number(r?.confidence), offsetMs: Number(r?.offsetMs) }))
+    .filter((r) => Number.isFinite(r.weight) && Number.isFinite(r.confidence) && Number.isFinite(r.offsetMs)
+      && r.confidence >= 0 && r.confidence <= 1 && r.offsetMs >= 0)
+    .slice(-MAX_STABILITY_READINGS)
+    .map((r) => ({ weight: r.weight, confidence: r.confidence, offsetMs: Math.round(r.offsetMs) }))
+}
+
 function cameraSettingsFor(scale) {
   const raw = scale?.cameraOcr && typeof scale.cameraOcr.toObject === 'function'
     ? scale.cameraOcr.toObject()
@@ -246,6 +265,9 @@ async function createWeightCapture(req, body = {}) {
     crossCheckAgreed: typeof body.crossCheckAgreed === 'boolean' ? body.crossCheckAgreed : null,
     stable: captureMethod === 'CAMERA_OCR' ? true : false,
     stableFrames: Math.max(0, Math.round(Number(body.stableFrames) || 0)),
+    stabilityDurationMs: captureMethod === 'CAMERA_OCR' ? optionalNonNegative(body.stabilityDurationMs) : null,
+    stabilityTolerance: captureMethod === 'CAMERA_OCR' ? optionalNonNegative(body.stabilityTolerance) : null,
+    stabilityReadings: captureMethod === 'CAMERA_OCR' ? sanitizeStabilityReadings(body.stabilityReadings) : [],
     overCapacityReview,
     manualReason,
     photo: { status: body.hasPhoto === false ? 'NONE' : 'PENDING' },
@@ -287,6 +309,8 @@ async function createWeightCapture(req, body = {}) {
       captureMethod,
       ocrConfidence,
       crossCheckAgreed: doc.crossCheckAgreed,
+      stableFrames: doc.stableFrames,
+      stabilityDurationMs: doc.stabilityDurationMs ?? undefined,
       overCapacityReview,
       manualReason: manualReason || undefined,
       deviceId: doc.deviceId,

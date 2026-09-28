@@ -14,7 +14,7 @@ const CAMERA_OCR_DEFAULTS = Object.freeze({
   minConfidence: 0.9,
   consecutiveFrames: 5,
   stableDurationMs: 1500,
-  allowedVariation: 0,
+  allowedVariation: 0.01,
   overCapacityPolicy: 'REJECT',
   imageQuality: 0.6,
   sevenSegmentCrossCheck: true,

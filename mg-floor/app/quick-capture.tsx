@@ -65,6 +65,7 @@ export default function QuickCaptureScreen() {
           rawText: r.rawText,
           crossCheckAgreed: r.crossCheckAgreed,
           stableFrames: r.stableFrames,
+          stability: r.stability,
           reviewAcknowledged: r.reviewAcknowledged,
           frameUri: r.frameUri,
           context: { department: user?.department },
