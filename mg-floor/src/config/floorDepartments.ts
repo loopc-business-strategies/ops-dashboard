@@ -1,18 +1,36 @@
-/** Production flow stage keys (backend FLOOR_DEPARTMENTS / User.floorDepartment). */
+/**
+ * Floor department keys = Operations → Production workbook departments
+ * (backend FLOOR_DEPARTMENTS / User.floorDepartment).
+ */
 export const FLOOR_DEPARTMENTS = [
+  { key: 'vault_room', label: 'Vault Room' },
   { key: 'melting', label: 'Melting' },
-  { key: 'casting', label: 'Casting' },
   { key: 'rolling', label: 'Rolling' },
-  { key: 'bangle_division', label: 'Bangle' },
+  { key: 'bangle_area', label: 'Bangle Area' },
   { key: 'stamping', label: 'Stamping' },
-  { key: 'polishing', label: 'Polishing' },
-  { key: 'quality_control', label: 'Quality Control' },
-  { key: 'packing', label: 'Packaging' },
+  { key: 'pendent_section', label: 'Pendent' },
+  { key: 'welding_area', label: 'Welding' },
+  { key: 'assembly', label: 'Assembly' },
+  { key: 'qc', label: 'QC' },
+  { key: 'finished_goods', label: 'Finished Goods' },
 ] as const
 
-export function floorDepartmentLabel(key: string | null | undefined): string {
+const LEGACY_ALIASES: Record<string, string> = {
+  bangle_division: 'bangle_area',
+  quality_control: 'qc',
+  packing: 'finished_goods',
+}
+
+/** A current department key, or '' when unset or no longer offered (e.g. old casting / polishing). */
+export function normalizeFloorDepartment(key: string | null | undefined): string {
   const k = String(key || '').trim().toLowerCase()
-  return FLOOR_DEPARTMENTS.find((d) => d.key === k)?.label || k
+  const mapped = LEGACY_ALIASES[k] || k
+  return FLOOR_DEPARTMENTS.some((d) => d.key === mapped) ? mapped : ''
+}
+
+export function floorDepartmentLabel(key: string | null | undefined): string {
+  const k = normalizeFloorDepartment(key)
+  return FLOOR_DEPARTMENTS.find((d) => d.key === k)?.label || String(key || '').trim().toLowerCase()
 }
 
 /**
@@ -24,7 +42,7 @@ export function effectiveFloorDepartment(opts: {
   selectedDepartment?: string | null
   canChooseDepartment: boolean
 }): string {
-  const assigned = String(opts.floorDepartment || '').trim().toLowerCase()
+  const assigned = normalizeFloorDepartment(opts.floorDepartment)
   if (!opts.canChooseDepartment) return assigned
-  return String(opts.selectedDepartment || '').trim().toLowerCase() || assigned
+  return normalizeFloorDepartment(opts.selectedDepartment) || assigned
 }

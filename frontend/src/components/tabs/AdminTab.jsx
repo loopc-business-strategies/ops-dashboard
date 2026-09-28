@@ -27,18 +27,29 @@ const DEPTS = [
   { value: 'management', label: 'Management' },
 ]
 
-/** MG Floor stage an operator submits batches for (backend FLOOR_DEPARTMENTS). */
+/** MG Floor department an operator submits batches for = Operations → Production workbook department (backend FLOOR_DEPARTMENTS). */
 const FLOOR_DEPTS = [
   { value: '', label: 'None' },
+  { value: 'vault_room', label: 'Vault Room' },
   { value: 'melting', label: 'Melting' },
-  { value: 'casting', label: 'Casting' },
   { value: 'rolling', label: 'Rolling' },
-  { value: 'bangle_division', label: 'Bangle Division' },
+  { value: 'bangle_area', label: 'Bangle Area' },
   { value: 'stamping', label: 'Stamping' },
-  { value: 'polishing', label: 'Polishing' },
-  { value: 'quality_control', label: 'Quality Control' },
-  { value: 'packing', label: 'Packing' },
+  { value: 'pendent_section', label: 'Pendent' },
+  { value: 'welding_area', label: 'Welding' },
+  { value: 'assembly', label: 'Assembly' },
+  { value: 'qc', label: 'QC' },
+  { value: 'finished_goods', label: 'Finished Goods' },
 ]
+
+const LEGACY_FLOOR_DEPT_ALIASES = { bangle_division: 'bangle_area', quality_control: 'qc', packing: 'finished_goods' }
+
+/** Maps keys from the first MG Floor list; retired ones (casting, polishing) become '' so the form stays valid. */
+export function normalizeFloorDept(value) {
+  const key = String(value || '').trim().toLowerCase()
+  const mapped = LEGACY_FLOOR_DEPT_ALIASES[key] || key
+  return FLOOR_DEPTS.some((d) => d.value === mapped) ? mapped : ''
+}
 
 const ALL_MODULES = ['production', 'hr', 'finance', 'government', 'sales', 'operations', 'training', 'erp']
 
@@ -438,7 +449,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
     password: '',
     role: u.role,
     department: u.department || '',
-    floorDepartment: u.floorDepartment || '',
+    floorDepartment: normalizeFloorDept(u.floorDepartment),
     allowedModules: u.allowedModules || [],
     assignedTasks: (u.assignedTasks || []).join(', '),
     title: u.title || '',

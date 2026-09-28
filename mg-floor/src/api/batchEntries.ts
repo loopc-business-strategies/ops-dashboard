@@ -19,6 +19,8 @@ export type SubmitBatchEntryBody = {
   batchLabel: string
   entryDate: string
   deviceId?: string | null
+  /** Tablet UTC offset in minutes (east positive) so line times map to real timestamps in the workbook. */
+  tzOffsetMinutes?: number
   lines: BatchEntryLine[]
 }
 

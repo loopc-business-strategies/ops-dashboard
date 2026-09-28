@@ -28,7 +28,7 @@ const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { normalizeTenant, getDefaultTenant } = require('../config/tenants')
 const { getTenantKeys } = require('../config/tenantRegistry')
-const { FLOOR_DEPARTMENTS } = require('../constants/mgFloorBatchEntry')
+const { FLOOR_DEPARTMENTS, normalizeFloorDepartment } = require('../constants/mgFloorBatchEntry')
 const { resolveTenantFromRequest } = require('../utils/requestTenant')
 const { setCsrfCookie, clearCsrfCookie, generateCsrfToken } = require('../middleware/csrf')
 const {
@@ -89,7 +89,7 @@ const sendToken = async (user, status, res, company, req = null) => {
       email:          user.email,
       role:           user.role,
       department:     user.department,
-      floorDepartment: user.floorDepartment || '',
+      floorDepartment: normalizeFloorDepartment(user.floorDepartment),
       allowedModules: user.allowedModules,
       assignedTasks:  user.assignedTasks,
       title:          user.title,
@@ -418,7 +418,7 @@ router.get('/me', protect, async (req, res) => {
       email:          req.user.email,
       role:           req.user.role,
       department:     req.user.department,
-      floorDepartment: req.user.floorDepartment || '',
+      floorDepartment: normalizeFloorDepartment(req.user.floorDepartment),
       allowedModules: req.user.allowedModules,
       assignedTasks:  req.user.assignedTasks,
       title:          req.user.title,

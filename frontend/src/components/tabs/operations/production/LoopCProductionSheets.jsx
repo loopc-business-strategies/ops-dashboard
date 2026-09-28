@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { productionControlApi } from '../../../../api/productionControl'
+import { mgFloorBatchEntriesApi } from '../../../../api/mgFloorBatchEntries'
 import { LOOPC_PRODUCTION_DEPARTMENTS } from './loopcProductionDepartments'
 import ProductionSummary from './ProductionSummary'
 import ProductionFilters from './ProductionFilters'
@@ -26,8 +27,11 @@ const wrap = {
 /**
  * Operations → Production: Excel-style department workbook (CRUD ledger), used by every tenant.
  * `dashboardSource`: only LoopC's Production Dashboard is built from these rows.
+ * `mgFloorSync`: MG Floor / Production Managers can re-apply approved MG Floor batches.
  */
-export default function LoopCProductionSheets({ dashboardSource = true }) {
+export default function LoopCProductionSheets({ dashboardSource = true, mgFloorSync = false }) {
+  const [syncing, setSyncing] = useState(false)
+  const [syncNote, setSyncNote] = useState('')
   const [entries, setEntries] = useState([])
   const [draftRows, setDraftRows] = useState({})
   const [loading, setLoading] = useState(true)
@@ -162,6 +166,22 @@ export default function LoopCProductionSheets({ dashboardSource = true }) {
     }
   }
 
+  const handleSyncFloor = async () => {
+    setSyncing(true)
+    setSyncNote('')
+    setError('')
+    try {
+      const res = await mgFloorBatchEntriesApi.syncWorkbook()
+      const skipped = res?.skipped ? ` (${res.skipped} from retired departments skipped)` : ''
+      setSyncNote(`${res?.linked ?? 0} approved MG Floor batches are in the workbook${skipped}.`)
+      await reload()
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to sync MG Floor batches')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const handleDeleteRow = async (row) => {
     if (row._isNew) {
       setDraftRows((prev) => {
@@ -186,14 +206,39 @@ export default function LoopCProductionSheets({ dashboardSource = true }) {
 
   return (
     <div style={wrap}>
-      <div>
-        <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
-          Production
-        </h2>
-        <p style={{ margin: '0.3rem 0 0', color: '#64748B', fontSize: '0.85rem' }}>
-          Department workbook — use Edit to change a row; each department has its own date filter.
-          {dashboardSource ? ' Source of truth for the Production Dashboard.' : ''}
-        </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
+            Production
+          </h2>
+          <p style={{ margin: '0.3rem 0 0', color: '#64748B', fontSize: '0.85rem' }}>
+            Department workbook — use Edit to change a row; each department has its own date filter.
+            {dashboardSource ? ' Source of truth for the Production Dashboard.' : ''}
+            {mgFloorSync ? ' Rows marked MG Floor come from approved tablet batches.' : ''}
+          </p>
+          {syncNote ? (
+            <p style={{ margin: '0.3rem 0 0', color: '#166534', fontSize: '0.82rem', fontWeight: 600 }}>{syncNote}</p>
+          ) : null}
+        </div>
+        {mgFloorSync ? (
+          <button
+            type="button"
+            onClick={handleSyncFloor}
+            disabled={syncing}
+            style={{
+              border: '1px solid #FDBA74',
+              background: '#FFF7ED',
+              color: '#9A3412',
+              borderRadius: 6,
+              padding: '0.4rem 0.75rem',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: syncing ? 'wait' : 'pointer',
+            }}
+          >
+            {syncing ? 'Syncing…' : 'Sync MG Floor batches'}
+          </button>
+        ) : null}
       </div>
 
       <ProductionSummary summary={summary} />

@@ -14,6 +14,7 @@ const {
 } = require('../productionControl')
 const { ProductionError } = require('../productionControl/errors')
 const batchEntries = require('./batchEntries')
+const { normalizeFloorDepartment } = require('../../constants/mgFloorBatchEntry')
 
 /**
  * Offline operation types from older tablet builds (scale / camera capture, XRF, pass-based
@@ -30,7 +31,7 @@ async function getMe(req) {
       name: req.user.name,
       role: req.user.role,
       department: req.user.department,
-      floorDepartment: req.user.floorDepartment || '',
+      floorDepartment: normalizeFloorDepartment(req.user.floorDepartment),
       productionRole: resolveProductionRole(req.user),
     },
     shift,

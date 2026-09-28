@@ -14,7 +14,8 @@ const lineSchema = new mongoose.Schema(
 
 /**
  * Metal In / Metal Out batch typed on the MG Floor tablet dashboard, waiting for Floor Manager approval.
- * A record only: approving it does not touch production batches, stock or ERP.
+ * Approving it fills the matching Operations → Production workbook row; it does not touch
+ * production batches, stock or ERP.
  */
 const floorBatchEntrySchema = new mongoose.Schema(
   {
@@ -25,6 +26,8 @@ const floorBatchEntrySchema = new mongoose.Schema(
     /** Tablet-local calendar day (YYYY-MM-DD) the batch belongs to. */
     entryDate: { type: String, trim: true, required: true },
     lines: { type: [lineSchema], default: [] },
+    /** Tablet UTC offset in minutes (east positive) so line times (HH:MM) become real timestamps. */
+    tzOffsetMinutes: { type: Number, default: null },
     employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     employeeName: { type: String, trim: true, default: '' },
     deviceId: { type: String, trim: true, default: '' },

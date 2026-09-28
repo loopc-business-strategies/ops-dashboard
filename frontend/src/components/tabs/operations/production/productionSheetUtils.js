@@ -4,6 +4,8 @@ export const SHEET_COLUMNS = [
   { key: 'date', label: 'Date', align: 'left', filter: null, sortable: true },
   { key: 'batch', label: 'Batch', align: 'left', filter: null, sortable: true },
   { key: 'metalIn', label: 'Metal IN', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'purity', label: 'Purity %', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'fineGold', label: 'Fine Gold', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalOut', label: 'Metal OUT', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalLoss', label: 'Metal Loss', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'timeBatch', label: 'Time / Batch', align: 'right', filter: null, sortable: true, numeric: true },
@@ -39,6 +41,11 @@ export const EMPTY_FILTERS = {
 function toNum(value) {
   const n = Number(value)
   return Number.isFinite(n) ? n : null
+}
+
+/** Like toNum, but a blank workbook cell (null / '') stays blank instead of becoming 0. */
+function toNumOrBlank(value) {
+  return value == null || value === '' ? null : toNum(value)
 }
 
 export function metalInValue(batch) {
@@ -116,6 +123,20 @@ export function formatWeight(value) {
   if (value == null || !Number.isFinite(value)) return '—'
   return `${Number(value.toFixed(2))} g`
 }
+
+export function formatPurity(value) {
+  if (value == null || !Number.isFinite(value)) return '—'
+  return `${Number(value.toFixed(2))}%`
+}
+
+/** Fine gold grams = Metal IN × purity % / 100 (same rounding as the API). */
+export function computeFineGold(metalIn, purity) {
+  if (metalIn == null || purity == null || !Number.isFinite(metalIn) || !Number.isFinite(purity)) return null
+  return Math.round(metalIn * purity * 10) / 1000
+}
+
+/** Row fields still editable on workbook rows written by MG Floor approvals. */
+export const MG_FLOOR_EDITABLE_KEYS = ['rating', 'breakdown', 'requests']
 
 function batchDurationMinutes(batch) {
   const start = batch?.startedAt ? new Date(batch.startedAt) : null
@@ -275,6 +296,7 @@ export function sortRows(rows, sortKey, sortDir) {
     let av = a[sortKey]
     let bv = b[sortKey]
     if (sortKey === 'metalIn' || sortKey === 'metalOut' || sortKey === 'metalLoss'
+      || sortKey === 'purity' || sortKey === 'fineGold'
       || sortKey === 'timeBatch' || sortKey === 'averageTime') {
       av = av == null ? -Infinity : Number(av)
       bv = bv == null ? -Infinity : Number(bv)
@@ -407,16 +429,19 @@ function entryDurationMinutes(entry) {
 export function mapEntryToRow(entry) {
   const dateKey = String(entry?.date || '').trim()
   const dateObj = dateKey ? new Date(`${dateKey}T12:00:00`) : null
-  const inn = toNum(entry?.metalIn)
-  const out = toNum(entry?.metalOut)
-  let loss = toNum(entry?.metalLoss)
+  const inn = toNumOrBlank(entry?.metalIn)
+  const out = toNumOrBlank(entry?.metalOut)
+  let loss = toNumOrBlank(entry?.metalLoss)
   if (loss == null && inn != null && out != null) loss = Math.max(0, inn - out)
   const duration = entryDurationMinutes(entry)
   const deptKey = String(entry?.departmentKey || '').trim() || null
+  const purity = toNumOrBlank(entry?.purity)
+  const fineGold = toNumOrBlank(entry?.fineGold)
 
   return {
     id: entry?._id || entry?.id,
     deptKey,
+    fromFloor: entry?.source === 'mg_floor',
     employee: String(entry?.employeeName || '').trim() || '—',
     departmentManager: String(entry?.departmentManagerName || '').trim() || '—',
     batch: String(entry?.batchNumber || '').trim() || '—',
@@ -424,6 +449,10 @@ export function mapEntryToRow(entry) {
     metalIn: inn,
     metalOut: out,
     metalLoss: loss,
+    purity,
+    fineGold,
+    purityDisplay: formatPurity(purity),
+    fineGoldDisplay: formatWeight(fineGold),
     metalInDisplay: formatWeight(inn),
     metalOutDisplay: formatWeight(out),
     metalLossDisplay: formatWeight(loss),
@@ -471,19 +500,24 @@ export async function fetchAllOperationsEntries(listEntries, params = {}) {
 
 /** Build API payload from editable draft / row fields. */
 export function rowToEntryPayload(row, departmentKey) {
-  const dateKey = String(row.dateKey || '').trim()
-    || (row.dateRaw instanceof Date && Number.isFinite(row.dateRaw.getTime()) ? isoDate(row.dateRaw) : '')
-    || isoDate(new Date())
-
-  const inn = toNum(row.metalIn)
-  const out = toNum(row.metalOut)
-  let loss = toNum(row.metalLoss)
-  if (loss == null && inn != null && out != null) loss = Math.max(0, inn - out)
-
   const blank = (v) => {
     const s = String(v ?? '').trim()
     return !s || s === '—' ? '' : s
   }
+
+  if (row.fromFloor) {
+    return Object.fromEntries(MG_FLOOR_EDITABLE_KEYS.map((key) => [key, blank(row[key])]))
+  }
+
+  const dateKey = String(row.dateKey || '').trim()
+    || (row.dateRaw instanceof Date && Number.isFinite(row.dateRaw.getTime()) ? isoDate(row.dateRaw) : '')
+    || isoDate(new Date())
+
+  const inn = toNumOrBlank(row.metalIn)
+  const out = toNumOrBlank(row.metalOut)
+  let loss = toNumOrBlank(row.metalLoss)
+  if (loss == null && inn != null && out != null) loss = Math.max(0, inn - out)
+  const purity = toNumOrBlank(row.purity)
 
   return {
     departmentKey,
@@ -491,6 +525,7 @@ export function rowToEntryPayload(row, departmentKey) {
     metalIn: inn,
     metalOut: out,
     metalLoss: loss,
+    purity,
     employeeName: blank(row.employee),
     departmentManagerName: blank(row.departmentManager),
     batchStartedAt: row.batchStartedRaw || null,
@@ -515,6 +550,10 @@ export function emptyDraftRow(departmentKey) {
     metalIn: null,
     metalOut: null,
     metalLoss: null,
+    purity: null,
+    fineGold: null,
+    purityDisplay: '—',
+    fineGoldDisplay: '—',
     metalInDisplay: '—',
     metalOutDisplay: '—',
     metalLossDisplay: '—',

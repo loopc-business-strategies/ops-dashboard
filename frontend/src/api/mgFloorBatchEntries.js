@@ -7,4 +7,6 @@ export const mgFloorBatchEntriesApi = {
   list: async (params) => (await axios.get(BASE, { params })).data,
   approve: async (id) => (await axios.post(`${BASE}/${encodeURIComponent(id)}/approve`, {})).data,
   reject: async (id, reason) => (await axios.post(`${BASE}/${encodeURIComponent(id)}/reject`, { reason })).data,
+  /** Re-applies approved batches to the Operations → Production workbook. */
+  syncWorkbook: async () => (await axios.post(`${BASE}/sync-workbook`, {})).data,
 }

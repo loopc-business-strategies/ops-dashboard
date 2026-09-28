@@ -81,15 +81,25 @@ afterAll(async () => {
 
 describe('MG Floor cross-tenant security', () => {
   test('MG user → MG Floor /me = ALLOWED, with floorDepartment and no scale permission', async () => {
-    const user = await createTenantUser('mg', { floorDepartment: 'casting' })
+    const user = await createTenantUser('mg', { floorDepartment: 'bangle_area' })
     const res = await request(app).get('/api/mg-floor/me').set(mgHeaders(user))
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
     expect(res.body.tenant).toBe('mg')
-    expect(res.body.user.floorDepartment).toBe('casting')
+    expect(res.body.user.floorDepartment).toBe('bangle_area')
     expect(res.body.permissions).not.toHaveProperty('manageScales')
     expect(res.body.permissions.approveBatches).toBe(true)
+  })
+
+  test('legacy floor departments are reported as workbook departments (retired ones as unassigned)', async () => {
+    const packer = await createTenantUser('mg', { floorDepartment: 'packing' })
+    const packerMe = await request(app).get('/api/mg-floor/me').set(mgHeaders(packer))
+    expect(packerMe.body.user.floorDepartment).toBe('finished_goods')
+
+    const caster = await createTenantUser('mg', { floorDepartment: 'casting' })
+    const casterMe = await request(app).get('/api/mg-floor/me').set(mgHeaders(caster))
+    expect(casterMe.body.user.floorDepartment).toBe('')
   })
 
   test('MG user with x-tenant cg on MG Floor = BLOCKED (session mismatch or MG gate)', async () => {
@@ -294,6 +304,12 @@ describe('User.floorDepartment admin assignment', () => {
       .set(mgHeaders(admin))
       .send({ role: 'department_user', floorDepartment: 'somewhere' })
     expect(badUpdate.status).toBe(400)
+
+    const retired = await request(app)
+      .put(`/api/auth/users/${id}/role`)
+      .set(mgHeaders(admin))
+      .send({ role: 'department_user', floorDepartment: 'casting' })
+    expect(retired.status).toBe(400)
   })
 
   test('operators cannot assign their own floor department', async () => {
@@ -301,7 +317,7 @@ describe('User.floorDepartment admin assignment', () => {
     const res = await request(app)
       .put(`/api/auth/users/${op._id}/role`)
       .set(mgHeaders(op))
-      .send({ role: 'department_user', floorDepartment: 'casting' })
+      .send({ role: 'department_user', floorDepartment: 'rolling' })
     expect(res.status).toBe(403)
   })
 })

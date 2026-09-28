@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import {
+  MG_FLOOR_EDITABLE_KEYS,
   SHEET_COLUMNS,
+  computeFineGold,
   formatMinutes,
+  formatPurity,
   formatWeight,
   isoDate,
   sortRows,
@@ -25,7 +28,7 @@ const scrollBox = {
 
 const table = {
   width: '100%',
-  minWidth: 1680,
+  minWidth: 1880,
   borderCollapse: 'separate',
   borderSpacing: 0,
   fontSize: '0.88rem',
@@ -102,10 +105,22 @@ const footerBar = {
   background: '#F8FAFC',
 }
 
+const floorBadge = {
+  marginLeft: 6,
+  padding: '0.05rem 0.35rem',
+  borderRadius: 999,
+  background: '#FFEDD5',
+  border: '1px solid #FDBA74',
+  color: '#9A3412',
+  fontSize: '0.68rem',
+  fontWeight: 800,
+}
+
 const EDITABLE_KEYS = new Set([
   'date',
   'batch',
   'metalIn',
+  'purity',
   'metalOut',
   'batchStarted',
   'batchOver',
@@ -117,7 +132,17 @@ const EDITABLE_KEYS = new Set([
 ])
 
 function cellDisplay(row, key) {
+  if (key === 'batch' && row.fromFloor) {
+    return (
+      <span title="From an approved MG Floor batch — metal, times and names are read-only">
+        {row.batch ?? '—'}
+        <span style={floorBadge}>MG Floor</span>
+      </span>
+    )
+  }
   if (key === 'metalIn') return row.metalInDisplay
+  if (key === 'purity') return formatPurity(row.purity)
+  if (key === 'fineGold') return formatWeight(row.fineGold)
   if (key === 'metalOut') return row.metalOutDisplay
   if (key === 'metalLoss') return row.metalLossDisplay
   if (key === 'timeBatch') return row.timeBatchDisplay
@@ -165,6 +190,13 @@ function patchDraft(prev, patch) {
     next.metalInDisplay = formatWeight(next.metalIn)
     next.metalOutDisplay = formatWeight(next.metalOut)
     next.metalLossDisplay = formatWeight(next.metalLoss)
+  }
+  if (patch.purity !== undefined) {
+    const p = next.purity == null || next.purity === '' ? null : Number(next.purity)
+    next.purity = Number.isFinite(p) ? p : null
+  }
+  if (patch.metalIn !== undefined || patch.purity !== undefined) {
+    next.fineGold = computeFineGold(next.metalIn, next.purity)
   }
   if (patch.batchStartedRaw !== undefined || patch.batchOverRaw !== undefined) {
     const mins = durationFrom(next.batchStartedRaw, next.batchOverRaw)
@@ -286,16 +318,38 @@ export default function DepartmentTable({
     const draft = getDraft(row)
     const key = col.key
 
-    if (key === 'metalLoss' || key === 'timeBatch') {
+    if (row.fromFloor && !MG_FLOOR_EDITABLE_KEYS.includes(key)) {
+      return cellDisplay(draft, key)
+    }
+
+    if (key === 'metalLoss' || key === 'timeBatch' || key === 'fineGold') {
       return (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {key === 'metalLoss' ? formatWeight(draft.metalLoss) : formatMinutes(draft.timeBatch)}
+          {key === 'timeBatch' ? formatMinutes(draft.timeBatch) : formatWeight(draft[key])}
         </span>
       )
     }
 
     if (!EDITABLE_KEYS.has(key)) {
       return cellDisplay(draft, key)
+    }
+
+    if (key === 'purity') {
+      return (
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          aria-label="Purity %"
+          style={{ ...inputStyle, textAlign: 'right', minWidth: 72 }}
+          value={draft.purity == null ? '' : draft.purity}
+          onChange={(e) => {
+            const v = e.target.value
+            setField(row, { purity: v === '' ? null : v })
+          }}
+        />
+      )
     }
 
     if (key === 'date') {
@@ -414,7 +468,8 @@ export default function DepartmentTable({
             <button
               type="button"
               style={{ ...btnBase, background: '#FEE2E2', borderColor: '#FECACA', color: '#991B1B', marginRight: 0 }}
-              disabled={busy}
+              disabled={busy || row.fromFloor}
+              title={row.fromFloor ? 'Rows from approved MG Floor batches cannot be deleted' : undefined}
               onClick={() => onDeleteRow?.(row)}
             >
               Del

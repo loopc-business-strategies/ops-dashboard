@@ -30,14 +30,16 @@ Existing collections from the old flows (`scales`, `hardwareevents`, `floorweigh
 
 ## Floor department
 
-Each MG user has an admin-assigned **floor department** (`User.floorDepartment`: melting, casting, rolling, bangle_division, stamping, polishing, quality_control, packing). Set it in **Admin → Users → Create / Edit → Floor department (MG Floor)** (MG tenant only).
+Each MG user has an admin-assigned **floor department** (`User.floorDepartment`). The keys are the Operations → Production workbook departments (`backend/constants/productionDepartments.js`): vault_room, melting, rolling, bangle_area, stamping, pendent_section, welding_area, assembly, qc, finished_goods. Set it in **Admin → Users → Create / Edit → Floor department (MG Floor)** (MG tenant only).
+
+- Keys from the first MG Floor list are mapped when read: bangle_division → bangle_area, quality_control → qc, packing → finished_goods. Retired casting / polishing count as unassigned until an admin picks a new department (and cannot be saved any more). A tablet that had a retired department selected asks for the department again.
 
 - Operators always submit under their own floor department; the tablet shows it in the left column. No department assigned → 403 `FLOOR_DEPARTMENT_REQUIRED`; sending a different department → 403 `DEPARTMENT_MISMATCH`.
 - Floor / Production Managers (`approvePass`) may submit for the department chosen on the tablet, falling back to their own.
 
 ## Floor Manager approval (Metal In / Out batches)
 
-Record only: approving or rejecting posts nothing to inventory, stock, ERP, ledger, COGS, accounting or vouchers.
+Approving fills the Operations → Production workbook (below); approving or rejecting posts nothing to inventory, stock, ERP, ledger, COGS, accounting or vouchers.
 
 - **Tablet:** the logged-in operator types a batch and taps **CONFIRM BATCH N** (Metal In needs `receivePass`, Metal Out needs `createPass`). Empty rows are skipped; a row without a time gets the current time. The batch is stored as a `FloorBatchEntry` (`PENDING`) for the operator's floor department and local day.
 - Status under each batch: **WAITING FOR F.M** and **APPROVED** lock the boxes; **REJECTED** shows the reason and unlocks them so the operator can fix and confirm again; **SAVED OFFLINE** means it is in the outbox (`batch_entry`, idempotent by `entryId`) and is sent on reconnect. Approval itself is never done offline.
@@ -47,6 +49,17 @@ Record only: approving or rejecting posts nothing to inventory, stock, ERP, ledg
 - **Web:** Operations → **FM** tab (MG only). It is shown only when the backend reports `canDecide` (`approvePass`: floor_manager / production_manager, which includes super_admin and management). Pending / Approved / Rejected lists with counts, refreshed every 30 s; **Approve**, or **Reject** with a reason (3–500 characters) that the operator sees on the tablet. Nobody can approve or reject their own batch.
 - API (`mgProtect`): `POST /api/mg-floor/batch-entries`, `GET /api/mg-floor/batch-entries` (status / direction / department / entryDate / from / to), `POST /api/mg-floor/batch-entries/:id/approve`, `POST /api/mg-floor/batch-entries/:id/reject`.
 - Audit: `mg_floor_batch_entry_submitted`, `mg_floor_batch_entry_approved`, `mg_floor_batch_entry_rejected`, each with entryId, batch, direction, department, operator, status and (for decisions) decided by / at and reject reason.
+
+## Operations → Production workbook link
+
+Each approved batch writes one workbook row (`OperationsProductionEntry`, `source: 'mg_floor'`) per day + department + batch label (`floorBatchKey`), in `backend/services/mgFloor/workbookLink.js`:
+
+- **Metal IN** approval: Metal IN = sum of line quantities; Fine Gold = Σ qty × purity / 100 over lines with a purity (purity above 100 is read as per-mille); Purity % = Fine Gold / Metal IN × 100 (blended, so alloy lowers it); Batch Start = earliest line time; Employee = operator.
+- **Metal OUT** approval: Metal OUT = sum of quantities; Batch Over = latest line time. Metal Loss = Metal IN − Metal OUT once both are approved.
+- Department Manager = whoever approved last. Line times (`HH:MM`) use the tablet's `tzOffsetMinutes` (sent by builds from this change on), otherwise `MG_FLOOR_TIMEZONE` (default `Asia/Dubai`).
+- In the web workbook these rows show an **MG Floor** badge; only Rating, Breakdown and Requests can be edited and they cannot be deleted (API: 409 `MG_FLOOR_ROW_LOCKED`). Manual rows keep full editing; their Fine Gold is computed from Metal IN × Purity %.
+- **Sync MG Floor batches** (Operations → Production, shown to FM approvers) calls `POST /api/mg-floor/batch-entries/sync-workbook` (`approvePass`) to add batches approved before the link, or retry a failed workbook write. It is idempotent and audited (`mg_floor_workbook_synced`); batches from retired departments are skipped and counted.
+- MG's Production Dashboard still uses the live-floor production APIs; only LoopC's dashboard is built from the workbook.
 
 ## Data safety
 

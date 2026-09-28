@@ -3,11 +3,15 @@ const FloorBatchEntry = require('../../models/FloorBatchEntry')
 const { ProductionError } = require('../productionControl/errors')
 const { hasProductionPermission } = require('../productionControl/permissions')
 const { writeProductionAudit } = require('../productionControl/audit')
+const { applyApprovedEntryToWorkbook } = require('./workbookLink')
 const {
   BATCH_ENTRY_DIRECTIONS,
   BATCH_ENTRY_STATUSES,
   BATCH_ENTRY_MAX_LINES,
   FLOOR_DEPARTMENTS,
+  LEGACY_FLOOR_DEPARTMENT_ALIASES,
+  aliasFloorDepartment,
+  normalizeFloorDepartment,
 } = require('../../constants/mgFloorBatchEntry')
 
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9_-]{8,120}$/
@@ -21,6 +25,11 @@ function cleanNumber(value) {
   if (value == null || value === '') return null
   const n = Number(value)
   return Number.isFinite(n) ? n : null
+}
+
+function validTzOffset(value) {
+  const n = Number(value)
+  return value != null && value !== '' && Number.isInteger(n) && Math.abs(n) <= 840 ? n : null
 }
 
 function sanitizeLines(lines) {
@@ -51,8 +60,8 @@ function departmentError(message, status, code) {
  * Managers may submit for another stage.
  */
 function resolveEntryDepartment(user, requested) {
-  const assigned = String(user?.floorDepartment || '').trim().toLowerCase()
-  const asked = String(requested || '').trim().toLowerCase()
+  const assigned = normalizeFloorDepartment(user?.floorDepartment)
+  const asked = aliasFloorDepartment(requested)
 
   if (canDecide(user)) {
     const department = asked || assigned
@@ -132,6 +141,7 @@ async function submitBatchEntry(req, body = {}) {
     employeeId: user?._id || null,
     employeeName: user?.name || '',
     deviceId: String(body.deviceId || '').trim().slice(0, 120),
+    tzOffsetMinutes: validTzOffset(body.tzOffsetMinutes),
     status: 'PENDING',
     submittedAt: new Date(),
   }
@@ -181,7 +191,11 @@ async function listBatchEntries(query = {}) {
     filter.status = String(query.status).toUpperCase()
   }
   if (query.direction) filter.direction = String(query.direction).toUpperCase()
-  if (query.department) filter.department = String(query.department).trim()
+  if (query.department) {
+    const key = aliasFloorDepartment(query.department)
+    const legacy = Object.keys(LEGACY_FLOOR_DEPARTMENT_ALIASES).filter((k) => LEGACY_FLOOR_DEPARTMENT_ALIASES[k] === key)
+    filter.department = legacy.length ? { $in: [key, ...legacy] } : key
+  }
   if (query.entryDate) filter.entryDate = String(query.entryDate).trim()
   if (query.from || query.to) {
     filter.submittedAt = {}
@@ -269,7 +283,17 @@ async function decideBatchEntry(req, id, decision, reason = '') {
     },
   }).catch((err) => console.warn('[mg-floor] batch entry audit failed', err?.message || err))
 
-  return { entry: updated }
+  let workbookEntryId = null
+  if (approve) {
+    try {
+      const row = await applyApprovedEntryToWorkbook(updated)
+      workbookEntryId = row?._id || null
+    } catch (err) {
+      console.warn('[mg-floor] workbook update failed (use "Sync MG Floor batches" to retry)', err?.message || err)
+    }
+  }
+
+  return { entry: updated, workbookEntryId }
 }
 
 module.exports = {

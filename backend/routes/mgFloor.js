@@ -9,10 +9,13 @@ const MetalMovement = require('../models/MetalMovement')
 const AuditLog = require('../models/AuditLog')
 const mgFloor = require('../services/mgFloor')
 const batchEntries = require('../services/mgFloor/batchEntries')
+const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
+const { writeProductionAudit } = require('../services/productionControl/audit')
 const {
   BATCH_ENTRY_DIRECTIONS,
   BATCH_ENTRY_STATUSES,
   BATCH_ENTRY_MAX_LINES,
+  normalizeFloorDepartment,
 } = require('../constants/mgFloorBatchEntry')
 
 const router = express.Router()
@@ -75,7 +78,7 @@ router.post('/auth/login-check', ...mgProtect, async (req, res) => {
       id: req.user._id,
       name: req.user.name,
       department: req.user.department,
-      floorDepartment: req.user.floorDepartment || '',
+      floorDepartment: normalizeFloorDepartment(req.user.floorDepartment),
     },
   })
 })
@@ -215,6 +218,7 @@ router.post('/batch-entries', ...mgProtect, requireProductionPermission('view'),
   batchLabel: Joi.string().trim().max(20).required(),
   entryDate: Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
   deviceId: Joi.string().trim().max(120).allow('', null),
+  tzOffsetMinutes: Joi.number().integer().min(-840).max(840).allow(null),
   lines: Joi.array().min(1).max(BATCH_ENTRY_MAX_LINES).items(Joi.object({
     metal: Joi.string().trim().max(40).required(),
     qty: Joi.number().allow(null),
@@ -251,6 +255,22 @@ router.get('/batch-entries', ...mgProtect, requireProductionPermission('view'), 
 router.post('/batch-entries/:id/approve', ...mgProtect, requireProductionPermission('approvePass'), validateParams(idParam), async (req, res) => {
   try {
     const result = await batchEntries.decideBatchEntry(req, req.params.id, 'APPROVED')
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+/** Re-applies approved batches to the Operations → Production workbook (idempotent). */
+router.post('/batch-entries/sync-workbook', ...mgProtect, requireProductionPermission('approvePass'), async (req, res) => {
+  try {
+    const result = await syncApprovedEntriesToWorkbook()
+    await writeProductionAudit(req, {
+      resource: 'OperationsProductionEntry',
+      action: 'mg_floor_workbook_synced',
+      detail: `MG Floor workbook sync: ${result.linked} of ${result.approved} approved batches linked`,
+      changes: result,
+    }).catch((err) => console.warn('[mg-floor] workbook sync audit failed', err?.message || err))
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)

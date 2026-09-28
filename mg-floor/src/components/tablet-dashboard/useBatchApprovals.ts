@@ -135,6 +135,7 @@ export function useBatchApprovals({ token, department, setBatches }: Options) {
         batchLabel: batch.batchLabel,
         entryDate: localDateKey(),
         deviceId: deviceId || null,
+        tzOffsetMinutes: -new Date().getTimezoneOffset(),
         lines,
       }
       setMessage(null)

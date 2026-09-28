@@ -1,7 +1,7 @@
 import React from 'react'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { CreateUserForm } from './AdminTab'
+import { CreateUserForm, normalizeFloorDept } from './AdminTab'
 
 const auth = vi.hoisted(() => ({ company: 'mg' }))
 const createUser = vi.hoisted(() => vi.fn())
@@ -34,14 +34,22 @@ describe('AdminTab floor department (MG Floor)', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Super Admin/i }))
     const select = screen.getByLabelText('Floor department (MG Floor)')
     expect(Array.from(select.options).map((o) => o.value)).toEqual([
-      '', 'melting', 'casting', 'rolling', 'bangle_division', 'stamping', 'polishing', 'quality_control', 'packing',
+      '', 'vault_room', 'melting', 'rolling', 'bangle_area', 'stamping', 'pendent_section', 'welding_area',
+      'assembly', 'qc', 'finished_goods',
     ])
-    fireEvent.change(select, { target: { value: 'casting' } })
+    fireEvent.change(select, { target: { value: 'bangle_area' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create User' }))
 
     await waitFor(() => expect(createUser).toHaveBeenCalledTimes(1))
-    expect(createUser.mock.calls[0][1]).toMatchObject({ name: 'floor.op', floorDepartment: 'casting' })
+    expect(createUser.mock.calls[0][1]).toMatchObject({ name: 'floor.op', floorDepartment: 'bangle_area' })
     await waitFor(() => expect(onCreated).toHaveBeenCalled())
+  })
+
+  test('legacy floor departments map to workbook departments on edit', () => {
+    expect(normalizeFloorDept('packing')).toBe('finished_goods')
+    expect(normalizeFloorDept('bangle_division')).toBe('bangle_area')
+    expect(normalizeFloorDept('casting')).toBe('')
+    expect(normalizeFloorDept('qc')).toBe('qc')
   })
 
   test('floor department select is hidden for other tenants', () => {

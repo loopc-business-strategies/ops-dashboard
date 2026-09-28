@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
+import { normalizeFloorDepartment } from '@/src/config/floorDepartments'
 
 const DEPT_KEY = 'mg_factory_selected_department'
 const BIO_USER_KEY = 'mg_factory_bio_username'
@@ -68,8 +69,9 @@ async function clearPref(key: string): Promise<void> {
   }
 }
 
+/** Saved department mapped to the current list; null when unset or no longer offered. */
 export async function getSelectedDepartment(): Promise<string | null> {
-  return getPref(DEPT_KEY)
+  return normalizeFloorDepartment(await getPref(DEPT_KEY)) || null
 }
 
 export async function setSelectedDepartment(key: string): Promise<void> {

@@ -4,21 +4,9 @@ const { protect } = require('../middleware/auth')
 const { validateBody, validateQuery, validateParams } = require('../middleware/validate')
 const { requireProductionPermission } = require('../services/productionControl/permissions')
 const OperationsProductionEntry = require('../models/OperationsProductionEntry')
+const { PRODUCTION_DEPARTMENT_KEYS: DEPARTMENT_KEYS } = require('../constants/productionDepartments')
 
 const router = express.Router()
-
-const DEPARTMENT_KEYS = [
-  'vault_room',
-  'melting',
-  'rolling',
-  'bangle_area',
-  'stamping',
-  'pendent_section',
-  'welding_area',
-  'assembly',
-  'qc',
-  'finished_goods',
-]
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
@@ -30,6 +18,7 @@ const entryBodySchema = Joi.object({
   metalIn: Joi.number().min(0).allow(null),
   metalOut: Joi.number().min(0).allow(null),
   metalLoss: Joi.number().min(0).allow(null),
+  purity: Joi.number().min(0).max(100).allow(null),
   employeeName: Joi.string().allow('', null).max(200),
   departmentManagerName: Joi.string().allow('', null).max(200),
   batchStartedAt: Joi.alternatives().try(Joi.date().iso(), Joi.string().allow('', null), Joi.valid(null)),
@@ -85,6 +74,16 @@ function computeMetalLoss(metalIn, metalOut, explicit) {
   return null
 }
 
+function computeFineGold(metalIn, purity) {
+  const inn = toNumOrNull(metalIn)
+  const p = toNumOrNull(purity)
+  if (inn == null || p == null) return null
+  return Math.round(inn * p * 10) / 1000
+}
+
+/** Fields a user may still edit on rows written by MG Floor approvals. */
+const MG_FLOOR_EDITABLE_FIELDS = ['rating', 'breakdown', 'requests']
+
 function normalizePayload(body, { partial = false } = {}) {
   const out = {}
   if (!partial || body.departmentKey !== undefined) {
@@ -98,6 +97,9 @@ function normalizePayload(body, { partial = false } = {}) {
   }
   if (!partial || body.metalOut !== undefined) {
     out.metalOut = toNumOrNull(body.metalOut)
+  }
+  if (!partial || body.purity !== undefined) {
+    out.purity = toNumOrNull(body.purity)
   }
   if (!partial || body.employeeName !== undefined) {
     out.employeeName = String(body.employeeName || '').trim()
@@ -200,6 +202,8 @@ router.post(
 
       const doc = await OperationsProductionEntry.create({
         ...data,
+        fineGold: computeFineGold(data.metalIn, data.purity),
+        source: 'manual',
         createdById: req.user?._id || null,
         createdByName: String(req.user?.name || '').trim(),
       })
@@ -222,6 +226,20 @@ router.patch(
         return res.status(404).json({ success: false, message: 'Entry not found' })
       }
 
+      if (existing.source === 'mg_floor') {
+        const locked = Object.keys(req.body || {}).filter((k) => !MG_FLOOR_EDITABLE_FIELDS.includes(k))
+        if (locked.length) {
+          return res.status(409).json({
+            success: false,
+            code: 'MG_FLOOR_ROW_LOCKED',
+            message: `This row comes from an approved MG Floor batch; only ${MG_FLOOR_EDITABLE_FIELDS.join(', ')} can be edited`,
+          })
+        }
+        Object.assign(existing, normalizePayload(req.body, { partial: true }))
+        await existing.save()
+        return res.json({ success: true, entry: existing.toObject() })
+      }
+
       const data = normalizePayload(
         {
           departmentKey: existing.departmentKey,
@@ -240,6 +258,7 @@ router.patch(
         existing.metalOut,
         req.body.metalLoss !== undefined ? req.body.metalLoss : existing.metalLoss,
       )
+      existing.fineGold = computeFineGold(existing.metalIn, existing.purity)
       await existing.save()
       res.json({ success: true, entry: existing.toObject() })
     } catch (err) {
@@ -257,6 +276,13 @@ router.delete(
       const existing = await OperationsProductionEntry.findById(req.params.id)
       if (!existing) {
         return res.status(404).json({ success: false, message: 'Entry not found' })
+      }
+      if (existing.source === 'mg_floor') {
+        return res.status(409).json({
+          success: false,
+          code: 'MG_FLOOR_ROW_LOCKED',
+          message: 'Rows from approved MG Floor batches cannot be deleted',
+        })
       }
       await existing.deleteOne()
       res.json({ success: true, deleted: true, id: req.params.id })

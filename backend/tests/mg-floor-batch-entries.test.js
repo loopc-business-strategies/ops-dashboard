@@ -99,8 +99,10 @@ afterEach(async () => {
   const FloorBatchEntry = require('../models/FloorBatchEntry')
   const FloorSyncOperation = require('../models/FloorSyncOperation')
   const AuditLog = require('../models/AuditLog')
+  const OperationsProductionEntry = require('../models/OperationsProductionEntry')
   await Promise.all([
     (await FloorBatchEntry.getTenantModel('mg')).deleteMany({}),
+    (await OperationsProductionEntry.getTenantModel('mg')).deleteMany({}),
     (await FloorSyncOperation.getTenantModel('mg')).deleteMany({}),
     (await AuditLog.getTenantModel('mg')).deleteMany({}),
     (await User.getTenantModel('mg')).deleteMany({}),
@@ -195,7 +197,7 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
   test('6. department spoofing: operators always submit under their assigned floor department', async () => {
     const op = await createOperator()
 
-    const spoofed = await submit(op, batchBody({ department: 'casting' }))
+    const spoofed = await submit(op, batchBody({ department: 'rolling' }))
     expect(spoofed.status).toBe(403)
     expect(spoofed.body.code).toBe('DEPARTMENT_MISMATCH')
 
@@ -213,12 +215,29 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
     expect(noDept.body.code).toBe('FLOOR_DEPARTMENT_REQUIRED')
 
     const fm = await createFloorManager()
-    const forCasting = await submit(fm, batchBody({ department: 'casting' }))
-    expect(forCasting.status).toBe(201)
-    expect(forCasting.body.entry.department).toBe('casting')
-    const unknown = await submit(fm, batchBody({ department: 'vault' }))
-    expect(unknown.status).toBe(400)
-    expect(unknown.body.code).toBe('INVALID_DEPARTMENT')
+    const forRolling = await submit(fm, batchBody({ department: 'rolling' }))
+    expect(forRolling.status).toBe(201)
+    expect(forRolling.body.entry.department).toBe('rolling')
+    const legacyKey = await submit(fm, batchBody({ department: 'packing' }))
+    expect(legacyKey.status).toBe(201)
+    expect(legacyKey.body.entry.department).toBe('finished_goods')
+    for (const department of ['vault', 'casting', 'polishing']) {
+      const unknown = await submit(fm, batchBody({ department }))
+      expect(unknown.status).toBe(400)
+      expect(unknown.body.code).toBe('INVALID_DEPARTMENT')
+    }
+  })
+
+  test('6b. operators with a legacy floor department submit under the matching workbook department', async () => {
+    const op = await createOperator({ floorDepartment: 'bangle_division' })
+    const res = await submit(op, batchBody({ department: 'bangle_division' }))
+    expect(res.status).toBe(201)
+    expect(res.body.entry.department).toBe('bangle_area')
+
+    const retired = await createOperator({ floorDepartment: 'casting' })
+    const noDept = await submit(retired, batchBody({ batchLabel: '2' }))
+    expect(noDept.status).toBe(403)
+    expect(noDept.body.code).toBe('FLOOR_DEPARTMENT_REQUIRED')
   })
 
   test('7. approve: floor manager approves; decision fields and audit are stored; nothing is posted', async () => {
@@ -355,7 +374,7 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
     expect(list.body.entries).toHaveLength(1)
     expect(list.body.entries[0]).toMatchObject({ direction: 'OUT', batchLabel: '2', status: 'PENDING' })
 
-    const spoofed = batchBody({ department: 'casting' })
+    const spoofed = batchBody({ department: 'rolling' })
     const legacy = await sync(op, [
       { operationId: `be_${spoofed.entryId}`, operationType: 'batch_entry', payload: spoofed },
       { operationId: 'legacy_metal_in_1', operationType: 'metal_in', payload: { passId: 'x', receivedWeight: 10 } },
@@ -403,5 +422,202 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
     expect(today.status).toBe(200)
     expect(today.body.canDecide).toBe(false)
     expect(today.body.entries).toHaveLength(2)
+  })
+})
+
+describe('MG Floor approvals fill the Operations → Production workbook', () => {
+  const WORKBOOK = '/api/erp/production-control/operations-entries'
+  const workbookRows = async (user) => {
+    const res = await request(app).get(WORKBOOK).set(headers(user))
+    expect(res.status).toBe(200)
+    return res.body.entries
+  }
+
+  test('IN approval fills Metal IN, purity, fine gold and start; OUT approval completes the same row', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+
+    const sentIn = await submit(op, batchBody({ batchLabel: '7', tzOffsetMinutes: 240 }))
+    expect(sentIn.body.entry.tzOffsetMinutes).toBe(240)
+    expect(await workbookRows(fm)).toHaveLength(0)
+
+    const approvedIn = await approve(fm, sentIn.body.entry._id)
+    expect(approvedIn.body.workbookEntryId).toBeTruthy()
+    let rows = await workbookRows(fm)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      source: 'mg_floor',
+      departmentKey: 'melting',
+      date: '2026-09-28',
+      batchNumber: '7',
+      metalIn: 1330.7,
+      fineGold: 1243.949,
+      purity: 93.48,
+      metalOut: null,
+      metalLoss: null,
+      employeeName: op.name,
+      departmentManagerName: fm.name,
+      floorInEntryId: sentIn.body.entry.entryId,
+    })
+    expect(new Date(rows[0].batchStartedAt).toISOString()).toBe('2026-09-28T04:40:00.000Z')
+
+    const sentOut = await submit(op, batchBody({
+      batchLabel: '7',
+      direction: 'OUT',
+      tzOffsetMinutes: 240,
+      lines: [{ metal: 'Gold', qty: 1320.5, purity: 995, time: '16:05' }],
+    }))
+    await approve(fm, sentOut.body.entry._id)
+    rows = await workbookRows(fm)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ metalIn: 1330.7, metalOut: 1320.5, metalLoss: 10.2, purity: 93.48 })
+    expect(new Date(rows[0].batchOverAt).toISOString()).toBe('2026-09-28T12:05:00.000Z')
+    expect(rows[0].floorOutEntryId).toBe(sentOut.body.entry.entryId)
+  })
+
+  test('OUT approved first creates the row; rejected batches never reach the workbook', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+
+    const rejected = await submit(op, batchBody({ batchLabel: '8' }))
+    await reject(fm, rejected.body.entry._id, { reason: 'Wrong gold weight' })
+    expect(await workbookRows(fm)).toHaveLength(0)
+
+    const out = await submit(op, batchBody({
+      batchLabel: '9',
+      direction: 'OUT',
+      lines: [{ metal: 'Gold', qty: 500, purity: null, time: '09:00' }],
+    }))
+    await approve(fm, out.body.entry._id)
+    const rows = await workbookRows(fm)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ batchNumber: '9', metalIn: null, metalOut: 500, employeeName: op.name })
+    // No tablet offset: MG_FLOOR_TIMEZONE default (Asia/Dubai, UTC+4).
+    expect(new Date(rows[0].batchOverAt).toISOString()).toBe('2026-09-28T05:00:00.000Z')
+  })
+
+  test('MG Floor rows are locked: only rating, breakdown and requests can be edited; no delete', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+    const sent = await submit(op, batchBody())
+    await approve(fm, sent.body.entry._id)
+    const [row] = await workbookRows(fm)
+
+    const locked = await request(app).patch(`${WORKBOOK}/${row._id}`).set(headers(fm)).send({ metalIn: 1 })
+    expect(locked.status).toBe(409)
+    expect(locked.body.code).toBe('MG_FLOOR_ROW_LOCKED')
+
+    const rated = await request(app).patch(`${WORKBOOK}/${row._id}`).set(headers(fm)).send({ rating: 'A', requests: 'More flux' })
+    expect(rated.status).toBe(200)
+    expect(rated.body.entry).toMatchObject({ rating: 'A', requests: 'More flux', metalIn: row.metalIn, source: 'mg_floor' })
+
+    const del = await request(app).delete(`${WORKBOOK}/${row._id}`).set(headers(fm))
+    expect(del.status).toBe(409)
+    expect(await workbookRows(fm)).toHaveLength(1)
+  })
+
+  test('sync-workbook links batches approved before the link and is safe to repeat', async () => {
+    const op = await createOperator({ floorDepartment: 'packing' })
+    const fm = await createFloorManager()
+    const FloorBatchEntry = await require('../models/FloorBatchEntry').getTenantModel('mg')
+    const now = new Date()
+    const base = {
+      batchLabel: '3',
+      entryDate: '2026-09-27',
+      lines: [{ metal: 'Gold', qty: 100, purity: 91.6, time: '10:00' }],
+      employeeId: op._id,
+      employeeName: op.name,
+      status: 'APPROVED',
+      submittedAt: now,
+      decidedAt: now,
+      decidedByName: fm.name,
+    }
+    await FloorBatchEntry.create([
+      { ...base, entryId: 'be_legacy_in_0001', direction: 'IN', department: 'packing' },
+      { ...base, entryId: 'be_legacy_out_0001', direction: 'OUT', department: 'packing', lines: [{ metal: 'Gold', qty: 99, purity: null, time: '15:00' }] },
+      { ...base, entryId: 'be_legacy_cast_0001', direction: 'IN', department: 'casting' },
+      { ...base, entryId: 'be_legacy_pend_0001', direction: 'IN', department: 'melting', status: 'PENDING', batchLabel: '4' },
+    ])
+
+    const SYNC = '/api/mg-floor/batch-entries/sync-workbook'
+    expect((await request(app).post(SYNC).set(headers(op)).send({})).status).toBe(403)
+
+    const first = await request(app).post(SYNC).set(headers(fm)).send({})
+    expect(first.status).toBe(200)
+    expect(first.body).toMatchObject({ approved: 3, linked: 2, skipped: 1, skippedDepartments: { casting: 1 } })
+    const again = await request(app).post(SYNC).set(headers(fm)).send({})
+    expect(again.body.linked).toBe(2)
+
+    const rows = await workbookRows(fm)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      departmentKey: 'finished_goods',
+      batchNumber: '3',
+      metalIn: 100,
+      metalOut: 99,
+      metalLoss: 1,
+      purity: 91.6,
+      fineGold: 91.6,
+    })
+
+    const listed = await request(app).get('/api/mg-floor/batch-entries').query({ department: 'finished_goods' }).set(headers(fm))
+    expect(listed.body.entries).toHaveLength(2)
+  })
+
+  test('sync-workbook links batches approved before the link and is safe to repeat', async () => {
+    const op = await createOperator({ floorDepartment: 'packing' })
+    const fm = await createFloorManager()
+    const FloorBatchEntry = await require('../models/FloorBatchEntry').getTenantModel('mg')
+    const now = new Date()
+    const base = {
+      batchLabel: '3',
+      entryDate: '2026-09-27',
+      lines: [{ metal: 'Gold', qty: 100, purity: 91.6, time: '10:00' }],
+      employeeId: op._id,
+      employeeName: op.name,
+      status: 'APPROVED',
+      submittedAt: now,
+      decidedAt: now,
+      decidedByName: fm.name,
+    }
+    await FloorBatchEntry.create([
+      { ...base, entryId: 'be_legacy_in_0001', direction: 'IN', department: 'packing' },
+      { ...base, entryId: 'be_legacy_out_0001', direction: 'OUT', department: 'packing', lines: [{ metal: 'Gold', qty: 99, purity: null, time: '15:00' }] },
+      { ...base, entryId: 'be_legacy_cast_0001', direction: 'IN', department: 'casting' },
+      { ...base, entryId: 'be_legacy_pend_0001', direction: 'IN', department: 'melting', status: 'PENDING', batchLabel: '4' },
+    ])
+
+    const SYNC = '/api/mg-floor/batch-entries/sync-workbook'
+    expect((await request(app).post(SYNC).set(headers(op)).send({})).status).toBe(403)
+
+    const first = await request(app).post(SYNC).set(headers(fm)).send({})
+    expect(first.status).toBe(200)
+    expect(first.body).toMatchObject({ approved: 3, linked: 2, skipped: 1, skippedDepartments: { casting: 1 } })
+    const again = await request(app).post(SYNC).set(headers(fm)).send({})
+    expect(again.body.linked).toBe(2)
+
+    const rows = await workbookRows(fm)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      departmentKey: 'finished_goods',
+      batchNumber: '3',
+      metalIn: 100,
+      metalOut: 99,
+      metalLoss: 1,
+      purity: 91.6,
+      fineGold: 91.6,
+    })
+
+    const listed = await request(app).get('/api/mg-floor/batch-entries').query({ department: 'finished_goods' }).set(headers(fm))
+    expect(listed.body.entries).toHaveLength(2)
+  })
+
+  test('offline sync keeps the tablet offset', async () => {
+    const op = await createOperator()
+    const body = batchBody({ tzOffsetMinutes: 330 })
+    await sync(op, [{ operationId: `be_${body.entryId}`, operationType: 'batch_entry', payload: body }])
+    const FloorBatchEntry = await require('../models/FloorBatchEntry').getTenantModel('mg')
+    const stored = await FloorBatchEntry.findOne({ entryId: body.entryId }).lean()
+    expect(stored.tzOffsetMinutes).toBe(330)
   })
 })
