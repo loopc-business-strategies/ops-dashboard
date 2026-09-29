@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { BatchEntryRow } from '@/src/api/batchEntries'
 import {
-  applyEntryLines,
   batchKey,
   batchStatusView,
-  isBatchLocked,
+  editableBatch,
   latestEntries,
   localDateKey,
+  metalOutChoices,
+  nextBatchLabel,
   prepareBatchLines,
+  sentBatchesFor,
+  withDefaultMetals,
 } from './batchEntryMapping'
 import type { MetalBatchEdit } from './MetalProcessPanel'
 
@@ -62,7 +65,7 @@ const row = (over: Partial<BatchEntryRow>): BatchEntryRow => ({
   ...over,
 })
 
-describe('latestEntries / applyEntryLines', () => {
+describe('latestEntries / sentBatchesFor', () => {
   it('picks the newest entry per direction and batch', () => {
     const latest = latestEntries([
       row({ entryId: 'old', status: 'REJECTED', submittedAt: '2026-09-28T04:00:00.000Z' }),
@@ -73,30 +76,61 @@ describe('latestEntries / applyEntryLines', () => {
     expect(latest.get(batchKey('OUT', '1'))?.entryId).toBe('out')
   })
 
-  it('writes sent values back into the matching batch only', () => {
-    const batches: MetalBatchEdit[] = [
-      batch([['Gold', '', '', ''], ['Alloy', '5', '', '']]),
-      { ...batch([['Gold', '7', '', '']]), batchLabel: '2' },
-    ]
-    const sent = new Map([[batchKey('IN', '1'), { lines: [{ metal: 'Gold', qty: 1250.2, purity: null, time: '08:40' }] }]])
-    const next = applyEntryLines(batches, 'IN', sent)
-    expect(next[0].lines).toEqual([
-      { metal: 'Gold', qty: '1250.2', purity: '', time: '08:40' },
+  it('lists one direction in batch number order with its sent lines', () => {
+    const gold = { metal: 'Gold', qty: 1250.2, purity: 99.5, time: '08:40' }
+    const states = {
+      [batchKey('IN', '10')]: { status: 'PENDING' as const, entryId: 'a' },
+      [batchKey('IN', '2')]: { status: 'APPROVED' as const, entryId: 'b' },
+      [batchKey('OUT', '2')]: { status: 'PENDING' as const, entryId: 'c' },
+    }
+    const sent = new Map([[batchKey('IN', '2'), { lines: [gold] }]])
+    const rows = sentBatchesFor('IN', states, sent)
+    expect(rows.map((r) => r.batchLabel)).toEqual(['2', '10'])
+    expect(rows[0].lines).toEqual([gold])
+    expect(rows[1].lines).toEqual([])
+  })
+})
+
+describe('batch numbers', () => {
+  it('numbers the next Metal In batch after the highest one', () => {
+    expect(nextBatchLabel([])).toBe('1')
+    expect(nextBatchLabel(['1', '3', '2'])).toBe('4')
+    expect(nextBatchLabel(['A', '2'])).toBe('3')
+  })
+
+  it('offers Metal In batches without a Metal Out, else the next unused number', () => {
+    expect(metalOutChoices(['3', '1', '2'], ['1'])).toEqual(['2', '3'])
+    expect(metalOutChoices(['1'], ['1'])).toEqual(['2'])
+    expect(metalOutChoices([], [])).toEqual(['1'])
+  })
+
+  it('starts the popup with Gold and Alloy, or the lines of the batch being fixed', () => {
+    expect(editableBatch('4')).toEqual({
+      batchLabel: '4',
+      lines: [
+        { metal: 'Gold', qty: '', purity: '', time: '' },
+        { metal: 'Alloy', qty: '', purity: '', time: '' },
+      ],
+    })
+    expect(editableBatch('2', [{ metal: 'Silver', qty: 12.5, purity: null, time: '09:10' }]).lines).toEqual([
+      { metal: 'Gold', qty: '', purity: '', time: '' },
       { metal: 'Alloy', qty: '', purity: '', time: '' },
+      { metal: 'Silver', qty: '12.5', purity: '', time: '09:10' },
     ])
-    expect(next[1]).toBe(batches[1])
+  })
+
+  it('always lists Gold and Alloy first, keeping sent values and extra metals', () => {
+    const gold = { metal: 'Gold', qty: 480, purity: null, time: '00:03' }
+    const copper = { metal: 'Copper', qty: 5, purity: null, time: '00:03' }
+    expect(withDefaultMetals([copper, gold])).toEqual([
+      gold,
+      { metal: 'Alloy', qty: null, purity: null, time: '' },
+      copper,
+    ])
   })
 })
 
 describe('status', () => {
-  it('locks pending, queued and approved batches; rejected can be edited', () => {
-    expect(isBatchLocked(undefined)).toBe(false)
-    expect(isBatchLocked({ status: 'PENDING', entryId: 'a' })).toBe(true)
-    expect(isBatchLocked({ status: 'QUEUED', entryId: 'a' })).toBe(true)
-    expect(isBatchLocked({ status: 'APPROVED', entryId: 'a' })).toBe(true)
-    expect(isBatchLocked({ status: 'REJECTED', entryId: 'a' })).toBe(false)
-  })
-
   it('shows the reject reason and who decided', () => {
     const v = batchStatusView({ status: 'REJECTED', entryId: 'a', rejectReason: 'Gold qty wrong', decidedByName: 'Ravi' })
     expect(v?.label).toBe('REJECTED')

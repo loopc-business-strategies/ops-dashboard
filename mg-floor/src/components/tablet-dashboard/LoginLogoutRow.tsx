@@ -1,6 +1,6 @@
 import React from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { tabletDashboard as td } from '@/src/theme'
+import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 
 type Props = {
   onLogin: () => void
@@ -11,28 +11,30 @@ type Props = {
 
 /** Logout is hidden until logged in. */
 export function LoginLogoutRow({ onLogin, onLogout, loggedIn, loginDisabled }: Props) {
+  const loginOff = loginDisabled || loggedIn
   return (
     <View style={styles.row}>
       <Pressable
         accessibilityRole="button"
-        disabled={loginDisabled || loggedIn}
+        disabled={loginOff}
         onPress={onLogin}
         style={({ pressed }) => [
           styles.btn,
           styles.login,
-          loggedIn ? styles.btnHalf : styles.btnFull,
-          { opacity: loginDisabled || loggedIn ? 0.45 : pressed ? 0.85 : 1 },
+          !loginOff && buttonShadow,
+          pressed && styles.loginPressed,
+          loginOff && styles.off,
         ]}
       >
-        <Text style={styles.loginText}>Login</Text>
+        <Text style={[styles.text, styles.loginText]}>Login</Text>
       </Pressable>
       {loggedIn ? (
         <Pressable
           accessibilityRole="button"
           onPress={onLogout}
-          style={({ pressed }) => [styles.btn, styles.logout, styles.btnHalf, { opacity: pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.btn, styles.logout, pressed && styles.outlinePressed]}
         >
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={[styles.text, styles.logoutText]}>Logout</Text>
         </Pressable>
       ) : null}
     </View>
@@ -42,30 +44,37 @@ export function LoginLogoutRow({ onLogin, onLogout, loggedIn, loginDisabled }: P
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10 },
   btn: {
+    flex: 1,
     minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderRadius: td.radius,
+    borderRadius: td.buttonRadius,
   },
-  btnFull: { flex: 1 },
-  btnHalf: { flex: 1 },
   login: {
     backgroundColor: td.orange,
     borderColor: td.orange,
+  },
+  loginPressed: {
+    backgroundColor: td.orangePressed,
+    borderColor: td.orangePressed,
+    transform: [{ scale: 0.98 }],
   },
   logout: {
     backgroundColor: td.white,
     borderColor: td.orange,
   },
-  loginText: {
-    color: td.white,
-    fontWeight: '800',
-    fontSize: 18,
+  outlinePressed: {
+    backgroundColor: td.cream,
+    transform: [{ scale: 0.98 }],
   },
-  logoutText: {
-    color: td.orange,
-    fontWeight: '800',
+  off: { opacity: 0.45 },
+  text: {
+    fontFamily: td.buttonFont,
+    fontWeight: '600',
     fontSize: 18,
+    letterSpacing: 0.6,
   },
+  loginText: { color: td.white },
+  logoutText: { color: td.orange },
 })

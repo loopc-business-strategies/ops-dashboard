@@ -1,6 +1,6 @@
 import React from 'react'
 import { Pressable, StyleSheet, Text } from 'react-native'
-import { tabletDashboard as td } from '@/src/theme'
+import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 
 type Props = {
   onPress: () => void
@@ -16,7 +16,9 @@ export function CallFMButton({ onPress, disabled, label = 'Call F.M' }: Props) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.btn,
-        { opacity: disabled ? 0.45 : pressed ? 0.85 : 1 },
+        !disabled && buttonShadow,
+        pressed && styles.pressed,
+        disabled && { opacity: 0.45 },
       ]}
     >
       <Text style={styles.text}>{label}</Text>
@@ -32,13 +34,18 @@ const styles = StyleSheet.create({
     backgroundColor: td.orange,
     borderWidth: 2,
     borderColor: td.orange,
-    borderRadius: td.radius,
+    borderRadius: td.buttonRadius,
+  },
+  pressed: {
+    backgroundColor: td.orangePressed,
+    borderColor: td.orangePressed,
+    transform: [{ scale: 0.98 }],
   },
   text: {
     color: td.white,
-    fontWeight: '900',
-    fontSize: 26,
-    letterSpacing: 0.4,
+    fontFamily: td.buttonFont,
+    fontWeight: '600',
+    fontSize: 24,
+    letterSpacing: 0.8,
   },
 })
-

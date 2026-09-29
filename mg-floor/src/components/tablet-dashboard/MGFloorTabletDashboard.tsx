@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   ScrollView,
   StyleSheet,
@@ -15,14 +15,7 @@ import {
   getSessionLoginAt,
   isBiometricEnabled,
 } from '@/src/auth/sessionPrefs'
-import {
-  getAssignedManager,
-  getAssignedMetalLabels,
-  setAssignedMetalLabels,
-  type AssignedManager,
-} from '@/src/auth/floorDashboardPrefs'
-import { fetchHistory } from '@/src/api/floor'
-import { useAsyncResource } from '@/src/hooks/useAsyncResource'
+import { getAssignedManager, type AssignedManager } from '@/src/auth/floorDashboardPrefs'
 import { tabletDashboard as td } from '@/src/theme'
 import { LoginLogoutRow } from './LoginLogoutRow'
 import { AssignManagerButton } from './AssignManagerButton'
@@ -30,55 +23,38 @@ import { EmployeeTable } from './EmployeeTable'
 import { CallFMButton } from './CallFMButton'
 import { DepartmentBadge } from './DepartmentBadge'
 import { effectiveFloorDepartment } from '@/src/config/floorDepartments'
-import { MetalProcessPanel, type MetalBatchEdit, type PanelApproval } from './MetalProcessPanel'
-import { batchKey, batchStatusView, isBatchLocked } from './batchEntryMapping'
+import { MetalProcessPanel, type MetalBatchEdit, type MetalPanelRow } from './MetalProcessPanel'
+import { MetalEntryModal } from './MetalEntryModal'
+import {
+  batchStatusView,
+  editableBatch,
+  metalOutChoices,
+  nextBatchLabel,
+  sentBatchesFor,
+  withDefaultMetals,
+  type SentBatch,
+} from './batchEntryMapping'
 import { useBatchApprovals } from './useBatchApprovals'
 import type { BatchDirection } from '@/src/api/batchEntries'
-import { AssignedMetalInPanel } from './AssignedMetalInPanel'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
-import {
-  buildMetalProcessBatches,
-  formatClock,
-  type MovementLike,
-} from './metalMapping'
+import { formatClock } from './metalMapping'
 
 const DASH_MIN_WIDTH = 960
 
-function startOfToday() {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+/** Open Metal In / Out popup: a new batch, or a rejected batch being fixed. */
+type EntryForm = {
+  direction: BatchDirection
+  initial: MetalBatchEdit
+  fixing: boolean
 }
 
-function emptyEditableBatches(): MetalBatchEdit[] {
-  return [
-    {
-      batchLabel: '1',
-      lines: [
-        { metal: 'Gold', qty: '', purity: '', time: '' },
-        { metal: 'Alloy', qty: '', purity: '', time: '' },
-      ],
-    },
-    {
-      batchLabel: '2',
-      lines: [
-        { metal: 'Gold', qty: '', purity: '', time: '' },
-        { metal: 'Alloy', qty: '', purity: '', time: '' },
-      ],
-    },
-  ]
-}
-
-function toEditable(batches: ReturnType<typeof buildMetalProcessBatches>): MetalBatchEdit[] {
+function panelRows(batches: SentBatch[]): MetalPanelRow[] {
   return batches.map((b) => ({
     batchLabel: b.batchLabel,
-    lines: b.lines.map((l: { metal: string; qty: string; purity: string; time: string }) => ({
-      metal: l.metal,
-      qty: l.qty || '',
-      purity: l.purity || '',
-      time: l.time || '',
-    })),
+    lines: withDefaultMetals(b.lines),
+    status: batchStatusView(b.state),
+    canFix: b.state.status === 'REJECTED',
   }))
 }
 
@@ -93,10 +69,7 @@ export function MGFloorTabletDashboard() {
   const [manager, setManager] = useState<AssignedManager | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [callOpen, setCallOpen] = useState(false)
-  const [metalInBatches, setMetalInBatches] = useState<MetalBatchEdit[]>(emptyEditableBatches)
-  const [metalOutBatches, setMetalOutBatches] = useState<MetalBatchEdit[]>(emptyEditableBatches)
-  const [assignedMetal, setAssignedMetal] = useState({ batch1: '', batch2: '' })
-  const [seeded, setSeeded] = useState(false)
+  const [entryForm, setEntryForm] = useState<EntryForm | null>(null)
   const [fullSize, setFullSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
@@ -112,7 +85,6 @@ export function MGFloorTabletDashboard() {
 
   useEffect(() => {
     getAssignedManager().then(setManager)
-    getAssignedMetalLabels().then(setAssignedMetal)
   }, [])
 
   useEffect(() => {
@@ -123,51 +95,33 @@ export function MGFloorTabletDashboard() {
     getSessionLoginAt().then(setLoginAt)
   }, [token, user?.id])
 
-  const history = useAsyncResource(
-    useCallback(async (signal) => {
-      const res = await fetchHistory({ limit: 50, skip: 0, from: startOfToday() }, { signal })
-      return (res.movements || []) as MovementLike[]
-    }, []),
-    { cacheKey: 'mg-floor:dash-history-today', isEmpty: (d) => !d.length },
-  )
+  const approvals = useBatchApprovals({ token, department: dept })
+  const metalIn = useMemo(() => sentBatchesFor('IN', approvals.states, approvals.sent), [approvals.states, approvals.sent])
+  const metalOut = useMemo(() => sentBatchesFor('OUT', approvals.states, approvals.sent), [approvals.states, approvals.sent])
+  const inLabels = useMemo(() => metalIn.map((b) => b.batchLabel), [metalIn])
+  const outLabels = useMemo(() => metalOut.map((b) => b.batchLabel), [metalOut])
 
-  const setBatches = useCallback(
-    (direction: BatchDirection, update: (batches: MetalBatchEdit[]) => MetalBatchEdit[]) => {
-      if (direction === 'IN') setMetalInBatches(update)
-      else setMetalOutBatches(update)
-    },
-    [],
-  )
-  const approvals = useBatchApprovals({ token, department: dept, setBatches })
-  const { overlay } = approvals
+  const batchOptions = useMemo(() => {
+    if (!entryForm) return []
+    if (entryForm.fixing) return [entryForm.initial.batchLabel]
+    return entryForm.direction === 'IN' ? [nextBatchLabel(inLabels)] : metalOutChoices(inLabels, outLabels)
+  }, [entryForm, inLabels, outLabels])
 
-  useEffect(() => {
-    if (!history.data || seeded) return
-    setMetalInBatches(overlay('IN', toEditable(buildMetalProcessBatches(history.data, 'in'))))
-    setMetalOutBatches(overlay('OUT', toEditable(buildMetalProcessBatches(history.data, 'out'))))
-    setSeeded(true)
-  }, [history.data, seeded, overlay])
+  const sendHint = !token
+    ? 'Log in to send for Floor Manager approval'
+    : !dept
+      ? 'No floor department is assigned to your account. Ask an admin.'
+      : undefined
 
-  const approvalFor = (direction: BatchDirection, batches: MetalBatchEdit[]): PanelApproval => ({
-    rows: Object.fromEntries(
-      batches.map((b) => {
-        const key = batchKey(direction, b.batchLabel)
-        const state = approvals.states[key]
-        return [
-          b.batchLabel,
-          { locked: isBatchLocked(state), busy: approvals.busyKey === key, status: batchStatusView(state) },
-        ]
-      }),
-    ),
-    canConfirm: Boolean(token) && Boolean(dept) && !approvals.busyKey,
-    hint: !token
-      ? 'Log in to send for Floor Manager approval'
-      : !dept
-        ? 'No floor department is assigned to your account. Ask an admin.'
-        : undefined,
-    message: approvals.message?.direction === direction ? approvals.message.text : null,
-    onConfirm: (batch) => approvals.confirm(direction, batch),
-  })
+  const openNew = (direction: BatchDirection) => {
+    const label = direction === 'IN' ? nextBatchLabel(inLabels) : metalOutChoices(inLabels, outLabels)[0]
+    setEntryForm({ direction, initial: editableBatch(label), fixing: false })
+  }
+
+  const openFix = (direction: BatchDirection, batchLabel: string) => {
+    const batch = (direction === 'IN' ? metalIn : metalOut).find((b) => b.batchLabel === batchLabel)
+    setEntryForm({ direction, initial: editableBatch(batchLabel, batch?.lines), fixing: true })
+  }
 
   const employees = useMemo(() => {
     if (!token || !user) return []
@@ -199,11 +153,6 @@ export function MGFloorTabletDashboard() {
 
   const onLogout = async () => {
     await logout()
-  }
-
-  const onAssignedMetalChange = async (next: { batch1: string; batch2: string }) => {
-    setAssignedMetal(next)
-    await setAssignedMetalLabels(next)
   }
 
   const contentWidth = Math.max(width, DASH_MIN_WIDTH)
@@ -257,9 +206,9 @@ export function MGFloorTabletDashboard() {
             <View style={[styles.col, styles.colMid, { gap }]}>
               <MetalProcessPanel
                 title="Metal In"
-                batches={metalInBatches}
-                onChange={setMetalInBatches}
-                approval={approvalFor('IN', metalInBatches)}
+                rows={panelRows(metalIn)}
+                onAdd={() => openNew('IN')}
+                onFix={(label) => openFix('IN', label)}
                 compact={compact}
               />
             </View>
@@ -270,18 +219,12 @@ export function MGFloorTabletDashboard() {
               <View style={styles.metalOutBlock}>
                 <MetalProcessPanel
                   title="Metal Out"
-                  batches={metalOutBatches}
-                  onChange={setMetalOutBatches}
-                  approval={approvalFor('OUT', metalOutBatches)}
+                  rows={panelRows(metalOut)}
+                  onAdd={() => openNew('OUT')}
+                  onFix={(label) => openFix('OUT', label)}
                   compact={compact}
                 />
               </View>
-              <AssignedMetalInPanel
-                batch1={assignedMetal.batch1}
-                batch2={assignedMetal.batch2}
-                onChange={onAssignedMetalChange}
-                compact={compact}
-              />
             </View>
           </View>
         </View>
@@ -300,6 +243,18 @@ export function MGFloorTabletDashboard() {
         operatorId={user?.id || ''}
         manager={manager}
       />
+      {entryForm ? (
+        <MetalEntryModal
+          visible
+          title={entryForm.direction === 'IN' ? 'Metal In' : 'Metal Out'}
+          batchOptions={batchOptions}
+          initial={entryForm.initial}
+          canSend={Boolean(token) && Boolean(dept)}
+          hint={sendHint}
+          onSend={(batch) => approvals.confirm(entryForm.direction, batch)}
+          onClose={() => setEntryForm(null)}
+        />
+      ) : null}
     </ScrollView>
   )
 }

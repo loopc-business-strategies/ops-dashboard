@@ -1,3 +1,5 @@
+import { Platform } from 'react-native'
+
 export const colors = {
   bg: '#F7F7F7',
   surface: '#FFFFFF',
@@ -30,6 +32,23 @@ export const tabletDashboard = {
   borderGrid: '#E5E7EB',
   borderLight: '#D1D5DB',
   radius: 4,
+  orangePressed: '#D9460A',
+  buttonRadius: 10,
+  /** System font for dashboard buttons (Roboto Medium on Android). */
+  buttonFont: Platform.select({
+    android: 'sans-serif-medium',
+    web: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    default: undefined,
+  }),
+}
+
+/** Shadow for filled dashboard buttons. */
+export const buttonShadow = {
+  shadowColor: '#000',
+  shadowOpacity: 0.18,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 4,
 }
 
 export const spacing = {
