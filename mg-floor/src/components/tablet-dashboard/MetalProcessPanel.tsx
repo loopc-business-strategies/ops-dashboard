@@ -1,15 +1,7 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { tabletDashboard as td } from '@/src/theme'
-import {
-  PURITY_MAX_LENGTH,
-  QTY_MAX_LENGTH,
-  TIME_MAX_LENGTH,
-  cleanNumberInput,
-  formatTimeTyping,
-  isImpossibleTime,
-  normalizeTime,
-} from './fieldInput'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { buttonShadow, tabletDashboard as td } from '@/src/theme'
+import type { BatchEntryLine } from '@/src/api/batchEntries'
 
 export type MetalLineEdit = {
   metal: string
@@ -23,38 +15,22 @@ export type MetalBatchEdit = {
   lines: MetalLineEdit[]
 }
 
-export type MetalPanelAction = {
-  label: string
-  onPress: () => void
-  disabled?: boolean
-  /** Shown under the button while it is disabled. */
-  disabledHint?: string
-}
-
 export type BatchStatusTone = 'neutral' | 'warn' | 'ok' | 'bad'
 
-export type BatchApprovalRow = {
-  locked: boolean
-  busy: boolean
+export type MetalPanelRow = {
+  batchLabel: string
+  lines: BatchEntryLine[]
   status: { label: string; tone: BatchStatusTone; note: string } | null
-}
-
-/** Per-batch CONFIRM for Floor Manager approval. */
-export type PanelApproval = {
-  rows: Record<string, BatchApprovalRow | undefined>
-  canConfirm: boolean
-  /** Shown beside the CONFIRM button while it cannot be used (e.g. not logged in). */
-  hint?: string
-  message?: string | null
-  onConfirm: (batch: MetalBatchEdit) => void
+  /** Rejected by the Floor Manager: can be corrected and sent again. */
+  canFix: boolean
 }
 
 type Props = {
   title: string
-  batches: MetalBatchEdit[]
-  onChange: React.Dispatch<React.SetStateAction<MetalBatchEdit[]>>
-  action?: MetalPanelAction
-  approval?: PanelApproval
+  rows: MetalPanelRow[]
+  /** Tapping the orange header opens the entry popup. */
+  onAdd: () => void
+  onFix: (batchLabel: string) => void
   compact?: boolean
 }
 
@@ -65,34 +41,29 @@ const TONES: Record<BatchStatusTone, { bg: string; fg: string }> = {
   bad: { bg: '#FEE2E2', fg: '#991B1B' },
 }
 
-export function MetalProcessPanel({
-  title,
-  batches,
-  onChange,
-  action,
-  approval,
-  compact,
-}: Props) {
+const show = (n: number | null | undefined) => (n == null ? '--' : String(n))
+export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props) {
   const pad = compact ? 6 : 8
   const fontSize = compact ? 12 : 14
 
-  const setField = (batchIdx: number, lineIdx: number, key: keyof MetalLineEdit, value: string) => {
-    onChange((current) =>
-      current.map((b, bi) => {
-        if (bi !== batchIdx) return b
-        return {
-          ...b,
-          lines: b.lines.map((line, li) => (li === lineIdx ? { ...line, [key]: value } : line)),
-        }
-      }),
-    )
-  }
-
   return (
     <View style={styles.wrap}>
-      <View style={[styles.header, compact && styles.headerCompact]}>
-        <Text style={[styles.headerText, compact && { fontSize: 18 }]}>{title}</Text>
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Add ${title}`}
+        onPress={onAdd}
+        style={({ pressed }) => [
+          styles.header,
+          compact && styles.headerCompact,
+          pressed && styles.headerPressed,
+        ]}
+      >
+        <View style={styles.addBadge}>
+          <View style={styles.plusBarH} />
+          <View style={styles.plusBarV} />
+        </View>
+        <Text style={[styles.headerText, compact && { fontSize: 17 }]}>{title}</Text>
+      </Pressable>
       <View style={styles.body}>
         <View style={styles.subHeader}>
           <Text style={styles.subHeaderText}>Total Process</Text>
@@ -104,102 +75,63 @@ export function MetalProcessPanel({
           <Text style={[styles.cell, styles.colPurity, styles.headerCell, { fontSize }]}>Purity</Text>
           <Text style={[styles.cell, styles.colTime, styles.headerCell, { fontSize }]}>Time</Text>
         </View>
-        {batches.map((batch, batchIdx) => {
-          const row = approval?.rows[batch.batchLabel]
-          const locked = Boolean(row?.locked)
-          const inputStyle = [styles.input, locked && styles.inputLocked, { fontSize, paddingVertical: pad }]
-          const tone = row?.status ? TONES[row.status.tone] : null
-          const confirmDisabled = !approval?.canConfirm || Boolean(row?.busy)
+        {rows.length === 0 ? (
+          <Text style={styles.empty}>No batches yet. Tap {title} above to add one.</Text>
+        ) : null}
+        {rows.map((row) => {
+          const tone = row.status ? TONES[row.status.tone] : null
           return (
-            <View key={batch.batchLabel} style={styles.batchBlock}>
+            <View key={row.batchLabel} style={styles.batchBlock}>
               <View style={styles.batchGroup}>
                 <View style={styles.batchLabelCol}>
-                  <Text style={[styles.batchText, compact && { fontSize: 14 }]}>{batch.batchLabel}</Text>
+                  <Text style={[styles.batchText, compact && { fontSize: 14 }]}>{row.batchLabel}</Text>
                 </View>
                 <View style={styles.batchLines}>
-                  {batch.lines.map((line, lineIdx) => (
+                  {row.lines.map((line, lineIdx) => (
                     <View
-                      key={`${batch.batchLabel}-${line.metal}`}
-                      style={[styles.lineRow, lineIdx === batch.lines.length - 1 && styles.lineRowLast]}
+                      key={`${row.batchLabel}-${line.metal}-${lineIdx}`}
+                      style={[styles.lineRow, lineIdx === row.lines.length - 1 && styles.lineRowLast]}
                     >
-                      <Text style={[styles.cell, styles.colMetal, { fontSize, paddingVertical: pad }]}>
+                      <Text style={[styles.cell, styles.colMetal, styles.metalCell, { fontSize, paddingVertical: pad }]}>
                         {line.metal}
                       </Text>
-                      <TextInput
-                        accessibilityLabel={`${title} batch ${batch.batchLabel} ${line.metal} Qty`}
-                        style={[...inputStyle, styles.colQty]}
-                        value={line.qty}
-                        onChangeText={(v) => setField(batchIdx, lineIdx, 'qty', cleanNumberInput(v, QTY_MAX_LENGTH))}
-                        editable={!locked}
-                        placeholder="--"
-                        placeholderTextColor={td.textMuted}
-                        keyboardType="decimal-pad"
-                        maxLength={QTY_MAX_LENGTH}
-                      />
-                      <TextInput
-                        accessibilityLabel={`${title} batch ${batch.batchLabel} ${line.metal} Purity`}
-                        style={[...inputStyle, styles.colPurity]}
-                        value={line.purity}
-                        onChangeText={(v) =>
-                          setField(batchIdx, lineIdx, 'purity', cleanNumberInput(v, PURITY_MAX_LENGTH))
-                        }
-                        editable={!locked}
-                        placeholder="--"
-                        placeholderTextColor={td.textMuted}
-                        keyboardType="decimal-pad"
-                        maxLength={PURITY_MAX_LENGTH}
-                      />
-                      <TextInput
-                        accessibilityLabel={`${title} batch ${batch.batchLabel} ${line.metal} Time`}
-                        style={[
-                          ...inputStyle,
-                          styles.colTime,
-                          isImpossibleTime(line.time) && styles.inputInvalid,
-                        ]}
-                        value={line.time}
-                        onChangeText={(v) => setField(batchIdx, lineIdx, 'time', formatTimeTyping(v))}
-                        onBlur={() => {
-                          const time = normalizeTime(line.time)
-                          if (time && time !== line.time) setField(batchIdx, lineIdx, 'time', time)
-                        }}
-                        editable={!locked}
-                        placeholder="HH:MM"
-                        placeholderTextColor={td.textMuted}
-                        keyboardType="decimal-pad"
-                        maxLength={TIME_MAX_LENGTH}
-                      />
+                      <Text style={[styles.cell, styles.value, styles.colQty, { fontSize, paddingVertical: pad }]}>
+                        {show(line.qty)}
+                      </Text>
+                      <Text style={[styles.cell, styles.value, styles.colPurity, { fontSize, paddingVertical: pad }]}>
+                        {show(line.purity)}
+                      </Text>
+                      <Text style={[styles.cell, styles.value, styles.colTime, { fontSize, paddingVertical: pad }]}>
+                        {line.time || '--'}
+                      </Text>
                     </View>
                   ))}
                 </View>
               </View>
-              {approval ? (
-                <View style={styles.approvalRow}>
-                  <View style={styles.approvalInfo}>
-                    {row?.status && tone ? (
+              {row.status || row.canFix ? (
+                <View style={styles.statusRow}>
+                  <View style={styles.statusInfo}>
+                    {row.status && tone ? (
                       <View style={[styles.pill, { backgroundColor: tone.bg }]}>
                         <Text style={[styles.pillText, { color: tone.fg }]}>{row.status.label}</Text>
                       </View>
                     ) : null}
-                    <Text style={styles.approvalNote} numberOfLines={2}>
-                      {row?.status?.note || (!approval.canConfirm && !locked ? approval.hint || '' : '')}
+                    <Text style={styles.statusNote} numberOfLines={2}>
+                      {row.status?.note || ''}
                     </Text>
                   </View>
-                  {!locked ? (
+                  {row.canFix ? (
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={`Confirm batch ${batch.batchLabel}`}
-                      accessibilityState={{ disabled: confirmDisabled, busy: Boolean(row?.busy) }}
-                      disabled={confirmDisabled}
-                      onPress={() => approval.onConfirm(batch)}
+                      accessibilityLabel={`Fix and resend batch ${row.batchLabel}`}
+                      onPress={() => onFix(row.batchLabel)}
                       style={({ pressed }) => [
-                        styles.confirmBtn,
+                        styles.fixBtn,
                         compact && { minHeight: 34, paddingHorizontal: 10 },
-                        { opacity: confirmDisabled ? 0.45 : pressed ? 0.85 : 1 },
+                        pressed && { opacity: 0.85 },
                       ]}
                     >
-                      <Text style={[styles.confirmText, compact && { fontSize: 12 }]}>
-                        {row?.busy ? 'SENDING…' : `CONFIRM BATCH ${batch.batchLabel}`}
-                      </Text>
+                      <Text style={[styles.fixText, compact && { fontSize: 12 }]}>FIX & RESEND</Text>
                     </Pressable>
                   ) : null}
                 </View>
@@ -207,27 +139,6 @@ export function MetalProcessPanel({
             </View>
           )
         })}
-        {approval?.message ? <Text style={styles.approvalError}>{approval.message}</Text> : null}
-        {action ? (
-          <View style={styles.actionWrap}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: Boolean(action.disabled) }}
-              disabled={action.disabled}
-              onPress={action.onPress}
-              style={({ pressed }) => [
-                styles.actionBtn,
-                compact && { minHeight: 40 },
-                { opacity: action.disabled ? 0.45 : pressed ? 0.85 : 1 },
-              ]}
-            >
-              <Text style={[styles.actionText, compact && { fontSize: 14 }]}>{action.label}</Text>
-            </Pressable>
-            {action.disabled && action.disabledHint ? (
-              <Text style={styles.actionHint}>{action.disabledHint}</Text>
-            ) : null}
-          </View>
-        ) : null}
       </View>
     </View>
   )
@@ -237,26 +148,46 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, minHeight: 0 },
   header: {
     backgroundColor: td.orange,
-    minHeight: 52,
+    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopLeftRadius: td.radius,
-    borderTopRightRadius: td.radius,
+    flexDirection: 'row',
+    gap: 10,
+    borderRadius: td.buttonRadius,
+    marginBottom: 10,
+    ...buttonShadow,
   },
-  headerCompact: { minHeight: 44 },
+  headerCompact: { minHeight: 48 },
+  headerPressed: {
+    backgroundColor: td.orangePressed,
+    transform: [{ scale: 0.98 }],
+    shadowOpacity: 0.08,
+    elevation: 1,
+  },
   headerText: {
     color: td.white,
-    fontWeight: '800',
-    fontSize: 22,
-    letterSpacing: 0.3,
+    fontFamily: td.buttonFont,
+    fontWeight: '600',
+    fontSize: 20,
+    letterSpacing: 0.6,
   },
+  addBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusBarH: { position: 'absolute', width: 14, height: 2.5, borderRadius: 2, backgroundColor: td.white },
+  plusBarV: { position: 'absolute', width: 2.5, height: 14, borderRadius: 2, backgroundColor: td.white },
   body: {
     flex: 1,
     borderWidth: 1,
-    borderTopWidth: 0,
     borderColor: td.border,
-    borderBottomLeftRadius: td.radius,
-    borderBottomRightRadius: td.radius,
+    borderRadius: td.radius,
     backgroundColor: td.white,
     minHeight: 0,
     overflow: 'hidden',
@@ -280,15 +211,16 @@ const styles = StyleSheet.create({
     backgroundColor: td.cream,
     borderBottomColor: td.borderLight,
   },
+  empty: { color: td.textMuted, fontSize: 13, textAlign: 'center', padding: 18 },
   batchBlock: {
     borderBottomWidth: 1,
     borderBottomColor: td.borderLight,
   },
   batchGroup: {
     flexDirection: 'row',
-    minHeight: 80,
+    minHeight: 40,
   },
-  approvalRow: {
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -298,11 +230,11 @@ const styles = StyleSheet.create({
     borderTopColor: td.borderGrid,
     backgroundColor: td.cream,
   },
-  approvalInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  statusInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
   pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   pillText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-  approvalNote: { flex: 1, color: td.textMuted, fontSize: 12, minWidth: 0 },
-  confirmBtn: {
+  statusNote: { flex: 1, color: td.textMuted, fontSize: 12, minWidth: 0 },
+  fixBtn: {
     minHeight: 38,
     paddingHorizontal: 14,
     backgroundColor: td.orange,
@@ -310,10 +242,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  confirmText: { color: td.white, fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
-  approvalError: { color: '#B91C1C', fontSize: 13, fontWeight: '600', margin: 8 },
-  inputLocked: { color: td.textMuted, backgroundColor: '#F9FAFB' },
-  inputInvalid: { backgroundColor: '#FEE2E2', color: '#991B1B' },
+  fixText: { color: td.white, fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
   batchLabelCol: {
     width: 56,
     borderRightWidth: 1,
@@ -338,33 +267,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     textAlign: 'center',
   },
+  metalCell: { fontWeight: '600' },
+  value: {
+    fontWeight: '600',
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: td.borderGrid,
+  },
   headerCell: {
     fontWeight: '700',
     color: td.textMuted,
-  },
-  input: {
-    color: td.text,
-    fontWeight: '600',
-    paddingHorizontal: 4,
-    textAlign: 'center',
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: td.borderGrid,
-    minHeight: 36,
-    minWidth: 0,
   },
   colBatch: { width: 56 },
   colMetal: { flex: 1.1, textAlign: 'left' },
   colQty: { flex: 1 },
   colPurity: { flex: 1 },
   colTime: { flex: 1 },
-  actionWrap: { margin: 10, gap: 4 },
-  actionBtn: {
-    minHeight: 48,
-    backgroundColor: td.orange,
-    borderRadius: td.radius,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionText: { color: td.white, fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
-  actionHint: { color: td.textMuted, fontSize: 12, textAlign: 'center' },
 })

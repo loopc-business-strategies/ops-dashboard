@@ -12,7 +12,7 @@ export function AssignManagerButton({ onPress }: Props) {
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.btn, { opacity: pressed ? 0.85 : 1 }]}
+      style={({ pressed }) => [styles.btn, pressed && styles.pressed]}
     >
       <Text style={styles.text}>Assign Manager</Text>
     </Pressable>
@@ -27,12 +27,17 @@ const styles = StyleSheet.create({
     backgroundColor: td.white,
     borderWidth: 2,
     borderColor: td.orange,
-    borderRadius: td.radius,
+    borderRadius: td.buttonRadius,
+  },
+  pressed: {
+    backgroundColor: td.cream,
+    transform: [{ scale: 0.98 }],
   },
   text: {
     color: td.orange,
-    fontWeight: '800',
+    fontFamily: td.buttonFont,
+    fontWeight: '600',
     fontSize: 18,
+    letterSpacing: 0.6,
   },
 })
-

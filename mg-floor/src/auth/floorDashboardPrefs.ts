@@ -1,17 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const MANAGER_KEY = 'mg_floor_assigned_manager'
-const ASSIGNED_METAL_KEY = 'mg_floor_assigned_metal_in'
 const MANAGER_OPTIONS_KEY = 'mg_floor_manager_options'
 
 export type AssignedManager = {
   id: string
   name: string
-}
-
-export type AssignedMetalLabels = {
-  batch1: string
-  batch2: string
 }
 
 const DEFAULT_MANAGERS: AssignedManager[] = [
@@ -59,18 +53,4 @@ export async function addManagerOption(name: string): Promise<AssignedManager> {
   const next = { id: `fm-${Date.now()}`, name: trimmed }
   await AsyncStorage.setItem(MANAGER_OPTIONS_KEY, JSON.stringify([...options, next]))
   return next
-}
-
-export async function getAssignedMetalLabels(): Promise<AssignedMetalLabels> {
-  try {
-    const raw = await AsyncStorage.getItem(ASSIGNED_METAL_KEY)
-    if (!raw) return { batch1: '', batch2: '' }
-    return JSON.parse(raw) as AssignedMetalLabels
-  } catch {
-    return { batch1: '', batch2: '' }
-  }
-}
-
-export async function setAssignedMetalLabels(labels: AssignedMetalLabels): Promise<void> {
-  await AsyncStorage.setItem(ASSIGNED_METAL_KEY, JSON.stringify(labels))
 }

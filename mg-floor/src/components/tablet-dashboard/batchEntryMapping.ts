@@ -78,31 +78,79 @@ export function stateFromEntry(entry: BatchEntryRow): BatchApprovalState {
   }
 }
 
-const show = (n: number | null | undefined) => (n == null ? '' : String(n))
+/** Metals offered in the Metal In / Out popup; the backend keeps up to 8 lines per batch. */
+export const METAL_OPTIONS = ['Gold', 'Alloy', 'Silver', 'Copper', 'Platinum', 'Palladium']
+export const DEFAULT_METALS = ['Gold', 'Alloy']
+export const MAX_BATCH_LINES = 8
 
-/** Put the sent values back into the table rows for batches that have an entry. */
-export function applyEntryLines(
-  batches: MetalBatchEdit[],
-  direction: BatchDirection,
-  sent: Map<BatchKey, { lines: BatchEntryLine[] }>,
-): MetalBatchEdit[] {
-  return batches.map((batch) => {
-    const entry = sent.get(batchKey(direction, batch.batchLabel))
-    if (!entry) return batch
-    return {
-      ...batch,
-      lines: batch.lines.map((line) => {
-        const match = entry.lines.find((l) => l.metal === line.metal)
-        return match
-          ? { ...line, qty: show(match.qty), purity: show(match.purity), time: match.time || '' }
-          : { ...line, qty: '', purity: '', time: '' }
-      }),
-    }
-  })
+export type SentBatch = {
+  batchLabel: string
+  lines: BatchEntryLine[]
+  state: BatchApprovalState
 }
 
-export function isBatchLocked(state?: BatchApprovalState) {
-  return Boolean(state && state.status !== 'REJECTED')
+const show = (n: number | null | undefined) => (n == null ? '' : String(n))
+
+export function compareBatchLabels(a: string, b: string) {
+  const na = Number(a)
+  const nb = Number(b)
+  if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb
+  return a.localeCompare(b)
+}
+
+/** Batches already sent today for one direction, in batch order. */
+export function sentBatchesFor(
+  direction: BatchDirection,
+  states: Partial<Record<BatchKey, BatchApprovalState>>,
+  sent: Map<BatchKey, { lines: BatchEntryLine[] }>,
+): SentBatch[] {
+  const prefix = `${direction}|`
+  const rows: SentBatch[] = []
+  for (const [key, state] of Object.entries(states) as Array<[BatchKey, BatchApprovalState | undefined]>) {
+    if (!state || !key.startsWith(prefix)) continue
+    rows.push({ batchLabel: key.slice(prefix.length), lines: sent.get(key)?.lines || [], state })
+  }
+  return rows.sort((a, b) => compareBatchLabels(a.batchLabel, b.batchLabel))
+}
+
+/** One above the highest numeric batch label (labels are per day and department). */
+export function nextBatchLabel(labels: string[]) {
+  const max = labels.reduce((m, label) => {
+    const n = Number(label)
+    return Number.isInteger(n) && n > m ? n : m
+  }, 0)
+  return String(max + 1)
+}
+
+/**
+ * Batch numbers a Metal Out can close: Metal In batches with no Metal Out yet. The workbook pairs
+ * IN and OUT by batch number, so with none open the next unused number is offered.
+ */
+export function metalOutChoices(inLabels: string[], outLabels: string[]) {
+  const closed = new Set(outLabels)
+  const open = inLabels.filter((label) => !closed.has(label)).sort(compareBatchLabels)
+  return open.length ? open : [nextBatchLabel([...inLabels, ...outLabels])]
+}
+
+/** Gold and Alloy always first (empty when not sent), then any other metals that were sent. */
+export function withDefaultMetals(lines: BatchEntryLine[] = []): BatchEntryLine[] {
+  const defaults = DEFAULT_METALS.map(
+    (metal) => lines.find((l) => l.metal === metal) || { metal, qty: null, purity: null, time: '' },
+  )
+  return [...defaults, ...lines.filter((l) => !DEFAULT_METALS.includes(l.metal))]
+}
+
+/** Popup rows for a new batch, or for a rejected batch being fixed (its sent lines filled in). */
+export function editableBatch(batchLabel: string, lines?: BatchEntryLine[]): MetalBatchEdit {
+  return {
+    batchLabel,
+    lines: withDefaultMetals(lines).map((l) => ({
+      metal: l.metal,
+      qty: show(l.qty),
+      purity: show(l.purity),
+      time: l.time || '',
+    })),
+  }
 }
 
 export function batchStatusView(state?: BatchApprovalState): { label: string; tone: 'neutral' | 'warn' | 'ok' | 'bad'; note: string } | null {
@@ -118,7 +166,7 @@ export function batchStatusView(state?: BatchApprovalState): { label: string; to
       return {
         label: 'REJECTED',
         tone: 'bad',
-        note: `${state.rejectReason || 'Rejected'}${state.decidedByName ? ` — ${state.decidedByName}` : ''}. Fix and CONFIRM again.`,
+        note: `${state.rejectReason || 'Rejected'}${state.decidedByName ? ` — ${state.decidedByName}` : ''}. Tap FIX & RESEND to correct it.`,
       }
     default:
       return null
