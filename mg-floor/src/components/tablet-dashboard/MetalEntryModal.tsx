@@ -12,14 +12,14 @@ import {
 } from 'react-native'
 import { tabletDashboard as td } from '@/src/theme'
 import { PURITY_MAX_LENGTH, QTY_MAX_LENGTH, cleanNumberInput } from './fieldInput'
-import { MAX_BATCH_LINES, METAL_OPTIONS, clockNow } from './batchEntryMapping'
+import { MAX_BATCH_LINES, METAL_OPTIONS, clockNow, dayTag, localDateKey, type BatchChoice } from './batchEntryMapping'
 import type { MetalBatchEdit, MetalLineEdit } from './MetalProcessPanel'
 
 type Props = {
   visible: boolean
   title: string
-  /** Batch numbers to choose from; a single entry is shown without a choice. */
-  batchOptions: string[]
+  /** Batches to choose from; a single entry is shown without a choice. */
+  batchOptions: BatchChoice[]
   /** Starting rows (default metals, or the rejected batch being fixed). */
   initial: MetalBatchEdit
   canSend: boolean
@@ -30,8 +30,20 @@ type Props = {
   onClose: () => void
 }
 
+const choiceOf = (batch: MetalBatchEdit): BatchChoice => ({
+  entryDate: batch.entryDate || localDateKey(),
+  batchLabel: batch.batchLabel,
+})
+
+const sameChoice = (a: BatchChoice, b: BatchChoice) => a.entryDate === b.entryDate && a.batchLabel === b.batchLabel
+
+function choiceTitle(choice: BatchChoice) {
+  const tag = dayTag(choice.entryDate)
+  return tag ? `Batch ${choice.batchLabel} · ${tag}` : `Batch ${choice.batchLabel}`
+}
+
 export function MetalEntryModal({ visible, title, batchOptions, initial, canSend, hint, onSend, onClose }: Props) {
-  const [batchLabel, setBatchLabel] = useState(initial.batchLabel)
+  const [choice, setChoice] = useState<BatchChoice>(() => choiceOf(initial))
   const [lines, setLines] = useState<MetalLineEdit[]>(initial.lines)
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -47,15 +59,17 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
 
   useEffect(() => {
     if (!visible) return
-    setBatchLabel(initial.batchLabel)
+    setChoice(choiceOf(initial))
     setLines(initial.lines)
     setPicking(false)
     setError(null)
   }, [visible, initial])
 
   useEffect(() => {
-    if (visible && batchOptions.length && !batchOptions.includes(batchLabel)) setBatchLabel(batchOptions[0])
-  }, [visible, batchOptions, batchLabel])
+    if (visible && batchOptions.length && !batchOptions.some((option) => sameChoice(option, choice))) {
+      setChoice(batchOptions[0])
+    }
+  }, [visible, batchOptions, choice])
 
   const setField = (idx: number, key: keyof MetalLineEdit, value: string) =>
     setLines((current) => current.map((line, i) => (i === idx ? { ...line, [key]: value } : line)))
@@ -75,7 +89,7 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
     setError(null)
     try {
       // Time is not typed: blank times are stamped with the moment the batch is sent.
-      const err = await onSend({ batchLabel, lines: lines.map((line) => ({ ...line, time: '' })) })
+      const err = await onSend({ ...choice, lines: lines.map((line) => ({ ...line, time: '' })) })
       if (err) setError(err)
       else onClose()
     } finally {
@@ -95,24 +109,27 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
         <View style={styles.sheet}>
           <View style={styles.titleBar}>
             <Text style={styles.title}>{title}</Text>
-            {batchOptions.length <= 1 ? <Text style={styles.batchBadge}>Batch {batchLabel}</Text> : null}
+            {batchOptions.length <= 1 ? <Text style={styles.batchBadge}>{choiceTitle(choice)}</Text> : null}
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
             {batchOptions.length > 1 ? (
               <View style={styles.batchPick}>
                 <Text style={styles.label}>Batch (Metal In batches not closed yet)</Text>
                 <View style={styles.chips}>
-                  {batchOptions.map((label) => (
-                    <Pressable
-                      key={label}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: label === batchLabel }}
-                      onPress={() => setBatchLabel(label)}
-                      style={[styles.chip, label === batchLabel && styles.chipOn]}
-                    >
-                      <Text style={[styles.chipText, label === batchLabel && styles.chipTextOn]}>Batch {label}</Text>
-                    </Pressable>
-                  ))}
+                  {batchOptions.map((option) => {
+                    const on = sameChoice(option, choice)
+                    return (
+                      <Pressable
+                        key={`${option.entryDate}|${option.batchLabel}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        onPress={() => setChoice(option)}
+                        style={[styles.chip, on && styles.chipOn]}
+                      >
+                        <Text style={[styles.chipText, on && styles.chipTextOn]}>{choiceTitle(option)}</Text>
+                      </Pressable>
+                    )
+                  })}
                 </View>
               </View>
             ) : null}

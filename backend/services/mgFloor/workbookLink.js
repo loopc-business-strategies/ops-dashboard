@@ -2,6 +2,7 @@ const OperationsProductionEntry = require('../../models/OperationsProductionEntr
 const { normalizeFloorDepartment } = require('../../constants/mgFloorBatchEntry')
 
 const DEFAULT_TIME_ZONE = 'Asia/Dubai'
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const round = (value, places) => {
   const f = 10 ** places
@@ -98,6 +99,18 @@ function entryTimestamp(entry) {
 }
 
 /**
+ * A night-shift Metal Out is filed under its Metal In's day, so a time after midnight reads as a
+ * day early. A batch cannot end before it starts: move such an end forward by one day.
+ */
+function batchOverAfterStart(startedAt, overAt) {
+  if (!startedAt || !overAt) return overAt
+  const start = new Date(startedAt).getTime()
+  const over = new Date(overAt).getTime()
+  if (over >= start || start - over >= DAY_MS) return overAt
+  return new Date(over + DAY_MS)
+}
+
+/**
  * Writes an APPROVED MG Floor batch into the Operations → Production workbook.
  * IN fills Metal IN, Purity, Fine Gold and Batch Start; OUT fills Metal OUT and Batch Over.
  * Idempotent: re-applying the same entry leaves the row unchanged. Only the workbook is written.
@@ -146,8 +159,10 @@ async function applyApprovedEntryToWorkbook(entry) {
   if (!row) return null
 
   const loss = row.metalIn != null && row.metalOut != null ? Math.max(0, round(row.metalIn - row.metalOut, 3)) : null
-  if (loss !== row.metalLoss) {
+  const overAt = batchOverAfterStart(row.batchStartedAt, row.batchOverAt)
+  if (loss !== row.metalLoss || overAt !== row.batchOverAt) {
     row.metalLoss = loss
+    row.batchOverAt = overAt
     await row.save()
   }
   return row

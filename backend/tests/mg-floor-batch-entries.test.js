@@ -519,6 +519,33 @@ describe('MG Floor approvals fill the Operations → Production workbook', () =>
     expect(rows[0].floorOutEntryId).toBe(sentOut.body.entry.entryId)
   })
 
+  test('night shift: a Metal Out after midnight, filed under its Metal In day, ends the next day', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+    const night = (batchLabel, direction, time, qty) => batchBody({
+      batchLabel,
+      direction,
+      tzOffsetMinutes: 240,
+      lines: [{ metal: 'Gold', qty, purity: 99.5, time }],
+    })
+
+    await approve(fm, (await submit(op, night('21', 'IN', '22:00', 500))).body.entry._id)
+    await approve(fm, (await submit(op, night('21', 'OUT', '02:00', 495))).body.entry._id)
+
+    // OUT approved before its IN: the end is moved once the start is known.
+    const lateIn = await submit(op, night('22', 'IN', '23:30', 300))
+    await approve(fm, (await submit(op, night('22', 'OUT', '01:15', 298))).body.entry._id)
+    await approve(fm, lateIn.body.entry._id)
+
+    const rows = await workbookRows(fm)
+    const row = (label) => rows.find((r) => r.batchNumber === label)
+    expect(row('21')).toMatchObject({ date: '2026-09-28', metalIn: 500, metalOut: 495, metalLoss: 5 })
+    expect(new Date(row('21').batchStartedAt).toISOString()).toBe('2026-09-28T18:00:00.000Z')
+    expect(new Date(row('21').batchOverAt).toISOString()).toBe('2026-09-28T22:00:00.000Z')
+    expect(row('22')).toMatchObject({ metalIn: 300, metalOut: 298, metalLoss: 2 })
+    expect(new Date(row('22').batchOverAt).toISOString()).toBe('2026-09-28T21:15:00.000Z')
+  })
+
   test('OUT approved first creates the row; rejected batches never reach the workbook', async () => {
     const op = await createOperator()
     const fm = await createFloorManager()

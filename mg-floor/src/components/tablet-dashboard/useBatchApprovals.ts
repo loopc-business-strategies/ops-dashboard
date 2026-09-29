@@ -12,9 +12,11 @@ import { getDeviceId } from '@/src/device/deviceIdentity'
 import { createOperationId, enqueueOutbox, listOutbox } from '@/src/offline/outbox'
 import {
   batchKey,
+  carriedOverEntries,
   latestEntries,
   localDateKey,
   prepareBatchLines,
+  previousDateKey,
   stateFromEntry,
   type BatchApprovalState,
   type BatchKey,
@@ -36,8 +38,9 @@ function isTransient(kind: string) {
 }
 
 /**
- * Floor Manager approval for Metal In / Out batches: loads today's entries for the department,
- * sends one batch at a time (offline outbox when there is no connection) and refreshes every 30 s.
+ * Floor Manager approval for Metal In / Out batches: loads today's entries for the department plus
+ * yesterday's batches still open at midnight (night shift), sends one batch at a time (offline
+ * outbox when there is no connection) and refreshes every 30 s.
  */
 export function useBatchApprovals({ token, department }: Options) {
   const [states, setStates] = useState<Partial<Record<BatchKey, BatchApprovalState>>>({})
@@ -52,17 +55,20 @@ export function useBatchApprovals({ token, department }: Options) {
   const load = useCallback(async () => {
     if (!token || !department) return
     const request = ++requestRef.current
-    const day = localDateKey()
-    const [res, outbox] = await Promise.all([
-      fetchBatchEntries({ entryDate: day, department, limit: 100 }).catch(() => null),
+    const today = localDateKey()
+    const yesterday = previousDateKey()
+    const [todayRes, yesterdayRes, outbox] = await Promise.all([
+      fetchBatchEntries({ entryDate: today, department, limit: 100 }).catch(() => null),
+      fetchBatchEntries({ entryDate: yesterday, department, limit: 100 }).catch(() => null),
       listOutbox().catch(() => []),
     ])
     if (request !== requestRef.current) return
 
     const next: Partial<Record<BatchKey, BatchApprovalState>> = {}
     const nextSent: SentLines = new Map()
-    if (res) {
-      for (const [key, entry] of latestEntries(res.entries)) {
+    if (todayRes && yesterdayRes) {
+      const entries = [...todayRes.entries, ...carriedOverEntries(yesterdayRes.entries, today)]
+      for (const [key, entry] of latestEntries(entries)) {
         next[key] = stateFromEntry(entry)
         nextSent.set(key, { lines: entry.lines })
       }
@@ -76,8 +82,8 @@ export function useBatchApprovals({ token, department }: Options) {
     for (const item of outbox) {
       if (item.operationType !== 'batch_entry' || !QUEUED_SYNC_STATUSES.has(item.syncStatus)) continue
       const body = item.payload as unknown as SubmitBatchEntryBody
-      if (body.entryDate !== day || (body.department || '') !== department) continue
-      const key = batchKey(body.direction, body.batchLabel)
+      if ((body.entryDate !== today && body.entryDate !== yesterday) || (body.department || '') !== department) continue
+      const key = batchKey(body.entryDate, body.direction, body.batchLabel)
       const current = next[key]
       if (current && current.status !== 'REJECTED') continue
       if (current?.entryId === body.entryId) continue
@@ -109,14 +115,15 @@ export function useBatchApprovals({ token, department }: Options) {
       if (busyKey) return 'Another batch is still being sent'
       const { lines, error } = prepareBatchLines(batch)
       if (error) return error
-      const key = batchKey(direction, batch.batchLabel)
+      const entryDate = batch.entryDate || localDateKey()
+      const key = batchKey(entryDate, direction, batch.batchLabel)
       const deviceId = await getDeviceId().catch(() => '')
       const body: SubmitBatchEntryBody = {
         entryId: createOperationId('be'),
         direction,
         department,
         batchLabel: batch.batchLabel,
-        entryDate: localDateKey(),
+        entryDate,
         deviceId: deviceId || null,
         tzOffsetMinutes: -new Date().getTimezoneOffset(),
         lines,

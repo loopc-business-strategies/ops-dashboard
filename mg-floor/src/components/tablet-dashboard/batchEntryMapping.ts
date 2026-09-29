@@ -10,15 +10,33 @@ export type BatchApprovalState = {
   decidedByName?: string
 }
 
-export type BatchKey = `${BatchDirection}|${string}`
+/** Batch numbers restart every day, so a batch is identified by its day, direction and number. */
+export type BatchKey = `${string}|${BatchDirection}|${string}`
 
-export const batchKey = (direction: BatchDirection, batchLabel: string): BatchKey => `${direction}|${batchLabel}`
+export const batchKey = (entryDate: string, direction: BatchDirection, batchLabel: string): BatchKey =>
+  `${entryDate}|${direction}|${batchLabel}`
+
+function parseBatchKey(key: BatchKey) {
+  const [entryDate, direction, ...label] = key.split('|')
+  return { entryDate, direction: direction as BatchDirection, batchLabel: label.join('|') }
+}
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
 /** Tablet-local calendar day, the unit the Floor Manager approves batches in. */
 export function localDateKey(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+export function previousDateKey(d = new Date()) {
+  return localDateKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1))
+}
+
+/** '' for today's batches, otherwise a short tag for the day the batch belongs to. */
+export function dayTag(entryDate: string, now = new Date()) {
+  if (entryDate === localDateKey(now)) return ''
+  if (entryDate === previousDateKey(now)) return 'Yesterday'
+  return entryDate
 }
 
 export function clockNow(d = new Date()) {
@@ -56,17 +74,34 @@ export function prepareBatchLines(batch: MetalBatchEdit, now = new Date()): { li
   return { lines, error: null }
 }
 
-/** Newest entry per direction + batch. */
+/** Newest entry per day + direction + batch. */
 export function latestEntries(entries: BatchEntryRow[]) {
   const latest = new Map<BatchKey, BatchEntryRow>()
   for (const entry of entries) {
-    const key = batchKey(entry.direction, entry.batchLabel)
+    const key = batchKey(entry.entryDate, entry.direction, entry.batchLabel)
     const current = latest.get(key)
     if (!current || new Date(entry.submittedAt).getTime() > new Date(current.submittedAt).getTime()) {
       latest.set(key, entry)
     }
   }
   return latest
+}
+
+/**
+ * Yesterday's batches whose Metal In was still open at midnight, so a night shift can close them.
+ * Such a batch stays listed for the rest of the day once its Metal Out is sent.
+ */
+export function carriedOverEntries(yesterdayEntries: BatchEntryRow[], today: string): BatchEntryRow[] {
+  const latest = latestEntries(yesterdayEntries)
+  const open = new Set<string>()
+  for (const entry of latest.values()) {
+    if (entry.direction !== 'IN') continue
+    const out = latest.get(batchKey(entry.entryDate, 'OUT', entry.batchLabel))
+    if (!out || out.status === 'REJECTED' || localDateKey(new Date(out.submittedAt)) === today) {
+      open.add(entry.batchLabel)
+    }
+  }
+  return [...latest.values()].filter((entry) => open.has(entry.batchLabel))
 }
 
 export function stateFromEntry(entry: BatchEntryRow): BatchApprovalState {
@@ -83,8 +118,13 @@ export const METAL_OPTIONS = ['Gold', 'Alloy', 'Silver', 'Copper', 'Platinum', '
 export const DEFAULT_METALS = ['Gold', 'Alloy']
 export const MAX_BATCH_LINES = 8
 
-export type SentBatch = {
+/** A batch number on the day it belongs to. */
+export type BatchChoice = {
+  entryDate: string
   batchLabel: string
+}
+
+export type SentBatch = BatchChoice & {
   lines: BatchEntryLine[]
   state: BatchApprovalState
 }
@@ -98,19 +138,26 @@ export function compareBatchLabels(a: string, b: string) {
   return a.localeCompare(b)
 }
 
-/** Batches already sent today for one direction, in batch order. */
+/** Older days first, then batch order. */
+function compareBatches(a: BatchChoice, b: BatchChoice) {
+  return a.entryDate.localeCompare(b.entryDate) || compareBatchLabels(a.batchLabel, b.batchLabel)
+}
+
+const sameBatch = (a: BatchChoice, b: BatchChoice) => a.entryDate === b.entryDate && a.batchLabel === b.batchLabel
+
+/** Batches already sent for one direction (today's, and yesterday's still open), in batch order. */
 export function sentBatchesFor(
   direction: BatchDirection,
   states: Partial<Record<BatchKey, BatchApprovalState>>,
   sent: Map<BatchKey, { lines: BatchEntryLine[] }>,
 ): SentBatch[] {
-  const prefix = `${direction}|`
   const rows: SentBatch[] = []
   for (const [key, state] of Object.entries(states) as Array<[BatchKey, BatchApprovalState | undefined]>) {
-    if (!state || !key.startsWith(prefix)) continue
-    rows.push({ batchLabel: key.slice(prefix.length), lines: sent.get(key)?.lines || [], state })
+    const parsed = parseBatchKey(key)
+    if (!state || parsed.direction !== direction) continue
+    rows.push({ entryDate: parsed.entryDate, batchLabel: parsed.batchLabel, lines: sent.get(key)?.lines || [], state })
   }
-  return rows.sort((a, b) => compareBatchLabels(a.batchLabel, b.batchLabel))
+  return rows.sort(compareBatches)
 }
 
 /** One above the highest numeric batch label (labels are per day and department). */
@@ -123,13 +170,18 @@ export function nextBatchLabel(labels: string[]) {
 }
 
 /**
- * Batch numbers a Metal Out can close: Metal In batches with no Metal Out yet. The workbook pairs
- * IN and OUT by batch number, so with none open the next unused number is offered.
+ * Batches a Metal Out can close: Metal In batches (today's, or yesterday's still open) with no
+ * Metal Out yet. The workbook pairs IN and OUT by day and batch number, so with none open today's
+ * next unused number is offered.
  */
-export function metalOutChoices(inLabels: string[], outLabels: string[]) {
-  const closed = new Set(outLabels)
-  const open = inLabels.filter((label) => !closed.has(label)).sort(compareBatchLabels)
-  return open.length ? open : [nextBatchLabel([...inLabels, ...outLabels])]
+export function metalOutChoices(metalIn: BatchChoice[], metalOut: BatchChoice[], today: string): BatchChoice[] {
+  const open = metalIn
+    .filter((b) => !metalOut.some((out) => sameBatch(out, b)))
+    .map(({ entryDate, batchLabel }) => ({ entryDate, batchLabel }))
+    .sort(compareBatches)
+  if (open.length) return open
+  const todayLabels = [...metalIn, ...metalOut].filter((b) => b.entryDate === today).map((b) => b.batchLabel)
+  return [{ entryDate: today, batchLabel: nextBatchLabel(todayLabels) }]
 }
 
 /** Gold and Alloy always first (empty when not sent), then any other metals that were sent. */
@@ -141,9 +193,10 @@ export function withDefaultMetals(lines: BatchEntryLine[] = []): BatchEntryLine[
 }
 
 /** Popup rows for a new batch, or for a rejected batch being fixed (its sent lines filled in). */
-export function editableBatch(batchLabel: string, lines?: BatchEntryLine[]): MetalBatchEdit {
+export function editableBatch({ entryDate, batchLabel }: BatchChoice, lines?: BatchEntryLine[]): MetalBatchEdit {
   return {
     batchLabel,
+    entryDate,
     lines: withDefaultMetals(lines).map((l) => ({
       metal: l.metal,
       qty: show(l.qty),
