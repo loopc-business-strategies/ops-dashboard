@@ -3,12 +3,15 @@ import type { BatchEntryRow } from '@/src/api/batchEntries'
 import {
   batchKey,
   batchStatusView,
+  carriedOverEntries,
+  dayTag,
   editableBatch,
   latestEntries,
   localDateKey,
   metalOutChoices,
   nextBatchLabel,
   prepareBatchLines,
+  previousDateKey,
   sentBatchesFor,
   withDefaultMetals,
 } from './batchEntryMapping'
@@ -65,29 +68,73 @@ const row = (over: Partial<BatchEntryRow>): BatchEntryRow => ({
   ...over,
 })
 
+const D1 = '2026-09-28'
+const D2 = '2026-09-29'
+
 describe('latestEntries / sentBatchesFor', () => {
-  it('picks the newest entry per direction and batch', () => {
+  it('picks the newest entry per day, direction and batch', () => {
     const latest = latestEntries([
       row({ entryId: 'old', status: 'REJECTED', submittedAt: '2026-09-28T04:00:00.000Z' }),
       row({ entryId: 'new', status: 'PENDING', submittedAt: '2026-09-28T05:00:00.000Z' }),
       row({ entryId: 'out', direction: 'OUT' }),
+      row({ entryId: 'next-day', entryDate: D2 }),
     ])
-    expect(latest.get(batchKey('IN', '1'))?.entryId).toBe('new')
-    expect(latest.get(batchKey('OUT', '1'))?.entryId).toBe('out')
+    expect(latest.get(batchKey(D1, 'IN', '1'))?.entryId).toBe('new')
+    expect(latest.get(batchKey(D1, 'OUT', '1'))?.entryId).toBe('out')
+    expect(latest.get(batchKey(D2, 'IN', '1'))?.entryId).toBe('next-day')
   })
 
-  it('lists one direction in batch number order with its sent lines', () => {
+  it('lists one direction, older days first then batch number, with its sent lines', () => {
     const gold = { metal: 'Gold', qty: 1250.2, purity: 99.5, time: '08:40' }
     const states = {
-      [batchKey('IN', '10')]: { status: 'PENDING' as const, entryId: 'a' },
-      [batchKey('IN', '2')]: { status: 'APPROVED' as const, entryId: 'b' },
-      [batchKey('OUT', '2')]: { status: 'PENDING' as const, entryId: 'c' },
+      [batchKey(D2, 'IN', '10')]: { status: 'PENDING' as const, entryId: 'a' },
+      [batchKey(D2, 'IN', '2')]: { status: 'APPROVED' as const, entryId: 'b' },
+      [batchKey(D1, 'IN', '5')]: { status: 'APPROVED' as const, entryId: 'd' },
+      [batchKey(D2, 'OUT', '2')]: { status: 'PENDING' as const, entryId: 'c' },
     }
-    const sent = new Map([[batchKey('IN', '2'), { lines: [gold] }]])
+    const sent = new Map([[batchKey(D2, 'IN', '2'), { lines: [gold] }]])
     const rows = sentBatchesFor('IN', states, sent)
-    expect(rows.map((r) => r.batchLabel)).toEqual(['2', '10'])
-    expect(rows[0].lines).toEqual([gold])
-    expect(rows[1].lines).toEqual([])
+    expect(rows.map((r) => `${r.entryDate} ${r.batchLabel}`)).toEqual([`${D1} 5`, `${D2} 2`, `${D2} 10`])
+    expect(rows[1].lines).toEqual([gold])
+    expect(rows[2].lines).toEqual([])
+  })
+})
+
+describe('night shift carry-over', () => {
+  const sentAt = (d: number, h: number) => new Date(2026, 8, d, h, 0).toISOString()
+
+  it('keeps yesterday batches whose Metal In was open at midnight', () => {
+    const kept = carriedOverEntries(
+      [
+        row({ entryId: 'in1', batchLabel: '1', status: 'APPROVED' }),
+        row({ entryId: 'out1', batchLabel: '1', direction: 'OUT', submittedAt: sentAt(28, 18) }),
+        row({ entryId: 'in2', batchLabel: '2', status: 'APPROVED' }),
+        row({ entryId: 'in3', batchLabel: '3', status: 'APPROVED' }),
+        row({ entryId: 'out3', batchLabel: '3', direction: 'OUT', submittedAt: sentAt(29, 2) }),
+        row({ entryId: 'in4', batchLabel: '4', status: 'APPROVED' }),
+        row({ entryId: 'out4', batchLabel: '4', direction: 'OUT', status: 'REJECTED', submittedAt: sentAt(28, 23) }),
+      ],
+      D2,
+    )
+    // 1 was closed yesterday; 2 is still open; 3 was closed after midnight; 4's Metal Out was rejected.
+    expect(kept.map((e) => e.entryId).sort()).toEqual(['in2', 'in3', 'in4', 'out3', 'out4'])
+  })
+
+  it('Metal Out offers yesterday open batches first, then today; else today next number', () => {
+    const b = (entryDate: string, batchLabel: string) => ({ entryDate, batchLabel })
+    expect(metalOutChoices([b(D2, '1'), b(D1, '7'), b(D2, '2')], [b(D2, '1')], D2)).toEqual([b(D1, '7'), b(D2, '2')])
+    expect(metalOutChoices([b(D1, '7')], [b(D1, '7')], D2)).toEqual([b(D2, '1')])
+    expect(metalOutChoices([b(D2, '1'), b(D1, '7')], [b(D2, '1'), b(D1, '7')], D2)).toEqual([b(D2, '2')])
+    expect(metalOutChoices([], [], D2)).toEqual([b(D2, '1')])
+  })
+
+  it('tags batches from earlier days', () => {
+    const now = new Date(2026, 8, 29, 1, 30)
+    expect(previousDateKey(now)).toBe(D1)
+    expect(previousDateKey(new Date(2026, 2, 1))).toBe('2026-02-28')
+    expect(dayTag(D2, now)).toBe('')
+    expect(dayTag(D1, now)).toBe('Yesterday')
+    expect(dayTag('2026-09-20', now)).toBe('2026-09-20')
   })
 })
 
@@ -98,21 +145,16 @@ describe('batch numbers', () => {
     expect(nextBatchLabel(['A', '2'])).toBe('3')
   })
 
-  it('offers Metal In batches without a Metal Out, else the next unused number', () => {
-    expect(metalOutChoices(['3', '1', '2'], ['1'])).toEqual(['2', '3'])
-    expect(metalOutChoices(['1'], ['1'])).toEqual(['2'])
-    expect(metalOutChoices([], [])).toEqual(['1'])
-  })
-
   it('starts the popup with Gold and Alloy, or the lines of the batch being fixed', () => {
-    expect(editableBatch('4')).toEqual({
+    expect(editableBatch({ entryDate: D1, batchLabel: '4' })).toEqual({
       batchLabel: '4',
+      entryDate: D1,
       lines: [
         { metal: 'Gold', qty: '', purity: '', time: '' },
         { metal: 'Alloy', qty: '', purity: '', time: '' },
       ],
     })
-    expect(editableBatch('2', [{ metal: 'Silver', qty: 12.5, purity: null, time: '09:10' }]).lines).toEqual([
+    expect(editableBatch({ entryDate: D1, batchLabel: '2' }, [{ metal: 'Silver', qty: 12.5, purity: null, time: '09:10' }]).lines).toEqual([
       { metal: 'Gold', qty: '', purity: '', time: '' },
       { metal: 'Alloy', qty: '', purity: '', time: '' },
       { metal: 'Silver', qty: '12.5', purity: '', time: '09:10' },

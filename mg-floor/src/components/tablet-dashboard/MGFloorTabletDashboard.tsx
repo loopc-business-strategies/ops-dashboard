@@ -27,11 +27,14 @@ import { MetalProcessPanel, type MetalBatchEdit, type MetalPanelRow } from './Me
 import { MetalEntryModal } from './MetalEntryModal'
 import {
   batchStatusView,
+  dayTag,
   editableBatch,
+  localDateKey,
   metalOutChoices,
   nextBatchLabel,
   sentBatchesFor,
   withDefaultMetals,
+  type BatchChoice,
   type SentBatch,
 } from './batchEntryMapping'
 import { useBatchApprovals } from './useBatchApprovals'
@@ -52,6 +55,8 @@ type EntryForm = {
 function panelRows(batches: SentBatch[]): MetalPanelRow[] {
   return batches.map((b) => ({
     batchLabel: b.batchLabel,
+    entryDate: b.entryDate,
+    dayTag: dayTag(b.entryDate),
     lines: withDefaultMetals(b.lines),
     status: batchStatusView(b.state),
     canFix: b.state.status === 'REJECTED',
@@ -98,14 +103,19 @@ export function MGFloorTabletDashboard() {
   const approvals = useBatchApprovals({ token, department: dept })
   const metalIn = useMemo(() => sentBatchesFor('IN', approvals.states, approvals.sent), [approvals.states, approvals.sent])
   const metalOut = useMemo(() => sentBatchesFor('OUT', approvals.states, approvals.sent), [approvals.states, approvals.sent])
-  const inLabels = useMemo(() => metalIn.map((b) => b.batchLabel), [metalIn])
-  const outLabels = useMemo(() => metalOut.map((b) => b.batchLabel), [metalOut])
+  const today = localDateKey()
+  const nextIn = useMemo<BatchChoice>(
+    () => ({ entryDate: today, batchLabel: nextBatchLabel(metalIn.filter((b) => b.entryDate === today).map((b) => b.batchLabel)) }),
+    [metalIn, today],
+  )
 
-  const batchOptions = useMemo(() => {
+  const batchOptions = useMemo((): BatchChoice[] => {
     if (!entryForm) return []
-    if (entryForm.fixing) return [entryForm.initial.batchLabel]
-    return entryForm.direction === 'IN' ? [nextBatchLabel(inLabels)] : metalOutChoices(inLabels, outLabels)
-  }, [entryForm, inLabels, outLabels])
+    if (entryForm.fixing) {
+      return [{ entryDate: entryForm.initial.entryDate || today, batchLabel: entryForm.initial.batchLabel }]
+    }
+    return entryForm.direction === 'IN' ? [nextIn] : metalOutChoices(metalIn, metalOut, today)
+  }, [entryForm, nextIn, metalIn, metalOut, today])
 
   const sendHint = !token
     ? 'Log in to send for Floor Manager approval'
@@ -114,13 +124,15 @@ export function MGFloorTabletDashboard() {
       : undefined
 
   const openNew = (direction: BatchDirection) => {
-    const label = direction === 'IN' ? nextBatchLabel(inLabels) : metalOutChoices(inLabels, outLabels)[0]
-    setEntryForm({ direction, initial: editableBatch(label), fixing: false })
+    const choice = direction === 'IN' ? nextIn : metalOutChoices(metalIn, metalOut, today)[0]
+    setEntryForm({ direction, initial: editableBatch(choice), fixing: false })
   }
 
-  const openFix = (direction: BatchDirection, batchLabel: string) => {
-    const batch = (direction === 'IN' ? metalIn : metalOut).find((b) => b.batchLabel === batchLabel)
-    setEntryForm({ direction, initial: editableBatch(batchLabel, batch?.lines), fixing: true })
+  const openFix = (direction: BatchDirection, row: MetalPanelRow) => {
+    const batch = (direction === 'IN' ? metalIn : metalOut).find(
+      (b) => b.entryDate === row.entryDate && b.batchLabel === row.batchLabel,
+    )
+    setEntryForm({ direction, initial: editableBatch(row, batch?.lines), fixing: true })
   }
 
   const employees = useMemo(() => {
@@ -208,7 +220,7 @@ export function MGFloorTabletDashboard() {
                 title="Metal In"
                 rows={panelRows(metalIn)}
                 onAdd={() => openNew('IN')}
-                onFix={(label) => openFix('IN', label)}
+                onFix={(row) => openFix('IN', row)}
                 compact={compact}
               />
             </View>
@@ -221,7 +233,7 @@ export function MGFloorTabletDashboard() {
                   title="Metal Out"
                   rows={panelRows(metalOut)}
                   onAdd={() => openNew('OUT')}
-                  onFix={(label) => openFix('OUT', label)}
+                  onFix={(row) => openFix('OUT', row)}
                   compact={compact}
                 />
               </View>

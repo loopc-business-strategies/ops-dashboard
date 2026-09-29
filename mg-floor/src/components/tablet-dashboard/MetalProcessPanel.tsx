@@ -12,6 +12,8 @@ export type MetalLineEdit = {
 
 export type MetalBatchEdit = {
   batchLabel: string
+  /** Day the batch belongs to; today when missing. */
+  entryDate?: string
   lines: MetalLineEdit[]
 }
 
@@ -19,6 +21,9 @@ export type BatchStatusTone = 'neutral' | 'warn' | 'ok' | 'bad'
 
 export type MetalPanelRow = {
   batchLabel: string
+  entryDate: string
+  /** Shown under the batch number for a batch carried over from an earlier day. */
+  dayTag: string
   lines: BatchEntryLine[]
   status: { label: string; tone: BatchStatusTone; note: string } | null
   /** Rejected by the Floor Manager: can be corrected and sent again. */
@@ -30,7 +35,7 @@ type Props = {
   rows: MetalPanelRow[]
   /** Tapping the orange header opens the entry popup. */
   onAdd: () => void
-  onFix: (batchLabel: string) => void
+  onFix: (row: MetalPanelRow) => void
   compact?: boolean
 }
 
@@ -81,10 +86,15 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props)
         {rows.map((row) => {
           const tone = row.status ? TONES[row.status.tone] : null
           return (
-            <View key={row.batchLabel} style={styles.batchBlock}>
+            <View key={`${row.entryDate}|${row.batchLabel}`} style={styles.batchBlock}>
               <View style={styles.batchGroup}>
                 <View style={styles.batchLabelCol}>
                   <Text style={[styles.batchText, compact && { fontSize: 14 }]}>{row.batchLabel}</Text>
+                  {row.dayTag ? (
+                    <Text style={styles.dayTag} numberOfLines={1} adjustsFontSizeToFit>
+                      {row.dayTag}
+                    </Text>
+                  ) : null}
                 </View>
                 <View style={styles.batchLines}>
                   {row.lines.map((line, lineIdx) => (
@@ -124,7 +134,7 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props)
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Fix and resend batch ${row.batchLabel}`}
-                      onPress={() => onFix(row.batchLabel)}
+                      onPress={() => onFix(row)}
                       style={({ pressed }) => [
                         styles.fixBtn,
                         compact && { minHeight: 34, paddingHorizontal: 10 },
@@ -252,6 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: td.cream,
   },
   batchText: { color: td.text, fontWeight: '800', fontSize: 16 },
+  dayTag: { color: td.orange, fontWeight: '700', fontSize: 10, marginTop: 2, paddingHorizontal: 2 },
   batchLines: { flex: 1 },
   lineRow: {
     flexDirection: 'row',
