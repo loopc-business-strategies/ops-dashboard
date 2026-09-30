@@ -175,10 +175,21 @@ async function setLossLimit(req, { department: rawDepartment, lossLimitPct }) {
   return { department, lossLimitPct: setting.lossLimitPct, lossLimitSetBy: setting.updatedByName }
 }
 
+/** All-time average finished batch minutes per department (same rule as "Overall avg"), e.g. { melting: 143 }. */
+async function getTimeAverages() {
+  const rows = await OperationsProductionEntry.aggregate([
+    { $match: { departmentKey: { $ne: null }, batchStartedAt: { $type: 'date' }, batchOverAt: { $type: 'date' } } },
+    { $project: { departmentKey: 1, minutes: { $divide: [{ $subtract: ['$batchOverAt', '$batchStartedAt'] }, 60000] } } },
+    { $match: { minutes: { $gt: 0, $lte: MAX_BATCH_MINUTES } } },
+    { $group: { _id: '$departmentKey', minutes: { $avg: '$minutes' } } },
+  ])
+  return Object.fromEntries(rows.map((r) => [r._id, Math.round(r.minutes)]))
+}
+
 /** Every department's loss warning limit, e.g. { melting: 0.5 }; departments without a limit are left out. */
 async function getLossLimits() {
   const settings = await MgFloorSetting.find({ lossLimitPct: { $ne: null } }).select('department lossLimitPct').lean()
   return Object.fromEntries(settings.map((s) => [s.department, s.lossLimitPct]))
 }
 
-module.exports = { getBatchStats, getLossLimits, setLossLimit, MAX_BATCH_MINUTES }
+module.exports = { getBatchStats, getLossLimits, getTimeAverages, setLossLimit, MAX_BATCH_MINUTES }

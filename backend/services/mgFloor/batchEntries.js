@@ -3,7 +3,7 @@ const FloorBatchEntry = require('../../models/FloorBatchEntry')
 const { ProductionError } = require('../productionControl/errors')
 const { hasProductionPermission } = require('../productionControl/permissions')
 const { writeProductionAudit } = require('../productionControl/audit')
-const { applyApprovedEntryToWorkbook } = require('./workbookLink')
+const { applyApprovedEntryToWorkbook, summarizeLines } = require('./workbookLink')
 const {
   BATCH_ENTRY_DIRECTIONS,
   BATCH_ENTRY_STATUSES,
@@ -195,6 +195,32 @@ async function submitBatchEntry(req, body = {}) {
   return { entry: created.toObject(), reused: false }
 }
 
+const sameBatchKey = (e) => [e.entryDate, normalizeFloorDepartment(e.department), String(e.batchLabel || '').trim()].join('|')
+
+/**
+ * Each Metal Out gets the Metal In of the same day, department and batch (the approved one, else the
+ * newest pending one) so the Floor Manager sees In vs Out and the loss before approving.
+ */
+async function attachMetalIn(entries) {
+  const outs = entries.filter((e) => e.direction === 'OUT')
+  if (!outs.length) return
+  const ins = await FloorBatchEntry.find({
+    direction: 'IN',
+    status: { $in: ['PENDING', 'APPROVED'] },
+    $or: outs.map((o) => ({ entryDate: o.entryDate, batchLabel: o.batchLabel })),
+  }).sort({ submittedAt: -1 }).lean()
+  const byKey = new Map()
+  for (const entry of ins) {
+    const key = sameBatchKey(entry)
+    const current = byKey.get(key)
+    if (!current || (current.status !== 'APPROVED' && entry.status === 'APPROVED')) byKey.set(key, entry)
+  }
+  for (const out of outs) {
+    const match = byKey.get(sameBatchKey(out))
+    out.metalIn = match ? { status: match.status, ...summarizeLines(match.lines) } : null
+  }
+}
+
 async function listBatchEntries(query = {}) {
   const filter = {}
   if (query.status && BATCH_ENTRY_STATUSES.includes(String(query.status).toUpperCase())) {
@@ -217,14 +243,17 @@ async function listBatchEntries(query = {}) {
 
   const countFilter = { ...filter }
   delete countFilter.status
-  const [entries, total, grouped] = await Promise.all([
+  const [entries, total, grouped, oldestPending] = await Promise.all([
     FloorBatchEntry.find(filter).sort({ submittedAt: -1 }).skip(skip).limit(limit).lean(),
     FloorBatchEntry.countDocuments(filter),
     FloorBatchEntry.aggregate([{ $match: countFilter }, { $group: { _id: '$status', n: { $sum: 1 } } }]),
+    FloorBatchEntry.findOne({ ...countFilter, status: 'PENDING' }).sort({ submittedAt: 1 }).select('submittedAt').lean(),
   ])
   const counts = { PENDING: 0, APPROVED: 0, REJECTED: 0 }
   for (const g of grouped) if (g._id in counts) counts[g._id] = g.n
-  return { entries, total, counts, limit, skip }
+  for (const entry of entries) entry.totals = summarizeLines(entry.lines)
+  await attachMetalIn(entries)
+  return { entries, total, counts, limit, skip, oldestPendingAt: oldestPending?.submittedAt || null }
 }
 
 async function decideBatchEntry(req, id, decision, reason = '') {

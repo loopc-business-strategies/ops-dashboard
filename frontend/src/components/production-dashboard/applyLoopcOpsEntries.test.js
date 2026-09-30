@@ -102,4 +102,43 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
     expect(noYesterday.compactKpis.yesterdayOutput).toBeNull()
     expect(noYesterday.compactKpis.yesterdayVsToday).toBeNull()
   })
+
+  test('MG keeps last night\'s open batches on the cards after midnight without counting them in today\'s totals', () => {
+    const yesterday = dayKey(addDays(new Date(), -1))
+    const midnight = new Date()
+    midnight.setHours(0, 0, 0, 0)
+    const lateNight = new Date(midnight.getTime() - 60 * 60000).toISOString()
+    const prior = [
+      mgFloorRow({ _id: 'open', date: yesterday, batchNumber: '7', metalOut: null, metalLoss: null, batchStartedAt: lateNight, batchOverAt: null }),
+      mgFloorRow({ _id: 'late', date: yesterday, departmentKey: 'melting', batchNumber: '3', batchStartedAt: lateNight, batchOverAt: new Date(midnight.getTime() + 60000).toISOString() }),
+      mgFloorRow({ _id: 'done', date: yesterday, departmentKey: 'wire', batchNumber: '2', batchStartedAt: lateNight, batchOverAt: new Date(midnight.getTime() - 60000).toISOString() }),
+    ]
+    const next = applyLoopcOpsEntriesToModel(baseModel(), [], prior, { keepModelWhenEmpty: true, carryOverOpen: true })
+
+    expect(next.hasLiveProduction).toBe(true)
+    expect(next.deptCards.find((c) => c.key === 'rolling')).toMatchObject({ status: 'Running', metalIn: 525, currentBatchCarriedOver: true })
+    expect(next.deptCards.find((c) => c.key === 'melting').lossRows).toEqual([expect.objectContaining({ label: '3 (yesterday)' })])
+    expect(next.deptCards.find((c) => c.key === 'wire')?.hasData ?? false).toBe(false)
+    expect(next.header).toMatchObject({ activeBatches: 1, totalBatches: null })
+    expect(next.compactKpis.totalOutput).toBeNull()
+    expect(next.compactKpis.yesterdayOutput).toBe(518.4 * 2)
+
+    const withoutOption = applyLoopcOpsEntriesToModel(baseModel(), [], prior, { keepModelWhenEmpty: true })
+    expect(withoutOption.hasLiveProduction).toBe(false)
+  })
+
+  test('flags a running batch that takes more than 1.5× the usual time', () => {
+    const started = new Date(Date.now() - 200 * 60000).toISOString()
+    const rows = [
+      mgFloorRow({ batchNumber: '4', metalOut: null, metalLoss: null, batchStartedAt: started, batchOverAt: null }),
+      mgFloorRow({ _id: 'm1', departmentKey: 'melting', batchNumber: '5', metalOut: null, metalLoss: null, batchStartedAt: started, batchOverAt: null }),
+    ]
+    const next = applyLoopcOpsEntriesToModel(baseModel(), rows, null, {
+      keepModelWhenEmpty: true,
+      timeAverages: { rolling: 120, melting: 150 },
+    })
+    expect(next.deptCards.find((c) => c.key === 'rolling').longRunning).toEqual({ batchNumber: '4', elapsedMin: 200, usualMin: 120 })
+    expect(next.deptCards.find((c) => c.key === 'melting').longRunning).toBeNull()
+    expect(applyLoopcOpsEntriesToModel(baseModel(), rows, null).deptCards.find((c) => c.key === 'rolling').longRunning).toBeNull()
+  })
 })

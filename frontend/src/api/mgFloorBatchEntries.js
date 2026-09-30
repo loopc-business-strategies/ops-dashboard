@@ -11,4 +11,6 @@ export const mgFloorBatchEntriesApi = {
   syncWorkbook: async () => (await axios.post(`${BASE}/sync-workbook`, {})).data,
   /** Loss warning limit per department set on the tablet, e.g. { melting: 0.5 }. */
   lossLimits: async () => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-stats/loss-limits`)).data,
+  /** Average finished batch time in minutes per department, e.g. { melting: 150 }. */
+  timeAverages: async () => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-stats/time-averages`)).data,
 }

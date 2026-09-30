@@ -68,6 +68,8 @@ function emitFloorAlarm(type, event, id) {
 
 const emitFmCall = (event, id) => emitFloorAlarm('mg-floor:fm-call', event, id)
 const emitBreakdown = (event, id) => emitFloorAlarm('mg-floor:breakdown', event, id)
+/** Refreshes the "waiting for F.M" count on dashboards and the Operations FM list. */
+const emitBatchEntry = (event, id) => emitFloorAlarm('mg-floor:batch-entry', event, id)
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 const FM_CALL_CODE = 'FLOOR_MANAGER_CALL'
@@ -401,6 +403,7 @@ router.post('/batch-entries', ...mgProtect, requireProductionPermission('view'),
 }).unknown(false)), async (req, res) => {
   try {
     const result = await batchEntries.submitBatchEntry(req, req.body)
+    if (!result.reused) emitBatchEntry('submitted', result.entry?._id)
     res.status(result.reused ? 200 : 201).json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
@@ -428,6 +431,7 @@ router.get('/batch-entries', ...mgProtect, requireProductionPermission('view'), 
 router.post('/batch-entries/:id/approve', ...mgProtect, requireProductionPermission('approvePass'), validateParams(idParam), async (req, res) => {
   try {
     const result = await batchEntries.decideBatchEntry(req, req.params.id, 'APPROVED')
+    emitBatchEntry('approved', req.params.id)
     if (result.workbookEntryId) {
       emitWorkbookUpdate(req, 'workbook.mg_floor_batch', { entryId: String(result.workbookEntryId) })
     }
@@ -459,6 +463,7 @@ router.post('/batch-entries/:id/reject', ...mgProtect, requireProductionPermissi
 })), async (req, res) => {
   try {
     const result = await batchEntries.decideBatchEntry(req, req.params.id, 'REJECTED', req.body.reason)
+    emitBatchEntry('rejected', req.params.id)
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)
@@ -481,6 +486,14 @@ router.get('/batch-stats', ...mgProtect, requireProductionPermission('view'), va
 router.get('/batch-stats/loss-limits', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
   try {
     res.json({ success: true, limits: await batchStats.getLossLimits() })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/batch-stats/time-averages', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    res.json({ success: true, averages: await batchStats.getTimeAverages() })
   } catch (err) {
     handleError(res, err)
   }

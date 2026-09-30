@@ -144,6 +144,13 @@ export function MGFloorTabletDashboard() {
     setEntryForm({ direction, initial: editableBatch(choice, undefined, direction), fixing: false })
   }
 
+  const metalInLines = (choice: BatchChoice) => {
+    const batch = metalIn.find(
+      (b) => b.entryDate === choice.entryDate && b.batchLabel === choice.batchLabel && b.state.status !== 'REJECTED',
+    )
+    return batch ? batch.lines : null
+  }
+
   const openFix = (direction: BatchDirection, row: MetalPanelRow) => {
     const batch = (direction === 'IN' ? metalIn : metalOut).find(
       (b) => b.entryDate === row.entryDate && b.batchLabel === row.batchLabel,
@@ -315,6 +322,8 @@ export function MGFloorTabletDashboard() {
           senders={senders}
           onSend={(batch, senderId) => sendBatch(entryForm.direction, batch, senderId)}
           onClose={() => setEntryForm(null)}
+          metalInFor={entryForm.direction === 'OUT' ? metalInLines : undefined}
+          lossLimitPct={batchStats.stats?.lossLimitPct ?? null}
         />
       ) : null}
       <EmployeeLoginModal visible={loginOpen} onClose={() => setLoginOpen(false)} tabletDepartment={dept} />

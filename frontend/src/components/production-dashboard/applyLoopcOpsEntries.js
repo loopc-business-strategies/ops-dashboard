@@ -79,13 +79,57 @@ function roundOrNull(n, decimals = 0) {
   return Math.round(n * f) / f
 }
 
+/** A running batch is flagged once it takes this many times the department's usual batch time. */
+export const LONG_BATCH_FACTOR = 1.5
+
+/**
+ * Yesterday's batches that were still running at midnight (no Over time yet, or Over after midnight).
+ * They keep showing on today's cards instead of disappearing at 00:00.
+ */
+function openFromYesterday(entriesAll, now = new Date()) {
+  const yesterday = dayKey(addDays(now, -1))
+  const midnight = new Date(now)
+  midnight.setHours(0, 0, 0, 0)
+  return (Array.isArray(entriesAll) ? entriesAll : []).filter((e) => {
+    if (String(e?.date || '').trim() !== yesterday || !e?.batchStartedAt) return false
+    if (!e.batchOverAt) return true
+    const over = new Date(e.batchOverAt)
+    return Number.isFinite(over.getTime()) && over >= midnight
+  })
+}
+
+/** Longest running batch taking over LONG_BATCH_FACTOR × the usual time, or null. */
+function longRunningOf(rows, usualMin) {
+  const usual = Number(usualMin)
+  if (!Number.isFinite(usual) || usual <= 0) return null
+  let worst = null
+  rows.forEach((e, i) => {
+    if (entryStatus(e) !== 'Running') return
+    const mins = opsTimeBatchMinutes(e)
+    if (mins == null || mins <= usual * LONG_BATCH_FACTOR) return
+    if (!worst || mins > worst.elapsedMin) {
+      worst = { batchNumber: e.batchNumber ? String(e.batchNumber) : String(i + 1), elapsedMin: Math.round(mins), usualMin: Math.round(usual) }
+    }
+  })
+  return worst
+}
+
 /**
  * Build Production Dashboard dept cards + KPI overlays from LoopC Operations entries (today).
  * @param {object[]} entries — today's entries
  * @param {object[]} [entriesAll] — prior-days entries for Total Avg (loss + time); today excluded
+ * @param {object} [options]
+ * @param {boolean} [options.carryOverOpen] — (MG) also show yesterday's batches still running at midnight
+ *   on the cards; they stay out of today's KPI totals so nothing is counted twice
+ * @param {Record<string, number>} [options.timeAverages] — (MG) usual batch minutes per department,
+ *   used to flag long-running batches
  */
-export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
-  const list = Array.isArray(entries) ? entries : []
+export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null, { carryOverOpen = false, timeAverages = null } = {}) {
+  const todayList = Array.isArray(entries) ? entries : []
+  const carried = carryOverOpen
+    ? openFromYesterday(entriesAll).map((e) => ({ ...e, carriedOver: true }))
+    : []
+  const list = carried.length ? [...carried, ...todayList] : todayList
   const today = dayKey()
   // Total Avg must never include today — previous days only
   const allList = (Array.isArray(entriesAll) ? entriesAll : [])
@@ -133,7 +177,8 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       const inn = numOrNull(e.metalIn)
       const out = numOrNull(e.metalOut)
       const loss = metalLossOf(e)
-      const batchLabel = e.batchNumber ? String(e.batchNumber) : `Batch ${i + 1}`
+      const baseLabel = e.batchNumber ? String(e.batchNumber) : `Batch ${i + 1}`
+      const batchLabel = e.carriedOver ? `${baseLabel} (yesterday)` : baseLabel
       if (inn != null) { metalIn += inn; hasIn = true }
       if (out != null) { metalOut += out; hasOut = true }
       if (loss != null) {
@@ -243,6 +288,8 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       tableCount: dept.tableCount || null,
       activeBatchCount: rows.length,
       flowStatus: status === 'Running' ? 'ACTIVE' : (status === 'Idle' ? 'STABLE' : String(status || 'STABLE').toUpperCase()),
+      currentBatchCarriedOver: Boolean(primary?.carriedOver),
+      longRunning: timeAverages ? longRunningOf(rows, timeAverages[dept.key]) : null,
     }
   })
 
@@ -265,6 +312,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       durationMin: durationRaw != null ? Math.round(durationRaw) : null,
       startedAt: e.batchStartedAt || null,
       completedAt: e.batchOverAt || null,
+      carriedOver: Boolean(e.carriedOver),
     }
   })
 
@@ -272,7 +320,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
   let totalOut = 0
   let totalLoss = 0
   let hasAny = false
-  list.forEach((e) => {
+  todayList.forEach((e) => {
     const inn = numOrNull(e.metalIn)
     const out = numOrNull(e.metalOut)
     const loss = metalLossOf(e)
@@ -289,7 +337,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
   const managers = list.map((e) => String(e.departmentManagerName || '').trim()).filter(Boolean)
   const floorManager = managers[0] || null
   const running = list.filter((e) => entryStatus(e) === 'Running').length
-  const completed = list.filter((e) => entryStatus(e) === 'Completed').length
+  const completed = todayList.filter((e) => entryStatus(e) === 'Completed').length
 
   const yesterday = dayKey(addDays(new Date(), -1))
   let yesterdayOutput = null
@@ -310,7 +358,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       employees: empSet.size || null,
       floorManager,
       activeBatches: running,
-      totalBatches: list.length || null,
+      totalBatches: todayList.length || null,
       completedBatches: completed,
       metalIn: hasAny ? totalIn : null,
       metalOut: hasAny ? totalOut : null,
@@ -326,9 +374,14 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
  * Replaces idle/empty dept cards and KPI totals when ops entries exist for today.
  * `keepModelWhenEmpty` (MG): with no workbook rows today the model is returned unchanged.
  */
-export function applyLoopcOpsEntriesToModel(model, entries, entriesAll = null, { keepModelWhenEmpty = false } = {}) {
+export function applyLoopcOpsEntriesToModel(
+  model,
+  entries,
+  entriesAll = null,
+  { keepModelWhenEmpty = false, carryOverOpen = false, timeAverages = null } = {},
+) {
   if (!model) return model
-  const overlay = buildLoopcOpsDashboardOverlay(entries, entriesAll)
+  const overlay = buildLoopcOpsDashboardOverlay(entries, entriesAll, { carryOverOpen, timeAverages })
   if (!overlay.hasOpsData) {
     if (keepModelWhenEmpty) return model
     return {

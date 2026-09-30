@@ -149,6 +149,27 @@ describe('MG Floor metal loss and batch time', () => {
     expect(new Date(res.body.time.running.startedAt).toISOString()).toBe('2026-09-28T12:00:00.000Z')
   })
 
+  test('time averages: all-time finished batch minutes per department, forgotten Metal Outs left out', async () => {
+    const op = await createOperator()
+    const Workbook = await require('../models/OperationsProductionEntry').getTenantModel('mg')
+    const row = (departmentKey, batchNumber, start, over) => Workbook.create({
+      departmentKey,
+      batchNumber,
+      date: DAY,
+      batchStartedAt: new Date(start),
+      batchOverAt: over ? new Date(over) : null,
+    })
+    await row('melting', '1', '2026-09-28T04:00:00Z', '2026-09-28T05:40:00Z')
+    await row('melting', '2', '2026-09-28T06:00:00Z', '2026-09-28T09:20:00Z')
+    await row('melting', '3', '2026-09-28T10:00:00Z', null)
+    await row('melting', '4', '2026-09-20T10:00:00Z', '2026-09-23T10:00:00Z')
+    await row('rolling', '1', '2026-09-28T04:00:00Z', '2026-09-28T05:00:00Z')
+
+    const res = await request(app).get('/api/mg-floor/batch-stats/time-averages').set(headers(op))
+    expect(res.status).toBe(200)
+    expect(res.body.averages).toEqual({ melting: 150, rolling: 60 })
+  })
+
   test('empty department returns nulls; unknown department is 400', async () => {
     const op = await createOperator()
     const res = await stats(op)

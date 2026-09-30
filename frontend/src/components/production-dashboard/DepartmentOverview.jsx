@@ -30,6 +30,12 @@ function displayOrDash(value) {
   return value
 }
 
+function formatMinutes(minutes) {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h ? `${h}h ${m}m` : `${m}m`
+}
+
 function BatchProgressBar({ startedLabel, overLabel, percent }) {
   const hasPct = percent != null && Number.isFinite(Number(percent))
   const pct = hasPct ? Math.max(0, Math.min(100, Number(percent) || 0)) : 0
@@ -259,8 +265,15 @@ function DeptCard({
         </ul>
       </div>
 
+      {card.longRunning ? (
+        <p className="pd-dept-long-batch" role="status">
+          Batch {card.longRunning.batchNumber} running long · {formatMinutes(card.longRunning.elapsedMin)}
+          {' '}(usual {formatMinutes(card.longRunning.usualMin)})
+        </p>
+      ) : null}
+
       <BatchProgressBar
-        startedLabel={ui.batchStartedLabel}
+        startedLabel={card.currentBatchCarriedOver && ui.batchStartedLabel ? `${ui.batchStartedLabel} (yesterday)` : ui.batchStartedLabel}
         overLabel={ui.batchOverLabel}
         percent={ui.progressPercent}
       />

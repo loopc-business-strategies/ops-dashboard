@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { productionControlApi } from '../../api/productionControl'
+import { mgFloorBatchEntriesApi } from '../../api/mgFloorBatchEntries'
 import hrAPI from '../../api/hr'
 import { useAuth } from '../../context/AuthContext'
 import { getTenantBranding } from '../../config/tenantBranding'
@@ -158,7 +159,11 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         base,
         payload.opsEntries || [],
         payload.opsEntriesAll || null,
-        { keepModelWhenEmpty: isMg },
+        {
+          keepModelWhenEmpty: isMg,
+          carryOverOpen: isMg,
+          timeAverages: isMg ? payload.timeAverages || null : null,
+        },
       )
     }
     return base
@@ -269,7 +274,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       })
       if (!soft) setLoading(false)
 
-      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes, stockOverview, alertsRes, weightVarianceRes, movementsRes] = await Promise.all([
+      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes, stockOverview, alertsRes, weightVarianceRes, movementsRes, timeAveragesRes] = await Promise.all([
         productionControlApi.reportDaily({ date: dayKey(addDays(new Date(), -1)) }, { signal: ac.signal }).catch(() => null),
         productionControlApi.listDepartments({ signal: ac.signal }).catch(() => null),
         productionControlApi.listFloorSessions({ status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
@@ -280,9 +285,11 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.listAlerts({ limit: 20, status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
         productionControlApi.reportWeightVariance({ limit: 100 }, { signal: ac.signal }).catch(() => null),
         productionControlApi.listMovements({ limit: 80 }, { signal: ac.signal }).catch(() => null),
+        isMg ? mgFloorBatchEntriesApi.timeAverages().catch(() => null) : null,
       ])
       if (ac.signal.aborted) return
       publish({
+        ...(timeAveragesRes?.averages ? { timeAverages: timeAveragesRes.averages } : {}),
         yesterdayReport,
         deptsRes,
         floorSessions,

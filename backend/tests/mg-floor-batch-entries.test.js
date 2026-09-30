@@ -482,6 +482,61 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
     expect(today.body.canDecide).toBe(false)
     expect(today.body.entries).toHaveLength(2)
   })
+
+  test('list gives each batch its totals and each Metal Out its Metal In, plus the oldest pending time', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+    const out = (batchLabel, qty) => batchBody({
+      batchLabel,
+      direction: 'OUT',
+      lines: [{ metal: 'Gold', qty, purity: 99.5, time: '12:00' }],
+    })
+
+    const rejectedIn = await submit(op, batchBody({ batchLabel: '3', lines: [{ metal: 'Gold', qty: 999, purity: 99.5, time: '08:00' }] }))
+    await reject(fm, rejectedIn.body.entry._id, { reason: 'Wrong gold weight' })
+    const in3 = await submit(op, batchBody({
+      batchLabel: '3',
+      lines: [
+        { metal: 'Gold', qty: 500, purity: 99.5, time: '08:00' },
+        { metal: 'Alloy', qty: 20, purity: null, time: '08:01' },
+      ],
+    }))
+    await approve(fm, in3.body.entry._id)
+    await submit(op, out('3', 517))
+    await submit(op, out('4', 100))
+
+    const res = await request(app).get('/api/mg-floor/batch-entries').query({ status: 'PENDING' }).set(headers(fm))
+    expect(res.status).toBe(200)
+    const byLabel = Object.fromEntries(res.body.entries.map((e) => [e.batchLabel, e]))
+    expect(byLabel['3'].totals).toEqual({ weight: 517, fineGold: 514.415, purity: 99.5 })
+    expect(byLabel['3'].metalIn).toEqual({ status: 'APPROVED', weight: 520, fineGold: 497.5, purity: 95.67 })
+    expect(byLabel['4'].metalIn).toBeNull()
+    const oldest = await (await require('../models/FloorBatchEntry').getTenantModel('mg'))
+      .findOne({ status: 'PENDING' }).sort({ submittedAt: 1 }).lean()
+    expect(new Date(res.body.oldestPendingAt).getTime()).toBe(new Date(oldest.submittedAt).getTime())
+
+    const none = await request(app).get('/api/mg-floor/batch-entries').query({ status: 'PENDING', department: 'rolling' }).set(headers(fm))
+    expect(none.body.oldestPendingAt).toBeNull()
+  })
+
+  test('sending, approving and rejecting a batch nudge dashboards and the FM list', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+    const { bus } = require('../utils/realtimeBus')
+    const events = []
+    const onEvent = (event) => { if (event.type === 'mg-floor:batch-entry') events.push(event.data.event) }
+    bus.on('event', onEvent)
+    try {
+      const a = await submit(op, batchBody({ batchLabel: '1' }))
+      await submit(op, { ...batchBody({ batchLabel: '1' }), entryId: a.body.entry.entryId })
+      const b = await submit(op, batchBody({ batchLabel: '2' }))
+      await approve(fm, a.body.entry._id)
+      await reject(fm, b.body.entry._id, { reason: 'Wrong gold weight' })
+      expect(events).toEqual(['submitted', 'submitted', 'approved', 'rejected'])
+    } finally {
+      bus.off('event', onEvent)
+    }
+  })
 })
 
 describe('MG Floor approvals fill the Operations → Production workbook', () => {

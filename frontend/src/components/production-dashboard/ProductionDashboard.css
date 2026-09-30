@@ -3952,6 +3952,59 @@
   background: #fff;
 }
 
+.pd-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #f59e0b;
+  border: 2px solid #fde68a;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pd-pending-badge--old {
+  background: #dc2626;
+  border-color: #fecaca;
+}
+
+.pd-pending-badge-count {
+  min-width: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.35rem;
+  text-align: center;
+}
+
+.pd-pending-badge--old .pd-pending-badge-count {
+  color: #b91c1c;
+}
+
+.pd-pending-badge-age {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.pd-dept-long-batch {
+  margin: 0.35rem 0 0;
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* ── Responsive fit: phone → 4K TV (last in file so it wins the cascade) ── */
 
 /* Room for the fixed "← Ops" button so it never covers the logo/title */

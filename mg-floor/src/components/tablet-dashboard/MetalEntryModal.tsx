@@ -10,8 +10,11 @@ import {
 import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller'
 import { tabletDashboard as td } from '@/src/theme'
 import { PURITY_MAX_LENGTH, QTY_MAX_LENGTH, cleanNumberInput } from './fieldInput'
+import type { BatchEntryLine } from '@/src/api/batchEntries'
 import { MAX_BATCH_LINES, METAL_OPTIONS, clockNow, dayTag, localDateKey, type BatchChoice } from './batchEntryMapping'
+import { checkMetalOut, type MetalOutCheck } from './batchLoss'
 import type { MetalBatchEdit, MetalLineEdit } from './MetalProcessPanel'
+import { formatGrams, formatPct } from './statsFormat'
 
 type Props = {
   visible: boolean
@@ -30,6 +33,9 @@ type Props = {
   /** Resolves to an error message, or null once the batch is sent or saved offline. */
   onSend: (batch: MetalBatchEdit, senderId: string | null) => Promise<string | null>
   onClose: () => void
+  /** Metal Out only: the chosen batch's Metal In lines (null when it has none) for the live loss check. */
+  metalInFor?: (choice: BatchChoice) => BatchEntryLine[] | null
+  lossLimitPct?: number | null
 }
 
 /** Space the send/cancel buttons (plus sheet and backdrop padding) take below the scrolling fields. */
@@ -47,6 +53,46 @@ function choiceTitle(choice: BatchChoice) {
   return tag ? `Batch ${choice.batchLabel} · ${tag}` : `Batch ${choice.batchLabel}`
 }
 
+function LossCheck({ check, batchLabel, lossLimitPct }: { check: MetalOutCheck | null; batchLabel: string; lossLimitPct: number | null }) {
+  if (!check) {
+    return <Text style={styles.checkNote}>No Metal In found for Batch {batchLabel} — loss cannot be checked.</Text>
+  }
+  const bad = check.overLimit || check.outMoreThanIn
+  const lossText = check.loss == null
+    ? '--'
+    : check.outMoreThanIn
+      ? `+${formatGrams(-check.loss)} more`
+      : `${formatGrams(check.loss)} (${formatPct(check.lossPct)})`
+  return (
+    <View style={styles.check} accessibilityLabel="Loss check">
+      <View style={styles.checkRow}>
+        <View style={styles.checkCell}>
+          <Text style={styles.checkLabel}>Metal In</Text>
+          <Text style={styles.checkValue}>{formatGrams(check.inWeight)}</Text>
+        </View>
+        <View style={styles.checkCell}>
+          <Text style={styles.checkLabel}>Metal Out</Text>
+          <Text style={styles.checkValue}>{formatGrams(check.outWeight)}</Text>
+        </View>
+        <View style={styles.checkCell}>
+          <Text style={styles.checkLabel}>Loss</Text>
+          <Text style={[styles.checkValue, bad && styles.checkBad]}>{lossText}</Text>
+        </View>
+      </View>
+      {check.overLimit ? <Text style={styles.checkBadNote}>Above the {lossLimitPct}% loss limit</Text> : null}
+      {check.outMoreThanIn ? (
+        <Text style={styles.warnBox}>Metal Out is more than Metal In ({formatGrams(check.inWeight)}). Check the weight.</Text>
+      ) : null}
+      {check.purityTooHigh ? (
+        <Text style={styles.warnBox}>
+          Purity too high: fine gold out ({formatGrams(check.fineOut)}) is more than fine gold in ({formatGrams(check.fineIn)}).
+          {check.maxPurity != null ? ` Highest possible purity is ${formatPct(check.maxPurity)}.` : ''}
+        </Text>
+      ) : null}
+    </View>
+  )
+}
+
 export function MetalEntryModal({
   visible,
   title,
@@ -58,6 +104,8 @@ export function MetalEntryModal({
   senders = [],
   onSend,
   onClose,
+  metalInFor,
+  lossLimitPct = null,
 }: Props) {
   const [choice, setChoice] = useState<BatchChoice>(() => choiceOf(initial))
   const [senderId, setSenderId] = useState<string | null>(null)
@@ -70,6 +118,15 @@ export function MetalEntryModal({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(clockNow)
+  const [confirmWarning, setConfirmWarning] = useState(false)
+
+  const inLines = metalInFor ? metalInFor(choice) : undefined
+  const check = inLines ? checkMetalOut(inLines, lines, lossLimitPct) : null
+  const needsConfirm = Boolean(check && (check.outMoreThanIn || check.purityTooHigh))
+
+  useEffect(() => {
+    setConfirmWarning(false)
+  }, [lines, choice])
 
   useEffect(() => {
     if (!visible) return
@@ -109,6 +166,10 @@ export function MetalEntryModal({
     if (busy || !canSend) return
     if (pickSender && !effectiveSender) {
       setError('Choose who is sending this batch.')
+      return
+    }
+    if (needsConfirm && !confirmWarning) {
+      setConfirmWarning(true)
       return
     }
     setBusy(true)
@@ -268,19 +329,32 @@ export function MetalEntryModal({
               )
             ) : null}
 
+            {inLines !== undefined ? (
+              <LossCheck check={check} batchLabel={choice.batchLabel} lossLimitPct={lossLimitPct} />
+            ) : null}
+
             <Text style={styles.help}>Time is set automatically when you tap Save & send.</Text>
           </KeyboardAwareScrollView>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
+          {needsConfirm && confirmWarning ? (
+            <Text style={styles.error}>Check the warning above. Tap SEND ANYWAY only if the numbers are right.</Text>
+          ) : null}
           {!canSend && hint ? <Text style={styles.hint}>{hint}</Text> : null}
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ disabled: sendDisabled, busy }}
             disabled={sendDisabled}
             onPress={send}
-            style={({ pressed }) => [styles.confirm, { opacity: sendDisabled ? 0.45 : pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [
+              styles.confirm,
+              needsConfirm && confirmWarning && styles.confirmWarn,
+              { opacity: sendDisabled ? 0.45 : pressed ? 0.85 : 1 },
+            ]}
           >
-            <Text style={styles.confirmText}>{busy ? 'SENDING…' : 'SAVE & SEND TO F.M'}</Text>
+            <Text style={styles.confirmText}>
+              {busy ? 'SENDING…' : needsConfirm && confirmWarning ? 'SEND ANYWAY' : 'SAVE & SEND TO F.M'}
+            </Text>
           </Pressable>
           <Pressable style={styles.cancel} onPress={onClose} disabled={busy}>
             <Text style={styles.cancelText}>Cancel</Text>
@@ -402,7 +476,33 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
   },
+  confirmWarn: { backgroundColor: td.red },
   confirmText: { color: td.white, fontWeight: '800', fontSize: 17, letterSpacing: 0.4 },
+  check: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: td.borderLight,
+    borderRadius: td.radius,
+    backgroundColor: td.cream,
+    padding: 10,
+    gap: 6,
+  },
+  checkRow: { flexDirection: 'row', gap: 8 },
+  checkCell: { flex: 1 },
+  checkLabel: { color: td.textMuted, fontWeight: '600', fontSize: 12 },
+  checkValue: { color: td.text, fontWeight: '800', fontSize: 16 },
+  checkBad: { color: td.red },
+  checkBadNote: { color: td.red, fontWeight: '700', fontSize: 13 },
+  checkNote: { color: td.textMuted, fontSize: 13, marginTop: 12 },
+  warnBox: {
+    color: td.redPressed,
+    backgroundColor: td.redSoft,
+    borderRadius: td.radius,
+    padding: 8,
+    fontWeight: '700',
+    fontSize: 13,
+    overflow: 'hidden',
+  },
   cancel: {
     minHeight: 44,
     alignItems: 'center',

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { mgFloorBatchEntriesApi } from '../../../api/mgFloorBatchEntries'
+import { subscribeRealtimeEvents } from '../../../utils/realtimeEventsBus'
+import { OLD_PENDING_MINUTES, compareMetalOut, formatGrams, formatWait, minutesWaiting } from './floorBatchCheck'
 import { OPS_C as C } from './operationsTabTokens'
 import { B, Badge, TableWrap, TableHead, SH, Modal, ML, MTA, TH, TD } from './operationsTabUI'
 
@@ -35,6 +37,41 @@ function MetalLines({ lines }) {
   )
 }
 
+const deptKey = (value) => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+
+function LossCheck({ entry, limits }) {
+  if (entry.direction !== 'OUT') return <span style={{ color: C.t4 }}>—</span>
+  const limit = limits[deptKey(entry.department)] ?? null
+  const check = entry.metalIn ? compareMetalOut(entry.metalIn, entry.totals, limit) : null
+  if (!check) return <span style={{ color: C.t4 }}>No Metal In for this batch</span>
+  const bad = check.overLimit || check.outMoreThanIn
+  const warn = { color: C.red, fontWeight: 700, fontSize: 11.5, whiteSpace: 'normal', maxWidth: 260 }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ whiteSpace: 'nowrap' }}>
+        In {formatGrams(check.inWeight)} → Out {formatGrams(check.outWeight)}
+      </div>
+      <div style={{ fontWeight: 800, color: bad ? C.red : C.t1, whiteSpace: 'nowrap' }}>
+        {check.loss == null
+          ? 'Loss —'
+          : check.outMoreThanIn
+            ? `Out is ${formatGrams(-check.loss)} more than In`
+            : `Loss ${formatGrams(check.loss)} (${check.lossPct}%)`}
+      </div>
+      {check.overLimit ? <div style={warn}>Above the {limit}% loss limit</div> : null}
+      {check.purityTooHigh ? (
+        <div style={warn}>
+          Fine gold out ({formatGrams(check.fineOut)}) is more than in ({formatGrams(check.fineIn)})
+          {check.maxPurity != null ? ` — highest possible purity ${check.maxPurity}%` : ''}
+        </div>
+      ) : null}
+      {entry.metalIn.status !== 'APPROVED' ? (
+        <div style={{ fontSize: 11, color: C.t4 }}>Metal In not approved yet</div>
+      ) : null}
+    </div>
+  )
+}
+
 /** Operations › FM: approve or reject MG Floor Metal In / Out batches sent from the floor tablet. */
 export default function TabFloorManager({ showToast, onChanged }) {
   const [status, setStatus] = useState('PENDING')
@@ -45,7 +82,16 @@ export default function TabFloorManager({ showToast, onChanged }) {
   const [rejecting, setRejecting] = useState(null)
   const [reason, setReason] = useState('')
   const [rejectError, setRejectError] = useState('')
+  const [limits, setLimits] = useState({})
   const requestRef = useRef(0)
+
+  useEffect(() => {
+    let alive = true
+    mgFloorBatchEntriesApi.lossLimits()
+      .then((res) => { if (alive) setLimits(res?.limits || {}) })
+      .catch(() => { /* loss is still shown, just without the limit */ })
+    return () => { alive = false }
+  }, [])
 
   const load = useCallback(async () => {
     const request = ++requestRef.current
@@ -66,8 +112,10 @@ export default function TabFloorManager({ showToast, onChanged }) {
     setLoading(true)
     load()
     const timer = setInterval(load, POLL_MS)
+    const unsubscribe = subscribeRealtimeEvents('mg', 'mg-floor:batch-entry', () => load())
     return () => {
       clearInterval(timer)
+      unsubscribe()
       requestRef.current += 1
     }
   }, [load])
@@ -116,8 +164,12 @@ export default function TabFloorManager({ showToast, onChanged }) {
 
   const counts = data.counts || {}
   const showActions = data.canDecide && status === 'PENDING'
-  const headers = ['Sent', 'Department', 'In / Out', 'Batch', 'Metal (Qty · Purity · Time)', 'Operator', status === 'PENDING' ? 'Status' : 'Decision']
+  const headers = ['Sent', 'Department', 'In / Out', 'Batch', 'Metal (Qty · Purity · Time)', 'Loss check', 'Operator', status === 'PENDING' ? 'Status' : 'Decision']
   if (showActions) headers.push('Actions')
+  const now = Date.now()
+  const oldPendingCount = data.entries.filter(
+    (e) => e.status === 'PENDING' && (minutesWaiting(e.submittedAt, now) ?? 0) >= OLD_PENDING_MINUTES,
+  ).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -159,6 +211,11 @@ export default function TabFloorManager({ showToast, onChanged }) {
           title={`${STATUS_TEXT[status]} batches`}
           subtitle={loading ? 'Loading…' : `${data.entries.length} shown · refreshes every 30 seconds`}
         />
+        {oldPendingCount ? (
+          <div role="status" style={{ padding: '10px 18px', background: '#fff7ed', color: C.orange, fontSize: 13, fontWeight: 700 }}>
+            {oldPendingCount} batch{oldPendingCount === 1 ? ' has' : 'es have'} been waiting over {OLD_PENDING_MINUTES / 60} hour — the floor cannot close them until you decide.
+          </div>
+        ) : null}
         {loadError ? (
           <div style={{ padding: '14px 18px', color: C.red, fontSize: 13 }}>{loadError}</div>
         ) : null}
@@ -175,16 +232,25 @@ export default function TabFloorManager({ showToast, onChanged }) {
                   </td>
                 </tr>
               ) : null}
-              {data.entries.map((entry) => (
-                <tr key={entry._id}>
+              {data.entries.map((entry) => {
+                const waited = entry.status === 'PENDING' ? minutesWaiting(entry.submittedAt, now) : null
+                const old = waited != null && waited >= OLD_PENDING_MINUTES
+                return (
+                <tr key={entry._id} style={old ? { background: '#fff7ed' } : undefined}>
                   <td style={{ ...TD, whiteSpace: 'nowrap' }}>
                     <div style={{ fontWeight: 700, color: C.t1 }}>{formatWhen(entry.submittedAt)}</div>
                     <div style={{ fontSize: 11, color: C.t4 }}>Day {entry.entryDate}</div>
+                    {waited != null ? (
+                      <div style={{ fontSize: 11, fontWeight: old ? 800 : 600, color: old ? C.orange : C.t4 }}>
+                        Waiting {formatWait(waited)}
+                      </div>
+                    ) : null}
                   </td>
                   <td style={{ ...TD, textTransform: 'capitalize' }}>{entry.department || '—'}</td>
                   <td style={{ ...TD, fontWeight: 700 }}>{entry.direction === 'IN' ? 'Metal In' : 'Metal Out'}</td>
                   <td style={{ ...TD, fontWeight: 800, color: C.t1 }}>{entry.batchLabel}</td>
                   <td style={TD}><MetalLines lines={entry.lines} /></td>
+                  <td style={TD}><LossCheck entry={entry} limits={limits} /></td>
                   <td style={TD}>{entry.employeeName || '—'}</td>
                   <td style={TD}>
                     <Badge s={STATUS_TEXT[entry.status] || entry.status} />
@@ -219,7 +285,8 @@ export default function TabFloorManager({ showToast, onChanged }) {
                     </td>
                   ) : null}
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

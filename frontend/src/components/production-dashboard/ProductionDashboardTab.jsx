@@ -4,6 +4,7 @@ import { getTenantBranding } from '../../config/tenantBranding'
 import HeaderBar from './HeaderBar'
 import FmCallAlarm from './FmCallAlarm'
 import BreakdownAlarm from './BreakdownAlarm'
+import PendingApprovalsBadge from './PendingApprovalsBadge'
 import KpiRow from './KpiRow'
 import DepartmentOverview from './DepartmentOverview'
 import ActionModal from './ActionModal'
@@ -186,6 +187,7 @@ export default function ProductionDashboardTab() {
         loading={loading}
         alarm={tenantKey === 'mg' ? (
           <>
+            <PendingApprovalsBadge tenantKey={tenantKey} />
             <BreakdownAlarm tenantKey={tenantKey} onBreakdownsChange={setBreakdowns} />
             <FmCallAlarm tenantKey={tenantKey} onCallsChange={setFmCalls} silenced={breakdowns.length > 0} />
           </>
