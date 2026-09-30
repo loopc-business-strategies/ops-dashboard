@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 import type { BatchEntryLine } from '@/src/api/batchEntries'
+import { IdleFade } from './IdleFade'
 
 export type MetalLineEdit = {
   metal: string
@@ -37,6 +38,8 @@ type Props = {
   onAdd: () => void
   onFix: (row: MetalPanelRow) => void
   compact?: boolean
+  /** Grey header and faded list while no employee is logged in. */
+  idle?: boolean
 }
 
 /**
@@ -57,7 +60,7 @@ const TONES: Record<BatchStatusTone, { bg: string; fg: string }> = {
 }
 
 const show = (n: number | null | undefined) => (n == null ? '--' : String(n))
-export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props) {
+export function MetalProcessPanel({ title, rows, onAdd, onFix, compact, idle = false }: Props) {
   const pad = compact ? 3 : 4
   const fontSize = compact ? 12 : 13
   const listRef = useRef<ScrollView>(null)
@@ -87,7 +90,9 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props)
         style={({ pressed }) => [
           styles.header,
           compact && styles.headerCompact,
+          idle && styles.headerIdle,
           pressed && styles.headerPressed,
+          pressed && idle && styles.headerIdlePressed,
         ]}
       >
         <View style={styles.addBadge}>
@@ -96,7 +101,7 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props)
         </View>
         <Text style={[styles.headerText, compact && { fontSize: 17 }]}>{title}</Text>
       </Pressable>
-      <View style={styles.body}>
+      <IdleFade idle={idle} style={styles.body}>
         <View style={styles.subHeader}>
           <Text style={styles.subHeaderText}>Total Process</Text>
         </View>
@@ -182,7 +187,7 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props)
             )
           })}
         </ScrollView>
-      </View>
+      </IdleFade>
     </View>
   )
 }
@@ -201,6 +206,12 @@ const styles = StyleSheet.create({
     ...buttonShadow,
   },
   headerCompact: { minHeight: 48 },
+  headerIdle: {
+    backgroundColor: td.idleGrey,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  headerIdlePressed: { backgroundColor: td.idleGreyPressed },
   headerPressed: {
     backgroundColor: td.orangePressed,
     transform: [{ scale: 0.98 }],

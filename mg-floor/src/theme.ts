@@ -33,6 +33,13 @@ export const tabletDashboard = {
   borderLight: '#D1D5DB',
   radius: 4,
   orangePressed: '#D9460A',
+  /** Buttons while no employee is logged in on the tablet. */
+  idleGrey: '#A1A1AA',
+  idleGreyPressed: '#71717A',
+  /** Breakdown (emergency) button and status. */
+  red: '#DC2626',
+  redPressed: '#B91C1C',
+  redSoft: '#FEF2F2',
   buttonRadius: 10,
   /** System font for dashboard buttons (Roboto Medium on Android). */
   buttonFont: Platform.select({

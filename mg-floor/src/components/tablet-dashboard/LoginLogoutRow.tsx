@@ -1,6 +1,7 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native'
 import { buttonShadow, tabletDashboard as td } from '@/src/theme'
+import { usePulse } from './IdleFade'
 
 type Props = {
   onLogin: () => void
@@ -14,27 +15,30 @@ type Props = {
 export function LoginLogoutRow({ onLogin, onLogout, loggedInCount, loginDisabled }: Props) {
   const loginOff = Boolean(loginDisabled)
   const loggedIn = loggedInCount > 0
+  const scale = usePulse(!loggedIn && !loginOff)
   return (
     <View style={styles.row}>
-      <Pressable
-        accessibilityRole="button"
-        disabled={loginOff}
-        onPress={onLogin}
-        style={({ pressed }) => [
-          styles.btn,
-          styles.login,
-          !loginOff && buttonShadow,
-          pressed && styles.loginPressed,
-          loginOff && styles.off,
-        ]}
-      >
-        <Text style={[styles.text, styles.loginText]}>Login</Text>
-      </Pressable>
+      <Animated.View style={[styles.loginWrap, { transform: [{ scale }] }]}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={loginOff}
+          onPress={onLogin}
+          style={({ pressed }) => [
+            styles.btn,
+            styles.login,
+            !loginOff && buttonShadow,
+            pressed && styles.loginPressed,
+            loginOff && styles.off,
+          ]}
+        >
+          <Text style={[styles.text, styles.loginText]}>Login</Text>
+        </Pressable>
+      </Animated.View>
       {loggedIn ? (
         <Pressable
           accessibilityRole="button"
           onPress={onLogout}
-          style={({ pressed }) => [styles.btn, styles.logout, pressed && styles.outlinePressed]}
+          style={({ pressed }) => [styles.btn, styles.logout, styles.flex1, pressed && styles.outlinePressed]}
         >
           <Text style={[styles.text, styles.logoutText]}>{loggedInCount > 1 ? 'Logout all' : 'Logout'}</Text>
         </Pressable>
@@ -45,8 +49,9 @@ export function LoginLogoutRow({ onLogin, onLogout, loggedInCount, loginDisabled
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8 },
+  loginWrap: { flex: 1 },
+  flex1: { flex: 1 },
   btn: {
-    flex: 1,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',

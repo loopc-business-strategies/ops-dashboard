@@ -15,9 +15,7 @@ export const LEGACY_QUICK_ID = 'legacy'
 export type QuickLoginEntry = { id: string; name: string; employeeCode?: string }
 
 /** What a fingerprint / Face ID unlock replays: the same login the employee did when turning it on. */
-export type QuickLoginCredential =
-  | { kind: 'pin'; employee: string; pin: string }
-  | { kind: 'password'; name: string; password: string }
+export type QuickLoginCredential = { kind: 'password'; name: string; password: string }
 
 async function readIndex(): Promise<QuickLoginEntry[]> {
   try {
@@ -37,10 +35,32 @@ async function writeIndex(list: QuickLoginEntry[]) {
   }
 }
 
+async function readCredential(id: string): Promise<QuickLoginCredential | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(credKey(id))
+    const cred = raw ? JSON.parse(raw) : null
+    return cred?.kind === 'password' && typeof cred.name === 'string' && typeof cred.password === 'string' ? cred : null
+  } catch {
+    return null
+  }
+}
+
+/** Saved logins that can still be replayed; PIN logins saved by older builds are deleted (PIN login was retired). */
+async function readUsableIndex(): Promise<QuickLoginEntry[]> {
+  const list = await readIndex()
+  const creds = await Promise.all(list.map((e) => readCredential(e.id)))
+  const usable = list.filter((_, i) => creds[i])
+  if (usable.length !== list.length) {
+    await Promise.all(list.filter((_, i) => !creds[i]).map((e) => SecureStore.deleteItemAsync(credKey(e.id)).catch(() => {})))
+    await writeIndex(usable)
+  }
+  return usable
+}
+
 /** Employees who turned on fingerprint / Face ID on this tablet (plus the single account saved by older builds). */
 export async function listQuickLogins(): Promise<QuickLoginEntry[]> {
   if (!(await biometricAvailable())) return []
-  const list = await readIndex()
+  const list = await readUsableIndex()
   if (await isBiometricEnabled()) {
     try {
       const legacyName = await SecureStore.getItemAsync(LEGACY_USER_KEY)
@@ -55,7 +75,7 @@ export async function listQuickLogins(): Promise<QuickLoginEntry[]> {
 }
 
 export async function hasQuickLogin(userId: string): Promise<boolean> {
-  return (await readIndex()).some((e) => e.id === userId)
+  return (await readUsableIndex()).some((e) => e.id === userId)
 }
 
 export async function saveQuickLogin(entry: QuickLoginEntry, cred: QuickLoginCredential): Promise<boolean> {
@@ -95,8 +115,7 @@ export async function unlockQuickLogin(entry: QuickLoginEntry): Promise<QuickLog
       disableDeviceFallback: true,
     })
     if (!result.success) return null
-    const raw = await SecureStore.getItemAsync(credKey(entry.id))
-    return raw ? (JSON.parse(raw) as QuickLoginCredential) : null
+    return await readCredential(entry.id)
   } catch {
     return null
   }

@@ -158,7 +158,7 @@ function createApp() {
 
   app.set('trust proxy', 1)
 
-  const authRateLimitPaths = ['/api/auth/login', '/api/auth/pin-login', '/api/auth/setup']
+  const authRateLimitPaths = ['/api/auth/login', '/api/auth/setup']
   const rateLimitExcludedPrefixes = [
     '/api/erp-accounting/metal-rates',
     '/api/erp-accounting/reports/market-prices',
@@ -356,7 +356,6 @@ function createApp() {
   app.use('/api', apiLimiter)
   app.use('/api/hardware/ingest', ingestLimiter)
   app.use('/api/auth/login', authLimiter)
-  app.use('/api/auth/pin-login', authLimiter)
   app.use('/api/auth/setup', authLimiter)
   app.use('/api', enforceCsrfProtection)
   app.use('/api', bindTenantContext)

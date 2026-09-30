@@ -1,5 +1,6 @@
 const FloorDevice = require('../../models/FloorDevice')
 const FloorSyncOperation = require('../../models/FloorSyncOperation')
+const ProductionAlert = require('../../models/ProductionAlert')
 const MetalMovement = require('../../models/MetalMovement')
 const {
   passService,
@@ -34,7 +35,6 @@ async function getMe(req) {
       floorDepartment: normalizeFloorDepartment(req.user.floorDepartment),
       productionRole: resolveProductionRole(req.user),
       employeeCode: req.user.employeeCode || '',
-      hasFloorPin: Boolean(req.user.floorPinSetAt),
     },
     shift,
     permissions: {
@@ -217,6 +217,36 @@ async function raiseFloorAlert(req, body = {}) {
   return { alert }
 }
 
+const BREAKDOWN_CODE = 'MACHINE_BREAKDOWN'
+
+/** One open breakdown per department: pressing again while it is still ringing returns the same one. */
+async function raiseBreakdown(req, body = {}, { ringWindowMs }) {
+  const department = normalizeFloorDepartment(body.department || req.user?.floorDepartment || req.user?.department || '')
+  const existing = await ProductionAlert.findOne({
+    code: BREAKDOWN_CODE,
+    status: 'OPEN',
+    'metadata.department': department,
+    createdAt: { $gte: new Date(Date.now() - ringWindowMs) },
+  }).sort({ createdAt: -1 })
+  if (existing) return { alert: existing, reused: true }
+
+  const machineAlertService = require('../productionControl/machineAlertService')
+  const label = department ? department.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Floor'
+  const alert = await machineAlertService.raiseAlert(req, {
+    category: 'machine',
+    code: BREAKDOWN_CODE,
+    title: `Breakdown — ${label}`,
+    message: `Reported by ${req.user?.name || 'operator'}.`,
+    severity: 'critical',
+    metadata: {
+      department,
+      operationId: body.operationId || null,
+      source: 'mg-floor',
+    },
+  })
+  return { alert, reused: false }
+}
+
 module.exports = {
   REMOVED_OPERATION_TYPES,
   getMe,
@@ -224,6 +254,8 @@ module.exports = {
   registerDevice,
   statsSummary,
   raiseFloorAlert,
+  BREAKDOWN_CODE,
+  raiseBreakdown,
   liveFloorService,
   departmentService,
   shiftService,

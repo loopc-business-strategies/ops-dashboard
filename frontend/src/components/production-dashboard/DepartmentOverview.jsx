@@ -75,8 +75,9 @@ function DeptCard({
   loopcMode = false,
   currentBatchTimes = false,
   callCount = 0,
+  breakdown = false,
 }) {
-  const calling = callCount > 0
+  const calling = !breakdown && callCount > 0
   const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode, currentBatchTimes })
   const tone = statusClass(ui.status)
   const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
@@ -85,7 +86,7 @@ function DeptCard({
 
   return (
     <article
-      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${selected ? ' pd-dept-card--selected' : ''}${calling ? ' pd-dept-card--calling' : ''}`}
+      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${selected ? ' pd-dept-card--selected' : ''}${calling ? ' pd-dept-card--calling' : ''}${breakdown ? ' pd-dept-card--breakdown' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect?.(card.key)}
@@ -105,7 +106,16 @@ function DeptCard({
           <h3 className="pd-dept-name">{ui.name}</h3>
           {ui.subtitle ? <p className="pd-dept-subtitle">{ui.subtitle}</p> : null}
         </div>
-        {calling ? (
+        {breakdown ? (
+          <span
+            className="pd-status-pill pd-status-pill--breakdown"
+            role="alert"
+            title="Breakdown reported from the tablet — acknowledge from BREAKDOWN at the top"
+          >
+            <span className="pd-status-dot" aria-hidden />
+            BREAKDOWN
+          </span>
+        ) : calling ? (
           <span
             className="pd-status-pill pd-status-pill--calling"
             role="alert"
@@ -274,6 +284,7 @@ export default function DepartmentOverview({
   loopcMode = false,
   currentBatchTimes = false,
   callingDepts = {},
+  breakdownDepts = {},
 }) {
   const list = cards || []
 
@@ -296,6 +307,7 @@ export default function DepartmentOverview({
                 loopcMode={loopcMode}
                 currentBatchTimes={currentBatchTimes}
                 callCount={callingDepts[card.key] || 0}
+                breakdown={Boolean(breakdownDepts[card.key])}
               />
             ))}
           </div>

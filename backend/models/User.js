@@ -186,29 +186,14 @@ const userSchema = new mongoose.Schema(
 
     lastLogin: Date,
 
-    /** MG Floor tablet quick-login PIN (bcrypt hash). */
-    floorPinHash: {
-      type: String,
-      select: false,
-    },
-
-    /** When the floor PIN was last set; null means no PIN. Safe to expose. */
-    floorPinSetAt: {
-      type: Date,
-      default: null,
-    },
-
-    floorPinFailedCount: {
-      type: Number,
-      default: 0,
-      select: false,
-    },
-
-    floorPinLockedUntil: {
-      type: Date,
-      default: null,
-      select: false,
-    },
+    /**
+     * Retired MG Floor PIN login. Kept in the schema (no defaults) so values already stored on
+     * users stay select:false and never appear in user responses.
+     */
+    floorPinHash: { type: String, select: false },
+    floorPinSetAt: { type: Date, select: false },
+    floorPinFailedCount: { type: Number, select: false },
+    floorPinLockedUntil: { type: Date, select: false },
 
     /** Tokens issued before this timestamp are rejected (password change / logout-all-devices). */
     sessionInvalidatedAt: {

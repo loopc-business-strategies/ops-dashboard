@@ -4,10 +4,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import {
   fetchMe,
   login as apiLogin,
-  pinLogin as apiPinLogin,
   recordAttendanceLogin,
   recordAttendanceLogout,
-  setMyFloorPin,
   type LoginMethod,
   type LoginResponse,
   type MeResponse,
@@ -60,11 +58,9 @@ type AuthState = {
   /** Employees who logged out of this tablet today. */
   loggedOut: LoggedOutEntry[]
   login: (name: string, password: string, opts?: LoginOptions) => Promise<FloorSession>
-  loginWithPin: (employee: string, pin: string, opts?: LoginOptions) => Promise<FloorSession>
   logoutUser: (userId: string) => Promise<void>
   /** Logs out every employee on this tablet. */
   logout: () => Promise<void>
-  setMyPin: (userId: string, password: string, pin: string) => Promise<void>
   refresh: () => Promise<void>
   retryHydrate: () => Promise<void>
 }
@@ -128,7 +124,6 @@ function sessionFromMe(token: string, me: MeResponse, loginAt: string, loginMeth
       floorDepartment: me.user.floorDepartment || '',
       productionRole: me.productionRole,
       employeeCode: me.user.employeeCode || '',
-      hasFloorPin: Boolean(me.user.hasFloorPin),
     },
   }
 }
@@ -203,11 +198,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [addSession],
   )
 
-  const loginWithPin = useCallback(
-    async (employee: string, pin: string, opts?: LoginOptions) => addSession(await apiPinLogin(employee, pin), 'pin', opts),
-    [addSession],
-  )
-
   const logoutUser = useCallback(
     async (userId: string) => {
       const session = sessionsRef.current.find((s) => s.user.id === userId)
@@ -222,16 +212,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setHydrateError(null)
     await secureDelete(LEGACY_TOKEN_KEY)
   }, [dropSession])
-
-  const setMyPin = useCallback(
-    async (userId: string, password: string, pin: string) => {
-      const session = sessionsRef.current.find((s) => s.user.id === userId)
-      if (!session) throw new Error('That employee is not logged in on this tablet')
-      await setMyFloorPin(session.token, password, pin)
-      commit(sessionsRef.current.map((s) => (s.user.id === userId ? { ...s, user: { ...s.user, hasFloorPin: true } } : s)))
-    },
-    [commit],
-  )
 
   const refresh = useCallback(async () => {
     const current = sessionsRef.current
@@ -336,14 +316,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessions,
       loggedOut,
       login,
-      loginWithPin,
       logoutUser,
       logout,
-      setMyPin,
       refresh,
       retryHydrate,
     }),
-    [loading, primary, hydrateError, sessions, loggedOut, login, loginWithPin, logoutUser, logout, setMyPin, refresh, retryHydrate],
+    [loading, primary, hydrateError, sessions, loggedOut, login, logoutUser, logout, refresh, retryHydrate],
   )
 
   return React.createElement(AuthContext.Provider, { value }, children)

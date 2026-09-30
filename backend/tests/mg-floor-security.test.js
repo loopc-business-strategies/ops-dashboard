@@ -418,4 +418,61 @@ describe('MG Floor stats and floor alerts', () => {
     expect(list.status).toBe(200)
     expect(list.body.calls.map((c) => String(c._id))).not.toContain(String(old._id))
   })
+
+  test('Breakdown rings for managers until acknowledged; the tablet can follow its status', async () => {
+    const operator = await createTenantUser('mg', {
+      role: 'department_user',
+      productionRole: undefined,
+      floorDepartment: 'rolling',
+    })
+    const manager = await createTenantUser('mg', { role: 'department_head', productionRole: undefined })
+
+    const raised = await request(app).post('/api/mg-floor/breakdowns').set(mgHeaders(operator)).send({ department: 'rolling' })
+    expect(raised.status).toBe(201)
+    expect(raised.body.alert.status).toBe('OPEN')
+    const id = raised.body.alert._id
+
+    const again = await request(app).post('/api/mg-floor/breakdowns').set(mgHeaders(operator)).send({ department: 'rolling' })
+    expect(again.status).toBe(200)
+    expect(again.body.reused).toBe(true)
+    expect(String(again.body.alert._id)).toBe(String(id))
+
+    expect((await request(app).get('/api/mg-floor/breakdowns').set(mgHeaders(operator))).status).toBe(403)
+    const ringing = await request(app).get('/api/mg-floor/breakdowns').set(mgHeaders(manager))
+    expect(ringing.status).toBe(200)
+    expect(ringing.body.breakdowns).toHaveLength(1)
+    expect(ringing.body.breakdowns[0].metadata.department).toBe('rolling')
+    expect(ringing.body.breakdowns[0].title).toBe('Breakdown — Rolling')
+
+    const calls = await request(app).get('/api/mg-floor/fm-calls').set(mgHeaders(manager))
+    expect(calls.body.calls.map((c) => String(c._id))).not.toContain(String(id))
+    expect((await request(app).post(`/api/mg-floor/fm-calls/${id}/acknowledge`).set(mgHeaders(manager))).status).toBe(404)
+
+    expect((await request(app).post(`/api/mg-floor/breakdowns/${id}/acknowledge`).set(mgHeaders(operator))).status).toBe(403)
+    const waiting = await request(app).get(`/api/mg-floor/breakdowns/${id}`).set(mgHeaders(operator))
+    expect(waiting.status).toBe(200)
+    expect(waiting.body.alert.status).toBe('OPEN')
+
+    const ack = await request(app).post(`/api/mg-floor/breakdowns/${id}/acknowledge`).set(mgHeaders(manager))
+    expect(ack.status).toBe(200)
+    expect(ack.body.alert.status).toBe('ACKNOWLEDGED')
+
+    const seen = await request(app).get(`/api/mg-floor/breakdowns/${id}`).set(mgHeaders(operator))
+    expect(seen.body.alert.status).toBe('ACKNOWLEDGED')
+    expect(seen.body.alert.acknowledgedByName).toBe(manager.name)
+
+    const quiet = await request(app).get('/api/mg-floor/breakdowns').set(mgHeaders(manager))
+    expect(quiet.body.breakdowns).toHaveLength(0)
+
+    const next = await request(app).post('/api/mg-floor/breakdowns').set(mgHeaders(operator)).send({ department: 'rolling' })
+    expect(next.status).toBe(201)
+    expect(String(next.body.alert._id)).not.toBe(String(id))
+  })
+
+  test('Breakdown status refuses other alert types', async () => {
+    const operator = await createTenantUser('mg')
+    const ProductionAlert = require('../models/ProductionAlert')
+    const call = await ProductionAlert.create({ alertNumber: 'AL-T-3', category: 'process', code: 'FLOOR_MANAGER_CALL', title: 'Help' })
+    expect((await request(app).get(`/api/mg-floor/breakdowns/${call._id}`).set(mgHeaders(operator))).status).toBe(404)
+  })
 })

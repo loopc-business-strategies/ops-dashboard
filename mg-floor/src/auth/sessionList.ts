@@ -9,7 +9,6 @@ export type FloorUser = {
   floorDepartment?: string
   productionRole?: string | null
   employeeCode?: string
-  hasFloorPin?: boolean
 }
 
 /** One employee logged in on this tablet. */

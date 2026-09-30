@@ -4,17 +4,18 @@ import { tabletDashboard as td } from '@/src/theme'
 
 type Props = {
   onPress?: () => void
+  /** Grey while no employee is logged in. */
+  idle?: boolean
 }
 
-/** Visual stub — Assign Manager wiring added later. */
-export function AssignManagerButton({ onPress }: Props) {
+export function AssignManagerButton({ onPress, idle }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.btn, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.btn, idle && styles.idle, pressed && styles.pressed]}
     >
-      <Text style={styles.text}>Assign Manager</Text>
+      <Text style={[styles.text, idle && styles.idleText]}>Assign Manager</Text>
     </Pressable>
   )
 }
@@ -29,6 +30,7 @@ const styles = StyleSheet.create({
     borderColor: td.orange,
     borderRadius: td.buttonRadius,
   },
+  idle: { borderColor: td.idleGrey },
   pressed: {
     backgroundColor: td.cream,
     transform: [{ scale: 0.98 }],
@@ -40,4 +42,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 0.5,
   },
+  idleText: { color: td.idleGrey },
 })

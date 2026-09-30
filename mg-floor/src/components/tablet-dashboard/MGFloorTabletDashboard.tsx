@@ -43,7 +43,11 @@ import { LossLimitModal } from './LossLimitModal'
 import type { BatchDirection } from '@/src/api/batchEntries'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
+import { BreakdownButton } from './BreakdownButton'
+import { BreakdownModal } from './BreakdownModal'
+import { useBreakdown } from './useBreakdown'
 import { formatClock } from './metalMapping'
+import { IdleFade } from './IdleFade'
 
 const DASH_MIN_WIDTH = 960
 
@@ -76,6 +80,7 @@ export function MGFloorTabletDashboard() {
   const [manager, setManager] = useState<AssignedManager | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [callOpen, setCallOpen] = useState(false)
+  const [breakdownOpen, setBreakdownOpen] = useState(false)
   const [entryForm, setEntryForm] = useState<EntryForm | null>(null)
   const [limitOpen, setLimitOpen] = useState(false)
   const [fullSize, setFullSize] = useState({ width: 0, height: 0 })
@@ -96,6 +101,17 @@ export function MGFloorTabletDashboard() {
   }, [])
 
   const approvals = useBatchApprovals({ token, department: dept })
+  const breakdown = useBreakdown({ token, department: dept })
+
+  /** One tap reports; while it still waits for the F.M, tapping again only shows its status. */
+  const onBreakdown = () => {
+    if (breakdown.phase !== 'waiting' && breakdown.phase !== 'sending') breakdown.report()
+    setBreakdownOpen(true)
+  }
+  const closeBreakdown = () => {
+    setBreakdownOpen(false)
+    breakdown.dismiss()
+  }
   const metalIn = useMemo(() => sentBatchesFor('IN', approvals.states, approvals.sent), [approvals.states, approvals.sent])
   const metalOut = useMemo(() => sentBatchesFor('OUT', approvals.states, approvals.sent), [approvals.states, approvals.sent])
   const today = localDateKey()
@@ -150,6 +166,10 @@ export function MGFloorTabletDashboard() {
   const senders = useMemo(() => sessions.map((s) => ({ id: s.user.id, name: s.user.name })), [sessions])
   const operatorNames = sessions.map((s) => s.user.name).join(', ')
 
+  /** Nobody logged in: the dashboard greys out and its buttons open the login popup. */
+  const idle = sessions.length === 0
+  const openLogin = () => setLoginOpen(true)
+
   const onLogout = () => {
     if (sessions.length > 1) setConfirmLogoutAll(true)
     else logout().catch(() => {})
@@ -195,15 +215,29 @@ export function MGFloorTabletDashboard() {
           <View style={[styles.grid, { gap: 0 }]}>
             <View style={[styles.col, styles.colLeft, { gap }]}>
               <LoginLogoutRow
-                onLogin={() => setLoginOpen(true)}
+                onLogin={openLogin}
                 onLogout={onLogout}
                 loggedInCount={sessions.length}
               />
-              <AssignManagerButton onPress={() => setAssignOpen(true)} />
-              <DepartmentBadge department={dept} loggedIn={Boolean(token)} />
-              <EmployeeTable employees={employees} onLogout={(id) => logoutUser(id).catch(() => {})} />
+              {idle ? (
+                <Pressable accessibilityRole="button" onPress={openLogin} style={styles.idleBanner}>
+                  <Text style={styles.idleBannerText}>No employee logged in — tap Login to start</Text>
+                </Pressable>
+              ) : null}
+              <AssignManagerButton idle={idle} onPress={idle ? openLogin : () => setAssignOpen(true)} />
+              <IdleFade idle={idle}>
+                <DepartmentBadge department={dept} loggedIn={Boolean(token)} />
+              </IdleFade>
+              <IdleFade idle={idle}>
+                <EmployeeTable employees={employees} onLogout={(id) => logoutUser(id).catch(() => {})} />
+              </IdleFade>
               <View style={styles.leftSpacer} />
-              <CallFMButton onPress={() => setCallOpen(true)} />
+              <BreakdownButton
+                idle={idle}
+                status={breakdown.phase === 'waiting' ? 'Waiting for F.M…' : undefined}
+                onPress={idle ? openLogin : onBreakdown}
+              />
+              <CallFMButton idle={idle} onPress={idle ? openLogin : () => setCallOpen(true)} />
             </View>
 
             <View style={styles.divider} />
@@ -212,16 +246,19 @@ export function MGFloorTabletDashboard() {
               <MetalProcessPanel
                 title="Metal In"
                 rows={panelRows(metalIn, 'IN')}
-                onAdd={() => openNew('IN')}
-                onFix={(row) => openFix('IN', row)}
+                onAdd={idle ? openLogin : () => openNew('IN')}
+                onFix={(row) => (idle ? openLogin() : openFix('IN', row))}
                 compact={compact}
+                idle={idle}
               />
-              <MetalLossCard
-                stats={batchStats.stats}
-                today={today}
-                canSetLimit={Boolean(batchStats.stats?.canSetLossLimit)}
-                onEditLimit={() => setLimitOpen(true)}
-              />
+              <IdleFade idle={idle}>
+                <MetalLossCard
+                  stats={batchStats.stats}
+                  today={today}
+                  canSetLimit={Boolean(batchStats.stats?.canSetLossLimit)}
+                  onEditLimit={() => setLimitOpen(true)}
+                />
+              </IdleFade>
             </View>
 
             <View style={styles.divider} />
@@ -231,12 +268,15 @@ export function MGFloorTabletDashboard() {
                 <MetalProcessPanel
                   title="Metal Out"
                   rows={panelRows(metalOut, 'OUT')}
-                  onAdd={() => openNew('OUT')}
-                  onFix={(row) => openFix('OUT', row)}
+                  onAdd={idle ? openLogin : () => openNew('OUT')}
+                  onFix={(row) => (idle ? openLogin() : openFix('OUT', row))}
                   compact={compact}
+                  idle={idle}
                 />
               </View>
-              <BatchTimeCard stats={batchStats.stats} today={today} />
+              <IdleFade idle={idle}>
+                <BatchTimeCard stats={batchStats.stats} today={today} />
+              </IdleFade>
             </View>
           </View>
         </View>
@@ -253,6 +293,15 @@ export function MGFloorTabletDashboard() {
         department={dept}
         operatorName={operatorNames || user?.name || ''}
         manager={manager}
+      />
+      <BreakdownModal
+        visible={breakdownOpen}
+        phase={breakdown.phase}
+        alert={breakdown.alert}
+        error={breakdown.error}
+        department={dept}
+        onRetry={breakdown.report}
+        onClose={closeBreakdown}
       />
       {entryForm ? (
         <MetalEntryModal
@@ -333,6 +382,15 @@ const styles = StyleSheet.create({
   },
   metalOutBlock: {},
   leftSpacer: { flex: 1 },
+  idleBanner: {
+    borderWidth: 1,
+    borderColor: td.orange,
+    borderRadius: td.radius,
+    backgroundColor: td.cream,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  idleBannerText: { color: td.orange, fontWeight: '700', fontSize: 13, textAlign: 'center' },
   confirmBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

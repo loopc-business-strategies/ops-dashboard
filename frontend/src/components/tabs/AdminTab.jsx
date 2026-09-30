@@ -115,11 +115,7 @@ const EMPTY_FORM = {
   timezone: 'Africa/Johannesburg',
   employeeCode: '',
   notes: '',
-  floorPin: '',
-  clearFloorPin: false,
 }
-
-const FLOOR_PIN_RE = /^\d{4,6}$/
 
 const DEFAULT_SETTINGS = {
   applicationName: 'HR Management System',
@@ -371,42 +367,6 @@ function UserFormFields({ form, setForm, isEdit = false }) {
         </div>
       )}
 
-      {isMg && (
-        <div>
-          <FieldLabel>Floor PIN (MG Floor)</FieldLabel>
-          <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <AdminInput
-              aria-label="Floor PIN (MG Floor)"
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              maxLength={6}
-              value={form.floorPin}
-              disabled={form.clearFloorPin}
-              onChange={(e) => setForm((f) => ({ ...f, floorPin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-              placeholder={isEdit && form.hasFloorPin ? 'Leave blank to keep current PIN' : '4–6 digits (optional)'}
-              style={{ maxWidth: 260 }}
-            />
-            {isEdit && (
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: form.hasFloorPin ? ADMIN.green : ADMIN.inkSoft }}>
-                {form.hasFloorPin ? 'PIN is set' : 'No PIN yet'}
-              </span>
-            )}
-            {isEdit && form.hasFloorPin && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: ADMIN.ink }}>
-                <input
-                  type="checkbox"
-                  checked={form.clearFloorPin}
-                  onChange={(e) => setForm((f) => ({ ...f, clearFloorPin: e.target.checked, floorPin: '' }))}
-                />
-                Clear PIN
-              </label>
-            )}
-          </div>
-          <span style={{ display: 'block', fontSize: '0.72rem', color: ADMIN.inkSoft, marginTop: 4 }}>Quick login on MG Floor tablets with Employee Code (or username) + PIN. Employees can also set their own PIN in the app.</span>
-        </div>
-      )}
-
       {form.role === 'external' && (
         <div>
           <FieldLabel>Allowed Modules</FieldLabel>
@@ -440,7 +400,6 @@ function CreateUserForm({ token, onCreated, onCancel }) {
     if (!form.name.trim()) return setError('Username is required.')
     if (form.password.length < 8) return setError('Password must be at least 8 characters.')
     if ((form.role === 'department_head' || form.role === 'department_user') && !form.department) return setError('Department is required for department roles.')
-    if (form.floorPin && !FLOOR_PIN_RE.test(form.floorPin)) return setError('Floor PIN must be 4 to 6 digits.')
     setLoading(true)
     setError('')
     try {
@@ -459,7 +418,6 @@ function CreateUserForm({ token, onCreated, onCancel }) {
         timezone: form.timezone.trim(),
         employeeCode: form.employeeCode.trim(),
         notes: form.notes.trim(),
-        ...(form.floorPin ? { floorPin: form.floorPin } : {}),
       })
       onCreated()
     } catch (err) {
@@ -501,9 +459,6 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
     timezone: u.timezone || 'Africa/Johannesburg',
     employeeCode: u.employeeCode || '',
     notes: u.notes || '',
-    floorPin: '',
-    clearFloorPin: false,
-    hasFloorPin: Boolean(u.floorPinSetAt),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -512,7 +467,6 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
     if (!form.name.trim()) return setError('Username is required.')
     if (form.password && form.password.length < 8) return setError('Reset password must be at least 8 characters.')
     if ((form.role === 'department_head' || form.role === 'department_user') && !form.department) return setError('Department is required for department roles.')
-    if (form.floorPin && !FLOOR_PIN_RE.test(form.floorPin)) return setError('Floor PIN must be 4 to 6 digits.')
     setSaving(true)
     setError('')
     try {
@@ -531,8 +485,6 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
         timezone: form.timezone.trim(),
         employeeCode: form.employeeCode.trim(),
         notes: form.notes.trim(),
-        ...(form.floorPin ? { floorPin: form.floorPin } : {}),
-        ...(!form.floorPin && form.clearFloorPin ? { clearFloorPin: true } : {}),
       })
       onSave()
     } catch (err) {
@@ -1396,5 +1348,5 @@ function AdminTab() {
   )
 }
 
-export { SettingsTab, CreateUserForm, EditUserModal }
+export { SettingsTab, CreateUserForm }
 export default AdminTab

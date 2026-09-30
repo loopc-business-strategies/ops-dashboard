@@ -8,8 +8,6 @@ const ProductionBatch = require('../models/ProductionBatch')
 const MetalMovement = require('../models/MetalMovement')
 const AuditLog = require('../models/AuditLog')
 const ProductionAlert = require('../models/ProductionAlert')
-const User = require('../models/User')
-const { floorPinError, applyFloorPin } = require('../services/mgFloorPin')
 const attendance = require('../services/mgFloor/attendance')
 const machineAlertService = require('../services/productionControl/machineAlertService')
 const mgFloor = require('../services/mgFloor')
@@ -59,19 +57,42 @@ function emitWorkbookUpdate(req, event, payload = {}) {
   }
 }
 
-/** Rings the Call F.M alarm on open Production Dashboards (SSE; the web host does not proxy Socket.IO). */
-function emitFmCall(event, id) {
+/** Rings a floor alarm on open Production Dashboards (SSE; the web host does not proxy Socket.IO). */
+function emitFloorAlarm(type, event, id) {
   try {
-    publishRealtimeEvent({ type: 'mg-floor:fm-call', tenant: 'mg', data: { event, id: String(id || '') } })
+    publishRealtimeEvent({ type, tenant: 'mg', data: { event, id: String(id || '') } })
   } catch (err) {
-    console.warn('[mg-floor] fm-call emit failed', err?.message || err)
+    console.warn(`[mg-floor] ${type} emit failed`, err?.message || err)
   }
 }
+
+const emitFmCall = (event, id) => emitFloorAlarm('mg-floor:fm-call', event, id)
+const emitBreakdown = (event, id) => emitFloorAlarm('mg-floor:breakdown', event, id)
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 const FM_CALL_CODE = 'FLOOR_MANAGER_CALL'
 /** Older unanswered calls stop ringing so a forgotten call does not alarm every day. */
 const FM_CALL_RING_WINDOW_MS = 12 * 60 * 60 * 1000
+
+/** Unanswered alarms of one kind, newest first, within the ring window. */
+function listRingingAlarms(code) {
+  return ProductionAlert.find({
+    code,
+    status: 'OPEN',
+    createdAt: { $gte: new Date(Date.now() - FM_CALL_RING_WINDOW_MS) },
+  })
+    .select('title message metadata raisedByName createdAt')
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean()
+}
+
+/** Acknowledges an alarm only when it is of the expected kind; returns null when it is not. */
+async function acknowledgeAlarm(req, code) {
+  const existing = await ProductionAlert.findById(req.params.id).select('code').lean()
+  if (!existing || existing.code !== code) return null
+  return machineAlertService.acknowledgeAlert(req, req.params.id)
+}
 
 // ── Removed: scales, weight / camera capture, XRF, gateways, pass-based Metal IN / OUT / Transfer ──
 const REMOVED_PATHS = [
@@ -117,29 +138,6 @@ router.post('/auth/login-check', ...mgProtect, async (req, res) => {
       floorDepartment: normalizeFloorDepartment(req.user.floorDepartment),
     },
   })
-})
-
-// ── Floor PIN (employee self-service) ──────────────
-const setPinSchema = Joi.object({
-  password: Joi.string().min(1).max(128).required(),
-  pin: Joi.string().pattern(/^\d{4,6}$/).required(),
-})
-
-router.post('/me/pin', ...mgProtect, validateBody(setPinSchema), async (req, res) => {
-  try {
-    const TenantUser = await User.getTenantModel(req.tenant)
-    const user = await TenantUser.findById(req.user._id).select('+password')
-    if (!user || !(await user.comparePassword(req.body.password))) {
-      return res.status(401).json({ success: false, code: 'WRONG_PASSWORD', message: 'Password is incorrect.' })
-    }
-    const pinError = floorPinError(req.body.pin)
-    if (pinError) return res.status(400).json({ success: false, message: pinError })
-    await applyFloorPin(user, req.body.pin)
-    await user.save({ validateBeforeSave: false })
-    res.json({ success: true, hasFloorPin: true, floorPinSetAt: user.floorPinSetAt })
-  } catch (err) {
-    handleError(res, err)
-  }
 })
 
 // ── Tablet attendance (each employee's login / logout) ──
@@ -311,16 +309,7 @@ router.post('/alerts', ...mgProtect, requireProductionPermission('raiseAlert'), 
 // ── Call F.M alarm (web Production Dashboard, Floor / Production Managers) ──
 router.get('/fm-calls', ...mgProtect, requireProductionPermission('resolveAlert'), async (req, res) => {
   try {
-    const calls = await ProductionAlert.find({
-      code: FM_CALL_CODE,
-      status: 'OPEN',
-      createdAt: { $gte: new Date(Date.now() - FM_CALL_RING_WINDOW_MS) },
-    })
-      .select('title message metadata raisedByName createdAt')
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean()
-    res.json({ success: true, calls })
+    res.json({ success: true, calls: await listRingingAlarms(FM_CALL_CODE) })
   } catch (err) {
     handleError(res, err)
   }
@@ -328,13 +317,67 @@ router.get('/fm-calls', ...mgProtect, requireProductionPermission('resolveAlert'
 
 router.post('/fm-calls/:id/acknowledge', ...mgProtect, requireProductionPermission('resolveAlert'), validateParams(idParam), async (req, res) => {
   try {
-    const existing = await ProductionAlert.findById(req.params.id).select('code').lean()
-    if (!existing || existing.code !== FM_CALL_CODE) {
-      return res.status(404).json({ success: false, message: 'Floor manager call not found' })
-    }
-    const alert = await machineAlertService.acknowledgeAlert(req, req.params.id)
+    const alert = await acknowledgeAlarm(req, FM_CALL_CODE)
+    if (!alert) return res.status(404).json({ success: false, message: 'Floor manager call not found' })
     emitFmCall('acknowledged', req.params.id)
     res.json({ success: true, alert })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Breakdown alarm (tablet one-tap → red alarm on the web Production Dashboard) ──
+router.post('/breakdowns', ...mgProtect, requireProductionPermission('raiseAlert'), validateBody(Joi.object({
+  department: Joi.string().trim().max(80).allow('', null),
+  operationId: Joi.string().trim().max(120).allow('', null),
+})), async (req, res) => {
+  try {
+    const { alert, reused } = await mgFloor.raiseBreakdown(req, req.body, { ringWindowMs: FM_CALL_RING_WINDOW_MS })
+    if (!reused) emitBreakdown('raised', alert._id)
+    res.status(reused ? 200 : 201).json({ success: true, reused, alert: breakdownStatus(alert) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/breakdowns', ...mgProtect, requireProductionPermission('resolveAlert'), async (req, res) => {
+  try {
+    res.json({ success: true, breakdowns: await listRingingAlarms(mgFloor.BREAKDOWN_CODE) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+/** What the tablet shows after reporting: still waiting, or acknowledged by whom and when. */
+function breakdownStatus(alert) {
+  return {
+    _id: alert._id,
+    status: alert.status,
+    department: alert.metadata?.department || '',
+    createdAt: alert.createdAt,
+    acknowledgedByName: alert.acknowledgedByName || '',
+    acknowledgedAt: alert.acknowledgedAt || null,
+  }
+}
+
+router.get('/breakdowns/:id', ...mgProtect, requireProductionPermission('view'), validateParams(idParam), async (req, res) => {
+  try {
+    const alert = await ProductionAlert.findById(req.params.id).lean()
+    if (!alert || alert.code !== mgFloor.BREAKDOWN_CODE) {
+      return res.status(404).json({ success: false, message: 'Breakdown not found' })
+    }
+    res.json({ success: true, alert: breakdownStatus(alert) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/breakdowns/:id/acknowledge', ...mgProtect, requireProductionPermission('resolveAlert'), validateParams(idParam), async (req, res) => {
+  try {
+    const alert = await acknowledgeAlarm(req, mgFloor.BREAKDOWN_CODE)
+    if (!alert) return res.status(404).json({ success: false, message: 'Breakdown not found' })
+    emitBreakdown('acknowledged', req.params.id)
+    res.json({ success: true, alert: breakdownStatus(alert) })
   } catch (err) {
     handleError(res, err)
   }

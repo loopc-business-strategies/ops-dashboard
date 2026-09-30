@@ -86,6 +86,38 @@ describe('FmCallAlarm', () => {
     await waitFor(() => expect(onCallsChange).toHaveBeenLastCalledWith(calls))
   })
 
+  test('beeps pause while a breakdown is ringing (light stays on) and come back after', async () => {
+    const tones = []
+    class FakeAudioContext {
+      state = 'running'
+      currentTime = 0
+      destination = {}
+      createOscillator() {
+        const osc = { frequency: {}, connect() {}, start() {}, stop() {} }
+        tones.push(osc)
+        return osc
+      }
+      createGain() {
+        return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }
+      }
+      resume() { return Promise.resolve() }
+      close() {}
+    }
+    const original = window.AudioContext
+    window.AudioContext = FakeAudioContext
+    try {
+      list.mockResolvedValue({ calls: [call('a1')] })
+      const { rerender } = render(<FmCallAlarm silenced />)
+      await screen.findByText('CALL F.M')
+      expect(tones).toHaveLength(0)
+
+      rerender(<FmCallAlarm silenced={false} />)
+      await waitFor(() => expect(tones).toHaveLength(3))
+    } finally {
+      window.AudioContext = original
+    }
+  })
+
   test('renders nothing for users who are not Floor / Production Managers', async () => {
     list.mockRejectedValue({ response: { status: 403 } })
     const { container } = render(<FmCallAlarm />)

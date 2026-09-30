@@ -38,6 +38,28 @@ export async function callFloorManager(body: Record<string, unknown>) {
   })
 }
 
+export type BreakdownStatus = {
+  _id: string
+  status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED'
+  department: string
+  createdAt: string
+  acknowledgedByName: string
+  acknowledgedAt: string | null
+}
+
+/** One tap: rings the Breakdown alarm on the Production Dashboard (returns the open one if already ringing). */
+export async function reportBreakdown(body: { department: string; operationId: string }) {
+  return apiRequest<{ success: boolean; reused: boolean; alert: BreakdownStatus }>('/api/mg-floor/breakdowns', {
+    method: 'POST',
+    body,
+    retrySafeGet: false,
+  })
+}
+
+export async function getBreakdown(id: string) {
+  return apiRequest<{ success: boolean; alert: BreakdownStatus }>(`/api/mg-floor/breakdowns/${encodeURIComponent(id)}`)
+}
+
 export async function syncOperations(operations: unknown[], token?: string | null) {
   return apiRequest<{ success: boolean; results: unknown[] }>('/api/mg-floor/sync', {
     method: 'POST',

@@ -3898,6 +3898,60 @@
   background: #fff;
 }
 
+/* ── Breakdown alarm: faster, harder blink than Call F.M ── */
+.pd-fm-alarm--breakdown .pd-fm-alarm-light {
+  border-color: #fff;
+  animation: pd-breakdown-blink 0.5s steps(1, end) infinite;
+}
+
+.pd-fm-alarm--breakdown .pd-fm-alarm-panel,
+.pd-fm-alarm--breakdown .pd-fm-alarm-panel-head {
+  border-color: #991b1b;
+}
+
+.pd-fm-alarm--breakdown .pd-fm-alarm-panel-head,
+.pd-fm-alarm--breakdown .pd-fm-alarm-ack {
+  background: #991b1b;
+}
+
+@keyframes pd-breakdown-blink {
+  0% {
+    background: #dc2626;
+    box-shadow: 0 0 0 3px rgba(254, 202, 202, 0.9), 0 0 22px 6px rgba(239, 68, 68, 0.85);
+  }
+  50% {
+    background: #450a0a;
+    box-shadow: none;
+  }
+}
+
+.pd-dept-card.pd-dept-card--breakdown {
+  border-color: #dc2626;
+  background: #fef2f2;
+  animation: pd-dept-breakdown-blink 0.5s steps(1, end) infinite;
+}
+
+@keyframes pd-dept-breakdown-blink {
+  0% {
+    box-shadow: 0 0 0 4px #dc2626, 0 0 28px 8px rgba(239, 68, 68, 0.75);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #450a0a, 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.pd-status-pill.pd-status-pill--breakdown {
+  background: #dc2626;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  animation: pd-breakdown-blink 0.5s steps(1, end) infinite;
+}
+
+.pd-status-pill--breakdown .pd-status-dot {
+  background: #fff;
+}
+
 /* ── Responsive fit: phone → 4K TV (last in file so it wins the cascade) ── */
 
 /* Room for the fixed "← Ops" button so it never covers the logo/title */

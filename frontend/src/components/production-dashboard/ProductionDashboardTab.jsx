@@ -3,12 +3,23 @@ import { useAuth } from '../../context/AuthContext'
 import { getTenantBranding } from '../../config/tenantBranding'
 import HeaderBar from './HeaderBar'
 import FmCallAlarm from './FmCallAlarm'
+import BreakdownAlarm from './BreakdownAlarm'
 import KpiRow from './KpiRow'
 import DepartmentOverview from './DepartmentOverview'
 import ActionModal from './ActionModal'
 import { useProductionDashboard } from './useProductionDashboard'
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
 import './ProductionDashboard.css'
+
+/** Number of tablet alarms per dashboard department card. */
+function countByDept(alarms) {
+  const byDept = {}
+  alarms.forEach((alarm) => {
+    const key = matchDashboardDeptKey(alarm?.metadata?.department)
+    if (key) byDept[key] = (byDept[key] || 0) + 1
+  })
+  return byDept
+}
 
 function Field({ label, children }) {
   return (
@@ -49,16 +60,11 @@ export default function ProductionDashboardTab() {
   const [form, setForm] = useState({})
   const [awaitingBatches, setAwaitingBatches] = useState([])
   const [fmCalls, setFmCalls] = useState([])
+  const [breakdowns, setBreakdowns] = useState([])
   const autoBatchRef = useRef(false)
 
-  const callingDepts = useMemo(() => {
-    const byDept = {}
-    fmCalls.forEach((call) => {
-      const key = matchDashboardDeptKey(call?.metadata?.department)
-      if (key) byDept[key] = (byDept[key] || 0) + 1
-    })
-    return byDept
-  }, [fmCalls])
+  const callingDepts = useMemo(() => countByDept(fmCalls), [fmCalls])
+  const breakdownDepts = useMemo(() => countByDept(breakdowns), [breakdowns])
 
   const permissions = model?.permissions || {}
   let mgFloorStatus = null
@@ -178,7 +184,12 @@ export default function ProductionDashboardTab() {
         productionStatus={mgFloorStatus}
         onRefresh={() => refresh()}
         loading={loading}
-        alarm={tenantKey === 'mg' ? <FmCallAlarm tenantKey={tenantKey} onCallsChange={setFmCalls} /> : null}
+        alarm={tenantKey === 'mg' ? (
+          <>
+            <BreakdownAlarm tenantKey={tenantKey} onBreakdownsChange={setBreakdowns} />
+            <FmCallAlarm tenantKey={tenantKey} onCallsChange={setFmCalls} silenced={breakdowns.length > 0} />
+          </>
+        ) : null}
       />
 
       {loading && !model ? (
@@ -218,6 +229,7 @@ export default function ProductionDashboardTab() {
             loopcMode={loopcMode}
             currentBatchTimes={tenantKey === 'mg'}
             callingDepts={callingDepts}
+            breakdownDepts={breakdownDepts}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',

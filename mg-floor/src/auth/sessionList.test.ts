@@ -12,7 +12,7 @@ import {
 const session = (id: string, over: Partial<FloorSession> & { dept?: string; manager?: boolean } = {}): FloorSession => ({
   token: `tok-${id}`,
   loginAt: over.loginAt || '2026-09-30T08:00:00.000Z',
-  loginMethod: 'pin',
+  loginMethod: 'password',
   shift: null,
   permissions: { approveBatches: Boolean(over.manager) },
   user: { id, name: `Emp ${id}`, role: 'department_user', floorDepartment: over.dept ?? 'melting' },

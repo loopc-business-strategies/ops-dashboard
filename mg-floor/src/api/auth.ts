@@ -12,13 +12,12 @@ export type LoginResponse = {
     department?: string
     floorDepartment?: string
     employeeCode?: string
-    hasFloorPin?: boolean
     company?: string
   }
   message?: string
 }
 
-export type LoginMethod = 'password' | 'pin' | 'biometric'
+export type LoginMethod = 'password' | 'biometric'
 
 function checkLoginResponse(data: LoginResponse) {
   if (!data.token) throw new Error(data.message || 'Login failed — no token')
@@ -36,25 +35,6 @@ export async function login(name: string, password: string) {
     body: { name, password, company: MG_TENANT },
   })
   return checkLoginResponse(data)
-}
-
-/** Employee code (or username) + floor PIN. */
-export async function pinLogin(employee: string, pin: string) {
-  const data = await apiRequest<LoginResponse>('/api/auth/pin-login', {
-    method: 'POST',
-    token: null,
-    body: { employee, pin, company: MG_TENANT },
-  })
-  return checkLoginResponse(data)
-}
-
-export async function setMyFloorPin(token: string, password: string, pin: string) {
-  return apiRequest<{ success: boolean; hasFloorPin: boolean }>('/api/mg-floor/me/pin', {
-    method: 'POST',
-    token,
-    body: { password, pin },
-    retrySafeGet: false,
-  })
 }
 
 export async function recordAttendanceLogin(token: string, body: { loginMethod: LoginMethod; deviceLabel?: string }) {
@@ -85,7 +65,6 @@ export type MeResponse = {
     department?: string
     floorDepartment?: string
     employeeCode?: string
-    hasFloorPin?: boolean
   }
   shift: unknown
   permissions: Record<string, boolean>

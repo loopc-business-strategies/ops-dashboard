@@ -4,39 +4,39 @@ import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 
 type Props = {
   onPress: () => void
-  disabled?: boolean
-  label?: string
   /** Grey while no employee is logged in. */
   idle?: boolean
+  /** Shown under the label while a reported breakdown waits for the Floor Manager. */
+  status?: string
 }
 
-export function CallFMButton({ onPress, disabled, label = 'Call F.M', idle }: Props) {
+export function BreakdownButton({ onPress, idle, status }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={disabled}
+      accessibilityLabel={status ? `Breakdown, ${status}` : 'Breakdown'}
       onPress={onPress}
       style={({ pressed }) => [
         styles.btn,
         idle && styles.idle,
-        !disabled && !idle && buttonShadow,
+        !idle && buttonShadow,
         pressed && (idle ? styles.idlePressed : styles.pressed),
-        disabled && { opacity: 0.45 },
       ]}
     >
-      <Text style={styles.text}>{label}</Text>
+      <Text style={styles.text}>BREAKDOWN</Text>
+      {status ? <Text style={styles.status}>{status}</Text> : null}
     </Pressable>
   )
 }
 
 const styles = StyleSheet.create({
   btn: {
-    minHeight: 100,
+    minHeight: 90,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: td.orange,
+    backgroundColor: td.red,
     borderWidth: 2,
-    borderColor: td.orange,
+    borderColor: td.red,
     borderRadius: td.buttonRadius,
   },
   idle: {
@@ -44,8 +44,8 @@ const styles = StyleSheet.create({
     borderColor: td.idleGrey,
   },
   pressed: {
-    backgroundColor: td.orangePressed,
-    borderColor: td.orangePressed,
+    backgroundColor: td.redPressed,
+    borderColor: td.redPressed,
     transform: [{ scale: 0.98 }],
   },
   idlePressed: {
@@ -56,8 +56,14 @@ const styles = StyleSheet.create({
   text: {
     color: td.white,
     fontFamily: td.buttonFont,
-    fontWeight: '600',
-    fontSize: 30,
+    fontWeight: '700',
+    fontSize: 28,
     letterSpacing: 1,
+  },
+  status: {
+    color: td.white,
+    fontWeight: '700',
+    fontSize: 14,
+    marginTop: 2,
   },
 })
