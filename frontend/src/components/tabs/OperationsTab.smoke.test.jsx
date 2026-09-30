@@ -38,6 +38,7 @@ vi.mock('../../api/mgFloorBatchEntries', () => ({
     list: (...args) => listBatchEntries(...args),
     approve: vi.fn(),
     reject: vi.fn(),
+    lossLimits: vi.fn(async () => ({ success: true, limits: {} })),
   },
 }))
 

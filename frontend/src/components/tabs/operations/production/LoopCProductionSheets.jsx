@@ -28,8 +28,10 @@ const wrap = {
  * Operations → Production: Excel-style department workbook (CRUD ledger), used by every tenant.
  * `dashboardSource`: the Production Dashboard is built from these rows (LoopC always; MG on days with rows).
  * `mgFloorSync`: MG Floor / Production Managers can re-apply approved MG Floor batches.
+ * `showLossLimits`: MG — colour Loss % red above each department's limit set on the tablet.
  */
-export default function LoopCProductionSheets({ dashboardSource = true, mgFloorSync = false }) {
+export default function LoopCProductionSheets({ dashboardSource = true, mgFloorSync = false, showLossLimits = false }) {
+  const [lossLimits, setLossLimits] = useState({})
   const [syncing, setSyncing] = useState(false)
   const [syncNote, setSyncNote] = useState('')
   const [entries, setEntries] = useState([])
@@ -80,6 +82,15 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
     load()
     return () => { mounted = false }
   }, [])
+
+  useEffect(() => {
+    if (!showLossLimits) return undefined
+    let mounted = true
+    mgFloorBatchEntriesApi.lossLimits()
+      .then((res) => { if (mounted) setLossLimits(res?.limits || {}) })
+      .catch(() => { if (mounted) setLossLimits({}) })
+    return () => { mounted = false }
+  }, [showLossLimits])
 
   const allRows = useMemo(() => {
     const mapped = (Array.isArray(entries) ? entries : []).map(mapEntryToRow)
@@ -275,6 +286,7 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
               dateFrom={df.dateFrom || ''}
               dateTo={df.dateTo || ''}
               onDateFilterChange={(next) => handleDeptDateFilter(department.key, next)}
+              lossLimitPct={lossLimits[department.key] ?? null}
             />
           )
         })}

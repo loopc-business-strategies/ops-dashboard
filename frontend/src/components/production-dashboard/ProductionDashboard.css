@@ -3700,3 +3700,292 @@
     margin-top: 0;
   }
 }
+
+/* ── Call F.M alarm (MG header, top right) ── */
+.pd-fm-alarm {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pd-fm-alarm-mute {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: var(--pd-on-header);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pd-fm-alarm-mute:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pd-fm-alarm-mute[aria-pressed='true'] {
+  border-color: #fca5a5;
+  color: #fecaca;
+}
+
+.pd-fm-alarm-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #dc2626;
+  border: 2px solid #fecaca;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  animation: pd-fm-alarm-blink 0.9s ease-in-out infinite;
+}
+
+.pd-fm-alarm-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
+.pd-fm-alarm-count {
+  min-width: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.35rem;
+  text-align: center;
+}
+
+@keyframes pd-fm-alarm-blink {
+  0%, 100% {
+    background: #dc2626;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.75), 0 0 18px 4px rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    background: #7f1d1d;
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0), 0 0 4px 0 rgba(239, 68, 68, 0.2);
+  }
+}
+
+.pd-fm-alarm-hint {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fecaca;
+}
+
+.pd-fm-alarm-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1000;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: 70vh;
+  overflow-y: auto;
+  background: #fff;
+  color: #1c2a33;
+  border: 2px solid #dc2626;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  text-align: left;
+}
+
+.pd-fm-alarm-panel-head {
+  background: #dc2626;
+  color: #fff;
+  padding: 0.6rem 0.85rem;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.pd-fm-alarm-error {
+  margin: 0;
+  padding: 0.5rem 0.85rem;
+  color: #b91c1c;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.pd-fm-alarm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pd-fm-alarm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.pd-fm-alarm-item:last-child {
+  border-bottom: none;
+}
+
+.pd-fm-alarm-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 12.5px;
+  color: #4b5563;
+}
+
+.pd-fm-alarm-item-text strong {
+  font-size: 14px;
+  color: #111827;
+}
+
+.pd-fm-alarm-item-text small {
+  color: #6b7280;
+}
+
+.pd-fm-alarm-ack {
+  flex-shrink: 0;
+  background: #dc2626;
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pd-fm-alarm-ack:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Department card of a tablet that pressed Call F.M */
+.pd-dept-card.pd-dept-card--calling {
+  border-color: #dc2626;
+  animation: pd-dept-calling-blink 0.9s ease-in-out infinite;
+}
+
+@keyframes pd-dept-calling-blink {
+  0%, 100% {
+    box-shadow: 0 0 0 3px #dc2626, 0 0 22px 6px rgba(239, 68, 68, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2), 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.pd-status-pill.pd-status-pill--calling {
+  background: #dc2626;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  animation: pd-fm-alarm-blink 0.9s ease-in-out infinite;
+}
+
+.pd-status-pill--calling .pd-status-dot {
+  background: #fff;
+}
+
+/* ── Responsive fit: phone → 4K TV (last in file so it wins the cascade) ── */
+
+/* Room for the fixed "← Ops" button so it never covers the logo/title */
+.pd-fullscreen-page .pd-header-brand {
+  padding-left: calc(0.75rem + 46px);
+}
+
+.pd-dept-batches-row {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+.pd-dept-batches-row span {
+  white-space: nowrap;
+}
+
+@media (max-width: 1199px) {
+  .pd-fullscreen-page .pd-header--navy.pd-header--control {
+    padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+  }
+
+  .pd-layout--control-center .pd-dept-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 599px) {
+  .pd-layout--control-center .pd-dept-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pd-fullscreen-page .pd-header--navy .pd-title {
+    font-size: 12.5px;
+    letter-spacing: 0.03em;
+  }
+
+  /* Metal IN | Metal OUT side by side, Batches on its own row */
+  .pd-dept-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pd-dept-metric.pd-dept-metric--out {
+    border-top: none;
+    padding-top: 0;
+    border-left: 1px solid #E2E8F0;
+    padding-left: 0.55rem;
+  }
+
+  .pd-dept-metric.pd-dept-metric--batches {
+    grid-column: 1 / -1;
+  }
+
+  .pd-batch-progress-end--over {
+    margin-left: auto;
+  }
+}
+
+/* Big screens: scale the whole 1920×1080 layout up instead of leaving empty
+   space. Height is divided by the zoom so the page still fits one screen.
+   Height guards keep ultra-wide (e.g. 3440×1440) on the normal layout. */
+@media (min-width: 2400px) and (min-height: 1300px) {
+  .pd-fullscreen-page {
+    zoom: 1.3333;
+    height: calc(100vh / 1.3333);
+    height: calc(100dvh / 1.3333);
+  }
+}
+
+@media (min-width: 3200px) and (min-height: 1700px) {
+  .pd-fullscreen-page {
+    zoom: 1.6667;
+    height: calc(100vh / 1.6667);
+    height: calc(100dvh / 1.6667);
+  }
+}
+
+@media (min-width: 3800px) and (min-height: 2100px) {
+  .pd-fullscreen-page {
+    zoom: 2;
+    height: calc(100vh / 2);
+    height: calc(100dvh / 2);
+  }
+}
+
+@media (min-width: 5000px) and (min-height: 2800px) {
+  .pd-fullscreen-page {
+    zoom: 2.6667;
+    height: calc(100vh / 2.6667);
+    height: calc(100dvh / 2.6667);
+  }
+}

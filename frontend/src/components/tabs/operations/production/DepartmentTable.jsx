@@ -3,11 +3,15 @@ import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import {
   MG_FLOOR_EDITABLE_KEYS,
   SHEET_COLUMNS,
+  computeDepartmentTotals,
   computeFineGold,
   formatMinutes,
   formatPurity,
   formatWeight,
+  isOverLossLimit,
+  isOverdueBatch,
   isoDate,
+  lossFigures,
   sortRows,
 } from './productionSheetUtils'
 
@@ -28,7 +32,7 @@ const scrollBox = {
 
 const table = {
   width: '100%',
-  minWidth: 1880,
+  minWidth: 2340,
   borderCollapse: 'separate',
   borderSpacing: 0,
   fontSize: '0.88rem',
@@ -116,12 +120,25 @@ const floorBadge = {
   fontWeight: 800,
 }
 
+const totalTd = {
+  ...tdBase,
+  position: 'sticky',
+  bottom: 0,
+  zIndex: 1,
+  background: '#E2E8F0',
+  borderTop: '2px solid #94A3B8',
+  fontWeight: 800,
+}
+
+const overLimitStyle = { color: '#B91C1C', fontWeight: 800 }
+
 const EDITABLE_KEYS = new Set([
   'date',
   'batch',
   'metalIn',
   'purity',
   'metalOut',
+  'purityOut',
   'batchStarted',
   'batchOver',
   'departmentManager',
@@ -131,7 +148,55 @@ const EDITABLE_KEYS = new Set([
   'requests',
 ])
 
-function cellDisplay(row, key) {
+const GAIN_TITLE = 'Metal OUT is more than Metal IN — check the weights'
+
+function metalLossCell(row) {
+  if (row.metalGain == null) return row.metalLossDisplay ?? formatWeight(row.metalLoss)
+  return <span style={overLimitStyle} title={GAIN_TITLE}>Gain +{formatWeight(row.metalGain)}</span>
+}
+
+function timeBatchCell(row) {
+  const text = formatMinutes(row.timeBatch)
+  if (!isOverdueBatch(row)) return text
+  return (
+    <span style={overLimitStyle} title="Still open after 12 hours — was the Metal Out sent?">
+      {text} · Metal Out missing?
+    </span>
+  )
+}
+
+function lossPctCell(lossPct, lossLimitPct) {
+  if (lossPct == null) return '—'
+  if (lossPct < 0) return <span style={overLimitStyle} title={GAIN_TITLE}>{`${lossPct}%`}</span>
+  if (!isOverLossLimit(lossPct, lossLimitPct)) return `${lossPct}%`
+  return (
+    <span style={overLimitStyle} title={`Above the ${lossLimitPct}% loss limit`}>
+      {`${lossPct}%`}
+    </span>
+  )
+}
+
+function fineGoldOutCell(value, estimated) {
+  if (value == null) return '—'
+  if (!estimated) return formatWeight(value)
+  return <span title="Purity OUT not recorded — worked out with Purity IN">≈ {formatWeight(value)}</span>
+}
+
+function fineLossCell(value) {
+  if (value == null) return '—'
+  if (value >= 0) return formatWeight(value)
+  return (
+    <span style={overLimitStyle} title="Fine gold OUT is more than IN — check the purities">
+      {formatWeight(value)}
+    </span>
+  )
+}
+
+function cellDisplay(row, key, lossLimitPct = null) {
+  if (key === 'purityOut') return formatPurity(row.purityOut)
+  if (key === 'fineGoldOut') return fineGoldOutCell(row.fineGoldOut, row.fineGoldOutEstimated)
+  if (key === 'lossPct') return lossPctCell(row.lossPct, lossLimitPct)
+  if (key === 'fineLoss') return fineLossCell(row.fineLoss)
   if (key === 'batch' && row.fromFloor) {
     return (
       <span title="From an approved MG Floor batch — metal, times and names are read-only">
@@ -144,8 +209,8 @@ function cellDisplay(row, key) {
   if (key === 'purity') return formatPurity(row.purity)
   if (key === 'fineGold') return formatWeight(row.fineGold)
   if (key === 'metalOut') return row.metalOutDisplay
-  if (key === 'metalLoss') return row.metalLossDisplay
-  if (key === 'timeBatch') return row.timeBatchDisplay
+  if (key === 'metalLoss') return metalLossCell(row)
+  if (key === 'timeBatch') return timeBatchCell(row)
   return row[key] ?? '—'
 }
 
@@ -195,8 +260,15 @@ function patchDraft(prev, patch) {
     const p = next.purity == null || next.purity === '' ? null : Number(next.purity)
     next.purity = Number.isFinite(p) ? p : null
   }
+  if (patch.purityOut !== undefined) {
+    const p = next.purityOut == null || next.purityOut === '' ? null : Number(next.purityOut)
+    next.purityOut = Number.isFinite(p) ? p : null
+  }
   if (patch.metalIn !== undefined || patch.purity !== undefined) {
     next.fineGold = computeFineGold(next.metalIn, next.purity)
+  }
+  if (['metalIn', 'metalOut', 'purity', 'purityOut'].some((k) => patch[k] !== undefined)) {
+    Object.assign(next, lossFigures({ ...next, fineGoldOut: null }))
   }
   if (patch.batchStartedRaw !== undefined || patch.batchOverRaw !== undefined) {
     const mins = durationFrom(next.batchStartedRaw, next.batchOverRaw)
@@ -226,6 +298,7 @@ export default function DepartmentTable({
   onSaveRow,
   onDeleteRow,
   onAddRow,
+  lossLimitPct = null,
 }) {
   const [sortKey, setSortKey] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
@@ -314,39 +387,77 @@ export default function DepartmentTable({
 
   const colSpan = SHEET_COLUMNS.length + (editable ? 1 : 0)
 
+  const totals = useMemo(() => computeDepartmentTotals(rows || []), [rows])
+
+  const totalCell = (key) => {
+    const t = totals
+    if (key === 'date') return 'Total'
+    if (key === 'batch') return `${t.batches} ${t.batches === 1 ? 'batch' : 'batches'}`
+    if (key === 'metalLoss' && t.gains) {
+      return (
+        <>
+          {formatWeight(t.metalLoss)}
+          <span style={overLimitStyle} title={GAIN_TITLE}> · {t.gains} gain{t.gains === 1 ? '' : 's'}</span>
+        </>
+      )
+    }
+    if (key === 'metalIn' || key === 'fineGold' || key === 'metalOut' || key === 'metalLoss') return formatWeight(t[key])
+    if (key === 'purity' || key === 'purityOut') return formatPurity(t[key])
+    if (key === 'fineGoldOut') return fineGoldOutCell(t.fineGoldOut, t.fineGoldOutEstimated)
+    if (key === 'lossPct') return lossPctCell(t.lossPct, lossLimitPct)
+    if (key === 'fineLoss') return fineLossCell(t.fineLoss)
+    if (key === 'timeBatch') {
+      const avg = t.avgTime == null ? '—' : (
+        <span title={`Average of ${t.finishedBatches} finished ${t.finishedBatches === 1 ? 'batch' : 'batches'}`}>
+          Avg {formatMinutes(t.avgTime)}
+        </span>
+      )
+      if (!t.overdue) return avg
+      return (
+        <>
+          {avg}
+          <span style={overLimitStyle} title="Batches still open after 12 hours — was the Metal Out sent?">
+            {' · '}{t.overdue} open over 12h
+          </span>
+        </>
+      )
+    }
+    return ''
+  }
+
   const renderEditableCell = (row, col) => {
     const draft = getDraft(row)
     const key = col.key
 
     if (row.fromFloor && !MG_FLOOR_EDITABLE_KEYS.includes(key)) {
-      return cellDisplay(draft, key)
+      return cellDisplay(draft, key, lossLimitPct)
     }
 
-    if (key === 'metalLoss' || key === 'timeBatch' || key === 'fineGold') {
-      return (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {key === 'timeBatch' ? formatMinutes(draft.timeBatch) : formatWeight(draft[key])}
-        </span>
-      )
+    if (key === 'fineGoldOut' || key === 'lossPct' || key === 'fineLoss' || key === 'metalLoss' || key === 'timeBatch') {
+      return cellDisplay(draft, key, lossLimitPct)
+    }
+
+    if (key === 'fineGold') {
+      return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatWeight(draft.fineGold)}</span>
     }
 
     if (!EDITABLE_KEYS.has(key)) {
-      return cellDisplay(draft, key)
+      return cellDisplay(draft, key, lossLimitPct)
     }
 
-    if (key === 'purity') {
+    if (key === 'purity' || key === 'purityOut') {
       return (
         <input
           type="number"
           min="0"
           max="100"
           step="0.01"
-          aria-label="Purity %"
+          aria-label={key === 'purity' ? 'Purity IN %' : 'Purity OUT %'}
           style={{ ...inputStyle, textAlign: 'right', minWidth: 72 }}
-          value={draft.purity == null ? '' : draft.purity}
+          value={draft[key] == null ? '' : draft[key]}
           onChange={(e) => {
             const v = e.target.value
-            setField(row, { purity: v === '' ? null : v })
+            setField(row, { [key]: v === '' ? null : v })
           }}
         />
       )
@@ -444,7 +555,7 @@ export default function DepartmentTable({
               fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
             }}
           >
-            {editing ? renderEditableCell(row, col) : cellDisplay(displayRow, col.key)}
+            {editing ? renderEditableCell(row, col) : cellDisplay(displayRow, col.key, lossLimitPct)}
           </td>
         ))}
         {editable ? (
@@ -526,6 +637,25 @@ export default function DepartmentTable({
               sorted.map((row, idx) => renderRow(row, idx))
             )}
           </tbody>
+          {sorted.length ? (
+            <tfoot>
+              <tr data-testid="department-total-row">
+                {SHEET_COLUMNS.map((col) => (
+                  <td
+                    key={col.key}
+                    style={{
+                      ...totalTd,
+                      textAlign: col.align || 'left',
+                      fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
+                    }}
+                  >
+                    {totalCell(col.key)}
+                  </td>
+                ))}
+                {editable ? <td style={totalTd} /> : null}
+              </tr>
+            </tfoot>
+          ) : null}
         </table>
       </div>
       {editable ? (

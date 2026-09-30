@@ -142,6 +142,7 @@ export default function DepartmentGroup({
   dateFrom = '',
   dateTo = '',
   onDateFilterChange,
+  lossLimitPct = null,
 }) {
   const count = rows?.length || 0
   const status = groupStatusLabel(rows || [])
@@ -173,6 +174,11 @@ export default function DepartmentGroup({
             {count} {count === 1 ? 'Record' : 'Records'}
           </span>
           <span style={{ ...statusPill(status), marginLeft: '0.35rem' }}>{status}</span>
+          {lossLimitPct != null ? (
+            <span style={{ ...meta, marginLeft: '0.35rem' }} title="Loss % above this shows red (set on the MG Floor tablet)">
+              Loss limit {lossLimitPct}%
+            </span>
+          ) : null}
         </button>
 
         <div
@@ -215,6 +221,7 @@ export default function DepartmentGroup({
           onSaveRow={onSaveRow}
           onDeleteRow={onDeleteRow}
           onAddRow={onAddRow}
+          lossLimitPct={lossLimitPct}
         />
       ) : null}
     </section>

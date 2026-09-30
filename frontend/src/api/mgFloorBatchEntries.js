@@ -9,4 +9,6 @@ export const mgFloorBatchEntriesApi = {
   reject: async (id, reason) => (await axios.post(`${BASE}/${encodeURIComponent(id)}/reject`, { reason })).data,
   /** Re-applies approved batches to the Operations → Production workbook. */
   syncWorkbook: async () => (await axios.post(`${BASE}/sync-workbook`, {})).data,
+  /** Loss warning limit per department set on the tablet, e.g. { melting: 0.5 }. */
+  lossLimits: async () => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-stats/loss-limits`)).data,
 }

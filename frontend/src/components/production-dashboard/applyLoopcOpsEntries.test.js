@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { applyLoopcOpsEntriesToModel } from './applyLoopcOpsEntries'
-import { dayKey } from './safeMath'
+import { addDays, dayKey } from './safeMath'
 
 const baseModel = () => ({
   hasLiveProduction: false,
@@ -84,5 +84,22 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
     expect(next.header.activeBatches).toBe(1)
     expect(next.underProductionKpi.activeBatches).toBe(1)
     expect(next.compactKpis.underProduction).toBe(525)
+  })
+
+  test('Yesterday vs Today compares today\'s output with yesterday\'s workbook output', () => {
+    const yesterday = dayKey(addDays(new Date(), -1))
+    const older = dayKey(addDays(new Date(), -2))
+    const prior = [
+      mgFloorRow({ _id: 'y1', date: yesterday, metalOut: 300 }),
+      mgFloorRow({ _id: 'y2', date: yesterday, departmentKey: 'melting', metalOut: 100 }),
+      mgFloorRow({ _id: 'o1', date: older, metalOut: 5000 }),
+    ]
+    const next = applyLoopcOpsEntriesToModel(baseModel(), [mgFloorRow({ metalOut: 500 })], prior, { keepModelWhenEmpty: true })
+    expect(next.compactKpis.yesterdayOutput).toBe(400)
+    expect(next.compactKpis.yesterdayVsToday).toBe(25)
+
+    const noYesterday = applyLoopcOpsEntriesToModel(baseModel(), [mgFloorRow()], [prior[2]], { keepModelWhenEmpty: true })
+    expect(noYesterday.compactKpis.yesterdayOutput).toBeNull()
+    expect(noYesterday.compactKpis.yesterdayVsToday).toBeNull()
   })
 })

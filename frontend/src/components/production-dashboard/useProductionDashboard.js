@@ -74,6 +74,14 @@ async function fetchPriorOpsEntries(signal) {
   return { entries }
 }
 
+/** MG only needs yesterday's workbook rows (Yesterday vs Today KPI). */
+function fetchYesterdayOpsEntries(signal) {
+  return productionControlApi.listOperationsEntries(
+    { date: dayKey(addDays(new Date(), -1)), limit: 500 },
+    { signal },
+  ).catch(() => null)
+}
+
 /**
  * Progressive Production Dashboard loader + floor actions.
  */
@@ -223,6 +231,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         )
       }
       if (isLoopc) corePromises.push(fetchPriorOpsEntries(ac.signal))
+      else if (isMg) corePromises.push(fetchYesterdayOpsEntries(ac.signal))
 
       const [
         summaryRes,
@@ -313,7 +322,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load Production Dashboard')
       if (!soft) setLoading(false)
     }
-  }, [publish, isLoopc, usesWorkbook])
+  }, [publish, isLoopc, isMg, usesWorkbook])
 
   const softRefreshFloor = useCallback(async () => {
     const ac = new AbortController()
@@ -333,6 +342,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         )
       }
       if (isLoopc) tasks.push(fetchPriorOpsEntries(ac.signal))
+      else if (isMg) tasks.push(fetchYesterdayOpsEntries(ac.signal))
       const [summaryRes, boardRes, widgetsRes, shiftRes, opsEntriesRes, opsEntriesAllRes] = await Promise.all(tasks)
       if (!isLoopc && !summaryRes && !boardRes && !widgetsRes && !opsEntriesRes) return
       const opsEntries = opsEntriesRes?.entries || opsEntriesRes?.items || []
@@ -350,7 +360,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
     } catch {
       /* ignore soft refresh errors */
     }
-  }, [publish, isLoopc, usesWorkbook])
+  }, [publish, isLoopc, isMg, usesWorkbook])
 
   const afterWrite = useCallback(async () => {
     await softRefreshFloor()

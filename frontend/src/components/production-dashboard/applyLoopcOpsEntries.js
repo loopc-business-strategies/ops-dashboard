@@ -1,5 +1,5 @@
 import { DASHBOARD_DEPARTMENTS } from './departmentConfig'
-import { dayKey } from './safeMath'
+import { addDays, dayKey, percentChange } from './safeMath'
 
 function numOrNull(v) {
   if (v == null || v === '') return null
@@ -178,9 +178,12 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
     const times = rows
       .map((e) => opsTimeBatchMinutes(e))
       .filter((n) => n != null && Number.isFinite(n))
-    // Avg. Time = sum(Ops Time/Batch) / n
-    const avgTimeMin = times.length
-      ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+    // Avg. Time = finished batches only; a running batch would drag the average with its clock
+    const finishedTimes = rows
+      .map((e) => completedBatchMinutes(e))
+      .filter((n) => n != null && Number.isFinite(n))
+    const avgTimeMin = finishedTimes.length
+      ? Math.round(finishedTimes.reduce((a, b) => a + b, 0) / finishedTimes.length)
       : null
     const primaryRaw = opsTimeBatchMinutes(primary)
     const primaryElapsed = primaryRaw != null
@@ -214,7 +217,8 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       currentBatchStartedAt: primary?.batchStartedAt || null,
       currentBatchOverAt: primary?.batchOverAt || null,
       elapsedMin: primaryElapsed,
-      avgTimeMin: avgTimeMin ?? primaryElapsed,
+      avgTimeMin,
+      avgTimeFinishedOnly: true,
       metalIn: metalInVal,
       metalOut: metalOutVal,
       metalBalance,
@@ -287,6 +291,14 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
   const running = list.filter((e) => entryStatus(e) === 'Running').length
   const completed = list.filter((e) => entryStatus(e) === 'Completed').length
 
+  const yesterday = dayKey(addDays(new Date(), -1))
+  let yesterdayOutput = null
+  allList.forEach((e) => {
+    if (String(e?.date || '').trim() !== yesterday) return
+    const out = numOrNull(e.metalOut)
+    if (out != null) yesterdayOutput = (yesterdayOutput || 0) + out
+  })
+
   return {
     hasOpsData: hasAny || list.length > 0,
     deptCards,
@@ -303,6 +315,8 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null) {
       metalIn: hasAny ? totalIn : null,
       metalOut: hasAny ? totalOut : null,
       metalLoss: hasAny ? totalLoss : null,
+      yesterdayOutput,
+      yesterdayVsToday: hasAny ? percentChange(totalOut, yesterdayOutput) : null,
     },
   }
 }
@@ -352,6 +366,8 @@ export function applyLoopcOpsEntriesToModel(model, entries, entriesAll = null, {
       totalProductionToday: k.totalProductionToday,
       underProduction: k.underProduction,
       totalOutput: k.totalOutput,
+      yesterdayOutput: k.yesterdayOutput,
+      yesterdayVsToday: k.yesterdayVsToday,
     },
     underProductionKpi: {
       ...(model.underProductionKpi || {}),

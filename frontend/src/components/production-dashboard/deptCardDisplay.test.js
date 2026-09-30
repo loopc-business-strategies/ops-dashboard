@@ -46,6 +46,25 @@ describe('MG Production Dashboard card times follow the current batch', () => {
     expect(ui.batchOverLabel).toBe(clock(b2.batchOverAt))
   })
 
+  test('Avg. Time counts finished batches only, not the running batch clock', () => {
+    const overlay = buildLoopcOpsDashboardOverlay([b1, b2, b3Running])
+    const card = overlay.deptCards.find((c) => c.key === 'rolling')
+    expect(card.avgTimeMin).toBe(6)
+    const withRunning = resolveDeptCardDisplay(card, overlay.batchMonitorRows, [], mgOptions)
+    const finishedOnly = buildLoopcOpsDashboardOverlay([b1, b2])
+    const withoutRunning = resolveDeptCardDisplay(
+      finishedOnly.deptCards.find((c) => c.key === 'rolling'),
+      finishedOnly.batchMonitorRows,
+      [],
+      mgOptions,
+    )
+    expect(withRunning.avgTimeLabel).toBe(withoutRunning.avgTimeLabel)
+
+    const onlyRunning = buildLoopcOpsDashboardOverlay([b3Running])
+    const ui = resolveDeptCardDisplay(onlyRunning.deptCards.find((c) => c.key === 'rolling'), onlyRunning.batchMonitorRows, [], mgOptions)
+    expect(ui.avgTimeLabel).toBe('—')
+  })
+
   test('cards not built from the workbook keep their own times with the MG option', () => {
     const liveCard = { key: 'rolling', name: 'Rolling', status: 'Running', startedAt: '2026-09-28T06:00:00.000Z', avgTimeMin: 30 }
     const ui = resolveDeptCardDisplay(liveCard, [], [], mgOptions)

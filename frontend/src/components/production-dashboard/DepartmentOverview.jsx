@@ -74,7 +74,9 @@ function DeptCard({
   suppressDemo = false,
   loopcMode = false,
   currentBatchTimes = false,
+  callCount = 0,
 }) {
+  const calling = callCount > 0
   const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode, currentBatchTimes })
   const tone = statusClass(ui.status)
   const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
@@ -83,7 +85,7 @@ function DeptCard({
 
   return (
     <article
-      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${selected ? ' pd-dept-card--selected' : ''}`}
+      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${selected ? ' pd-dept-card--selected' : ''}${calling ? ' pd-dept-card--calling' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect?.(card.key)}
@@ -103,10 +105,21 @@ function DeptCard({
           <h3 className="pd-dept-name">{ui.name}</h3>
           {ui.subtitle ? <p className="pd-dept-subtitle">{ui.subtitle}</p> : null}
         </div>
-        <span className={`pd-status-pill pd-status-pill--${tone}`}>
-          <span className="pd-status-dot" aria-hidden />
-          {ui.status || 'Idle'}
-        </span>
+        {calling ? (
+          <span
+            className="pd-status-pill pd-status-pill--calling"
+            role="alert"
+            title="Operator is calling the Floor Manager — acknowledge from CALL F.M at the top"
+          >
+            <span className="pd-status-dot" aria-hidden />
+            CALL F.M{callCount > 1 ? ` ×${callCount}` : ''}
+          </span>
+        ) : (
+          <span className={`pd-status-pill pd-status-pill--${tone}`}>
+            <span className="pd-status-dot" aria-hidden />
+            {ui.status || 'Idle'}
+          </span>
+        )}
       </div>
 
       <div className="pd-dept-people">
@@ -260,6 +273,7 @@ export default function DepartmentOverview({
   suppressDemo = false,
   loopcMode = false,
   currentBatchTimes = false,
+  callingDepts = {},
 }) {
   const list = cards || []
 
@@ -281,6 +295,7 @@ export default function DepartmentOverview({
                 suppressDemo={suppressDemo}
                 loopcMode={loopcMode}
                 currentBatchTimes={currentBatchTimes}
+                callCount={callingDepts[card.key] || 0}
               />
             ))}
           </div>

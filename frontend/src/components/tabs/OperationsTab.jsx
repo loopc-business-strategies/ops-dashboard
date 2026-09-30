@@ -503,7 +503,11 @@ function LegacyOperationsTab({ tenantKey }) {
 
       {activeTab === 'production' && (
         <Suspense fallback={<OpsSubTabFallback />}>
-          <ProductionSheets dashboardSource={tenantKey === 'mg'} mgFloorSync={fmAccess.canDecide} />
+          <ProductionSheets
+            dashboardSource={tenantKey === 'mg'}
+            mgFloorSync={fmAccess.canDecide}
+            showLossLimits={tenantKey === 'mg'}
+          />
         </Suspense>
       )}
       {activeTab === 'kpi' && (

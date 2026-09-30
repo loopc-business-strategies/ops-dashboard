@@ -303,7 +303,9 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   const avgFromCard = hasNum(card.avgTimeMin) ? Number(card.avgTimeMin) : null
   // LoopC: prefer card.avgTimeMin (sum of Ops Time/Batch ÷ n). Never use primary alone when n > 1.
   let avgTimeMin
-  if (loopcMode) {
+  if (card.avgTimeFinishedOnly) {
+    avgTimeMin = avgFromCard
+  } else if (loopcMode) {
     avgTimeMin = avgFromCard
       ?? avgFromBatches
       ?? (durations.length <= 1 && hasNum(card.elapsedMin) ? Number(card.elapsedMin) : null)

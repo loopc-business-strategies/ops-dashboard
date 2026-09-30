@@ -2,11 +2,12 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { getTenantBranding } from '../../config/tenantBranding'
 import HeaderBar from './HeaderBar'
+import FmCallAlarm from './FmCallAlarm'
 import KpiRow from './KpiRow'
 import DepartmentOverview from './DepartmentOverview'
 import ActionModal from './ActionModal'
 import { useProductionDashboard } from './useProductionDashboard'
-import { DASHBOARD_DEPARTMENTS } from './departmentConfig'
+import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
 import './ProductionDashboard.css'
 
 function Field({ label, children }) {
@@ -47,7 +48,17 @@ export default function ProductionDashboardTab() {
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
   const [awaitingBatches, setAwaitingBatches] = useState([])
+  const [fmCalls, setFmCalls] = useState([])
   const autoBatchRef = useRef(false)
+
+  const callingDepts = useMemo(() => {
+    const byDept = {}
+    fmCalls.forEach((call) => {
+      const key = matchDashboardDeptKey(call?.metadata?.department)
+      if (key) byDept[key] = (byDept[key] || 0) + 1
+    })
+    return byDept
+  }, [fmCalls])
 
   const permissions = model?.permissions || {}
   let mgFloorStatus = null
@@ -167,6 +178,7 @@ export default function ProductionDashboardTab() {
         productionStatus={mgFloorStatus}
         onRefresh={() => refresh()}
         loading={loading}
+        alarm={tenantKey === 'mg' ? <FmCallAlarm tenantKey={tenantKey} onCallsChange={setFmCalls} /> : null}
       />
 
       {loading && !model ? (
@@ -205,6 +217,7 @@ export default function ProductionDashboardTab() {
             suppressDemo={suppressDemo}
             loopcMode={loopcMode}
             currentBatchTimes={tenantKey === 'mg'}
+            callingDepts={callingDepts}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',

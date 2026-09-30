@@ -44,6 +44,7 @@ export default function TabFloorManager({ showToast, onChanged }) {
   const [busyId, setBusyId] = useState(null)
   const [rejecting, setRejecting] = useState(null)
   const [reason, setReason] = useState('')
+  const [rejectError, setRejectError] = useState('')
   const requestRef = useRef(0)
 
   const load = useCallback(async () => {
@@ -95,17 +96,18 @@ export default function TabFloorManager({ showToast, onChanged }) {
     const text = reason.trim()
     if (!entry || busyId) return
     if (text.length < 3) {
-      showToast('Reason needed', 'Write at least 3 characters so the operator knows what to fix.')
+      setRejectError('Write at least 3 characters so the operator knows what to fix.')
       return
     }
     setBusyId(entry._id)
+    setRejectError('')
     try {
       await mgFloorBatchEntriesApi.reject(entry._id, text)
       setRejecting(null)
       setReason('')
       await afterDecision('Batch rejected', `The operator will see: ${text}`)
     } catch (err) {
-      showToast('Could not reject', errorMessage(err, 'Reject failed'))
+      setRejectError(errorMessage(err, 'Reject failed'))
       load()
     } finally {
       setBusyId(null)
@@ -210,7 +212,7 @@ export default function TabFloorManager({ showToast, onChanged }) {
                         type="button"
                         className={`${B.danger} ${B.sm}`}
                         disabled={busyId === entry._id}
-                        onClick={() => { setRejecting(entry); setReason('') }}
+                        onClick={() => { setRejecting(entry); setReason(''); setRejectError('') }}
                       >
                         Reject
                       </button>
@@ -237,8 +239,11 @@ export default function TabFloorManager({ showToast, onChanged }) {
             maxLength={500}
             autoFocus
             placeholder="e.g. Gold qty looks wrong, please recheck and send again"
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => { setReason(e.target.value); setRejectError('') }}
           />
+          {rejectError ? (
+            <div role="alert" style={{ color: C.red, fontSize: 12, fontWeight: 600, marginTop: 6 }}>{rejectError}</div>
+          ) : null}
         </Modal>
       ) : null}
     </div>

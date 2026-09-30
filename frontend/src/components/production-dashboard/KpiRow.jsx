@@ -186,6 +186,9 @@ export default function KpiRow({ model, hideDemoKpis = false }) {
       yesterdayHint = `${formatGrams(outMetric.current)} vs ${formatGrams(outMetric.previous)}`
     }
   }
+  if (!yesterdayHint && out != null && k.yesterdayOutput != null) {
+    yesterdayHint = `${formatGrams(out)} vs ${formatGrams(k.yesterdayOutput)}`
+  }
   if (!yesterdayHint && out != null) {
     yesterdayHint = `${formatGrams(out)} vs prior`
   }

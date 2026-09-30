@@ -10,6 +10,7 @@ export default function HeaderBar({
   productionStatus,
   onRefresh,
   loading,
+  alarm = null,
 }) {
   const h = header || {}
   const shiftName = h.shiftName || '—'
@@ -65,6 +66,7 @@ export default function HeaderBar({
       </div>
 
       <div className="pd-header-actions">
+        {alarm}
         {lastUpdated ? (
           <span className="pd-header-meta-light">
             Updated {formatClock(lastUpdated)}

@@ -4,10 +4,14 @@ export const SHEET_COLUMNS = [
   { key: 'date', label: 'Date', align: 'left', filter: null, sortable: true },
   { key: 'batch', label: 'Batch', align: 'left', filter: null, sortable: true },
   { key: 'metalIn', label: 'Metal IN', align: 'right', filter: null, sortable: true, numeric: true },
-  { key: 'purity', label: 'Purity %', align: 'right', filter: null, sortable: true, numeric: true },
-  { key: 'fineGold', label: 'Fine Gold', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'purity', label: 'Purity IN %', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'fineGold', label: 'Fine Gold IN', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalOut', label: 'Metal OUT', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'purityOut', label: 'Purity OUT %', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'fineGoldOut', label: 'Fine Gold OUT', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'metalLoss', label: 'Metal Loss', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'lossPct', label: 'Loss %', align: 'right', filter: null, sortable: true, numeric: true },
+  { key: 'fineLoss', label: 'Fine Gold Loss', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'timeBatch', label: 'Time / Batch', align: 'right', filter: null, sortable: true, numeric: true },
   { key: 'batchStarted', label: 'Batch Start', align: 'left', filter: null, sortable: true },
   { key: 'batchOver', label: 'Batch Over', align: 'left', filter: null, sortable: true },
@@ -133,6 +137,90 @@ export function formatPurity(value) {
 export function computeFineGold(metalIn, purity) {
   if (metalIn == null || purity == null || !Number.isFinite(metalIn) || !Number.isFinite(purity)) return null
   return Math.round(metalIn * purity * 10) / 1000
+}
+
+/** Metal Loss as % of Metal IN, 2 decimals. */
+export function computeLossPct(loss, metalIn) {
+  if (loss == null || metalIn == null || !Number.isFinite(loss) || !Number.isFinite(metalIn) || metalIn <= 0) return null
+  return Math.round((loss / metalIn) * 10000) / 100
+}
+
+/**
+ * Fine Gold OUT, Fine Gold Loss and Loss % of a row. Without a Purity OUT the metal is taken to
+ * leave at its Purity IN, and Fine Gold OUT is flagged as estimated.
+ */
+export function lossFigures(row) {
+  const { metalIn, metalOut } = row
+  const metalGain = metalIn != null && metalOut != null && metalOut > metalIn
+    ? Math.round((metalOut - metalIn) * 1000) / 1000
+    : null
+  const lossPct = metalGain != null ? -computeLossPct(metalGain, metalIn) : computeLossPct(row.metalLoss, metalIn)
+  let fineGoldOut = row.fineGoldOut ?? computeFineGold(row.metalOut, row.purityOut)
+  let fineGoldOutEstimated = false
+  if (fineGoldOut == null && row.purityOut == null) {
+    fineGoldOut = computeFineGold(row.metalOut, row.purity)
+    fineGoldOutEstimated = fineGoldOut != null
+  }
+  const fineIn = row.fineGold ?? computeFineGold(row.metalIn, row.purity)
+  const fineLoss = fineIn != null && fineGoldOut != null ? Math.round((fineIn - fineGoldOut) * 1000) / 1000 : null
+  return { lossPct, metalGain, fineGoldOut, fineGoldOutEstimated, fineLoss }
+}
+
+/** A batch still open after this long most likely lost its Metal Out. */
+export const OVERDUE_BATCH_MINUTES = 12 * 60
+
+export function isOverdueBatch(row) {
+  return Boolean(row?.batchStartedRaw) && !row?.batchOverRaw
+    && row?.timeBatch != null && row.timeBatch > OVERDUE_BATCH_MINUTES
+}
+
+/** True when a loss % is above the department's loss limit. */
+export function isOverLossLimit(lossPct, lossLimitPct) {
+  return lossPct != null && lossLimitPct != null && lossPct > lossLimitPct
+}
+
+const round3 = (n) => Math.round(n * 1000) / 1000
+
+/**
+ * Department total row. Loss % and Fine Gold Loss use finished batches only (both Metal IN and OUT),
+ * so a running batch's Metal IN does not dilute the loss. Avg time is over finished batches.
+ */
+export function computeDepartmentTotals(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  const num = (v) => v != null && Number.isFinite(v)
+  const sum = (key, pick = list) => {
+    const vals = pick.map((r) => r[key]).filter(num)
+    return vals.length ? round3(vals.reduce((a, b) => a + b, 0)) : null
+  }
+  const finished = list.filter((r) => num(r.metalIn) && num(r.metalOut))
+  const withFineIn = list.filter((r) => num(r.metalIn) && num(r.fineGold))
+  const withFineOut = list.filter((r) => num(r.metalOut) && num(r.purityOut) && num(r.fineGoldOut))
+  const weightedPurity = (pick, weightKey, fineKey) => {
+    const w = sum(weightKey, pick)
+    const f = sum(fineKey, pick)
+    return w && f != null ? Math.round((f / w) * 10000) / 100 : null
+  }
+  const times = list.filter((r) => r.batchOverRaw && num(r.timeBatch)).map((r) => r.timeBatch)
+  const finishedLoss = sum('metalLoss', finished)
+  const finishedIn = sum('metalIn', finished)
+  const fineLossRows = finished.filter((r) => num(r.fineLoss))
+  return {
+    batches: list.length,
+    metalIn: sum('metalIn'),
+    purity: weightedPurity(withFineIn, 'metalIn', 'fineGold'),
+    fineGold: sum('fineGold'),
+    metalOut: sum('metalOut'),
+    purityOut: weightedPurity(withFineOut, 'metalOut', 'fineGoldOut'),
+    fineGoldOut: sum('fineGoldOut'),
+    fineGoldOutEstimated: list.some((r) => r.fineGoldOutEstimated),
+    metalLoss: sum('metalLoss'),
+    gains: list.filter((r) => r.metalGain != null).length,
+    overdue: list.filter(isOverdueBatch).length,
+    lossPct: computeLossPct(finishedLoss, finishedIn),
+    fineLoss: fineLossRows.length ? sum('fineLoss', fineLossRows) : null,
+    avgTime: times.length ? times.reduce((a, b) => a + b, 0) / times.length : null,
+    finishedBatches: times.length,
+  }
 }
 
 /** Row fields still editable on workbook rows written by MG Floor approvals. */
@@ -295,9 +383,7 @@ export function sortRows(rows, sortKey, sortDir) {
   const sorted = [...rows].sort((a, b) => {
     let av = a[sortKey]
     let bv = b[sortKey]
-    if (sortKey === 'metalIn' || sortKey === 'metalOut' || sortKey === 'metalLoss'
-      || sortKey === 'purity' || sortKey === 'fineGold'
-      || sortKey === 'timeBatch' || sortKey === 'averageTime') {
+    if (col?.numeric || sortKey === 'averageTime') {
       av = av == null ? -Infinity : Number(av)
       bv = bv == null ? -Infinity : Number(bv)
       return (av - bv) * dir
@@ -323,7 +409,6 @@ export function sortRows(rows, sortKey, sortDir) {
     if (av > bv) return 1 * dir
     return 0
   })
-  void col
   return sorted
 }
 
@@ -356,7 +441,9 @@ export function computeSummary(rows) {
     rows.map((r) => r.employee).filter((e) => e && e !== '—'),
   )
   const batches = new Set(
-    rows.map((r) => r.batch).filter((b) => b && b !== '—'),
+    rows
+      .filter((r) => r.batch && r.batch !== '—')
+      .map((r) => `${r.deptKey || ''}|${r.dateKey || ''}|${r.batch}`),
   )
   let metalIn = 0
   let metalOut = 0
@@ -437,8 +524,20 @@ export function mapEntryToRow(entry) {
   const deptKey = String(entry?.departmentKey || '').trim() || null
   const purity = toNumOrBlank(entry?.purity)
   const fineGold = toNumOrBlank(entry?.fineGold)
+  const purityOut = toNumOrBlank(entry?.purityOut)
+  const figures = lossFigures({
+    metalIn: inn,
+    metalOut: out,
+    metalLoss: loss,
+    purity,
+    fineGold,
+    purityOut,
+    fineGoldOut: toNumOrBlank(entry?.fineGoldOut),
+  })
 
   return {
+    ...figures,
+    purityOut,
     id: entry?._id || entry?.id,
     deptKey,
     fromFloor: entry?.source === 'mg_floor',
@@ -526,6 +625,7 @@ export function rowToEntryPayload(row, departmentKey) {
     metalOut: out,
     metalLoss: loss,
     purity,
+    purityOut: toNumOrBlank(row.purityOut),
     employeeName: blank(row.employee),
     departmentManagerName: blank(row.departmentManager),
     batchStartedAt: row.batchStartedRaw || null,
@@ -552,6 +652,12 @@ export function emptyDraftRow(departmentKey) {
     metalLoss: null,
     purity: null,
     fineGold: null,
+    purityOut: null,
+    fineGoldOut: null,
+    fineGoldOutEstimated: false,
+    metalGain: null,
+    lossPct: null,
+    fineLoss: null,
     purityDisplay: '—',
     fineGoldDisplay: '—',
     metalInDisplay: '—',
