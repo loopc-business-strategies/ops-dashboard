@@ -112,7 +112,8 @@ function batchOverAfterStart(startedAt, overAt) {
 
 /**
  * Writes an APPROVED MG Floor batch into the Operations → Production workbook.
- * IN fills Metal IN, Purity, Fine Gold and Batch Start; OUT fills Metal OUT and Batch Over.
+ * IN fills Metal IN, Purity, Fine Gold and Batch Start; OUT fills Metal OUT, Purity OUT, Fine Gold OUT
+ * and Batch Over.
  * Idempotent: re-applying the same entry leaves the row unchanged. Only the workbook is written.
  */
 async function applyApprovedEntryToWorkbook(entry) {
@@ -143,7 +144,13 @@ async function applyApprovedEntryToWorkbook(entry) {
       floorInEntryId: entry.entryId,
     })
   } else {
-    Object.assign(set, { metalOut: sums.weight, batchOverAt: at, floorOutEntryId: entry.entryId })
+    Object.assign(set, {
+      metalOut: sums.weight,
+      purityOut: sums.purity,
+      fineGoldOut: sums.fineGold,
+      batchOverAt: at,
+      floorOutEntryId: entry.entryId,
+    })
     setOnInsert.employeeName = entry.employeeName || ''
   }
 

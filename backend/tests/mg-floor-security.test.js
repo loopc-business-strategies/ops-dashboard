@@ -364,4 +364,58 @@ describe('MG Floor stats and floor alerts', () => {
       })
     expect([200, 201]).toContain(ok.status)
   })
+
+  test('Call F.M rings for managers until one acknowledges; operators cannot list or acknowledge', async () => {
+    const operator = await createTenantUser('mg', {
+      role: 'department_user',
+      productionRole: undefined,
+      floorDepartment: 'melting',
+    })
+    const manager = await createTenantUser('mg', { role: 'department_head', productionRole: undefined })
+
+    const raised = await request(app)
+      .post('/api/mg-floor/alerts')
+      .set(mgHeaders(operator))
+      .send({ title: 'Floor assistance — melting', message: 'Operator needs help', department: 'melting' })
+    expect(raised.status).toBe(201)
+    const callId = raised.body.alert._id
+
+    const operatorList = await request(app).get('/api/mg-floor/fm-calls').set(mgHeaders(operator))
+    expect(operatorList.status).toBe(403)
+
+    const ringing = await request(app).get('/api/mg-floor/fm-calls').set(mgHeaders(manager))
+    expect(ringing.status).toBe(200)
+    expect(ringing.body.calls.map((c) => String(c._id))).toContain(String(callId))
+    expect(ringing.body.calls[0].metadata.department).toBe('melting')
+
+    const operatorAck = await request(app).post(`/api/mg-floor/fm-calls/${callId}/acknowledge`).set(mgHeaders(operator))
+    expect(operatorAck.status).toBe(403)
+
+    const ack = await request(app).post(`/api/mg-floor/fm-calls/${callId}/acknowledge`).set(mgHeaders(manager))
+    expect(ack.status).toBe(200)
+    expect(ack.body.alert.status).toBe('ACKNOWLEDGED')
+
+    const quiet = await request(app).get('/api/mg-floor/fm-calls').set(mgHeaders(manager))
+    expect(quiet.body.calls.map((c) => String(c._id))).not.toContain(String(callId))
+  })
+
+  test('Call F.M acknowledge refuses other alert types and old calls stop ringing', async () => {
+    const manager = await createTenantUser('mg')
+    const ProductionAlert = require('../models/ProductionAlert')
+    const other = await ProductionAlert.create({ alertNumber: 'AL-T-1', category: 'machine', code: 'MANUAL', title: 'Machine' })
+    const old = await ProductionAlert.create({
+      alertNumber: 'AL-T-2',
+      category: 'process',
+      code: 'FLOOR_MANAGER_CALL',
+      title: 'Yesterday',
+      createdAt: new Date(Date.now() - 13 * 60 * 60 * 1000),
+    })
+
+    const wrongType = await request(app).post(`/api/mg-floor/fm-calls/${other._id}/acknowledge`).set(mgHeaders(manager))
+    expect(wrongType.status).toBe(404)
+
+    const list = await request(app).get('/api/mg-floor/fm-calls').set(mgHeaders(manager))
+    expect(list.status).toBe(200)
+    expect(list.body.calls.map((c) => String(c._id))).not.toContain(String(old._id))
+  })
 })

@@ -133,6 +133,9 @@ async function submitBatchEntry(req, body = {}) {
   if (lines.some((l) => l.qty != null && l.qty <= 0)) {
     throw new ProductionError('Quantity must be greater than 0', 400)
   }
+  if (direction === 'OUT' && lines.some((l) => l.qty != null && l.metal.toLowerCase() === 'alloy')) {
+    throw new ProductionError('Alloy is entered on Metal In only', 400)
+  }
   if (lines.some((l) => l.purity != null && (l.purity <= 0 || l.purity > 1000))) {
     throw new ProductionError('Purity must be between 0 and 1000', 400)
   }

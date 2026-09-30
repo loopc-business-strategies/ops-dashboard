@@ -144,6 +144,23 @@ describe('Operations → Production workbook for every tenant', () => {
     expect((await request(app).post(BASE).set(h).send(entryBody({ fineGold: 5 }))).status).toBe(400)
   })
 
+  test('purity OUT is stored and fine gold OUT is computed from Metal OUT', async () => {
+    const manager = await createUser('cg')
+    const h = headers(manager, 'cg')
+
+    const created = await request(app).post(BASE).set(h).send(entryBody({ metalOut: 990, purityOut: 91.6 }))
+    expect(created.status).toBe(201)
+    expect(created.body.entry).toMatchObject({ metalOut: 990, purityOut: 91.6, fineGoldOut: 906.84 })
+
+    const reweighed = await request(app).patch(`${BASE}/${created.body.entry._id}`).set(h).send({ metalOut: 500 })
+    expect(reweighed.body.entry.fineGoldOut).toBe(458)
+    const cleared = await request(app).patch(`${BASE}/${created.body.entry._id}`).set(h).send({ purityOut: null })
+    expect(cleared.body.entry).toMatchObject({ purityOut: null, fineGoldOut: null })
+
+    expect((await request(app).post(BASE).set(h).send(entryBody({ purityOut: 101 }))).status).toBe(400)
+    expect((await request(app).post(BASE).set(h).send(entryBody({ fineGoldOut: 5 }))).status).toBe(400)
+  })
+
   test('requires a signed-in user', async () => {
     const res = await request(app).get(BASE).set({ Host: HOST, 'x-tenant': 'mg' })
     expect(res.status).toBe(401)

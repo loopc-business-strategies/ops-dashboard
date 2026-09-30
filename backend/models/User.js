@@ -186,6 +186,30 @@ const userSchema = new mongoose.Schema(
 
     lastLogin: Date,
 
+    /** MG Floor tablet quick-login PIN (bcrypt hash). */
+    floorPinHash: {
+      type: String,
+      select: false,
+    },
+
+    /** When the floor PIN was last set; null means no PIN. Safe to expose. */
+    floorPinSetAt: {
+      type: Date,
+      default: null,
+    },
+
+    floorPinFailedCount: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+
+    floorPinLockedUntil: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
     /** Tokens issued before this timestamp are rejected (password change / logout-all-devices). */
     sessionInvalidatedAt: {
       type: Date,

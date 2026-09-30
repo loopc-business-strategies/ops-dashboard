@@ -158,7 +158,7 @@ function createApp() {
 
   app.set('trust proxy', 1)
 
-  const authRateLimitPaths = ['/api/auth/login', '/api/auth/setup']
+  const authRateLimitPaths = ['/api/auth/login', '/api/auth/pin-login', '/api/auth/setup']
   const rateLimitExcludedPrefixes = [
     '/api/erp-accounting/metal-rates',
     '/api/erp-accounting/reports/market-prices',
@@ -235,7 +235,7 @@ function createApp() {
     skipSuccessfulRequests: true,
     keyGenerator: (req) => {
       const ip = ipKeyGenerator(req)
-      const identity = String(req.body?.name || req.body?.email || '').trim().toLowerCase()
+      const identity = String(req.body?.name || req.body?.email || req.body?.employee || '').trim().toLowerCase()
       return identity ? `${ip}:${identity}` : ip
     },
     message: { success: false, message: 'Too many authentication attempts. Please try again later.' },
@@ -356,6 +356,7 @@ function createApp() {
   app.use('/api', apiLimiter)
   app.use('/api/hardware/ingest', ingestLimiter)
   app.use('/api/auth/login', authLimiter)
+  app.use('/api/auth/pin-login', authLimiter)
   app.use('/api/auth/setup', authLimiter)
   app.use('/api', enforceCsrfProtection)
   app.use('/api', bindTenantContext)

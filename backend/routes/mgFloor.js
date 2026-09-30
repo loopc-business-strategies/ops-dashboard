@@ -7,8 +7,14 @@ const { requireProductionPermission, resolveProductionRole, hasProductionPermiss
 const ProductionBatch = require('../models/ProductionBatch')
 const MetalMovement = require('../models/MetalMovement')
 const AuditLog = require('../models/AuditLog')
+const ProductionAlert = require('../models/ProductionAlert')
+const User = require('../models/User')
+const { floorPinError, applyFloorPin } = require('../services/mgFloorPin')
+const attendance = require('../services/mgFloor/attendance')
+const machineAlertService = require('../services/productionControl/machineAlertService')
 const mgFloor = require('../services/mgFloor')
 const batchEntries = require('../services/mgFloor/batchEntries')
+const batchStats = require('../services/mgFloor/batchStats')
 const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
 const { writeProductionAudit } = require('../services/productionControl/audit')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
@@ -53,7 +59,19 @@ function emitWorkbookUpdate(req, event, payload = {}) {
   }
 }
 
+/** Rings the Call F.M alarm on open Production Dashboards (SSE; the web host does not proxy Socket.IO). */
+function emitFmCall(event, id) {
+  try {
+    publishRealtimeEvent({ type: 'mg-floor:fm-call', tenant: 'mg', data: { event, id: String(id || '') } })
+  } catch (err) {
+    console.warn('[mg-floor] fm-call emit failed', err?.message || err)
+  }
+}
+
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+const FM_CALL_CODE = 'FLOOR_MANAGER_CALL'
+/** Older unanswered calls stop ringing so a forgotten call does not alarm every day. */
+const FM_CALL_RING_WINDOW_MS = 12 * 60 * 60 * 1000
 
 // ── Removed: scales, weight / camera capture, XRF, gateways, pass-based Metal IN / OUT / Transfer ──
 const REMOVED_PATHS = [
@@ -99,6 +117,67 @@ router.post('/auth/login-check', ...mgProtect, async (req, res) => {
       floorDepartment: normalizeFloorDepartment(req.user.floorDepartment),
     },
   })
+})
+
+// ── Floor PIN (employee self-service) ──────────────
+const setPinSchema = Joi.object({
+  password: Joi.string().min(1).max(128).required(),
+  pin: Joi.string().pattern(/^\d{4,6}$/).required(),
+})
+
+router.post('/me/pin', ...mgProtect, validateBody(setPinSchema), async (req, res) => {
+  try {
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id).select('+password')
+    if (!user || !(await user.comparePassword(req.body.password))) {
+      return res.status(401).json({ success: false, code: 'WRONG_PASSWORD', message: 'Password is incorrect.' })
+    }
+    const pinError = floorPinError(req.body.pin)
+    if (pinError) return res.status(400).json({ success: false, message: pinError })
+    await applyFloorPin(user, req.body.pin)
+    await user.save({ validateBeforeSave: false })
+    res.json({ success: true, hasFloorPin: true, floorPinSetAt: user.floorPinSetAt })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Tablet attendance (each employee's login / logout) ──
+const attendanceLoginSchema = Joi.object({
+  loginMethod: Joi.string().valid('password', 'pin', 'biometric', '').optional(),
+  deviceLabel: Joi.string().allow('').trim().max(120).optional(),
+})
+const attendanceQuery = Joi.object({
+  date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  status: Joi.string().valid('OPEN', 'CLOSED').optional(),
+  limit: Joi.number().integer().min(1).max(500).optional(),
+})
+
+router.post('/attendance/login', ...mgProtect, requireProductionPermission('view'), validateBody(attendanceLoginSchema), async (req, res) => {
+  try {
+    const result = await attendance.recordLogin(req.user, req.body)
+    res.status(result.reused ? 200 : 201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/attendance/logout', ...mgProtect, async (req, res) => {
+  try {
+    const result = await attendance.recordLogout(req.user)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/attendance', ...mgProtect, requireProductionPermission('floorSession'), validateQuery(attendanceQuery), async (req, res) => {
+  try {
+    const rows = await attendance.listAttendance(req.query)
+    res.json({ success: true, attendance: rows })
+  } catch (err) {
+    handleError(res, err)
+  }
 })
 
 // ── Reference data ─────────────────────────────────
@@ -222,7 +301,40 @@ router.post('/alerts', ...mgProtect, requireProductionPermission('raiseAlert'), 
 }).unknown(true)), async (req, res) => {
   try {
     const result = await mgFloor.raiseFloorAlert(req, req.body)
+    emitFmCall('raised', result.alert?._id)
     res.status(201).json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Call F.M alarm (web Production Dashboard, Floor / Production Managers) ──
+router.get('/fm-calls', ...mgProtect, requireProductionPermission('resolveAlert'), async (req, res) => {
+  try {
+    const calls = await ProductionAlert.find({
+      code: FM_CALL_CODE,
+      status: 'OPEN',
+      createdAt: { $gte: new Date(Date.now() - FM_CALL_RING_WINDOW_MS) },
+    })
+      .select('title message metadata raisedByName createdAt')
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean()
+    res.json({ success: true, calls })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/fm-calls/:id/acknowledge', ...mgProtect, requireProductionPermission('resolveAlert'), validateParams(idParam), async (req, res) => {
+  try {
+    const existing = await ProductionAlert.findById(req.params.id).select('code').lean()
+    if (!existing || existing.code !== FM_CALL_CODE) {
+      return res.status(404).json({ success: false, message: 'Floor manager call not found' })
+    }
+    const alert = await machineAlertService.acknowledgeAlert(req, req.params.id)
+    emitFmCall('acknowledged', req.params.id)
+    res.json({ success: true, alert })
   } catch (err) {
     handleError(res, err)
   }
@@ -304,6 +416,39 @@ router.post('/batch-entries/:id/reject', ...mgProtect, requireProductionPermissi
 })), async (req, res) => {
   try {
     const result = await batchEntries.decideBatchEntry(req, req.params.id, 'REJECTED', req.body.reason)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Metal loss / batch time (approved batches in the workbook) ──
+router.get('/batch-stats', ...mgProtect, requireProductionPermission('view'), validateQuery(Joi.object({
+  department: Joi.string().trim().max(80).required(),
+  date: Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+})), async (req, res) => {
+  try {
+    const stats = await batchStats.getBatchStats(req.query)
+    res.json({ success: true, canSetLossLimit: hasProductionPermission(req.user, 'approvePass'), ...stats })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/batch-stats/loss-limits', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    res.json({ success: true, limits: await batchStats.getLossLimits() })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.put('/batch-stats/loss-limit', ...mgProtect, requireProductionPermission('approvePass'), validateBody(Joi.object({
+  department: Joi.string().trim().max(80).required(),
+  lossLimitPct: Joi.number().positive().max(100).allow(null).required(),
+})), async (req, res) => {
+  try {
+    const result = await batchStats.setLossLimit(req, req.body)
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)

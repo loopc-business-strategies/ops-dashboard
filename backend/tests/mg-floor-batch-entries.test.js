@@ -58,7 +58,7 @@ function batchBody(overrides = {}) {
     deviceId: 'MG-FLOOR-TABLET-001',
     lines: [
       { metal: 'Gold', qty: 1250.2, purity: 99.5, time: '08:40' },
-      { metal: 'Alloy', qty: 80.5, purity: null, time: '08:41' },
+      ...(overrides.direction === 'OUT' ? [] : [{ metal: 'Alloy', qty: 80.5, purity: null, time: '08:41' }]),
     ],
     ...overrides,
   }
@@ -157,6 +157,21 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
       const res = await submit(op, batchBody({ lines }))
       expect(res.status).toBe(400)
     }
+  })
+
+  test('Alloy is accepted on Metal In only', async () => {
+    const op = await createOperator()
+    const withAlloy = [
+      { metal: 'Gold', qty: 10, purity: null, time: '' },
+      { metal: 'Alloy', qty: 2, purity: null, time: '' },
+    ]
+    const out = await submit(op, batchBody({ direction: 'OUT', lines: withAlloy }))
+    expect(out.status).toBe(400)
+    expect(out.body.message || out.body.error).toMatch(/Alloy is entered on Metal In only/)
+
+    const emptyAlloy = [{ metal: 'Gold', qty: 10, purity: null, time: '' }, { metal: 'Alloy', qty: null, purity: null, time: '' }]
+    expect((await submit(op, batchBody({ direction: 'OUT', lines: emptyAlloy }))).status).toBe(201)
+    expect((await submit(op, batchBody({ lines: withAlloy }))).status).toBe(201)
   })
 
   test('3. invalid purity is rejected', async () => {
@@ -514,7 +529,14 @@ describe('MG Floor approvals fill the Operations → Production workbook', () =>
     await approve(fm, sentOut.body.entry._id)
     rows = await workbookRows(fm)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ metalIn: 1330.7, metalOut: 1320.5, metalLoss: 10.2, purity: 93.48 })
+    expect(rows[0]).toMatchObject({
+      metalIn: 1330.7,
+      metalOut: 1320.5,
+      metalLoss: 10.2,
+      purity: 93.48,
+      purityOut: 99.5,
+      fineGoldOut: 1313.898,
+    })
     expect(new Date(rows[0].batchOverAt).toISOString()).toBe('2026-09-28T12:05:00.000Z')
     expect(rows[0].floorOutEntryId).toBe(sentOut.body.entry.entryId)
   })

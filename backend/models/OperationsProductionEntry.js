@@ -19,6 +19,10 @@ const operationsProductionEntrySchema = new mongoose.Schema(
     purity: { type: Number, default: null, min: 0, max: 100 },
     /** Fine gold grams in Metal IN (metalIn × purity / 100). */
     fineGold: { type: Number, default: null, min: 0 },
+    /** Purity % of Metal OUT (0–100). */
+    purityOut: { type: Number, default: null, min: 0, max: 100 },
+    /** Fine gold grams in Metal OUT (metalOut × purityOut / 100). */
+    fineGoldOut: { type: Number, default: null, min: 0 },
     employeeName: { type: String, trim: true, default: '' },
     departmentManagerName: { type: String, trim: true, default: '' },
     batchStartedAt: { type: Date, default: null },

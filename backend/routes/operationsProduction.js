@@ -19,6 +19,7 @@ const entryBodySchema = Joi.object({
   metalOut: Joi.number().min(0).allow(null),
   metalLoss: Joi.number().min(0).allow(null),
   purity: Joi.number().min(0).max(100).allow(null),
+  purityOut: Joi.number().min(0).max(100).allow(null),
   employeeName: Joi.string().allow('', null).max(200),
   departmentManagerName: Joi.string().allow('', null).max(200),
   batchStartedAt: Joi.alternatives().try(Joi.date().iso(), Joi.string().allow('', null), Joi.valid(null)),
@@ -100,6 +101,9 @@ function normalizePayload(body, { partial = false } = {}) {
   }
   if (!partial || body.purity !== undefined) {
     out.purity = toNumOrNull(body.purity)
+  }
+  if (!partial || body.purityOut !== undefined) {
+    out.purityOut = toNumOrNull(body.purityOut)
   }
   if (!partial || body.employeeName !== undefined) {
     out.employeeName = String(body.employeeName || '').trim()
@@ -203,6 +207,7 @@ router.post(
       const doc = await OperationsProductionEntry.create({
         ...data,
         fineGold: computeFineGold(data.metalIn, data.purity),
+        fineGoldOut: computeFineGold(data.metalOut, data.purityOut),
         source: 'manual',
         createdById: req.user?._id || null,
         createdByName: String(req.user?.name || '').trim(),
@@ -259,6 +264,7 @@ router.patch(
         req.body.metalLoss !== undefined ? req.body.metalLoss : existing.metalLoss,
       )
       existing.fineGold = computeFineGold(existing.metalIn, existing.purity)
+      existing.fineGoldOut = computeFineGold(existing.metalOut, existing.purityOut)
       await existing.save()
       res.json({ success: true, entry: existing.toObject() })
     } catch (err) {

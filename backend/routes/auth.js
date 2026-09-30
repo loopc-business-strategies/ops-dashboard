@@ -46,6 +46,7 @@ const {
 const { isLikelyExpoPushToken } = require('../services/expoPushNotifications')
 const { mergeNotificationPreferences } = require('../services/notificationPreferences')
 const { escapeRegex } = require('../utils/escapeRegex')
+const { floorPinError, applyFloorPin, clearFloorPin, verifyFloorPin } = require('../services/mgFloorPin')
 
 const router = express.Router()
 
@@ -99,6 +100,7 @@ const sendToken = async (user, status, res, company, req = null) => {
       employeeCode:   user.employeeCode,
       notes:          user.notes,
       modulePermissions: user.modulePermissions,
+      hasFloorPin:    Boolean(user.floorPinSetAt),
       company: tenant,
     },
   }
@@ -190,6 +192,7 @@ const createUserSchema = Joi.object({
   timezone: Joi.string().allow('').trim().max(80).optional(),
   employeeCode: Joi.string().allow('').trim().max(40).optional(),
   notes: Joi.string().allow('').trim().max(600).optional(),
+  floorPin: Joi.string().allow('').pattern(/^\d{4,6}$/).optional(),
 })
 
 const updateRoleSchema = Joi.object({
@@ -207,6 +210,14 @@ const updateRoleSchema = Joi.object({
   employeeCode: Joi.string().allow('').trim().max(40).optional(),
   notes: Joi.string().allow('').trim().max(600).optional(),
   password: Joi.string().min(6).max(128).allow('').optional(),
+  floorPin: Joi.string().allow('').pattern(/^\d{4,6}$/).optional(),
+  clearFloorPin: Joi.boolean().optional(),
+})
+
+const pinLoginSchema = Joi.object({
+  company: Joi.string().trim().valid(...getTenantKeys()).optional(),
+  employee: Joi.string().trim().min(1).max(80).required(),
+  pin: Joi.string().pattern(/^\d{4,6}$/).required(),
 })
 
 function enableSetupFlag() {
@@ -390,6 +401,76 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 })
 
 // ==========================================
+// POST /api/auth/pin-login
+// MG Floor tablet: employee ID (or username) + floor PIN. Mobile clients only.
+// ==========================================
+router.post('/pin-login', validateBody(pinLoginSchema), async (req, res) => {
+  try {
+    const { company, employee, pin } = req.body
+    const tenant = resolveRequestTenant(req, company)
+    if (tenant !== 'mg') {
+      return res.status(404).json({ success: false, message: 'PIN login is not available for this company.' })
+    }
+    if (!isMobileClientRequest(req)) {
+      return res.status(400).json({ success: false, message: 'PIN login is only available in the MG Floor app.' })
+    }
+
+    const safe = escapeRegex(employee.trim())
+    const exact = new RegExp(`^${safe}$`, 'i')
+    const TenantUser = await User.getTenantModel(tenant)
+    const candidates = await TenantUser.find({
+      isDeleted: { $ne: true },
+      $or: [{ employeeCode: exact }, { name: exact }],
+    })
+      .select('+floorPinHash +floorPinFailedCount +floorPinLockedUntil')
+      .limit(3)
+
+    const invalid = () => res.status(401).json({ success: false, message: 'Wrong employee ID or PIN.' })
+    if (candidates.length === 0) return invalid()
+    if (candidates.length > 1) {
+      return res.status(409).json({
+        success: false,
+        message: 'This employee ID matches more than one account. Ask your admin to fix it, or log in with username and password.',
+      })
+    }
+
+    const user = candidates[0]
+    if (!user.floorPinHash) {
+      return res.status(401).json({
+        success: false,
+        code: 'NO_FLOOR_PIN',
+        message: 'No PIN set for this employee. Log in with your password, then create a PIN.',
+      })
+    }
+
+    const result = await verifyFloorPin(user, pin)
+    if (!result.ok) {
+      await user.save({ validateBeforeSave: false })
+      if (result.lockedMinutes) {
+        return res.status(429).json({
+          success: false,
+          code: 'FLOOR_PIN_LOCKED',
+          message: `Too many wrong PINs. Try again in ${result.lockedMinutes} min or log in with your password.`,
+        })
+      }
+      return invalid()
+    }
+
+    if (!user.isActive) {
+      await user.save({ validateBeforeSave: false })
+      return res.status(401).json({ success: false, message: 'Account deactivated. Contact your admin.' })
+    }
+
+    user.lastLogin = new Date()
+    await user.save({ validateBeforeSave: false })
+    user.floorPinHash = undefined
+    await sendToken(user, 200, res, tenant, req)
+  } catch (err) {
+    return sendAuthCatchError(res, err, 'PIN login error:')
+  }
+})
+
+// ==========================================
 // GET /api/auth/me — get my profile
 // ==========================================
 router.get('/me', protect, async (req, res) => {
@@ -428,6 +509,7 @@ router.get('/me', protect, async (req, res) => {
       employeeCode:   req.user.employeeCode,
       notes:          req.user.notes,
       modulePermissions: req.user.modulePermissions,
+      hasFloorPin:    Boolean(req.user.floorPinSetAt),
       company: req.tenant,
       lastLogin:      req.user.lastLogin,
       createdAt:      req.user.createdAt,
@@ -708,13 +790,17 @@ router.get('/users', protect, restrictTo('super_admin'), async (req, res) => {
 // ==========================================
 router.post('/users', protect, restrictTo('super_admin'), validateBody(createUserSchema), async (req, res) => {
   try {
-    const { name, password, role, department, floorDepartment, allowedModules, assignedTasks, fullName, title, phone, location, timezone, employeeCode, notes } = req.body
+    const { name, password, role, department, floorDepartment, allowedModules, assignedTasks, fullName, title, phone, location, timezone, employeeCode, notes, floorPin } = req.body
 
     if (!name || !password)
       return res.status(400).json({ success: false, message: 'Name and password are required.' })
     const passwordError = await validatePasswordForTenant(req.tenant, password)
     if (passwordError)
       return res.status(400).json({ success: false, message: passwordError })
+    if (floorPin) {
+      const pinError = floorPinError(floorPin)
+      if (pinError) return res.status(400).json({ success: false, message: pinError })
+    }
 
     const TenantUser = await User.getTenantModel(req.tenant)
 
@@ -742,7 +828,13 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
       notes:          notes          || '',
     })
 
+    if (floorPin) {
+      await applyFloorPin(user, floorPin)
+      await user.save({ validateBeforeSave: false })
+    }
+
     user.password = undefined
+    user.floorPinHash = undefined
     res.status(201).json({ success: true, user })
   } catch (err) {
     console.error('Create user error:', err)
@@ -756,7 +848,11 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
 // ==========================================
 router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), validateBody(updateRoleSchema), async (req, res) => {
   try {
-    const { role, department, floorDepartment, allowedModules, assignedTasks, name, fullName, title, phone, location, timezone, employeeCode, notes, password } = req.body
+    const { role, department, floorDepartment, allowedModules, assignedTasks, name, fullName, title, phone, location, timezone, employeeCode, notes, password, floorPin, clearFloorPin: clearPin } = req.body
+    if (floorPin) {
+      const pinError = floorPinError(floorPin)
+      if (pinError) return res.status(400).json({ success: false, message: pinError })
+    }
 
     const TenantUser = await User.getTenantModel(req.tenant)
     const user = await TenantUser.findById(req.params.id).select('+password')
@@ -790,9 +886,12 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
         return res.status(400).json({ success: false, message: passwordError })
       user.password = password
     }
+    if (floorPin) await applyFloorPin(user, floorPin)
+    else if (clearPin) clearFloorPin(user)
 
     await user.save()
     user.password = undefined
+    user.floorPinHash = undefined
 
     res.json({ success: true, user })
   } catch (err) {

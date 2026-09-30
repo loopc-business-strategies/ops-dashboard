@@ -33,6 +33,8 @@ async function getMe(req) {
       department: req.user.department,
       floorDepartment: normalizeFloorDepartment(req.user.floorDepartment),
       productionRole: resolveProductionRole(req.user),
+      employeeCode: req.user.employeeCode || '',
+      hasFloorPin: Boolean(req.user.floorPinSetAt),
     },
     shift,
     permissions: {
