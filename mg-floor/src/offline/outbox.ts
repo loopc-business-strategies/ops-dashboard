@@ -7,6 +7,8 @@ export type OutboxItem = {
   operationType: OutboxOperationType
   payload: Record<string, unknown>
   deviceId?: string
+  /** Employee who sent it on a shared tablet; synced with their login while they are still logged in. */
+  senderUserId?: string
   clientTimestamp: string
   syncStatus: 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED' | 'CONFLICT'
   errorMessage?: string

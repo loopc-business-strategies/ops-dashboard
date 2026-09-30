@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller'
 import { tabletDashboard as td } from '@/src/theme'
 import { PURITY_MAX_LENGTH, QTY_MAX_LENGTH, cleanNumberInput } from './fieldInput'
 import { MAX_BATCH_LINES, METAL_OPTIONS, clockNow, dayTag, localDateKey, type BatchChoice } from './batchEntryMapping'
@@ -22,13 +20,20 @@ type Props = {
   batchOptions: BatchChoice[]
   /** Starting rows (default metals, or the rejected batch being fixed). */
   initial: MetalBatchEdit
+  /** Metals "+ Add metal" can offer. */
+  metalOptions?: string[]
   canSend: boolean
   /** Why sending is not possible (e.g. not logged in). */
   hint?: string
+  /** Logged-in employees; with more than one, someone must be picked as "Sent by". */
+  senders?: Array<{ id: string; name: string }>
   /** Resolves to an error message, or null once the batch is sent or saved offline. */
-  onSend: (batch: MetalBatchEdit) => Promise<string | null>
+  onSend: (batch: MetalBatchEdit, senderId: string | null) => Promise<string | null>
   onClose: () => void
 }
+
+/** Space the send/cancel buttons (plus sheet and backdrop padding) take below the scrolling fields. */
+const FOOTER_HEIGHT = 170
 
 const choiceOf = (batch: MetalBatchEdit): BatchChoice => ({
   entryDate: batch.entryDate || localDateKey(),
@@ -42,8 +47,24 @@ function choiceTitle(choice: BatchChoice) {
   return tag ? `Batch ${choice.batchLabel} · ${tag}` : `Batch ${choice.batchLabel}`
 }
 
-export function MetalEntryModal({ visible, title, batchOptions, initial, canSend, hint, onSend, onClose }: Props) {
+export function MetalEntryModal({
+  visible,
+  title,
+  batchOptions,
+  initial,
+  metalOptions = METAL_OPTIONS,
+  canSend,
+  hint,
+  senders = [],
+  onSend,
+  onClose,
+}: Props) {
   const [choice, setChoice] = useState<BatchChoice>(() => choiceOf(initial))
+  const [senderId, setSenderId] = useState<string | null>(null)
+  const pickSender = senders.length > 1
+  const effectiveSender = pickSender
+    ? (senders.some((s) => s.id === senderId) ? senderId : null)
+    : (senders[0]?.id ?? null)
   const [lines, setLines] = useState<MetalLineEdit[]>(initial.lines)
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -63,6 +84,7 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
     setLines(initial.lines)
     setPicking(false)
     setError(null)
+    setSenderId(null)
   }, [visible, initial])
 
   useEffect(() => {
@@ -75,7 +97,7 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
     setLines((current) => current.map((line, i) => (i === idx ? { ...line, [key]: value } : line)))
 
   const usedMetals = new Set(lines.map((l) => l.metal))
-  const available = METAL_OPTIONS.filter((m) => !usedMetals.has(m))
+  const available = metalOptions.filter((m) => !usedMetals.has(m))
   const canAddMetal = available.length > 0 && lines.length < MAX_BATCH_LINES
 
   const addMetal = (metal: string) => {
@@ -85,11 +107,15 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
 
   const send = async () => {
     if (busy || !canSend) return
+    if (pickSender && !effectiveSender) {
+      setError('Choose who is sending this batch.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
       // Time is not typed: blank times are stamped with the moment the batch is sent.
-      const err = await onSend({ ...choice, lines: lines.map((line) => ({ ...line, time: '' })) })
+      const err = await onSend({ ...choice, lines: lines.map((line) => ({ ...line, time: '' })) }, effectiveSender)
       if (err) setError(err)
       else onClose()
     } finally {
@@ -97,21 +123,45 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
     }
   }
 
-  const sendDisabled = !canSend || busy
+  const sendDisabled = !canSend || busy || (pickSender && !effectiveSender)
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.backdrop} behavior="padding">
         <Pressable style={StyleSheet.absoluteFill} onPress={busy ? undefined : onClose} />
         <View style={styles.sheet}>
           <View style={styles.titleBar}>
             <Text style={styles.title}>{title}</Text>
             {batchOptions.length <= 1 ? <Text style={styles.batchBadge}>{choiceTitle(choice)}</Text> : null}
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+          <KeyboardAwareScrollView
+            keyboardShouldPersistTaps="handled"
+            bottomOffset={FOOTER_HEIGHT}
+            contentContainerStyle={styles.content}
+          >
+            {pickSender ? (
+              <View style={styles.batchPick}>
+                <Text style={styles.label}>Sent by</Text>
+                <View style={styles.chips}>
+                  {senders.map((s) => {
+                    const on = s.id === effectiveSender
+                    return (
+                      <Pressable
+                        key={s.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Sent by ${s.name}`}
+                        accessibilityState={{ selected: on }}
+                        disabled={busy}
+                        onPress={() => setSenderId(s.id)}
+                        style={[styles.chip, on && styles.chipOn]}
+                      >
+                        <Text style={[styles.chipText, on && styles.chipTextOn]}>{s.name}</Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
+              </View>
+            ) : null}
             {batchOptions.length > 1 ? (
               <View style={styles.batchPick}>
                 <Text style={styles.label}>Batch (Metal In batches not closed yet)</Text>
@@ -219,7 +269,7 @@ export function MetalEntryModal({ visible, title, batchOptions, initial, canSend
             ) : null}
 
             <Text style={styles.help}>Time is set automatically when you tap Save & send.</Text>
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {!canSend && hint ? <Text style={styles.hint}>{hint}</Text> : null}
@@ -253,6 +303,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 640,
     maxHeight: '90%',
+    flexShrink: 1,
     backgroundColor: td.white,
     borderRadius: td.radius,
     borderWidth: 1,

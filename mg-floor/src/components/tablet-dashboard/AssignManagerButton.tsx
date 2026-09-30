@@ -21,7 +21,7 @@ export function AssignManagerButton({ onPress }: Props) {
 
 const styles = StyleSheet.create({
   btn: {
-    minHeight: 54,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: td.white,
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
     color: td.orange,
     fontFamily: td.buttonFont,
     fontWeight: '600',
-    fontSize: 18,
-    letterSpacing: 0.6,
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
 })

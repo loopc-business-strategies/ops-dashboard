@@ -8,6 +8,7 @@ import {
   editableBatch,
   latestEntries,
   localDateKey,
+  metalOptionsFor,
   metalOutChoices,
   nextBatchLabel,
   prepareBatchLines,
@@ -159,6 +160,16 @@ describe('batch numbers', () => {
       { metal: 'Alloy', qty: '', purity: '', time: '' },
       { metal: 'Silver', qty: '12.5', purity: '', time: '09:10' },
     ])
+  })
+
+  it('Metal Out starts with Gold only and never offers Alloy', () => {
+    expect(editableBatch({ entryDate: D1, batchLabel: '4' }, undefined, 'OUT').lines).toEqual([
+      { metal: 'Gold', qty: '', purity: '', time: '' },
+    ])
+    expect(metalOptionsFor('OUT')).not.toContain('Alloy')
+    expect(metalOptionsFor('IN')).toContain('Alloy')
+    const copper = { metal: 'Copper', qty: 5, purity: null, time: '00:03' }
+    expect(withDefaultMetals([copper], 'OUT')).toEqual([{ metal: 'Gold', qty: null, purity: null, time: '' }, copper])
   })
 
   it('always lists Gold and Alloy first, keeping sent values and extra metals', () => {

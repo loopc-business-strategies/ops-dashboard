@@ -1,20 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   View,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native'
-import { useRouter } from 'expo-router'
 import { useAuth } from '@/src/context/AuthContext'
-import {
-  authenticateWithBiometric,
-  biometricAvailable,
-  getSelectedDepartment,
-  getSessionLoginAt,
-  isBiometricEnabled,
-} from '@/src/auth/sessionPrefs'
+import { getSelectedDepartment } from '@/src/auth/sessionPrefs'
+import { employeeRows } from '@/src/auth/sessionList'
+import { EmployeeLoginModal } from './EmployeeLoginModal'
 import { getAssignedManager, type AssignedManager } from '@/src/auth/floorDashboardPrefs'
 import { tabletDashboard as td } from '@/src/theme'
 import { LoginLogoutRow } from './LoginLogoutRow'
@@ -22,7 +20,7 @@ import { AssignManagerButton } from './AssignManagerButton'
 import { EmployeeTable } from './EmployeeTable'
 import { CallFMButton } from './CallFMButton'
 import { DepartmentBadge } from './DepartmentBadge'
-import { effectiveFloorDepartment } from '@/src/config/floorDepartments'
+import { effectiveFloorDepartment, floorDepartmentLabel } from '@/src/config/floorDepartments'
 import { MetalProcessPanel, type MetalBatchEdit, type MetalPanelRow } from './MetalProcessPanel'
 import { MetalEntryModal } from './MetalEntryModal'
 import {
@@ -30,6 +28,7 @@ import {
   dayTag,
   editableBatch,
   localDateKey,
+  metalOptionsFor,
   metalOutChoices,
   nextBatchLabel,
   sentBatchesFor,
@@ -38,6 +37,9 @@ import {
   type SentBatch,
 } from './batchEntryMapping'
 import { useBatchApprovals } from './useBatchApprovals'
+import { useBatchStats } from './useBatchStats'
+import { BatchTimeCard, MetalLossCard } from './BatchStatsCards'
+import { LossLimitModal } from './LossLimitModal'
 import type { BatchDirection } from '@/src/api/batchEntries'
 import { AssignManagerModal } from './AssignManagerModal'
 import { CallFMModal } from './CallFMModal'
@@ -52,29 +54,30 @@ type EntryForm = {
   fixing: boolean
 }
 
-function panelRows(batches: SentBatch[]): MetalPanelRow[] {
+function panelRows(batches: SentBatch[], direction: BatchDirection): MetalPanelRow[] {
   return batches.map((b) => ({
     batchLabel: b.batchLabel,
     entryDate: b.entryDate,
     dayTag: dayTag(b.entryDate),
-    lines: withDefaultMetals(b.lines),
+    lines: withDefaultMetals(b.lines, direction),
     status: batchStatusView(b.state),
     canFix: b.state.status === 'REJECTED',
   }))
 }
 
 export function MGFloorTabletDashboard() {
-  const { user, token, permissions, logout, login } = useAuth()
-  const router = useRouter()
+  const { user, token, permissions, logout, logoutUser, sessions, loggedOut } = useAuth()
   const { width } = useWindowDimensions()
   const compact = width < 900
 
   const [selectedDept, setSelectedDept] = useState('')
-  const [loginAt, setLoginAt] = useState<string | null>(null)
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [confirmLogoutAll, setConfirmLogoutAll] = useState(false)
   const [manager, setManager] = useState<AssignedManager | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [callOpen, setCallOpen] = useState(false)
   const [entryForm, setEntryForm] = useState<EntryForm | null>(null)
+  const [limitOpen, setLimitOpen] = useState(false)
   const [fullSize, setFullSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
@@ -92,18 +95,15 @@ export function MGFloorTabletDashboard() {
     getAssignedManager().then(setManager)
   }, [])
 
-  useEffect(() => {
-    if (!token) {
-      setLoginAt(null)
-      return
-    }
-    getSessionLoginAt().then(setLoginAt)
-  }, [token, user?.id])
-
   const approvals = useBatchApprovals({ token, department: dept })
   const metalIn = useMemo(() => sentBatchesFor('IN', approvals.states, approvals.sent), [approvals.states, approvals.sent])
   const metalOut = useMemo(() => sentBatchesFor('OUT', approvals.states, approvals.sent), [approvals.states, approvals.sent])
   const today = localDateKey()
+  const approvedKey = useMemo(
+    () => Object.entries(approvals.states).filter(([, s]) => s?.status === 'APPROVED').map(([k]) => k).sort().join(','),
+    [approvals.states],
+  )
+  const batchStats = useBatchStats({ token, department: dept, refreshKey: approvedKey })
   const nextIn = useMemo<BatchChoice>(
     () => ({ entryDate: today, batchLabel: nextBatchLabel(metalIn.filter((b) => b.entryDate === today).map((b) => b.batchLabel)) }),
     [metalIn, today],
@@ -125,46 +125,39 @@ export function MGFloorTabletDashboard() {
 
   const openNew = (direction: BatchDirection) => {
     const choice = direction === 'IN' ? nextIn : metalOutChoices(metalIn, metalOut, today)[0]
-    setEntryForm({ direction, initial: editableBatch(choice), fixing: false })
+    setEntryForm({ direction, initial: editableBatch(choice, undefined, direction), fixing: false })
   }
 
   const openFix = (direction: BatchDirection, row: MetalPanelRow) => {
     const batch = (direction === 'IN' ? metalIn : metalOut).find(
       (b) => b.entryDate === row.entryDate && b.batchLabel === row.batchLabel,
     )
-    setEntryForm({ direction, initial: editableBatch(row, batch?.lines), fixing: true })
+    setEntryForm({ direction, initial: editableBatch(row, batch?.lines, direction), fixing: true })
   }
 
-  const employees = useMemo(() => {
-    if (!token || !user) return []
-    return [
-      {
-        name: user.name || '—',
-        login: formatClock(loginAt),
-        logout: '--',
-      },
-    ]
-  }, [token, user, loginAt])
+  const employees = useMemo(
+    () =>
+      employeeRows(sessions, loggedOut).map((row) => ({
+        id: row.userId,
+        name: row.name || '—',
+        login: formatClock(row.loginAt),
+        logout: row.logoutAt ? formatClock(row.logoutAt) : '--',
+        active: row.active,
+      })),
+    [sessions, loggedOut],
+  )
 
-  const onLogin = async () => {
-    try {
-      const avail = await biometricAvailable()
-      const enabled = await isBiometricEnabled()
-      if (avail && enabled) {
-        const creds = await authenticateWithBiometric()
-        if (creds) {
-          await login(creds.username, creds.password)
-          return
-        }
-      }
-    } catch {
-      // fall through to password login
-    }
-    router.push('/login' as never)
+  const senders = useMemo(() => sessions.map((s) => ({ id: s.user.id, name: s.user.name })), [sessions])
+  const operatorNames = sessions.map((s) => s.user.name).join(', ')
+
+  const onLogout = () => {
+    if (sessions.length > 1) setConfirmLogoutAll(true)
+    else logout().catch(() => {})
   }
 
-  const onLogout = async () => {
-    await logout()
+  const sendBatch = (direction: BatchDirection, batch: MetalBatchEdit, senderId: string | null) => {
+    const sender = sessions.find((s) => s.user.id === senderId)
+    return approvals.confirm(direction, batch, sender ? { userId: sender.user.id, token: sender.token } : null)
   }
 
   const contentWidth = Math.max(width, DASH_MIN_WIDTH)
@@ -202,14 +195,14 @@ export function MGFloorTabletDashboard() {
           <View style={[styles.grid, { gap: 0 }]}>
             <View style={[styles.col, styles.colLeft, { gap }]}>
               <LoginLogoutRow
-                onLogin={onLogin}
+                onLogin={() => setLoginOpen(true)}
                 onLogout={onLogout}
-                loggedIn={Boolean(token)}
-                loginDisabled={Boolean(token)}
+                loggedInCount={sessions.length}
               />
               <AssignManagerButton onPress={() => setAssignOpen(true)} />
               <DepartmentBadge department={dept} loggedIn={Boolean(token)} />
-              <EmployeeTable employees={employees} />
+              <EmployeeTable employees={employees} onLogout={(id) => logoutUser(id).catch(() => {})} />
+              <View style={styles.leftSpacer} />
               <CallFMButton onPress={() => setCallOpen(true)} />
             </View>
 
@@ -218,10 +211,16 @@ export function MGFloorTabletDashboard() {
             <View style={[styles.col, styles.colMid, { gap }]}>
               <MetalProcessPanel
                 title="Metal In"
-                rows={panelRows(metalIn)}
+                rows={panelRows(metalIn, 'IN')}
                 onAdd={() => openNew('IN')}
                 onFix={(row) => openFix('IN', row)}
                 compact={compact}
+              />
+              <MetalLossCard
+                stats={batchStats.stats}
+                today={today}
+                canSetLimit={Boolean(batchStats.stats?.canSetLossLimit)}
+                onEditLimit={() => setLimitOpen(true)}
               />
             </View>
 
@@ -231,12 +230,13 @@ export function MGFloorTabletDashboard() {
               <View style={styles.metalOutBlock}>
                 <MetalProcessPanel
                   title="Metal Out"
-                  rows={panelRows(metalOut)}
+                  rows={panelRows(metalOut, 'OUT')}
                   onAdd={() => openNew('OUT')}
                   onFix={(row) => openFix('OUT', row)}
                   compact={compact}
                 />
               </View>
+              <BatchTimeCard stats={batchStats.stats} today={today} />
             </View>
           </View>
         </View>
@@ -251,8 +251,7 @@ export function MGFloorTabletDashboard() {
         visible={callOpen}
         onClose={() => setCallOpen(false)}
         department={dept}
-        operatorName={user?.name || ''}
-        operatorId={user?.id || ''}
+        operatorName={operatorNames || user?.name || ''}
         manager={manager}
       />
       {entryForm ? (
@@ -261,12 +260,45 @@ export function MGFloorTabletDashboard() {
           title={entryForm.direction === 'IN' ? 'Metal In' : 'Metal Out'}
           batchOptions={batchOptions}
           initial={entryForm.initial}
+          metalOptions={metalOptionsFor(entryForm.direction)}
           canSend={Boolean(token) && Boolean(dept)}
           hint={sendHint}
-          onSend={(batch) => approvals.confirm(entryForm.direction, batch)}
+          senders={senders}
+          onSend={(batch, senderId) => sendBatch(entryForm.direction, batch, senderId)}
           onClose={() => setEntryForm(null)}
         />
       ) : null}
+      <EmployeeLoginModal visible={loginOpen} onClose={() => setLoginOpen(false)} tabletDepartment={dept} />
+      <LossLimitModal
+        visible={limitOpen}
+        department={floorDepartmentLabel(dept)}
+        current={batchStats.stats?.lossLimitPct ?? null}
+        onSave={batchStats.setLossLimit}
+        onClose={() => setLimitOpen(false)}
+      />
+      <Modal visible={confirmLogoutAll} transparent animationType="fade" onRequestClose={() => setConfirmLogoutAll(false)}>
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmSheet}>
+            <Text style={styles.confirmTitle}>Logout all {sessions.length} employees?</Text>
+            <Text style={styles.confirmBody}>Everyone logged in on this tablet will be logged out.</Text>
+            <View style={styles.confirmRow}>
+              <Pressable accessibilityRole="button" onPress={() => setConfirmLogoutAll(false)} style={[styles.confirmBtn, styles.confirmCancel]}>
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setConfirmLogoutAll(false)
+                  logout().catch(() => {})
+                }}
+                style={[styles.confirmBtn, styles.confirmOk]}
+              >
+                <Text style={styles.confirmOkText}>Logout all</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   )
 }
@@ -299,8 +331,37 @@ const styles = StyleSheet.create({
     backgroundColor: td.borderLight,
     marginHorizontal: 12,
   },
-  metalOutBlock: {
+  metalOutBlock: {},
+  leftSpacer: { flex: 1 },
+  confirmBackdrop: {
     flex: 1,
-    minHeight: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
+  confirmSheet: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: td.white,
+    borderRadius: td.radius,
+    borderWidth: 1,
+    borderColor: td.border,
+    padding: 18,
+  },
+  confirmTitle: { color: td.text, fontWeight: '800', fontSize: 18 },
+  confirmBody: { color: td.textMuted, fontSize: 14, marginTop: 6 },
+  confirmRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  confirmBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: td.radius,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmCancel: { borderColor: td.borderLight, backgroundColor: td.white },
+  confirmCancelText: { color: td.text, fontWeight: '700', fontSize: 16 },
+  confirmOk: { borderColor: td.orange, backgroundColor: td.orange },
+  confirmOkText: { color: td.white, fontWeight: '800', fontSize: 16 },
 })

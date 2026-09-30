@@ -5,6 +5,7 @@ import { tabletDashboard as td } from '@/src/theme'
 import { callFloorManager } from '@/src/api/floor'
 import { createOperationId } from '@/src/offline/outbox'
 import { userFacingMessage } from '@/src/api/errors'
+import { floorDepartmentLabel } from '@/src/config/floorDepartments'
 import type { AssignedManager } from '@/src/auth/floorDashboardPrefs'
 
 type Props = {
@@ -12,7 +13,6 @@ type Props = {
   onClose: () => void
   department: string
   operatorName: string
-  operatorId: string
   manager: AssignedManager | null
 }
 
@@ -21,9 +21,9 @@ export function CallFMModal({
   onClose,
   department,
   operatorName,
-  operatorId,
   manager,
 }: Props) {
+  const departmentName = floorDepartmentLabel(department)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -39,8 +39,8 @@ export function CallFMModal({
         return
       }
       await callFloorManager({
-        title: `Floor assistance — ${department || 'floor'}`,
-        message: `Operator ${operatorName || 'unknown'} (${operatorId || ''}) needs assistance.${
+        title: `Floor assistance — ${departmentName || 'floor'}`,
+        message: `Operator ${operatorName || 'unknown'} needs assistance.${
           manager ? ` Assigned manager: ${manager.name}.` : ''
         }`,
         department: department || '',
@@ -75,7 +75,7 @@ export function CallFMModal({
             </>
           ) : (
             <>
-              <Text style={styles.meta}>Department: {department || '—'}</Text>
+              <Text style={styles.meta}>Department: {departmentName || '—'}</Text>
               <Text style={styles.meta}>Operator: {operatorName || '—'}</Text>
               <Text style={styles.meta}>Manager: {manager?.name || 'Not assigned'}</Text>
               {error ? <Text style={styles.error}>{error}</Text> : null}

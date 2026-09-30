@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar'
 import React, { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { KeyboardProvider } from 'react-native-keyboard-controller'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ErrorBoundary } from '@/src/components/ErrorBoundary'
@@ -122,23 +123,25 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <ErrorBoundary>
-          <AuthProvider>
-            <StatusBar style="dark" />
-            <AuthGate>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: colors.bg },
-                }}
-              >
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="department" />
-                <Stack.Screen name="login" />
-              </Stack>
-            </AuthGate>
-          </AuthProvider>
-        </ErrorBoundary>
+        <KeyboardProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <StatusBar style="dark" />
+              <AuthGate>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.bg },
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="department" />
+                  <Stack.Screen name="login" />
+                </Stack>
+              </AuthGate>
+            </AuthProvider>
+          </ErrorBoundary>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )

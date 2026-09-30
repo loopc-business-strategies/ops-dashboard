@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Alert, StyleSheet, Text, TextInput } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
 import NetInfo from '@react-native-community/netinfo'
 import { BigButton, Screen, Subtitle } from '@/src/components/ui'
 import { correctWeight } from '@/src/api/floor'
@@ -62,14 +63,16 @@ export default function CorrectionScreen() {
 
   return (
     <Screen>
-      <Subtitle>Emergency weight correction — never silently overwrites history</Subtitle>
-      <Text style={styles.label}>Batch ID</Text>
-      <TextInput style={styles.input} value={batchId} onChangeText={setBatchId} placeholderTextColor={colors.textMuted} />
-      <Text style={styles.label}>Adjustment (delta grams)</Text>
-      <TextInput style={styles.input} value={adjustment} onChangeText={setAdjustment} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted} />
-      <Text style={styles.label}>Reason</Text>
-      <TextInput style={styles.input} value={reason} onChangeText={setReason} placeholderTextColor={colors.textMuted} />
-      <BigButton label={busy ? 'SAVING…' : 'SUBMIT CORRECTION'} onPress={submit} disabled={busy} />
+      <KeyboardAwareScrollView bottomOffset={spacing.lg} keyboardShouldPersistTaps="handled">
+        <Subtitle>Emergency weight correction — never silently overwrites history</Subtitle>
+        <Text style={styles.label}>Batch ID</Text>
+        <TextInput style={styles.input} value={batchId} onChangeText={setBatchId} placeholderTextColor={colors.textMuted} />
+        <Text style={styles.label}>Adjustment (delta grams)</Text>
+        <TextInput style={styles.input} value={adjustment} onChangeText={setAdjustment} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted} />
+        <Text style={styles.label}>Reason</Text>
+        <TextInput style={styles.input} value={reason} onChangeText={setReason} placeholderTextColor={colors.textMuted} />
+        <BigButton label={busy ? 'SAVING…' : 'SUBMIT CORRECTION'} onPress={submit} disabled={busy} />
+      </KeyboardAwareScrollView>
     </Screen>
   )
 }

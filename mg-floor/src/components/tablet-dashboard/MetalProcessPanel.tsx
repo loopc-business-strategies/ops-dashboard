@@ -1,5 +1,5 @@
-import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import React, { useEffect, useRef } from 'react'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 import type { BatchEntryLine } from '@/src/api/batchEntries'
 
@@ -39,6 +39,16 @@ type Props = {
   compact?: boolean
 }
 
+/**
+ * Metal In and Metal Out lists share one height: two Metal In batches (Gold + Alloy and the
+ * status line). Shorter Metal Out batches fit a little more; the rest scroll.
+ */
+const LINE_HEIGHT = 30
+const STATUS_ROW_HEIGHT = 26
+const BATCH_BORDER = 1
+const METAL_IN_LINES = 2
+const LIST_HEIGHT = 2 * (METAL_IN_LINES * LINE_HEIGHT + STATUS_ROW_HEIGHT + BATCH_BORDER)
+
 const TONES: Record<BatchStatusTone, { bg: string; fg: string }> = {
   neutral: { bg: '#E5E7EB', fg: '#374151' },
   warn: { bg: '#FEF3C7', fg: '#92400E' },
@@ -48,8 +58,25 @@ const TONES: Record<BatchStatusTone, { bg: string; fg: string }> = {
 
 const show = (n: number | null | undefined) => (n == null ? '--' : String(n))
 export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props) {
-  const pad = compact ? 6 : 8
-  const fontSize = compact ? 12 : 14
+  const pad = compact ? 3 : 4
+  const fontSize = compact ? 12 : 13
+  const listRef = useRef<ScrollView>(null)
+  const shownCount = useRef(0)
+  const followEnd = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (followEnd.current) clearTimeout(followEnd.current)
+  }, [])
+
+  /** A new batch shows the latest ones; keeps following the end while the rows lay out. */
+  const onListContentChange = () => {
+    if (rows.length > shownCount.current) {
+      if (followEnd.current) clearTimeout(followEnd.current)
+      followEnd.current = setTimeout(() => { followEnd.current = null }, 600)
+    }
+    shownCount.current = rows.length
+    if (followEnd.current) listRef.current?.scrollToEnd({ animated: false })
+  }
 
   return (
     <View style={styles.wrap}>
@@ -80,82 +107,88 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact }: Props)
           <Text style={[styles.cell, styles.colPurity, styles.headerCell, { fontSize }]}>Purity</Text>
           <Text style={[styles.cell, styles.colTime, styles.headerCell, { fontSize }]}>Time</Text>
         </View>
-        {rows.length === 0 ? (
-          <Text style={styles.empty}>No batches yet. Tap {title} above to add one.</Text>
-        ) : null}
-        {rows.map((row) => {
-          const tone = row.status ? TONES[row.status.tone] : null
-          return (
-            <View key={`${row.entryDate}|${row.batchLabel}`} style={styles.batchBlock}>
-              <View style={styles.batchGroup}>
-                <View style={styles.batchLabelCol}>
-                  <Text style={[styles.batchText, compact && { fontSize: 14 }]}>{row.batchLabel}</Text>
-                  {row.dayTag ? (
-                    <Text style={styles.dayTag} numberOfLines={1} adjustsFontSizeToFit>
-                      {row.dayTag}
-                    </Text>
-                  ) : null}
+        <ScrollView
+          ref={listRef}
+          style={{ height: LIST_HEIGHT }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          persistentScrollbar
+          onContentSizeChange={onListContentChange}
+        >
+          {rows.length === 0 ? (
+            <Text style={styles.empty}>No batches yet. Tap {title} above to add one.</Text>
+          ) : null}
+          {rows.map((row) => {
+            const tone = row.status ? TONES[row.status.tone] : null
+            return (
+              <View key={`${row.entryDate}|${row.batchLabel}`} style={styles.batchBlock}>
+                <View style={styles.batchGroup}>
+                  <View style={styles.batchLabelCol}>
+                    <Text style={[styles.batchText, compact && { fontSize: 13 }]}>{row.batchLabel}</Text>
+                    {row.dayTag ? (
+                      <Text style={styles.dayTag} numberOfLines={1} adjustsFontSizeToFit>
+                        {row.dayTag}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.batchLines}>
+                    {row.lines.map((line, lineIdx) => (
+                      <View
+                        key={`${row.batchLabel}-${line.metal}-${lineIdx}`}
+                        style={[styles.lineRow, lineIdx === row.lines.length - 1 && styles.lineRowLast]}
+                      >
+                        <Text style={[styles.cell, styles.colMetal, styles.metalCell, { fontSize, paddingVertical: pad }]}>
+                          {line.metal}
+                        </Text>
+                        <Text style={[styles.cell, styles.value, styles.colQty, { fontSize, paddingVertical: pad }]}>
+                          {show(line.qty)}
+                        </Text>
+                        <Text style={[styles.cell, styles.value, styles.colPurity, { fontSize, paddingVertical: pad }]}>
+                          {show(line.purity)}
+                        </Text>
+                        <Text style={[styles.cell, styles.value, styles.colTime, { fontSize, paddingVertical: pad }]}>
+                          {line.time || '--'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-                <View style={styles.batchLines}>
-                  {row.lines.map((line, lineIdx) => (
-                    <View
-                      key={`${row.batchLabel}-${line.metal}-${lineIdx}`}
-                      style={[styles.lineRow, lineIdx === row.lines.length - 1 && styles.lineRowLast]}
-                    >
-                      <Text style={[styles.cell, styles.colMetal, styles.metalCell, { fontSize, paddingVertical: pad }]}>
-                        {line.metal}
-                      </Text>
-                      <Text style={[styles.cell, styles.value, styles.colQty, { fontSize, paddingVertical: pad }]}>
-                        {show(line.qty)}
-                      </Text>
-                      <Text style={[styles.cell, styles.value, styles.colPurity, { fontSize, paddingVertical: pad }]}>
-                        {show(line.purity)}
-                      </Text>
-                      <Text style={[styles.cell, styles.value, styles.colTime, { fontSize, paddingVertical: pad }]}>
-                        {line.time || '--'}
+                {row.status || row.canFix ? (
+                  <View style={styles.statusRow}>
+                    <View style={styles.statusInfo}>
+                      {row.status && tone ? (
+                        <View style={[styles.pill, { backgroundColor: tone.bg }]}>
+                          <Text style={[styles.pillText, { color: tone.fg }]}>{row.status.label}</Text>
+                        </View>
+                      ) : null}
+                      <Text style={styles.statusNote} numberOfLines={1}>
+                        {row.status?.note || ''}
                       </Text>
                     </View>
-                  ))}
-                </View>
-              </View>
-              {row.status || row.canFix ? (
-                <View style={styles.statusRow}>
-                  <View style={styles.statusInfo}>
-                    {row.status && tone ? (
-                      <View style={[styles.pill, { backgroundColor: tone.bg }]}>
-                        <Text style={[styles.pillText, { color: tone.fg }]}>{row.status.label}</Text>
-                      </View>
+                    {row.canFix ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Fix and resend batch ${row.batchLabel}`}
+                        onPress={() => onFix(row)}
+                        hitSlop={6}
+                        style={({ pressed }) => [styles.fixBtn, pressed && { opacity: 0.85 }]}
+                      >
+                        <Text style={styles.fixText}>FIX & RESEND</Text>
+                      </Pressable>
                     ) : null}
-                    <Text style={styles.statusNote} numberOfLines={2}>
-                      {row.status?.note || ''}
-                    </Text>
                   </View>
-                  {row.canFix ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Fix and resend batch ${row.batchLabel}`}
-                      onPress={() => onFix(row)}
-                      style={({ pressed }) => [
-                        styles.fixBtn,
-                        compact && { minHeight: 34, paddingHorizontal: 10 },
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <Text style={[styles.fixText, compact && { fontSize: 12 }]}>FIX & RESEND</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-          )
-        })}
+                ) : null}
+              </View>
+            )
+          })}
+        </ScrollView>
       </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, minHeight: 0 },
+  wrap: {},
   header: {
     backgroundColor: td.orange,
     minHeight: 56,
@@ -194,25 +227,23 @@ const styles = StyleSheet.create({
   plusBarH: { position: 'absolute', width: 14, height: 2.5, borderRadius: 2, backgroundColor: td.white },
   plusBarV: { position: 'absolute', width: 2.5, height: 14, borderRadius: 2, backgroundColor: td.white },
   body: {
-    flex: 1,
     borderWidth: 1,
     borderColor: td.border,
     borderRadius: td.radius,
     backgroundColor: td.white,
-    minHeight: 0,
     overflow: 'hidden',
   },
   subHeader: {
     backgroundColor: td.cream,
     borderBottomWidth: 1,
     borderBottomColor: td.borderLight,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
-  subHeaderText: { color: td.text, fontWeight: '700', fontSize: 15 },
+  subHeaderText: { color: td.text, fontWeight: '700', fontSize: 14 },
   row: {
     flexDirection: 'row',
-    minHeight: 40,
+    minHeight: LINE_HEIGHT,
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: td.borderGrid,
@@ -223,50 +254,50 @@ const styles = StyleSheet.create({
   },
   empty: { color: td.textMuted, fontSize: 13, textAlign: 'center', padding: 18 },
   batchBlock: {
-    borderBottomWidth: 1,
+    borderBottomWidth: BATCH_BORDER,
     borderBottomColor: td.borderLight,
   },
   batchGroup: {
     flexDirection: 'row',
-    minHeight: 40,
+    minHeight: LINE_HEIGHT,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    gap: 6,
+    paddingHorizontal: 6,
+    height: STATUS_ROW_HEIGHT,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: td.borderGrid,
     backgroundColor: td.cream,
   },
   statusInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
-  pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  pillText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-  statusNote: { flex: 1, color: td.textMuted, fontSize: 12, minWidth: 0 },
+  pill: { borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 },
+  pillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  statusNote: { flex: 1, color: td.textMuted, fontSize: 11, minWidth: 0 },
   fixBtn: {
-    minHeight: 38,
-    paddingHorizontal: 14,
+    height: STATUS_ROW_HEIGHT - 4,
+    paddingHorizontal: 10,
     backgroundColor: td.orange,
     borderRadius: td.radius,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fixText: { color: td.white, fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  fixText: { color: td.white, fontWeight: '800', fontSize: 11, letterSpacing: 0.4 },
   batchLabelCol: {
-    width: 56,
+    width: 48,
     borderRightWidth: 1,
     borderRightColor: td.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: td.cream,
   },
-  batchText: { color: td.text, fontWeight: '800', fontSize: 16 },
-  dayTag: { color: td.orange, fontWeight: '700', fontSize: 10, marginTop: 2, paddingHorizontal: 2 },
+  batchText: { color: td.text, fontWeight: '800', fontSize: 14 },
+  dayTag: { color: td.orange, fontWeight: '700', fontSize: 9, marginTop: 1, paddingHorizontal: 2 },
   batchLines: { flex: 1 },
   lineRow: {
     flexDirection: 'row',
-    minHeight: 40,
+    height: LINE_HEIGHT,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: td.borderGrid,
     alignItems: 'center',
@@ -288,7 +319,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: td.textMuted,
   },
-  colBatch: { width: 56 },
+  colBatch: { width: 48 },
   colMetal: { flex: 1.1, textAlign: 'left' },
   colQty: { flex: 1 },
   colPurity: { flex: 1 },

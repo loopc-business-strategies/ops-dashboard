@@ -38,11 +38,12 @@ export async function callFloorManager(body: Record<string, unknown>) {
   })
 }
 
-export async function syncOperations(operations: unknown[]) {
+export async function syncOperations(operations: unknown[], token?: string | null) {
   return apiRequest<{ success: boolean; results: unknown[] }>('/api/mg-floor/sync', {
     method: 'POST',
     body: { operations },
     retrySafeGet: false,
+    ...(token ? { token } : {}),
   })
 }
 

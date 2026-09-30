@@ -14,7 +14,8 @@ type RequestOptions = {
 
 const REQUEST_TIMEOUT_MS = 20000
 let authToken: string | null = null
-let onUnauthorized: (() => void) | null = null
+/** Called with the token the server rejected; requests sent without a token (logins) never trigger it. */
+let onUnauthorized: ((token: string) => void) | null = null
 
 export function setAuthToken(token: string | null) {
   authToken = token
@@ -24,7 +25,7 @@ export function getAuthToken() {
   return authToken
 }
 
-export function setUnauthorizedHandler(handler: (() => void) | null) {
+export function setUnauthorizedHandler(handler: ((token: string) => void) | null) {
   onUnauthorized = handler
 }
 
@@ -106,7 +107,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      if (res.status === 401 && onUnauthorized) onUnauthorized()
+      if (res.status === 401 && token && onUnauthorized) onUnauthorized(token)
       const message =
         typeof (data as { message?: string })?.message === 'string'
           ? (data as { message: string }).message

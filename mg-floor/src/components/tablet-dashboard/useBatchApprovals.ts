@@ -107,9 +107,16 @@ export function useBatchApprovals({ token, department }: Options) {
     }
   }, [token, department, load])
 
-  /** Sends one batch; resolves to an error message, or null once it is sent or saved offline. */
+  /**
+   * Sends one batch; resolves to an error message, or null once it is sent or saved offline.
+   * `sender` sends it as that logged-in employee (shared tablet); omitted uses the primary login.
+   */
   const confirm = useCallback(
-    async (direction: BatchDirection, batch: MetalBatchEdit): Promise<string | null> => {
+    async (
+      direction: BatchDirection,
+      batch: MetalBatchEdit,
+      sender?: { userId: string; token: string } | null,
+    ): Promise<string | null> => {
       if (!token) return 'Log in to send for Floor Manager approval'
       if (!department) return 'No floor department is assigned to your account. Ask an admin.'
       if (busyKey) return 'Another batch is still being sent'
@@ -141,6 +148,7 @@ export function useBatchApprovals({ token, department }: Options) {
           operationType: 'batch_entry',
           payload: body as unknown as Record<string, unknown>,
           deviceId: deviceId || undefined,
+          ...(sender ? { senderUserId: sender.userId } : {}),
         })
         lock({ status: 'QUEUED', entryId: body.entryId }, lines)
       }
@@ -151,7 +159,7 @@ export function useBatchApprovals({ token, department }: Options) {
           await queue()
           return null
         }
-        const res = await submitBatchEntry(body)
+        const res = await submitBatchEntry(body, sender?.token)
         lock(stateFromEntry(res.entry), res.entry.lines)
         return null
       } catch (err) {

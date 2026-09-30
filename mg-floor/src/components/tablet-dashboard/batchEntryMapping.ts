@@ -118,6 +118,17 @@ export const METAL_OPTIONS = ['Gold', 'Alloy', 'Silver', 'Copper', 'Platinum', '
 export const DEFAULT_METALS = ['Gold', 'Alloy']
 export const MAX_BATCH_LINES = 8
 
+/** Alloy is added when metal goes in, so Metal Out never asks for it. */
+const IN_ONLY_METALS = ['Alloy']
+
+export function metalOptionsFor(direction: BatchDirection) {
+  return direction === 'OUT' ? METAL_OPTIONS.filter((m) => !IN_ONLY_METALS.includes(m)) : METAL_OPTIONS
+}
+
+export function defaultMetalsFor(direction: BatchDirection) {
+  return direction === 'OUT' ? DEFAULT_METALS.filter((m) => !IN_ONLY_METALS.includes(m)) : DEFAULT_METALS
+}
+
 /** A batch number on the day it belongs to. */
 export type BatchChoice = {
   entryDate: string
@@ -184,20 +195,28 @@ export function metalOutChoices(metalIn: BatchChoice[], metalOut: BatchChoice[],
   return [{ entryDate: today, batchLabel: nextBatchLabel(todayLabels) }]
 }
 
-/** Gold and Alloy always first (empty when not sent), then any other metals that were sent. */
-export function withDefaultMetals(lines: BatchEntryLine[] = []): BatchEntryLine[] {
-  const defaults = DEFAULT_METALS.map(
+/**
+ * The direction's default metals always first (Gold and Alloy for Metal In, Gold for Metal Out),
+ * empty when not sent, then any other metals that were sent.
+ */
+export function withDefaultMetals(lines: BatchEntryLine[] = [], direction: BatchDirection = 'IN'): BatchEntryLine[] {
+  const defaultMetals = defaultMetalsFor(direction)
+  const defaults = defaultMetals.map(
     (metal) => lines.find((l) => l.metal === metal) || { metal, qty: null, purity: null, time: '' },
   )
-  return [...defaults, ...lines.filter((l) => !DEFAULT_METALS.includes(l.metal))]
+  return [...defaults, ...lines.filter((l) => !defaultMetals.includes(l.metal))]
 }
 
 /** Popup rows for a new batch, or for a rejected batch being fixed (its sent lines filled in). */
-export function editableBatch({ entryDate, batchLabel }: BatchChoice, lines?: BatchEntryLine[]): MetalBatchEdit {
+export function editableBatch(
+  { entryDate, batchLabel }: BatchChoice,
+  lines?: BatchEntryLine[],
+  direction: BatchDirection = 'IN',
+): MetalBatchEdit {
   return {
     batchLabel,
     entryDate,
-    lines: withDefaultMetals(lines).map((l) => ({
+    lines: withDefaultMetals(lines, direction).map((l) => ({
       metal: l.metal,
       qty: show(l.qty),
       purity: show(l.purity),

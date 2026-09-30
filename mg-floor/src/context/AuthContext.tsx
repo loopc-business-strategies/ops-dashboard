@@ -1,173 +1,315 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { fetchMe, login as apiLogin } from '@/src/api/auth'
-import { setAuthToken, setUnauthorizedHandler } from '@/src/api/client'
-import { userFacingMessage } from '@/src/api/errors'
-import { registerDevice } from '@/src/api/floor'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  clearSessionLoginAt,
-  markSessionExpiredNotice,
-  setSessionLoginAt,
-} from '@/src/auth/sessionPrefs'
+  fetchMe,
+  login as apiLogin,
+  pinLogin as apiPinLogin,
+  recordAttendanceLogin,
+  recordAttendanceLogout,
+  setMyFloorPin,
+  type LoginMethod,
+  type LoginResponse,
+  type MeResponse,
+} from '@/src/api/auth'
+import { setAuthToken, setUnauthorizedHandler } from '@/src/api/client'
+import { toApiError, userFacingMessage } from '@/src/api/errors'
+import { registerDevice } from '@/src/api/floor'
+import { getSessionLoginAt, markSessionExpiredNotice } from '@/src/auth/sessionPrefs'
+import {
+  primarySession,
+  recordLogout,
+  removeSession,
+  upsertSession,
+  type FloorSession,
+  type FloorUser,
+  type LoggedOutEntry,
+} from '@/src/auth/sessionList'
 import { Platform } from 'react-native'
 import Constants from 'expo-constants'
 import { getDeviceId } from '@/src/device/deviceIdentity'
+import { setSenderTokenResolver } from '@/src/offline/sync'
 
-const TOKEN_KEY = 'mg_floor_session_token'
+export type { FloorSession, FloorUser } from '@/src/auth/sessionList'
 
-type FloorUser = {
-  id: string
-  name: string
-  role: string
-  department?: string
-  floorDepartment?: string
-  productionRole?: string | null
+/** Single-session token saved by builds before multi-employee login (migrated on start). */
+const LEGACY_TOKEN_KEY = 'mg_floor_session_token'
+/** Non-secret list of logged-in employees (tokens live in SecureStore per employee). */
+const SESSIONS_KEY = 'mg_floor_sessions_v1'
+const LOGGED_OUT_KEY = 'mg_floor_logged_out_v1'
+const tokenKey = (userId: string) => `mg_floor_session_tok_${userId}`
+
+type StoredSession = Omit<FloorSession, 'token'>
+
+type LoginOptions = {
+  /** Return an error message to refuse this employee (e.g. wrong department) before they are added. */
+  validate?: (session: FloorSession) => string | null
+  method?: LoginMethod
 }
 
 type AuthState = {
   loading: boolean
+  /** Primary session (manager if one is logged in, otherwise the first employee). */
   token: string | null
   user: FloorUser | null
   shift: unknown
   permissions: Record<string, boolean>
   hydrateError: string | null
-  login: (name: string, password: string) => Promise<void>
+  /** Everyone logged in on this tablet. */
+  sessions: FloorSession[]
+  /** Employees who logged out of this tablet today. */
+  loggedOut: LoggedOutEntry[]
+  login: (name: string, password: string, opts?: LoginOptions) => Promise<FloorSession>
+  loginWithPin: (employee: string, pin: string, opts?: LoginOptions) => Promise<FloorSession>
+  logoutUser: (userId: string) => Promise<void>
+  /** Logs out every employee on this tablet. */
   logout: () => Promise<void>
+  setMyPin: (userId: string, password: string, pin: string) => Promise<void>
   refresh: () => Promise<void>
   retryHydrate: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState | null>(null)
 
-async function readStoredToken(): Promise<string | null> {
+async function secureGet(key: string): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(TOKEN_KEY)
+    return await SecureStore.getItemAsync(key)
   } catch {
     return null
   }
 }
 
-async function writeStoredToken(token: string): Promise<void> {
+async function secureSet(key: string, value: string): Promise<void> {
   try {
-    await SecureStore.setItemAsync(TOKEN_KEY, token)
+    await SecureStore.setItemAsync(key, value)
   } catch {
-    // Device storage unavailable — keep session in memory only for this process.
+    // Device storage unavailable — keep the session in memory only for this process.
   }
 }
 
-async function clearStoredToken(): Promise<void> {
+async function secureDelete(key: string): Promise<void> {
   try {
-    await SecureStore.deleteItemAsync(TOKEN_KEY)
+    await SecureStore.deleteItemAsync(key)
   } catch {
     // ignore
   }
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true)
-  const [token, setToken] = useState<string | null>(null)
-  const [user, setUser] = useState<FloorUser | null>(null)
-  const [shift, setShift] = useState<unknown>(null)
-  const [permissions, setPermissions] = useState<Record<string, boolean>>({})
-  const [hydrateError, setHydrateError] = useState<string | null>(null)
-  const [storedToken, setStoredToken] = useState<string | null>(null)
+async function readJson<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const raw = await AsyncStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
 
-  const logout = useCallback(async () => {
-    setAuthToken(null)
-    setToken(null)
-    setUser(null)
-    setShift(null)
-    setPermissions({})
-    setHydrateError(null)
-    setStoredToken(null)
-    await clearStoredToken()
-    await clearSessionLoginAt()
-  }, [])
+async function writeJson(key: string, value: unknown): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // ignore
+  }
+}
 
-  const hydrateFromMe = useCallback(async (tok: string) => {
-    setAuthToken(tok)
-    const me = await fetchMe(tok)
-    if (String(me.tenant || '').toLowerCase() !== 'mg') {
-      throw new Error('Session is not MG')
-    }
-    setToken(tok)
-    setHydrateError(null)
-    setUser({
+function sessionFromMe(token: string, me: MeResponse, loginAt: string, loginMethod: LoginMethod): FloorSession {
+  if (String(me.tenant || '').toLowerCase() !== 'mg') throw new Error('Session is not MG')
+  return {
+    token,
+    loginAt,
+    loginMethod,
+    shift: me.shift,
+    permissions: me.permissions || {},
+    user: {
       id: String(me.user.id),
       name: me.user.name,
       role: me.user.role,
       department: me.user.department,
       floorDepartment: me.user.floorDepartment || '',
       productionRole: me.productionRole,
-    })
-    setShift(me.shift)
-    setPermissions(me.permissions || {})
+      employeeCode: me.user.employeeCode || '',
+      hasFloorPin: Boolean(me.user.hasFloorPin),
+    },
+  }
+}
+
+const toStored = ({ token: _token, ...rest }: FloorSession): StoredSession => rest
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [loading, setLoading] = useState(true)
+  const [sessions, setSessions] = useState<FloorSession[]>([])
+  const sessionsRef = useRef<FloorSession[]>([])
+  const [loggedOut, setLoggedOut] = useState<LoggedOutEntry[]>([])
+  const loggedOutRef = useRef<LoggedOutEntry[]>([])
+  const [hydrateError, setHydrateError] = useState<string | null>(null)
+
+  /** Updates the list, the API client's default token and storage together so no request uses a stale token. */
+  const commit = useCallback((next: FloorSession[]) => {
+    sessionsRef.current = next
+    setSessions(next)
+    setAuthToken(primarySession(next)?.token ?? null)
+    writeJson(SESSIONS_KEY, next.map(toStored)).catch(() => {})
   }, [])
 
+  const noteLogout = useCallback((session: FloorSession) => {
+    const next = recordLogout(loggedOutRef.current, session)
+    loggedOutRef.current = next
+    setLoggedOut(next)
+    writeJson(LOGGED_OUT_KEY, next).catch(() => {})
+  }, [])
+
+  const dropSession = useCallback(
+    async (session: FloorSession, { tellServer }: { tellServer: boolean }) => {
+      commit(removeSession(sessionsRef.current, session.user.id))
+      noteLogout(session)
+      await secureDelete(tokenKey(session.user.id))
+      if (tellServer) await recordAttendanceLogout(session.token).catch(() => {})
+    },
+    [commit, noteLogout],
+  )
+
+  const addSession = useCallback(
+    async (data: LoginResponse, method: LoginMethod, opts?: LoginOptions) => {
+      if (!data.token) throw new Error('Login failed — no token')
+      const me = await fetchMe(data.token)
+      const session = sessionFromMe(data.token, me, new Date().toISOString(), opts?.method || method)
+      const refused = opts?.validate?.(session)
+      if (refused) throw new Error(refused)
+
+      const wasEmpty = sessionsRef.current.length === 0
+      await secureSet(tokenKey(session.user.id), session.token)
+      commit(upsertSession(sessionsRef.current, session))
+      setHydrateError(null)
+
+      recordAttendanceLogin(session.token, { loginMethod: session.loginMethod }).catch(() => {})
+      if (wasEmpty) {
+        ;(async () => {
+          await registerDevice({
+            deviceId: await getDeviceId(),
+            appVersion: Constants.expoConfig?.version || '1.0.0',
+            os: Platform.OS,
+            model: Platform.OS,
+            department: session.user.floorDepartment || session.user.department || '',
+          })
+        })().catch(() => {})
+      }
+      return sessionsRef.current.find((s) => s.user.id === session.user.id) || session
+    },
+    [commit],
+  )
+
+  const login = useCallback(
+    async (name: string, password: string, opts?: LoginOptions) => addSession(await apiLogin(name, password), 'password', opts),
+    [addSession],
+  )
+
+  const loginWithPin = useCallback(
+    async (employee: string, pin: string, opts?: LoginOptions) => addSession(await apiPinLogin(employee, pin), 'pin', opts),
+    [addSession],
+  )
+
+  const logoutUser = useCallback(
+    async (userId: string) => {
+      const session = sessionsRef.current.find((s) => s.user.id === userId)
+      if (session) await dropSession(session, { tellServer: true })
+    },
+    [dropSession],
+  )
+
+  const logout = useCallback(async () => {
+    const all = [...sessionsRef.current]
+    for (const s of all) await dropSession(s, { tellServer: true })
+    setHydrateError(null)
+    await secureDelete(LEGACY_TOKEN_KEY)
+  }, [dropSession])
+
+  const setMyPin = useCallback(
+    async (userId: string, password: string, pin: string) => {
+      const session = sessionsRef.current.find((s) => s.user.id === userId)
+      if (!session) throw new Error('That employee is not logged in on this tablet')
+      await setMyFloorPin(session.token, password, pin)
+      commit(sessionsRef.current.map((s) => (s.user.id === userId ? { ...s, user: { ...s.user, hasFloorPin: true } } : s)))
+    },
+    [commit],
+  )
+
   const refresh = useCallback(async () => {
-    if (!token) return
-    await hydrateFromMe(token)
-  }, [hydrateFromMe, token])
+    const current = sessionsRef.current
+    if (!current.length) return
+    const next: FloorSession[] = []
+    for (const s of current) {
+      try {
+        next.push(sessionFromMe(s.token, await fetchMe(s.token), s.loginAt, s.loginMethod))
+      } catch {
+        next.push(s)
+      }
+    }
+    commit(next.filter((s) => sessionsRef.current.some((c) => c.user.id === s.user.id)))
+  }, [commit])
+
+  const hydrate = useCallback(async () => {
+    const log = (await readJson<LoggedOutEntry[]>(LOGGED_OUT_KEY, [])).filter(Boolean)
+    loggedOutRef.current = log
+    setLoggedOut(log)
+
+    const stored = (await readJson<StoredSession[]>(SESSIONS_KEY, [])).filter((s) => s?.user?.id)
+    const restored: FloorSession[] = []
+    for (const entry of stored) {
+      const token = await secureGet(tokenKey(entry.user.id))
+      if (!token) continue
+      try {
+        restored.push(sessionFromMe(token, await fetchMe(token), entry.loginAt, entry.loginMethod))
+      } catch (err) {
+        if (toApiError(err).kind === 'AUTH_ERROR') {
+          await secureDelete(tokenKey(entry.user.id))
+          continue
+        }
+        // Offline start: keep working with the saved details; requests retry when the network is back.
+        restored.push({ ...entry, token })
+      }
+    }
+
+    if (!stored.length) {
+      const legacy = await secureGet(LEGACY_TOKEN_KEY)
+      if (legacy) {
+        try {
+          const loginAt = (await getSessionLoginAt()) || new Date().toISOString()
+          const session = sessionFromMe(legacy, await fetchMe(legacy), loginAt, 'password')
+          await secureSet(tokenKey(session.user.id), legacy)
+          await secureDelete(LEGACY_TOKEN_KEY)
+          restored.push(session)
+        } catch (err) {
+          if (toApiError(err).kind === 'AUTH_ERROR') await secureDelete(LEGACY_TOKEN_KEY)
+          else setHydrateError(userFacingMessage(err) || 'Unable to restore session')
+        }
+      }
+    }
+    commit(restored)
+  }, [commit])
 
   const retryHydrate = useCallback(async () => {
-    const tok = storedToken || (await readStoredToken())
-    if (!tok) {
-      setHydrateError(null)
-      return
-    }
     setLoading(true)
     setHydrateError(null)
     try {
-      await hydrateFromMe(tok)
-    } catch (err) {
-      setHydrateError(userFacingMessage(err) || 'Unable to restore session')
+      await hydrate()
     } finally {
       setLoading(false)
     }
-  }, [hydrateFromMe, storedToken])
-
-  const login = useCallback(async (name: string, password: string) => {
-    const data = await apiLogin(name, password)
-    if (!data.token) throw new Error('Login failed — no token')
-    await writeStoredToken(data.token)
-    setStoredToken(data.token)
-    await setSessionLoginAt(new Date().toISOString())
-    await hydrateFromMe(data.token)
-    try {
-      await registerDevice({
-        deviceId: await getDeviceId(),
-        appVersion: Constants.expoConfig?.version || '1.0.0',
-        os: Platform.OS,
-        model: Platform.OS,
-        department: data.user?.floorDepartment || data.user?.department || '',
-      })
-    } catch {
-      // non-blocking
-    }
-  }, [hydrateFromMe])
+  }, [hydrate])
 
   useEffect(() => {
     let cancelled = false
-    setUnauthorizedHandler(() => {
+    setUnauthorizedHandler((badToken) => {
+      const session = sessionsRef.current.find((s) => s.token === badToken)
+      if (!session) return
       markSessionExpiredNotice().catch(() => {})
-      logout()
+      dropSession(session, { tellServer: false }).catch(() => {})
     })
+    setSenderTokenResolver((userId) => sessionsRef.current.find((s) => s.user.id === userId)?.token ?? null)
     getDeviceId().catch(() => {})
     ;(async () => {
       try {
-        const stored = await readStoredToken()
-        if (cancelled) return
-        if (stored) {
-          setStoredToken(stored)
-          try {
-            await hydrateFromMe(stored)
-          } catch (err) {
-            if (!cancelled) {
-              setHydrateError(userFacingMessage(err) || 'Unable to restore session')
-              // Keep stored token for retry; do not wipe session blindly on network blip
-            }
-          }
-        }
+        await hydrate()
       } catch {
         if (!cancelled) setHydrateError('Unable to read stored session')
       } finally {
@@ -177,23 +319,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
       setUnauthorizedHandler(null)
+      setSenderTokenResolver(null)
     }
-  }, [hydrateFromMe, logout])
+  }, [hydrate, dropSession])
 
-  const value = useMemo(
+  const primary = primarySession(sessions)
+
+  const value = useMemo<AuthState>(
     () => ({
       loading,
-      token,
-      user,
-      shift,
-      permissions,
+      token: primary?.token ?? null,
+      user: primary?.user ?? null,
+      shift: primary?.shift ?? null,
+      permissions: primary?.permissions ?? {},
       hydrateError,
+      sessions,
+      loggedOut,
       login,
+      loginWithPin,
+      logoutUser,
       logout,
+      setMyPin,
       refresh,
       retryHydrate,
     }),
-    [loading, token, user, shift, permissions, hydrateError, login, logout, refresh, retryHydrate],
+    [loading, primary, hydrateError, sessions, loggedOut, login, loginWithPin, logoutUser, logout, setMyPin, refresh, retryHydrate],
   )
 
   return React.createElement(AuthContext.Provider, { value }, children)

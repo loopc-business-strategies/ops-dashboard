@@ -28,7 +28,7 @@ export function CallFMButton({ onPress, disabled, label = 'Call F.M' }: Props) {
 
 const styles = StyleSheet.create({
   btn: {
-    minHeight: 76,
+    minHeight: 100,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: td.orange,
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     color: td.white,
     fontFamily: td.buttonFont,
     fontWeight: '600',
-    fontSize: 24,
-    letterSpacing: 0.8,
+    fontSize: 30,
+    letterSpacing: 1,
   },
 })

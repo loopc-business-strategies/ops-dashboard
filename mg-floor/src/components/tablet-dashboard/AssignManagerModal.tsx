@@ -8,6 +8,7 @@ import {
   View,
   ScrollView,
 } from 'react-native'
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller'
 import { tabletDashboard as td } from '@/src/theme'
 import {
   addManagerOption,
@@ -61,7 +62,7 @@ export function AssignManagerModal({ visible, onClose, onAssigned }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView style={styles.backdrop} behavior="padding">
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>
           <Text style={styles.title}>Assign Manager</Text>
@@ -91,7 +92,7 @@ export function AssignManagerModal({ visible, onClose, onAssigned }: Props) {
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
@@ -110,10 +111,11 @@ const styles = StyleSheet.create({
     borderColor: td.border,
     padding: 16,
     maxHeight: '80%',
+    flexShrink: 1,
     zIndex: 1,
   },
   title: { color: td.text, fontWeight: '800', fontSize: 18, marginBottom: 12 },
-  list: { maxHeight: 220, marginBottom: 12 },
+  list: { maxHeight: 220, flexShrink: 1, marginBottom: 12 },
   option: {
     paddingVertical: 14,
     paddingHorizontal: 10,

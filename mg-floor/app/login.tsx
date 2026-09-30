@@ -2,13 +2,12 @@ import { useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
 import { useAuth } from '@/src/context/AuthContext'
 import { BigButton, Screen, Subtitle, Title } from '@/src/components/ui'
 import { ModernGoldLogo } from '@/src/components/ModernGoldLogo'
@@ -97,9 +96,10 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1, justifyContent: 'center' }}
+      <KeyboardAwareScrollView
+        bottomOffset={spacing.lg}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.content}
       >
         <ModernGoldLogo height={72} />
         <Title>{brand.appName}</Title>
@@ -157,12 +157,13 @@ export default function LoginScreen() {
           tone="neutral"
           disabled={busy}
         />
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
+  content: { flexGrow: 1, justifyContent: 'center' },
   lock: {
     marginTop: spacing.lg,
     marginBottom: spacing.md,

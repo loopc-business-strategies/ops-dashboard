@@ -5,13 +5,15 @@ import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 type Props = {
   onLogin: () => void
   onLogout: () => void
-  loggedIn: boolean
+  /** Employees logged in on this tablet; Login stays available so more can join. */
+  loggedInCount: number
   loginDisabled?: boolean
 }
 
-/** Logout is hidden until logged in. */
-export function LoginLogoutRow({ onLogin, onLogout, loggedIn, loginDisabled }: Props) {
-  const loginOff = loginDisabled || loggedIn
+/** Logout is hidden until someone is logged in; with several employees it logs out everyone. */
+export function LoginLogoutRow({ onLogin, onLogout, loggedInCount, loginDisabled }: Props) {
+  const loginOff = Boolean(loginDisabled)
+  const loggedIn = loggedInCount > 0
   return (
     <View style={styles.row}>
       <Pressable
@@ -34,7 +36,7 @@ export function LoginLogoutRow({ onLogin, onLogout, loggedIn, loginDisabled }: P
           onPress={onLogout}
           style={({ pressed }) => [styles.btn, styles.logout, pressed && styles.outlinePressed]}
         >
-          <Text style={[styles.text, styles.logoutText]}>Logout</Text>
+          <Text style={[styles.text, styles.logoutText]}>{loggedInCount > 1 ? 'Logout all' : 'Logout'}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -42,10 +44,10 @@ export function LoginLogoutRow({ onLogin, onLogout, loggedIn, loginDisabled }: P
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 10 },
+  row: { flexDirection: 'row', gap: 8 },
   btn: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -72,8 +74,8 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: td.buttonFont,
     fontWeight: '600',
-    fontSize: 18,
-    letterSpacing: 0.6,
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   loginText: { color: td.white },
   logoutText: { color: td.orange },

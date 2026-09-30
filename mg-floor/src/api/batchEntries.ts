@@ -40,11 +40,13 @@ export type BatchEntryRow = {
   rejectReason?: string
 }
 
-export async function submitBatchEntry(body: SubmitBatchEntryBody) {
+/** `token` sends as a specific employee on a shared tablet; omitted uses the tablet's primary login. */
+export async function submitBatchEntry(body: SubmitBatchEntryBody, token?: string | null) {
   return apiRequest<{ success: boolean; reused?: boolean; entry: BatchEntryRow }>('/api/mg-floor/batch-entries', {
     method: 'POST',
     body,
     retrySafeGet: false,
+    ...(token ? { token } : {}),
   })
 }
 
