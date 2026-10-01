@@ -50,4 +50,38 @@ describe('loss report helpers', () => {
     expect(html.match(/class="over"/g)).toHaveLength(2)
     expect(html).toContain('01 Sep 2026 – 30 Sep 2026')
   })
+
+  const byOperator = {
+    from: '2026-09-01',
+    to: '2026-09-30',
+    groupBy: 'day',
+    view: 'operator',
+    limits: { melting: 0.5, rolling: null },
+    rows: [
+      { period: '2026-09-01', operator: 'Sara', department: 'melting', batches: 1, metalIn: 1000, metalOut: 990, loss: 10, lossPct: 1, overLimit: true, overLimitBatches: 1, fineLoss: null },
+      { period: '2026-09-01', operator: '', department: 'rolling', batches: 1, metalIn: 200, metalOut: 199, loss: 1, lossPct: 0.5, overLimit: false, overLimitBatches: 0, fineLoss: null },
+    ],
+    byOperator: [
+      { operator: 'Sara', departments: ['melting', 'rolling'], batches: 2, metalIn: 1200, metalOut: 1189, loss: 11, lossPct: 0.92, overLimit: false, overLimitBatches: 1, fineLoss: 2 },
+      { operator: '', departments: ['rolling'], batches: 1, metalIn: 200, metalOut: 199, loss: 1, lossPct: 0.5, overLimit: false, overLimitBatches: 0, fineLoss: null },
+    ],
+    total: { batches: 3, metalIn: 1400, metalOut: 1388, loss: 12, lossPct: 0.86, overLimitBatches: 1, fineLoss: 2 },
+  }
+
+  it('by operator: sheets name the operator, list departments, and skip breakdowns', () => {
+    const { summary, detail } = reportSheets(byOperator, (k) => k.toUpperCase())
+    expect(summary[0]).toEqual(['Operator', 'Departments', 'Batches', 'Metal In (g)', 'Metal Out (g)', 'Loss (g)', 'Loss %', 'Batches above limit', 'Fine gold loss (g)'])
+    expect(summary[1]).toEqual(['Sara', 'MELTING, ROLLING', 2, 1200, 1189, 11, 0.92, 1, 2])
+    expect(summary[2][0]).toBe('Not recorded')
+    expect(summary[3]).toEqual(['All operators', '', 3, 1400, 1388, 12, 0.86, 1, 2])
+    expect(detail[1]).toEqual(['01 Sep 2026', 'Sara', 'MELTING', 1, 1000, 990, 10, 1, 0.5, 1, ''])
+    expect(detail[2]).toEqual(['01 Sep 2026', 'Not recorded', 'ROLLING', 1, 200, 199, 1, 0.5, '', '', ''])
+  })
+
+  it('by operator: print says who the loss counts against', () => {
+    const html = reportPrintHtml(byOperator)
+    expect(html).toContain('<h2>Per operator</h2>')
+    expect(html).toContain('operator who sent Metal Out')
+    expect(html.match(/class="over"/g)).toHaveLength(1)
+  })
 })

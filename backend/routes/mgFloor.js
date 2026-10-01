@@ -584,6 +584,7 @@ router.get('/loss-report', ...mgProtect, requireProductionPermission('approvePas
   to: dayParam.required(),
   groupBy: Joi.string().valid('day', 'month').default('day'),
   department: Joi.string().trim().max(80).allow(''),
+  view: Joi.string().valid('department', 'operator').default('department'),
 })), async (req, res) => {
   try {
     res.json({ success: true, ...(await lossReport.getLossReport(req.query)) })

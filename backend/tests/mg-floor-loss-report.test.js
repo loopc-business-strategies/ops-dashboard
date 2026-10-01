@@ -96,7 +96,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   if (!isMongooseConnected(mongoose)) return
-  const models = ['OperationsProductionEntry', 'ProductionAlert', 'MgFloorSetting', 'AuditLog', 'User']
+  const models = ['OperationsProductionEntry', 'FloorBatchEntry', 'ProductionAlert', 'MgFloorSetting', 'AuditLog', 'User']
   await Promise.all(models.map(async (name) => (await require(`../models/${name}`).getTenantModel('mg')).deleteMany({})))
 }, 60000)
 
@@ -156,5 +156,44 @@ describe('MG Floor loss report', () => {
     expect((await report(fm, { from: '2026-01-01', to: '2026-06-30' })).status).toBe(400)
     expect((await report(fm, { from: '2026-01-01', to: '2026-06-30', groupBy: 'month' })).status).toBe(200)
     expect((await report(fm, { from: '2026-09-01', to: '2026-09-30', department: 'nowhere' })).status).toBe(400)
+  })
+
+  test('by operator: loss counts against whoever sent Metal Out, most loss first', async () => {
+    const fm = await createUser({ role: 'department_head', productionRole: 'floor_manager' })
+    await request(app).put('/api/mg-floor/batch-stats/loss-limit').set(headers(fm)).send({ department: 'melting', lossLimitPct: 0.5 })
+    const Workbook = await require('../models/OperationsProductionEntry').getTenantModel('mg')
+    await Workbook.create([
+      { departmentKey: 'melting', date: '2026-09-01', batchNumber: '1', metalIn: 1000, metalOut: 990, metalLoss: 10, employeeName: 'Ali', floorOutEntryId: 'out-1' },
+      { departmentKey: 'melting', date: '2026-09-01', batchNumber: '2', metalIn: 500, metalOut: 499, metalLoss: 1, employeeName: 'Ali', floorOutEntryId: 'out-2' },
+      { departmentKey: 'rolling', date: '2026-09-01', batchNumber: '1', metalIn: 200, metalOut: 199, metalLoss: 1, employeeName: 'Ali', floorOutEntryId: 'out-3' },
+      { departmentKey: 'melting', date: '2026-09-02', batchNumber: '3', metalIn: 100, metalOut: 98, metalLoss: 2, employeeName: 'Manual Mo' },
+      { departmentKey: 'melting', date: '2026-09-02', batchNumber: '4', metalIn: 50, metalOut: 50, metalLoss: 0 },
+      { departmentKey: 'melting', date: '2026-09-02', batchNumber: '5', metalIn: 80, metalOut: null, employeeName: 'Ali' },
+    ])
+    const Entries = await require('../models/FloorBatchEntry').getTenantModel('mg')
+    await Entries.collection.insertMany(['Sara', 'Ali', 'Sara'].map((name, i) => ({ entryId: `out-${i + 1}`, direction: 'OUT', employeeName: name })))
+
+    const res = await report(fm, { from: '2026-09-01', to: '2026-09-30', view: 'operator' })
+    expect(res.status).toBe(200)
+    expect(res.body.view).toBe('operator')
+    expect(res.body.byOperator.map((o) => [o.operator, o.batches, o.loss, o.overLimitBatches])).toEqual([
+      ['Sara', 2, 11, 1],
+      ['Manual Mo', 1, 2, 1],
+      ['Ali', 1, 1, 0],
+      ['', 1, 0, 0],
+    ])
+    expect(res.body.byOperator[0]).toMatchObject({ departments: ['melting', 'rolling'], metalIn: 1200, overLimit: false })
+    expect(res.body.rows.map((r) => `${r.period} ${r.operator || '-'} ${r.department}`)).toEqual([
+      '2026-09-01 Ali melting',
+      '2026-09-01 Sara melting',
+      '2026-09-01 Sara rolling',
+      '2026-09-02 Manual Mo melting',
+      '2026-09-02 - melting',
+    ])
+    expect(res.body.rows[1]).toMatchObject({ lossPct: 1, overLimit: true })
+    expect(res.body.total).toMatchObject({ batches: 5, loss: 14, breakdowns: 0 })
+    expect(res.body.byDepartment).toBeUndefined()
+
+    expect((await report(fm, { from: '2026-09-01', to: '2026-09-30', view: 'shift' })).status).toBe(400)
   })
 })

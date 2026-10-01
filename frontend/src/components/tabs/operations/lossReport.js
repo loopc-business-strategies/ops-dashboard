@@ -59,8 +59,52 @@ function valuesFor(r, limit) {
   ]
 }
 
-/** Sheets for Excel / CSV: per-department summary and per-period detail. */
+/** Rows without a Metal Out sender (e.g. typed straight into the workbook with no Employee). */
+export const operatorName = (name) => name || 'Not recorded'
+
+const metalValues = (r) => [
+  r.batches,
+  num(r.batches ? r.metalIn : null),
+  num(r.batches ? r.metalOut : null),
+  num(r.batches ? r.loss : null),
+  num(r.lossPct),
+]
+
+function operatorSheets(data, labelOf) {
+  const limits = data?.limits || {}
+  const label = data?.groupBy === 'month' ? 'Month' : 'Day'
+  const summary = [
+    ['Operator', 'Departments', 'Batches', 'Metal In (g)', 'Metal Out (g)', 'Loss (g)', 'Loss %', 'Batches above limit', 'Fine gold loss (g)'],
+    ...(data?.byOperator || []).map((r) => [
+      operatorName(r.operator),
+      (r.departments || []).map(labelOf).join(', '),
+      ...metalValues(r),
+      r.overLimitBatches,
+      num(r.fineLoss),
+    ]),
+  ]
+  if (data?.total) summary.push(['All operators', '', ...metalValues(data.total), data.total.overLimitBatches, num(data.total.fineLoss)])
+  const detail = [
+    [label, 'Operator', 'Department', 'Batches', 'Metal In (g)', 'Metal Out (g)', 'Loss (g)', 'Loss %', 'Limit %', 'Batches above limit', 'Fine gold loss (g)'],
+    ...(data?.rows || []).map((r) => {
+      const limit = limits[r.department] ?? null
+      return [
+        formatPeriod(r.period),
+        operatorName(r.operator),
+        labelOf(r.department),
+        ...metalValues(r),
+        num(limit),
+        limit != null ? r.overLimitBatches : '',
+        num(r.fineLoss),
+      ]
+    }),
+  ]
+  return { summary, detail }
+}
+
+/** Sheets for Excel / CSV: per-department (or per-operator) summary and per-period detail. */
 export function reportSheets(data, labelOf = (k) => k) {
+  if (data?.view === 'operator') return operatorSheets(data, labelOf)
   const limits = data?.limits || {}
   const label = data?.groupBy === 'month' ? 'Month' : 'Day'
   const summary = [
@@ -87,9 +131,13 @@ function htmlTable(rows, overRows = new Set()) {
 /** Printable page: title, range, summary and detail tables; over-limit rows in red. */
 export function reportPrintHtml(data, { labelOf = (k) => k, company = 'MG', departmentLabel = 'All departments' } = {}) {
   const { summary, detail } = reportSheets(data, labelOf)
+  const byOperator = data?.view === 'operator'
   const overSummary = new Set((data?.byDepartment || []).map((r, i) => (r.overLimit ? i : -1)).filter((i) => i >= 0))
   const overDetail = new Set((data?.rows || []).map((r, i) => (r.overLimit ? i : -1)).filter((i) => i >= 0))
   const range = `${formatPeriod(data?.from)} – ${formatPeriod(data?.to)}`
+  const note = byOperator
+    ? 'Loss counts against the operator who sent Metal Out · Red = above the department\'s loss limit'
+    : 'Red = above the department\'s loss limit'
   return `<!doctype html><html><head><meta charset="utf-8"><title>Metal loss report ${esc(range)}</title><style>
 body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;margin:24px;font-size:12px}
 h1{font-size:18px;margin:0 0 4px;color:#ea580c}h2{font-size:14px;margin:22px 0 8px}
@@ -99,8 +147,8 @@ td{padding:5px 6px;border-bottom:1px solid #e5e7eb}tr.over td{background:#fef2f2
 @page{size:A4 landscape;margin:10mm}
 </style></head><body>
 <h1>${esc(company)} — Metal loss report</h1>
-<div class="sub">${esc(range)} · ${data?.groupBy === 'month' ? 'By month' : 'By day'} · ${esc(departmentLabel)} · Approved batches only · Red = above the department's loss limit</div>
-<h2>Per department</h2>${htmlTable(summary, overSummary)}
+<div class="sub">${esc(range)} · ${data?.groupBy === 'month' ? 'By month' : 'By day'} · ${esc(departmentLabel)} · Approved batches only · ${esc(note)}</div>
+<h2>${byOperator ? 'Per operator' : 'Per department'}</h2>${htmlTable(summary, overSummary)}
 <h2>${data?.groupBy === 'month' ? 'By month' : 'By day'}</h2>${htmlTable(detail, overDetail)}
 </body></html>`
 }

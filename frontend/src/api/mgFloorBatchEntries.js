@@ -20,7 +20,7 @@ export const mgFloorBatchEntriesApi = {
     (await axios.put(`${API_ORIGIN}/api/mg-floor/batch-stats/loss-limit`, { department, lossLimitPct })).data,
   /** Average finished batch time in minutes per department, e.g. { melting: 150 }. */
   timeAverages: async () => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-stats/time-averages`)).data,
-  /** Metal loss per department per day or month: { from, to, groupBy: 'day'|'month', department? }. */
+  /** Metal loss per department (or Metal Out operator) per day or month: { from, to, groupBy: 'day'|'month', department?, view?: 'department'|'operator' }. */
   lossReport: async (params) => (await axios.get(`${API_ORIGIN}/api/mg-floor/loss-report`, { params })).data,
   /** Every batch in a day range with its timeline: { from, to, department?, batch?, operator? }. */
   history: async (params) => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-history`, { params })).data,
