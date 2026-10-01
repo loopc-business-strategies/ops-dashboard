@@ -2,11 +2,12 @@ const OperationsProductionEntry = require('../../models/OperationsProductionEntr
 const MgFloorSetting = require('../../models/MgFloorSetting')
 const { ProductionError } = require('../productionControl/errors')
 const { writeProductionAudit } = require('../productionControl/audit')
-const { normalizeFloorDepartment } = require('../../constants/mgFloorBatchEntry')
+const { FLOOR_DEPARTMENTS, normalizeFloorDepartment } = require('../../constants/mgFloorBatchEntry')
 
 /** Longer "batches" are forgotten Metal Outs, not real batch times. */
 const MAX_BATCH_MINUTES = 48 * 60
 const MAX_LOSS_LIMIT_PCT = 100
+const RECENT_LOSS_DAYS = 30
 
 const round = (value, places) => {
   const f = 10 ** places
@@ -192,4 +193,54 @@ async function getLossLimits() {
   return Object.fromEntries(settings.map((s) => [s.department, s.lossLimitPct]))
 }
 
-module.exports = { getBatchStats, getLossLimits, getTimeAverages, setLossLimit, MAX_BATCH_MINUTES }
+/**
+ * Every floor department with its loss limit, who set it, and its finished batches in the last
+ * 30 days (average loss % and how many went over the current limit), for the web Loss limits page.
+ */
+async function listLossLimitSettings({ now = new Date() } = {}) {
+  const since = new Date(now)
+  since.setUTCDate(since.getUTCDate() - RECENT_LOSS_DAYS)
+  const [settings, recent] = await Promise.all([
+    MgFloorSetting.find({ department: { $in: FLOOR_DEPARTMENTS } }).lean(),
+    OperationsProductionEntry.aggregate([
+      {
+        $match: {
+          departmentKey: { $in: FLOOR_DEPARTMENTS },
+          date: { $gte: since.toISOString().slice(0, 10) },
+          metalIn: { $gt: 0 },
+          metalOut: { $gte: 0 },
+        },
+      },
+      {
+        $project: {
+          departmentKey: 1,
+          metalIn: 1,
+          loss: { $ifNull: ['$metalLoss', { $max: [0, { $subtract: ['$metalIn', '$metalOut'] }] }] },
+        },
+      },
+    ]),
+  ])
+  const byDepartment = new Map(settings.map((s) => [s.department, s]))
+
+  return FLOOR_DEPARTMENTS.map((department) => {
+    const setting = byDepartment.get(department)
+    const limit = setting?.lossLimitPct ?? null
+    const rows = recent.filter((r) => r.departmentKey === department)
+    const loss = rows.reduce((s, r) => s + r.loss, 0)
+    const metalIn = rows.reduce((s, r) => s + r.metalIn, 0)
+    return {
+      department,
+      lossLimitPct: limit,
+      lossLimitSetBy: setting?.updatedByName || '',
+      lossLimitSetAt: setting?.updatedAt || null,
+      recent: {
+        days: RECENT_LOSS_DAYS,
+        batches: rows.length,
+        avgLossPct: lossPct(loss, metalIn),
+        overLimit: limit == null ? null : rows.filter((r) => lossPct(r.loss, r.metalIn) > limit).length,
+      },
+    }
+  })
+}
+
+module.exports = { getBatchStats, getLossLimits, getTimeAverages, listLossLimitSettings, setLossLimit, MAX_BATCH_MINUTES }

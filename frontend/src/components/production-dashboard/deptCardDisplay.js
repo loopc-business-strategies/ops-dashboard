@@ -329,6 +329,8 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
         index: r.index ?? i + 1,
         label: r.label || `Batch ${i + 1}`,
         loss: hasNum(r.loss) ? Number(r.loss) : null,
+        lossPct: hasNum(r.lossPct) ? Number(r.lossPct) : null,
+        overLimit: Boolean(r.overLimit),
       })).filter((r) => r.loss != null)
     : batches
       .map((b, i) => ({

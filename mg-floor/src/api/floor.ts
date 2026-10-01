@@ -30,21 +30,29 @@ export async function fetchStatsSummary(params?: Record<string, string>, opts?: 
   })
 }
 
-export async function callFloorManager(body: Record<string, unknown>) {
-  return apiRequest<{ success: boolean; alert?: unknown }>('/api/mg-floor/alerts', {
-    method: 'POST',
-    body,
-    retrySafeGet: false,
-  })
-}
-
-export type BreakdownStatus = {
+/** A Breakdown or Call F.M as the tablet follows it: still waiting, or acknowledged by whom and when. */
+export type AlarmStatus = {
   _id: string
   status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED'
   department: string
   createdAt: string
   acknowledgedByName: string
   acknowledgedAt: string | null
+}
+export type BreakdownStatus = AlarmStatus
+
+type RaisedAlert = Omit<AlarmStatus, 'department'> & { metadata?: { department?: string } }
+
+export async function callFloorManager(body: Record<string, unknown>) {
+  return apiRequest<{ success: boolean; alert?: RaisedAlert }>('/api/mg-floor/alerts', {
+    method: 'POST',
+    body,
+    retrySafeGet: false,
+  })
+}
+
+export async function getFmCall(id: string) {
+  return apiRequest<{ success: boolean; alert: AlarmStatus }>(`/api/mg-floor/fm-calls/${encodeURIComponent(id)}`)
 }
 
 /** One tap: rings the Breakdown alarm on the Production Dashboard (returns the open one if already ringing). */

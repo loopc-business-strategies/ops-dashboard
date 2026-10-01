@@ -25,6 +25,33 @@ function formatLoss(v) {
   return Number(v).toFixed(2)
 }
 
+/** One batch's loss in grams; above the department's loss limit it turns red and shows its %. */
+function LossRow({ row }) {
+  return (
+    <li className={row.overLimit ? 'pd-dept-loss-row--over' : undefined}>
+      <span>{row.label}</span>
+      <strong title={row.lossPct != null ? `${row.lossPct}% of Metal In` : undefined}>
+        {formatLoss(row.loss)}
+        {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
+      </strong>
+    </li>
+  )
+}
+
+function LossLimitChip({ card }) {
+  if (card.lossLimitPct == null) return null
+  const over = card.lossOverLimitCount || 0
+  return (
+    <span
+      className={`pd-dept-loss-limit${over ? ' pd-dept-loss-limit--over' : ''}`}
+      role={over ? 'alert' : undefined}
+      title={`Loss limit ${card.lossLimitPct}% of Metal In`}
+    >
+      {over ? `${over} over ${card.lossLimitPct}%` : `Limit ${card.lossLimitPct}%`}
+    </span>
+  )
+}
+
 function displayOrDash(value) {
   if (value == null || value === '') return '—'
   return value
@@ -217,17 +244,13 @@ function DeptCard({
             <IconLossWarn size={14} />
           </span>
           <span>Metal Loss (g)</span>
+          <LossLimitChip card={card} />
         </div>
         <ul className="pd-dept-loss-list">
           {loopcMode ? (
             ui.lossRows.length || ui.lossTodayAvg != null || ui.lossTotalAvg != null ? (
               <>
-                {ui.lossRows.map((r) => (
-                  <li key={`${ui.key}-loss-${r.index}`}>
-                    <span>{r.label}</span>
-                    <strong>{formatLoss(r.loss)}</strong>
-                  </li>
-                ))}
+                {ui.lossRows.map((r) => <LossRow key={`${ui.key}-loss-${r.index}`} row={r} />)}
                 <li className="pd-dept-loss-avg">
                   <span>Today Avg</span>
                   <strong>{formatLoss(ui.lossTodayAvg)}</strong>
@@ -245,15 +268,13 @@ function DeptCard({
             )
           ) : ui.lossRows.length ? (
             <>
-              {ui.lossRows.map((r) => (
-                <li key={`${ui.key}-loss-${r.index}`}>
-                  <span>{r.label}</span>
-                  <strong>{formatLoss(r.loss)}</strong>
-                </li>
-              ))}
-              <li className="pd-dept-loss-avg">
+              {ui.lossRows.map((r) => <LossRow key={`${ui.key}-loss-${r.index}`} row={r} />)}
+              <li className={`pd-dept-loss-avg${card.lossTodayOverLimit ? ' pd-dept-loss-row--over' : ''}`}>
                 <span>Avg</span>
-                <strong>{formatLoss(ui.lossAvg)}</strong>
+                <strong>
+                  {formatLoss(ui.lossAvg)}
+                  {card.lossTodayOverLimit ? <small className="pd-dept-loss-pct">{card.lossTodayPct}%</small> : null}
+                </strong>
               </li>
             </>
           ) : (

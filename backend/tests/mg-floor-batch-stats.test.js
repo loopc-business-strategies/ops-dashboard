@@ -207,4 +207,40 @@ describe('MG Floor metal loss and batch time', () => {
     expect((await setLimit(fm, { department: 'melting', lossLimitPct: null })).body.lossLimitPct).toBeNull()
     expect((await stats(op)).body.lossLimitPct).toBeNull()
   })
+
+  test('loss limit settings: every department with its limit and last 30 days of loss, managers only', async () => {
+    const op = await createOperator()
+    const fm = await createFloorManager()
+    const Workbook = await require('../models/OperationsProductionEntry').getTenantModel('mg')
+    const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
+    const row = (departmentKey, batchNumber, date, metalIn, metalOut) =>
+      Workbook.create({ departmentKey, batchNumber, date, metalIn, metalOut })
+    await row('melting', '1', daysAgo(0), 1000, 995)
+    await row('melting', '2', daysAgo(10), 1000, 990)
+    await row('melting', '3', daysAgo(40), 1000, 900)
+    await row('melting', '4', daysAgo(0), 500, null)
+    await row('rolling', '1', daysAgo(1), 100, 98)
+    await setLimit(fm, { department: 'melting', lossLimitPct: 0.6 })
+
+    const url = '/api/mg-floor/batch-stats/loss-limit-settings'
+    expect((await request(app).get(url).set(headers(op))).status).toBe(403)
+    const res = await request(app).get(url).set(headers(fm))
+    expect(res.status).toBe(200)
+    const { departments } = res.body
+    expect(departments.map((d) => d.department)).toEqual(require('../constants/mgFloorBatchEntry').FLOOR_DEPARTMENTS)
+
+    const melting = departments.find((d) => d.department === 'melting')
+    expect(melting).toMatchObject({
+      lossLimitPct: 0.6,
+      lossLimitSetBy: fm.name,
+      recent: { days: 30, batches: 2, avgLossPct: 0.75, overLimit: 1 },
+    })
+    expect(melting.lossLimitSetAt).toBeTruthy()
+    expect(departments.find((d) => d.department === 'rolling')).toMatchObject({
+      lossLimitPct: null,
+      lossLimitSetAt: null,
+      recent: { batches: 1, avgLossPct: 2, overLimit: null },
+    })
+    expect(departments.find((d) => d.department === 'qc').recent).toEqual({ days: 30, batches: 0, avgLossPct: null, overLimit: null })
+  })
 })

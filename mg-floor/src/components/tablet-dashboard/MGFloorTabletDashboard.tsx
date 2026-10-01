@@ -13,7 +13,6 @@ import { useAuth } from '@/src/context/AuthContext'
 import { getSelectedDepartment } from '@/src/auth/sessionPrefs'
 import { employeeRows } from '@/src/auth/sessionList'
 import { EmployeeLoginModal } from './EmployeeLoginModal'
-import { getAssignedManager, type AssignedManager } from '@/src/auth/floorDashboardPrefs'
 import { tabletDashboard as td } from '@/src/theme'
 import { LoginLogoutRow } from './LoginLogoutRow'
 import { AssignManagerButton } from './AssignManagerButton'
@@ -46,6 +45,9 @@ import { CallFMModal } from './CallFMModal'
 import { BreakdownButton } from './BreakdownButton'
 import { BreakdownModal } from './BreakdownModal'
 import { useBreakdown } from './useBreakdown'
+import { useFmCall } from './useFmCall'
+import { useDepartmentManager } from './useDepartmentManager'
+import { fmCallButtonStatus } from './fmCall'
 import { formatClock } from './metalMapping'
 import { IdleFade } from './IdleFade'
 
@@ -77,7 +79,6 @@ export function MGFloorTabletDashboard() {
   const [selectedDept, setSelectedDept] = useState('')
   const [loginOpen, setLoginOpen] = useState(false)
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false)
-  const [manager, setManager] = useState<AssignedManager | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [callOpen, setCallOpen] = useState(false)
   const [breakdownOpen, setBreakdownOpen] = useState(false)
@@ -96,9 +97,16 @@ export function MGFloorTabletDashboard() {
     canChooseDepartment,
   })
 
-  useEffect(() => {
-    getAssignedManager().then(setManager)
-  }, [])
+  const departmentManager = useDepartmentManager({ token, department: dept })
+  const manager = departmentManager.manager
+  const openAssign = () => {
+    departmentManager.reload()
+    setAssignOpen(true)
+  }
+  const openCall = () => {
+    departmentManager.reload()
+    setCallOpen(true)
+  }
 
   const approvals = useBatchApprovals({ token, department: dept })
   const breakdown = useBreakdown({ token, department: dept })
@@ -111,6 +119,11 @@ export function MGFloorTabletDashboard() {
   const closeBreakdown = () => {
     setBreakdownOpen(false)
     breakdown.dismiss()
+  }
+  const fmCall = useFmCall({ token })
+  const closeCall = () => {
+    setCallOpen(false)
+    fmCall.dismiss()
   }
   const metalIn = useMemo(() => sentBatchesFor('IN', approvals.states, approvals.sent), [approvals.states, approvals.sent])
   const metalOut = useMemo(() => sentBatchesFor('OUT', approvals.states, approvals.sent), [approvals.states, approvals.sent])
@@ -231,7 +244,7 @@ export function MGFloorTabletDashboard() {
                   <Text style={styles.idleBannerText}>No employee logged in — tap Login to start</Text>
                 </Pressable>
               ) : null}
-              <AssignManagerButton idle={idle} onPress={idle ? openLogin : () => setAssignOpen(true)} />
+              <AssignManagerButton idle={idle} managerName={manager?.name} onPress={idle ? openLogin : openAssign} />
               <IdleFade idle={idle}>
                 <DepartmentBadge department={dept} loggedIn={Boolean(token)} />
               </IdleFade>
@@ -244,7 +257,11 @@ export function MGFloorTabletDashboard() {
                 status={breakdown.phase === 'waiting' ? 'Waiting for F.M…' : undefined}
                 onPress={idle ? openLogin : onBreakdown}
               />
-              <CallFMButton idle={idle} onPress={idle ? openLogin : () => setCallOpen(true)} />
+              <CallFMButton
+                idle={idle}
+                status={fmCallButtonStatus(fmCall.phase)}
+                onPress={idle ? openLogin : openCall}
+              />
             </View>
 
             <View style={styles.divider} />
@@ -292,14 +309,21 @@ export function MGFloorTabletDashboard() {
       <AssignManagerModal
         visible={assignOpen}
         onClose={() => setAssignOpen(false)}
-        onAssigned={setManager}
+        department={floorDepartmentLabel(dept)}
+        current={manager}
+        canAssign={departmentManager.canAssign}
+        onAssign={departmentManager.assign}
       />
       <CallFMModal
         visible={callOpen}
-        onClose={() => setCallOpen(false)}
+        onClose={closeCall}
         department={dept}
         operatorName={operatorNames || user?.name || ''}
         manager={manager}
+        phase={fmCall.phase}
+        alert={fmCall.alert}
+        error={fmCall.error}
+        onCall={fmCall.call}
       />
       <BreakdownModal
         visible={breakdownOpen}

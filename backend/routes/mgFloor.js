@@ -13,6 +13,7 @@ const machineAlertService = require('../services/productionControl/machineAlertS
 const mgFloor = require('../services/mgFloor')
 const batchEntries = require('../services/mgFloor/batchEntries')
 const batchStats = require('../services/mgFloor/batchStats')
+const departmentManagers = require('../services/mgFloor/departmentManagers')
 const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
 const { writeProductionAudit } = require('../services/productionControl/audit')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
@@ -94,6 +95,18 @@ async function acknowledgeAlarm(req, code) {
   const existing = await ProductionAlert.findById(req.params.id).select('code').lean()
   if (!existing || existing.code !== code) return null
   return machineAlertService.acknowledgeAlert(req, req.params.id)
+}
+
+/** What the tablet shows after a breakdown or Call F.M: still waiting, or acknowledged by whom and when. */
+function alarmStatus(alert) {
+  return {
+    _id: alert._id,
+    status: alert.status,
+    department: alert.metadata?.department || '',
+    createdAt: alert.createdAt,
+    acknowledgedByName: alert.acknowledgedByName || '',
+    acknowledgedAt: alert.acknowledgedAt || null,
+  }
 }
 
 // ── Removed: scales, weight / camera capture, XRF, gateways, pass-based Metal IN / OUT / Transfer ──
@@ -319,6 +332,19 @@ router.get('/fm-calls', ...mgProtect, requireProductionPermission('resolveAlert'
   }
 })
 
+/** The tablet follows its own call: still waiting, or acknowledged by whom and when ("F.M is coming"). */
+router.get('/fm-calls/:id', ...mgProtect, requireProductionPermission('view'), validateParams(idParam), async (req, res) => {
+  try {
+    const alert = await ProductionAlert.findById(req.params.id).lean()
+    if (!alert || alert.code !== FM_CALL_CODE) {
+      return res.status(404).json({ success: false, message: 'Floor manager call not found' })
+    }
+    res.json({ success: true, alert: alarmStatus(alert) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 router.post('/fm-calls/:id/acknowledge', ...mgProtect, requireProductionPermission('resolveAlert'), validateParams(idParam), async (req, res) => {
   try {
     const alert = await acknowledgeAlarm(req, FM_CALL_CODE)
@@ -338,7 +364,7 @@ router.post('/breakdowns', ...mgProtect, requireProductionPermission('raiseAlert
   try {
     const { alert, reused } = await mgFloor.raiseBreakdown(req, req.body, { ringWindowMs: FM_CALL_RING_WINDOW_MS })
     if (!reused) emitBreakdown('raised', alert._id)
-    res.status(reused ? 200 : 201).json({ success: true, reused, alert: breakdownStatus(alert) })
+    res.status(reused ? 200 : 201).json({ success: true, reused, alert: alarmStatus(alert) })
   } catch (err) {
     handleError(res, err)
   }
@@ -352,25 +378,13 @@ router.get('/breakdowns', ...mgProtect, requireProductionPermission('resolveAler
   }
 })
 
-/** What the tablet shows after reporting: still waiting, or acknowledged by whom and when. */
-function breakdownStatus(alert) {
-  return {
-    _id: alert._id,
-    status: alert.status,
-    department: alert.metadata?.department || '',
-    createdAt: alert.createdAt,
-    acknowledgedByName: alert.acknowledgedByName || '',
-    acknowledgedAt: alert.acknowledgedAt || null,
-  }
-}
-
 router.get('/breakdowns/:id', ...mgProtect, requireProductionPermission('view'), validateParams(idParam), async (req, res) => {
   try {
     const alert = await ProductionAlert.findById(req.params.id).lean()
     if (!alert || alert.code !== mgFloor.BREAKDOWN_CODE) {
       return res.status(404).json({ success: false, message: 'Breakdown not found' })
     }
-    res.json({ success: true, alert: breakdownStatus(alert) })
+    res.json({ success: true, alert: alarmStatus(alert) })
   } catch (err) {
     handleError(res, err)
   }
@@ -381,7 +395,7 @@ router.post('/breakdowns/:id/acknowledge', ...mgProtect, requireProductionPermis
     const alert = await acknowledgeAlarm(req, mgFloor.BREAKDOWN_CODE)
     if (!alert) return res.status(404).json({ success: false, message: 'Breakdown not found' })
     emitBreakdown('acknowledged', req.params.id)
-    res.json({ success: true, alert: breakdownStatus(alert) })
+    res.json({ success: true, alert: alarmStatus(alert) })
   } catch (err) {
     handleError(res, err)
   }
@@ -493,6 +507,14 @@ router.get('/batch-stats/loss-limits', ...mgProtect, requireProductionPermission
   }
 })
 
+router.get('/batch-stats/loss-limit-settings', ...mgProtect, requireProductionPermission('approvePass'), async (req, res) => {
+  try {
+    res.json({ success: true, departments: await batchStats.listLossLimitSettings() })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 router.get('/batch-stats/time-averages', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
   try {
     res.json({ success: true, averages: await batchStats.getTimeAverages() })
@@ -507,6 +529,40 @@ router.put('/batch-stats/loss-limit', ...mgProtect, requireProductionPermission(
 })), async (req, res) => {
   try {
     const result = await batchStats.setLossLimit(req, req.body)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// ── Assigned manager per department (tablet Assign Manager, Call F.M, dashboard cards) ──
+router.get('/department-managers', ...mgProtect, requireProductionPermission('view'), async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      canAssign: hasProductionPermission(req.user, 'approvePass'),
+      managers: await departmentManagers.getDepartmentManagers(),
+    })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/department-managers/options', ...mgProtect, requireProductionPermission('approvePass'), async (req, res) => {
+  try {
+    res.json({ success: true, managers: await departmentManagers.listFloorManagers() })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.put('/department-managers/:department', ...mgProtect, requireProductionPermission('approvePass'), validateParams(Joi.object({
+  department: Joi.string().trim().max(80).required(),
+})), validateBody(Joi.object({
+  managerId: Joi.string().hex().length(24).allow(null).required(),
+})), async (req, res) => {
+  try {
+    const result = await departmentManagers.setDepartmentManager(req, { department: req.params.department, managerId: req.body.managerId })
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)

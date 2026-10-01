@@ -46,3 +46,35 @@ describe('DepartmentOverview Breakdown', () => {
     expect(melting.textContent).toContain('Running')
   })
 })
+
+describe('DepartmentOverview loss limit', () => {
+  test('a batch above the limit is red with its %, and the card says how many are over', () => {
+    const lossCards = [
+      {
+        key: 'rolling',
+        name: 'Rolling',
+        status: 'Completed',
+        lossRows: [
+          { index: 1, label: '1', loss: 6.6, lossPct: 1.26, overLimit: true },
+          { index: 2, label: '2', loss: 3, lossPct: 0.3, overLimit: false },
+        ],
+        lossLimitPct: 1,
+        lossOverLimitCount: 1,
+        lossTodayPct: 0.63,
+        lossTodayOverLimit: false,
+      },
+      { key: 'melting', name: 'Melting', status: 'Completed', lossRows: [{ index: 1, label: '1', loss: 2, lossPct: 2 }], lossLimitPct: 5, lossOverLimitCount: 0 },
+    ]
+    render(<DepartmentOverview cards={lossCards} suppressDemo />)
+    const rolling = screen.getByRole('heading', { name: 'Rolling' }).closest('article')
+    const melting = screen.getByRole('heading', { name: 'Melting' }).closest('article')
+
+    const over = rolling.querySelectorAll('.pd-dept-loss-row--over')
+    expect(over).toHaveLength(1)
+    expect(over[0].textContent).toBe('16.601.26%')
+    expect(rolling.querySelector('.pd-dept-loss-limit--over').textContent).toBe('1 over 1%')
+
+    expect(melting.querySelector('.pd-dept-loss-row--over')).toBeNull()
+    expect(melting.querySelector('.pd-dept-loss-limit').textContent).toBe('Limit 5%')
+  })
+})

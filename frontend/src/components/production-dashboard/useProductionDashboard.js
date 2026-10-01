@@ -163,6 +163,8 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
           keepModelWhenEmpty: isMg,
           carryOverOpen: isMg,
           timeAverages: isMg ? payload.timeAverages || null : null,
+          lossLimits: isMg ? payload.lossLimits || null : null,
+          departmentManagers: isMg ? payload.departmentManagers || null : null,
         },
       )
     }
@@ -274,7 +276,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       })
       if (!soft) setLoading(false)
 
-      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes, stockOverview, alertsRes, weightVarianceRes, movementsRes, timeAveragesRes] = await Promise.all([
+      const [yesterdayReport, deptsRes, floorSessions, employeesRes, passesRes, processesRes, stockOverview, alertsRes, weightVarianceRes, movementsRes, timeAveragesRes, lossLimitsRes, departmentManagersRes] = await Promise.all([
         productionControlApi.reportDaily({ date: dayKey(addDays(new Date(), -1)) }, { signal: ac.signal }).catch(() => null),
         productionControlApi.listDepartments({ signal: ac.signal }).catch(() => null),
         productionControlApi.listFloorSessions({ status: 'OPEN' }, { signal: ac.signal }).catch(() => null),
@@ -286,10 +288,14 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.reportWeightVariance({ limit: 100 }, { signal: ac.signal }).catch(() => null),
         productionControlApi.listMovements({ limit: 80 }, { signal: ac.signal }).catch(() => null),
         isMg ? mgFloorBatchEntriesApi.timeAverages().catch(() => null) : null,
+        isMg ? mgFloorBatchEntriesApi.lossLimits().catch(() => null) : null,
+        isMg ? mgFloorBatchEntriesApi.departmentManagers().catch(() => null) : null,
       ])
       if (ac.signal.aborted) return
       publish({
         ...(timeAveragesRes?.averages ? { timeAverages: timeAveragesRes.averages } : {}),
+        ...(lossLimitsRes?.limits ? { lossLimits: lossLimitsRes.limits } : {}),
+        ...(departmentManagersRes?.managers ? { departmentManagers: departmentManagersRes.managers } : {}),
         yesterdayReport,
         deptsRes,
         floorSessions,

@@ -1,56 +1,27 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const MANAGER_KEY = 'mg_floor_assigned_manager'
-const MANAGER_OPTIONS_KEY = 'mg_floor_manager_options'
+const MANAGER_CACHE_KEY = 'mg_floor_department_managers_v2'
 
 export type AssignedManager = {
   id: string
   name: string
 }
 
-const DEFAULT_MANAGERS: AssignedManager[] = [
-  { id: 'fm-1', name: 'Floor Manager' },
-  { id: 'fm-2', name: 'Production Manager' },
-  { id: 'fm-3', name: 'Shift Supervisor' },
-]
-
-export async function getAssignedManager(): Promise<AssignedManager | null> {
+/**
+ * Last assigned managers fetched from the server, by department, so Call F.M still shows the
+ * name when the tablet starts offline. The server is the source of truth.
+ */
+export async function getCachedManagers(): Promise<Record<string, AssignedManager>> {
   try {
-    const raw = await AsyncStorage.getItem(MANAGER_KEY)
-    if (!raw) return null
-    return JSON.parse(raw) as AssignedManager
+    const raw = await AsyncStorage.getItem(MANAGER_CACHE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? parsed : {}
   } catch {
-    return null
+    return {}
   }
 }
 
-export async function setAssignedManager(manager: AssignedManager): Promise<void> {
-  await AsyncStorage.setItem(MANAGER_KEY, JSON.stringify(manager))
-}
-
-export async function clearAssignedManager(): Promise<void> {
-  await AsyncStorage.removeItem(MANAGER_KEY)
-}
-
-export async function getManagerOptions(): Promise<AssignedManager[]> {
-  try {
-    const raw = await AsyncStorage.getItem(MANAGER_OPTIONS_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as AssignedManager[]
-      if (Array.isArray(parsed) && parsed.length) return parsed
-    }
-  } catch {
-    // fall through
-  }
-  return DEFAULT_MANAGERS
-}
-
-export async function addManagerOption(name: string): Promise<AssignedManager> {
-  const trimmed = name.trim()
-  const options = await getManagerOptions()
-  const existing = options.find((o) => o.name.toLowerCase() === trimmed.toLowerCase())
-  if (existing) return existing
-  const next = { id: `fm-${Date.now()}`, name: trimmed }
-  await AsyncStorage.setItem(MANAGER_OPTIONS_KEY, JSON.stringify([...options, next]))
-  return next
+export async function cacheManagers(managers: Record<string, AssignedManager>): Promise<void> {
+  const slim = Object.fromEntries(Object.entries(managers).map(([dept, m]) => [dept, { id: m.id, name: m.name }]))
+  await AsyncStorage.setItem(MANAGER_CACHE_KEY, JSON.stringify(slim)).catch(() => {})
 }

@@ -141,4 +141,38 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
     expect(next.deptCards.find((c) => c.key === 'melting').longRunning).toBeNull()
     expect(applyLoopcOpsEntriesToModel(baseModel(), rows, null).deptCards.find((c) => c.key === 'rolling').longRunning).toBeNull()
   })
+
+  test('flags batches whose loss is above the department loss limit (% of Metal In)', () => {
+    const rows = [
+      mgFloorRow(),
+      mgFloorRow({ _id: 'row-2', batchNumber: '2', metalIn: 1000, metalOut: 997, metalLoss: 3 }),
+      mgFloorRow({ _id: 'm1', departmentKey: 'melting', metalIn: 100, metalOut: 90, metalLoss: 10 }),
+    ]
+    const next = applyLoopcOpsEntriesToModel(baseModel(), rows, null, { keepModelWhenEmpty: true, lossLimits: { rolling: 1 } })
+    const rolling = next.deptCards.find((c) => c.key === 'rolling')
+    expect(rolling.lossRows.map((r) => [r.label, r.lossPct, r.overLimit])).toEqual([['1', 1.26, true], ['2', 0.3, false]])
+    expect(rolling).toMatchObject({ lossLimitPct: 1, lossOverLimitCount: 1, lossTodayPct: 0.63, lossTodayOverLimit: false })
+
+    const melting = next.deptCards.find((c) => c.key === 'melting')
+    expect(melting).toMatchObject({ lossLimitPct: null, lossOverLimitCount: 0, lossTodayOverLimit: false })
+    expect(melting.lossRows[0]).toMatchObject({ lossPct: 10, overLimit: false })
+
+    const tight = applyLoopcOpsEntriesToModel(baseModel(), rows, null, { keepModelWhenEmpty: true, lossLimits: { rolling: 0.5 } })
+    expect(tight.deptCards.find((c) => c.key === 'rolling')).toMatchObject({ lossOverLimitCount: 1, lossTodayOverLimit: true })
+  })
+
+  test('the manager assigned on the tablets replaces the last approver on that department card', () => {
+    const rows = [mgFloorRow(), mgFloorRow({ _id: 'm1', departmentKey: 'melting' })]
+    const departmentManagers = { rolling: { id: 'u1', name: 'Ravi' } }
+    const next = applyLoopcOpsEntriesToModel(baseModel(), rows, null, { keepModelWhenEmpty: true, departmentManagers })
+    expect(next.deptCards.find((c) => c.key === 'rolling').floorManager).toBe('Ravi')
+    expect(next.deptCards.find((c) => c.key === 'melting').floorManager).toBe('Floor Test')
+
+    const empty = applyLoopcOpsEntriesToModel(baseModel(), [], null, {
+      keepModelWhenEmpty: true,
+      departmentManagers: { melting: { id: 'u1', name: 'Ravi' } },
+    })
+    expect(empty.deptCards).toEqual([expect.objectContaining({ key: 'melting', status: 'Idle', floorManager: 'Ravi' })])
+    expect(empty.hasLiveProduction).toBe(false)
+  })
 })

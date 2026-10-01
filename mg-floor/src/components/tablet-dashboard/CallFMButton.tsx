@@ -8,12 +8,15 @@ type Props = {
   label?: string
   /** Grey while no employee is logged in. */
   idle?: boolean
+  /** Shown under the label while a call waits for the Floor Manager, or once the F.M is coming. */
+  status?: string
 }
 
-export function CallFMButton({ onPress, disabled, label = 'Call F.M', idle }: Props) {
+export function CallFMButton({ onPress, disabled, label = 'Call F.M', idle, status }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={status ? `${label}, ${status}` : label}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
@@ -25,6 +28,7 @@ export function CallFMButton({ onPress, disabled, label = 'Call F.M', idle }: Pr
       ]}
     >
       <Text style={styles.text}>{label}</Text>
+      {status ? <Text style={styles.status}>{status}</Text> : null}
     </Pressable>
   )
 }
@@ -59,5 +63,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 30,
     letterSpacing: 1,
+  },
+  status: {
+    color: td.white,
+    fontWeight: '700',
+    fontSize: 15,
+    marginTop: 2,
   },
 })

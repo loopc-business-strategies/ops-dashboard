@@ -4005,6 +4005,33 @@
   font-weight: 700;
 }
 
+.pd-dept-loss-limit {
+  margin-left: auto;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pd-dept-loss-limit--over {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.pd-dept-loss-list li.pd-dept-loss-row--over span,
+.pd-dept-loss-list li.pd-dept-loss-row--over strong {
+  color: #b91c1c;
+}
+
+.pd-dept-loss-pct {
+  margin-left: 0.3rem;
+  font-size: 0.75em;
+  font-weight: 700;
+}
+
 /* ── Responsive fit: phone → 4K TV (last in file so it wins the cascade) ── */
 
 /* Room for the fixed "← Ops" button so it never covers the logo/title */

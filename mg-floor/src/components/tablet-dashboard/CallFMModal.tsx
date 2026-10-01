@@ -1,12 +1,12 @@
-import React, { useState } from 'react'
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
-import NetInfo from '@react-native-community/netinfo'
+import React, { useRef } from 'react'
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { tabletDashboard as td } from '@/src/theme'
-import { callFloorManager } from '@/src/api/floor'
+import type { AlarmStatus } from '@/src/api/floor'
 import { createOperationId } from '@/src/offline/outbox'
-import { userFacingMessage } from '@/src/api/errors'
 import { floorDepartmentLabel } from '@/src/config/floorDepartments'
 import type { AssignedManager } from '@/src/auth/floorDashboardPrefs'
+import { formatClock } from './metalMapping'
+import type { FmCallPhase } from './fmCall'
 
 type Props = {
   visible: boolean
@@ -14,6 +14,10 @@ type Props = {
   department: string
   operatorName: string
   manager: AssignedManager | null
+  phase: FmCallPhase
+  alert: AlarmStatus | null
+  error: string
+  onCall: (body: Record<string, unknown>) => void
 }
 
 export function CallFMModal({
@@ -22,74 +26,81 @@ export function CallFMModal({
   department,
   operatorName,
   manager,
+  phase: livePhase,
+  alert: liveAlert,
+  error: liveError,
+  onCall,
 }: Props) {
   const departmentName = floorDepartmentLabel(department)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [done, setDone] = useState(false)
+  // Closing resets the call, so keep the last view while the modal fades out.
+  const shown = useRef({ phase: livePhase, alert: liveAlert, error: liveError })
+  if (visible) shown.current = { phase: livePhase, alert: liveAlert, error: liveError }
+  const { phase, alert, error } = shown.current
+  const asking = phase === 'idle' || phase === 'error' || phase === 'sending'
 
-  const call = async () => {
-    if (busy) return
-    setBusy(true)
-    setError('')
-    try {
-      const net = await NetInfo.fetch()
-      if (!net.isConnected) {
-        setError('Network unavailable — try again when online.')
-        return
-      }
-      await callFloorManager({
-        title: `Floor assistance — ${departmentName || 'floor'}`,
-        message: `Operator ${operatorName || 'unknown'} needs assistance.${
-          manager ? ` Assigned manager: ${manager.name}.` : ''
-        }`,
-        department: department || '',
-        operationId: createOperationId('floor_alert'),
-      })
-      setDone(true)
-    } catch (err) {
-      setError(userFacingMessage(err) || 'Unable to raise alert')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const close = () => {
-    setDone(false)
-    setError('')
-    onClose()
+  const call = () => {
+    if (livePhase === 'sending') return
+    onCall({
+      title: `Floor assistance — ${departmentName || 'floor'}`,
+      message: `Operator ${operatorName || 'unknown'} needs assistance.${
+        manager ? ` Assigned manager: ${manager.name}.` : ''
+      }`,
+      department: department || '',
+      operationId: createOperationId('floor_alert'),
+    })
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>
           <Text style={styles.title}>Call F.M</Text>
-          {done ? (
-            <>
-              <Text style={styles.ok}>Floor manager alerted.</Text>
-              <Pressable style={styles.confirm} onPress={close}>
-                <Text style={styles.confirmText}>Done</Text>
-              </Pressable>
-            </>
-          ) : (
+
+          {phase === 'waiting' && alert ? (
+            <View style={styles.waitBox}>
+              <View style={styles.row}>
+                <ActivityIndicator color={td.orange} />
+                <Text style={styles.waitTitle}>Waiting for F.M</Text>
+              </View>
+              <Text style={styles.boxBody}>
+                Floor manager alerted at {formatClock(alert.createdAt)} — the Production Dashboard is ringing.
+              </Text>
+            </View>
+          ) : null}
+
+          {phase === 'coming' && alert ? (
+            <View style={styles.okBox}>
+              <Text style={styles.okTitle}>F.M is coming</Text>
+              <Text style={styles.boxBody}>
+                {alert.acknowledgedByName || 'Floor Manager'}
+                {alert.acknowledgedAt ? ` saw your call at ${formatClock(alert.acknowledgedAt)}` : ' saw your call'}.
+              </Text>
+            </View>
+          ) : null}
+
+          {asking ? (
             <>
               <Text style={styles.meta}>Department: {departmentName || '—'}</Text>
               <Text style={styles.meta}>Operator: {operatorName || '—'}</Text>
               <Text style={styles.meta}>Manager: {manager?.name || 'Not assigned'}</Text>
-              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {phase === 'error' && error ? <Text style={styles.error}>{error}</Text> : null}
               <Pressable
-                style={[styles.confirm, busy && styles.disabled]}
+                accessibilityRole="button"
+                style={[styles.confirm, phase === 'sending' && styles.disabled]}
                 onPress={call}
-                disabled={busy}
+                disabled={phase === 'sending'}
               >
-                <Text style={styles.confirmText}>{busy ? 'Calling…' : 'Confirm Call'}</Text>
+                <Text style={styles.confirmText}>{phase === 'sending' ? 'Calling…' : 'Confirm Call'}</Text>
               </Pressable>
-              <Pressable style={styles.cancel} onPress={close}>
+              <Pressable accessibilityRole="button" style={styles.cancel} onPress={onClose}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
             </>
+          ) : (
+            <Pressable accessibilityRole="button" style={styles.confirm} onPress={onClose}>
+              <Text style={styles.confirmText}>{phase === 'coming' ? 'Done' : 'Close'}</Text>
+            </Pressable>
           )}
         </View>
       </View>
@@ -116,7 +127,24 @@ const styles = StyleSheet.create({
   title: { color: td.text, fontWeight: '800', fontSize: 18, marginBottom: 8 },
   meta: { color: td.text, fontWeight: '600', fontSize: 15 },
   error: { color: '#DC2626', fontWeight: '600' },
-  ok: { color: td.text, fontWeight: '700', fontSize: 16, marginVertical: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  waitBox: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: td.orange,
+    borderRadius: td.radius,
+    padding: 12,
+  },
+  waitTitle: { color: td.orange, fontWeight: '800', fontSize: 18 },
+  okBox: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#16A34A',
+    borderRadius: td.radius,
+    padding: 12,
+  },
+  okTitle: { color: '#15803D', fontWeight: '800', fontSize: 20 },
+  boxBody: { color: td.text, fontSize: 14, marginTop: 4 },
   confirm: {
     backgroundColor: td.orange,
     minHeight: 48,

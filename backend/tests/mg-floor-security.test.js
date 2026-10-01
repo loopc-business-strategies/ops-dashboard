@@ -399,6 +399,31 @@ describe('MG Floor stats and floor alerts', () => {
     expect(quiet.body.calls.map((c) => String(c._id))).not.toContain(String(callId))
   })
 
+  test('the tablet follows its Call F.M: waiting, then "F.M is coming" with who and when', async () => {
+    const operator = await createTenantUser('mg', { role: 'department_user', productionRole: undefined, floorDepartment: 'melting' })
+    const manager = await createTenantUser('mg', { role: 'department_head', productionRole: undefined })
+    const raised = await request(app)
+      .post('/api/mg-floor/alerts')
+      .set(mgHeaders(operator))
+      .send({ title: 'Floor assistance — melting', message: 'Operator needs help', department: 'melting' })
+    const callId = raised.body.alert._id
+
+    const waiting = await request(app).get(`/api/mg-floor/fm-calls/${callId}`).set(mgHeaders(operator))
+    expect(waiting.status).toBe(200)
+    expect(waiting.body.alert).toMatchObject({ status: 'OPEN', department: 'melting', acknowledgedByName: '', acknowledgedAt: null })
+
+    await request(app).post(`/api/mg-floor/fm-calls/${callId}/acknowledge`).set(mgHeaders(manager))
+    const coming = await request(app).get(`/api/mg-floor/fm-calls/${callId}`).set(mgHeaders(operator))
+    expect(coming.body.alert).toMatchObject({ status: 'ACKNOWLEDGED', acknowledgedByName: manager.name })
+    expect(coming.body.alert.acknowledgedAt).toBeTruthy()
+
+    const ProductionAlert = require('../models/ProductionAlert')
+    const breakdown = await ProductionAlert.create({
+      alertNumber: 'AL-T-FMC', category: 'machine', code: 'MACHINE_BREAKDOWN', title: 'Breakdown', status: 'ACKNOWLEDGED',
+    })
+    expect((await request(app).get(`/api/mg-floor/fm-calls/${breakdown._id}`).set(mgHeaders(operator))).status).toBe(404)
+  })
+
   test('Call F.M acknowledge refuses other alert types and old calls stop ringing', async () => {
     const manager = await createTenantUser('mg')
     const ProductionAlert = require('../models/ProductionAlert')

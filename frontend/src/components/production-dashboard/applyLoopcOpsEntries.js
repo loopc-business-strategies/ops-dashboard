@@ -114,6 +114,18 @@ function longRunningOf(rows, usualMin) {
   return worst
 }
 
+function assignedManagerName(departmentManagers, key) {
+  return String(departmentManagers?.[key]?.name || '').trim() || null
+}
+
+function withAssignedManagers(cards, departmentManagers) {
+  if (!Array.isArray(cards)) return cards
+  return cards.map((card) => {
+    const name = assignedManagerName(departmentManagers, card?.key)
+    return name ? { ...card, floorManager: name } : card
+  })
+}
+
 /**
  * Build Production Dashboard dept cards + KPI overlays from LoopC Operations entries (today).
  * @param {object[]} entries — today's entries
@@ -123,8 +135,16 @@ function longRunningOf(rows, usualMin) {
  *   on the cards; they stay out of today's KPI totals so nothing is counted twice
  * @param {Record<string, number>} [options.timeAverages] — (MG) usual batch minutes per department,
  *   used to flag long-running batches
+ * @param {Record<string, number>} [options.lossLimits] — (MG) loss warning % of Metal In per department;
+ *   batches above it are flagged on the card
+ * @param {Record<string, {name: string}>} [options.departmentManagers] — (MG) manager assigned on the
+ *   tablets per department; shown instead of the last approver's name
  */
-export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null, { carryOverOpen = false, timeAverages = null } = {}) {
+export function buildLoopcOpsDashboardOverlay(
+  entries = [],
+  entriesAll = null,
+  { carryOverOpen = false, timeAverages = null, lossLimits = null, departmentManagers = null } = {},
+) {
   const todayList = Array.isArray(entries) ? entries : []
   const carried = carryOverOpen
     ? openFromYesterday(entriesAll).map((e) => ({ ...e, carriedOver: true }))
@@ -156,8 +176,10 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null, {
     const rows = byDept.get(dept.key) || []
     const rowsAll = byDeptAll.get(dept.key) || []
     const hasData = rows.length > 0
+    const lossLimitPct = numOrNull(lossLimits?.[dept.key])
 
     let metalIn = 0
+    let lossMetalIn = 0
     let metalOut = 0
     let metalLossSum = 0
     let hasIn = false
@@ -184,7 +206,15 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null, {
       if (loss != null) {
         metalLossSum += loss
         hasLoss = true
-        lossRows.push({ index: i + 1, label: batchLabel, loss })
+        const pct = inn > 0 ? roundOrNull((loss / inn) * 100, 2) : null
+        if (pct != null) lossMetalIn += inn
+        lossRows.push({
+          index: i + 1,
+          label: batchLabel,
+          loss,
+          lossPct: pct,
+          overLimit: lossLimitPct != null && pct != null && pct > lossLimitPct,
+        })
       }
       const batchMins = opsTimeBatchMinutes(e)
       if (batchMins != null && Number.isFinite(batchMins)) {
@@ -243,6 +273,9 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null, {
       : metalInVal
     const lossTotal = pooledStatsOf(rowsAll, metalLossOf)
     const timeTotal = pooledStatsOf(rowsAll, completedBatchMinutes)
+    const lossTodayPct = lossMetalIn > 0
+      ? roundOrNull((lossRows.reduce((s, r) => s + (r.lossPct != null ? r.loss : 0), 0) / lossMetalIn) * 100, 2)
+      : null
 
     return {
       key: dept.key,
@@ -255,7 +288,7 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null, {
       employeeCode: null,
       employeeCount: nameSet.size || null,
       employees,
-      floorManager: manager,
+      floorManager: assignedManagerName(departmentManagers, dept.key) || manager,
       shiftName: null,
       startedAt,
       completedAt,
@@ -290,6 +323,10 @@ export function buildLoopcOpsDashboardOverlay(entries = [], entriesAll = null, {
       flowStatus: status === 'Running' ? 'ACTIVE' : (status === 'Idle' ? 'STABLE' : String(status || 'STABLE').toUpperCase()),
       currentBatchCarriedOver: Boolean(primary?.carriedOver),
       longRunning: timeAverages ? longRunningOf(rows, timeAverages[dept.key]) : null,
+      lossLimitPct,
+      lossOverLimitCount: lossRows.filter((r) => r.overLimit).length,
+      lossTodayPct,
+      lossTodayOverLimit: lossLimitPct != null && lossTodayPct != null && lossTodayPct > lossLimitPct,
     }
   })
 
@@ -378,12 +415,30 @@ export function applyLoopcOpsEntriesToModel(
   model,
   entries,
   entriesAll = null,
-  { keepModelWhenEmpty = false, carryOverOpen = false, timeAverages = null } = {},
+  {
+    keepModelWhenEmpty = false,
+    carryOverOpen = false,
+    timeAverages = null,
+    lossLimits = null,
+    departmentManagers = null,
+  } = {},
 ) {
   if (!model) return model
-  const overlay = buildLoopcOpsDashboardOverlay(entries, entriesAll, { carryOverOpen, timeAverages })
+  const overlay = buildLoopcOpsDashboardOverlay(entries, entriesAll, {
+    carryOverOpen,
+    timeAverages,
+    lossLimits,
+    departmentManagers,
+  })
   if (!overlay.hasOpsData) {
-    if (keepModelWhenEmpty) return model
+    if (keepModelWhenEmpty) {
+      if (!departmentManagers || !Object.keys(departmentManagers).length) return model
+      return {
+        ...model,
+        deptCards: withAssignedManagers(model.deptCards, departmentManagers),
+        liveDeptCards: withAssignedManagers(model.liveDeptCards, departmentManagers),
+      }
+    }
     return {
       ...model,
       deptCards: overlay.deptCards,

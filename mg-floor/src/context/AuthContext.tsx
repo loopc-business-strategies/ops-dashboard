@@ -13,7 +13,7 @@ import {
 import { setAuthToken, setUnauthorizedHandler } from '@/src/api/client'
 import { toApiError, userFacingMessage } from '@/src/api/errors'
 import { registerDevice } from '@/src/api/floor'
-import { getSessionLoginAt, markSessionExpiredNotice } from '@/src/auth/sessionPrefs'
+import { getSelectedDepartment, getSessionLoginAt, markSessionExpiredNotice } from '@/src/auth/sessionPrefs'
 import {
   primarySession,
   recordLogout,
@@ -184,7 +184,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             appVersion: Constants.expoConfig?.version || '1.0.0',
             os: Platform.OS,
             model: Platform.OS,
-            department: session.user.floorDepartment || session.user.department || '',
+            department:
+              (await getSelectedDepartment()) || session.user.floorDepartment || session.user.department || '',
           })
         })().catch(() => {})
       }
