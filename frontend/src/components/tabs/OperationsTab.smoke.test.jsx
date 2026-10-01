@@ -96,7 +96,7 @@ describe('OperationsTab smoke', () => {
     expect(screen.queryByText(/^FM/)).toBeNull()
   })
 
-  it('gives a Floor Manager without the Operations module only the Production and FM tabs', async () => {
+  it('gives a Floor Manager without the Operations module only the Production, FM and Attendance tabs', async () => {
     mockPerms = {
       ...superAdminPerms,
       isSuperAdmin: false,
@@ -111,7 +111,7 @@ describe('OperationsTab smoke', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByText('FM (1)')).toBeTruthy()
-    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)'])
+    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)', 'Attendance'])
     expect(screen.queryByText(/kpiOverview/i)).toBeNull()
     expect(getInventory).not.toHaveBeenCalled()
   })

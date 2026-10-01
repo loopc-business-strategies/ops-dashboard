@@ -48,10 +48,18 @@ async function recordLogout(user, now = new Date()) {
   return { closed: open.length, attendance: open[0] || null }
 }
 
-async function listAttendance({ date, status, limit } = {}) {
+/**
+ * `from` / `to` (a local day sent by the browser) return everyone on the floor during that window:
+ * logged in before it ended and not logged out before it started (still-open logins included).
+ * `date` is the older server-day filter, kept for existing callers.
+ */
+async function listAttendance({ date, from, to, status, limit } = {}) {
   const filter = {}
   if (status) filter.status = status
-  if (date) {
+  if (from && to) {
+    filter.loginAt = { $lt: new Date(to) }
+    filter.$or = [{ logoutAt: null }, { logoutAt: { $gte: new Date(from) } }]
+  } else if (date) {
     const day = new Date(`${date}T00:00:00`)
     const next = new Date(day)
     next.setDate(next.getDate() + 1)

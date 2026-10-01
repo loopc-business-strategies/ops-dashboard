@@ -52,6 +52,7 @@ const TabMap = lazy(() => import('./operations/TabMap'))
 const TabAnalytics = lazy(() => import('./operations/TabAnalytics'))
 const TabProjects = lazy(() => import('./operations/TabProjects'))
 const TabFloorManager = lazy(() => import('./operations/TabFloorManager'))
+const TabFloorAttendance = lazy(() => import('./operations/TabFloorAttendance'))
 
 function OpsSubTabFallback() {
   return (
@@ -590,6 +591,11 @@ function LegacyOperationsTab({ tenantKey }) {
       {activeTab === 'fm' && fmPending != null && (
         <Suspense fallback={<OpsSubTabFallback />}>
           <TabFloorManager showToast={showToast} onChanged={fmAccess.refresh} />
+        </Suspense>
+      )}
+      {activeTab === 'attendance' && fmPending != null && (
+        <Suspense fallback={<OpsSubTabFallback />}>
+          <TabFloorAttendance />
         </Suspense>
       )}
 

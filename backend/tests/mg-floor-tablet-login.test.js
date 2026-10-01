@@ -189,4 +189,38 @@ describe('tablet attendance', () => {
     expect(list.status).toBe(200)
     expect(list.body.attendance.map((r) => r.name)).toContain(op.name)
   })
+
+  test('a from/to day window lists everyone on the floor that day, including overnight and still-open logins', async () => {
+    const fm = await createTenantUser('mg', { role: 'department_head', floorDepartment: '' })
+    const Model = await MgFloorAttendance.getTenantModel('mg')
+    const from = new Date('2026-09-30T20:00:00.000Z')
+    const to = new Date('2026-10-01T20:00:00.000Z')
+    const at = (iso) => new Date(iso)
+    const row = (name, loginAt, logoutAt = null) => ({
+      userId: fm._id,
+      name,
+      loginAt: at(loginAt),
+      lastActivityAt: at(logoutAt || loginAt),
+      logoutAt: logoutAt ? at(logoutAt) : null,
+      status: logoutAt ? 'CLOSED' : 'OPEN',
+    })
+    await Model.create([
+      row('night-shift', '2026-09-30T18:00:00Z', '2026-09-30T23:30:00Z'),
+      row('still-open', '2026-09-30T16:00:00Z'),
+      row('day-shift', '2026-10-01T05:00:00Z', '2026-10-01T13:00:00Z'),
+      row('yesterday-only', '2026-09-30T05:00:00Z', '2026-09-30T13:00:00Z'),
+      row('tomorrow', '2026-10-01T21:00:00Z'),
+    ])
+
+    const res = await floorClient(request(app).get('/api/mg-floor/attendance'))
+      .query({ from: from.toISOString(), to: to.toISOString() })
+      .set(bearer(fm))
+    expect(res.status).toBe(200)
+    expect(res.body.attendance.map((r) => r.name).sort()).toEqual(['day-shift', 'night-shift', 'still-open'])
+
+    const bad = await floorClient(request(app).get('/api/mg-floor/attendance'))
+      .query({ from: from.toISOString() })
+      .set(bearer(fm))
+    expect(bad.status).toBe(400)
+  })
 })

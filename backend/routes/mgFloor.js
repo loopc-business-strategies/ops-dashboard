@@ -149,9 +149,11 @@ const attendanceLoginSchema = Joi.object({
 })
 const attendanceQuery = Joi.object({
   date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: Joi.date().iso().optional(),
+  to: Joi.date().iso().greater(Joi.ref('from')).optional(),
   status: Joi.string().valid('OPEN', 'CLOSED').optional(),
   limit: Joi.number().integer().min(1).max(500).optional(),
-})
+}).and('from', 'to')
 
 router.post('/attendance/login', ...mgProtect, requireProductionPermission('view'), validateBody(attendanceLoginSchema), async (req, res) => {
   try {

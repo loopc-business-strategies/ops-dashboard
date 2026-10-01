@@ -1,7 +1,12 @@
-/** `fm`: MG Floor Manager approval tab, only for users the backend allows to approve. */
+/**
+ * `fm`: MG Floor Manager approval tab, only for users the backend allows to approve. The same users
+ * (Floor / Production Managers) also get the MG Floor attendance tab.
+ */
 export function getOpsTabs(t, { fm = null, floorOnly = false } = {}) {
-  const fmTab = fm ? { id: 'fm', label: fm.pending > 0 ? `FM (${fm.pending})` : 'FM' } : null
-  if (floorOnly) return [{ id: 'production', label: 'Production' }, ...(fmTab ? [fmTab] : [])]
+  const fmTabs = fm
+    ? [{ id: 'fm', label: fm.pending > 0 ? `FM (${fm.pending})` : 'FM' }, { id: 'attendance', label: 'Attendance' }]
+    : []
+  if (floorOnly) return [{ id: 'production', label: 'Production' }, ...fmTabs]
   const tabs = [
     { id: 'production', label: 'Production' },
     { id: 'kpi', label: t('kpiOverview') },
@@ -17,7 +22,7 @@ export function getOpsTabs(t, { fm = null, floorOnly = false } = {}) {
     { id: 'analytics', label: t('analytics') },
     { id: 'projects', label: t('opsProjectsNav') },
   ]
-  if (fmTab) tabs.push(fmTab)
+  tabs.push(...fmTabs)
   return tabs
 }
 
