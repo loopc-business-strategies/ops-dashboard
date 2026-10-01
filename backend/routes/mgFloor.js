@@ -15,6 +15,7 @@ const batchEntries = require('../services/mgFloor/batchEntries')
 const batchStats = require('../services/mgFloor/batchStats')
 const lossReport = require('../services/mgFloor/lossReport')
 const batchHistory = require('../services/mgFloor/batchHistory')
+const syncLog = require('../services/mgFloor/syncLog')
 const breakdownFix = require('../services/mgFloor/breakdownFix')
 const departmentManagers = require('../services/mgFloor/departmentManagers')
 const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
@@ -588,6 +589,19 @@ router.get('/loss-report', ...mgProtect, requireProductionPermission('approvePas
 })), async (req, res) => {
   try {
     res.json({ success: true, ...(await lossReport.getLossReport(req.query)) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/sync-log', ...mgProtect, requireProductionPermission('approvePass'), validateQuery(Joi.object({
+  from: dayParam.required(),
+  to: dayParam.required(),
+  department: Joi.string().trim().max(80).allow(''),
+  status: Joi.string().valid('all', 'synced', 'problem').default('all'),
+})), async (req, res) => {
+  try {
+    res.json({ success: true, ...(await syncLog.getSyncLog(req.query)) })
   } catch (err) {
     handleError(res, err)
   }

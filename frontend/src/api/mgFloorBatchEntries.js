@@ -24,6 +24,8 @@ export const mgFloorBatchEntriesApi = {
   lossReport: async (params) => (await axios.get(`${API_ORIGIN}/api/mg-floor/loss-report`, { params })).data,
   /** Every batch in a day range with its timeline: { from, to, department?, batch?, operator? }. */
   history: async (params) => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-history`, { params })).data,
+  /** Batches the tablets saved offline and sent later: { from, to, department?, status?: 'all'|'synced'|'problem' }. */
+  syncLog: async (params) => (await axios.get(`${API_ORIGIN}/api/mg-floor/sync-log`, { params })).data,
   /** Manager assigned on the tablets per department, e.g. { melting: { id, name } }. */
   departmentManagers: async () => (await axios.get(`${API_ORIGIN}/api/mg-floor/department-managers`)).data,
 }
