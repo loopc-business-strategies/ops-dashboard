@@ -111,7 +111,7 @@ describe('OperationsTab smoke', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByText('FM (1)')).toBeTruthy()
-    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)', 'Attendance', 'Loss limits'])
+    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)', 'Attendance', 'Loss limits', 'Loss report'])
     expect(screen.queryByText(/kpiOverview/i)).toBeNull()
     expect(getInventory).not.toHaveBeenCalled()
   })

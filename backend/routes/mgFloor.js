@@ -13,6 +13,7 @@ const machineAlertService = require('../services/productionControl/machineAlertS
 const mgFloor = require('../services/mgFloor')
 const batchEntries = require('../services/mgFloor/batchEntries')
 const batchStats = require('../services/mgFloor/batchStats')
+const lossReport = require('../services/mgFloor/lossReport')
 const departmentManagers = require('../services/mgFloor/departmentManagers')
 const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
 const { writeProductionAudit } = require('../services/productionControl/audit')
@@ -528,6 +529,21 @@ router.get('/batch-stats/loss-limits', ...mgProtect, requireProductionPermission
 router.get('/batch-stats/loss-limit-settings', ...mgProtect, requireProductionPermission('approvePass'), async (req, res) => {
   try {
     res.json({ success: true, departments: await batchStats.listLossLimitSettings() })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+const dayParam = Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/)
+
+router.get('/loss-report', ...mgProtect, requireProductionPermission('approvePass'), validateQuery(Joi.object({
+  from: dayParam.required(),
+  to: dayParam.required(),
+  groupBy: Joi.string().valid('day', 'month').default('day'),
+  department: Joi.string().trim().max(80).allow(''),
+})), async (req, res) => {
+  try {
+    res.json({ success: true, ...(await lossReport.getLossReport(req.query)) })
   } catch (err) {
     handleError(res, err)
   }

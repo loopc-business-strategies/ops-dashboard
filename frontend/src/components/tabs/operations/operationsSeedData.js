@@ -8,6 +8,7 @@ export function getOpsTabs(t, { fm = null, floorOnly = false } = {}) {
       { id: 'fm', label: fm.pending > 0 ? `FM (${fm.pending})` : 'FM' },
       { id: 'attendance', label: 'Attendance' },
       { id: 'loss_limits', label: 'Loss limits' },
+      { id: 'loss_report', label: 'Loss report' },
     ]
     : []
   if (floorOnly) return [{ id: 'production', label: 'Production' }, ...fmTabs]
