@@ -198,6 +198,13 @@ async function submitBatchEntry(req, body = {}) {
 
 const sameBatchKey = (e) => [e.entryDate, normalizeFloorDepartment(e.department), String(e.batchLabel || '').trim()].join('|')
 
+/** Mongo filter for a department, including entries saved under its legacy key. */
+function departmentFilter(department) {
+  const key = aliasFloorDepartment(department)
+  const legacy = Object.keys(LEGACY_FLOOR_DEPARTMENT_ALIASES).filter((k) => LEGACY_FLOOR_DEPARTMENT_ALIASES[k] === key)
+  return legacy.length ? { $in: [key, ...legacy] } : key
+}
+
 /**
  * Each Metal Out gets the Metal In of the same day, department and batch (the approved one, else the
  * newest pending one) so the Floor Manager sees In vs Out and the loss before approving.
@@ -228,11 +235,7 @@ async function listBatchEntries(query = {}) {
     filter.status = String(query.status).toUpperCase()
   }
   if (query.direction) filter.direction = String(query.direction).toUpperCase()
-  if (query.department) {
-    const key = aliasFloorDepartment(query.department)
-    const legacy = Object.keys(LEGACY_FLOOR_DEPARTMENT_ALIASES).filter((k) => LEGACY_FLOOR_DEPARTMENT_ALIASES[k] === key)
-    filter.department = legacy.length ? { $in: [key, ...legacy] } : key
-  }
+  if (query.department) filter.department = departmentFilter(query.department)
   if (query.entryDate) filter.entryDate = String(query.entryDate).trim()
   if (query.from || query.to) {
     filter.submittedAt = {}
@@ -451,5 +454,7 @@ module.exports = {
   undoApproval,
   UNDO_WINDOW_HOURS,
   activeKeyFor,
+  departmentFilter,
   resolveEntryDepartment,
+  sameBatchKey,
 }

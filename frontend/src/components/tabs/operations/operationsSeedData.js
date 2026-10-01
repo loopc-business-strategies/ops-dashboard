@@ -9,6 +9,7 @@ export function getOpsTabs(t, { fm = null, floorOnly = false } = {}) {
       { id: 'attendance', label: 'Attendance' },
       { id: 'loss_limits', label: 'Loss limits' },
       { id: 'loss_report', label: 'Loss report' },
+      { id: 'history', label: 'History' },
     ]
     : []
   if (floorOnly) return [{ id: 'production', label: 'Production' }, ...fmTabs]

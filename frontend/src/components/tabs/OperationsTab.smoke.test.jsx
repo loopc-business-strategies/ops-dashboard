@@ -1,7 +1,7 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({ user: { role: 'super_admin', company: 'mg' }, token: 't', company: 'mg' }),
@@ -71,7 +71,7 @@ describe('OperationsTab smoke', () => {
     const tabLabels = screen.getAllByRole('link').map((el) => el.textContent)
     expect(tabLabels[0]).toBe('Production')
     expect(await screen.findByText('VAULT ROOM', { exact: false })).toBeTruthy()
-    expect(listOperationsEntries).toHaveBeenCalled()
+    await waitFor(() => expect(listOperationsEntries).toHaveBeenCalled())
     expect(screen.getByText(/Source of truth for the Production Dashboard/)).toBeTruthy()
   })
 
@@ -111,7 +111,7 @@ describe('OperationsTab smoke', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByText('FM (1)')).toBeTruthy()
-    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)', 'Attendance', 'Loss limits', 'Loss report'])
+    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)', 'Attendance', 'Loss limits', 'Loss report', 'History'])
     expect(screen.queryByText(/kpiOverview/i)).toBeNull()
     expect(getInventory).not.toHaveBeenCalled()
   })

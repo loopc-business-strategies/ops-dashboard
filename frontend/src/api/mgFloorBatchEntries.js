@@ -22,6 +22,8 @@ export const mgFloorBatchEntriesApi = {
   timeAverages: async () => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-stats/time-averages`)).data,
   /** Metal loss per department per day or month: { from, to, groupBy: 'day'|'month', department? }. */
   lossReport: async (params) => (await axios.get(`${API_ORIGIN}/api/mg-floor/loss-report`, { params })).data,
+  /** Every batch in a day range with its timeline: { from, to, department?, batch?, operator? }. */
+  history: async (params) => (await axios.get(`${API_ORIGIN}/api/mg-floor/batch-history`, { params })).data,
   /** Manager assigned on the tablets per department, e.g. { melting: { id, name } }. */
   departmentManagers: async () => (await axios.get(`${API_ORIGIN}/api/mg-floor/department-managers`)).data,
 }
