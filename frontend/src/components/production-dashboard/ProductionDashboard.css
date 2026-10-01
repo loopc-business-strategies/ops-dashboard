@@ -3952,6 +3952,55 @@
   background: #fff;
 }
 
+/* ── Breakdown acknowledged, machine not fixed yet ── */
+.pd-status-pill.pd-status-pill--down {
+  background: #ea580c;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.pd-status-pill--down .pd-status-dot {
+  background: #fff;
+}
+
+.pd-dept-down {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.2rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pd-dept-down-fix.pd-btn {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.pd-dept-down-fix.pd-btn:hover {
+  background: #15803d;
+}
+
+.pd-fix-note {
+  width: 100%;
+  min-height: 72px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
 .pd-pending-badge {
   display: inline-flex;
   align-items: center;

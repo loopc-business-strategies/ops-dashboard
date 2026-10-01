@@ -62,7 +62,7 @@ async function seed() {
     code: 'MACHINE_BREAKDOWN',
     title: 'Breakdown',
     severity: 'critical',
-    metadata: { department },
+    metadata: { department, trackFix: true },
     status: resolvedAt ? 'RESOLVED' : 'ACKNOWLEDGED',
     resolvedAt: resolvedAt ? new Date(resolvedAt) : null,
     createdAt: new Date(createdAt),

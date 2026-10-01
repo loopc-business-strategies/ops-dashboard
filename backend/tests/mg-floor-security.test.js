@@ -489,6 +489,12 @@ describe('MG Floor stats and floor alerts', () => {
     const quiet = await request(app).get('/api/mg-floor/breakdowns').set(mgHeaders(manager))
     expect(quiet.body.breakdowns).toHaveLength(0)
 
+    const stillDown = await request(app).post('/api/mg-floor/breakdowns').set(mgHeaders(operator)).send({ department: 'rolling' })
+    expect(stillDown.status).toBe(200)
+    expect(String(stillDown.body.alert._id)).toBe(String(id))
+
+    expect((await request(app).post(`/api/mg-floor/breakdowns/${id}/fixed`).set(mgHeaders(operator)).send({})).status).toBe(200)
+
     const next = await request(app).post('/api/mg-floor/breakdowns').set(mgHeaders(operator)).send({ department: 'rolling' })
     expect(next.status).toBe(201)
     expect(String(next.body.alert._id)).not.toBe(String(id))

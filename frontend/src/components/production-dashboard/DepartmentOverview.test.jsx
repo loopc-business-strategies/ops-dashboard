@@ -1,6 +1,6 @@
 import React from 'react'
-import { afterEach, describe, expect, test } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import DepartmentOverview from './DepartmentOverview'
 
 const cards = [
@@ -44,6 +44,32 @@ describe('DepartmentOverview Breakdown', () => {
 
     expect(melting.className).not.toContain('pd-dept-card--breakdown')
     expect(melting.textContent).toContain('Running')
+  })
+
+  test('acknowledged but not fixed: MACHINE DOWN with time down, and Mark fixed does not select the card', () => {
+    const down = { _id: 'b1', status: 'ACKNOWLEDGED', acknowledgedByName: 'FM Test', createdAt: new Date(Date.now() - 25 * 60000).toISOString() }
+    const onMarkFixed = vi.fn()
+    const onSelectDept = vi.fn()
+    render(<DepartmentOverview cards={cards} suppressDemo downDepts={{ melting: down }} onMarkFixed={onMarkFixed} onSelectDept={onSelectDept} />)
+    const melting = screen.getByRole('heading', { name: 'Melting' }).closest('article')
+    const rolling = screen.getByRole('heading', { name: 'Rolling' }).closest('article')
+
+    expect(melting.textContent).toContain('MACHINE DOWN')
+    expect(melting.textContent).not.toContain('Running')
+    expect(melting.querySelector('.pd-dept-down').textContent).toContain('Down 25m · seen by FM Test')
+    fireEvent.click(screen.getByRole('button', { name: 'Mark fixed' }))
+    expect(onMarkFixed).toHaveBeenCalledWith(down)
+    expect(onSelectDept).not.toHaveBeenCalled()
+    expect(rolling.querySelector('.pd-dept-down')).toBeNull()
+  })
+
+  test('a Call F.M on a department that is down still shows CALL F.M, with the down line kept', () => {
+    const down = { _id: 'b1', status: 'ACKNOWLEDGED', createdAt: new Date().toISOString() }
+    render(<DepartmentOverview cards={cards} suppressDemo callingDepts={{ melting: 1 }} downDepts={{ melting: down }} onMarkFixed={() => {}} />)
+    const melting = screen.getByRole('heading', { name: 'Melting' }).closest('article')
+    expect(melting.textContent).toContain('CALL F.M')
+    expect(melting.textContent).not.toContain('MACHINE DOWN')
+    expect(melting.querySelector('.pd-dept-down')).not.toBeNull()
   })
 })
 

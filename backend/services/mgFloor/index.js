@@ -219,14 +219,18 @@ async function raiseFloorAlert(req, body = {}) {
 
 const BREAKDOWN_CODE = 'MACHINE_BREAKDOWN'
 
-/** One open breakdown per department: pressing again while it is still ringing returns the same one. */
+/**
+ * One breakdown per department at a time: pressing again while it is still ringing, or acknowledged
+ * but not fixed yet, returns the same one.
+ */
 async function raiseBreakdown(req, body = {}, { ringWindowMs }) {
   const department = normalizeFloorDepartment(body.department || req.user?.floorDepartment || req.user?.department || '')
+  const { unfixedFilter } = require('./breakdownFix')
   const existing = await ProductionAlert.findOne({
-    code: BREAKDOWN_CODE,
-    status: 'OPEN',
-    'metadata.department': department,
-    createdAt: { $gte: new Date(Date.now() - ringWindowMs) },
+    $or: [
+      { code: BREAKDOWN_CODE, status: 'OPEN', 'metadata.department': department, createdAt: { $gte: new Date(Date.now() - ringWindowMs) } },
+      unfixedFilter({ 'metadata.department': department }),
+    ],
   }).sort({ createdAt: -1 })
   if (existing) return { alert: existing, reused: true }
 
@@ -242,6 +246,7 @@ async function raiseBreakdown(req, body = {}, { ringWindowMs }) {
       department,
       operationId: body.operationId || null,
       source: 'mg-floor',
+      trackFix: true,
     },
   })
   return { alert, reused: false }

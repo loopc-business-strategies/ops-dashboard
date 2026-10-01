@@ -38,6 +38,11 @@ export type AlarmStatus = {
   createdAt: string
   acknowledgedByName: string
   acknowledgedAt: string | null
+  resolvedByName?: string
+  resolvedAt?: string | null
+  fixNote?: string
+  /** Reported → fixed, once fixed. */
+  downtimeMinutes?: number | null
 }
 export type BreakdownStatus = AlarmStatus
 
@@ -66,6 +71,20 @@ export async function reportBreakdown(body: { department: string; operationId: s
 
 export async function getBreakdown(id: string) {
   return apiRequest<{ success: boolean; alert: BreakdownStatus }>(`/api/mg-floor/breakdowns/${encodeURIComponent(id)}`)
+}
+
+/** The department's breakdown that is not fixed yet (so it survives an app restart), or null. */
+export async function getCurrentBreakdown(department: string) {
+  return apiRequest<{ success: boolean; alert: BreakdownStatus | null }>(
+    `/api/mg-floor/breakdowns/current?department=${encodeURIComponent(department)}`,
+  )
+}
+
+export async function markBreakdownFixed(id: string, note: string) {
+  return apiRequest<{ success: boolean; alreadyFixed: boolean; alert: BreakdownStatus }>(
+    `/api/mg-floor/breakdowns/${encodeURIComponent(id)}/fixed`,
+    { method: 'POST', body: { note }, retrySafeGet: false },
+  )
 }
 
 export async function syncOperations(operations: unknown[], token?: string | null) {

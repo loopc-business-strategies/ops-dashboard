@@ -9,6 +9,7 @@ import KpiRow from './KpiRow'
 import DepartmentOverview from './DepartmentOverview'
 import ActionModal from './ActionModal'
 import { useProductionDashboard } from './useProductionDashboard'
+import { formatMinutes, minutesDown, useUnfixedBreakdowns } from './useUnfixedBreakdowns'
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
 import './ProductionDashboard.css'
 
@@ -18,6 +19,16 @@ function countByDept(alarms) {
   alarms.forEach((alarm) => {
     const key = matchDashboardDeptKey(alarm?.metadata?.department)
     if (key) byDept[key] = (byDept[key] || 0) + 1
+  })
+  return byDept
+}
+
+/** Newest breakdown per department card that is acknowledged but not fixed (ringing ones show as BREAKDOWN). */
+function downByDept(unfixed) {
+  const byDept = {}
+  unfixed.forEach((b) => {
+    const key = matchDashboardDeptKey(b?.department)
+    if (key && b.status === 'ACKNOWLEDGED' && !byDept[key]) byDept[key] = b
   })
   return byDept
 }
@@ -66,6 +77,20 @@ export default function ProductionDashboardTab() {
 
   const callingDepts = useMemo(() => countByDept(fmCalls), [fmCalls])
   const breakdownDepts = useMemo(() => countByDept(breakdowns), [breakdowns])
+  const unfixed = useUnfixedBreakdowns({ tenantKey, enabled: tenantKey === 'mg' })
+  const downDepts = useMemo(() => downByDept(unfixed.breakdowns), [unfixed.breakdowns])
+  const [fixing, setFixing] = useState(null)
+
+  const submitFix = async () => {
+    if (!fixing || fixing.busy) return
+    setFixing((f) => ({ ...f, busy: true, error: '' }))
+    try {
+      await unfixed.fix(fixing.breakdown._id, fixing.note.trim())
+      setFixing(null)
+    } catch (err) {
+      setFixing((f) => f && { ...f, busy: false, error: err?.response?.data?.message || err?.message || 'Could not save' })
+    }
+  }
 
   const permissions = model?.permissions || {}
   let mgFloorStatus = null
@@ -232,6 +257,8 @@ export default function ProductionDashboardTab() {
             currentBatchTimes={tenantKey === 'mg'}
             callingDepts={callingDepts}
             breakdownDepts={breakdownDepts}
+            downDepts={downDepts}
+            onMarkFixed={(b) => setFixing({ breakdown: b, note: '', busy: false, error: '' })}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',
@@ -263,6 +290,36 @@ export default function ProductionDashboardTab() {
       {!loading && !error && !model ? (
         <p className="pd-empty pd-empty--page">No production activity today</p>
       ) : null}
+
+      <ActionModal
+        open={Boolean(fixing)}
+        title="Machine fixed?"
+        onClose={() => { if (!fixing?.busy) setFixing(null) }}
+        onSubmit={submitFix}
+        submitLabel="Machine fixed"
+        busy={Boolean(fixing?.busy)}
+        error={fixing?.error || null}
+      >
+        {fixing ? (
+          <>
+            <p>
+              Breakdown reported{fixing.breakdown.raisedByName ? ` by ${fixing.breakdown.raisedByName}` : ''}, down for{' '}
+              {formatMinutes(minutesDown(fixing.breakdown))}. The tablet stops showing it and the downtime goes into the Loss report.
+            </p>
+            <Field label="What was wrong / what was fixed? (optional)">
+              <textarea
+                className="pd-fix-note"
+                maxLength={300}
+                value={fixing.note}
+                onChange={(e) => {
+                  const note = e.target.value
+                  setFixing((f) => f && { ...f, note })
+                }}
+              />
+            </Field>
+          </>
+        ) : null}
+      </ActionModal>
 
       <ActionModal
         open={modal === 'metal-out'}

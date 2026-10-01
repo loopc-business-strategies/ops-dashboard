@@ -1,5 +1,6 @@
 import { formatGrams } from './formatters'
 import { resolveDeptCardDisplay } from './deptCardDisplay'
+import { minutesDown } from './useUnfixedBreakdowns'
 import {
   DeptIcon,
   IconEmployees,
@@ -109,8 +110,13 @@ function DeptCard({
   currentBatchTimes = false,
   callCount = 0,
   breakdown = false,
+  down = null,
+  onMarkFixed,
 }) {
   const calling = !breakdown && callCount > 0
+  const machineDown = !breakdown && !calling && Boolean(down)
+  const downMinutes = down ? minutesDown(down) : null
+  const downFor = downMinutes != null ? formatMinutes(downMinutes) : ''
   const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode, currentBatchTimes })
   const tone = statusClass(ui.status)
   const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
@@ -157,6 +163,11 @@ function DeptCard({
             <span className="pd-status-dot" aria-hidden />
             CALL F.M{callCount > 1 ? ` ×${callCount}` : ''}
           </span>
+        ) : machineDown ? (
+          <span className="pd-status-pill pd-status-pill--down" title="Breakdown acknowledged — machine not fixed yet">
+            <span className="pd-status-dot" aria-hidden />
+            MACHINE DOWN
+          </span>
         ) : (
           <span className={`pd-status-pill pd-status-pill--${tone}`}>
             <span className="pd-status-dot" aria-hidden />
@@ -164,6 +175,25 @@ function DeptCard({
           </span>
         )}
       </div>
+
+      {down ? (
+        <div className="pd-dept-down">
+          <span>
+            Down {downFor}
+            {down.acknowledgedByName ? ` · seen by ${down.acknowledgedByName}` : ''}
+          </span>
+          {onMarkFixed ? (
+            <button
+              type="button"
+              className="pd-btn pd-btn--sm pd-dept-down-fix"
+              onClick={(e) => { e.stopPropagation(); onMarkFixed(down) }}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              Mark fixed
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="pd-dept-people">
         <div className="pd-dept-people-side">
@@ -319,6 +349,8 @@ export default function DepartmentOverview({
   currentBatchTimes = false,
   callingDepts = {},
   breakdownDepts = {},
+  downDepts = {},
+  onMarkFixed,
 }) {
   const list = cards || []
 
@@ -342,6 +374,8 @@ export default function DepartmentOverview({
                 currentBatchTimes={currentBatchTimes}
                 callCount={callingDepts[card.key] || 0}
                 breakdown={Boolean(breakdownDepts[card.key])}
+                down={downDepts[card.key] || null}
+                onMarkFixed={onMarkFixed}
               />
             ))}
           </div>

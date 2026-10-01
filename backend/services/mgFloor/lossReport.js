@@ -74,7 +74,8 @@ function requireRange({ from, to, groupBy }) {
 /**
  * Metal loss per floor department per day or month, from the Operations → Production workbook
  * (finished batches: Metal In and Metal Out both filled), plus tablet breakdowns and their downtime
- * (reported → fixed). Over-limit uses each department's current loss limit.
+ * (reported → fixed). Only breakdowns reported since "Fixed" exists count as not fixed. Over-limit
+ * uses each department's current loss limit.
  */
 async function getLossReport({ from, to, groupBy = 'day', department: rawDepartment } = {}) {
   requireRange({ from, to, groupBy })
@@ -134,7 +135,7 @@ async function getLossReport({ from, to, groupBy = 'day', department: rawDepartm
       'metadata.department': { $in: departments },
       createdAt: { $gte: new Date(`${shiftDay(from, -1)}T00:00:00Z`), $lt: new Date(`${shiftDay(to, 2)}T00:00:00Z`) },
     })
-      .select('metadata.department status createdAt resolvedAt')
+      .select('metadata.department metadata.trackFix status createdAt resolvedAt')
       .lean(),
   ])
 
@@ -155,7 +156,7 @@ async function getLossReport({ from, to, groupBy = 'day', department: rawDepartm
     const t = cellFor(periodOf(day), a.metadata.department)
     t.breakdowns += 1
     if (a.status === 'RESOLVED' && a.resolvedAt) t.downtimeMinutes += Math.max(0, (a.resolvedAt - a.createdAt) / 60000)
-    else t.breakdownsNotFixed += 1
+    else if (a.metadata.trackFix) t.breakdownsNotFixed += 1
   }
 
   const byDept = new Map(departments.map((d) => [d, emptyTotals()]))

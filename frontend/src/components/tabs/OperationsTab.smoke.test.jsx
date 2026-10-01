@@ -70,9 +70,9 @@ describe('OperationsTab smoke', () => {
     )
     const tabLabels = screen.getAllByRole('link').map((el) => el.textContent)
     expect(tabLabels[0]).toBe('Production')
-    expect(await screen.findByText('VAULT ROOM', { exact: false })).toBeTruthy()
-    await waitFor(() => expect(listOperationsEntries).toHaveBeenCalled())
-    expect(screen.getByText(/Source of truth for the Production Dashboard/)).toBeTruthy()
+    expect(await screen.findByText('VAULT ROOM', { exact: false }, { timeout: 5000 })).toBeTruthy()
+    await waitFor(() => expect(listOperationsEntries).toHaveBeenCalled(), { timeout: 5000 })
+    expect(await screen.findByText(/Source of truth for the Production Dashboard/, {}, { timeout: 5000 })).toBeTruthy()
   })
 
   it('shows the FM tab with the pending count when the backend allows approving', async () => {

@@ -45,6 +45,7 @@ import { CallFMModal } from './CallFMModal'
 import { BreakdownButton } from './BreakdownButton'
 import { BreakdownModal } from './BreakdownModal'
 import { useBreakdown } from './useBreakdown'
+import { breakdownButtonStatus, isMachineDown } from './breakdown'
 import { useFmCall } from './useFmCall'
 import { useDepartmentManager } from './useDepartmentManager'
 import { fmCallButtonStatus } from './fmCall'
@@ -111,9 +112,9 @@ export function MGFloorTabletDashboard() {
   const approvals = useBatchApprovals({ token, department: dept })
   const breakdown = useBreakdown({ token, department: dept })
 
-  /** One tap reports; while it still waits for the F.M, tapping again only shows its status. */
+  /** One tap reports; while the machine is still down, tapping again only shows it (and Machine fixed). */
   const onBreakdown = () => {
-    if (breakdown.phase !== 'waiting' && breakdown.phase !== 'sending') breakdown.report()
+    if (!isMachineDown(breakdown.phase)) breakdown.report()
     setBreakdownOpen(true)
   }
   const closeBreakdown = () => {
@@ -254,7 +255,7 @@ export function MGFloorTabletDashboard() {
               <View style={styles.leftSpacer} />
               <BreakdownButton
                 idle={idle}
-                status={breakdown.phase === 'waiting' ? 'Waiting for F.M…' : undefined}
+                status={breakdownButtonStatus(breakdown.phase)}
                 onPress={idle ? openLogin : onBreakdown}
               />
               <CallFMButton
@@ -330,8 +331,10 @@ export function MGFloorTabletDashboard() {
         phase={breakdown.phase}
         alert={breakdown.alert}
         error={breakdown.error}
+        fixError={breakdown.fixError}
         department={dept}
         onRetry={breakdown.report}
+        onFix={breakdown.fix}
         onClose={closeBreakdown}
       />
       {entryForm ? (

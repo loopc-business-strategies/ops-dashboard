@@ -15,6 +15,7 @@ const batchEntries = require('../services/mgFloor/batchEntries')
 const batchStats = require('../services/mgFloor/batchStats')
 const lossReport = require('../services/mgFloor/lossReport')
 const batchHistory = require('../services/mgFloor/batchHistory')
+const breakdownFix = require('../services/mgFloor/breakdownFix')
 const departmentManagers = require('../services/mgFloor/departmentManagers')
 const { syncApprovedEntriesToWorkbook } = require('../services/mgFloor/workbookLink')
 const { writeProductionAudit } = require('../services/productionControl/audit')
@@ -92,22 +93,31 @@ function listRingingAlarms(code) {
     .lean()
 }
 
-/** Acknowledges an alarm only when it is of the expected kind; returns null when it is not. */
+/**
+ * Acknowledges an alarm only when it is of the expected kind; returns null when it is not. A breakdown
+ * already marked fixed is returned as it is.
+ */
 async function acknowledgeAlarm(req, code) {
-  const existing = await ProductionAlert.findById(req.params.id).select('code').lean()
+  const existing = await ProductionAlert.findById(req.params.id).lean()
   if (!existing || existing.code !== code) return null
+  if (existing.status === 'RESOLVED') return existing
   return machineAlertService.acknowledgeAlert(req, req.params.id)
 }
 
-/** What the tablet shows after a breakdown or Call F.M: still waiting, or acknowledged by whom and when. */
+/** What the tablet shows after a breakdown or Call F.M: waiting, acknowledged, or fixed — by whom and when. */
 function alarmStatus(alert) {
   return {
     _id: alert._id,
     status: alert.status,
     department: alert.metadata?.department || '',
     createdAt: alert.createdAt,
+    raisedByName: alert.raisedByName || '',
     acknowledgedByName: alert.acknowledgedByName || '',
     acknowledgedAt: alert.acknowledgedAt || null,
+    resolvedByName: alert.resolvedByName || '',
+    resolvedAt: alert.resolvedAt || null,
+    fixNote: alert.metadata?.fixNote || '',
+    downtimeMinutes: breakdownFix.downtimeMinutes(alert),
   }
 }
 
@@ -375,6 +385,38 @@ router.post('/breakdowns', ...mgProtect, requireProductionPermission('raiseAlert
 router.get('/breakdowns', ...mgProtect, requireProductionPermission('resolveAlert'), async (req, res) => {
   try {
     res.json({ success: true, breakdowns: await listRingingAlarms(mgFloor.BREAKDOWN_CODE) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/breakdowns/current', ...mgProtect, requireProductionPermission('raiseAlert'), validateQuery(Joi.object({
+  department: Joi.string().trim().max(80).required(),
+})), async (req, res) => {
+  try {
+    const alert = await breakdownFix.currentBreakdown(req.query.department)
+    res.json({ success: true, alert: alert ? alarmStatus(alert) : null })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.get('/breakdowns/unfixed', ...mgProtect, requireProductionPermission('resolveAlert'), async (req, res) => {
+  try {
+    const breakdowns = await breakdownFix.listUnfixedBreakdowns()
+    res.json({ success: true, breakdowns: breakdowns.map(alarmStatus) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/breakdowns/:id/fixed', ...mgProtect, requireProductionPermission('raiseAlert'), validateParams(idParam), validateBody(Joi.object({
+  note: Joi.string().trim().max(300).allow(''),
+})), async (req, res) => {
+  try {
+    const { alert, alreadyFixed } = await breakdownFix.markBreakdownFixed(req, req.params.id, req.body.note)
+    if (!alreadyFixed) emitBreakdown('fixed', req.params.id)
+    res.json({ success: true, alreadyFixed, alert: alarmStatus(alert) })
   } catch (err) {
     handleError(res, err)
   }
