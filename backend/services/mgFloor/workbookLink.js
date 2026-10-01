@@ -175,6 +175,31 @@ async function applyApprovedEntryToWorkbook(entry) {
   return row
 }
 
+const IN_FIELDS = { metalIn: null, purity: null, fineGold: null, batchStartedAt: null, floorInEntryId: '' }
+const OUT_FIELDS = { metalOut: null, purityOut: null, fineGoldOut: null, batchOverAt: null, floorOutEntryId: '' }
+
+/**
+ * Takes an undone batch back out of its workbook row: clears the Metal In or Metal Out side it
+ * filled, and removes the row when nothing else is left on it (no other side, rating, breakdown
+ * or requests). Returns 'cleared', 'removed', or null when the row no longer carries this entry.
+ */
+async function removeEntryFromWorkbook(entry) {
+  const row = await OperationsProductionEntry.findOne({ floorBatchKey: floorBatchKey(entry) })
+  if (!row) return null
+  const isIn = entry.direction === 'IN'
+  if ((isIn ? row.floorInEntryId : row.floorOutEntryId) !== entry.entryId) return null
+
+  Object.assign(row, isIn ? IN_FIELDS : OUT_FIELDS, { metalLoss: null })
+  const hasOtherSide = isIn ? row.metalOut != null || Boolean(row.floorOutEntryId) : row.metalIn != null || Boolean(row.floorInEntryId)
+  const hasManualNotes = [row.rating, row.breakdown, row.requests].some((v) => String(v || '').trim())
+  if (!hasOtherSide && !hasManualNotes) {
+    await row.deleteOne()
+    return 'removed'
+  }
+  await row.save()
+  return 'cleared'
+}
+
 /**
  * Re-applies every APPROVED batch to the workbook (batches approved before the link existed, or a
  * workbook write that failed). Safe to repeat. Batches from retired departments are skipped.
@@ -198,6 +223,7 @@ async function syncApprovedEntriesToWorkbook() {
 
 module.exports = {
   applyApprovedEntryToWorkbook,
+  removeEntryFromWorkbook,
   syncApprovedEntriesToWorkbook,
   floorBatchKey,
   lineTimestamp,

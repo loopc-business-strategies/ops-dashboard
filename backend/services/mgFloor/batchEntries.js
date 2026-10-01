@@ -3,7 +3,7 @@ const FloorBatchEntry = require('../../models/FloorBatchEntry')
 const { ProductionError } = require('../productionControl/errors')
 const { hasProductionPermission } = require('../productionControl/permissions')
 const { writeProductionAudit } = require('../productionControl/audit')
-const { applyApprovedEntryToWorkbook, summarizeLines } = require('./workbookLink')
+const { applyApprovedEntryToWorkbook, removeEntryFromWorkbook, summarizeLines } = require('./workbookLink')
 const {
   BATCH_ENTRY_DIRECTIONS,
   BATCH_ENTRY_STATUSES,
@@ -16,6 +16,7 @@ const {
 
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9_-]{8,120}$/
 const ENTRY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const UNDO_WINDOW_HOURS = 24
 
 function activeKeyFor({ entryDate, department, direction, batchLabel }) {
   return [entryDate, String(department || '').trim().toLowerCase(), direction, batchLabel].join('|')
@@ -343,10 +344,112 @@ async function decideBatchEntry(req, id, decision, reason = '') {
   return { entry: updated, workbookEntryId }
 }
 
+/**
+ * A manager takes back a wrong approval within UNDO_WINDOW_HOURS: the batch returns to the
+ * operator as REJECTED (with the reason) to fix and resend, and leaves the workbook. A Metal In
+ * whose Metal Out is approved must wait until that Metal Out is undone.
+ */
+async function undoApproval(req, id, reason = '') {
+  const user = req.user
+  if (!canDecide(user)) {
+    throw new ProductionError('Only a Floor Manager or Production Manager can undo an approval', 403)
+  }
+  if (!mongoose.Types.ObjectId.isValid(String(id))) {
+    throw new ProductionError('Entry not found', 404)
+  }
+  const current = await FloorBatchEntry.findById(id).lean()
+  if (!current) throw new ProductionError('Entry not found', 404)
+  if (isSameUser(current.employeeId, user?._id)) {
+    throw new ProductionError('You cannot undo a batch you sent yourself', 403)
+  }
+  if (current.status !== 'APPROVED') {
+    const err = new ProductionError('Only an approved batch can be undone', 409)
+    err.code = 'BATCH_ENTRY_NOT_APPROVED'
+    throw err
+  }
+  const approvedAt = current.decidedAt ? new Date(current.decidedAt) : null
+  if (!approvedAt || Date.now() - approvedAt.getTime() > UNDO_WINDOW_HOURS * 3600000) {
+    const err = new ProductionError(`An approval can only be undone within ${UNDO_WINDOW_HOURS} hours`, 409)
+    err.code = 'UNDO_WINDOW_PASSED'
+    throw err
+  }
+  if (current.direction === 'IN') {
+    const outApproved = await FloorBatchEntry.exists({
+      activeKey: activeKeyFor({ ...current, direction: 'OUT' }),
+      status: 'APPROVED',
+    })
+    if (outApproved) {
+      const err = new ProductionError(`Undo the Metal Out for batch ${current.batchLabel} first`, 409)
+      err.code = 'UNDO_METAL_OUT_FIRST'
+      throw err
+    }
+  }
+  const undoReason = String(reason || '').trim().slice(0, 450)
+  if (undoReason.length < 3) {
+    throw new ProductionError('A reason is required to undo an approval', 400)
+  }
+
+  const now = new Date()
+  const updated = await FloorBatchEntry.findOneAndUpdate(
+    { _id: id, status: 'APPROVED', decidedAt: current.decidedAt },
+    {
+      $set: {
+        status: 'REJECTED',
+        rejectReason: `Approval undone: ${undoReason}`,
+        undoReason,
+        undoneAt: now,
+        approvedByName: current.decidedByName || '',
+        approvedAt: current.decidedAt,
+        decidedAt: now,
+        decidedById: user?._id || null,
+        decidedByName: user?.name || '',
+      },
+      $unset: { activeKey: 1 },
+    },
+    { returnDocument: 'after' },
+  ).lean()
+  if (!updated) {
+    const err = new ProductionError('This batch was changed by someone else — refresh and try again', 409)
+    err.code = 'BATCH_ENTRY_DECIDED'
+    throw err
+  }
+
+  let workbook = null
+  try {
+    workbook = await removeEntryFromWorkbook(updated)
+  } catch (err) {
+    console.warn('[mg-floor] workbook clear after undo failed', err?.message || err)
+  }
+
+  await writeProductionAudit(req, {
+    resource: 'FloorBatchEntry',
+    resourceId: updated._id,
+    action: 'mg_floor_batch_entry_approval_undone',
+    detail: `Batch ${updated.batchLabel} Metal ${updated.direction} approval undone`,
+    changes: {
+      entryId: updated.entryId,
+      batchLabel: updated.batchLabel,
+      direction: updated.direction,
+      department: updated.department,
+      entryDate: updated.entryDate,
+      employeeName: updated.employeeName,
+      approvedByName: updated.approvedByName,
+      approvedAt: updated.approvedAt,
+      undoneByName: updated.decidedByName,
+      reason: undoReason,
+      workbook,
+    },
+  }).catch((err) => console.warn('[mg-floor] undo audit failed', err?.message || err))
+
+  return { entry: updated, workbook }
+}
+
 module.exports = {
   submitBatchEntry,
   listBatchEntries,
   decideBatchEntry,
+  undoApproval,
+  UNDO_WINDOW_HOURS,
   activeKeyFor,
   resolveEntryDepartment,
 }

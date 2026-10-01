@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { mgFloorBatchEntriesApi } from '../../../api/mgFloorBatchEntries'
 import { subscribeRealtimeEvents } from '../../../utils/realtimeEventsBus'
-import { OLD_PENDING_MINUTES, compareMetalOut, formatGrams, formatWait, minutesWaiting } from './floorBatchCheck'
+import { OLD_PENDING_MINUTES, compareMetalOut, formatGrams, formatWait, minutesWaiting, undoMinutesLeft } from './floorBatchCheck'
 import { OPS_C as C } from './operationsTabTokens'
 import { B, Badge, TableWrap, TableHead, SH, Modal, ML, MTA, TH, TD } from './operationsTabUI'
 
@@ -14,6 +14,26 @@ const FILTERS = [
 const STATUS_TEXT = { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' }
 
 const errorMessage = (err, fallback) => err?.response?.data?.message || err?.message || fallback
+
+const REASON_MODES = {
+  reject: {
+    title: 'Reject batch',
+    save: 'Reject batch',
+    label: 'Reason (shown to the operator on the tablet)',
+    placeholder: 'e.g. Gold qty looks wrong, please recheck and send again',
+    toast: 'Batch rejected',
+    failed: 'Reject failed',
+  },
+  undo: {
+    title: 'Undo approval',
+    save: 'Undo approval',
+    label: 'What was wrong? (shown to the operator on the tablet)',
+    placeholder: 'e.g. Out was 909 g, not 990 g — please fix and send again',
+    toast: 'Approval undone',
+    failed: 'Undo failed',
+    note: 'The batch goes back to the operator to fix and resend. Its numbers are removed from Operations → Production and the Production Dashboard until it is approved again.',
+  },
+}
 
 function formatWhen(value) {
   if (!value) return '—'
@@ -75,11 +95,11 @@ function LossCheck({ entry, limits }) {
 /** Operations › FM: approve or reject MG Floor Metal In / Out batches sent from the floor tablet. */
 export default function TabFloorManager({ showToast, onChanged }) {
   const [status, setStatus] = useState('PENDING')
-  const [data, setData] = useState({ entries: [], counts: { PENDING: 0, APPROVED: 0, REJECTED: 0 }, canDecide: false })
+  const [data, setData] = useState({ entries: [], counts: { PENDING: 0, APPROVED: 0, REJECTED: 0 }, canDecide: false, undoWindowHours: 0 })
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [busyId, setBusyId] = useState(null)
-  const [rejecting, setRejecting] = useState(null)
+  const [reasonFor, setReasonFor] = useState(null)
   const [reason, setReason] = useState('')
   const [rejectError, setRejectError] = useState('')
   const [limits, setLimits] = useState({})
@@ -98,7 +118,12 @@ export default function TabFloorManager({ showToast, onChanged }) {
     try {
       const res = await mgFloorBatchEntriesApi.list({ status, limit: 100 })
       if (request !== requestRef.current) return
-      setData({ entries: res.entries || [], counts: res.counts || {}, canDecide: Boolean(res.canDecide) })
+      setData({
+        entries: res.entries || [],
+        counts: res.counts || {},
+        canDecide: Boolean(res.canDecide),
+        undoWindowHours: Number(res.undoWindowHours) || 0,
+      })
       setLoadError('')
     } catch (err) {
       if (request !== requestRef.current) return
@@ -139,10 +164,17 @@ export default function TabFloorManager({ showToast, onChanged }) {
     }
   }
 
-  const submitReject = async () => {
-    const entry = rejecting
+  const askReason = (entry, mode) => {
+    setReasonFor({ entry, mode })
+    setReason('')
+    setRejectError('')
+  }
+
+  const submitReason = async () => {
+    const entry = reasonFor?.entry
+    const mode = REASON_MODES[reasonFor?.mode]
     const text = reason.trim()
-    if (!entry || busyId) return
+    if (!entry || !mode || busyId) return
     if (text.length < 3) {
       setRejectError('Write at least 3 characters so the operator knows what to fix.')
       return
@@ -150,12 +182,13 @@ export default function TabFloorManager({ showToast, onChanged }) {
     setBusyId(entry._id)
     setRejectError('')
     try {
-      await mgFloorBatchEntriesApi.reject(entry._id, text)
-      setRejecting(null)
+      if (reasonFor.mode === 'undo') await mgFloorBatchEntriesApi.undoApproval(entry._id, text)
+      else await mgFloorBatchEntriesApi.reject(entry._id, text)
+      setReasonFor(null)
       setReason('')
-      await afterDecision('Batch rejected', `The operator will see: ${text}`)
+      await afterDecision(mode.toast, `The operator will see: ${text}`)
     } catch (err) {
-      setRejectError(errorMessage(err, 'Reject failed'))
+      setRejectError(errorMessage(err, mode.failed))
       load()
     } finally {
       setBusyId(null)
@@ -163,7 +196,8 @@ export default function TabFloorManager({ showToast, onChanged }) {
   }
 
   const counts = data.counts || {}
-  const showActions = data.canDecide && status === 'PENDING'
+  const showActions = data.canDecide && (status === 'PENDING' || (status === 'APPROVED' && data.undoWindowHours > 0))
+  const reasonMode = reasonFor ? REASON_MODES[reasonFor.mode] : null
   const headers = ['Sent', 'Department', 'In / Out', 'Batch', 'Metal (Qty · Purity · Time)', 'Loss check', 'Operator', status === 'PENDING' ? 'Status' : 'Decision']
   if (showActions) headers.push('Actions')
   const now = Date.now()
@@ -260,10 +294,34 @@ export default function TabFloorManager({ showToast, onChanged }) {
                         {entry.status === 'REJECTED' && entry.rejectReason ? (
                           <div style={{ color: C.t2, marginTop: 2, whiteSpace: 'normal', maxWidth: 240 }}>{entry.rejectReason}</div>
                         ) : null}
+                        {entry.status === 'REJECTED' && entry.undoneAt && entry.approvedByName ? (
+                          <div style={{ marginTop: 2 }}>First approved by {entry.approvedByName} · {formatWhen(entry.approvedAt)}</div>
+                        ) : null}
                       </div>
                     ) : null}
                   </td>
-                  {showActions ? (
+                  {showActions && entry.status === 'APPROVED' ? (
+                    <td style={{ ...TD, whiteSpace: 'nowrap' }}>
+                      {undoMinutesLeft(entry, data.undoWindowHours, now) != null ? (
+                        <>
+                          <button
+                            type="button"
+                            className={`${B.sec} ${B.sm}`}
+                            disabled={busyId === entry._id}
+                            onClick={() => askReason(entry, 'undo')}
+                          >
+                            Undo approval
+                          </button>
+                          <div style={{ fontSize: 11, color: C.t4, marginTop: 4 }}>
+                            {formatWait(undoMinutesLeft(entry, data.undoWindowHours, now))} left to undo
+                          </div>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11.5, color: C.t4 }}>Undo time passed</span>
+                      )}
+                    </td>
+                  ) : null}
+                  {showActions && entry.status === 'PENDING' ? (
                     <td style={{ ...TD, whiteSpace: 'nowrap' }}>
                       <button
                         type="button"
@@ -278,7 +336,7 @@ export default function TabFloorManager({ showToast, onChanged }) {
                         type="button"
                         className={`${B.danger} ${B.sm}`}
                         disabled={busyId === entry._id}
-                        onClick={() => { setRejecting(entry); setReason(''); setRejectError('') }}
+                        onClick={() => askReason(entry, 'reject')}
                       >
                         Reject
                       </button>
@@ -292,20 +350,23 @@ export default function TabFloorManager({ showToast, onChanged }) {
         </div>
       </TableWrap>
 
-      {rejecting ? (
+      {reasonFor && reasonMode ? (
         <Modal
-          title="Reject batch"
-          sub={`${rejecting.department} · ${rejecting.direction === 'IN' ? 'Metal In' : 'Metal Out'} · Batch ${rejecting.batchLabel} · ${rejecting.employeeName || ''}`}
-          onClose={() => { if (!busyId) setRejecting(null) }}
-          onSave={submitReject}
-          saveLabel={busyId ? 'Saving…' : 'Reject batch'}
+          title={reasonMode.title}
+          sub={`${reasonFor.entry.department} · ${reasonFor.entry.direction === 'IN' ? 'Metal In' : 'Metal Out'} · Batch ${reasonFor.entry.batchLabel} · ${reasonFor.entry.employeeName || ''}`}
+          onClose={() => { if (!busyId) setReasonFor(null) }}
+          onSave={submitReason}
+          saveLabel={busyId ? 'Saving…' : reasonMode.save}
         >
-          <ML>Reason (shown to the operator on the tablet)</ML>
+          {reasonMode.note ? (
+            <div style={{ fontSize: 12.5, color: C.t2, marginBottom: 12, lineHeight: 1.45 }}>{reasonMode.note}</div>
+          ) : null}
+          <ML>{reasonMode.label}</ML>
           <MTA
             value={reason}
-            maxLength={500}
+            maxLength={450}
             autoFocus
-            placeholder="e.g. Gold qty looks wrong, please recheck and send again"
+            placeholder={reasonMode.placeholder}
             onChange={(e) => { setReason(e.target.value); setRejectError('') }}
           />
           {rejectError ? (

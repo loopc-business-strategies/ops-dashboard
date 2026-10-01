@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareMetalOut, formatWait, minutesWaiting } from './floorBatchCheck'
+import { compareMetalOut, formatWait, minutesWaiting, undoMinutesLeft } from './floorBatchCheck'
 
 describe('compareMetalOut', () => {
   it('works out loss and flags it above the limit', () => {
@@ -28,5 +28,17 @@ describe('waiting time', () => {
     expect(minutesWaiting('nope', now)).toBeNull()
     expect(formatWait(95)).toBe('1h 35m')
     expect(formatWait(20)).toBe('20m')
+  })
+})
+
+describe('undo window', () => {
+  const now = Date.parse('2026-09-30T12:00:00Z')
+  it('counts down from the approval time', () => {
+    expect(undoMinutesLeft({ status: 'APPROVED', decidedAt: '2026-09-30T10:00:00Z' }, 24, now)).toBe(22 * 60)
+  })
+  it('is gone after the window, for other statuses and without a window', () => {
+    expect(undoMinutesLeft({ status: 'APPROVED', decidedAt: '2026-09-29T11:59:00Z' }, 24, now)).toBeNull()
+    expect(undoMinutesLeft({ status: 'REJECTED', decidedAt: '2026-09-30T10:00:00Z' }, 24, now)).toBeNull()
+    expect(undoMinutesLeft({ status: 'APPROVED', decidedAt: '2026-09-30T10:00:00Z' }, 0, now)).toBeNull()
   })
 })

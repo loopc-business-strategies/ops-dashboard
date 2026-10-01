@@ -45,6 +45,15 @@ export function minutesWaiting(submittedAt, now = Date.now()) {
   return Math.max(0, Math.floor((now - t) / 60000))
 }
 
+/** Minutes left to undo an approval, or null once the window has passed. */
+export function undoMinutesLeft(entry, windowHours, now = Date.now()) {
+  if (entry?.status !== 'APPROVED' || !windowHours) return null
+  const decided = new Date(entry.decidedAt).getTime()
+  if (!Number.isFinite(decided)) return null
+  const left = Math.floor((decided + windowHours * 3600000 - now) / 60000)
+  return left > 0 ? left : null
+}
+
 /** 95 -> "1h 35m", 20 -> "20m". */
 export function formatWait(minutes) {
   if (minutes == null) return ''

@@ -438,7 +438,12 @@ router.get('/batch-entries', ...mgProtect, requireProductionPermission('view'), 
 })), async (req, res) => {
   try {
     const result = await batchEntries.listBatchEntries(req.query)
-    res.json({ success: true, canDecide: hasProductionPermission(req.user, 'approvePass'), ...result })
+    res.json({
+      success: true,
+      canDecide: hasProductionPermission(req.user, 'approvePass'),
+      undoWindowHours: batchEntries.UNDO_WINDOW_HOURS,
+      ...result,
+    })
   } catch (err) {
     handleError(res, err)
   }
@@ -480,6 +485,19 @@ router.post('/batch-entries/:id/reject', ...mgProtect, requireProductionPermissi
   try {
     const result = await batchEntries.decideBatchEntry(req, req.params.id, 'REJECTED', req.body.reason)
     emitBatchEntry('rejected', req.params.id)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+router.post('/batch-entries/:id/undo-approval', ...mgProtect, requireProductionPermission('approvePass'), validateParams(idParam), validateBody(Joi.object({
+  reason: Joi.string().trim().min(3).max(450).required(),
+})), async (req, res) => {
+  try {
+    const result = await batchEntries.undoApproval(req, req.params.id, req.body.reason)
+    emitBatchEntry('approval_undone', req.params.id)
+    if (result.workbook) emitWorkbookUpdate(req, 'workbook.mg_floor_batch_undone', { entryId: req.params.id })
     res.json({ success: true, ...result })
   } catch (err) {
     handleError(res, err)

@@ -39,6 +39,12 @@ const floorBatchEntrySchema = new mongoose.Schema(
     decidedById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     decidedByName: { type: String, trim: true, default: '' },
     rejectReason: { type: String, trim: true, default: '' },
+    /** Set when a manager undoes an approval: the batch goes back to the operator as REJECTED. */
+    undoneAt: { type: Date, default: null },
+    undoReason: { type: String, trim: true, default: '' },
+    /** The approval that was undone (decidedBy* then holds the manager who undid it). */
+    approvedByName: { type: String, trim: true, default: '' },
+    approvedAt: { type: Date, default: null },
   },
   { timestamps: true },
 )
