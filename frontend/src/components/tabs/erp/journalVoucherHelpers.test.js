@@ -305,6 +305,14 @@ describe('journal voucher helpers', () => {
     expect(out.lines[1].accountId).toBe('b1')
     expect(out.lines[2].accountId).toBe('d63')
     expect(out.lines[3].accountId).toBe('b1')
+
+    const bankJvEntries = entries.map((e) => ({ ...e, referenceType: 'bank_jv', description: 'BnkJV/2026/0002 — mixed' }))
+    const bankOut = reconstructJvEditLines(bankJvEntries, bankJvEntries[0], ctx)
+    expect(bankOut.lines.map((l) => [l.accountId, l.debit || 0, l.credit || 0])).toEqual([
+      ['d62', 100, 0],
+      ['b1', 0, 300],
+      ['d63', 200, 0],
+    ])
   })
 
   test('reconstructJvEditLines parses line-level description from third em-dash segment', () => {

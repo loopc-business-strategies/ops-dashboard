@@ -1,4 +1,4 @@
-import { parseAmount, toMoney, roundMoney, formatAmount, formatMoney } from '../../../utils/money'
+import { parseAmount, toMoney, roundMoney, formatAmount, formatMoney } from '../../../utils/money.js'
 
 const JV_MODE_META = {
   journal: { label: 'Normal JV', badge: 'JOURNAL VOUCHER', prefix: 'Jv', referenceType: 'journal' },
@@ -104,13 +104,15 @@ const pickFcFromCoaTally = (tally) => {
 }
 
 /**
- * For journal/bank_jv lines still stored as base currency + exchangeRate 1, infer which FC
+ * For journal lines still stored as base currency + exchangeRate 1, infer which FC
  * the voucher was meant in (COA leg majority, then narration) so the UI can show soms etc.
+ * Bank JVs are excluded: they mix USD and UZS bank accounts by design, and a voucher saved
+ * with a base-currency header is stored exactly like a legacy row.
  */
 const inferLegacyJvBatchDisplayFc = (entries, baseCurrencyCode = 'USD') => {
   const base = normalizeJvCurrencyCode(baseCurrencyCode || 'USD') || 'USD'
   if (!Array.isArray(entries) || !entries.length) return null
-  const modeOk = (e) => ['journal', 'bank_jv'].includes(String(e?.referenceType || '').toLowerCase())
+  const modeOk = (e) => String(e?.referenceType || '').toLowerCase() === 'journal'
   if (!entries.every(modeOk)) return null
 
   for (const e of entries) {
@@ -636,8 +638,45 @@ function mergeConsecutiveJvLinesSameAccountAndSide(lines, amountCurrencyCode = '
 }
 
 /**
+ * Bank JV: merge every line posting the same side to the same account with the same text,
+ * wherever it appears. Each ledger row is one Dr/Cr pair, so a single bank leg funding both
+ * the counter bank and the FX line is stored twice and must show as one row again.
+ */
+function mergeJvLinesByAccountAndSide(lines, amountCurrencyCode = '') {
+  if (!Array.isArray(lines) || lines.length < 2) return lines
+  const roundAmt = (value) => (
+    amountCurrencyCode
+      ? roundMoney(value, amountCurrencyCode)
+      : toMoney(value)
+  )
+  const out = []
+  const indexByKey = new Map()
+  for (const line of lines) {
+    const d = Number(line.debit || 0)
+    const c = Number(line.credit || 0)
+    const aid = String(line.accountId || '')
+    const side = d > 0 && !c ? 'dr' : (c > 0 && !d ? 'cr' : '')
+    if (!aid || !side) {
+      out.push(line)
+      continue
+    }
+    const key = `${aid}|${side}|${String(line.description || '')}`
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, out.length)
+      out.push({ ...line })
+      continue
+    }
+    const target = out[indexByKey.get(key)]
+    if (side === 'dr') target.debit = roundAmt(Number(target.debit || 0) + d)
+    else target.credit = roundAmt(Number(target.credit || 0) + c)
+  }
+  return out
+}
+
+/**
  * Rebuild JV modal lines from ledger rows. Consecutive same-account debit (or credit) lines are
- * merged for editing. Order follows FIFO sort on createdAt/date then _id.
+ * merged for editing (Bank JV merges them wherever they appear). Order follows FIFO sort on
+ * createdAt/date then _id.
  */
 function reconstructJvEditLines(editableEntries, entry, {
   baseCurrencyCode = 'USD',
@@ -711,19 +750,24 @@ function reconstructJvEditLines(editableEntries, entry, {
     }
   }
 
+  const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
   const mergeCurrency = showAsBatchCur ? firstEntryCur : ''
-  const mergedLines = mergeConsecutiveJvLinesSameAccountAndSide(lines, mergeCurrency)
+  const consecutiveMerged = mergeConsecutiveJvLinesSameAccountAndSide(lines, mergeCurrency)
+  const mergedLines = entryMode === 'bank_jv'
+    ? mergeJvLinesByAccountAndSide(consecutiveMerged, mergeCurrency)
+    : consecutiveMerged
 
   const rawDesc = String(entry.description || '')
   const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
   const docNo = docNoHead
   const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
-  const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
   const entryIdStr = String(entry?._id || '')
   const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entryIdStr.slice(-6)}`
   const legacyBatchFc = inferLegacyJvBatchDisplayFc(sorted, baseCurrencyCode)
+  // Mixed-currency rows are displayed in each account's own currency, which only validates
+  // under a base header.
   const headerCurrency = legacyBatchFc
-    || normCur((sorted[0] || entry).currency || baseCurrencyCode)
+    || (allEntriesSameCur ? firstEntryCur : normCur(baseCurrencyCode))
   const primaryRow = sorted[0] || entry
   const dateRaw = primaryRow?.date || primaryRow?.createdAt || entry?.date || entry?.createdAt
   const parsedEntryDate = new Date(dateRaw)

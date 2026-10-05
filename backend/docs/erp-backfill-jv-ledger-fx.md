@@ -8,6 +8,8 @@ with **`amount` in the line currency** and **`exchangeRate`** from **Master → 
 
 The backfill **does not change** that base equivalent; it only rewrites **`amount`**, **`currency`**, and **`exchangeRate`** so stored data matches the API and reports.
 
+**Bank JV (`bank_jv`) rows are not touched.** A Bank JV saved with a USD header is stored as base + rate 1 — identical to a legacy row — and always has a UZS bank leg, so COA inference would wrongly convert genuine USD vouchers to UZS. Only **journal** rows are candidates.
+
 ## What the backfill uses (COA + narration)
 
 1. **Chart of accounts** — For each `referenceId` batch (or each orphan row), it tallies **`currency`** on every debit and credit leg (non-base only). It uses a **single** FC code or a **strict majority** among legs.

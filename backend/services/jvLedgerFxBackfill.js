@@ -1,5 +1,5 @@
 /**
- * Rewrites legacy journal / bank_jv ledger rows stored as base currency + exchangeRate 1
+ * Rewrites legacy journal ledger rows stored as base currency + exchangeRate 1
  * (amount already in base) to foreign-currency amount + master exchangeRate, preserving
  * amount × exchangeRate (base equivalent).
  *
@@ -107,9 +107,12 @@ async function runJvLedgerFxBackfillOnNativeDb(db, options = {}) {
   const coaDocs = await db.collection('chartofaccounts').find({}).project({ currency: 1, accountCode: 1 }).toArray()
   const coaById = new Map(coaDocs.map((d) => [String(d._id), d]))
 
+  // bank_jv is excluded: a Bank JV saved with a base-currency header is stored as base + rate 1
+  // (same shape as a legacy row) and mixes USD/UZS bank legs, so COA inference would wrongly
+  // rewrite genuine base-currency vouchers into the foreign currency.
   const candidateFilter = {
     isDeleted: { $ne: true },
-    referenceType: { $in: ['journal', 'bank_jv'] },
+    referenceType: 'journal',
   }
 
   const candidates = await db.collection('ledgers').find(candidateFilter).toArray()

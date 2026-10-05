@@ -417,7 +417,10 @@ export default function ERPLedgerTab({
 
                           let displayAmt = baseEq
                           let displaySym = baseSym
-                          if (useLegacyFc) {
+                          if (voucher.documentFaceAmount != null && voucher.documentCurrencyCode) {
+                            displaySym = normalizeJvCurrencyCode(voucher.documentCurrencyCode)
+                            displayAmt = voucher.documentFaceAmount
+                          } else if (useLegacyFc) {
                             displaySym = normalizeJvCurrencyCode(legacyFc)
                             const rawFc = baseEq / dispRate
                             // Display only — round to FC precision (not forced base 2dp).

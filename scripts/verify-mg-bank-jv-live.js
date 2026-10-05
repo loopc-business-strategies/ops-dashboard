@@ -47,6 +47,80 @@ async function fetchAllBankJv(cookie) {
   return all
 }
 
+async function fetchBaseCurrency(cookie) {
+  const res = await request('/api/erp-accounting/currencies', { cookie })
+  const rows = Array.isArray(res.data?.currencies) ? res.data.currencies : []
+  return String(rows.find((c) => c.baseCurrency)?.code || 'USD').toUpperCase()
+}
+
+const SOM_HINT_RE = /\bsoms?\b|\buzs\b|\bsum\b(?!\w)/i
+
+/**
+ * How a voucher is stored:
+ *   stored-fc       all rows in one foreign currency (e.g. UZS) — shows exactly as saved
+ *   base-only       base currency, rate 1, no foreign-currency account — genuine base voucher
+ *   base-with-fc    base currency, rate 1, but touches a foreign-currency account — either a
+ *                   voucher saved with a base header, or a legacy soms voucher stored in base
+ *   mixed           rows in different currencies
+ */
+function classifyVoucher(group, base, normalize) {
+  const curs = new Set(group.entries.map((e) => normalize(e.currency || base) || base))
+  if (curs.size > 1) return 'mixed'
+  const [cur] = [...curs]
+  if (cur !== base) return 'stored-fc'
+  const legFc = group.entries.some((e) => [e.debitAccountId, e.creditAccountId].some((acc) => {
+    const code = normalize(acc?.currency || '')
+    return code && code !== base
+  }))
+  return legFc ? 'base-with-fc' : 'base-only'
+}
+
+function printCurrencyReport(grouped, base, normalize) {
+  const day = (v) => (v ? new Date(v).toISOString().slice(0, 10) : '—')
+  const rows = grouped
+    .map((g) => {
+      const first = g.entries[0] || {}
+      const createdAt = g.entries.map((e) => e.createdAt).filter(Boolean).sort()[0]
+      const blob = g.entries.map((e) => `${e.description || ''} ${e.notes || ''}`).join(' ')
+      return {
+        g,
+        cls: classifyVoucher(g, base, normalize),
+        createdAt,
+        currency: normalize(first.currency || base) || base,
+        rate: Number(first.exchangeRate ?? 1),
+        stored: g.entries.reduce((s, e) => s + Number(e.amount || 0), 0),
+        somHint: SOM_HINT_RE.test(blob),
+      }
+    })
+    .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+
+  console.log('\nStored currency per Bank JV (oldest first):')
+  console.log('─'.repeat(130))
+  for (const r of rows) {
+    console.log(
+      `${day(r.g.date)}  created ${day(r.createdAt)}  ${String(r.g.voucherNo).padEnd(18)}  `
+      + `${r.cls.padEnd(13)}  ${String(r.stored.toFixed(2)).padStart(16)} ${r.currency.padEnd(4)}  `
+      + `rate ${String(Number(r.rate.toPrecision(6))).padEnd(12)}  ≈ ${Number(r.g.totalBaseAmount || 0).toFixed(2)} ${base}`
+      + `${r.somHint ? '  [narration mentions soms]' : ''}  ${String(r.g.narration || '').slice(0, 40)}`,
+    )
+  }
+  console.log('─'.repeat(130))
+
+  const counts = rows.reduce((m, r) => ({ ...m, [r.cls]: (m[r.cls] || 0) + 1 }), {})
+  console.log('\nSummary:')
+  for (const cls of ['stored-fc', 'base-only', 'base-with-fc', 'mixed']) {
+    console.log(`  ${cls.padEnd(13)} ${counts[cls] || 0}`)
+  }
+  const review = rows.filter((r) => r.cls === 'base-with-fc' || r.cls === 'mixed')
+  if (review.length) {
+    console.log(
+      `\nREVIEW: ${review.length} voucher(s) stored in ${base} that touch a foreign-currency account `
+      + `(created ${day(review[0].createdAt)} → ${day(review[review.length - 1].createdAt)}). `
+      + 'These show in the list in ' + base + '; check whether each was meant in soms.',
+    )
+  }
+}
+
 async function main() {
   const name = process.env.MG_ADMIN_NAME || 'Nan'
   const password = process.env.MG_ADMIN_PASSWORD || process.env.SMOKE_AUTH_PASSWORD_MG
@@ -60,9 +134,10 @@ async function main() {
     throw new Error(`Login failed (${login.status}): ${login.data?.message || 'no access'}`)
   }
 
-  const { groupJvLedgerEntries, extractLedgerJvDocNoFromDescription } = await loadHelpers()
+  const { groupJvLedgerEntries, normalizeJvCurrencyCode } = await loadHelpers()
+  const baseCurrency = await fetchBaseCurrency(login.cookie)
   const entries = await fetchAllBankJv(login.cookie)
-  const grouped = groupJvLedgerEntries(entries)
+  const grouped = groupJvLedgerEntries(entries, { baseCurrencyCode: baseCurrency })
 
   const docNoCounts = new Map()
   for (const g of grouped) {
@@ -93,6 +168,8 @@ async function main() {
     )
   }
   console.log('─'.repeat(105))
+
+  printCurrencyReport(grouped, baseCurrency, normalizeJvCurrencyCode)
 
   const ungrouped = entries.length !== grouped.reduce((n, g) => n + g.lineCount, 0)
   if (ungrouped) {
