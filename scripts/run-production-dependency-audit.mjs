@@ -18,11 +18,18 @@ const workspaces = [
  * Allowlist until react-router-dom publishes a line that depends on react-router >= 8.3.0.
  * GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: image-size ICNS/JXL/HEIF DoS — latest npm is 2.0.2
  * (still flagged). Allowlist until a patched release > 2.0.2 is published.
+ * GHSA-86w9-cpqp-85rv: node-forge RSA signature verification — mobile only, via expo-updates cli/
+ * code signing and @expo/cli (build tooling, not in the app bundle). Latest npm is 1.4.0 (still
+ * flagged). Allowlist until a patched release > 1.4.0 is published.
+ * GHSA-vfj7-8cjw-p6xm: braces nested-pattern DoS — mobile only, via @expo/cli → metro-file-map →
+ * micromatch (bundler tooling). Latest npm is 3.0.3 (still flagged). Allowlist until > 3.0.3.
  */
 const ALLOWLISTED_ADVISORY_IDS = new Set([
   'GHSA-qwww-vcr4-c8h2',
   'GHSA-w3rx-r6r6-pgpr',
   'GHSA-5p2g-fcmc-qvqq',
+  'GHSA-86w9-cpqp-85rv',
+  'GHSA-vfj7-8cjw-p6xm',
 ])
 
 function extractAdvisoryId(entry) {
