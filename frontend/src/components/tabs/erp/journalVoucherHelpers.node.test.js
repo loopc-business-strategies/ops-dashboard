@@ -204,6 +204,30 @@ describe('journalVoucherHelpers (node)', () => {
       expect(v.totalCredit).toBeCloseTo(6000, 2)
     })
 
+    test('normal JV saved in USD with a soms expense leg reopens in USD, balanced', () => {
+      const journalRow = {
+        _id: 'j1', referenceType: 'journal', amount: 227.27, currency: 'USD', exchangeRate: 1,
+        date: '2026-09-14', createdAt: '2026-09-14T10:00:00Z', description: 'Jv/2026/0066',
+        debitAccountId: coa.uzsBank, creditAccountId: coa.usdBank,
+      }
+      const r = reconstructJvEditLines([journalRow], journalRow, {
+        baseCurrencyCode: 'USD',
+        convertJvAmount,
+        inferJvAccountCurrency,
+      })
+      expect(r.headerCurrency).toBe('USD')
+      const v = validateJvLines({
+        lines: r.lines,
+        jvMode: 'journal',
+        jvHeader: { currency: r.headerCurrency },
+        baseCurrencyCode: 'USD',
+        inferJvAccountCurrency,
+        convertJvAmount,
+      })
+      expect(v.isBalanced).toBe(true)
+      expect(v.totalDebit).toBeCloseTo(227.27, 2)
+    })
+
     test('legacy journal rows still infer soms from the COA leg', () => {
       const journalRows = stored.map((e) => ({ ...e, referenceType: 'journal' }))
       expect(inferLegacyJvBatchDisplayFc(journalRows, 'USD')).toBe('UZS')

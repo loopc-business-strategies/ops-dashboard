@@ -6,7 +6,6 @@ import {
   buildJvPrintHtml,
   emptyJvLine,
   filterJvEditableEntries,
-  inferLegacyJvBatchDisplayFc,
   makeJvGroupObjectId,
   normalizeJvCurrencyCode,
   reconstructJvEditLines,
@@ -271,7 +270,6 @@ export function useJournalVoucher(props) {
       normalizeJvCurrencyCode,
       convertJvAmount: p.convertJvAmount,
       inferJvAccountCurrency: p.inferJvAccountCurrency,
-      inferLegacyJvBatchDisplayFc,
     })
     p.setJvMode(reconstructed.entryMode)
     p.setJvEditEntryIds(reconstructed.jvEditEntryIds)

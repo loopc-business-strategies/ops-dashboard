@@ -683,7 +683,6 @@ function reconstructJvEditLines(editableEntries, entry, {
   normalizeJvCurrencyCode: normCur = normalizeJvCurrencyCode,
   convertJvAmount,
   inferJvAccountCurrency,
-  inferLegacyJvBatchDisplayFc,
 } = {}) {
   const sorted = [...(editableEntries || [])].sort((a, b) => {
     const aTs = new Date(a?.createdAt || a?.date || 0).getTime()
@@ -763,11 +762,9 @@ function reconstructJvEditLines(editableEntries, entry, {
   const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
   const entryIdStr = String(entry?._id || '')
   const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entryIdStr.slice(-6)}`
-  const legacyBatchFc = inferLegacyJvBatchDisplayFc(sorted, baseCurrencyCode)
-  // Mixed-currency rows are displayed in each account's own currency, which only validates
-  // under a base header.
-  const headerCurrency = legacyBatchFc
-    || (allEntriesSameCur ? firstEntryCur : normCur(baseCurrencyCode))
+  // Header is the stored currency, never a guessed one: base-currency rows are displayed in each
+  // account's own currency, which only validates under a base header (same for mixed rows).
+  const headerCurrency = allEntriesSameCur ? firstEntryCur : normCur(baseCurrencyCode)
   const primaryRow = sorted[0] || entry
   const dateRaw = primaryRow?.date || primaryRow?.createdAt || entry?.date || entry?.createdAt
   const parsedEntryDate = new Date(dateRaw)

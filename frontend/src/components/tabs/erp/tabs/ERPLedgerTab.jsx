@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react'
 import JournalVoucherModal from './JournalVoucherModal'
 import {
   groupJvLedgerEntries,
-  inferLegacyJvBatchDisplayFc,
   isManualJvLedgerEntry,
   normalizeJvCurrencyCode,
 } from '../journalVoucherHelpers'
@@ -11,7 +10,7 @@ import ErpMonthYearFilter from '../ErpMonthYearFilter'
 import { includesSearchTerm, matchesYearMonths, normalizeFilterMonths, normalizeFilterYear } from '../erpListFilters'
 import { isVoucherKeyboardNavEnabled } from '../../../../config/tenantBranding'
 import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
-import { formatAmount, formatMoney, roundMoney } from '../../../../utils/money'
+import { formatAmount, formatMoney } from '../../../../utils/money'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 export default function ERPLedgerTab({
@@ -377,12 +376,6 @@ export default function ERPLedgerTab({
                         {(() => {
                           const baseSym = String(baseCurrencyCode || '').trim().toUpperCase() || 'USD'
                           const baseEq = Number(voucher.totalBaseAmount || 0)
-                          const legacyFc = inferLegacyJvBatchDisplayFc(voucher.entries, baseCurrencyCode)
-                          const fxRow = legacyFc
-                            ? (currencies || []).find((c) => normalizeJvCurrencyCode(c?.code) === normalizeJvCurrencyCode(legacyFc))
-                            : null
-                          const dispRate = fxRow ? Number(fxRow.exchangeRate || 0) : 0
-                          const useLegacyFc = Boolean(legacyFc && dispRate > 0)
                           const isJournalJv = String(voucher.referenceType || '').toLowerCase() === 'journal'
                           const lineHint = voucher.lineCount > 1 ? `${voucher.lineCount} ledger lines` : ''
 
@@ -420,11 +413,6 @@ export default function ERPLedgerTab({
                           if (voucher.documentFaceAmount != null && voucher.documentCurrencyCode) {
                             displaySym = normalizeJvCurrencyCode(voucher.documentCurrencyCode)
                             displayAmt = voucher.documentFaceAmount
-                          } else if (useLegacyFc) {
-                            displaySym = normalizeJvCurrencyCode(legacyFc)
-                            const rawFc = baseEq / dispRate
-                            // Display only — round to FC precision (not forced base 2dp).
-                            displayAmt = roundMoney(rawFc, displaySym)
                           }
 
                           const isFc = displaySym && normalizeJvCurrencyCode(displaySym) !== baseSym
