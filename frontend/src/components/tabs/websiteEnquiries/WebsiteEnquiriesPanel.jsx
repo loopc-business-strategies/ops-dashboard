@@ -37,6 +37,26 @@ const REQUIREMENT_LABELS = {
   procurement: 'Gold / Material Requirement',
 }
 
+const FIXED_COLUMN_COUNT = 7
+
+function optionalColumns(variant) {
+  return [
+    { key: 'company', label: 'Company', style: cell },
+    {
+      key: 'email',
+      label: 'Email',
+      style: cell,
+      render: (item) => <a href={`mailto:${item.email}`}>{item.email}</a>,
+    },
+    {
+      key: 'requirement',
+      label: REQUIREMENT_LABELS[variant] || REQUIREMENT_LABELS.sales,
+      style: { ...cell, minWidth: 180, whiteSpace: 'pre-wrap' },
+    },
+    { key: 'message', label: 'Message', style: { ...cell, minWidth: 200, whiteSpace: 'pre-wrap' } },
+  ]
+}
+
 const cell = { padding: '8px', verticalAlign: 'top' }
 const head = { padding: '6px 8px', whiteSpace: 'nowrap' }
 const selectStyle = { border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', fontSize: 12, background: '#fff' }
@@ -121,6 +141,8 @@ export default function WebsiteEnquiriesPanel({ variant = 'sales' }) {
     }
   }
 
+  const extraColumns = optionalColumns(variant).filter((col) => items.some((item) => item[col.key]))
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -129,7 +151,7 @@ export default function WebsiteEnquiriesPanel({ variant = 'sales' }) {
             className="form-input"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, company, email, phone…"
+            placeholder="Search name or phone…"
             style={{ marginBottom: 0 }}
           />
         </div>
@@ -152,12 +174,9 @@ export default function WebsiteEnquiriesPanel({ variant = 'sales' }) {
             <thead>
               <tr style={{ textAlign: 'left', color: C.inkSoft }}>
                 <th style={head}>Customer Name</th>
-                <th style={head}>Company</th>
-                <th style={head}>Email</th>
-                <th style={head}>Phone</th>
+                <th style={head}>Phone Number</th>
                 <th style={head}>Enquiry Type</th>
-                <th style={head}>{REQUIREMENT_LABELS[variant] || REQUIREMENT_LABELS.sales}</th>
-                <th style={head}>Message</th>
+                {extraColumns.map((col) => <th key={col.key} style={head}>{col.label}</th>)}
                 <th style={head}>Source</th>
                 <th style={head}>Status</th>
                 <th style={head}>Date / Time</th>
@@ -168,12 +187,13 @@ export default function WebsiteEnquiriesPanel({ variant = 'sales' }) {
               {items.map((item) => (
                 <tr key={item._id} style={{ borderTop: `1px solid ${C.border}`, opacity: savingId === item._id ? 0.6 : 1 }}>
                   <td style={{ ...cell, fontWeight: 600, color: C.ink }}>{item.name}</td>
-                  <td style={cell}>{item.company || '—'}</td>
-                  <td style={cell}><a href={`mailto:${item.email}`}>{item.email}</a></td>
                   <td style={{ ...cell, whiteSpace: 'nowrap' }}><a href={`tel:${item.phone}`}>{item.phone}</a></td>
-                  <td style={cell}>{item.enquiryType}</td>
-                  <td style={{ ...cell, minWidth: 180, whiteSpace: 'pre-wrap' }}>{item.requirement}</td>
-                  <td style={{ ...cell, minWidth: 200, whiteSpace: 'pre-wrap' }}>{item.message || '—'}</td>
+                  <td style={{ ...cell, whiteSpace: 'nowrap' }}>{String(item.enquiryType || '').toUpperCase()}</td>
+                  {extraColumns.map((col) => (
+                    <td key={col.key} style={col.style}>
+                      {item[col.key] ? (col.render ? col.render(item) : item[col.key]) : '—'}
+                    </td>
+                  ))}
                   <td style={cell}>{String(item.source || 'website').toUpperCase()}</td>
                   <td style={cell}>
                     {canEdit ? (
@@ -214,7 +234,7 @@ export default function WebsiteEnquiriesPanel({ variant = 'sales' }) {
               ))}
               {!items.length && (
                 <tr>
-                  <td colSpan={11} style={{ padding: 12, color: C.inkSoft }}>
+                  <td colSpan={FIXED_COLUMN_COUNT + extraColumns.length} style={{ padding: 12, color: C.inkSoft }}>
                     {loading ? 'Loading website enquiries…' : 'No website enquiries yet.'}
                   </td>
                 </tr>

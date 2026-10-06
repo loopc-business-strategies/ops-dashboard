@@ -258,10 +258,12 @@ function createApp() {
   // Build CORS allowlist from environment.
   // CLIENT_URL  — single origin (legacy, kept for compatibility)
   // CLIENT_URLS — comma-separated list of all allowed origins (preferred)
+  // WEBSITE_URL — public MG Website origin(s)
   // Both are merged; add new Vercel/Railway origins here via env var instead of code.
   const rawOrigins = Array.from(new Set([
     ...(process.env.CLIENT_URL  || '').split(','),
     ...(process.env.CLIENT_URLS || '').split(','),
+    ...(process.env.WEBSITE_URL || '').split(','),
   ].flatMap(s => s.split(',')).map(o => o.trim()).filter(Boolean)))
 
   const devOrigins = isProduction
@@ -307,7 +309,7 @@ function createApp() {
     credentials: true,
     allowedHeaders: [
       'Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-metal-rates-bridge-token',
-      'x-website-enquiry-token', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID',
+      'x-website-enquiry-token', 'idempotency-key', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID',
       // MG Floor / mobile send X-Client to get Bearer-token logins; browsers only need it for local
       // Expo web testing, so production keeps browser logins cookie-only.
       ...(isProduction ? [] : ['X-Client']),

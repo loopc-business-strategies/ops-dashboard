@@ -260,6 +260,7 @@ The MG Website backend relays each Sell Gold form submission to `POST /api/enqui
 ```
 WEBSITE_ENQUIRY_TOKEN=<long random secret, same value as the MG Website backend>
 WEBSITE_ENQUIRY_TENANT=mg
+WEBSITE_URL=https://mg-jewelry.vercel.app   # MG Website origin(s) added to the CORS allow-list
 WEBSITE_ENQUIRY_NOTIFY_EMAIL=<team inbox; comma-separated for several>
 # Outbound email for the "New Website Enquiry" notification (skipped if SMTP_HOST is unset)
 SMTP_HOST=<smtp host, e.g. smtp.gmail.com / smtp.office365.com>
@@ -271,6 +272,8 @@ SMTP_FROM="Modern Gold <no-reply@yourdomain.com>"
 ```
 
 Without `WEBSITE_ENQUIRY_TOKEN` the endpoint returns 503 and the website shows its "Unable to submit" message.
+
+Only `name` and `phone` are required (`enquiryType` defaults to `sell_gold`). Repeat submissions are not saved twice: a repeated `Idempotency-Key` header, or the same phone number within 10 minutes, returns the existing enquiry id.
 
 ### Optional: server-side metal market prices (API / reports)
 

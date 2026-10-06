@@ -8,7 +8,12 @@ const { Joi, validateBody, validateParams, validateQuery } = require('../middlew
 const { escapeRegex } = require('../utils/escapeRegex')
 const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 const { normalizeTenant } = require('../config/tenants')
-const { ENQUIRY_STATUSES, ENQUIRY_TYPES } = require('../utils/websiteEnquiryConstants')
+const {
+  ENQUIRY_STATUSES,
+  ENQUIRY_TYPES,
+  ENQUIRY_TYPE_CODES,
+  resolveEnquiryType,
+} = require('../utils/websiteEnquiryConstants')
 const WebsiteEnquiry = require('../models/WebsiteEnquiry')
 const User = require('../models/User')
 const { sendWebsiteEnquiryNotification } = require('../services/websiteEnquiryEmail')
@@ -23,6 +28,9 @@ const router = express.Router()
 
 const isProduction = process.env.NODE_ENV === 'production'
 const ASSIGNEE_DEPARTMENTS = ['sales', 'operations', 'management']
+const DUPLICATE_WINDOW_MS = 10 * 60 * 1000
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9-]{8,100}$/
+const OPTIONAL_TEXT_FIELDS = ['company', 'email', 'requirement', 'message']
 
 const submitLimiter = rateLimit({
   windowMs: Number(process.env.WEBSITE_ENQUIRY_RATE_LIMIT_WINDOW_MS || 60 * 1000),
@@ -66,14 +74,17 @@ function editOnly(req, res, next) {
 
 const submitSchema = Joi.object({
   name:        Joi.string().trim().min(1).max(120).required(),
-  company:     Joi.string().trim().allow('').max(160).default(''),
-  email:       Joi.string().trim().email({ tlds: { allow: false } }).max(200).required(),
   phone:       Joi.string().trim().min(5).max(40).pattern(/^[0-9+()\-.\s]+$/).required(),
-  enquiryType: Joi.string().valid(...ENQUIRY_TYPES).required(),
-  requirement: Joi.string().trim().min(1).max(1000).required(),
-  message:     Joi.string().trim().allow('').max(3000).default(''),
+  enquiryType: Joi.string().valid(...Object.keys(ENQUIRY_TYPE_CODES), ...ENQUIRY_TYPES).default('sell_gold'),
+  company:     Joi.string().trim().allow('').max(160),
+  email:       Joi.string().trim().allow('').email({ tlds: { allow: false } }).max(200),
+  requirement: Joi.string().trim().allow('').max(1000),
+  message:     Joi.string().trim().allow('').max(3000),
   source:      Joi.string().valid('website').default('website'),
+  status:      Joi.string().valid('new', 'NEW'),
 })
+
+const phoneDigits = (value) => String(value || '').replace(/\D/g, '')
 
 const listQuerySchema = Joi.object({
   page:   Joi.number().integer().min(1).default(1),
@@ -109,12 +120,37 @@ router.post('/', submitLimiter, (req, res, next) => {
   try {
     const tenant = normalizeTenant(process.env.WEBSITE_ENQUIRY_TENANT || 'mg')
     const TenantEnquiry = await WebsiteEnquiry.getTenantModel(tenant)
-    const enquiry = await TenantEnquiry.create({
-      ...req.body,
+
+    const rawKey = String(req.headers['idempotency-key'] || '').trim()
+    const idempotencyKey = IDEMPOTENCY_KEY_PATTERN.test(rawKey) ? rawKey : ''
+    if (idempotencyKey) {
+      const existing = await TenantEnquiry.findOne({ idempotencyKey }).select('_id').lean()
+      if (existing) return res.status(200).json({ success: true, id: existing._id, duplicate: true })
+    }
+
+    const digits = phoneDigits(req.body.phone)
+    const recent = await TenantEnquiry.find({
+      source: 'website',
+      isDeleted: { $ne: true },
+      createdAt: { $gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+    }).select('_id phone').sort({ createdAt: -1 }).limit(200).lean()
+    const repeat = recent.find((row) => phoneDigits(row.phone) === digits)
+    if (repeat) return res.status(200).json({ success: true, id: repeat._id, duplicate: true })
+
+    const record = {
+      name: req.body.name,
+      phone: req.body.phone,
+      enquiryType: resolveEnquiryType(req.body.enquiryType),
       source: 'website',
       status: 'NEW',
       statusHistory: [{ status: 'NEW', note: 'Submitted from website' }],
-    })
+    }
+    for (const field of OPTIONAL_TEXT_FIELDS) {
+      if (req.body[field]) record[field] = req.body[field]
+    }
+    if (idempotencyKey) record.idempotencyKey = idempotencyKey
+
+    const enquiry = await TenantEnquiry.create(record)
 
     sendWebsiteEnquiryNotification(enquiry).catch((err) => {
       console.error('[website-enquiries] notification email failed:', err.message)
@@ -139,7 +175,7 @@ router.get('/', protect, viewOnly, validateQuery(listQuerySchema), async (req, r
       filter.$or = [{ name: rx }, { company: rx }, { email: rx }, { phone: rx }, { requirement: rx }]
     }
     const [data, total] = await Promise.all([
-      WebsiteEnquiry.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      WebsiteEnquiry.find(filter).select('-idempotencyKey').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       WebsiteEnquiry.countDocuments(filter),
     ])
     res.json({

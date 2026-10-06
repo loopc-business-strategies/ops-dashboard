@@ -22,14 +22,11 @@ const TEST_TENANT = 'mg'
 const ENQUIRY_TOKEN = 'website-enquiry-test-token'
 const PAYLOAD = {
   name: 'Test Customer',
-  company: 'Test Gold LLC',
-  email: 'customer@example.com',
   phone: '+998 90 123 45 67',
-  enquiryType: 'Sell Gold',
-  requirement: '200g 22K gold chains',
-  message: 'Please call me in the morning.',
   source: 'website',
+  enquiryType: 'sell_gold',
 }
+const { buildEnquiryRows } = jest.requireActual('../services/websiteEnquiryEmail')
 
 let mongo
 let app
@@ -50,9 +47,10 @@ const createUser = async (overrides = {}) => {
 
 const authed = (req, user) => req.set('Authorization', `Bearer ${tokenFor(user)}`).set('x-tenant', TEST_TENANT)
 
-const submit = (body = PAYLOAD, token = ENQUIRY_TOKEN) => {
+const submit = (body = PAYLOAD, token = ENQUIRY_TOKEN, idempotencyKey = '') => {
   const req = request(app).post('/api/enquiries')
   if (token) req.set('x-website-enquiry-token', token)
+  if (idempotencyKey) req.set('Idempotency-Key', idempotencyKey)
   return req.send(body)
 }
 
@@ -108,14 +106,18 @@ describe('POST /api/enquiries (website submission)', () => {
   })
 
   test('rejects invalid data', async () => {
-    const res = await submit({ ...PAYLOAD, email: 'not-an-email', enquiryType: 'Unknown' })
-    expect(res.status).toBe(400)
+    const missingPhone = await submit({ name: 'No Phone' })
+    expect(missingPhone.status).toBe(400)
+    const badType = await submit({ ...PAYLOAD, enquiryType: 'Unknown' })
+    expect(badType.status).toBe(400)
+    const clientStatus = await submit({ ...PAYLOAD, status: 'WON' })
+    expect(clientStatus.status).toBe(400)
     const TenantEnquiry = await WebsiteEnquiry.getTenantModel(TEST_TENANT)
     expect(await TenantEnquiry.countDocuments({})).toBe(0)
   })
 
-  test('saves exactly one record with source website and status NEW, and sends the email', async () => {
-    const res = await submit({ ...PAYLOAD, status: 'WON', source: 'website' })
+  test('name + phone only saves one Sell Gold / website / NEW record without empty optional fields', async () => {
+    const res = await submit({ ...PAYLOAD, status: 'new' })
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)
     expect(res.body.id).toBeTruthy()
@@ -125,16 +127,75 @@ describe('POST /api/enquiries (website submission)', () => {
     expect(docs).toHaveLength(1)
     const [doc] = docs
     expect(doc.name).toBe(PAYLOAD.name)
-    expect(doc.company).toBe(PAYLOAD.company)
-    expect(doc.email).toBe(PAYLOAD.email)
     expect(doc.phone).toBe(PAYLOAD.phone)
-    expect(doc.enquiryType).toBe(PAYLOAD.enquiryType)
-    expect(doc.requirement).toBe(PAYLOAD.requirement)
-    expect(doc.message).toBe(PAYLOAD.message)
+    expect(doc.enquiryType).toBe('Sell Gold')
     expect(doc.source).toBe('website')
     expect(doc.status).toBe('NEW')
     expect(doc.createdAt).toBeTruthy()
+    expect(doc.updatedAt).toBeTruthy()
+    for (const field of ['email', 'company', 'requirement', 'message']) {
+      expect(doc).not.toHaveProperty(field)
+    }
     expect(sendWebsiteEnquiryNotification).toHaveBeenCalledTimes(1)
+  })
+
+  test('enquiryType defaults to Sell Gold and optional fields are kept when sent', async () => {
+    const res = await submit({
+      name: 'Full Customer',
+      phone: '+998 91 222 33 44',
+      company: 'Test Gold LLC',
+      email: 'customer@example.com',
+      requirement: '200g 22K chains',
+      message: 'Morning call please',
+    })
+    expect(res.status).toBe(201)
+    const TenantEnquiry = await WebsiteEnquiry.getTenantModel(TEST_TENANT)
+    const doc = await TenantEnquiry.findById(res.body.id).lean()
+    expect(doc.enquiryType).toBe('Sell Gold')
+    expect(doc.company).toBe('Test Gold LLC')
+    expect(doc.email).toBe('customer@example.com')
+  })
+
+  test('the same Idempotency-Key returns the same record', async () => {
+    const key = '3f2b8c1e-1d2a-4b6c-9e7f-0a1b2c3d4e5f'
+    const first = await submit(PAYLOAD, ENQUIRY_TOKEN, key)
+    const retry = await submit({ ...PAYLOAD, phone: '+998 99 000 11 22' }, ENQUIRY_TOKEN, key)
+    expect(first.status).toBe(201)
+    expect(retry.status).toBe(200)
+    expect(retry.body.duplicate).toBe(true)
+    expect(String(retry.body.id)).toBe(String(first.body.id))
+    const TenantEnquiry = await WebsiteEnquiry.getTenantModel(TEST_TENANT)
+    expect(await TenantEnquiry.countDocuments({})).toBe(1)
+    expect(sendWebsiteEnquiryNotification).toHaveBeenCalledTimes(1)
+  })
+
+  test('a repeat submission with the same phone within the window is de-duplicated', async () => {
+    const first = await submit(PAYLOAD, ENQUIRY_TOKEN, 'aaaaaaaa-0000-0000-0000-000000000001')
+    const again = await submit({ ...PAYLOAD, phone: '+998901234567' }, ENQUIRY_TOKEN, 'aaaaaaaa-0000-0000-0000-000000000002')
+    expect(first.status).toBe(201)
+    expect(again.status).toBe(200)
+    expect(String(again.body.id)).toBe(String(first.body.id))
+    const other = await submit({ ...PAYLOAD, phone: '+998 93 555 66 77' })
+    expect(other.status).toBe(201)
+    const TenantEnquiry = await WebsiteEnquiry.getTenantModel(TEST_TENANT)
+    expect(await TenantEnquiry.countDocuments({})).toBe(2)
+  })
+})
+
+describe('Website enquiry notification email', () => {
+  test('lists name, phone, type, source and date, and skips missing optional fields', () => {
+    const rows = buildEnquiryRows({
+      name: 'Test Customer',
+      phone: '+998 90 123 45 67',
+      enquiryType: 'Sell Gold',
+      source: 'website',
+      createdAt: new Date('2026-10-06T08:00:00Z'),
+    })
+    expect(rows.map(([label]) => label)).toEqual(['Name', 'Phone', 'Enquiry Type', 'Source', 'Date/Time'])
+    expect(rows.find(([label]) => label === 'Source')[1]).toBe('WEBSITE')
+
+    const withEmail = buildEnquiryRows({ name: 'A', phone: '1', enquiryType: 'Sell Gold', email: 'a@b.c' })
+    expect(withEmail.map(([label]) => label)).toContain('Email')
   })
 })
 
