@@ -169,6 +169,20 @@ describe('POST /api/enquiries (website submission)', () => {
     expect(sendWebsiteEnquiryNotification).toHaveBeenCalledTimes(1)
   })
 
+  test('simultaneous submissions (double-click) create only one record', async () => {
+    const key = 'bbbbbbbb-0000-0000-0000-000000000001'
+    const results = await Promise.all([
+      submit(PAYLOAD, ENQUIRY_TOKEN, key),
+      submit(PAYLOAD, ENQUIRY_TOKEN, key),
+      submit(PAYLOAD, ENQUIRY_TOKEN),
+    ])
+    expect(results.map((r) => r.status).sort()).toEqual([200, 200, 201])
+    expect(new Set(results.map((r) => String(r.body.id))).size).toBe(1)
+    const TenantEnquiry = await WebsiteEnquiry.getTenantModel(TEST_TENANT)
+    expect(await TenantEnquiry.countDocuments({})).toBe(1)
+    expect(sendWebsiteEnquiryNotification).toHaveBeenCalledTimes(1)
+  })
+
   test('a repeat submission with the same phone within the window is de-duplicated', async () => {
     const first = await submit(PAYLOAD, ENQUIRY_TOKEN, 'aaaaaaaa-0000-0000-0000-000000000001')
     const again = await submit({ ...PAYLOAD, phone: '+998901234567' }, ENQUIRY_TOKEN, 'aaaaaaaa-0000-0000-0000-000000000002')

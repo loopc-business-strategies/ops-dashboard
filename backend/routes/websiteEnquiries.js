@@ -86,6 +86,46 @@ const submitSchema = Joi.object({
 
 const phoneDigits = (value) => String(value || '').replace(/\D/g, '')
 
+// Concurrent submissions (double-click, client retry) share one save. Single-instance only;
+// multiple API replicas would also need a unique index on idempotencyKey.
+const inFlightSubmissions = new Map()
+
+async function saveWebsiteEnquiry({ tenant, idempotencyKey, digits, body }) {
+  const TenantEnquiry = await WebsiteEnquiry.getTenantModel(tenant)
+
+  if (idempotencyKey) {
+    const existing = await TenantEnquiry.findOne({ idempotencyKey }).select('_id').lean()
+    if (existing) return { id: existing._id, duplicate: true }
+  }
+
+  const recent = await TenantEnquiry.find({
+    source: 'website',
+    isDeleted: { $ne: true },
+    createdAt: { $gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+  }).select('_id phone').sort({ createdAt: -1 }).limit(200).lean()
+  const repeat = recent.find((row) => phoneDigits(row.phone) === digits)
+  if (repeat) return { id: repeat._id, duplicate: true }
+
+  const record = {
+    name: body.name,
+    phone: body.phone,
+    enquiryType: resolveEnquiryType(body.enquiryType),
+    source: 'website',
+    status: 'NEW',
+    statusHistory: [{ status: 'NEW', note: 'Submitted from website' }],
+  }
+  for (const field of OPTIONAL_TEXT_FIELDS) {
+    if (body[field]) record[field] = body[field]
+  }
+  if (idempotencyKey) record.idempotencyKey = idempotencyKey
+
+  const enquiry = await TenantEnquiry.create(record)
+  sendWebsiteEnquiryNotification(enquiry).catch((err) => {
+    console.error('[website-enquiries] notification email failed:', err.message)
+  })
+  return { id: enquiry._id, duplicate: false }
+}
+
 const listQuerySchema = Joi.object({
   page:   Joi.number().integer().min(1).default(1),
   limit:  Joi.number().integer().min(1).max(200).default(50),
@@ -119,44 +159,29 @@ router.post('/', submitLimiter, (req, res, next) => {
 }, validateBody(submitSchema), async (req, res) => {
   try {
     const tenant = normalizeTenant(process.env.WEBSITE_ENQUIRY_TENANT || 'mg')
-    const TenantEnquiry = await WebsiteEnquiry.getTenantModel(tenant)
-
     const rawKey = String(req.headers['idempotency-key'] || '').trim()
     const idempotencyKey = IDEMPOTENCY_KEY_PATTERN.test(rawKey) ? rawKey : ''
-    if (idempotencyKey) {
-      const existing = await TenantEnquiry.findOne({ idempotencyKey }).select('_id').lean()
-      if (existing) return res.status(200).json({ success: true, id: existing._id, duplicate: true })
-    }
-
     const digits = phoneDigits(req.body.phone)
-    const recent = await TenantEnquiry.find({
-      source: 'website',
-      isDeleted: { $ne: true },
-      createdAt: { $gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
-    }).select('_id phone').sort({ createdAt: -1 }).limit(200).lean()
-    const repeat = recent.find((row) => phoneDigits(row.phone) === digits)
-    if (repeat) return res.status(200).json({ success: true, id: repeat._id, duplicate: true })
+    const lockKeys = [`${tenant}:phone:${digits}`]
+    if (idempotencyKey) lockKeys.push(`${tenant}:key:${idempotencyKey}`)
 
-    const record = {
-      name: req.body.name,
-      phone: req.body.phone,
-      enquiryType: resolveEnquiryType(req.body.enquiryType),
-      source: 'website',
-      status: 'NEW',
-      statusHistory: [{ status: 'NEW', note: 'Submitted from website' }],
+    const pending = lockKeys.map((k) => inFlightSubmissions.get(k)).find(Boolean)
+    if (pending) {
+      const { id } = await pending
+      return res.status(200).json({ success: true, id, duplicate: true })
     }
-    for (const field of OPTIONAL_TEXT_FIELDS) {
-      if (req.body[field]) record[field] = req.body[field]
+
+    const work = saveWebsiteEnquiry({ tenant, idempotencyKey, digits, body: req.body })
+    lockKeys.forEach((k) => inFlightSubmissions.set(k, work))
+    let result
+    try {
+      result = await work
+    } finally {
+      lockKeys.forEach((k) => inFlightSubmissions.delete(k))
     }
-    if (idempotencyKey) record.idempotencyKey = idempotencyKey
 
-    const enquiry = await TenantEnquiry.create(record)
-
-    sendWebsiteEnquiryNotification(enquiry).catch((err) => {
-      console.error('[website-enquiries] notification email failed:', err.message)
-    })
-
-    res.status(201).json({ success: true, id: enquiry._id })
+    if (result.duplicate) return res.status(200).json({ success: true, id: result.id, duplicate: true })
+    res.status(201).json({ success: true, id: result.id })
   } catch (err) {
     console.error('[website-enquiries] create failed:', err)
     res.status(500).json({ success: false, message: 'Unable to save enquiry.' })
