@@ -43,6 +43,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
+import WebsiteEnquiriesPanel from './websiteEnquiries/WebsiteEnquiriesPanel'
 
 const C = {
   bg: '#f4f7f6',
@@ -800,7 +801,7 @@ export default function SalesTab({ embedded = false } = {}) {
   const perms = usePermissions()
   const { t } = useLanguage()
   const SALES_SECTIONS = useMemo(
-    () => ['dashboard', 'contacts', 'leads', 'companies', 'deals', 'activities', 'followups'],
+    () => ['dashboard', 'contacts', 'leads', 'companies', 'deals', 'activities', 'followups', 'website-enquiries'],
     [],
   )
   const { subTab: section, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
@@ -1199,6 +1200,7 @@ export default function SalesTab({ embedded = false } = {}) {
         <ErpSubTabButton active={section === 'deals'} href={buildSubHref('deals')} onClick={(event) => handleSubTabClick('deals', event)}>{t('deals')}</ErpSubTabButton>
         <ErpSubTabButton active={section === 'activities'} href={buildSubHref('activities')} onClick={(event) => handleSubTabClick('activities', event)}>{t('activities')}</ErpSubTabButton>
         <ErpSubTabButton active={section === 'followups'} href={buildSubHref('followups')} onClick={(event) => handleSubTabClick('followups', event)}>{t('followups')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'website-enquiries'} href={buildSubHref('website-enquiries')} onClick={(event) => handleSubTabClick('website-enquiries', event)}>{t('websiteEnquiries')}</ErpSubTabButton>
       </ModuleSubTabRow>
 
       {section === 'dashboard' && (
@@ -1404,6 +1406,8 @@ export default function SalesTab({ embedded = false } = {}) {
       )}
 
       {section === 'followups' && <Card><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}><div style={{ fontWeight: 800, color: C.text, fontSize: 16 }}>Follow-up Dashboard</div><Button onClick={() => { setActivityEditing(null); setActivityModal(true) }}>+ Add Follow-up</Button></div><FollowupGroups followups={followups} onMarkDone={markDone} onEdit={(f) => { setActivityEditing(f); setActivityModal(true) }} /></Card>}
+
+      {section === 'website-enquiries' && <WebsiteEnquiriesPanel variant="sales" />}
 
       <ContactModal open={contactModal} onClose={() => { setContactModal(false); setContactEditing(null) }} onSave={saveContact} initial={contactEditing} reps={reps.length ? reps : [user?.name || '']} />
       <LeadModal open={leadModal} onClose={() => { setLeadModal(false); setLeadEditing(null) }} onSave={saveLead} initial={leadEditing} reps={reps.length ? reps : [user?.name || '']} contacts={contacts} />

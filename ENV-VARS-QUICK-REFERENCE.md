@@ -251,6 +251,27 @@ POST /api/erp-accounting/metal-rates/bridge
 
 Prices from MT4 are normally USD per troy ounce; the backend stores them as **USD/G** for ERP use.
 
+---
+
+### Optional: MG Website enquiries (Sales + Procurement)
+
+The MG Website backend relays each Sell Gold form submission to `POST /api/enquiries` (server-to-server). Each submission is stored once in the **mg** tenant `websiteenquiries` collection and shown under **Sales → Website Enquiries** and **Procurement Plus → Website Enquiries**.
+
+```
+WEBSITE_ENQUIRY_TOKEN=<long random secret, same value as the MG Website backend>
+WEBSITE_ENQUIRY_TENANT=mg
+WEBSITE_ENQUIRY_NOTIFY_EMAIL=<team inbox; comma-separated for several>
+# Outbound email for the "New Website Enquiry" notification (skipped if SMTP_HOST is unset)
+SMTP_HOST=<smtp host, e.g. smtp.gmail.com / smtp.office365.com>
+SMTP_PORT=587
+SMTP_SECURE=false            # true for port 465
+SMTP_USER=<smtp username>
+SMTP_PASS=<smtp password or app password>
+SMTP_FROM="Modern Gold <no-reply@yourdomain.com>"
+```
+
+Without `WEBSITE_ENQUIRY_TOKEN` the endpoint returns 503 and the website shows its "Unable to submit" message.
+
 ### Optional: server-side metal market prices (API / reports)
 
 Backend routes such as `GET /api/erp-accounting/reports/market-prices` (and optional SSE) may still use external feeds for **reports, margins, and saved metal rates**.

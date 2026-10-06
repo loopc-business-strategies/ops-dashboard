@@ -5,6 +5,7 @@ import erpUnified from '../../api/erpUnified'
 import { ErpSubTabButton, ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { formatAmount } from '../../utils/money'
+import WebsiteEnquiriesPanel from './websiteEnquiries/WebsiteEnquiriesPanel'
 
 const C = {
   card: '#ffffff',
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'suppliers', label: 'Suppliers' },
   { id: 'orders', label: 'Purchase Orders' },
   { id: 'alerts', label: 'Expiry Alerts' },
+  { id: 'website-enquiries', label: 'Website Enquiries' },
 ]
 
 function Card({ children, style }) {
@@ -143,14 +145,18 @@ export default function ProcurementPlusTab({ embedded = false } = {}) {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ flex: '1 1 220px' }}>
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" />
+      {activeTab !== 'website-enquiries' && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ flex: '1 1 220px' }}>
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" />
+          </div>
+          <Btn variant="secondary" onClick={loadData} disabled={loading}>Refresh</Btn>
         </div>
-        <Btn variant="secondary" onClick={loadData} disabled={loading}>Refresh</Btn>
-      </div>
+      )}
 
-      {error && <Card style={{ borderColor: '#FECACA', background: '#FEF2F2', color: '#B91C1C' }}>{error}</Card>}
+      {error && activeTab !== 'website-enquiries' && <Card style={{ borderColor: '#FECACA', background: '#FEF2F2', color: '#B91C1C' }}>{error}</Card>}
+
+      {activeTab === 'website-enquiries' && <WebsiteEnquiriesPanel variant="procurement" />}
 
       {activeTab === 'suppliers' && (
         <div style={{ display: 'grid', gap: 12 }}>

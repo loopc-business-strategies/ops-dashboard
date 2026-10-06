@@ -307,7 +307,7 @@ function createApp() {
     credentials: true,
     allowedHeaders: [
       'Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-metal-rates-bridge-token',
-      'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID',
+      'x-website-enquiry-token', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID',
       // MG Floor / mobile send X-Client to get Bearer-token logins; browsers only need it for local
       // Expo web testing, so production keeps browser logins cookie-only.
       ...(isProduction ? [] : ['X-Client']),
@@ -375,6 +375,7 @@ function createApp() {
   app.use('/api/notifications', require('./routes/notifications'))
   app.use('/api/push', require('./routes/push'))
   app.use('/api/crm', crmRoutes)
+  app.use('/api/enquiries', require('./routes/websiteEnquiries'))
   app.use('/api/department-state', departmentStateRoutes)
   app.use('/api/realtime', realtimeRoutes)
   app.use('/api/finance/payroll-v2', require('./routes/payrollV2'))
