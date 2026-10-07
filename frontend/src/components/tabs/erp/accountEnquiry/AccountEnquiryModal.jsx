@@ -3,6 +3,7 @@ import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentatio
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES, resolveExposureDirection } from '../statementHelpers'
 import { buildStatementNarration } from '../statementExportModel'
+import { isMarginPercentDisplayable, MARGIN_PERCENT_HIDDEN_TITLE } from '../marginFormatters'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 
 const linkButtonStyle = {
@@ -426,7 +427,11 @@ export default function AccountEnquiryModal({
                       {/* Margin % */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
-                        <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2, { fixed: true })}%</span>
+                        {isMarginPercentDisplayable(modalMarginPctDisplay) ? (
+                          <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2, { fixed: true })}%</span>
+                        ) : (
+                          <span title={MARGIN_PERCENT_HIDDEN_TITLE} style={{ color: '#6B7280', fontWeight: '800', fontSize: '1.1rem' }}>—</span>
+                        )}
                       </div>
                       {/* Display currency — drives summary + statement conversion instantly */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>

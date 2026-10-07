@@ -13,6 +13,7 @@ import {
   resolveAccountEnquiryBookedRevaluation,
 } from '@/src/utils/buildAccountEnquiryLiveMetrics'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '@/src/utils/metalMarginPolicy'
+import { formatMarginPercent } from '@/src/utils/marginWidgetHelpers'
 
 type Props = {
   accountCode: string
@@ -173,7 +174,7 @@ export function AccountEnquirySummaryCard({
       <SummaryRow label="Excess" value={fmtSigned(excess, moneyCurrency)} />
       <SummaryRow
         label="Margin %"
-        value={Number.isFinite(marginPercent) ? `${marginPercent.toFixed(1)}%` : '—'}
+        value={formatMarginPercent(marginPercent)}
       />
 
       <Text style={styles.footer}>

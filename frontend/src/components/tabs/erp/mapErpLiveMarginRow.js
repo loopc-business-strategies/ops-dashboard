@@ -1,5 +1,6 @@
 import { computeMarginMetricsRaw } from './metalMarginPolicy'
 import { formatAmount } from '../../../utils/money'
+import { isMarginPercentDisplayable } from './marginFormatters'
 
 function fmtSigned(val, currencyCode) {
   const n = Number(val || 0)
@@ -74,7 +75,7 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
     excessFmt: fmtSigned(excess, currencyCode),
     goldPosition,
     silverPosition,
-    marginFmt: Number.isFinite(marginPercent) ? `${Number(marginPercent).toFixed(2)} %` : '—',
+    marginFmt: isMarginPercentDisplayable(marginPercent) ? `${Number(marginPercent).toFixed(2)} %` : '—',
     marginPercent,
   }
 }

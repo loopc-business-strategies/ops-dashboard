@@ -1,6 +1,15 @@
 import type { MarginRow } from '@/src/api/dashboard'
 import { computeMarginMetricsRaw } from '@/src/utils/metalMarginPolicy'
 
+/** Beyond this size the metal position is too small for Margin % to mean anything (equity over 1,000x the margin). */
+export const MARGIN_PERCENT_DISPLAY_LIMIT = 100000
+
+export function formatMarginPercent(value: number | null | undefined, decimals = 1): string {
+  const pct = Number(value)
+  if (value === null || value === undefined || !Number.isFinite(pct) || Math.abs(pct) >= MARGIN_PERCENT_DISPLAY_LIMIT) return '—'
+  return `${pct.toFixed(decimals)}%`
+}
+
 export type MappedMarginRow = {
   name: string
   equity: number

@@ -24,6 +24,13 @@ describe('mapErpLiveMarginRow', () => {
     expect(low.equity).toBe(1200)
     expect(high.equity).toBe(1250)
     expect(high.marginPercent).toBeCloseTo(25000, 1)
+    expect(high.marginFmt).toBe('25000.00 %')
+  })
+
+  test('hides Margin % when the metal position is too small for it to mean anything', () => {
+    const mapped = mapErpLiveMarginRow({ customerName: 'Tiny', equity: -320, marginAmount: 0.053, marginPercent: -603358 }, 'customerName')
+    expect(mapped.marginPercent).toBe(-603358)
+    expect(mapped.marginFmt).toBe('—')
   })
 
   test('supplier suppression keeps equity frozen when spot rises', () => {

@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'vitest'
-import { mapMarginRow } from '@/src/utils/marginWidgetHelpers'
+import { formatMarginPercent, mapMarginRow } from '@/src/utils/marginWidgetHelpers'
+
+describe('formatMarginPercent', () => {
+  test('shows ordinary figures and hides ones from a tiny metal position', () => {
+    expect(formatMarginPercent(152.44)).toBe('152.4%')
+    expect(formatMarginPercent(25000)).toBe('25000.0%')
+    expect(formatMarginPercent(-603358)).toBe('—')
+    expect(formatMarginPercent(Number.NaN)).toBe('—')
+    expect(formatMarginPercent(undefined)).toBe('—')
+  })
+})
 
 describe('mapMarginRow live recalc', () => {
   test('recomputes equity and margin percent from live spot prices', () => {

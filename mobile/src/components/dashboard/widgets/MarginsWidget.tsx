@@ -4,7 +4,7 @@ import type { DashboardPayload } from '@/src/api/dashboard'
 import { useTenant } from '@/src/context/TenantContext'
 import { useErpLiveMetalSpotPrices } from '@/src/hooks/useErpLiveMetalSpotPrices'
 import { fmtPosition, fmtSigned } from '@/src/utils/format'
-import { mapMarginRow } from '@/src/utils/marginWidgetHelpers'
+import { formatMarginPercent, mapMarginRow } from '@/src/utils/marginWidgetHelpers'
 import { useWidgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 const MAX_ROWS = 5
@@ -90,7 +90,7 @@ export function MarginsWidget({
                 {fmtSigned(row.equity, baseCurrencyCode)}
               </Text>
               <Text style={[widgetStyles.rowValue, { flex: 0.7, textAlign: 'right' }]}>
-                {Number.isFinite(row.marginPercent) ? `${row.marginPercent.toFixed(1)}%` : '—'}
+                {formatMarginPercent(row.marginPercent)}
               </Text>
             </View>
           ))}
