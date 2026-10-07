@@ -14,6 +14,11 @@ const {
   resolveDirectDealLineMetalCode,
   resolveUnfixedVoucherWeightSign,
 } = require('../../services/erpAccounting/metalPositionPolicy')
+const {
+  summarizeVoucherFixingState,
+  calculateUnfixedPremiumAmount,
+  resolveOpenUnfixedVoucherAmount,
+} = require('../../services/erpAccounting/voucherFixingService')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { resolveRequestTenantKey } = require('../../config/tenants')
 const { enquiryCache, summaryAccountsCache } = require('../../utils/erpReadCaches')
@@ -344,7 +349,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
             type: { $in: ['sale', 'purchase'] },
             status: 'posted',
             isDeleted: { $ne: true },
-          }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+          }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
         : Promise.resolve([]),
       linkedVendor
         ? Transaction.find({
@@ -352,7 +357,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
             type: { $in: ['sale', 'purchase'] },
             status: 'posted',
             isDeleted: { $ne: true },
-          }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+          }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
         : Promise.resolve([]),
     ])
     const unfixedCustomerMetal = accumulateUnfixedMetalFromTransactions(customerMetalTxs)
@@ -530,8 +535,20 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { _id: { $in: referenceIds } },
       ],
     })
-      .select('_id journalEntryId type amount exchangeRate voucherMeta.grandTotal voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity')
+      .select('_id journalEntryId type amount exchangeRate voucherMeta.grandTotal voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.fixings voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.premiumValue voucherMeta.lineItems.rateType voucherMeta.lineItems.weightInOz')
       .lean()
+
+    const voucherFixingRefIds = ledgerEntries
+      .filter((entry) => String(entry.referenceType || '').toLowerCase() === 'voucher_fixing' && entry.referenceId)
+      .map((entry) => entry.referenceId)
+    const fixedVoucherTxs = voucherFixingRefIds.length
+      ? await Transaction.find({
+        isDeleted: { $ne: true },
+        'voucherMeta.fixings._id': { $in: voucherFixingRefIds },
+      })
+        .select('_id type voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixings voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration')
+        .lean()
+      : []
 
     const transactionByLedgerId = new Map()
     const transactionById = new Map()
@@ -559,6 +576,16 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const lineNarration = hasVoucherLines
         ? String(tx.voucherMeta.lineItems.find((line) => String(line?.narration || '').trim())?.narration || '').trim()
         : ''
+      const isOpenUnfixedTrade = isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed'
+      const fixingState = isOpenUnfixedTrade ? summarizeVoucherFixingState(tx) : null
+      const openUnfixedVoucherAmount = fixingState
+        ? resolveOpenUnfixedVoucherAmount({
+          voucherAmount,
+          premiumAmount: calculateUnfixedPremiumAmount(tx.voucherMeta?.lineItems) * Number(tx.exchangeRate || 1),
+          totalWeight: fixingState.totalWeight,
+          openWeight: fixingState.openWeight,
+        })
+        : 0
       const txRef = {
         id: String(tx._id),
         number: txNumber,
@@ -568,11 +595,38 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         isMetalTrade,
         isMetalTransfer,
         metalSignedWeight,
-        unfixedVoucherAmount: isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed' ? toMoney(voucherAmount) : 0,
+        unfixedVoucherAmount: isOpenUnfixedTrade ? toMoney(openUnfixedVoucherAmount) : 0,
+        unfixedOpenWeight: fixingState ? fixingState.openWeight : 0,
         lineNarration,
       }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
       transactionById.set(String(tx._id), txRef)
+    })
+
+    const voucherFixingRefById = new Map()
+    fixedVoucherTxs.forEach((tx) => {
+      const txType = String(tx.type || '').trim().toLowerCase()
+      const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || '').trim()
+      const sign = resolveUnfixedVoucherWeightSign(txType)
+      const fixings = Array.isArray(tx.voucherMeta?.fixings) ? tx.voucherMeta.fixings : []
+      fixings.forEach((fixing) => {
+        if (!fixing?._id || fixing.isDeleted) return
+        voucherFixingRefById.set(String(fixing._id), {
+          id: String(fixing._id),
+          parentTransactionId: String(tx._id),
+          number: txNumber ? `${txNumber} FIX` : '',
+          transactionType: txType,
+          metalFixStatus: 'fixed',
+          metalCode: String(fixing.metalCode || resolveMetalCodeFromLines(tx.voucherMeta?.lineItems) || 'XAU').toUpperCase(),
+          isMetalTrade: true,
+          isMetalTransfer: false,
+          isVoucherFixing: true,
+          // Closes the voucher's unfixed grams: opposite side to the voucher row.
+          metalSignedWeight: -sign * Number(fixing.pureWeight || 0),
+          unfixedVoucherAmount: 0,
+          lineNarration: '',
+        })
+      })
     })
 
     transferMetalTxs.forEach((tx) => {
@@ -868,6 +922,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const convertedAmount = Number(entry.amount || 0) * entryRate
       const signedAmount = isDebitEntry ? convertedAmount : -convertedAmount
       let linkedTx = transactionByLedgerId.get(String(entry._id)) || transactionById.get(String(entry.referenceId || '')) || null
+      if (!linkedTx && String(entry.referenceType || '').toLowerCase() === 'voucher_fixing') {
+        linkedTx = voucherFixingRefById.get(String(entry.referenceId || '')) || null
+      }
       if (!linkedTx && String(entry.referenceType || '').toLowerCase() === 'direct_deal') {
         const deal = directDealById.get(String(entry.referenceId || ''))
         if (deal) {
@@ -932,6 +989,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         isMetalTransfer: Boolean(linkedTx?.isMetalTransfer),
         metalSignedWeight: Number(linkedTx?.metalSignedWeight || 0),
         unfixedVoucherAmount: Number(linkedTx?.unfixedVoucherAmount || 0),
+        ...(linkedTx?.isVoucherFixing
+          ? { isVoucherFixing: true, parentTransactionId: linkedTx.parentTransactionId }
+          : {}),
       }
     }
 

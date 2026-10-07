@@ -116,4 +116,42 @@ describe('fixingRegisterReport', () => {
     expect(totals.qtyOz).toBeCloseTo(0, 5)
     expect(totals.value).toBeCloseTo(26541.18 - 26863.96, 2)
   })
+
+  test('a fixing of an unfixed purchase counts as an MG buy on the fixing date', () => {
+    const { matchesSelectedMetal, isAllMetalSelection } = buildMetalMatchers('ALL')
+    const tx = {
+      _id: 'p1',
+      type: 'purchase',
+      status: 'posted',
+      voucherMeta: {
+        vocNo: 'Pur/2026/0001',
+        fixingType: 'non-fixing',
+        lineItems: [{ stockCode: 'GOLD', pureWeight: 199.98, premiumAmount: 0 }],
+      },
+      customerId: { name: 'UZEX' },
+    }
+    const fixing = {
+      _id: 'f1',
+      date: '2026-10-08',
+      pureWeight: 199.98,
+      metalCode: 'XAU',
+      rate: 4126.13,
+      rateType: 'OZ',
+      amount: 26531.13,
+    }
+    const rows = buildFixingRegisterRows({
+      txSales: [],
+      txPurchases: [tx],
+      directDeals: [],
+      voucherFixings: [{ tx, fixing }],
+      fixingRegFilter: { status: 'all', partyFilter: 'all', groupBy: 'none', orderBy: 'voucherNo' },
+      matchesSelectedMetal,
+      isAllMetalSelection,
+    })
+    const fixingRow = rows.find((row) => row.sourceType === 'Voucher Fixing')
+    expect(fixingRow).toMatchObject({ direction: 'buy', fixingMode: 'Fixing', metal: 'XAU', amount: 26531.13 })
+    expect(fixingRow.price).toBeCloseTo(4126.13, 2)
+    const totals = computeOpening(rows)
+    expect(totals.qtyOz).toBeCloseTo(199.98 / 31.1034768, 6)
+  })
 })

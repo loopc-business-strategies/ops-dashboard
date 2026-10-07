@@ -2595,4 +2595,105 @@ describe('ERP accounting transactions workflow', () => {
     expect(marginRow).toBeTruthy()
     expect(Number(marginRow.goldPosition || 0)).toBeCloseTo(9005, 2)
   })
+
+  test('fixing a posted unfixed purchase closes its grams without editing the voucher', async () => {
+    const financeUser = await createUser({ name: 'Voucher Fixing Tester' })
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'Fixing Test (Debtor)',
+      accountCode: '1398',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const stockAccount = await ChartOfAccount.create({
+      accountName: 'Gold Stock Fixing Test',
+      accountCode: '1450',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const customer = await Customer.create({
+      name: 'Fixing Test Customer',
+      ledgerAccountId: receivableAccount._id,
+      isActive: true,
+      createdBy: financeUser._id,
+    })
+    const voucher = await Transaction.create({
+      type: 'purchase',
+      customerId: customer._id,
+      status: 'posted',
+      amount: 1000,
+      currency: 'USD',
+      exchangeRate: 1,
+      date: new Date(),
+      description: 'Unfixed purchase to fix later',
+      debitAccountId: stockAccount._id,
+      creditAccountId: receivableAccount._id,
+      voucherMeta: {
+        vocNo: 'Pur/2026/0901',
+        fixingType: 'non-fixing',
+        lineItems: [{ stockCode: 'XAU', pureWeight: 311.034768, rateType: 'OZ' }],
+      },
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const readGoldBalance = async () => {
+      const res = await request(app)
+        .get('/api/erp-accounting/accounts/enquiry')
+        .query({ accountCode: '1398', refresh: '1' })
+        .set(authHeader(financeUser))
+      expect(res.status).toBe(200)
+      return res
+    }
+
+    expect(Number((await readGoldBalance()).body.metals?.goldBalance || 0)).toBeCloseTo(-311.034768, 4)
+
+    const tooMuchRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${voucher._id}/fixings`)
+      .set(authHeader(financeUser))
+      .send({ rate: 4000, pureWeight: 400 })
+    expect(tooMuchRes.status).toBe(400)
+
+    const fixRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${voucher._id}/fixings`)
+      .set(authHeader(financeUser))
+      .send({ rate: 4000, rateType: 'OZ', pureWeight: 155.517384, date: new Date().toISOString() })
+    expect(fixRes.status).toBe(201)
+    expect(fixRes.body.fixingState.openWeight).toBeCloseTo(155.517384, 4)
+
+    const fixingId = fixRes.body.fixing._id
+    const fixingLedger = await Ledger.findOne({ referenceType: 'voucher_fixing', referenceId: fixingId, isDeleted: { $ne: true } }).lean()
+    expect(fixingLedger).toBeTruthy()
+    expect(fixingLedger.amount).toBeCloseTo(20000, 2)
+    expect(String(fixingLedger.debitAccountId)).toBe(String(stockAccount._id))
+    expect(String(fixingLedger.creditAccountId)).toBe(String(receivableAccount._id))
+    expect(await StockMovement.countDocuments({})).toBe(0)
+
+    const afterFixRes = await readGoldBalance()
+    expect(Number(afterFixRes.body.metals?.goldBalance || 0)).toBeCloseTo(-155.517384, 4)
+    const fixingRow = (afterFixRes.body.statement?.entries || []).find((row) => row.referenceType === 'voucher_fixing')
+    expect(fixingRow).toMatchObject({
+      isVoucherFixing: true,
+      metalFixStatus: 'fixed',
+      sourceTransactionNumber: 'Pur/2026/0901 FIX',
+      parentTransactionId: String(voucher._id),
+    })
+    expect(Number(fixingRow.metalSignedWeight)).toBeCloseTo(155.517384, 4)
+    expect(Number(fixingRow.creditAmount)).toBeCloseTo(20000, 2)
+
+    const editRes = await request(app)
+      .put(`/api/erp-accounting/transactions/${voucher._id}`)
+      .set(authHeader(financeUser))
+      .send({ description: 'edit after fixing' })
+    expect(editRes.status).toBe(409)
+    expect(editRes.body.code).toBe('VOUCHER_HAS_FIXINGS')
+
+    const removeRes = await request(app)
+      .delete(`/api/erp-accounting/transactions/${voucher._id}/fixings/${fixingId}`)
+      .set(authHeader(financeUser))
+      .send({ reason: 'wrong rate' })
+    expect(removeRes.status).toBe(200)
+    expect(removeRes.body.fixingState.openWeight).toBeCloseTo(311.034768, 4)
+    expect(await Ledger.countDocuments({ referenceType: 'voucher_fixing', isDeleted: { $ne: true } })).toBe(0)
+    expect(Number((await readGoldBalance()).body.metals?.goldBalance || 0)).toBeCloseTo(-311.034768, 4)
+  })
 })

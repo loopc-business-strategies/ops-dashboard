@@ -80,19 +80,46 @@ function addSignedWeightToPosition(position, signedWeight, { stockCode = '', met
   return position
 }
 
+function listActiveVoucherFixings(tx = {}) {
+  const fixings = tx?.voucherMeta?.fixings
+  if (!Array.isArray(fixings)) return []
+  return fixings.filter((fixing) => fixing && fixing.isDeleted !== true && Number(fixing.pureWeight || 0) > 0)
+}
+
+/** Grams already closed by fixings on an unfixed voucher, split by metal. */
+function resolveVoucherFixedWeightByMetal(tx = {}) {
+  const position = createEmptyMetalPosition()
+  for (const fixing of listActiveVoucherFixings(tx)) {
+    addSignedWeightToPosition(position, Number(fixing.pureWeight || 0), { metalCode: fixing.metalCode })
+  }
+  return position
+}
+
+/**
+ * Adds an unfixed voucher's open grams (line grams minus fixed grams) into
+ * `position` using the voucher sign. Returns false when the voucher is fixed.
+ */
+function addOpenUnfixedVoucherWeight(position, tx = {}) {
+  const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
+  if (!isUnfixedFixingType(fixingType)) return false
+  const sign = resolveUnfixedVoucherWeightSign(tx.type)
+  if (!sign) return false
+  const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  for (const line of lines) {
+    const pw = Number(line?.pureWeight || 0)
+    if (!Number.isFinite(pw) || pw === 0) continue
+    addSignedWeightToPosition(position, sign * pw, { stockCode: line?.stockCode })
+  }
+  for (const fixing of listActiveVoucherFixings(tx)) {
+    addSignedWeightToPosition(position, -sign * Number(fixing.pureWeight || 0), { metalCode: fixing.metalCode })
+  }
+  return true
+}
+
 function accumulateUnfixedMetalFromTransactions(metalTxs = []) {
   const position = createEmptyMetalPosition()
   for (const tx of metalTxs) {
-    const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
-    if (!isUnfixedFixingType(fixingType)) continue
-    const sign = resolveUnfixedVoucherWeightSign(tx.type)
-    if (!sign) continue
-    const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-    for (const line of lines) {
-      const pw = Number(line.pureWeight || 0)
-      if (pw === 0) continue
-      addSignedWeightToPosition(position, sign * pw, { stockCode: line?.stockCode })
-    }
+    addOpenUnfixedVoucherWeight(position, tx)
   }
   return position
 }
@@ -162,6 +189,9 @@ module.exports = {
   resolveDirectDealCompanyDirection,
   createEmptyMetalPosition,
   addSignedWeightToPosition,
+  listActiveVoucherFixings,
+  resolveVoucherFixedWeightByMetal,
+  addOpenUnfixedVoucherWeight,
   accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalForCustomer,
   accumulateDirectDealMetalIntoMap,

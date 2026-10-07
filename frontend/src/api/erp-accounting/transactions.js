@@ -24,6 +24,8 @@ const bulkTransactionAction = async (token, payload) => (await axios.post(`${BAS
 const getTransactionSourceByLedger = async (token, ledgerId) => (await axios.get(`${BASE}/transactions/source-by-ledger/${ledgerId}`, getAuthConfig(token))).data
 const voidTransaction = async (token, id, payload) => (await axios.post(`${BASE}/transactions/${id}/void`, payload, getAuthConfig(token))).data
 const revalueFxJournal = async (token, id, payload = {}) => (await axios.post(`${BASE}/transactions/${id}/revalue-fx-journal`, payload, getAuthConfig(token))).data
+const addTransactionFixing = async (token, id, payload) => (await axios.post(`${BASE}/transactions/${id}/fixings`, payload, getAuthConfig(token))).data
+const removeTransactionFixing = async (token, id, fixingId, payload = {}) => (await axios.delete(`${BASE}/transactions/${id}/fixings/${fixingId}`, { ...getAuthConfig(token), data: payload })).data
 
 export const transactionsApi = {
   getTransactions,
@@ -43,4 +45,6 @@ export const transactionsApi = {
   getTransactionSourceByLedger,
   voidTransaction,
   revalueFxJournal,
+  addTransactionFixing,
+  removeTransactionFixing,
 }

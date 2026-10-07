@@ -9,7 +9,7 @@ const {
 const fs = require('fs')
 const path = require('path')
 const { computeMarginMetricsRaw } = require('../../services/erpAccounting/metalMarginPolicy')
-const { resolveUnfixedVoucherWeightSign } = require('../../services/erpAccounting/metalPositionPolicy')
+const { addOpenUnfixedVoucherWeight } = require('../../services/erpAccounting/metalPositionPolicy')
 
 const vendorDocumentParamSchema = Joi.object({
   id: Joi.string().hex().length(24).required(),
@@ -77,10 +77,6 @@ function registerVendorRoutes(deps) {
     ? assertAccountingPeriodOpen
     : async () => {}
   const strictBody = validateBodyStrict || validateBody
-  const isUnfixedFixingType = (value) => {
-    const normalized = String(value || '').trim().toLowerCase()
-    return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
-  }
   const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
   const calculateVendorMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
     const raw = computeMarginMetricsRaw({
@@ -156,7 +152,7 @@ function registerVendorRoutes(deps) {
               type: { $in: ['sale', 'purchase'] },
               status: 'posted',
               isDeleted: { $ne: true },
-            }).select('vendorId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+            }).select('vendorId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
           : Promise.resolve([]),
       ])
       const rates = latestRate
@@ -169,21 +165,11 @@ function registerVendorRoutes(deps) {
       ;(metalTxs || []).forEach((tx) => {
         const vendorId = String(tx.vendorId || '')
         if (!vendorId) return
-        const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
-        if (!isUnfixedFixingType(fixingType)) return
+        const openWeight = { gold: 0, silver: 0 }
+        if (!addOpenUnfixedVoucherWeight(openWeight, tx)) return
         const position = metalPositionMap.get(vendorId) || { goldPosition: 0, silverPosition: 0 }
-        const sign = resolveUnfixedVoucherWeightSign(tx.type)
-        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-        lines.forEach((line) => {
-          const pureWeight = Number(line?.pureWeight || 0)
-          if (!Number.isFinite(pureWeight) || pureWeight === 0) return
-          const stockCode = String(line?.stockCode || '').toUpperCase()
-          if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
-            position.silverPosition += sign * pureWeight
-          } else {
-            position.goldPosition += sign * pureWeight
-          }
-        })
+        position.goldPosition += openWeight.gold
+        position.silverPosition += openWeight.silver
         metalPositionMap.set(vendorId, position)
       })
       const data = vendors.map((vendor, index) => ({

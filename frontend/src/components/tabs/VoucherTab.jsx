@@ -15,6 +15,7 @@ import { runVoucherWorkflowAction } from './voucher/voucherErpApi'
 import { BASE } from '../../api/erp-accounting/client'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import VoucherListPanel from './voucher/VoucherListPanel'
+import VoucherFixingModal from './voucher/VoucherFixingModal'
 import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
 import VoucherPrintPanel from './voucher/VoucherPrintPanel'
 import { getVoucherPrintMediaCss } from './voucher/voucherPrintStyles'
@@ -989,6 +990,42 @@ export default function VoucherTab({
     }
   }
 
+  const [fixingVoucher, setFixingVoucher] = useState(null)
+
+  const handleFixVoucher = async (payload) => {
+    if (!fixingVoucher?._id) return
+    setSaving(true)
+    clearError()
+    try {
+      const res = await voucherErpApi.addTransactionFixing(token, fixingVoucher._id, payload)
+      setFixingVoucher(res?.transaction || null)
+      await loadVouchers()
+      showMsg(`Voucher #${fixingVoucher.voucherMeta?.vocNo || '-'}: fixed ${payload.pureWeight} g`)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to fix voucher')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveVoucherFixing = async (fixing) => {
+    if (!fixingVoucher?._id || !fixing?._id) return
+    if (!window.confirm(`Remove the fixing of ${fixing.pureWeight} g? Its ledger entry will be reversed and the grams become unfixed again.`)) return
+    const reason = window.prompt('Reason for removing this fixing:', '') || ''
+    setSaving(true)
+    clearError()
+    try {
+      const res = await voucherErpApi.removeTransactionFixing(token, fixingVoucher._id, fixing._id, { reason: reason.trim() })
+      setFixingVoucher(res?.transaction || null)
+      await loadVouchers()
+      showMsg(`Voucher #${fixingVoucher.voucherMeta?.vocNo || '-'}: fixing removed`)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to remove fixing')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const formatFxRevalueSummary = (result, applied = false) => {
     const tx = result?.transaction || {}
     const counts = result?.counts || {}
@@ -1415,8 +1452,23 @@ export default function VoucherTab({
           isFinance={isFinance}
           handleVoidVoucher={handleVoidVoucher}
           handleRevalueFxJournal={handleRevalueFxJournal}
+          onOpenFixing={(voucher) => { clearError(); setFixingVoucher(voucher) }}
           displayVoucherDocNo={resolveDisplayVoucherDocNo}
           erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
+        />
+      )}
+
+      {fixingVoucher && (
+        <VoucherFixingModal
+          voucher={fixingVoucher}
+          docNo={resolveDisplayVoucherDocNo(fixingVoucher)}
+          liveSnapshot={liveMetalSnapshot}
+          saving={saving}
+          error={error}
+          canManage={canManageWorkflow}
+          onClose={() => setFixingVoucher(null)}
+          onFix={handleFixVoucher}
+          onRemove={handleRemoveVoucherFixing}
         />
       )}
 

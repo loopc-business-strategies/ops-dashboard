@@ -1,10 +1,9 @@
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const {
-  isUnfixedFixingType,
   _accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalIntoMap,
   roundMetalPosition,
-  resolveUnfixedVoucherWeightSign,
+  addOpenUnfixedVoucherWeight,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { computeMarginMetricsRaw, shouldSuppressSpotMetalMtmForCustomerDashboard } = require('../../services/erpAccounting/metalMarginPolicy')
 
@@ -106,7 +105,7 @@ function registerCustomerRoutes(deps) {
               type: { $in: ['sale', 'purchase'] },
               status: 'posted',
               isDeleted: { $ne: true },
-            }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+            }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
           : Promise.resolve([]),
         customerIds.length && DirectDeal
           ? DirectDeal.find({
@@ -128,21 +127,11 @@ function registerCustomerRoutes(deps) {
       ;(metalTxs || []).forEach((tx) => {
         const customerId = String(tx.customerId || '')
         if (!customerId) return
-        const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
-        if (!isUnfixedFixingType(fixingType)) return
+        const openWeight = { gold: 0, silver: 0 }
+        if (!addOpenUnfixedVoucherWeight(openWeight, tx)) return
         const position = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
-        const sign = resolveUnfixedVoucherWeightSign(tx.type)
-        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-        lines.forEach((line) => {
-          const pureWeight = Number(line?.pureWeight || 0)
-          if (!Number.isFinite(pureWeight) || pureWeight === 0) return
-          const stockCode = String(line?.stockCode || '').toUpperCase()
-          if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
-            position.silverPosition += sign * pureWeight
-          } else {
-            position.goldPosition += sign * pureWeight
-          }
-        })
+        position.goldPosition += openWeight.gold
+        position.silverPosition += openWeight.silver
         metalPositionMap.set(customerId, position)
       })
       accumulateDirectDealMetalIntoMap(directDeals || [], metalPositionMap)

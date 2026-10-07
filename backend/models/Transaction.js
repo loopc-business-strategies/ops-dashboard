@@ -140,6 +140,27 @@ const transactionSchema = new mongoose.Schema(
           currRateSource: { type: String, trim: true, default: 'manual' },
         },
       ],
+      /** Later fixings of an unfixed sale/purchase; each closes `pureWeight` grams. */
+      fixings: [
+        {
+          date: { type: Date, required: true },
+          pureWeight: { type: Number, required: true, min: 0 },
+          metalCode: { type: String, trim: true, default: 'XAU' },
+          rate: { type: Number, required: true, min: 0 },
+          rateType: { type: String, trim: true, default: 'OZ' },
+          amount: { type: Number, required: true, min: 0 },
+          currency: { type: String, trim: true, default: 'USD' },
+          exchangeRate: { type: Number, default: 1 },
+          ledgerEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ledger', default: null },
+          notes: { type: String, trim: true, default: '' },
+          createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+          createdAt: { type: Date, default: Date.now },
+          isDeleted: { type: Boolean, default: false },
+          deletedAt: { type: Date, default: null },
+          deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+          deleteReason: { type: String, trim: true, default: '' },
+        },
+      ],
     },
 
     isDeleted: { type: Boolean, default: false, index: true },

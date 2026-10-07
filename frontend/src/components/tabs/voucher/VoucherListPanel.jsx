@@ -1,6 +1,13 @@
 import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, inputStyle, isMetalStockVoucherType, isSaveSubmitOnlyVoucherType, S } from './voucherTabShared'
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
+import { canFixVoucher, resolveVoucherFixingBadge, summarizeVoucherFixing } from './voucherFixingHelpers'
+
+const FIXING_BADGE_COLORS = {
+  fixed: { bg: '#DCFCE7', color: '#166534' },
+  unfixed: { bg: '#FEE2E2', color: '#B91C1C' },
+  partial: { bg: '#FEF3C7', color: '#92400E' },
+}
 
 const STATUS_COLORS = {
   draft: { bg: '#FEF3C7', color: '#92400E' },
@@ -39,6 +46,7 @@ export default function VoucherListPanel({
   isFinance,
   handleVoidVoucher,
   handleRevalueFxJournal,
+  onOpenFixing = null,
   displayVoucherDocNo,
   erpAdvancedListFiltersEnabled,
 }) {
@@ -137,7 +145,9 @@ export default function VoucherListPanel({
                 const displayStatus = formatVoucherWorkflowStatusLabel(voucher.status, voucher.type || voucherType)
                 const statusStyle = STATUS_COLORS[displayStatus] || STATUS_COLORS[voucher.status] || { bg: '#F3F4F6', color: '#374151' }
                 const saveSubmitOnly = isSaveSubmitOnlyVoucherType(voucher.type || voucherType)
-                const fixingDisplay = meta.fixingType === 'non-fixing' ? 'Unfixed' : 'Fixed'
+                const fixingBadge = resolveVoucherFixingBadge(voucher)
+                const fixingBadgeStyle = FIXING_BADGE_COLORS[fixingBadge.tone] || FIXING_BADGE_COLORS.fixed
+                const hasFixings = summarizeVoucherFixing(voucher).allFixings.length > 0
                 const periodLocked = Boolean(isEntryLocked(voucher))
                 return (
                   <tr key={voucher._id} style={{ background: index % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
@@ -150,8 +160,8 @@ export default function VoucherListPanel({
                     <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.partyName || '-'}</td>
                     {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher && (
                       <td style={{ padding: '0.55rem 0.75rem' }}>
-                        <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: fixingDisplay === 'Unfixed' ? '#FEE2E2' : '#DCFCE7', color: fixingDisplay === 'Unfixed' ? '#B91C1C' : '#166534' }}>
-                          {fixingDisplay}
+                        <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', whiteSpace: 'nowrap', background: fixingBadgeStyle.bg, color: fixingBadgeStyle.color }}>
+                          {fixingBadge.label}
                         </span>
                       </td>
                     )}
@@ -214,7 +224,17 @@ export default function VoucherListPanel({
                             {t('reject')}
                           </button>
                         )}
-                        {!periodLocked && (isSuperAdmin || isFinance) && voucher.status === 'posted' && (
+                        {onOpenFixing && (canFixVoucher(voucher) || hasFixings) && (
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => onOpenFixing(voucher)}
+                            style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#FEF3C7', color: '#92400E' }}
+                          >
+                            {canFixVoucher(voucher) && canManageWorkflow ? 'Fix' : 'Fixings'}
+                          </button>
+                        )}
+                        {!periodLocked && (isSuperAdmin || isFinance) && voucher.status === 'posted' && !hasFixings && (
                           <button
                             type="button"
                             disabled={saving}

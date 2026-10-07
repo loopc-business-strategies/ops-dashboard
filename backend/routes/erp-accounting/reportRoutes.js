@@ -41,9 +41,11 @@ const {
 } = require('../../services/metalSpotMockRealtime')
 const {
   accumulateDirectDealMetalIntoMap,
-  resolveUnfixedVoucherWeightSign,
+  addOpenUnfixedVoucherWeight,
+  listActiveVoucherFixings,
   resolveDirectDealCompanyDirection,
 } = require('../../services/erpAccounting/metalPositionPolicy')
+const { summarizeVoucherFixingState } = require('../../services/erpAccounting/voucherFixingService')
 const {
   computeMarginMetricsRaw,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
@@ -1414,7 +1416,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
               { metalFixStatus: { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
               { 'voucherMeta.fixingType': { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
             ],
-          }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+          }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
         : Promise.resolve([]),
       vendorIdsForMargin.length && Transaction
         ? Transaction.find({
@@ -1426,7 +1428,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
               { metalFixStatus: { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
               { 'voucherMeta.fixingType': { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
             ],
-          }).select('vendorId type amount exchangeRate metalFixStatus voucherMeta.grandTotal voucherMeta.fixingType voucherMeta.lineItems').lean()
+          }).select('vendorId type amount exchangeRate metalFixStatus voucherMeta.grandTotal voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
         : Promise.resolve([]),
       customerIdsForMargin.length && DirectDeal
         ? DirectDeal.find({
@@ -1446,21 +1448,11 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     ;(customerMetalTxs || []).forEach((tx) => {
       const customerId = String(tx.customerId || '')
       if (!customerId) return
-      const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
-      if (!isUnfixedFixingType(fixingType)) return
+      const openWeight = { gold: 0, silver: 0 }
+      if (!addOpenUnfixedVoucherWeight(openWeight, tx)) return
       const position = marginMetalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
-      const sign = resolveUnfixedVoucherWeightSign(tx.type)
-      const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-      lines.forEach((line) => {
-        const pureWeight = Number(line?.pureWeight || 0)
-        if (!Number.isFinite(pureWeight) || pureWeight === 0) return
-        const stockCode = String(line?.stockCode || '').toUpperCase()
-        if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
-          position.silverPosition += sign * pureWeight
-        } else {
-          position.goldPosition += sign * pureWeight
-        }
-      })
+      position.goldPosition += openWeight.gold
+      position.silverPosition += openWeight.silver
       marginMetalPositionMap.set(customerId, position)
     })
     accumulateDirectDealMetalIntoMap(customerDirectDeals || [], marginMetalPositionMap)
@@ -1548,25 +1540,18 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     ;(supplierMetalTxs || []).forEach((tx) => {
       const vendorId = String(tx.vendorId || '')
       if (!vendorId) return
-      const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
-      if (!isUnfixedFixingType(fixingType)) return
+      const openWeight = { gold: 0, silver: 0 }
+      if (!addOpenUnfixedVoucherWeight(openWeight, tx)) return
       const position = supplierMetalPositionMap.get(vendorId) || { goldPosition: 0, silverPosition: 0 }
-      const sign = resolveUnfixedVoucherWeightSign(tx.type)
-      const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-      lines.forEach((line) => {
-        const pureWeight = Number(line?.pureWeight || 0)
-        if (!Number.isFinite(pureWeight) || pureWeight === 0) return
-        const stockCode = String(line?.stockCode || '').toUpperCase()
-        if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
-          position.silverPosition += sign * pureWeight
-        } else {
-          position.goldPosition += sign * pureWeight
-        }
-      })
+      position.goldPosition += openWeight.gold
+      position.silverPosition += openWeight.silver
       supplierMetalPositionMap.set(vendorId, position)
+      const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
       const voucherAmount = Math.abs(Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1))
       const premiumAmount = Math.abs(calculateUnfixedPremiumAmount(lines) * Number(tx.exchangeRate || 1))
-      const unpricedAmount = toMoney(Math.max(voucherAmount - premiumAmount, 0))
+      const fixingState = summarizeVoucherFixingState(tx)
+      const openShare = fixingState.totalWeight > 0 ? fixingState.openWeight / fixingState.totalWeight : 1
+      const unpricedAmount = toMoney(Math.max(voucherAmount - premiumAmount, 0) * openShare)
       if (unpricedAmount > 0) {
         const signedRevaluation = tx.type === 'purchase' ? -unpricedAmount : unpricedAmount
         supplierUnfixedRevaluationMap.set(
@@ -1662,6 +1647,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     }
     const [
       fixingVoucherTxs,
+      laterFixedVoucherTxs,
       fixingDeals,
       stockMoves,
       metalRates,
@@ -1673,6 +1659,14 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         isDeleted: { $ne: true },
         date: { $gte: periodStart, $lte: periodEnd },
       }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean(),
+      Transaction.find({
+        type: { $in: ['sale', 'purchase'] },
+        status: 'posted',
+        isDeleted: { $ne: true },
+        'voucherMeta.fixings': {
+          $elemMatch: { isDeleted: { $ne: true }, date: { $gte: periodStart, $lte: periodEnd } },
+        },
+      }).select('type voucherMeta.fixings').lean(),
       DirectDeal.find({
         entryType: 'fixing',
         isDeleted: { $ne: true },
@@ -1698,6 +1692,16 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         const metalCode = resolveDashboardMetalCode(`${line?.stockCode || ''} ${line?.productType || ''} ${line?.narration || ''}`)
         if (!fixingByMetal[metalCode]) return
         fixingByMetal[metalCode].netPosition += sign * resolveVoucherPureWeightOz(line)
+      })
+    })
+    laterFixedVoucherTxs.forEach((tx) => {
+      const sign = tx.type === 'purchase' ? 1 : -1
+      listActiveVoucherFixings(tx).forEach((fixing) => {
+        const fixingDate = new Date(fixing.date)
+        if (fixingDate < periodStart || fixingDate > periodEnd) return
+        const metalCode = resolveDashboardMetalCode(fixing.metalCode || 'XAU')
+        if (!fixingByMetal[metalCode]) return
+        fixingByMetal[metalCode].netPosition += sign * (Number(fixing.pureWeight || 0) / 31.1034768)
       })
     })
 

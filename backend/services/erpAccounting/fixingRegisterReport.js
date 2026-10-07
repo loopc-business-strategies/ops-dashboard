@@ -3,7 +3,8 @@
  * Additive report endpoint; math/schema aligned with client builder.
  */
 
-const { resolveDirectDealCompanyDirection } = require('./metalPositionPolicy')
+const { resolveDirectDealCompanyDirection, listActiveVoucherFixings } = require('./metalPositionPolicy')
+const { resolveFixingRateQuantity } = require('./voucherFixingService')
 
 const FIXING_REG_UNIT_PER_OZ = {
   GOZ: 1,
@@ -79,6 +80,7 @@ function buildFixingRegisterRows({
   txSales = [],
   txPurchases = [],
   directDeals = [],
+  voucherFixings = [],
   fixingRegFilter,
   matchesSelectedMetal,
   isAllMetalSelection,
@@ -151,6 +153,40 @@ function buildFixingRegisterRows({
         fixingMode: txFixingMode,
         groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
       })
+    })
+  }
+
+  for (const { tx, fixing } of voucherFixings) {
+    const lineMetal = String(fixing.metalCode || 'XAU').toUpperCase()
+    if (!matchesSelectedMetal(lineMetal)) continue
+    const fixingDate = fixing.date ? new Date(fixing.date) : null
+    if (fixingRegFilter.excludeFutures && fixingDate && fixingDate > today) continue
+    const partyName = tx?.customerId?.name || tx?.vendorId?.name || tx?.voucherMeta?.partyName || '—'
+    if (fixingRegFilter.partyFilter === 'selected' && String(fixingRegFilter.partySearch || '').trim()) {
+      if (!partyName.toLowerCase().includes(String(fixingRegFilter.partySearch).trim().toLowerCase())) continue
+    }
+    const pureWeightGram = Number(fixing.pureWeight || 0)
+    const qtyOz = pureWeightGram / 31.1034768
+    const branch = tx?.voucherMeta?.branch || 'HO'
+    rows.push({
+      rowId: `${tx._id}-fixing-${fixing._id}`,
+      sourceType: 'Voucher Fixing',
+      voucherNo: String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || tx?._id || '').trim(),
+      docDate: fixingDate,
+      valueDate: fixingDate,
+      branch,
+      customerName: partyName,
+      direction: tx.type === 'purchase' ? 'buy' : 'sell',
+      metal: lineMetal,
+      qty: qtyOz,
+      price: qtyOz > 0
+        ? (Number(fixing.rate || 0) * resolveFixingRateQuantity(pureWeightGram, fixing.rateType)) / qtyOz
+        : Number(fixing.rate || 0),
+      amount: Number(fixing.amount || 0),
+      dealStatus: tx?.status || 'posted',
+      remarks: fixing.notes || `Fixing of unfixed ${tx.type}`,
+      fixingMode: 'Fixing',
+      groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(fixingDate || Date.now()).toISOString().slice(0, 10) : 'All',
     })
   }
 
@@ -271,6 +307,37 @@ function buildDealQuery({ startDate, endDate, status }) {
   return query
 }
 
+function buildVoucherFixingTxQuery({ startDate, endDate, status, buildDateQuery }) {
+  const fixingMatch = { isDeleted: { $ne: true } }
+  const dateQuery = buildDateQuery(startDate, endDate)
+  if (dateQuery) fixingMatch.date = dateQuery
+  const query = {
+    isDeleted: { $ne: true },
+    type: { $in: ['sale', 'purchase'] },
+    'voucherMeta.fixings': { $elemMatch: fixingMatch },
+  }
+  if (status) query.status = status
+  return query
+}
+
+function isDateWithinQuery(value, dateQuery) {
+  if (!dateQuery) return true
+  const time = new Date(value).getTime()
+  if (!Number.isFinite(time)) return false
+  if (dateQuery.$gte && time < new Date(dateQuery.$gte).getTime()) return false
+  if (dateQuery.$gt && time <= new Date(dateQuery.$gt).getTime()) return false
+  if (dateQuery.$lte && time > new Date(dateQuery.$lte).getTime()) return false
+  if (dateQuery.$lt && time >= new Date(dateQuery.$lt).getTime()) return false
+  return true
+}
+
+function flattenVoucherFixings(txs = [], { startDate, endDate, buildDateQuery }) {
+  const dateQuery = buildDateQuery(startDate, endDate)
+  return txs.flatMap((tx) => listActiveVoucherFixings(tx)
+    .filter((fixing) => isDateWithinQuery(fixing.date, dateQuery))
+    .map((fixing) => ({ tx, fixing })))
+}
+
 const TX_SELECT = '_id type status amount date description metalFixStatus voucherMeta customerId vendorId'
 const DEAL_SELECT = '_id docNo entryType docDate valueDate branch status remarks lineItems isDeleted totalQty totalAmount'
 
@@ -303,7 +370,16 @@ async function loadFixingRegisterReport({ Transaction, DirectDeal, buildDateQuer
   const periodEnd = fixingRegFilter.toDate || undefined
   const openingEnd = openingEndDate ? openingEndDate.toISOString().slice(0, 10) : null
 
-  const [saleTxs, purchaseTxs, deals, openingSaleTxs, openingPurchaseTxs, openingDeals] = await Promise.all([
+  const [
+    saleTxs,
+    purchaseTxs,
+    deals,
+    openingSaleTxs,
+    openingPurchaseTxs,
+    openingDeals,
+    fixedVoucherTxs,
+    openingFixedVoucherTxs,
+  ] = await Promise.all([
     Transaction.find(buildTxQuery({ startDate: periodStart, endDate: periodEnd, type: 'sale', status: txStatus, buildDateQuery }))
       .select(TX_SELECT)
       .populate('customerId', 'name')
@@ -336,6 +412,18 @@ async function loadFixingRegisterReport({ Transaction, DirectDeal, buildDateQuer
         .select(DEAL_SELECT)
         .lean()
       : Promise.resolve([]),
+    Transaction.find(buildVoucherFixingTxQuery({ startDate: periodStart, endDate: periodEnd, status: txStatus, buildDateQuery }))
+      .select(TX_SELECT)
+      .populate('customerId', 'name')
+      .populate('vendorId', 'name')
+      .lean(),
+    openingEnd
+      ? Transaction.find(buildVoucherFixingTxQuery({ endDate: openingEnd, status: txStatus, buildDateQuery }))
+        .select(TX_SELECT)
+        .populate('customerId', 'name')
+        .populate('vendorId', 'name')
+        .lean()
+      : Promise.resolve([]),
   ])
 
   const buildCtx = { fixingRegFilter, matchesSelectedMetal, isAllMetalSelection }
@@ -345,12 +433,14 @@ async function loadFixingRegisterReport({ Transaction, DirectDeal, buildDateQuer
       txSales: openingSaleTxs,
       txPurchases: openingPurchaseTxs,
       directDeals: openingDeals,
+      voucherFixings: flattenVoucherFixings(openingFixedVoucherTxs, { endDate: openingEnd, buildDateQuery }),
       ...buildCtx,
     })
   const rows = buildFixingRegisterRows({
     txSales: saleTxs,
     txPurchases: purchaseTxs,
     directDeals: deals,
+    voucherFixings: flattenVoucherFixings(fixedVoucherTxs, { startDate: periodStart, endDate: periodEnd, buildDateQuery }),
     ...buildCtx,
   })
   const opening = computeOpening(openingRows)

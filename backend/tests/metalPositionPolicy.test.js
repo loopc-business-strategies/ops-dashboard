@@ -81,6 +81,32 @@ describe('metalPositionPolicy', () => {
     expect(merged.silver).toBe(0)
   })
 
+  test('fixings close the unfixed grams of their voucher; removed fixings do not', () => {
+    const position = accumulateUnfixedMetalFromTransactions([
+      {
+        type: 'purchase',
+        voucherMeta: {
+          fixingType: 'non-fixing',
+          lineItems: [{ stockCode: 'XAU', pureWeight: 199.98 }],
+          fixings: [
+            { pureWeight: 150, metalCode: 'XAU' },
+            { pureWeight: 49.98, metalCode: 'XAU', isDeleted: true },
+          ],
+        },
+      },
+      {
+        type: 'sale',
+        voucherMeta: {
+          fixingType: 'non-fixing',
+          lineItems: [{ stockCode: 'XAG', pureWeight: 1000 }],
+          fixings: [{ pureWeight: 1000, metalCode: 'XAG' }],
+        },
+      },
+    ])
+    expect(position.gold).toBeCloseTo(-49.98, 6)
+    expect(position.silver).toBeCloseTo(0, 6)
+  })
+
   test('accumulateDirectDealMetalIntoMap merges into customer margin map', () => {
     const customerId = 'cust-map'
     const map = new Map()

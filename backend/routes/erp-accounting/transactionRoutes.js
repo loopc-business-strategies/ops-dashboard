@@ -17,6 +17,8 @@ function registerTransactionRoutes(deps) {
   const { publishRealtimeEvent } = require('../../utils/realtimeBus')
   const { resolveRequestTenantKey } = require('../../config/tenants')
   const { invalidateErpReadCaches } = require('../../utils/erpReadCaches')
+  const { createVoucherFixingService } = require('../../services/erpAccounting/voucherFixingService')
+  const { listActiveVoucherFixings } = require('../../services/erpAccounting/metalPositionPolicy')
   const {
     router,
     protect,
@@ -134,7 +136,25 @@ function queueOwnerVoucherNotify(req, ownerId, type, tx, action, extra = {}) {
   })
 }
 
+const voucherFixingService = createVoucherFixingService({
+  Transaction,
+  Ledger,
+  Currency,
+  BASE_CURRENCY_CODE,
+  assertAccountingPeriodOpen,
+  appendTransactionAudit,
+})
+
+const assertNoActiveVoucherFixings = (tx) => {
+  if (!listActiveVoucherFixings(tx).length) return
+  const err = new Error('This voucher has fixings. Remove its fixings before editing or voiding it.')
+  err.status = 409
+  err.code = 'VOUCHER_HAS_FIXINGS'
+  throw err
+}
+
 const reversePostedTransactionEffects = async ({ tx, user, session, deleteReason }) => {
+  assertNoActiveVoucherFixings(tx)
   await assertPeriod({
     tenant: tx?.company || undefined,
     date: resolveTxDate(tx),
@@ -468,8 +488,9 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     }
 
     if (voucherMetaPayload && typeof voucherMetaPayload === 'object') {
+      const { fixings: _clientFixings, ...voucherMetaWithoutFixings } = voucherMetaPayload
       voucherMetaPayload = {
-        ...voucherMetaPayload,
+        ...voucherMetaWithoutFixings,
         partyAccountId: sanitizeOptionalRef(voucherMetaPayload.partyAccountId),
       }
     }
@@ -549,6 +570,12 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
         message: 'Submitted vouchers cannot be edited. Return the voucher for edit or use an authorized workflow action.',
         code: 'VOUCHER_SUBMITTED_LOCKED',
       })
+    }
+
+    try {
+      assertNoActiveVoucherFixings(tx)
+    } catch (fixingErr) {
+      return respondRouteError(res, fixingErr, { tag: 'erp-accounting/transactions' })
     }
 
     const wasPosted = tx.status === 'posted'
@@ -637,6 +664,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
         : req.body.voucherMeta
       if (meta && typeof meta === 'object') {
         meta.partyAccountId = sanitizeOptionalRef(meta.partyAccountId)
+        meta.fixings = Array.isArray(tx.voucherMeta?.fixings) ? tx.voucherMeta.fixings : []
       }
       tx.voucherMeta = meta
     }
@@ -693,6 +721,11 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    try {
+      assertNoActiveVoucherFixings(tx)
+    } catch (fixingErr) {
+      return respondRouteError(res, fixingErr, { tag: 'erp-accounting/transactions/void' })
+    }
 
     await runInTransaction(async (session) => {
       await reversePostedTransactionEffects({
@@ -737,6 +770,96 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
     }
     console.error('Void transaction error:', e)
     res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+const voucherFixingCreateSchema = Joi.object({
+  date: Joi.alternatives().try(Joi.date(), Joi.string().trim().max(40)).optional(),
+  pureWeight: Joi.number().positive().optional(),
+  rate: Joi.number().positive().required(),
+  rateType: Joi.string().trim().valid('OZ', 'GRAM', 'KG', 'oz', 'gram', 'kg').optional(),
+  notes: Joi.string().trim().allow('').max(500).optional(),
+})
+
+const broadcastVoucherFixingChange = (req, tx, action) => {
+  const tenantKey = String(resolveRequestTenantKey(req) || 'default')
+  emitRealtime(req, (realtimeServer) => {
+    if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+      realtimeServer.broadcastTransactionUpdate(tenantKey, {
+        action,
+        transactionId: String(tx._id),
+        status: tx.status,
+        type: tx.type,
+      })
+    }
+    if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+      realtimeServer.broadcastLedgerUpdate(tenantKey, {
+        action,
+        transactionId: String(tx._id),
+      })
+    }
+  })
+  invalidateErpReadCaches(tenantKey)
+}
+
+router.post('/transactions/:id/fixings', protect, validateBody(voucherFixingCreateSchema), async (req, res) => {
+  try {
+    if (!canManageTransactionWorkflow(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only Admin/Finance can fix vouchers' })
+    }
+    const result = await runInTransaction((session) => voucherFixingService.addVoucherFixing({
+      transactionId: req.params.id,
+      user: req.user,
+      tenant: req.tenant,
+      date: req.body.date,
+      pureWeight: req.body.pureWeight,
+      rate: req.body.rate,
+      rateType: req.body.rateType,
+      notes: req.body.notes,
+      session,
+    }))
+    broadcastVoucherFixingChange(req, result.transaction, 'fixed')
+    res.status(201).json({
+      success: true,
+      transaction: result.transaction,
+      fixing: result.fixing,
+      fixingState: {
+        totalWeight: result.state.totalWeight,
+        fixedWeight: result.state.fixedWeight,
+        openWeight: result.state.openWeight,
+      },
+    })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/transactions/fixings' })
+  }
+})
+
+router.delete('/transactions/:id/fixings/:fixingId', protect, async (req, res) => {
+  try {
+    if (!canManageTransactionWorkflow(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only Admin/Finance can remove fixings' })
+    }
+    const reason = String(req.body?.reason || req.query?.reason || '').trim().slice(0, 500)
+    const result = await runInTransaction((session) => voucherFixingService.removeVoucherFixing({
+      transactionId: req.params.id,
+      fixingId: req.params.fixingId,
+      user: req.user,
+      tenant: req.tenant,
+      reason,
+      session,
+    }))
+    broadcastVoucherFixingChange(req, result.transaction, 'fixing_removed')
+    res.json({
+      success: true,
+      transaction: result.transaction,
+      fixingState: {
+        totalWeight: result.state.totalWeight,
+        fixedWeight: result.state.fixedWeight,
+        openWeight: result.state.openWeight,
+      },
+    })
+  } catch (err) {
+    respondRouteError(res, err, { tag: 'erp-accounting/transactions/fixings' })
   }
 })
 
@@ -1300,6 +1423,9 @@ router.get('/transactions/source-by-ledger/:ledgerId', protect, async (req, res)
       $or: [
         { journalEntryId: ledgerEntry._id },
         { _id: ledgerEntry.referenceId },
+        ...(ledgerEntry.referenceType === 'voucher_fixing'
+          ? [{ 'voucherMeta.fixings._id': ledgerEntry.referenceId }]
+          : []),
       ],
     })
       .populate('customerId', 'name')

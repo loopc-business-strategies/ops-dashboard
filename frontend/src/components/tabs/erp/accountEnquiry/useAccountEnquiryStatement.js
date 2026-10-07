@@ -133,9 +133,14 @@ function combineVoucherStatementRows(entries = []) {
   })
 }
 
+/** Unfixed voucher rows plus the fixing rows that close them. */
+function countsTowardUnfixedMetal(entry) {
+  return resolveFixStatus(entry) === 'unfixed' || Boolean(entry?.isVoucherFixing)
+}
+
 function deriveStatementUnfixedMetalBalances(entries) {
   return entries.reduce((acc, entry) => {
-    if (resolveFixStatus(entry) !== 'unfixed') return acc
+    if (!countsTowardUnfixedMetal(entry)) return acc
     if (!isMetalStatementEntry(entry)) return acc
     const w = Number(entry.metalSignedWeight || 0)
     if (!Number.isFinite(w) || w === 0) return acc
@@ -237,7 +242,7 @@ export function useAccountEnquiryStatement({
   const modalStatementCurrency = erpBaseCurrencyCode
   const rawUnfixedMetalDedupeKeys = new Set()
   const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
-    if (resolveFixStatus(entry) !== 'unfixed') return acc
+    if (!countsTowardUnfixedMetal(entry)) return acc
     if (!isMetalStatementEntry(entry)) return acc
     const w = Number(entry.metalSignedWeight || 0)
     if (!Number.isFinite(w) || w === 0) return acc
