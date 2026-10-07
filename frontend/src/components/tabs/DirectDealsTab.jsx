@@ -1217,7 +1217,7 @@ export default function DirectDealsTab({
                 <div style={{ background: '#FEE2E2', color: COLORS.red, border: '1px solid #FCA5A5', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem' }}>{error}</div>
               )}
               {/* Mode indicator banner */}
-              {viewMode === 'VIEW' && editingId && (
+              {viewMode === 'VIEW' && editingId && !isEditingLocked && (
                 <div style={{ background: 'var(--brand-soft)', color: 'var(--purple)', border: '1px solid var(--brand-border)', borderRadius: '0.4rem', padding: '4px 10px', marginBottom: '0.65rem', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>👁 VIEW MODE</span>
                   <span style={{ color: '#555', fontWeight: 400 }}>— Click <strong>Edit</strong> in the toolbar to unlock for editing</span>
