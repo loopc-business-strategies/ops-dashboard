@@ -11,6 +11,7 @@ import {
   normalizeAccountEnquiryNetDirection,
   normalizeStatementCurrencyCode,
   resolveStatementDisplayCurrency,
+  resolveConvertibleStatementDisplayCurrency,
   resolveExposureDirection,
   resolveMarginEquityDirection,
   resolveVisibleStatementClosingBalance,
@@ -101,6 +102,31 @@ describe('statement helpers', () => {
       showAmountIn: '',
       accountCurrency: '',
       baseCurrency: 'USD',
+    })).toBe('USD')
+  })
+
+  test('statement display currency falls back to ledger currency until rates can convert', () => {
+    const noRates = () => null
+    const withRates = (amount, from, to) => (from === to ? amount : amount * 12500)
+
+    expect(resolveConvertibleStatementDisplayCurrency({
+      requestedCurrency: 'UZS',
+      ledgerCurrency: 'USD',
+      sourceCurrencies: ['USD'],
+      convert: noRates,
+    })).toBe('USD')
+
+    expect(resolveConvertibleStatementDisplayCurrency({
+      requestedCurrency: 'SOMS',
+      ledgerCurrency: 'USD',
+      sourceCurrencies: ['USD'],
+      convert: withRates,
+    })).toBe('UZS')
+
+    expect(resolveConvertibleStatementDisplayCurrency({
+      requestedCurrency: 'USD',
+      ledgerCurrency: 'USD',
+      convert: noRates,
     })).toBe('USD')
   })
 

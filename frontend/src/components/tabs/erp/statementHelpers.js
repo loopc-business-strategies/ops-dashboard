@@ -87,6 +87,30 @@ export function resolveStatementDisplayCurrency({
   ).trim().toUpperCase()
 }
 
+/**
+ * Keep the requested display currency only when every source currency can be
+ * converted into it; otherwise (e.g. exchange rates still loading) show amounts
+ * in the ledger currency so the label matches the unconverted numbers.
+ */
+export function resolveConvertibleStatementDisplayCurrency({
+  requestedCurrency = '',
+  ledgerCurrency = '',
+  sourceCurrencies = [],
+  convert,
+} = {}) {
+  const requested = normalizeStatementCurrencyCode(requestedCurrency).trim().toUpperCase()
+  const ledger = normalizeStatementCurrencyCode(ledgerCurrency).trim().toUpperCase()
+  if (!requested || requested === ledger || typeof convert !== 'function') return requested || ledger
+  const convertible = [ledger, ...sourceCurrencies]
+    .map((code) => normalizeStatementCurrencyCode(code).trim().toUpperCase())
+    .filter(Boolean)
+    .every((code) => {
+      const converted = convert(1, code, requested)
+      return converted !== null && converted !== undefined && Number.isFinite(Number(converted))
+    })
+  return convertible ? requested : ledger
+}
+
 export const DEFAULT_STATEMENT_DISPLAY_CURRENCIES = ['USD', 'EUR', 'AED', 'UZS']
 
 export function buildStatementCurrencyOptions({

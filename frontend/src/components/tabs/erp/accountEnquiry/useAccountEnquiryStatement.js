@@ -12,6 +12,7 @@ import {
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementDisplayCurrency,
+  resolveConvertibleStatementDisplayCurrency,
   resolveStatementMetalCode,
   isMetalStatementEntry,
   resolveVisibleStatementClosingBalance,
@@ -266,10 +267,18 @@ export function useAccountEnquiryStatement({
   const statementSelectedMetalCode = statementFilters.metalCommodity
     ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
     : defaultStatementMetalCode
-  const statementDisplayCurrency = resolveStatementDisplayCurrency({
-    showAmountIn: statementFilters.showAmountIn,
-    accountCurrency: accountEnquiryData?.account?.currency,
-    baseCurrency: modalStatementCurrency,
+  const spotMetalQuoteCurrency = normalizeStatementCurrencyCode(
+    accountEnquiryData?.metals?.priceCurrency || 'USD',
+  ).trim().toUpperCase()
+  const statementDisplayCurrency = resolveConvertibleStatementDisplayCurrency({
+    requestedCurrency: resolveStatementDisplayCurrency({
+      showAmountIn: statementFilters.showAmountIn,
+      accountCurrency: accountEnquiryData?.account?.currency,
+      baseCurrency: modalStatementCurrency,
+    }),
+    ledgerCurrency: modalStatementCurrency,
+    sourceCurrencies: [spotMetalQuoteCurrency],
+    convert: convertJvAmount,
   })
   const baseCurrencyCode = erpBaseCurrencyCode
   const statementFilterCurrencyOptions = buildStatementCurrencyOptions({
@@ -296,10 +305,6 @@ export function useAccountEnquiryStatement({
     const converted = convertJvAmount(numeric, modalStatementCurrency, statementDisplayCurrency)
     return Number.isFinite(converted) ? converted : numeric
   }
-
-  const spotMetalQuoteCurrency = normalizeStatementCurrencyCode(
-    accountEnquiryData?.metals?.priceCurrency || 'USD',
-  ).trim().toUpperCase()
 
   const convertMetalSpotDisplayAmount = (value) => {
     const numeric = Number(value || 0)

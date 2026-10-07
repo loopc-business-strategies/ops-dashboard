@@ -6,7 +6,9 @@ import { resolveVoucherPrintSettings } from './erp/documentBranding'
 import { createLogoRenderAsset } from './erp/ERPBrandingUtils'
 import { focusElement, handleRecommendedTab } from './voucher/voucherKeyboardNav'
 import { formatAmount, parseAmount, roundMoney } from '../../utils/money'
+import useLiveMetalRates from '../../hooks/useLiveMetalRates'
 import { erpWin } from './erp/erpWindowChrome'
+import { checkDirectDealPriceAgainstSpot, describeDirectDealPriceDeviation } from './directDealPriceCheck'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -193,6 +195,7 @@ export default function DirectDealsTab({
   reportBranding = null,
 }) {
   const { t } = useLanguage()
+  const { snapshot: liveMetalSnapshot } = useLiveMetalRates()
   const tenantKey = String(user?.company || user?.tenant?.key || '').trim().toLowerCase()
   const keyboardNavEnabled = isVoucherKeyboardNavEnabled(tenantKey)
   const dealNavRootRef = useRef(null)
@@ -898,6 +901,13 @@ export default function DirectDealsTab({
     return ''
   }
 
+  const checkLinePrice = (line) => checkDirectDealPriceAgainstSpot({
+    price: toNumber(line.price),
+    metal: line.metal,
+    currency: form.currency || baseCurrencyCode,
+    snapshot: liveMetalSnapshot,
+  })
+
   const saveFormData = async (statusOverride) => {
     if (!hasManage || isEditingLocked) {
       setError('You have read-only access for direct deals')
@@ -909,6 +919,18 @@ export default function DirectDealsTab({
       setError(validationMessage)
       return
     }
+
+    const priceWarnings = form.lineItems
+      .map((line, idx) => {
+        const check = checkLinePrice(line)
+        return check ? `Line ${idx + 1}: ${describeDirectDealPriceDeviation(check, (v) => fmtFixed(v, 2))}` : ''
+      })
+      .filter(Boolean)
+    if (
+      priceWarnings.length
+      && typeof window !== 'undefined'
+      && !window.confirm(`Price is far from the live rate (Price is per troy ounce):\n${priceWarnings.join('\n')}\n\nSave anyway?`)
+    ) return
 
     setSaving(true)
     setError('')
@@ -1274,6 +1296,14 @@ export default function DirectDealsTab({
                                 ≈ {fmtFixed(toNumber(line.price) * stockToOzMap.GRAM, 4)} / g
                               </div>
                             )}
+                            {(() => {
+                              const check = viewMode === 'EDIT' ? checkLinePrice(line) : null
+                              return check ? (
+                                <div style={{ fontSize: 10, color: COLORS.red, fontWeight: 700, textAlign: 'right', marginTop: 1 }}>
+                                  {describeDirectDealPriceDeviation(check, (v) => fmtFixed(v, 2))}
+                                </div>
+                              ) : null
+                            })()}
                           </td>
                           {/* EQ.OZ */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
