@@ -96,6 +96,10 @@ const calcAmountFromWeightAndPrice = (qty, stockCode, price) => {
 
 const stockToOzMap = { OZ: 1, GRAM: 0.0321507, KG: 32.1507 }
 
+const DEAL_REASON_MIN_LENGTH = 5
+const DEAL_HISTORY_LABELS = { created: 'Created', confirmed: 'Confirmed', reopened: 'Reopened', edited: 'Edited', deleted: 'Deleted' }
+const DEAL_HISTORY_COLORS = { confirmed: '#065F46', reopened: '#B45309', edited: '#1D4ED8', deleted: '#B91C1C' }
+
 const makeLine = () => ({
   customerId: '',
   customerCode: '',
@@ -245,7 +249,7 @@ export default function DirectDealsTab({
 
   const hasManage = permissions.canManage || canManage
   const currentEditingDeal = editingId ? deals.find((d) => d._id === editingId) : null
-  const isEditingLocked = Boolean(currentEditingDeal && currentEditingDeal.status === 'confirmed' && !isSuperAdmin)
+  const isEditingLocked = Boolean(currentEditingDeal && currentEditingDeal.status === 'confirmed')
 
   const loadDeals = useCallback(async () => {
     setLoading(true)
@@ -875,7 +879,7 @@ export default function DirectDealsTab({
 
   const openDealForEdit = (deal) => {
     openDeal(deal)
-    if (hasManage && !(deal.status === 'confirmed' && !isSuperAdmin)) {
+    if (hasManage && deal.status !== 'confirmed') {
       setViewMode('EDIT')
     }
   }
@@ -981,14 +985,51 @@ export default function DirectDealsTab({
     }
   }
 
+  const askDealReason = (message) => {
+    if (typeof window === 'undefined') return null
+    const answer = window.prompt(message)
+    if (answer === null) return null
+    const reason = answer.trim()
+    if (reason.length < DEAL_REASON_MIN_LENGTH) {
+      setError(`Reason must be at least ${DEAL_REASON_MIN_LENGTH} characters`)
+      return null
+    }
+    return reason
+  }
+
+  const reopenDeal = async (deal) => {
+    if (!deal?._id || !isSuperAdmin) return
+    const reason = askDealReason(`Reopen ${deal.docNo || 'this deal'} to draft?\nIts ledger postings are removed until it is confirmed again.\n\nReason (required):`)
+    if (!reason) return
+    try {
+      setSaving(true)
+      setError('')
+      await erpAccountingAPI.updateDirectDeal(token, deal._id, { status: 'draft', reason })
+      showSuccess('Entry reopened to draft')
+      if (editingId === deal._id) setForm((prev) => ({ ...prev, status: 'draft' }))
+      await loadDeals()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to reopen entry')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const removeDeal = async (id) => {
     if (!hasManage) return
-    if (typeof window !== 'undefined' && !window.confirm('Delete this direct deal?')) return
+    const deal = deals.find((d) => d._id === id)
+    let reason = ''
+    if (deal?.status === 'confirmed') {
+      reason = askDealReason(`Delete confirmed deal ${deal.docNo || ''}?\nIts ledger postings are removed.\n\nReason (required):`)
+      if (!reason) return
+    } else if (typeof window !== 'undefined' && !window.confirm('Delete this direct deal?')) {
+      return
+    }
 
     setDeletingId(id)
     setError('')
     try {
-      await erpAccountingAPI.deleteDirectDeal(token, id)
+      await erpAccountingAPI.deleteDirectDeal(token, id, reason)
       showSuccess('Direct deal deleted')
       if (editingId === id) resetForm()
       await loadDeals()
@@ -1071,7 +1112,7 @@ export default function DirectDealsTab({
                   <span style={{ fontSize: 7, marginTop: 1 }}>New</span>
                 </span>
               </button>
-              <button type="button" title="Edit — Unlock current record for modification" style={{ ...tbBtnSt, color: viewMode === 'EDIT' ? '#005099' : '#333' }} onClick={() => { if (editingId || viewMode === 'EDIT') setViewMode('EDIT') }}>
+              <button type="button" title="Edit — Unlock current record for modification" style={{ ...tbBtnSt, color: viewMode === 'EDIT' ? '#005099' : '#333' }} onClick={() => { if ((editingId || viewMode === 'EDIT') && !isEditingLocked) setViewMode('EDIT') }}>
                 <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
                   <span style={{ fontSize: 10 }}>✏️</span>
                   <span style={{ fontSize: 7, marginTop: 1 }}>Edit</span>
@@ -1183,8 +1224,13 @@ export default function DirectDealsTab({
                 </div>
               )}
               {editingId && isEditingLocked && (
-                <div style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem', fontWeight: 700 }}>
-                  This entry is confirmed and locked. Only super admin can edit or reopen it.
+                <div style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span>
+                    This entry is confirmed and locked. To change it, a super admin must reopen it with a reason; the change is kept in the history below.
+                  </span>
+                  {isSuperAdmin && (
+                    <button type="button" style={btnStyle('ghost')} onClick={() => reopenDeal(currentEditingDeal)} disabled={saving}>Reopen…</button>
+                  )}
                 </div>
               )}
 
@@ -1346,6 +1392,28 @@ export default function DirectDealsTab({
                   </table>
                 </div>
               </div>
+
+              {currentEditingDeal?.history?.length > 0 && (
+                <div style={{ marginTop: 12, border: '1px solid #ccc', background: '#fff' }}>
+                  <div style={{ padding: '4px 8px', background: '#f0f0f0', borderBottom: '1px solid #ccc', fontSize: 12, fontWeight: 700, color: '#333' }}>History</div>
+                  <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                    {[...currentEditingDeal.history].reverse().map((entry, idx) => (
+                      <div key={entry._id || idx} style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontSize: 12, color: '#222' }}>
+                        <div>
+                          <strong style={{ color: DEAL_HISTORY_COLORS[entry.action] || '#333' }}>{DEAL_HISTORY_LABELS[entry.action] || entry.action}</strong>
+                          <span style={{ color: '#555' }}> — {entry.byName || 'Unknown user'}, {entry.at ? new Date(entry.at).toLocaleString() : ''}</span>
+                        </div>
+                        {entry.reason && <div style={{ color: '#555' }}>Reason: {entry.reason}</div>}
+                        {(entry.changes || []).map((change, cIdx) => (
+                          <div key={`${idx}-${cIdx}`} style={{ color: '#333', paddingLeft: 10 }}>
+                            {change.line ? `Line ${change.line} ` : ''}{change.field}: {change.from || '—'} → {change.to || '—'}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             </div>{/* end body */}
 
@@ -1518,7 +1586,7 @@ export default function DirectDealsTab({
                       <button type='button' style={btnStyle('secondary')} onClick={() => exportDealToPdf(deal)}>{t('exportPdf')}</button>
                       <button type='button' style={btnStyle('ghost')} onClick={() => exportDealToExcel(deal)}>{t('exportExcel')}</button>
                       <button type='button' style={btnStyle('secondary')} onClick={() => openDeal(deal)}>{t('open')}</button>
-                      <button type='button' style={btnStyle('secondary')} onClick={() => openDealForEdit(deal)} disabled={deal.status === 'confirmed' && !isSuperAdmin}>{t('edit')}</button>
+                      <button type='button' style={btnStyle('secondary')} onClick={() => openDealForEdit(deal)} disabled={deal.status === 'confirmed'} title={deal.status === 'confirmed' ? 'Confirmed deals are locked — reopen first' : undefined}>{t('edit')}</button>
                       {deal.status === 'draft' && hasManage && (
                         <button
                           type='button'
@@ -1533,18 +1601,7 @@ export default function DirectDealsTab({
                         <button
                           type='button'
                           style={btnStyle('ghost')}
-                          onClick={async () => {
-                            try {
-                              setSaving(true)
-                              await erpAccountingAPI.updateDirectDeal(token, deal._id, { status: 'draft' })
-                              showSuccess('Entry reopened to draft')
-                              await loadDeals()
-                            } catch (e) {
-                              setError(e.response?.data?.message || 'Failed to reopen entry')
-                            } finally {
-                              setSaving(false)
-                            }
-                          }}
+                          onClick={() => reopenDeal(deal)}
                           disabled={saving}
                         >
                           Reopen

@@ -1,5 +1,12 @@
 const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
 const { escapeRegex } = require('../../utils/escapeRegex')
+const {
+  DIRECT_DEAL_REOPEN_REASON_MIN_LENGTH,
+  diffDirectDeals,
+  buildDirectDealHistoryEntry,
+  hasDirectDealBeenConfirmed,
+  isValidDirectDealReason,
+} = require('../../services/erpAccounting/directDealHistory')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -27,7 +34,12 @@ const directDealCreateSchema = Joi.object({
   remarks: Joi.string().trim().allow('').max(2000).optional(),
   lineItems: Joi.array().items(directDealLineSchema).min(1).max(200).required(),
 })
-const directDealPatchSchema = directDealCreateSchema.fork(['lineItems'], (schema) => schema.optional()).min(1)
+const directDealPatchSchema = directDealCreateSchema
+  .fork(['lineItems'], (schema) => schema.optional())
+  .keys({ reason: Joi.string().trim().allow('').max(500).optional() })
+  .min(1)
+const directDealDeleteSchema = Joi.object({ reason: Joi.string().trim().allow('').max(500).optional() })
+const DIRECT_DEAL_CONTENT_FIELDS = ['docNo', 'entryType', 'docDate', 'valueDate', 'currency', 'branch', 'remarks', 'lineItems']
 
 function registerDirectDealsRoutes(deps) {
   const {
@@ -146,6 +158,7 @@ function registerDirectDealsRoutes(deps) {
       const totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
       const totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))
       const resolvedDocNo = String(docNo || '').trim() || await nextDirectDealDocNo()
+      const resolvedStatus = ['draft', 'confirmed'].includes(String(status)) ? String(status) : 'draft'
 
       const deal = await DirectDeal.create({
         docNo: resolvedDocNo,
@@ -154,11 +167,15 @@ function registerDirectDealsRoutes(deps) {
         valueDate: valueDate ? new Date(valueDate) : (docDate ? new Date(docDate) : new Date()),
         currency: resolvedCurrency,
         branch: String(branch || 'HO').trim(),
-        status: ['draft', 'confirmed'].includes(String(status)) ? String(status) : 'draft',
+        status: resolvedStatus,
         remarks: String(remarks || '').trim(),
         lineItems: normalizedLines,
         totalQty,
         totalAmount,
+        history: [
+          buildDirectDealHistoryEntry({ action: 'created', user: req.user }),
+          ...(resolvedStatus === 'confirmed' ? [buildDirectDealHistoryEntry({ action: 'confirmed', user: req.user })] : []),
+        ],
         createdBy: req.user._id,
         updatedBy: req.user._id,
       })
@@ -176,11 +193,33 @@ function registerDirectDealsRoutes(deps) {
       if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const deal = await DirectDeal.findById(req.params.id)
       if (!deal || deal.isDeleted) return res.status(404).json({ success: false, message: 'Direct deal not found' })
-      if (deal.status === 'confirmed' && !isSuperAdmin(req.user)) {
-        return res.status(403).json({ success: false, message: 'Confirmed direct deals are locked. Only Admin can edit.' })
+      const { docNo, entryType, docDate, valueDate, currency, branch, status, remarks, lineItems, reason } = req.body || {}
+      const wasConfirmed = deal.status === 'confirmed'
+      const nextStatus = ['draft', 'confirmed'].includes(String(status)) ? String(status) : deal.status
+      const reopening = wasConfirmed && nextStatus === 'draft'
+      const changesContent = DIRECT_DEAL_CONTENT_FIELDS.some((field) => req.body?.[field] !== undefined)
+
+      if (wasConfirmed) {
+        if (reopening && !isSuperAdmin(req.user)) {
+          return res.status(403).json({ success: false, message: 'Only Admin can reopen confirmed direct deals' })
+        }
+        if (changesContent) {
+          return res.status(409).json({
+            success: false,
+            code: 'DIRECT_DEAL_CONFIRMED_LOCKED',
+            message: 'Confirmed deals are locked. Reopen the deal with a reason before changing it.',
+          })
+        }
+        if (reopening && !isValidDirectDealReason(reason)) {
+          return res.status(400).json({
+            success: false,
+            code: 'DIRECT_DEAL_REOPEN_REASON_REQUIRED',
+            message: `Give a reason (at least ${DIRECT_DEAL_REOPEN_REASON_MIN_LENGTH} characters) to reopen a confirmed deal.`,
+          })
+        }
       }
 
-      const { docNo, entryType, docDate, valueDate, currency, branch, status, remarks, lineItems } = req.body || {}
+      const before = deal.toObject()
 
       if (entryType !== undefined) {
         if (!['fixing', 'non_fixing'].includes(String(entryType))) {
@@ -193,13 +232,7 @@ function registerDirectDealsRoutes(deps) {
       if (valueDate !== undefined) deal.valueDate = valueDate ? new Date(valueDate) : deal.valueDate
       if (currency !== undefined) deal.currency = String(currency || deal.currency).toUpperCase()
       if (branch !== undefined) deal.branch = String(branch || '').trim()
-      if (status !== undefined && ['draft', 'confirmed'].includes(String(status))) {
-        const nextStatus = String(status)
-        if (deal.status === 'confirmed' && nextStatus !== 'confirmed' && !isSuperAdmin(req.user)) {
-          return res.status(403).json({ success: false, message: 'Only Admin can reopen confirmed direct deals' })
-        }
-        deal.status = nextStatus
-      }
+      deal.status = nextStatus
       if (remarks !== undefined) deal.remarks = String(remarks || '').trim()
 
       if (lineItems !== undefined) {
@@ -212,6 +245,16 @@ function registerDirectDealsRoutes(deps) {
         deal.totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))
       }
 
+      if (reopening) {
+        deal.history.push(buildDirectDealHistoryEntry({ action: 'reopened', user: req.user, reason }))
+      } else if (hasDirectDealBeenConfirmed(before)) {
+        const changes = diffDirectDeals(before, deal.toObject())
+        if (changes.length) deal.history.push(buildDirectDealHistoryEntry({ action: 'edited', user: req.user, changes }))
+      }
+      if (!wasConfirmed && nextStatus === 'confirmed') {
+        deal.history.push(buildDirectDealHistoryEntry({ action: 'confirmed', user: req.user }))
+      }
+
       deal.updatedBy = req.user._id
       await deal.save()
       await syncDirectDealLedger({ deal, user: req.user })
@@ -222,13 +265,21 @@ function registerDirectDealsRoutes(deps) {
     }
   })
 
-  router.delete('/direct-deals/:id', protect, validateParams(idParamSchema), async (req, res) => {
+  router.delete('/direct-deals/:id', protect, validateParams(idParamSchema), validateBody(directDealDeleteSchema), async (req, res) => {
     try {
       if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const deal = await DirectDeal.findById(req.params.id)
       if (!deal || deal.isDeleted) return res.status(404).json({ success: false, message: 'Direct deal not found' })
       if (deal.status === 'confirmed' && !isSuperAdmin(req.user)) {
         return res.status(403).json({ success: false, message: 'Confirmed direct deals are locked. Only Admin can delete.' })
+      }
+      const reason = String(req.body?.reason || req.query?.reason || '').trim()
+      if (deal.status === 'confirmed' && !isValidDirectDealReason(reason)) {
+        return res.status(400).json({
+          success: false,
+          code: 'DIRECT_DEAL_DELETE_REASON_REQUIRED',
+          message: `Give a reason (at least ${DIRECT_DEAL_REOPEN_REASON_MIN_LENGTH} characters) to delete a confirmed deal.`,
+        })
       }
 
       await assertPeriod({
@@ -238,6 +289,7 @@ function registerDirectDealsRoutes(deps) {
 
       deal.isDeleted = true
       deal.deletedAt = new Date()
+      deal.history.push(buildDirectDealHistoryEntry({ action: 'deleted', user: req.user, reason }))
       deal.updatedBy = req.user._id
       await deal.save()
 

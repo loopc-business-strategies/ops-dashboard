@@ -18,6 +18,27 @@ const directDealLineSchema = new mongoose.Schema(
   { _id: true }
 )
 
+const directDealHistorySchema = new mongoose.Schema(
+  {
+    action: { type: String, enum: ['created', 'edited', 'confirmed', 'reopened', 'deleted'], required: true },
+    at: { type: Date, default: Date.now },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    byName: { type: String, trim: true, default: '' },
+    reason: { type: String, trim: true, default: '' },
+    changes: {
+      type: [{
+        _id: false,
+        line: { type: Number, default: 0 },
+        field: { type: String, trim: true, default: '' },
+        from: { type: String, default: '' },
+        to: { type: String, default: '' },
+      }],
+      default: [],
+    },
+  },
+  { _id: true }
+)
+
 const directDealSchema = new mongoose.Schema(
   {
     docNo: { type: String, required: true, trim: true, index: true },
@@ -31,6 +52,7 @@ const directDealSchema = new mongoose.Schema(
     lineItems: { type: [directDealLineSchema], default: [] },
     totalQty: { type: Number, default: 0, min: 0 },
     totalAmount: { type: Number, default: 0, min: 0 },
+    history: { type: [directDealHistorySchema], default: [] },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
