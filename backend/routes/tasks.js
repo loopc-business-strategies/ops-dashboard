@@ -7,7 +7,6 @@
 
 const express = require('express')
 const path = require('path')
-const fs = require('fs')
 const mongoose = require('mongoose')
 const Task    = require('../models/Task')
 const { protect } = require('../middleware/auth')
@@ -38,6 +37,12 @@ const {
 } = require('../utils/taskBodyHelpers')
 const { applyAutomationDerivedFields } = require('../utils/taskRulesHelpers')
 const { createDiskUpload, resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
+const {
+  persistUploadedFile,
+  discardUploadedTempFile,
+  sendUploadedFile,
+  deleteUploadedFile,
+} = require('../services/uploadFileStore')
 const { sanitizeFileName } = require('../utils/sanitizeFileName')
 const { resolveAttachmentContentDisposition } = require('../services/erpAccounting/attachmentDownloadHeaders')
 
@@ -548,10 +553,15 @@ router.post(
     try {
       if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded.' })
       const task = await Task.findById(req.params.id)
-      if (!task) return res.status(404).json({ success: false, message: 'Task not found.' })
+      if (!task) {
+        discardUploadedTempFile(req.file)
+        return res.status(404).json({ success: false, message: 'Task not found.' })
+      }
       if (!canViewTask(req.user, task) || !canMutateTask(req.user, task)) {
+        discardUploadedTempFile(req.file)
         return res.status(403).json({ success: false, message: 'You do not have permission to attach files.' })
       }
+      await persistUploadedFile({ folder: 'task-attachments', file: req.file, metadata: { taskId: String(task._id) } })
       const rel = `/api/projects/${req.params.id}/attachments/download/${encodeURIComponent(req.file.filename)}`
       const originalName = sanitizeOriginalName(req.file.originalname, req.file.filename)
       task.attachments = task.attachments || []
@@ -569,6 +579,7 @@ router.post(
       emitTaskWebhook('task.attachment_added', { taskId: String(task._id), title: task.title, fileName: req.file.filename })
       res.json({ success: true, project: task })
     } catch (err) {
+      discardUploadedTempFile(req.file)
       console.error('Task attachment upload error:', err)
       res.status(500).json({ success: false, message: 'Server error.' })
     }
@@ -590,7 +601,6 @@ router.get(
       const entry = (task.attachments || []).find((a) => a.fileName === fileName)
       if (!entry) return res.status(404).json({ success: false, message: 'Attachment not found.' })
       const diskPath = path.join(taskAttachmentsDir(), entry.fileName)
-      if (!fs.existsSync(diskPath)) return res.status(404).json({ success: false, message: 'File missing.' })
       const downloadName = sanitizeOriginalName(entry.originalName || entry.fileName, 'download')
       res.setHeader('Content-Type', entry.mimeType || 'application/octet-stream')
       res.setHeader(
@@ -600,7 +610,13 @@ router.get(
           filename: downloadName,
         }),
       )
-      return res.sendFile(path.resolve(diskPath))
+      return await sendUploadedFile({
+        res,
+        folder: 'task-attachments',
+        fileName: entry.fileName,
+        localPath: diskPath,
+        notFoundMessage: 'File missing.',
+      })
     } catch (err) {
       console.error('Task attachment download error:', err)
       res.status(500).json({ success: false, message: 'Server error.' })
@@ -625,11 +641,7 @@ router.delete(
       const diskPath = path.join(taskAttachmentsDir(), fileName)
       task.attachments.splice(idx, 1)
       await task.save()
-      try {
-        fs.unlinkSync(diskPath)
-      } catch {
-        /* ignore missing file */
-      }
+      await deleteUploadedFile({ folder: 'task-attachments', fileName, localPath: diskPath })
       res.json({ success: true, project: task })
     } catch (err) {
       console.error('Task attachment delete error:', err)

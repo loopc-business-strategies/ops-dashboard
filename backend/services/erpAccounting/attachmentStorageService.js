@@ -1,5 +1,7 @@
 const fs = require('fs')
+const path = require('path')
 const { ObjectId, GridFSBucket } = require('mongodb')
+const { sendUploadedFile, deleteUploadedFile } = require('../uploadFileStore')
 
 function getAttachmentStorageDriver() {
   return String(process.env.ATTACHMENT_STORAGE_DRIVER || 'gridfs').trim().toLowerCase()
@@ -85,7 +87,12 @@ async function storeTransactionAttachment({ req, file, user, transactionModel })
 
 async function removeStoredAttachment({ attachment, transactionModel, localFilePath, bucketName = 'transactionAttachments' }) {
   if (String(attachment?.storageDriver || 'local') !== 'gridfs') {
-    if (localFilePath && fs.existsSync(localFilePath)) fs.unlinkSync(localFilePath)
+    await deleteUploadedFile({
+      folder: resolveLocalAttachmentFolder(attachment, localFilePath),
+      fileName: attachment?.fileName || (localFilePath ? path.basename(localFilePath) : ''),
+      localPath: localFilePath,
+      connection: transactionModel?.db,
+    })
     return
   }
 
@@ -99,12 +106,21 @@ async function removeStoredAttachment({ attachment, transactionModel, localFileP
   }
 }
 
+function resolveLocalAttachmentFolder(attachment, localFilePath) {
+  const match = /^\/?uploads\/([^/]+)\//.exec(String(attachment?.relativePath || ''))
+  if (match) return match[1]
+  return localFilePath ? path.basename(path.dirname(localFilePath)) : ''
+}
+
 async function sendStoredAttachment({ res, attachment, transactionModel, localFilePath, bucketName = 'transactionAttachments' }) {
   if (String(attachment?.storageDriver || 'local') !== 'gridfs') {
-    if (!localFilePath || !fs.existsSync(localFilePath)) {
-      return res.status(404).json({ success: false, message: 'File not found' })
-    }
-    return res.sendFile(localFilePath)
+    return sendUploadedFile({
+      res,
+      folder: resolveLocalAttachmentFolder(attachment, localFilePath),
+      fileName: attachment?.fileName || (localFilePath ? path.basename(localFilePath) : ''),
+      localPath: localFilePath,
+      connection: transactionModel?.db,
+    })
   }
 
   const storageKey = String(attachment.storageKey || '')

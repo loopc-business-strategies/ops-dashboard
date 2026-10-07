@@ -196,6 +196,12 @@ async function startServer() {
     } catch (e) {
       console.warn('[startup] notification digest job not started:', e.message)
     }
+    try {
+      const { startUploadVolumeMigrationJob } = require('./jobs/uploadVolumeMigrationJob')
+      startUploadVolumeMigrationJob()
+    } catch (e) {
+      console.warn('[startup] upload migration job not started:', e.message)
+    }
   } catch (err) {
     setPrimaryMongoReady(false)
     console.error(`❌ MongoDB connect failed (${mongoUri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)

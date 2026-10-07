@@ -2,7 +2,6 @@
 // CRM routes — Contacts, Companies, Leads, Deals, Activities, Follow-ups
 
 const express = require('express')
-const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { protect } = require('../middleware/auth')
@@ -14,6 +13,12 @@ const CrmLead     = require('../models/CrmLead')
 const CrmDeal     = require('../models/CrmDeal')
 const CrmActivity = require('../models/CrmActivity')
 const { createDiskUpload, resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
+const {
+  persistUploadedFile,
+  discardUploadedTempFile,
+  sendUploadedFile,
+  deleteUploadedFile,
+} = require('../services/uploadFileStore')
 const { resolveAttachmentContentDisposition } = require('../services/erpAccounting/attachmentDownloadHeaders')
 const { sanitizeFileName } = require('../utils/sanitizeFileName')
 
@@ -844,8 +849,12 @@ router.post('/contacts/:id/documents', salesEditOnly, (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'File is required.' })
     const contact = await CrmContact.findOne({ _id: req.params.id, isDeleted: false })
-    if (!contact) return res.status(404).json({ success: false, message: 'Contact not found.' })
+    if (!contact) {
+      discardUploadedTempFile(req.file)
+      return res.status(404).json({ success: false, message: 'Contact not found.' })
+    }
 
+    await persistUploadedFile({ folder: 'crm-contacts', file: req.file, metadata: { contactId: String(contact._id) } })
     const relativePath = `/uploads/crm-contacts/${req.file.filename}`
     const safeName = sanitizeFileName(req.file.originalname, 'document')
     const newDoc = {
@@ -866,6 +875,7 @@ router.post('/contacts/:id/documents', salesEditOnly, (req, res, next) => {
 
     res.status(201).json({ success: true, data: contact })
   } catch (e) {
+    discardUploadedTempFile(req.file)
     res.status(400).json({ success: false, message: e.message })
   }
 })
@@ -879,14 +889,14 @@ router.delete('/contacts/:id/documents/:docId', salesEditOnly, async (req, res) 
     const doc = docs.find((d) => String(d._id) === String(req.params.docId))
     if (!doc) return res.status(404).json({ success: false, message: 'Document not found.' })
 
-    if (doc.relativePath) {
-      const filePath = resolveContactDocumentPath(doc.relativePath)
-      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath)
-    }
-
     contact.kyc = contact.kyc || {}
     contact.kyc.documents = docs.filter((d) => String(d._id) !== String(req.params.docId))
     await contact.save()
+
+    const filePath = doc.relativePath ? resolveContactDocumentPath(doc.relativePath) : null
+    if (filePath) {
+      await deleteUploadedFile({ folder: 'crm-contacts', fileName: path.basename(filePath), localPath: filePath })
+    }
 
     res.json({ success: true, data: contact })
   } catch (e) {
@@ -904,7 +914,7 @@ router.get('/contacts/:id/documents/:docId/download', salesOnly, validateParams(
     if (!doc) return res.status(404).json({ success: false, message: 'Document not found.' })
 
     const filePath = resolveContactDocumentPath(doc.relativePath)
-    if (!filePath || !fs.existsSync(filePath)) {
+    if (!filePath) {
       return res.status(404).json({ success: false, message: 'File not found.' })
     }
 
@@ -920,7 +930,7 @@ router.get('/contacts/:id/documents/:docId/download', salesOnly, validateParams(
         resolveAttachmentContentDisposition(req, { mimeType: doc.mimeType, filename: downloadName }),
       )
     }
-    return res.sendFile(filePath)
+    return await sendUploadedFile({ res, folder: 'crm-contacts', fileName: path.basename(filePath), localPath: filePath })
   } catch (e) {
     res.status(500).json({ success: false, message: 'Internal server error' })
   }

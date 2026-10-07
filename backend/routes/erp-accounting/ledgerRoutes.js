@@ -17,6 +17,7 @@ const { applyYearMonthsDateFilter } = require('../../utils/yearMonthsDateFilter'
 const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
 const { invalidateErpReadCaches } = require('../../utils/erpReadCaches')
 const { BASE_CURRENCY_CODE: FALLBACK_BASE_CURRENCY_CODE } = require('./transactionHelpers')
+const { persistUploadedFile } = require('../../services/uploadFileStore')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -444,6 +445,9 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
     }
 
     await assertPeriod({ tenant: req.tenant, date: new Date(date) })
+    if (req.file) {
+      await persistUploadedFile({ folder: 'bank-slips', file: req.file, connection: TenantLedger.db })
+    }
 
     const entry = await TenantLedger.create({
       date: new Date(date),

@@ -6,6 +6,7 @@ const { Joi, validateParams, validateQuery, validateBody } = require('../middlew
 const OperationsLegalDocument = require('../models/OperationsLegalDocument')
 const OperationsLegalFolder = require('../models/OperationsLegalFolder')
 const { createDiskUpload, resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
+const { persistUploadedFile, sendUploadedFile, deleteUploadedFile } = require('../services/uploadFileStore')
 const {
   TRANSACTION_ATTACHMENT_MIME_TYPES,
   validateAttachmentContent,
@@ -236,6 +237,7 @@ router.post(
 
       const storedFileName = path.basename(req.file.path)
       const uploader = normalizeUploaderName(req.user?.name)
+      await persistUploadedFile({ folder: 'operations-legal-docs', file: req.file })
       const doc = await OperationsLegalDocument.create({
         originalName: req.file.originalname || 'document',
         storedFileName,
@@ -282,13 +284,7 @@ router.delete('/:id', protect, validateParams(idParamSchema), async (req, res) =
     }
     doc.isDeleted = true
     await doc.save()
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath)
-      } catch {
-        /* ignore */
-      }
-    }
+    await deleteUploadedFile({ folder: 'operations-legal-docs', fileName: safeName, localPath: filePath })
     res.json({ success: true })
   } catch {
     res.status(500).json({ success: false, message: 'Delete failed' })
@@ -313,9 +309,6 @@ router.get('/:id/download', protect, validateParams(idParamSchema), async (req, 
     if (!filePath.startsWith(resolvedUpload)) {
       return res.status(403).json({ success: false, message: 'Access denied' })
     }
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'File missing on disk' })
-    }
     const mime = doc.mimeType || 'application/octet-stream'
     res.type(mime)
     res.setHeader(
@@ -325,7 +318,13 @@ router.get('/:id/download', protect, validateParams(idParamSchema), async (req, 
         filename: doc.originalName,
       }),
     )
-    res.sendFile(filePath)
+    return await sendUploadedFile({
+      res,
+      folder: 'operations-legal-docs',
+      fileName: safeName,
+      localPath: filePath,
+      notFoundMessage: 'File missing',
+    })
   } catch {
     res.status(500).json({ success: false, message: 'Download failed' })
   }

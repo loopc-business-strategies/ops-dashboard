@@ -1,4 +1,3 @@
-const fs = require('fs')
 const path = require('path')
 const express = require('express')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
@@ -18,6 +17,7 @@ const {
   isDepartmentHead,
 } = require('../services/permissions/moduleAccessPolicy')
 const { chatUpload, chatUploadDir, buildAttachmentPayload } = require('../services/chat/uploadMiddleware')
+const { persistUploadedFile, discardUploadedTempFile, sendUploadedFile } = require('../services/uploadFileStore')
 const { assertChatTranslationAccess } = require('../services/chatTranslationAccess')
 const { translateChatMessage } = require('../services/chatTranslation')
 const { createSharedRateLimitStore } = require('../utils/sharedRateLimitStore')
@@ -215,6 +215,7 @@ async function createMessageRecord(req, res) {
   if (groupId && /^[a-f\d]{24}$/i.test(String(groupId))) {
     resolvedGroup = await ChatGroup.findOne({ _id: groupId, isActive: true })
     if (!resolvedGroup) {
+      discardUploadedTempFile(req.file)
       return res.status(404).json({ success: false, message: 'Chat group not found.' })
     }
   }
@@ -252,6 +253,10 @@ async function createMessageRecord(req, res) {
     || room
     || (safeType === 'group' ? `${resolvedDepartment || 'general'} updates` : 'Direct Message')
   ).trim()
+
+  if (attachment) {
+    await persistUploadedFile({ folder: 'chat', file: req.file, metadata: { senderId: String(req.user._id) } })
+  }
 
   const message = await Message.create({
     type: safeType,
@@ -478,7 +483,7 @@ router.get('/attachments/:filename', protect, async (req, res) => {
 
     const attachment = (message.attachments || []).find((entry) => String(entry.fileName) === filename)
     const filePath = path.resolve(chatUploadDir, filename)
-    if (!filePath.startsWith(chatUploadDir) || !fs.existsSync(filePath)) {
+    if (!filePath.startsWith(chatUploadDir)) {
       return res.status(404).json({ success: false, message: 'File not found.' })
     }
 
@@ -486,7 +491,7 @@ router.get('/attachments/:filename', protect, async (req, res) => {
     if (attachment?.originalName) {
       res.setHeader('Content-Disposition', `inline; filename="${attachment.originalName.replace(/"/g, '')}"`)
     }
-    return res.sendFile(filePath)
+    return await sendUploadedFile({ res, folder: 'chat', fileName: filename, localPath: filePath })
   } catch {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
@@ -496,6 +501,7 @@ router.post('/', protect, maybeUpload, validateBody(createMessageSchema), async 
   try {
     return await createMessageRecord(req, res)
   } catch {
+    discardUploadedTempFile(req.file)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })

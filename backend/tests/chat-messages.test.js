@@ -10,16 +10,25 @@ const {
   disconnectMongooseIfConnected,
 } = require('./mongoMemoryTestServer')
 
+const uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-upload-'))
+process.env.CHAT_UPLOAD_DIR = uploadDir
+
 const createApp = require('../app')
 const User = require('../models/User')
 const Message = require('../models/Message')
 const ChatGroup = require('../models/ChatGroup')
+const { migrateUploadVolumeOnce } = require('../jobs/uploadVolumeMigrationJob')
 
 jest.setTimeout(120000)
 
+const readBinaryBody = (res, callback) => {
+  const chunks = []
+  res.on('data', (chunk) => chunks.push(chunk))
+  res.on('end', () => callback(null, Buffer.concat(chunks)))
+}
+
 let mongo
 let app
-let uploadDir
 
 const TEST_TENANT = 'loopc'
 const tokenFor = (user) => jwt.sign({ id: user._id.toString(), company: TEST_TENANT }, process.env.JWT_SECRET)
@@ -42,8 +51,6 @@ beforeAll(async () => {
   process.env.RATE_LIMIT_MAX = '100000'
   process.env.AUTH_RATE_LIMIT_MAX = '100000'
   process.env.DEFAULT_TENANT = TEST_TENANT
-  uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-upload-'))
-  process.env.CHAT_UPLOAD_DIR = uploadDir
 
   mongo = await startMongoMemoryServer()
   const mongoUri = mongo.getUri()
@@ -59,6 +66,8 @@ afterEach(async () => {
     User.deleteMany({}),
     Message.deleteMany({}),
     ChatGroup.deleteMany({}),
+    mongoose.connection.db.collection('uploadedFiles.files').deleteMany({}),
+    mongoose.connection.db.collection('uploadedFiles.chunks').deleteMany({}),
   ])
   fs.readdirSync(uploadDir).forEach((file) => {
     fs.unlinkSync(path.join(uploadDir, file))
@@ -129,12 +138,49 @@ describe('chat messages API', () => {
     expect(res.body.message.attachments[0].originalName).toBe('note.pdf')
 
     const fileName = res.body.message.attachments[0].fileName
+    expect(fs.readdirSync(uploadDir)).toEqual([])
+
     const download = await request(app)
       .get(`/api/messages/attachments/${fileName}`)
       .set('Authorization', `Bearer ${tokenFor(admin)}`)
+      .buffer(true)
+      .parse(readBinaryBody)
 
     expect(download.status).toBe(200)
     expect(download.headers['content-type']).toMatch(/pdf/)
+    expect(Buffer.compare(download.body, buffer)).toBe(0)
+  })
+
+  test('attachment left on the server disk is served, then copied into the database at startup', async () => {
+    const admin = await createUser({ role: 'super_admin', name: 'Legacy Chat Admin' })
+    const fileName = 'chat-legacy-abc123-old-note.pdf'
+    const content = Buffer.from('%PDF-1.4 legacy attachment')
+    fs.writeFileSync(path.join(uploadDir, fileName), content)
+    await Message.create({
+      type: 'group',
+      room: 'General',
+      department: 'operations',
+      senderId: admin._id,
+      senderName: admin.name,
+      attachments: [{ fileName, originalName: 'old-note.pdf', mimeType: 'application/pdf', size: content.length, kind: 'file' }],
+    })
+
+    const download = (label) => request(app)
+      .get(`/api/messages/attachments/${fileName}`)
+      .set('Authorization', `Bearer ${tokenFor(admin)}`)
+      .buffer(true)
+      .parse(readBinaryBody)
+      .then((r) => ({ label, status: r.status, body: r.body }))
+
+    expect(await download('disk')).toMatchObject({ label: 'disk', status: 200, body: content })
+
+    const status = await migrateUploadVolumeOnce()
+    expect(status.state).toBe('done')
+    expect(status.tenants[TEST_TENANT]).toMatchObject({ copied: 1, missingOnDisk: 0, failed: 0 })
+    expect((await migrateUploadVolumeOnce()).tenants[TEST_TENANT]).toMatchObject({ copied: 0, alreadyStored: 1 })
+
+    fs.unlinkSync(path.join(uploadDir, fileName))
+    expect(await download('database')).toMatchObject({ label: 'database', status: 200, body: content })
   })
 
   test('user not in chat group does not see group messages in /latest', async () => {

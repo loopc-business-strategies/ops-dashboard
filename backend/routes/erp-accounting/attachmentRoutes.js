@@ -1,7 +1,7 @@
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
-const fs = require('fs')
 const path = require('path')
 const { resolveUploadDir } = require('../../services/erpAccounting/uploadMiddleware')
+const { sendUploadedFile } = require('../../services/uploadFileStore')
 const {
   inferMimeFromFilename,
   resolveAttachmentContentDisposition,
@@ -86,15 +86,18 @@ function registerAttachmentRoutes(deps) {
           return res.status(404).json({ success: false, message: 'Bank slip not found for this tenant' })
         }
 
-        if (!fs.existsSync(filePath)) {
-          return res.status(404).json({ success: false, message: 'File not found' })
-        }
-
         res.setHeader('Content-Disposition', resolveAttachmentContentDisposition(req, {
           mimeType: inferMimeFromFilename(filename),
           filename: ledger.attachmentName || filename,
         }))
-        return res.sendFile(filePath)
+        const TenantLedger = await Ledger.getTenantModel(req.tenant)
+        return await sendUploadedFile({
+          res,
+          folder: 'bank-slips',
+          fileName: filename,
+          localPath: filePath,
+          connection: TenantLedger.db,
+        })
       }
 
       return res.status(400).json({ success: false, message: 'Invalid attachment type' })

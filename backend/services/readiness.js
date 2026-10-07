@@ -113,6 +113,7 @@ async function getReadinessStatus() {
       uploadStorageWritable: uploadStorage.uploadStorageWritable,
       uploadVolumeAligned: uploadStorage.volumeAligned,
       uploadStorageRecommended: uploadStorage.uploadStorageRecommended,
+      uploadMigration: require('../jobs/uploadVolumeMigrationJob').getUploadVolumeMigrationStatus(),
       integrations: {
         /** Expo server push: `expo-server-sdk` uses `EXPO_ACCESS_TOKEN` (never the secret value here). */
         expoPushAccessTokenSet,
