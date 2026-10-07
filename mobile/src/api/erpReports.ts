@@ -84,6 +84,8 @@ export type AccountEnquiryMetals = {
   updatedAt?: string
   goldBalance?: number
   silverBalance?: number
+  goldValuationBalance?: number
+  silverValuationBalance?: number
   suppressMetalSpotMtm?: boolean
   bookedUnfixedRevaluation?: { total?: number }
 }

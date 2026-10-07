@@ -31,6 +31,8 @@ export function mapMarginRow(
 ): MappedMarginRow {
   const goldPosition = Number(row?.goldPosition || 0)
   const silverPosition = Number(row?.silverPosition || 0)
+  const goldValuationPosition = Number(row?.goldValuationPosition ?? goldPosition)
+  const silverValuationPosition = Number(row?.silverValuationPosition ?? silverPosition)
   let rawNet = Number(row?.equity ?? row?.netCashFlow ?? 0)
   let marginAmount = Number(row?.marginAmount || 0)
   let marginPercent = row?.marginPercent
@@ -47,8 +49,8 @@ export function mapMarginRow(
     const suppressMetalSpotMtm = Boolean(options.suppressMetalSpotMtm ?? row?.suppressMetalSpotMtm)
     const metrics = computeMarginMetricsRaw({
       totalFunds,
-      goldPosition,
-      silverPosition,
+      goldPosition: goldValuationPosition,
+      silverPosition: silverValuationPosition,
       goldPrice: goldPriceUSD,
       silverPrice: silverPriceUSD,
       suppressMetalSpotMtm,

@@ -2576,6 +2576,8 @@ describe('ERP accounting transactions workflow', () => {
     expect(enquiryRes.status).toBe(200)
     // Direct deal buy (+10000 g Dr) less unfixed purchase (995 g Cr).
     expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(9005, 2)
+    // The open purchase still owes the customer its 995 g price, so it values in their favour.
+    expect(Number(enquiryRes.body.metals?.goldValuationBalance || 0)).toBeCloseTo(10995, 2)
 
     const customersRes = await request(app)
       .get('/api/erp-accounting/customers')
@@ -2585,6 +2587,7 @@ describe('ERP accounting transactions workflow', () => {
     const customerRow = (customersRes.body.customers || []).find((row) => String(row._id) === String(customer._id))
     expect(customerRow).toBeTruthy()
     expect(Number(customerRow.goldPosition || 0)).toBeCloseTo(9005, 2)
+    expect(Number(customerRow.goldValuationPosition || 0)).toBeCloseTo(10995, 2)
 
     const dashRes = await request(app)
       .get('/api/erp-accounting/reports/dashboard')
@@ -2594,6 +2597,7 @@ describe('ERP accounting transactions workflow', () => {
     const marginRow = (dashRes.body.customerMargins || []).find((row) => String(row.id) === String(customer._id))
     expect(marginRow).toBeTruthy()
     expect(Number(marginRow.goldPosition || 0)).toBeCloseTo(9005, 2)
+    expect(Number(marginRow.goldValuationPosition || 0)).toBeCloseTo(10995, 2)
   })
 
   test('fixing a posted unfixed purchase closes its grams without editing the voucher', async () => {
@@ -2645,7 +2649,9 @@ describe('ERP accounting transactions workflow', () => {
       return res
     }
 
-    expect(Number((await readGoldBalance()).body.metals?.goldBalance || 0)).toBeCloseTo(-311.034768, 4)
+    const beforeFixRes = await readGoldBalance()
+    expect(Number(beforeFixRes.body.metals?.goldBalance || 0)).toBeCloseTo(-311.034768, 4)
+    expect(Number(beforeFixRes.body.metals?.goldValuationBalance || 0)).toBeCloseTo(311.034768, 4)
 
     const tooMuchRes = await request(app)
       .post(`/api/erp-accounting/transactions/${voucher._id}/fixings`)
@@ -2670,6 +2676,7 @@ describe('ERP accounting transactions workflow', () => {
 
     const afterFixRes = await readGoldBalance()
     expect(Number(afterFixRes.body.metals?.goldBalance || 0)).toBeCloseTo(-155.517384, 4)
+    expect(Number(afterFixRes.body.metals?.goldValuationBalance || 0)).toBeCloseTo(155.517384, 4)
     const fixingRow = (afterFixRes.body.statement?.entries || []).find((row) => row.referenceType === 'voucher_fixing')
     expect(fixingRow).toMatchObject({
       isVoucherFixing: true,

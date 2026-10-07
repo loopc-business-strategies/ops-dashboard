@@ -40,6 +40,23 @@ describe('mapMarginRow live recalc', () => {
     expect(repriced.marginPercent).toBeCloseTo(25000, 1)
   })
 
+  test('values open unfixed purchase grams in the customer favour', () => {
+    const mapped = mapMarginRow({
+      customerName: 'Unfixed Seller',
+      equity: 1000,
+      marginRevaluation: 1000,
+      goldPosition: -10,
+      goldValuationPosition: 10,
+      silverPosition: 0,
+      marginAmount: 20,
+    }, 'customerName', {
+      liveRecalcEnabled: true,
+      goldPriceUSD: 120,
+      silverPriceUSD: 1,
+    })
+    expect(mapped.equity).toBe(1200)
+  })
+
   test('supplier suppression keeps equity stable when spot rises', () => {
     const baseRow = {
       supplierName: 'Vendor',

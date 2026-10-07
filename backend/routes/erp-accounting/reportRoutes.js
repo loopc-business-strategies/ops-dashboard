@@ -42,6 +42,8 @@ const {
 const {
   accumulateDirectDealMetalIntoMap,
   addOpenUnfixedVoucherWeight,
+  addOpenUnfixedVoucherToPartyRow,
+  createEmptyPartyPositionRow,
   listActiveVoucherFixings,
   resolveDirectDealCompanyDirection,
 } = require('../../services/erpAccounting/metalPositionPolicy')
@@ -1448,11 +1450,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     ;(customerMetalTxs || []).forEach((tx) => {
       const customerId = String(tx.customerId || '')
       if (!customerId) return
-      const openWeight = { gold: 0, silver: 0 }
-      if (!addOpenUnfixedVoucherWeight(openWeight, tx)) return
-      const position = marginMetalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
-      position.goldPosition += openWeight.gold
-      position.silverPosition += openWeight.silver
+      const position = marginMetalPositionMap.get(customerId) || createEmptyPartyPositionRow()
+      if (!addOpenUnfixedVoucherToPartyRow(position, tx)) return
       marginMetalPositionMap.set(customerId, position)
     })
     accumulateDirectDealMetalIntoMap(customerDirectDeals || [], marginMetalPositionMap)
@@ -1463,14 +1462,16 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       const rawOutstanding = ledgerId
         ? opening + Number(outstandingMap.get(String(ledgerId)) || 0)
         : Number(customer.outstandingBalance || 0)
-      const rawPosition = marginMetalPositionMap.get(String(customer._id || '')) || { goldPosition: 0, silverPosition: 0 }
+      const rawPosition = marginMetalPositionMap.get(String(customer._id || '')) || createEmptyPartyPositionRow()
       const goldPosition = roundPosition(rawPosition.goldPosition)
       const silverPosition = roundPosition(rawPosition.silverPosition)
+      const goldValuationPosition = roundPosition(rawPosition.goldValuationPosition)
+      const silverValuationPosition = roundPosition(rawPosition.silverValuationPosition)
       const marginMetrics = calculateMarginMetrics({
         // Margin exposure = negated accounting net (credit → +, debit → -). Supplier path unchanged.
         totalFunds: -rawOutstanding,
-        goldPosition,
-        silverPosition,
+        goldPosition: goldValuationPosition,
+        silverPosition: silverValuationPosition,
         goldPrice: marginRates.goldPrice,
         silverPrice: marginRates.silverPrice,
         suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForCustomerDashboard(customer.ledgerAccountId?.accountType),
@@ -1491,6 +1492,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
           marginPercent: marginMetrics.marginPercent,
           goldPosition,
           silverPosition,
+          goldValuationPosition,
+          silverValuationPosition,
           marginAmount: marginMetrics.margin,
           marginExcess: marginMetrics.excess,
           marginRevaluation: marginMetrics.revaluation,
@@ -1513,6 +1516,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         marginPercent: marginMetrics.marginPercent,
         goldPosition,
         silverPosition,
+        goldValuationPosition,
+        silverValuationPosition,
         marginAmount: marginMetrics.margin,
         marginExcess: marginMetrics.excess,
         marginRevaluation: marginMetrics.revaluation,

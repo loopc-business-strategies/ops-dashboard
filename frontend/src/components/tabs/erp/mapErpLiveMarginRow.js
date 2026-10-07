@@ -25,6 +25,8 @@ function fmtPosition(val) {
 export function mapErpLiveMarginRow(row, nameKey, options = {}) {
   const goldPosition = Number(row?.goldPosition || 0)
   const silverPosition = Number(row?.silverPosition || 0)
+  const goldValuationPosition = Number(row?.goldValuationPosition ?? goldPosition)
+  const silverValuationPosition = Number(row?.silverValuationPosition ?? silverPosition)
   let rawNet = Number(row?.equity ?? row?.netCashFlow ?? 0)
   let marginAmount = Number(row?.marginAmount || 0)
   let rawExcess = Number(row?.marginExcess ?? (rawNet - marginAmount))
@@ -42,8 +44,8 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
     const suppressMetalSpotMtm = Boolean(options.suppressMetalSpotMtm ?? row?.suppressMetalSpotMtm)
     const metrics = computeMarginMetricsRaw({
       totalFunds,
-      goldPosition,
-      silverPosition,
+      goldPosition: goldValuationPosition,
+      silverPosition: silverValuationPosition,
       goldPrice: goldPriceUSD,
       silverPrice: silverPriceUSD,
       suppressMetalSpotMtm,

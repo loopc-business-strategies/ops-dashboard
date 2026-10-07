@@ -33,6 +33,22 @@ export function buildAccountEnquiryLiveMetrics({
   })
 }
 
+/**
+ * Grams to value at spot. Open unfixed vouchers count on the party's side of
+ * the pending price, not the Dr/Cr side shown, so the API sends them apart.
+ */
+export function resolveEnquiryValuationBalances(metals = {}, shown = { gold: 0, silver: 0 }) {
+  const pick = (value, fallback) => {
+    if (value === null || value === undefined || value === '') return fallback
+    const n = Number(value)
+    return Number.isFinite(n) ? n : fallback
+  }
+  return {
+    gold: pick(metals?.goldValuationBalance, Number(shown?.gold || 0)),
+    silver: pick(metals?.silverValuationBalance, Number(shown?.silver || 0)),
+  }
+}
+
 export function hasAccountEnquiryMetalExposure(goldPosition = 0, silverPosition = 0) {
   return Math.abs(Number(goldPosition || 0)) > 0.000001
     || Math.abs(Number(silverPosition || 0)) > 0.000001

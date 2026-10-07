@@ -13,6 +13,8 @@ export type MarginRow = {
   status?: string
   goldPosition?: number
   silverPosition?: number
+  goldValuationPosition?: number
+  silverValuationPosition?: number
   marginRevaluation?: number
   suppressMetalSpotMtm?: boolean
 }

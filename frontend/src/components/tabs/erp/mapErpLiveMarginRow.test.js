@@ -27,6 +27,24 @@ describe('mapErpLiveMarginRow', () => {
     expect(high.marginFmt).toBe('25000.00 %')
   })
 
+  test('values open unfixed purchase grams in the customer favour while showing them as Cr', () => {
+    const mapped = mapErpLiveMarginRow({
+      customerName: 'Unfixed Seller',
+      equity: 1000,
+      marginRevaluation: 1000,
+      goldPosition: -10,
+      goldValuationPosition: 10,
+      silverPosition: 0,
+      marginAmount: 20,
+    }, 'customerName', {
+      marginLiveRecalc: true,
+      goldPriceUSD: 120,
+      silverPriceUSD: 1,
+    })
+    expect(mapped.goldPosition).toBe(-10)
+    expect(mapped.equity).toBe(1200)
+  })
+
   test('hides Margin % when the metal position is too small for it to mean anything', () => {
     const mapped = mapErpLiveMarginRow({ customerName: 'Tiny', equity: -320, marginAmount: 0.053, marginPercent: -603358 }, 'customerName')
     expect(mapped.marginPercent).toBe(-603358)

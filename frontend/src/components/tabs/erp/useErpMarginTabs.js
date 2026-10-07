@@ -69,6 +69,8 @@ export function useErpCustomerMargin({
         const outstanding = Number(customer?.outstandingBalance || 0)
         const goldPosition = Number(customer?.goldPosition || 0)
         const silverPosition = Number(customer?.silverPosition || 0)
+        const goldValuationPosition = Number(customer?.goldValuationPosition ?? goldPosition)
+        const silverValuationPosition = Number(customer?.silverValuationPosition ?? silverPosition)
         const accountType = customer?.ledgerAccountId?.accountType
         const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
 
@@ -84,8 +86,8 @@ export function useErpCustomerMargin({
           const totalFunds = frozenEquity - frozenReval
           const metrics = computeMarginMetricsRaw({
             totalFunds,
-            goldPosition,
-            silverPosition,
+            goldPosition: goldValuationPosition,
+            silverPosition: silverValuationPosition,
             goldPrice,
             silverPrice,
             suppressMetalSpotMtm,
@@ -117,7 +119,7 @@ export function useErpCustomerMargin({
         const isLiabilityCustomerLedger = suppressMetalSpotMtm
         const fallbackRevaluation = isLiabilityCustomerLedger
           ? 0
-          : (goldPosition * goldPrice) + (silverPosition * silverPrice)
+          : (goldValuationPosition * goldPrice) + (silverValuationPosition * silverPrice)
         const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: customerFunds,

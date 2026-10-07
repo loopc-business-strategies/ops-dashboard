@@ -51,6 +51,16 @@ function resolveUnfixedVoucherWeightSign(txType = '') {
 }
 
 /**
+ * Open unfixed grams are valued on the party's side of the price still to be
+ * fixed: a purchase (metal received, not yet priced) is owed to the party and
+ * counts in its favour, a sale counts against it. That is the opposite of the
+ * Dr/Cr side the grams show on, so margin/equity use this sign instead.
+ */
+function resolveUnfixedVoucherValuationSign(txType = '') {
+  return -resolveUnfixedVoucherWeightSign(txType) || 0
+}
+
+/**
  * Direct deal direction is the customer's side (buy posts Dr customer / Cr Gold
  * Sales Fixing). Company reports (fixing register, dashboard net position) need
  * MG's side, matching vouchers where purchase = buy.
@@ -97,12 +107,15 @@ function resolveVoucherFixedWeightByMetal(tx = {}) {
 
 /**
  * Adds an unfixed voucher's open grams (line grams minus fixed grams) into
- * `position` using the voucher sign. Returns false when the voucher is fixed.
+ * `position` using the voucher's Dr/Cr sign, or its valuation sign when
+ * `valuation` is set. Returns false when the voucher is fixed.
  */
-function addOpenUnfixedVoucherWeight(position, tx = {}) {
+function addOpenUnfixedVoucherWeight(position, tx = {}, { valuation = false } = {}) {
   const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
   if (!isUnfixedFixingType(fixingType)) return false
-  const sign = resolveUnfixedVoucherWeightSign(tx.type)
+  const sign = valuation
+    ? resolveUnfixedVoucherValuationSign(tx.type)
+    : resolveUnfixedVoucherWeightSign(tx.type)
   if (!sign) return false
   const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
   for (const line of lines) {
@@ -116,12 +129,32 @@ function addOpenUnfixedVoucherWeight(position, tx = {}) {
   return true
 }
 
-function accumulateUnfixedMetalFromTransactions(metalTxs = []) {
+function accumulateUnfixedMetalFromTransactions(metalTxs = [], { valuation = false } = {}) {
   const position = createEmptyMetalPosition()
   for (const tx of metalTxs) {
-    addOpenUnfixedVoucherWeight(position, tx)
+    addOpenUnfixedVoucherWeight(position, tx, { valuation })
   }
   return position
+}
+
+function createEmptyPartyPositionRow() {
+  return { goldPosition: 0, silverPosition: 0, goldValuationPosition: 0, silverValuationPosition: 0 }
+}
+
+/**
+ * Adds an unfixed voucher's open grams to a party row: Dr/Cr grams into
+ * gold/silverPosition, valuation grams into gold/silverValuationPosition.
+ */
+function addOpenUnfixedVoucherToPartyRow(row, tx = {}) {
+  const shown = createEmptyMetalPosition()
+  if (!addOpenUnfixedVoucherWeight(shown, tx)) return false
+  const valued = createEmptyMetalPosition()
+  addOpenUnfixedVoucherWeight(valued, tx, { valuation: true })
+  row.goldPosition += shown.gold
+  row.silverPosition += shown.silver
+  row.goldValuationPosition += valued.gold
+  row.silverValuationPosition += valued.silver
+  return true
 }
 
 function accumulateDirectDealMetalForCustomer(directDeals = [], customerId) {
@@ -151,11 +184,13 @@ function accumulateDirectDealMetalIntoMap(directDeals = [], positionMap = new Ma
       if (!customerId) continue
       const signedWeight = resolveDirectDealLineSignedWeight(line)
       if (!signedWeight) continue
-      const position = positionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
+      const position = positionMap.get(customerId) || createEmptyPartyPositionRow()
       if (isSilverLine(line?.stockCode, resolveDirectDealLineMetalCode(line))) {
         position.silverPosition += signedWeight
+        position.silverValuationPosition = Number(position.silverValuationPosition || 0) + signedWeight
       } else {
         position.goldPosition += signedWeight
+        position.goldValuationPosition = Number(position.goldValuationPosition || 0) + signedWeight
       }
       positionMap.set(customerId, position)
     }
@@ -186,12 +221,15 @@ module.exports = {
   resolveDirectDealLineSignedWeight,
   resolveDirectDealLineMetalCode,
   resolveUnfixedVoucherWeightSign,
+  resolveUnfixedVoucherValuationSign,
   resolveDirectDealCompanyDirection,
   createEmptyMetalPosition,
+  createEmptyPartyPositionRow,
   addSignedWeightToPosition,
   listActiveVoucherFixings,
   resolveVoucherFixedWeightByMetal,
   addOpenUnfixedVoucherWeight,
+  addOpenUnfixedVoucherToPartyRow,
   accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalForCustomer,
   accumulateDirectDealMetalIntoMap,

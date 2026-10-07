@@ -364,6 +364,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const unfixedVendorMetal = accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
     goldBalance += unfixedCustomerMetal.gold + unfixedVendorMetal.gold
     silverBalance += unfixedCustomerMetal.silver + unfixedVendorMetal.silver
+    const unfixedMetalValuation = accumulateUnfixedMetalFromTransactions(
+      [...customerMetalTxs, ...vendorMetalTxs],
+      { valuation: true },
+    )
+    // Valuation grams differ from the shown balance only for open unfixed vouchers.
+    let goldValuationBalance = unfixedMetalValuation.gold
+    let silverValuationBalance = unfixedMetalValuation.silver
 
     const ledgerStatementMatch = {
       isDeleted: { $ne: true },
@@ -498,8 +505,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         })
         if (isSilver) {
           silverBalance += signedWeight
+          silverValuationBalance += signedWeight
         } else {
           goldBalance += signedWeight
+          goldValuationBalance += signedWeight
         }
       }
     }
@@ -516,6 +525,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const directDealMetal = accumulateDirectDealMetalForCustomer(customerDirectDeals, linkedCustomer._id)
       goldBalance += directDealMetal.gold
       silverBalance += directDealMetal.silver
+      goldValuationBalance += directDealMetal.gold
+      silverValuationBalance += directDealMetal.silver
     }
 
     const resolveDirectDealLineType = (line = {}) => {
@@ -1116,7 +1127,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         limitValue: 0,
         balance: Number(goldBalance || 0),
         price: Number(rates.goldPrice || 0),
-        currentValue: Number(goldBalance || 0) * Number(rates.goldPrice || 0),
+        currentValue: Number(goldValuationBalance || 0) * Number(rates.goldPrice || 0),
         valueCurrency: rates.priceCurrency,
         unit: 'gram',
       },
@@ -1126,7 +1137,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         limitValue: 0,
         balance: Number(silverBalance || 0),
         price: Number(rates.silverPrice || 0),
-        currentValue: Number(silverBalance || 0) * Number(rates.silverPrice || 0),
+        currentValue: Number(silverValuationBalance || 0) * Number(rates.silverPrice || 0),
         valueCurrency: rates.priceCurrency,
         unit: 'gram',
       },
@@ -1161,6 +1172,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         updatedAt: rates.updatedAt,
         goldBalance,
         silverBalance,
+        goldValuationBalance,
+        silverValuationBalance,
         suppressMetalSpotMtm,
         bookedUnfixedRevaluation,
       },

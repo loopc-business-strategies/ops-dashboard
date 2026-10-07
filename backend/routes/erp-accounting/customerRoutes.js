@@ -3,7 +3,8 @@ const {
   _accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalIntoMap,
   roundMetalPosition,
-  addOpenUnfixedVoucherWeight,
+  createEmptyPartyPositionRow,
+  addOpenUnfixedVoucherToPartyRow,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { computeMarginMetricsRaw, shouldSuppressSpotMetalMtmForCustomerDashboard } = require('../../services/erpAccounting/metalMarginPolicy')
 
@@ -127,11 +128,8 @@ function registerCustomerRoutes(deps) {
       ;(metalTxs || []).forEach((tx) => {
         const customerId = String(tx.customerId || '')
         if (!customerId) return
-        const openWeight = { gold: 0, silver: 0 }
-        if (!addOpenUnfixedVoucherWeight(openWeight, tx)) return
-        const position = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
-        position.goldPosition += openWeight.gold
-        position.silverPosition += openWeight.silver
+        const position = metalPositionMap.get(customerId) || createEmptyPartyPositionRow()
+        if (!addOpenUnfixedVoucherToPartyRow(position, tx)) return
         metalPositionMap.set(customerId, position)
       })
       accumulateDirectDealMetalIntoMap(directDeals || [], metalPositionMap)
@@ -144,15 +142,17 @@ function registerCustomerRoutes(deps) {
         const opening = Number(customer.ledgerAccountId?.openingBalance ?? customer.openingBalance ?? 0)
         const net = opening + (debit - credit)
         const outstanding = toMoney(net)
-        const metalPosition = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
+        const metalPosition = metalPositionMap.get(customerId) || createEmptyPartyPositionRow()
         const goldPosition = roundPosition(metalPosition.goldPosition)
         const silverPosition = roundPosition(metalPosition.silverPosition)
+        const goldValuationPosition = roundPosition(metalPosition.goldValuationPosition)
+        const silverValuationPosition = roundPosition(metalPosition.silverValuationPosition)
         const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(customer.ledgerAccountId?.accountType)
         const margin = calculateCustomerMargin({
           // Margin exposure = negated accounting net (credit → +, debit → -). Not -abs.
           totalFunds: -net,
-          goldPosition,
-          silverPosition,
+          goldPosition: goldValuationPosition,
+          silverPosition: silverValuationPosition,
           goldPrice: rates.goldPrice,
           silverPrice: rates.silverPrice,
           suppressMetalSpotMtm,
@@ -162,6 +162,8 @@ function registerCustomerRoutes(deps) {
           outstandingBalance: outstanding,
           goldPosition,
           silverPosition,
+          goldValuationPosition,
+          silverValuationPosition,
           marginAmount: margin.margin,
           marginExcess: margin.excess,
           marginEquity: margin.equity,

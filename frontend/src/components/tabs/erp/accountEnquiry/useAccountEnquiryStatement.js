@@ -25,6 +25,7 @@ import {
   buildAccountEnquiryLiveMetrics,
   hasAccountEnquiryMetalExposure,
   resolveAccountEnquiryBookedRevaluation,
+  resolveEnquiryValuationBalances,
 } from './buildAccountEnquiryLiveMetrics'
 
 function resolveFixStatus(entry) {
@@ -360,6 +361,10 @@ export function useAccountEnquiryStatement({
   const apiSilverBal = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
   const xauBalance = apiGoldBal !== 0 ? apiGoldBal : statementUnfixedMetalBalances.gold
   const xagBalance = apiSilverBal !== 0 ? apiSilverBal : statementUnfixedMetalBalances.silver
+  const { gold: xauValuationBalance, silver: xagValuationBalance } = resolveEnquiryValuationBalances(
+    accountEnquiryData?.metals,
+    { gold: xauBalance, silver: xagBalance },
+  )
   const modalTotalFunds = totalFunds
 
   const enquirySuppressMetalSpotMtm = Boolean(
@@ -384,8 +389,8 @@ export function useAccountEnquiryStatement({
     && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
 
   const enquiryUseLiveSpotMtm = enquiryLiveRecalcEnabled && Boolean(accountEnquiryData)
-  const xauSpotValue = xauBalance * goldPriceUSD
-  const xagSpotValue = xagBalance * silverPriceUSD
+  const xauSpotValue = xauValuationBalance * goldPriceUSD
+  const xagSpotValue = xagValuationBalance * silverPriceUSD
 
   let xauCurrentValue
   let xagCurrentValue
@@ -498,7 +503,7 @@ export function useAccountEnquiryStatement({
   // Credit-positive margin funds: Debit ledger → negative, Credit ledger → positive.
   const marginEquityFundsForMetrics = -(isCashOnHandEnquiry ? visibleStatementNetBalance : totalFunds)
 
-  const hasMetalExposure = hasAccountEnquiryMetalExposure(xauBalance, xagBalance)
+  const hasMetalExposure = hasAccountEnquiryMetalExposure(xauValuationBalance, xagValuationBalance)
   const bookedRevaluationTotal = resolveAccountEnquiryBookedRevaluation(
     accountEnquiryData?.metals,
     enquirySuppressMetalSpotMtm ? statementUnfixedVoucherRevaluation : null,
@@ -506,8 +511,8 @@ export function useAccountEnquiryStatement({
 
   const enquiryLiveMetrics = buildAccountEnquiryLiveMetrics({
     totalFunds: marginEquityFundsForMetrics,
-    goldPosition: xauBalance,
-    silverPosition: xagBalance,
+    goldPosition: xauValuationBalance,
+    silverPosition: xagValuationBalance,
     goldPriceUSD,
     silverPriceUSD,
     suppressMetalSpotMtm: enquirySuppressMetalSpotMtm,

@@ -11,6 +11,7 @@ import {
   deriveEnquiryMetalBalances,
   hasAccountEnquiryMetalExposure,
   resolveAccountEnquiryBookedRevaluation,
+  resolveEnquiryValuationBalances,
 } from '@/src/utils/buildAccountEnquiryLiveMetrics'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '@/src/utils/metalMarginPolicy'
 import { formatMarginPercent } from '@/src/utils/marginWidgetHelpers'
@@ -51,16 +52,22 @@ export function AccountEnquirySummaryCard({
     const liveRecalcEnabled = enableLiveMetal && liveSpot.liveRecalcEnabled && Boolean(enquiry)
 
     const totalFunds = Number(balances.netBalance ?? 0)
+    // Credit-positive margin funds: Debit ledger → negative, Credit ledger → positive.
+    const marginEquityFunds = -totalFunds
+    const { gold: xauValuationBalance, silver: xagValuationBalance } = resolveEnquiryValuationBalances(
+      metals,
+      { gold: xauBalance, silver: xagBalance },
+    )
     const enquirySuppressMetalSpotMtm = Boolean(
       metals.suppressMetalSpotMtm || shouldSuppressSpotMetalMtmForAccountEnquiry(account),
     )
     const bookedRevaluation = resolveAccountEnquiryBookedRevaluation(metals, undefined)
-    const hasMetalExposure = hasAccountEnquiryMetalExposure(xauBalance, xagBalance)
+    const hasMetalExposure = hasAccountEnquiryMetalExposure(xauValuationBalance, xagValuationBalance)
 
     const liveMetrics = buildAccountEnquiryLiveMetrics({
-      totalFunds,
-      goldPosition: xauBalance,
-      silverPosition: xagBalance,
+      totalFunds: marginEquityFunds,
+      goldPosition: xauValuationBalance,
+      silverPosition: xagValuationBalance,
       goldPriceUSD,
       silverPriceUSD,
       suppressMetalSpotMtm: enquirySuppressMetalSpotMtm,
@@ -71,13 +78,13 @@ export function AccountEnquirySummaryCard({
     const revaluation = liveMetrics ? liveMetrics.revaluation : 0
     const marginAmount = liveMetrics ? liveMetrics.margin : 0
     const displayMetrics = calculateAccountSummaryMetrics({
-      totalFunds,
+      totalFunds: marginEquityFunds,
       revaluation,
       marginAmount,
     })
 
-    const xauSpotValue = xauBalance * goldPriceUSD
-    const xagSpotValue = xagBalance * silverPriceUSD
+    const xauSpotValue = xauValuationBalance * goldPriceUSD
+    const xagSpotValue = xagValuationBalance * silverPriceUSD
 
     return {
       accountName: account.accountName || 'Account',

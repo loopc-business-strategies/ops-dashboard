@@ -5,8 +5,11 @@ const {
   mergeMetalPositions,
   resolveDirectDealLineSignedWeight,
   resolveUnfixedVoucherWeightSign,
+  resolveUnfixedVoucherValuationSign,
   resolveDirectDealCompanyDirection,
   isUnfixedFixingType,
+  createEmptyPartyPositionRow,
+  addOpenUnfixedVoucherToPartyRow,
 } = require('../services/erpAccounting/metalPositionPolicy')
 
 describe('metalPositionPolicy', () => {
@@ -121,5 +124,41 @@ describe('metalPositionPolicy', () => {
     }], map)
 
     expect(map.get(customerId).goldPosition).toBeCloseTo(500, 6)
+    expect(map.get(customerId).goldValuationPosition).toBeCloseTo(500, 6)
+  })
+
+  test('open unfixed vouchers value on the customer side: purchase (+), sale (-)', () => {
+    expect(resolveUnfixedVoucherValuationSign('purchase')).toBe(1)
+    expect(resolveUnfixedVoucherValuationSign('sale')).toBe(-1)
+    expect(resolveUnfixedVoucherValuationSign('receipt')).toBe(0)
+
+    const position = accumulateUnfixedMetalFromTransactions([
+      { type: 'purchase', voucherMeta: { fixingType: 'non-fixing', lineItems: [{ stockCode: 'XAU', pureWeight: 99.99 }] } },
+      { type: 'sale', voucherMeta: { fixingType: 'non-fixing', lineItems: [{ stockCode: 'XAG', pureWeight: 40 }] } },
+    ], { valuation: true })
+    expect(position.gold).toBeCloseTo(99.99, 6)
+    expect(position.silver).toBeCloseTo(-40, 6)
+  })
+
+  test('party rows keep shown grams and valued grams apart for open unfixed vouchers', () => {
+    const row = createEmptyPartyPositionRow()
+    const added = addOpenUnfixedVoucherToPartyRow(row, {
+      type: 'purchase',
+      voucherMeta: {
+        fixingType: 'non-fixing',
+        lineItems: [{ stockCode: 'XAU', pureWeight: 199.98 }],
+        fixings: [{ pureWeight: 100, metalCode: 'XAU' }],
+      },
+    })
+    expect(added).toBe(true)
+    expect(row.goldPosition).toBeCloseTo(-99.98, 6)
+    expect(row.goldValuationPosition).toBeCloseTo(99.98, 6)
+
+    const fixedRow = createEmptyPartyPositionRow()
+    expect(addOpenUnfixedVoucherToPartyRow(fixedRow, {
+      type: 'purchase',
+      voucherMeta: { fixingType: 'fixing', lineItems: [{ stockCode: 'XAU', pureWeight: 50 }] },
+    })).toBe(false)
+    expect(fixedRow).toEqual(createEmptyPartyPositionRow())
   })
 })

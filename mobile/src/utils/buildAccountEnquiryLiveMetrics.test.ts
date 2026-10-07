@@ -4,7 +4,21 @@ import {
   calculateAccountSummaryMetrics,
   hasAccountEnquiryMetalExposure,
   resolveAccountEnquiryBookedRevaluation,
+  resolveEnquiryValuationBalances,
 } from './buildAccountEnquiryLiveMetrics'
+
+describe('resolveEnquiryValuationBalances', () => {
+  test('uses API valuation grams, even zero, over the shown Dr/Cr grams', () => {
+    expect(resolveEnquiryValuationBalances(
+      { goldValuationBalance: 99.99, silverValuationBalance: 0 },
+      { gold: -99.99, silver: 5 },
+    )).toEqual({ gold: 99.99, silver: 0 })
+  })
+
+  test('falls back to shown grams when the API predates valuation balances', () => {
+    expect(resolveEnquiryValuationBalances({}, { gold: 12, silver: -3 })).toEqual({ gold: 12, silver: -3 })
+  })
+})
 
 describe('buildAccountEnquiryLiveMetrics', () => {
   test('metal exposure: revaluation and net equity rise when spot rises', () => {
