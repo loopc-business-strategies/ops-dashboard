@@ -55,6 +55,19 @@ describe('computeAgingFromEntries', () => {
 
     expect(aging.total).toBe(600)
   })
+
+  test('a credit posted before the debit still reduces it', () => {
+    const accountId = '507f1f77bcf86cd799439011'
+    const entries = [
+      { date: new Date('2026-10-07'), debitAccountId: 'stock', creditAccountId: accountId, amount: 26357.15, exchangeRate: 1 },
+      { date: new Date('2026-10-07'), debitAccountId: accountId, creditAccountId: 'sales', amount: 26318563.02, exchangeRate: 1 },
+    ]
+
+    const aging = computeAgingFromEntries(entries, accountId, new Date('2026-10-07'))
+
+    expect(aging.total).toBeCloseTo(26292205.87, 2)
+    expect(aging.bucket0to30).toBeCloseTo(26292205.87, 2)
+  })
 })
 
 describe('dashboard expense helpers', () => {

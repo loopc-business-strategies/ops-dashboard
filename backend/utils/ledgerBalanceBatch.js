@@ -109,12 +109,16 @@ function computeCustomerPeriodMetrics(entries, customerLedgerIdSet, accountMetaM
 
 function computeAgingFromEntries(entries, accountKey, asOfDate = new Date()) {
   const openDebits = []
+  // Credits with no open debit yet (e.g. a purchase posted before the sale) settle later debits.
+  let unappliedCredit = 0
   entries.forEach((entry) => {
     const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
     const debitMatch = String(entry.debitAccountId) === accountKey
     const creditMatch = String(entry.creditAccountId) === accountKey
     if (debitMatch && amount > 0) {
-      openDebits.push({ date: entry.date, remaining: amount })
+      const applied = Math.min(unappliedCredit, amount)
+      unappliedCredit -= applied
+      openDebits.push({ date: entry.date, remaining: amount - applied })
       return
     }
     if (creditMatch && amount > 0) {
@@ -126,6 +130,7 @@ function computeAgingFromEntries(entries, accountKey, asOfDate = new Date()) {
         debit.remaining -= applied
         creditLeft -= applied
       }
+      unappliedCredit += creditLeft
     }
   })
 

@@ -222,6 +222,11 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       accountTotals.get(creditKey).credit += amount
     })
 
+    // Totals use unrounded movements; summing cent-rounded rows drifts a cent and flags "unbalanced".
+    const unroundedByCode = new Map(Array.from(accountTotals.values()).map((item) => [
+      item.account.accountCode,
+      { debit: item.debit, credit: item.credit },
+    ]))
     let trialBalance = Array.from(accountTotals.values()).map((item) => ({
       accountName: item.account.accountName,
       accountCode: item.account.accountCode,
@@ -279,8 +284,8 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       return String(a[sortable] || '').localeCompare(String(b[sortable] || '')) * sortMultiplier
     })
 
-    const totalDebit = trialBalance.reduce((sum, item) => sum + item.debit, 0)
-    const totalCredit = trialBalance.reduce((sum, item) => sum + item.credit, 0)
+    const totalDebit = trialBalance.reduce((sum, item) => sum + (unroundedByCode.get(item.accountCode)?.debit ?? item.debit), 0)
+    const totalCredit = trialBalance.reduce((sum, item) => sum + (unroundedByCode.get(item.accountCode)?.credit ?? item.credit), 0)
     const byType = trialBalance.reduce((acc, row) => {
       const key = row.accountType || 'Unknown'
       if (!acc[key]) acc[key] = { debit: 0, credit: 0, net: 0 }

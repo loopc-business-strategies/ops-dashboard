@@ -2214,6 +2214,33 @@ describe('ERP accounting transactions workflow', () => {
     expect(descriptions.some((text) => text.includes('Cash movement'))).toBe(true)
   })
 
+  test('trial balance stays balanced when per-account cent rounding drifts', async () => {
+    const financeUser = await createUser({ name: 'Trial Balance Rounding Tester' })
+    const [split, left, right] = await Promise.all(['1901', '1902', '1903'].map((accountCode) => ChartOfAccount.create({
+      accountName: `Rounding ${accountCode}`,
+      accountCode,
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })))
+    await Ledger.create([left, right].map((credit) => ({
+      date: new Date('2026-05-15T00:00:00.000Z'),
+      debitAccountId: split._id,
+      creditAccountId: credit._id,
+      amount: 1.004,
+      referenceType: 'journal',
+      createdBy: financeUser._id,
+      exchangeRate: 1,
+    })))
+
+    const res = await request(app)
+      .get('/api/erp-accounting/reports/trial-balance')
+      .set(authHeader(financeUser))
+
+    expect(res.status).toBe(200)
+    expect(res.body.difference).toBe(0)
+    expect(res.body.balanced).toBe(true)
+  })
+
   test('balance sheet reclassifies credit-balance debtors as liabilities', async () => {
     const financeUser = await createUser({ name: 'Balance Sheet Reclass Tester' })
     const debtorAccount = await ChartOfAccount.create({
