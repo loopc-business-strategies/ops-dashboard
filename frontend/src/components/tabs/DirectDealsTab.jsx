@@ -94,7 +94,8 @@ const calcAmountFromWeightAndPrice = (qty, stockCode, price) => {
   return eqOz * Number(price || 0)
 }
 
-const stockToOzMap = { OZ: 1, GRAM: 0.0321507, KG: 32.1507 }
+const GRAMS_PER_TROY_OUNCE = 31.1034768
+const stockToOzMap = { OZ: 1, GRAM: 1 / GRAMS_PER_TROY_OUNCE, KG: 1000 / GRAMS_PER_TROY_OUNCE }
 
 const DEAL_REASON_MIN_LENGTH = 5
 const DEAL_HISTORY_LABELS = { created: 'Created', confirmed: 'Confirmed', reopened: 'Reopened', edited: 'Edited', deleted: 'Deleted' }

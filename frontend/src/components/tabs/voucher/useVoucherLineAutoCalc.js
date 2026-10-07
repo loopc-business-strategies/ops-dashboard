@@ -63,9 +63,8 @@ export function useVoucherLineAutoCalc({
       ? Number((grossWeight * purityRatio).toFixed(3))
       : 0
 
-    const weightInOz = pureWeight > 0
-      ? Number((pureWeight / 31.1034768).toFixed(3))
-      : 0
+    // Unrounded so OZ-rate amounts match the exact weight; only the field shows 3 decimals.
+    const weightInOz = pureWeight > 0 ? pureWeight / 31.1034768 : 0
 
     const rateType = normalizeRateType(next.rateType)
     const metalRate = parseAmount(next.metalRate) || 0
