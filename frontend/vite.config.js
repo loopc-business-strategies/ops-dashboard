@@ -56,12 +56,33 @@ viteLogger.warn = (msg, options) => {
   viteWarn(msg, options)
 }
 
+/**
+ * Dev server serves files outside node_modules as raw ESM, so CommonJS shared by the
+ * backend (`module.exports`) throws "module is not defined". Builds convert it already.
+ */
+const DEV_CJS_SHARED_FILES = ['/backend/shared/money.js']
+
+function createDevCjsSharedPlugin() {
+  return {
+    name: 'dev-cjs-backend-shared',
+    apply: (_config, { command }) => command === 'serve' && !process.env.VITEST,
+    transform(code, id) {
+      const file = id.split('?')[0].replace(/\\/g, '/')
+      if (!DEV_CJS_SHARED_FILES.some((suffix) => file.endsWith(suffix))) return null
+      return {
+        code: `const module = { exports: {} };\nconst exports = module.exports;\n${code}\nexport default module.exports;\n`,
+        map: null,
+      }
+    },
+  }
+}
+
 /** Same-origin /api → upstream without forwarding browser Origin (prod CORS 500 on *.localhost). */
 function createDevApiProxyPlugin() {
   const target = String(process.env.DEV_API_PROXY || process.env.VITE_API_URL || '').replace(/\/$/, '')
   if (!target) return null
 
-  return {
+  const plugin = {
     name: 'dev-api-proxy-no-cors-origin',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
@@ -131,12 +152,14 @@ function createDevApiProxyPlugin() {
       })
     },
   }
+  plugin.configurePreviewServer = plugin.configureServer
+  return plugin
 }
 
 const devApiProxyPlugin = createDevApiProxyPlugin()
 
 export default defineConfig({
-  plugins: [react(), ...(devApiProxyPlugin ? [devApiProxyPlugin] : [])],
+  plugins: [react(), createDevCjsSharedPlugin(), ...(devApiProxyPlugin ? [devApiProxyPlugin] : [])],
   customLogger: viteLogger,
   define: {
     __APP_BUILD_META__: JSON.stringify(appBuildMeta),
