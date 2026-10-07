@@ -42,6 +42,7 @@ const {
 const {
   accumulateDirectDealMetalIntoMap,
   resolveUnfixedVoucherWeightSign,
+  resolveDirectDealCompanyDirection,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const {
   computeMarginMetricsRaw,
@@ -1705,7 +1706,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         const metalCode = resolveDashboardMetalCode(line.metal || 'XAU')
         if (!fixingByMetal[metalCode]) return
         const qty = Number(line.eqOz || line.qty || 0)
-        const sign = String(line.direction || '').trim().toLowerCase() === 'buy' ? 1 : -1
+        const sign = resolveDirectDealCompanyDirection(line.direction) === 'buy' ? 1 : -1
         fixingByMetal[metalCode].netPosition += sign * (Number.isFinite(qty) ? qty : 0)
       })
     })

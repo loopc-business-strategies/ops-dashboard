@@ -50,6 +50,18 @@ function resolveUnfixedVoucherWeightSign(txType = '') {
   return 0
 }
 
+/**
+ * Direct deal direction is the customer's side (buy posts Dr customer / Cr Gold
+ * Sales Fixing). Company reports (fixing register, dashboard net position) need
+ * MG's side, matching vouchers where purchase = buy.
+ */
+function resolveDirectDealCompanyDirection(direction = '') {
+  const normalized = String(direction || '').trim().toLowerCase()
+  if (normalized === 'buy') return 'sell'
+  if (normalized === 'sell') return 'buy'
+  return normalized
+}
+
 function resolveDirectDealLineMetalCode(line = {}) {
   return String(line?.metal || '').trim().toUpperCase() || ''
 }
@@ -147,6 +159,7 @@ module.exports = {
   resolveDirectDealLineSignedWeight,
   resolveDirectDealLineMetalCode,
   resolveUnfixedVoucherWeightSign,
+  resolveDirectDealCompanyDirection,
   createEmptyMetalPosition,
   addSignedWeightToPosition,
   accumulateUnfixedMetalFromTransactions,

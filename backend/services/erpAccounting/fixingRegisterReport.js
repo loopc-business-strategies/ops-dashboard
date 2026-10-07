@@ -3,6 +3,8 @@
  * Additive report endpoint; math/schema aligned with client builder.
  */
 
+const { resolveDirectDealCompanyDirection } = require('./metalPositionPolicy')
+
 const FIXING_REG_UNIT_PER_OZ = {
   GOZ: 1,
   GRAM: 31.1034768,
@@ -183,7 +185,8 @@ function buildFixingRegisterRows({
         branch: deal.branch || 'HO',
         dealStatus: deal.status,
         remarks: deal.remarks || '',
-        direction: line.direction,
+        direction: resolveDirectDealCompanyDirection(line.direction),
+        customerDirection: line.direction,
         metal: lineMetal || 'XAU',
         qty: qtyOz,
         eqOz: Number(line.eqOz || 0),

@@ -5,6 +5,7 @@ const {
   mergeMetalPositions,
   resolveDirectDealLineSignedWeight,
   resolveUnfixedVoucherWeightSign,
+  resolveDirectDealCompanyDirection,
   isUnfixedFixingType,
 } = require('../services/erpAccounting/metalPositionPolicy')
 
@@ -44,6 +45,12 @@ describe('metalPositionPolicy', () => {
     ])
     expect(position.gold).toBeCloseTo(50, 6)
     expect(position.silver).toBeCloseTo(-30, 6)
+  })
+
+  test('direct deal direction converts to the company side for MG reports', () => {
+    expect(resolveDirectDealCompanyDirection('buy')).toBe('sell')
+    expect(resolveDirectDealCompanyDirection(' Sell ')).toBe('buy')
+    expect(resolveDirectDealCompanyDirection('')).toBe('')
   })
 
   test('direct deal buy then unfixed purchase back nets to the remaining grams', () => {
