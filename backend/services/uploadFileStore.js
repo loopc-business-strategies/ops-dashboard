@@ -52,8 +52,7 @@ async function storeLocalFile({ folder, fileName, localPath, mimeType, connectio
     fs.createReadStream(localPath)
       .on('error', reject)
       .pipe(bucket.openUploadStream(key, {
-        contentType: mimeType || 'application/octet-stream',
-        metadata: { folder, fileName: path.basename(fileName), ...metadata },
+        metadata: { folder, fileName: path.basename(fileName), contentType: mimeType || '', ...metadata },
       }))
       .on('error', reject)
       .on('finish', resolve)
@@ -87,7 +86,11 @@ function discardUploadedTempFile(file) {
 async function sendUploadedFile({ res, folder, fileName, localPath, connection, notFoundMessage = 'File not found.' }) {
   const stored = await findUploadedFile({ folder, fileName, connection })
   if (stored) {
-    if (!res.getHeader('Content-Type')) res.setHeader('Content-Type', stored.contentType || 'application/octet-stream')
+    if (!res.getHeader('Content-Type')) {
+      const contentType = stored.metadata?.contentType || stored.contentType
+      if (contentType) res.setHeader('Content-Type', contentType)
+      else res.type(path.extname(String(fileName)) || 'application/octet-stream')
+    }
     res.setHeader('Content-Length', String(stored.length))
     const stream = getUploadedFilesBucket(connection).openDownloadStream(stored._id)
     stream.on('error', () => {
