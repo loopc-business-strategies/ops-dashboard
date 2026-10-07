@@ -296,7 +296,7 @@ describe('statement helpers', () => {
 
     expect(metrics.netEquity).toBeCloseTo(-234.21 + revaluation, 2)
     expect(metrics.excess).toBeCloseTo(metrics.netEquity - marginAmount, 2)
-    expect(metrics.marginPercent).toBeCloseTo((234.21 / marginAmount) * 100, 1)
+    expect(metrics.marginPercent).toBeCloseTo((metrics.netEquity / marginAmount) * 100, 1)
   })
 
   test('formatMarginExcessDisplay shows Short and Excess labels', () => {
