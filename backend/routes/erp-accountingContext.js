@@ -109,6 +109,7 @@ const {
   validateAttachmentContent,
 } = require('../services/erpAccounting/attachmentValidationService')
 const { createErpUploadMiddleware } = require('../services/erpAccounting/uploadMiddleware')
+const { invalidateErpReadCachesAfterWrites } = require('../middleware/erpReadCacheInvalidation')
 const {
   storeUploadedAttachment,
   storeTransactionAttachment,
@@ -395,6 +396,8 @@ transactionPostingService = createTransactionPostingService({
 
 
 function registerErpAccountingRoutes(router) {
+  router.use(invalidateErpReadCachesAfterWrites)
+
   registerCustomerRoutes({
     router,
     protect,

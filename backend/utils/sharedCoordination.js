@@ -83,6 +83,31 @@ async function setJson(key, value, ttlMs) {
   localSet(namespacedKey, value, normalizedTtl)
 }
 
+/** Delete every shared key starting with prefix (Redis SCAN + DEL, or the local fallback store). */
+async function deleteByPrefix(prefix) {
+  const namespacedPrefix = `ops:${String(prefix || '')}`
+  const client = await getRedisClient()
+  if (client) {
+    const match = `${namespacedPrefix.replace(/[*?[\]\\]/g, '\\$&')}*`
+    let cursor = '0'
+    let deleted = 0
+    do {
+      const reply = await client.scan(cursor, { MATCH: match, COUNT: 500 })
+      cursor = String(reply.cursor)
+      if (reply.keys.length) deleted += await client.del(reply.keys)
+    } while (cursor !== '0')
+    return deleted
+  }
+  let deleted = 0
+  for (const key of localStore.keys()) {
+    if (key.startsWith(namespacedPrefix)) {
+      localStore.delete(key)
+      deleted += 1
+    }
+  }
+  return deleted
+}
+
 async function setOnce(key, ttlMs) {
   const namespacedKey = `ops:${key}`
   const normalizedTtl = Math.max(1, Number(ttlMs || 0))
@@ -230,6 +255,7 @@ async function pingRedis() {
 module.exports = {
   getJson,
   setJson,
+  deleteByPrefix,
   setOnce,
   incrementCounter,
   decrementCounter,

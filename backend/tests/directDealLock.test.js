@@ -216,6 +216,33 @@ describe('confirmed direct deal lock', () => {
     expect(postedAfter[0].amount).toBe(postedBefore[0].amount)
   })
 
+  test('the account statement reflects a reopen immediately instead of serving the cached copy', async () => {
+    const admin = await createUser({ role: 'super_admin' })
+    const customer = await createCustomer(admin)
+    const deal = await createConfirmedDeal(admin, customer)
+    const accountCode = (await ChartOfAccount.findById(customer.ledgerAccountId?._id || customer.ledgerAccountId).lean()).accountCode
+
+    const enquiry = () => request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode })
+      .set(authHeader(admin))
+
+    const before = await enquiry()
+    expect(before.status).toBe(200)
+    expect(before.body.balances.debitTotal).toBe(4600)
+    expect((await enquiry()).headers['x-enquiry-cache']).toBe('HIT')
+
+    const reopen = await request(app)
+      .put(`/api/erp-accounting/direct-deals/${deal._id}`)
+      .set(authHeader(admin))
+      .send({ status: 'draft', reason: 'Wrong customer selected' })
+    expect(reopen.status).toBe(200)
+    await new Promise((resolve) => setImmediate(resolve))
+
+    const after = await enquiry()
+    expect(after.body.balances.debitTotal).toBe(0)
+  })
+
   test('draft edits before the first confirmation are not logged as edits', async () => {
     const financeUser = await createUser()
     const customer = await createCustomer(financeUser)
