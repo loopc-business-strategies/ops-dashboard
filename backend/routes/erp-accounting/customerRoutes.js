@@ -4,6 +4,7 @@ const {
   _accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalIntoMap,
   roundMetalPosition,
+  resolveUnfixedVoucherWeightSign,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { computeMarginMetricsRaw, shouldSuppressSpotMetalMtmForCustomerDashboard } = require('../../services/erpAccounting/metalMarginPolicy')
 
@@ -130,7 +131,7 @@ function registerCustomerRoutes(deps) {
         const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
         if (!isUnfixedFixingType(fixingType)) return
         const position = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
-        const sign = tx.type === 'purchase' ? 1 : -1
+        const sign = resolveUnfixedVoucherWeightSign(tx.type)
         const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
         lines.forEach((line) => {
           const pureWeight = Number(line?.pureWeight || 0)

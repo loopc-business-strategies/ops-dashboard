@@ -38,6 +38,18 @@ function resolveDirectDealLineSignedWeight(line = {}) {
   return direction === 'buy' ? grams : -grams
 }
 
+/**
+ * Unfixed sale/purchase voucher grams follow the same side as the trade:
+ * sale => metal to the party (positive / Dr), purchase => metal from the party
+ * (negative / Cr). Matches direct deals and metal payment (Dr) / receipt (Cr).
+ */
+function resolveUnfixedVoucherWeightSign(txType = '') {
+  const type = String(txType || '').trim().toLowerCase()
+  if (type === 'sale') return 1
+  if (type === 'purchase') return -1
+  return 0
+}
+
 function resolveDirectDealLineMetalCode(line = {}) {
   return String(line?.metal || '').trim().toUpperCase() || ''
 }
@@ -61,7 +73,8 @@ function accumulateUnfixedMetalFromTransactions(metalTxs = []) {
   for (const tx of metalTxs) {
     const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
     if (!isUnfixedFixingType(fixingType)) continue
-    const sign = tx.type === 'purchase' ? 1 : -1
+    const sign = resolveUnfixedVoucherWeightSign(tx.type)
+    if (!sign) continue
     const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
     for (const line of lines) {
       const pw = Number(line.pureWeight || 0)
@@ -133,6 +146,7 @@ module.exports = {
   resolveDirectDealLineWeightGram,
   resolveDirectDealLineSignedWeight,
   resolveDirectDealLineMetalCode,
+  resolveUnfixedVoucherWeightSign,
   createEmptyMetalPosition,
   addSignedWeightToPosition,
   accumulateUnfixedMetalFromTransactions,

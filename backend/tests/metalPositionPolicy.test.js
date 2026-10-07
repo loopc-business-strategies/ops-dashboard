@@ -4,6 +4,7 @@ const {
   accumulateDirectDealMetalIntoMap,
   mergeMetalPositions,
   resolveDirectDealLineSignedWeight,
+  resolveUnfixedVoucherWeightSign,
   isUnfixedFixingType,
 } = require('../services/erpAccounting/metalPositionPolicy')
 
@@ -31,14 +32,28 @@ describe('metalPositionPolicy', () => {
     expect(signed).toBeCloseTo(-200, 6)
   })
 
-  test('net position combines unfixed purchase and direct deal buy', () => {
+  test('unfixed voucher grams follow the trade side: sale Dr (+), purchase Cr (-)', () => {
+    expect(resolveUnfixedVoucherWeightSign('sale')).toBe(1)
+    expect(resolveUnfixedVoucherWeightSign('purchase')).toBe(-1)
+    expect(resolveUnfixedVoucherWeightSign('receipt')).toBe(0)
+
+    const position = accumulateUnfixedMetalFromTransactions([
+      { type: 'sale', voucherMeta: { fixingType: 'non-fixing', lineItems: [{ stockCode: 'XAU', pureWeight: 50 }] } },
+      { type: 'purchase', voucherMeta: { fixingType: 'non-fixing', lineItems: [{ stockCode: 'XAG', pureWeight: 30 }] } },
+      { type: 'purchase', voucherMeta: { fixingType: 'fixing', lineItems: [{ stockCode: 'XAU', pureWeight: 999 }] } },
+    ])
+    expect(position.gold).toBeCloseTo(50, 6)
+    expect(position.silver).toBeCloseTo(-30, 6)
+  })
+
+  test('direct deal buy then unfixed purchase back nets to the remaining grams', () => {
     const customerId = 'cust-1303'
     const metalTxs = [{
       customerId,
       type: 'purchase',
       voucherMeta: {
         fixingType: 'non-fixing',
-        lineItems: [{ stockCode: 'XAU', pureWeight: 995 }],
+        lineItems: [{ stockCode: 'XAU', pureWeight: 199.98 }],
       },
     }]
     const directDeals = [{
@@ -46,7 +61,7 @@ describe('metalPositionPolicy', () => {
         customerId,
         direction: 'buy',
         metal: 'XAU',
-        qty: 10000,
+        qty: 200,
         stockCode: 'GRAM',
       }],
     }]
@@ -55,7 +70,7 @@ describe('metalPositionPolicy', () => {
     const direct = accumulateDirectDealMetalForCustomer(directDeals, customerId)
     const merged = mergeMetalPositions(unfixed, direct)
 
-    expect(merged.gold).toBeCloseTo(10995, 6)
+    expect(merged.gold).toBeCloseTo(0.02, 6)
     expect(merged.silver).toBe(0)
   })
 

@@ -9,6 +9,7 @@ const {
 const fs = require('fs')
 const path = require('path')
 const { computeMarginMetricsRaw } = require('../../services/erpAccounting/metalMarginPolicy')
+const { resolveUnfixedVoucherWeightSign } = require('../../services/erpAccounting/metalPositionPolicy')
 
 const vendorDocumentParamSchema = Joi.object({
   id: Joi.string().hex().length(24).required(),
@@ -171,7 +172,7 @@ function registerVendorRoutes(deps) {
         const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
         if (!isUnfixedFixingType(fixingType)) return
         const position = metalPositionMap.get(vendorId) || { goldPosition: 0, silverPosition: 0 }
-        const sign = tx.type === 'purchase' ? 1 : -1
+        const sign = resolveUnfixedVoucherWeightSign(tx.type)
         const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
         lines.forEach((line) => {
           const pureWeight = Number(line?.pureWeight || 0)

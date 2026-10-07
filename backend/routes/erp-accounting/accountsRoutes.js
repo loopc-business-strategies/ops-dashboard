@@ -12,6 +12,7 @@ const {
   accumulateDirectDealMetalForCustomer,
   resolveDirectDealLineSignedWeight,
   resolveDirectDealLineMetalCode,
+  resolveUnfixedVoucherWeightSign,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { resolveRequestTenantKey } = require('../../config/tenants')
@@ -477,9 +478,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         if (txMetalCode && lineMetalCode && lineMetalCode !== txMetalCode) return sum
         return sum + pw
       }, 0)
-      if (txType === 'purchase') return Number(gross || 0)
-      if (txType === 'sale') return Number(-(gross || 0))
-      return 0
+      return resolveUnfixedVoucherWeightSign(txType) * Number(gross || 0)
     }
     const accumulateTransferMetalFromTransactions = (metalTxs) => {
       for (const tx of metalTxs) {

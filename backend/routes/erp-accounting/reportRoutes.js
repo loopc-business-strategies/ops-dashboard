@@ -41,6 +41,7 @@ const {
 } = require('../../services/metalSpotMockRealtime')
 const {
   accumulateDirectDealMetalIntoMap,
+  resolveUnfixedVoucherWeightSign,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const {
   computeMarginMetricsRaw,
@@ -1447,7 +1448,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
       if (!isUnfixedFixingType(fixingType)) return
       const position = marginMetalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
-      const sign = tx.type === 'purchase' ? 1 : -1
+      const sign = resolveUnfixedVoucherWeightSign(tx.type)
       const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
       lines.forEach((line) => {
         const pureWeight = Number(line?.pureWeight || 0)
@@ -1549,7 +1550,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
       if (!isUnfixedFixingType(fixingType)) return
       const position = supplierMetalPositionMap.get(vendorId) || { goldPosition: 0, silverPosition: 0 }
-      const sign = tx.type === 'purchase' ? 1 : -1
+      const sign = resolveUnfixedVoucherWeightSign(tx.type)
       const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
       lines.forEach((line) => {
         const pureWeight = Number(line?.pureWeight || 0)
