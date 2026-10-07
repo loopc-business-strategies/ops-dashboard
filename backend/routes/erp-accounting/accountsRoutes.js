@@ -503,12 +503,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           const sc = String(line?.stockCode || '').toUpperCase()
           return sc.includes('XAG') || sc.includes('SILV')
         })
+        // Like unfixed vouchers: a receipt (Cr) is metal the party is owed, a payment (Dr) settles it.
         if (isSilver) {
           silverBalance += signedWeight
-          silverValuationBalance += signedWeight
+          silverValuationBalance -= signedWeight
         } else {
           goldBalance += signedWeight
-          goldValuationBalance += signedWeight
+          goldValuationBalance -= signedWeight
         }
       }
     }
@@ -1000,6 +1001,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         isMetalTransfer: Boolean(linkedTx?.isMetalTransfer),
         metalSignedWeight: Number(linkedTx?.metalSignedWeight || 0),
         unfixedVoucherAmount: Number(linkedTx?.unfixedVoucherAmount || 0),
+        unfixedOpenWeight: Number(linkedTx?.unfixedOpenWeight || 0),
         ...(linkedTx?.isVoucherFixing
           ? { isVoucherFixing: true, parentTransactionId: linkedTx.parentTransactionId }
           : {}),

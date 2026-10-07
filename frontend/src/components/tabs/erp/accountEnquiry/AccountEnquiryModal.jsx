@@ -317,15 +317,17 @@ export default function AccountEnquiryModal({
                         </div>
                         <div style={{ borderTop: '1px solid #CBD5E0', background: '#FAFBFC', padding: '0.55rem 0.75rem' }}>
                           <p style={{ margin: 0, color: '#374151', fontWeight: '800', fontSize: '0.82rem' }}>Unfixed metal sales & purchases</p>
-                          <p style={{ margin: '0.2rem 0 0', color: '#64748B', fontSize: '0.72rem', lineHeight: 1.4 }}>Rows below reflect the same filters as the statement. Amounts are absolute signed cash effect.</p>
+                          <p style={{ margin: '0.2rem 0 0', color: '#64748B', fontSize: '0.72rem', lineHeight: 1.4 }}>Vouchers with grams still waiting for a price, using the same filters as the statement. Amounts are absolute signed cash effect.</p>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead>
                               <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
                                 <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Date</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Voucher</th>
                                 <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Deal</th>
                                 <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Metal</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Open (g)</th>
                                 <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Amount</th>
                               </tr>
                             </thead>
@@ -333,14 +335,16 @@ export default function AccountEnquiryModal({
                               {unfixedMetalEntries.length ? unfixedMetalEntries.slice(0, 8).map((row, index) => (
                                 <tr key={row._id || `${row.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                                   <td style={{ padding: '0.7rem', color: '#111827' }}>{formatStatementDate(row.date)}</td>
+                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{row.sourceTransactionNumber || row.receiptNo || '-'}</td>
                                   <td style={{ padding: '0.7rem', color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{row.dealSide}</td>
                                   <td style={{ padding: '0.7rem', color: '#111827' }}>{row.metalCode}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.openWeight, 3)}</td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.amount, 2)}</td>
                                 </tr>
                               )) : (
                                 <tr>
-                                  <td colSpan={4} style={{ padding: '0.8rem', textAlign: 'center', color: '#6B7280', fontSize: '0.86rem' }}>
-                                    No unfixed metal sale/purchase rows match the selected filters.
+                                  <td colSpan={6} style={{ padding: '0.8rem', textAlign: 'center', color: '#6B7280', fontSize: '0.86rem' }}>
+                                    No open unfixed sales or purchases match the selected filters.
                                   </td>
                                 </tr>
                               )}

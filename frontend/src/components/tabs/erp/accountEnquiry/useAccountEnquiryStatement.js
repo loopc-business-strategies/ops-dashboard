@@ -15,6 +15,7 @@ import {
   resolveConvertibleStatementDisplayCurrency,
   resolveStatementMetalCode,
   isMetalStatementEntry,
+  resolveUnfixedOpenWeight,
   resolveVisibleStatementClosingBalance,
   sortStatementNewestFirst,
   stampStatementRunningBalances,
@@ -556,18 +557,20 @@ export function useAccountEnquiryStatement({
       const hasLegacyMetalHint = String(entry?.metalCode || '').trim() !== '' || /\bxau\b|\bxag\b|gold|silver/i.test(String(entry?.description || ''))
       if (!isExplicitMetalTrade && !hasLegacyMetalHint) return null
       const amount = Math.abs(Number(entry?.signedAmount ?? entry?.debitAmount ?? entry?.creditAmount ?? 0))
+      const fixStatus = resolveFixStatus(entry)
       return {
         ...entry,
         dealSide,
-        fixStatus: resolveFixStatus(entry),
+        fixStatus,
         metalCode: resolveMetalCode(entry),
         amount,
+        openWeight: fixStatus === 'unfixed' ? resolveUnfixedOpenWeight(entry) : 0,
       }
     })
     .filter(Boolean)
 
   const fixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'fixed')
-  const unfixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unfixed')
+  const unfixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unfixed' && entry.openWeight > 0.000001)
   const unknownFixMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unknown')
   const fixedMetalSummary = summarizeMetalDealRows(fixedMetalEntries)
   const unfixedMetalSummary = summarizeMetalDealRows(unfixedMetalEntries)

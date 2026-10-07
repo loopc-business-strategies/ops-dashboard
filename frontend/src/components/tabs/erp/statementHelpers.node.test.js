@@ -14,6 +14,7 @@ import {
   resolveConvertibleStatementDisplayCurrency,
   resolveExposureDirection,
   resolveMarginEquityDirection,
+  resolveUnfixedOpenWeight,
   resolveVisibleStatementClosingBalance,
   stampStatementRunningBalances,
   sumStatementSignedAmounts,
@@ -198,6 +199,12 @@ describe('statement helpers', () => {
     expect(resolveMarginEquityDirection(31768.5)).toBe('Credit')
     expect(resolveMarginEquityDirection(-5000)).toBe('Debit')
     expect(resolveMarginEquityDirection(0)).toBe('Flat')
+  })
+
+  test('resolveUnfixedOpenWeight uses the API open grams, falling back to the voucher grams', () => {
+    expect(resolveUnfixedOpenWeight({ metalSignedWeight: -99.99, unfixedOpenWeight: 49.995 })).toBe(49.995)
+    expect(resolveUnfixedOpenWeight({ metalSignedWeight: -99.99, unfixedOpenWeight: 0 })).toBe(0)
+    expect(resolveUnfixedOpenWeight({ metalSignedWeight: -99.99 })).toBe(99.99)
   })
 
   test('withSignedDirectionalPrefix adds + for Dr and - for Cr', () => {

@@ -807,6 +807,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(enquiryRes.status).toBe(200)
     expect(Number(enquiryRes.body.balances?.netBalance || 0)).toBe(0)
     expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(-116.523, 3)
+    expect(Number(enquiryRes.body.metals?.goldValuationBalance || 0)).toBeCloseTo(116.523, 3)
 
     const transferRow = (enquiryRes.body.statement?.entries || []).find(
       (entry) => String(entry.sourceTransactionNumber || '').includes('MRec/2026/0099'),
@@ -881,6 +882,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(enquiryRes.status).toBe(200)
     expect(Number(enquiryRes.body.balances?.netBalance || 0)).toBe(0)
     expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(49.95, 3)
+    expect(Number(enquiryRes.body.metals?.goldValuationBalance || 0)).toBeCloseTo(-49.95, 3)
 
     const transferRow = (enquiryRes.body.statement?.entries || []).find(
       (entry) => String(entry.sourceTransactionNumber || '').includes('MPay/2026/0099'),
@@ -2639,6 +2641,16 @@ describe('ERP accounting transactions workflow', () => {
       createdBy: financeUser._id,
       updatedBy: financeUser._id,
     })
+    await Ledger.create({
+      date: new Date(),
+      description: 'Unfixed purchase to fix later',
+      debitAccountId: stockAccount._id,
+      creditAccountId: receivableAccount._id,
+      amount: 0,
+      referenceType: 'purchase',
+      referenceId: voucher._id,
+      createdBy: financeUser._id,
+    })
 
     const readGoldBalance = async () => {
       const res = await request(app)
@@ -2677,6 +2689,8 @@ describe('ERP accounting transactions workflow', () => {
     const afterFixRes = await readGoldBalance()
     expect(Number(afterFixRes.body.metals?.goldBalance || 0)).toBeCloseTo(-155.517384, 4)
     expect(Number(afterFixRes.body.metals?.goldValuationBalance || 0)).toBeCloseTo(155.517384, 4)
+    const voucherRow = (afterFixRes.body.statement?.entries || []).find((row) => row.sourceTransactionNumber === 'Pur/2026/0901')
+    expect(Number(voucherRow?.unfixedOpenWeight)).toBeCloseTo(155.517384, 4)
     const fixingRow = (afterFixRes.body.statement?.entries || []).find((row) => row.referenceType === 'voucher_fixing')
     expect(fixingRow).toMatchObject({
       isVoucherFixing: true,

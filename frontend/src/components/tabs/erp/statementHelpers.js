@@ -231,6 +231,16 @@ export function resolveMarginEquityDirection(value) {
 }
 
 /**
+ * Grams of an unfixed voucher row still waiting for a price. Responses from
+ * before the API sent unfixedOpenWeight count the whole voucher as open.
+ */
+export function resolveUnfixedOpenWeight(entry = {}) {
+  const sent = entry?.unfixedOpenWeight
+  if (sent !== undefined && sent !== null && Number.isFinite(Number(sent))) return Math.abs(Number(sent))
+  return Math.abs(Number(entry?.metalSignedWeight || 0))
+}
+
+/**
  * Prefix +/- onto a Dr/Cr directional money string (abs already formatted).
  * Dr ↔ +, Cr ↔ -. Zero stays unchanged (no sign).
  */
