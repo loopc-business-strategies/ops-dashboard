@@ -901,12 +901,37 @@ export default function DirectDealsTab({
     return ''
   }
 
-  const checkLinePrice = (line) => checkDirectDealPriceAgainstSpot({
+  const checkLinePrice = (line, currency = form.currency) => checkDirectDealPriceAgainstSpot({
     price: toNumber(line.price),
     metal: line.metal,
-    currency: form.currency || baseCurrencyCode,
+    currency: currency || baseCurrencyCode,
     snapshot: liveMetalSnapshot,
   })
+
+  const confirmDealPrices = (lineItems, currency, actionLabel) => {
+    const priceWarnings = (lineItems || [])
+      .map((line, idx) => {
+        const check = checkLinePrice(line, currency)
+        return check ? `Line ${idx + 1}: ${describeDirectDealPriceDeviation(check, (v) => fmtFixed(v, 2))}` : ''
+      })
+      .filter(Boolean)
+    if (!priceWarnings.length || typeof window === 'undefined') return true
+    return window.confirm(`Price is far from the live rate (Price is per troy ounce):\n${priceWarnings.join('\n')}\n\n${actionLabel} anyway?`)
+  }
+
+  const confirmDealFromList = async (deal) => {
+    if (!confirmDealPrices(deal.lineItems, deal.currency, 'Confirm')) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.updateDirectDeal(token, deal._id, { status: 'confirmed' })
+      showSuccess('Entry confirmed and locked')
+      await loadDeals()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to confirm entry')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const saveFormData = async (statusOverride) => {
     if (!hasManage || isEditingLocked) {
@@ -920,17 +945,7 @@ export default function DirectDealsTab({
       return
     }
 
-    const priceWarnings = form.lineItems
-      .map((line, idx) => {
-        const check = checkLinePrice(line)
-        return check ? `Line ${idx + 1}: ${describeDirectDealPriceDeviation(check, (v) => fmtFixed(v, 2))}` : ''
-      })
-      .filter(Boolean)
-    if (
-      priceWarnings.length
-      && typeof window !== 'undefined'
-      && !window.confirm(`Price is far from the live rate (Price is per troy ounce):\n${priceWarnings.join('\n')}\n\nSave anyway?`)
-    ) return
+    if (!confirmDealPrices(form.lineItems, form.currency, 'Save')) return
 
     setSaving(true)
     setError('')
@@ -1508,18 +1523,7 @@ export default function DirectDealsTab({
                         <button
                           type='button'
                           style={btnStyle()}
-                          onClick={async () => {
-                            try {
-                              setSaving(true)
-                              await erpAccountingAPI.updateDirectDeal(token, deal._id, { status: 'confirmed' })
-                              showSuccess('Entry confirmed and locked')
-                              await loadDeals()
-                            } catch (e) {
-                              setError(e.response?.data?.message || 'Failed to confirm entry')
-                            } finally {
-                              setSaving(false)
-                            }
-                          }}
+                          onClick={() => confirmDealFromList(deal)}
                           disabled={saving}
                         >
                           Confirm
