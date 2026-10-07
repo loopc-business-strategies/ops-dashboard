@@ -173,11 +173,15 @@ export function resolveExposureDirection(value) {
   return 'Flat'
 }
 
+// Merged voucher rows carry ids like `tx:<objectId>`; compare the bare ObjectId so
+// same-day rows order by creation time whether or not they were merged.
+const statementRowSortId = (entry) => String(entry?._id || '').replace(/^(tx|row):/, '')
+
 export function sortStatementNewestFirst(left, right) {
   const leftDate = new Date(left?.date || 0).getTime()
   const rightDate = new Date(right?.date || 0).getTime()
   if (rightDate !== leftDate) return rightDate - leftDate
-  return String(right?._id || '').localeCompare(String(left?._id || ''))
+  return statementRowSortId(right).localeCompare(statementRowSortId(left))
 }
 
 export function sumStatementSignedAmounts(entries = []) {

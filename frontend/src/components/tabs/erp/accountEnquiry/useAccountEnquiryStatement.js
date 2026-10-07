@@ -16,6 +16,7 @@ import {
   resolveStatementMetalCode,
   isMetalStatementEntry,
   resolveVisibleStatementClosingBalance,
+  sortStatementNewestFirst,
   stampStatementRunningBalances,
   sumStatementSignedAmounts,
 } from '../statementHelpers'
@@ -343,7 +344,7 @@ export function useAccountEnquiryStatement({
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
   const resolveMetalCode = resolveStatementMetalCode
 
-  const statementEntries = combineVoucherStatementRows(rawStatementEntries)
+  const statementEntries = combineVoucherStatementRows(rawStatementEntries).sort(sortStatementNewestFirst)
   stampStatementRunningBalances(
     statementEntries,
     Number(accountEnquiryData?.balances?.netBalance ?? 0),

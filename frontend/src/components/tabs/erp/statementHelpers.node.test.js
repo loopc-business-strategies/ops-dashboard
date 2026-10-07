@@ -21,6 +21,7 @@ import {
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
   sortStatementEntriesForExport,
+  sortStatementNewestFirst,
   computeStatementExportOpeningBalances,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
@@ -450,6 +451,21 @@ describe('statement helpers', () => {
     stampStatementRunningBalances(entries, closing)
     expect(entries.find((row) => row._id === 'b').runningBalance).toBe(100)
     expect(entries.find((row) => row._id === 'a').runningBalance).toBe(104)
+  })
+
+  test('same-day rows order by creation id whether or not they are merged voucher rows', () => {
+    const rows = [
+      { _id: 'tx:6ac5f0fff0ffcf0778b1853f', date: '2026-10-07' },
+      { _id: 'tx:6ac60631dffb0a7e2d41a856', date: '2026-10-07' },
+      { _id: '6ac605aedffb0a7e2d41a83c', date: '2026-10-07' },
+      { _id: 'tx:6ab0000000000000000000aa', date: '2026-10-08' },
+    ]
+    expect([...rows].sort(sortStatementNewestFirst).map((row) => row._id)).toEqual([
+      'tx:6ab0000000000000000000aa',
+      'tx:6ac60631dffb0a7e2d41a856',
+      '6ac605aedffb0a7e2d41a83c',
+      'tx:6ac5f0fff0ffcf0778b1853f',
+    ])
   })
 
   test('cash Total Balance direction uses exposure of the displayed amount, not full-ledger Credit', () => {
