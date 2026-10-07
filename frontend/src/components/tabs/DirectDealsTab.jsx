@@ -493,12 +493,14 @@ export default function DirectDealsTab({
             updated.customerName = matchedCustomer.name || updated.customerName
           }
         }
-        if (key === 'qty' || key === 'price') {
-          const qty = Number(key === 'qty' ? value : updated.qty || 0)
-          const price = Number(key === 'price' ? value : updated.price || 0)
-          const amount = qty * price
+        if (key === 'qty' || key === 'price' || key === 'stockCode' || key === 'eqOz') {
+          const price = Number(updated.price || 0)
+          const eqOz = key === 'eqOz'
+            ? Number(updated.eqOz || 0)
+            : calcEqOzFromQtyAndStock(Number(updated.qty || 0), updated.stockCode)
+          const amount = eqOz * price
+          if (key !== 'eqOz') updated.eqOz = eqOz ? String(Number(eqOz.toFixed(3))) : ''
           updated.amount = amount ? String(roundMoney(amount, form.currency || baseCurrencyCode || 'USD')) : ''
-          if (!updated.eqOz) updated.eqOz = updated.qty
         }
         return normalizePreviewRow(updated, i)
       })
@@ -748,7 +750,7 @@ export default function DirectDealsTab({
         qty: String(row.Qty || row.qty || ''),
         stockCode: String(row.StockCode || row.stockCode || 'OZ').toUpperCase(),
         price: String(row.Price || row.price || ''),
-        eqOz: String(row.EqOz || row.eqOz || row.Qty || row.qty || ''),
+        eqOz: String(row.EqOz || row.eqOz || ''),
         amount: String(row.Amount || row.amount || ''),
         notes: String(row.Notes || row.notes || '').trim(),
       }, idx))
@@ -819,9 +821,11 @@ export default function DirectDealsTab({
     const instructionsRows = [
       { Rule: 'Direction', Value: 'Must be Buy or Sell' },
       { Rule: 'Metal', Value: 'Use XAU, XAG, XPT, XPD (or your configured symbol)' },
-      { Rule: 'Qty', Value: 'Must be greater than zero' },
-      { Rule: 'Price', Value: 'Must be greater than zero' },
-      { Rule: 'Amount', Value: 'Optional. If blank, system uses Qty x Price' },
+      { Rule: 'Qty', Value: 'Must be greater than zero, in the unit given by StockCode' },
+      { Rule: 'StockCode', Value: 'OZ, GRAM or KG' },
+      { Rule: 'Price', Value: 'Must be greater than zero. Price per troy ounce, even when StockCode is GRAM or KG' },
+      { Rule: 'EqOz', Value: 'Optional. If blank, system converts Qty to troy ounces from StockCode' },
+      { Rule: 'Amount', Value: 'Optional. If blank, system uses EqOz x Price' },
       { Rule: 'CustomerCode', Value: 'Recommended to match code from Customer Reference sheet' },
     ]
 
@@ -1212,7 +1216,7 @@ export default function DirectDealsTab({
                     </colgroup>
                     <thead>
                       <tr style={{ background: '#4a6a30' }}>
-                        {['Customer', 'Direction', 'Metal', 'Qty', 'Stock Code', 'Price', 'EQ.OZ', 'Amount', ''].map((h) => (
+                        {['Customer', 'Direction', 'Metal', 'Qty', 'Stock Code', 'Price / oz', 'EQ.OZ', 'Amount', ''].map((h) => (
                           <th key={h} style={{ padding: '6px 4px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#fff', borderRight: '1px solid #5a7a40', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -1265,6 +1269,11 @@ export default function DirectDealsTab({
                           {/* Price */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
                             <input data-dd-nav={`${10 + idx}-5-price`} value={line.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} onBlur={() => formatLineNumber(idx, 'price', 4)} onKeyDown={handleDealNavKeyDown} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={viewMode !== 'EDIT' || !hasManage || saving} placeholder="0.0000" />
+                            {toNumber(line.price) > 0 && (
+                              <div style={{ fontSize: 10, color: COLORS.muted, textAlign: 'right', marginTop: 1 }}>
+                                ≈ {fmtFixed(toNumber(line.price) * stockToOzMap.GRAM, 4)} / g
+                              </div>
+                            )}
                           </td>
                           {/* EQ.OZ */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
@@ -1347,7 +1356,7 @@ export default function DirectDealsTab({
             />
           </label>
           <span style={{ color: COLORS.muted, fontSize: '0.78rem', alignSelf: 'center' }}>
-            Expected columns: CustomerCode, CustomerName, Direction, Metal, Qty, StockCode, Price, EqOz, Amount, Notes
+            Expected columns: CustomerCode, CustomerName, Direction, Metal, Qty, StockCode, Price (per oz), EqOz, Amount, Notes
           </span>
         </div>
 
@@ -1372,7 +1381,7 @@ export default function DirectDealsTab({
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                   <tr style={{ background: '#FEF3C7' }}>
-                    {['Row', 'CustomerCode', 'CustomerName', 'Direction', 'Metal', 'Qty', 'Stock', 'Price', 'Eq.OZ', 'Amount', 'Notes', 'Validation', ''].map((h) => (
+                    {['Row', 'CustomerCode', 'CustomerName', 'Direction', 'Metal', 'Qty', 'Stock', 'Price / oz', 'Eq.OZ', 'Amount', 'Notes', 'Validation', ''].map((h) => (
                       <th key={h} style={{ padding: '0.42rem 0.45rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>

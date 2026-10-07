@@ -60,7 +60,7 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
   const excess = rawExcess
   const status = String(row?.status || (net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
   const rawMargin = marginPercent ?? row?.marginPercent
-  marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (Math.abs(net) / marginAmount) * 100 : 0)
+  marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (net / marginAmount) * 100 : 0)
 
   const currencyCode = options.baseCurrencyCode || options.currencyCode || ''
   return {

@@ -13,16 +13,25 @@ describe('metalPositionPolicy', () => {
     expect(isUnfixedFixingType('fixing')).toBe(false)
   })
 
-  test('direct deal buy direction credits metal (negative grams)', () => {
+  test('direct deal buy adds metal held for the customer (positive grams)', () => {
     const signed = resolveDirectDealLineSignedWeight({
       direction: 'buy',
       qty: 10000,
       stockCode: 'GRAM',
     })
-    expect(signed).toBeCloseTo(-10000, 6)
+    expect(signed).toBeCloseTo(10000, 6)
   })
 
-  test('net position combines unfixed purchase and direct deal sale', () => {
+  test('direct deal sell removes metal from the customer (negative grams)', () => {
+    const signed = resolveDirectDealLineSignedWeight({
+      direction: 'sell',
+      qty: 200,
+      stockCode: 'GRAM',
+    })
+    expect(signed).toBeCloseTo(-200, 6)
+  })
+
+  test('net position combines unfixed purchase and direct deal buy', () => {
     const customerId = 'cust-1303'
     const metalTxs = [{
       customerId,
@@ -46,7 +55,7 @@ describe('metalPositionPolicy', () => {
     const direct = accumulateDirectDealMetalForCustomer(directDeals, customerId)
     const merged = mergeMetalPositions(unfixed, direct)
 
-    expect(merged.gold).toBeCloseTo(-9005, 6)
+    expect(merged.gold).toBeCloseTo(10995, 6)
     expect(merged.silver).toBe(0)
   })
 
@@ -63,6 +72,6 @@ describe('metalPositionPolicy', () => {
       }],
     }], map)
 
-    expect(map.get(customerId).goldPosition).toBeCloseTo(-500, 6)
+    expect(map.get(customerId).goldPosition).toBeCloseTo(500, 6)
   })
 })

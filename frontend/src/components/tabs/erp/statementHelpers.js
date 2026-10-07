@@ -374,7 +374,7 @@ export function calculateAccountSummaryMetrics({
   const fundsExposure = Math.abs(signedFunds)
   const netEquity = signedFunds + revaluationValue
   const excess = netEquity - marginValue
-  const marginPercent = marginValue > 0 ? (fundsExposure / marginValue) * 100 : 0
+  const marginPercent = marginValue > 0 ? (netEquity / marginValue) * 100 : 0
 
   return {
     fundsExposure,

@@ -23,7 +23,7 @@ describe('mapErpLiveMarginRow', () => {
     })
     expect(low.equity).toBe(1200)
     expect(high.equity).toBe(1250)
-    expect(high.marginPercent).toBeCloseTo(20000, 1)
+    expect(high.marginPercent).toBeCloseTo(25000, 1)
   })
 
   test('supplier suppression keeps equity frozen when spot rises', () => {

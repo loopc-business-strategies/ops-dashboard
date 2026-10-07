@@ -27,7 +27,7 @@ describe('mapMarginRow live recalc', () => {
 
     expect(unchanged.equity).toBe(1200)
     expect(repriced.equity).toBe(1250)
-    expect(repriced.marginPercent).toBeCloseTo(20000, 1)
+    expect(repriced.marginPercent).toBeCloseTo(25000, 1)
   })
 
   test('supplier suppression keeps equity stable when spot rises', () => {

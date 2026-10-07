@@ -847,7 +847,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
     if (directDealIds.length > 0) {
       const directDeals = await DirectDeal.find({ _id: { $in: directDealIds }, isDeleted: { $ne: true } })
-        .select('_id docNo lineItems.customerId lineItems.customerCode lineItems.customerName lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode')
+        .select('_id docNo entryType lineItems.customerId lineItems.customerCode lineItems.customerName lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode')
         .lean()
 
       directDeals.forEach((deal) => {
@@ -881,7 +881,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
               id: String(deal._id),
               number: String(deal.docNo || '').trim(),
               transactionType: txType,
-              metalFixStatus: '',
+              metalFixStatus: String(deal.entryType || 'fixing') === 'fixing' ? 'fixed' : '',
               metalCode: resolveDirectDealLineMetalCode(line),
               isMetalTrade: true,
               metalSignedWeight: resolveDirectDealLineSignedWeight(line),

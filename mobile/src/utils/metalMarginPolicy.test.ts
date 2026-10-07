@@ -28,6 +28,6 @@ describe('metalMarginPolicy', () => {
     expect(raw.revaluation).toBe(100)
     expect(raw.margin).toBe(2)
     expect(raw.equity).toBe(200)
-    expect(raw.marginPercent).toBe(5000)
+    expect(raw.marginPercent).toBe(10000)
   })
 })

@@ -33,9 +33,9 @@ function resolveDirectDealLineSignedWeight(line = {}) {
   const grams = resolveDirectDealLineWeightGram(line)
   if (grams <= 0) return 0
   const direction = String(line?.direction || '').trim().toLowerCase()
-  // buy  => company sold metal to customer => metal credit (negative sign)
-  // sell => company bought metal from customer => metal debit (positive sign)
-  return direction === 'buy' ? -grams : grams
+  // Metal stays on account: buy => customer holds the grams (positive, in the
+  // customer's favour, offsetting the cash debit); sell => customer gives grams up.
+  return direction === 'buy' ? grams : -grams
 }
 
 function resolveDirectDealLineMetalCode(line = {}) {
