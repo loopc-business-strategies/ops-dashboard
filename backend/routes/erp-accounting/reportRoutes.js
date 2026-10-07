@@ -48,6 +48,7 @@ const {
   resolveDirectDealCompanyDirection,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { summarizeVoucherFixingState } = require('../../services/erpAccounting/voucherFixingService')
+const { loadMetalBookRevaluation } = require('../../services/erpAccounting/metalBookRevaluation')
 const {
   computeMarginMetricsRaw,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
@@ -454,6 +455,26 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
     }
     return payload
     })
+
+    // Live prices make this a today-only figure, so it stays outside the cache and past periods.
+    const endOfPeriod = endDate ? new Date(endDate) : null
+    if (endOfPeriod) endOfPeriod.setHours(23, 59, 59, 999)
+    if (!endOfPeriod || Number.isNaN(endOfPeriod.getTime()) || endOfPeriod >= new Date()) {
+      const metalPositionRevaluation = await loadMetalBookRevaluation({
+        InventoryItem,
+        Ledger,
+        ChartOfAccount,
+        Transaction,
+        DirectDeal,
+        getLatestMetalRate,
+        DEFAULT_METAL_RATES,
+      })
+      return res.json({
+        ...payload,
+        metalPositionRevaluation,
+        netProfitWithMetalRevaluation: toMoney(Number(payload.netProfit || 0) + metalPositionRevaluation.adjustment),
+      })
+    }
     res.json(payload)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })

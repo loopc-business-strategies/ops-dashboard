@@ -2241,6 +2241,24 @@ describe('ERP accounting transactions workflow', () => {
     expect(res.body.balanced).toBe(true)
   })
 
+  test('profit and loss adds the live metal book revaluation only for current periods', async () => {
+    const financeUser = await createUser({ name: 'P&L Revaluation Tester' })
+
+    const current = await request(app)
+      .get('/api/erp-accounting/reports/profit-loss')
+      .set(authHeader(financeUser))
+    expect(current.status).toBe(200)
+    expect(current.body.metalPositionRevaluation).toMatchObject({ adjustment: 0, inventoryBookValue: 0 })
+    expect(current.body.netProfitWithMetalRevaluation).toBe(current.body.netProfit)
+
+    const past = await request(app)
+      .get('/api/erp-accounting/reports/profit-loss')
+      .query({ startDate: '2025-01-01', endDate: '2025-12-31' })
+      .set(authHeader(financeUser))
+    expect(past.status).toBe(200)
+    expect(past.body.metalPositionRevaluation).toBeUndefined()
+  })
+
   test('balance sheet reclassifies credit-balance debtors as liabilities', async () => {
     const financeUser = await createUser({ name: 'Balance Sheet Reclass Tester' })
     const debtorAccount = await ChartOfAccount.create({

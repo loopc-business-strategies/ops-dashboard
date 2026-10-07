@@ -49,6 +49,7 @@ export default function ERPReportsTab({
   const INCLUDE_ZERO_REPORT_VIEWS = new Set(['trial', 'pnl', 'balanceSheet'])
   const TRIAL_BALANCE_UI_ROW_CAP = 500
   const DAY_BOOK_UI_ROW_CAP = 600
+  const formatGrams = (value) => `${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
 
   const trialBalanceForView = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
   const trialBalanceFiltered = trialBalanceForView.filter((row) => {
@@ -211,6 +212,9 @@ export default function ERPReportsTab({
               <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Income: {formatMoney(reports.profitLoss?.totalIncome || 0)}</p>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Expense: {formatMoney(reports.profitLoss?.totalExpense || 0)}</p>
               <p style={{ margin: '0.2rem 0 0', fontWeight: '700', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger, fontSize: '0.82rem' }}>Net: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
+              {reports.profitLoss?.metalPositionRevaluation && (
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.inkSoft }}>Incl. open metal at live price: {formatMoney(reports.profitLoss.netProfitWithMetalRevaluation)}</p>
+              )}
             </div>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, fontWeight: '700' }}>Balance Sheet</p>
@@ -349,6 +353,26 @@ export default function ERPReportsTab({
                   <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net Profit: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
                   {reports.profitLoss?.previousPeriod && <p style={{ margin: '0.2rem 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {formatMoney(reports.profitLoss?.varianceVsPrevious || 0)}</p>}
                 </div>
+                {reports.profitLoss?.metalPositionRevaluation && (
+                  <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem', fontSize: '0.84rem' }}>
+                    <p style={{ margin: '0 0 0.3rem', fontWeight: '700' }}>Open metal position at live price (not posted)</p>
+                    {reports.profitLoss.metalPositionRevaluation.metals
+                      .filter((row) => row.stockGrams || row.owedGrams)
+                      .map((row) => (
+                        <p key={row.metal} style={{ margin: '0.15rem 0', color: C.inkSoft }}>
+                          {row.metal === 'gold' ? 'Gold' : 'Silver'}: stock {formatGrams(row.stockGrams)} − owed to parties {formatGrams(row.owedGrams)} = {formatGrams(row.netGrams)} at {formatMoney(row.pricePerGram)}/g = {formatMoney(row.marketValue)}
+                        </p>
+                      ))}
+                    <p style={{ margin: '0.15rem 0', color: C.inkSoft }}>Less metal inventory at book value: {formatMoney(reports.profitLoss.metalPositionRevaluation.inventoryBookValue)}</p>
+                    <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Revaluation: {formatMoney(reports.profitLoss.metalPositionRevaluation.adjustment)}</p>
+                    <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss.netProfitWithMetalRevaluation || 0) >= 0 ? C.s1 : C.danger }}>
+                      Net Profit incl. open metal position: {formatMoney(reports.profitLoss.netProfitWithMetalRevaluation)}
+                    </p>
+                    <p style={{ margin: '0.3rem 0 0', fontSize: '0.76rem', color: C.inkSoft, lineHeight: 1.35 }}>
+                      Covers all open metal to date, not just this period. Fixing deals book their full value as income/expense, so this values the metal still owed or held at today&apos;s price.
+                    </p>
+                  </div>
+                )}
               </div>
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Monthly Comparison</p>
