@@ -304,7 +304,10 @@ export default function AccountEnquiryModal({
                                   </td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>
-                                    {formatDirectionalBalance(row.currentValue, { currencyCode: statementDisplayCurrency })}
+                                    {formatDirectionalBalance(row.currentValue, {
+                                      currencyCode: statementDisplayCurrency,
+                                      preferredDirection: resolveMarginEquityDirection(row.currentValue),
+                                    })}
                                   </td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
                                 </tr>
