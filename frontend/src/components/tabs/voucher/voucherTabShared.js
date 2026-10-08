@@ -279,113 +279,49 @@ export const classicPartyGrid = {
   alignItems: 'end',
 }
 
-export const classicPartyCard = {
-  margin: '0 0.55rem 0.55rem',
-  border: `1px solid ${S.border}`,
-  borderRadius: '8px',
-  background: '#FFFFFF',
-  overflow: 'hidden',
-}
-
-export const classicPartyCardHeader = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto',
-  borderBottom: '1px solid var(--brand-border)',
-  background: 'var(--brand-soft)',
-}
-
-export const classicPartyCardTitle = {
-  padding: '0.46rem 0.68rem',
-  fontSize: '0.82rem',
-  fontWeight: '700',
-  color: 'var(--brand-on-soft)',
-  borderRight: '1px solid var(--brand-border)',
-  background: 'var(--brand-soft)',
-  textShadow: 'none',
-}
-
-export const classicPartyCardCodeWrap = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(96px, 1fr) 28px',
-  background: '#FFFFFF',
-  alignItems: 'stretch',
-}
-
-export const classicPartyCardCode = {
+export const classicPartyCodeRow = {
   display: 'flex',
   alignItems: 'stretch',
-  minWidth: '96px',
-  background: '#FFFFFF',
-  borderRight: `1px solid ${S.border}`,
+  gap: '0.25rem',
 }
 
-export const classicPartyCardCodeInput = {
-  width: '100%',
-  minWidth: '96px',
-  minHeight: '100%',
-  border: 0,
-  outline: 'none',
-  background: '#FFFFFF',
-  padding: '0.42rem 0.55rem',
-  fontSize: '0.78rem',
-  fontWeight: '700',
-  color: '#374151',
-  boxSizing: 'border-box',
-}
-
-export const classicPartyCardSearch = {
-  display: 'flex',
+export const classicPartySearchBtn = {
+  width: '1.9rem',
+  flexShrink: 0,
+  display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: '0.9rem',
-  color: '#6B7280',
+  color: '#4B5563',
   background: '#F8FAFC',
-  border: 0,
-  width: '100%',
-  height: '100%',
+  border: '1px solid var(--border-input, #9CA3AF)',
+  borderRadius: '8px',
   cursor: 'pointer',
+  padding: 0,
 }
 
-export const classicPartyCardName = {
-  padding: '0.55rem 0.68rem',
-  fontSize: '1.12rem',
-  fontWeight: '800',
-  color: 'var(--text-primary, #111827)',
-  borderBottom: `1px solid ${S.border}`,
-  minHeight: '2.55rem',
+export const classicPartySummary = {
   display: 'flex',
   alignItems: 'center',
-  letterSpacing: '0.01em',
-  background: '#FFFFFF',
+  gap: '0.45rem',
+  padding: '0 0.55rem 0.4rem',
+  fontSize: '0.78rem',
+  color: '#4B5563',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 }
 
-export const classicPartyCardBody = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  gap: '0.55rem 0.7rem',
-  padding: '0.55rem 0.6rem 0.65rem',
-}
-
-export const classicPartyCardField = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.18rem',
-  minWidth: 0,
-}
-
-export const classicPartyCardFieldLabel = {
+export const classicPartyTypeTag = {
   fontSize: '0.66rem',
   fontWeight: '700',
-  color: '#6B7280',
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
-}
-
-export const classicPartyCardFieldValue = {
-  fontSize: '0.8rem',
-  color: '#111827',
-  minHeight: '1rem',
-  wordBreak: 'break-word',
+  color: 'var(--brand-on-soft)',
+  background: 'var(--brand-soft)',
+  border: '1px solid var(--brand-border)',
+  borderRadius: '4px',
+  padding: '0 0.3rem',
+  flexShrink: 0,
 }
 
 export const classicRightGrid = {
