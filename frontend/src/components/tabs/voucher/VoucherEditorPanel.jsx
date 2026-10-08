@@ -4,9 +4,7 @@ import VoucherAttachmentsPanel from '../erp/VoucherAttachmentsPanel'
 import {
   S, btn, fmt, inputStyle, labelStyle, tabBtn, sectionBox, sectionHeader, sectionBody,
   classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid,
-  classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap,
-  classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName,
-  classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue,
+  classicPartyCodeRow, classicPartySearchBtn, classicPartySummary, classicPartyTypeTag,
   classicRightGrid, classicLabel, classicInput, classicReadInput, metalWin, metalTopInlineRow,
   metalTopField, normalizeLineType, isMetalStockVoucherType, getInventoryCatalogProductsForStock,
   productTransferTabBtn, productTransferDocHeader, productTransferDocField, productTransferDocLabel,
@@ -19,6 +17,7 @@ import {
   shouldSkipAutofilledAmountLc,
 } from './voucherKeyboardNav'
 import MetalTransferEditor from './MetalTransferEditor'
+import VoucherToolbarIcon from './VoucherToolbarIcon'
 import { buildNetAmountRows } from './voucherNetAmounts'
 
 export default function VoucherEditorPanel({
@@ -320,32 +319,28 @@ export default function VoucherEditorPanel({
 
           {/* ── ERP Classic Toolbar ── */}
           {(() => {
-            const compactMetalTb = false
             const tbS = {
-              minWidth: compactMetalTb ? 24 : 68,
-              width: compactMetalTb ? 24 : undefined,
-              height: compactMetalTb ? 22 : 24,
+              width: 30,
+              height: 26,
               background: '#F8FAFC',
               border: '1px solid #A9A9A9',
               borderTop: '1px solid #F8F8F8',
               borderLeft: '1px solid #ECECEC',
               borderRadius: 2,
               cursor: 'pointer',
-              fontSize: compactMetalTb ? 10 : 10.5,
-              fontWeight: 700,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 1px 1px 1px rgba(0,0,0,0.22)',
               color: '#222',
-              padding: compactMetalTb ? 0 : '0 7px',
+              padding: 0,
               flexShrink: 0,
-              whiteSpace: compactMetalTb ? 'normal' : 'nowrap',
             }
             const TbBtn = ({ tip, label, icon, onClick, style: extra = {}, disabled = false }) => (
               <button
                 type="button"
                 title={tip}
+                aria-label={label}
                 onMouseDown={disabled ? undefined : (e) => {
                   if (e.button !== 0) return
                   e.preventDefault()
@@ -358,7 +353,7 @@ export default function VoucherEditorPanel({
                 disabled={disabled}
                 style={{ ...tbS, ...extra, ...(disabled ? { opacity: 0.35, cursor: 'default', pointerEvents: 'none' } : { pointerEvents: 'auto' }) }}
               >
-                {compactMetalTb ? icon : label}
+                <VoucherToolbarIcon name={icon} />
               </button>
             )
             const Sep = () => <div style={{ width: 1, height: 20, background: '#b0b0b0', margin: '0 3px', flexShrink: 0 }} />
@@ -378,18 +373,18 @@ export default function VoucherEditorPanel({
                 overflowX: 'auto',
                 marginBottom: '0.6rem',
               }}>
-                <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" onClick={() => openCreate()} disabled={!canCreate} />
-                <TbBtn tip="Edit — unlocks the current record for modification" label={entryLockInfo?.locked ? 'View Only' : 'Edit'} onClick={handleEditUnlock} disabled={isReadOnly || entryLockInfo?.locked || (!editingId && mode !== 'create')} />
-                <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} disabled={isReadOnly || entryLockInfo?.locked || (Boolean(editingId) && !canDeleteCurrentVoucher)} />
-                <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} disabled={formReadOnly} />
+                <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" icon="new" onClick={() => openCreate()} disabled={!canCreate} />
+                <TbBtn tip={entryLockInfo?.locked ? 'View Only — this voucher is locked' : 'Edit — unlocks the current record for modification'} label={entryLockInfo?.locked ? 'View Only' : 'Edit'} icon={entryLockInfo?.locked ? 'view' : 'edit'} onClick={handleEditUnlock} disabled={isReadOnly || entryLockInfo?.locked || (!editingId && mode !== 'create')} />
+                <TbBtn tip="Delete — removes the current voucher" label="Delete" icon="delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} disabled={isReadOnly || entryLockInfo?.locked || (Boolean(editingId) && !canDeleteCurrentVoucher)} />
+                <TbBtn tip="Save — saves your data permanently" label="Save" icon="save" onClick={saveVoucher} style={{ color: '#065f46' }} disabled={formReadOnly} />
                 <Sep />
-                <TbBtn tip="|◀ First — jumps to the very first voucher on record" label="|◀ First" icon="⏮" onClick={navFirst} disabled={curIdx <= 0} />
-                <TbBtn tip="◀ Previous — goes one record back" label="◀ Previous" icon="◀" onClick={navPrev} disabled={curIdx <= 0} />
-                <TbBtn tip="▶ Next — goes one record forward" label="▶ Next" icon="▶" onClick={navNext} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
-                <TbBtn tip="▶| Last — jumps to the most recent voucher" label="▶| Last" icon="⏭" onClick={navLast} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
+                <TbBtn tip="First — jumps to the very first voucher on record" label="First" icon="first" onClick={navFirst} disabled={curIdx <= 0} />
+                <TbBtn tip="Previous — goes one record back" label="Previous" icon="previous" onClick={navPrev} disabled={curIdx <= 0} />
+                <TbBtn tip="Next — goes one record forward" label="Next" icon="next" onClick={navNext} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
+                <TbBtn tip="Last — jumps to the most recent voucher" label="Last" icon="last" onClick={navLast} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
                 <Sep />
-                <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => (onPrintPreview ? onPrintPreview() : window.print())} />
-                <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
+                <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" icon="print" onClick={() => (onPrintPreview ? onPrintPreview() : window.print())} />
+                <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" icon="search" onClick={handleSearchFind} />
                 <div style={{ flex: 1 }} />
               </div>
             )
@@ -535,73 +530,48 @@ export default function VoucherEditorPanel({
                         )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                           <label style={classicLabel}>Party Code</label>
-                          <input
-                            ref={partyCodeRef}
-                            style={formReadOnly ? classicReadInput : classicInput}
-                            value={header.partyCode ?? ''}
-                            onChange={e => setHdr('partyCode', e.target.value)}
-                            onKeyDown={(e) => {
-                              handlePartyCodeEnter(e)
-                              handleHeaderNavKeyDown(e)
-                            }}
-                            placeholder={voucherConfig.partyPlaceholder}
-                            readOnly={formReadOnly}
-                          />
+                          <div style={classicPartyCodeRow}>
+                            <input
+                              ref={partyCodeRef}
+                              style={{ ...(formReadOnly ? classicReadInput : classicInput), flex: 1, minWidth: 0 }}
+                              value={header.partyCode ?? ''}
+                              onChange={e => setHdr('partyCode', e.target.value)}
+                              onKeyDown={(e) => {
+                                handlePartyCodeEnter(e)
+                                handleHeaderNavKeyDown(e)
+                              }}
+                              placeholder={voucherConfig.partyPlaceholder}
+                              readOnly={formReadOnly}
+                            />
+                            <button
+                              type="button"
+                              style={classicPartySearchBtn}
+                              onClick={searchPartyByCode}
+                              disabled={formReadOnly}
+                              title="Search party by code"
+                              aria-label="Search party by code"
+                            >
+                              <VoucherToolbarIcon name="search" size={14} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       {(() => {
                         const resolvedParty = resolveVoucherParty(header.partyCode)
-                        const partyCardTitle = resolvedParty?.partyType === 'vendor'
-                          ? 'Vendor Details'
-                          : resolvedParty?.partyType === 'customer'
-                            ? 'Customer Details'
-                            : 'Party Details'
-                        const partyDisplayName = resolvedParty?.partyName || header.partyName || 'No party selected'
-                        const partyEmail = resolvedParty?.email || '—'
-                        const partyPhone = resolvedParty?.phone || '—'
-                        const partyAddress = resolvedParty?.address || '—'
-
+                        const partyName = resolvedParty?.partyName || header.partyName
+                        if (!partyName) return null
+                        const partyTypeLabel = resolvedParty?.partyType === 'vendor'
+                          ? 'Vendor'
+                          : resolvedParty?.partyType === 'customer' ? 'Customer' : ''
+                        const contact = [resolvedParty?.phone, resolvedParty?.email, resolvedParty?.address]
+                          .map((value) => String(value || '').trim())
+                          .filter(Boolean)
+                          .join(' · ')
                         return (
-                          <div style={classicPartyCard}>
-                            <div style={classicPartyCardHeader}>
-                              <div style={classicPartyCardTitle}>{partyCardTitle}</div>
-                              <div style={classicPartyCardCodeWrap}>
-                                <div style={classicPartyCardCode}>
-                                  <input
-                                    style={classicPartyCardCodeInput}
-                                    value={header.partyCode ?? ''}
-                                    onChange={e => setHdr('partyCode', e.target.value)}
-                                    onKeyDown={handlePartyCodeEnter}
-                                    placeholder="Code"
-                                    readOnly={formReadOnly}
-                                  />
-                                </div>
-                                <button
-                                  type="button"
-                                  style={classicPartyCardSearch}
-                                  onClick={searchPartyByCode}
-                                  disabled={formReadOnly}
-                                  title="Search party by code"
-                                >
-                                  ⌕
-                                </button>
-                              </div>
-                            </div>
-                            <div style={classicPartyCardName}>{partyDisplayName}</div>
-                            <div style={classicPartyCardBody}>
-                              <div style={classicPartyCardField}>
-                                <span style={classicPartyCardFieldLabel}>Email</span>
-                                <span style={classicPartyCardFieldValue}>{partyEmail}</span>
-                              </div>
-                              <div style={classicPartyCardField}>
-                                <span style={classicPartyCardFieldLabel}>Phone</span>
-                                <span style={classicPartyCardFieldValue}>{partyPhone}</span>
-                              </div>
-                              <div style={{ ...classicPartyCardField, gridColumn: '1 / -1' }}>
-                                <span style={classicPartyCardFieldLabel}>Address</span>
-                                <span style={classicPartyCardFieldValue}>{partyAddress}</span>
-                              </div>
-                            </div>
+                          <div style={classicPartySummary} title={[partyName, partyTypeLabel, contact].filter(Boolean).join(' · ')}>
+                            <strong style={{ color: '#111827' }}>{partyName}</strong>
+                            {partyTypeLabel ? <span style={classicPartyTypeTag}>{partyTypeLabel}</span> : null}
+                            {contact ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact}</span> : null}
                           </div>
                         )
                       })()}

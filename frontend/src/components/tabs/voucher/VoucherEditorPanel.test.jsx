@@ -141,6 +141,39 @@ describe('VoucherEditorPanel toolbar', () => {
       expect(screen.queryByTitle(tip)).toBeNull()
     }
   })
+
+  it('renders toolbar buttons as icons with tooltips and no visible text', () => {
+    render(<VoucherEditorPanel {...minimalProps} />)
+    for (const name of ['New', 'Edit', 'Delete', 'Save', 'First', 'Previous', 'Next', 'Last', 'Print/Preview', 'Search/Find']) {
+      const button = screen.getByRole('button', { name })
+      expect(button.textContent).toBe('')
+      expect(button.querySelector('svg')).toBeTruthy()
+      expect(button.getAttribute('title')).toMatch(new RegExp(`^${name.replace('/', '\\/')} —`))
+    }
+  })
+})
+
+describe('VoucherEditorPanel party details', () => {
+  it('shows the selected party on one compact line', () => {
+    render(
+      <VoucherEditorPanel
+        {...minimalProps}
+        header={{ ...minimalProps.header, partyCode: 'V001' }}
+        resolveVoucherParty={() => ({ partyName: 'Acme Metals', partyType: 'vendor', phone: '+998 90 000', email: 'a@acme.uz', address: '' })}
+      />,
+    )
+    expect(screen.getByText('Acme Metals')).toBeTruthy()
+    expect(screen.getByText('Vendor')).toBeTruthy()
+    expect(screen.getByText('+998 90 000 · a@acme.uz')).toBeTruthy()
+    expect(screen.queryByText('Email')).toBeNull()
+    expect(screen.getAllByDisplayValue('V001')).toHaveLength(1)
+  })
+
+  it('hides the party line when no party is selected', () => {
+    render(<VoucherEditorPanel {...minimalProps} />)
+    expect(screen.queryByText('No party selected')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Search party by code' })).toBeTruthy()
+  })
 })
 
 describe('VoucherEditorPanel workflow', () => {

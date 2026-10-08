@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { buildVoucherPrintModel } from './useVoucherPrintModel'
+import { buildVoucherPrintModel, resolvePrintTotals } from './useVoucherPrintModel'
 import * as tenantBranding from '../../../config/tenantBranding'
 
 const baseArgs = {
@@ -220,6 +220,28 @@ describe('buildVoucherPrintModel tenant layout routing', () => {
   })
 })
 
+describe('resolvePrintTotals', () => {
+  const uzsLine = { currCode: 'UZS', amountFC: 145990130, amountLC: 13271.83 }
+
+  it('keeps the line total when lines match the header currency', () => {
+    const totals = { grandTotal: 145990130 }
+    expect(resolvePrintTotals({ voucherType: 'payment', header: { currCode: 'UZS' }, effectiveLineItems: [uzsLine], totals }))
+      .toEqual({ totals, currency: 'UZS' })
+  })
+
+  it('falls back to the base total when line currency differs from the header', () => {
+    const result = resolvePrintTotals({ voucherType: 'receipt', header: { currCode: 'USD' }, effectiveLineItems: [uzsLine], totals: { grandTotal: 145990130 } })
+    expect(result.currency).toBe('USD')
+    expect(result.totals.grandTotal).toBeCloseTo(13271.83, 2)
+  })
+
+  it('leaves metal vouchers unchanged', () => {
+    const totals = { grandTotal: 500 }
+    expect(resolvePrintTotals({ voucherType: 'purchase', header: { currCode: 'USD' }, effectiveLineItems: [uzsLine], totals }))
+      .toEqual({ totals, currency: 'USD' })
+  })
+})
+
 describe('buildVoucherPrintModel net amount rows', () => {
   it('returns USD and UZS net rows for a UZS payment voucher', () => {
     const model = buildVoucherPrintModel({
@@ -250,6 +272,20 @@ describe('buildVoucherPrintModel net amount rows', () => {
     expect(model.netAmountRows.map((row) => row.code)).toEqual(['USD', 'UZS'])
     expect(model.netAmountRows[1].amount).toBe(12100000)
     expect(model.netAmountRows[1].rateNote).toMatch(/12,100/)
+  })
+
+  it('prints a USD-header payment with UZS lines in USD, not the UZS line sum', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      header: { ...baseArgs.header, currCode: 'USD' },
+      effectiveLineItems: [{ currCode: 'UZS', amountFC: 145990130, amountLC: 13271.83 }],
+      totals: { grandTotal: 145990130 },
+      voucherType: 'payment',
+      user: { company: 'mg', name: 'MG User' },
+    })
+
+    expect(model.currencyLabel).toBe('USD')
+    expect(model.totals.grandTotal).toBeCloseTo(13271.83, 2)
   })
 
   it('returns no net rows when net amounts are not provided', () => {
