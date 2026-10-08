@@ -5,6 +5,7 @@ import MGVoucherPrintLayout from '../erp/MGVoucherPrintLayout'
 import ProfessionalCurrencyVoucherPrintLayout from '../erp/ProfessionalCurrencyVoucherPrintLayout'
 import ProfessionalMetalInvoicePrintLayout from '../erp/ProfessionalMetalInvoicePrintLayout'
 import { useDocumentPrintLogo } from './useDocumentPrintLogo'
+import VoucherPrintNetAmounts from './VoucherPrintNetAmounts'
 import {
   VOUCHER_BORDER,
   VOUCHER_CELL_PADDING,
@@ -81,6 +82,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
     lineItems,
     voucherPrint,
     voucherPrintSettings,
+    netAmountRows = [],
   } = printModel
 
   const useCustomVoucherLayout = voucherPrintSettings?.enabled === true
@@ -176,6 +178,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           confirmedForLabel={proConfirmedForLabel}
           signatories={proSignatories}
           fmt={fmt}
+          netAmountRows={netAmountRows}
         />
       ) : useProfessionalCurrencyLayout ? (
         <ProfessionalCurrencyVoucherPrintLayout
@@ -210,6 +213,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           signatories={proSignatories}
           normalizeLineType={normalizeLineType}
           fmt={fmt}
+          netAmountRows={netAmountRows}
         />
       ) : isMgCurrencyVoucher ? (
         <MGVoucherPrintLayout
@@ -236,6 +240,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           partyPhone={mgPartyPrintPhone}
           normalizeLineType={normalizeLineType}
           fmt={fmt}
+          netAmountRows={netAmountRows}
         />
       ) : isMgMetalVoucher ? (
         <MGMetalInvoicePrintLayout
@@ -260,6 +265,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
           amountWords={mgAmountWords}
           postingDirection={mgMetalPostingDirection}
           fmt={fmt}
+          netAmountRows={netAmountRows}
         />
       ) : (
       <>
@@ -374,6 +380,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         </table>
       )}
 
+      <VoucherPrintNetAmounts rows={netAmountRows} fmt={fmt} border={VOUCHER_BORDER} />
       <div style={{
         border: VOUCHER_BORDER,
         padding: VOUCHER_CELL_PADDING,

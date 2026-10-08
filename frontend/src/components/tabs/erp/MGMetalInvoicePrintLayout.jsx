@@ -1,3 +1,5 @@
+import VoucherPrintNetAmounts from '../voucher/VoucherPrintNetAmounts'
+
 export default function MGMetalInvoicePrintLayout({
   companyName,
   companyAddress,
@@ -20,6 +22,7 @@ export default function MGMetalInvoicePrintLayout({
   amountWords,
   postingDirection,
   fmt,
+  netAmountRows = [],
 }) {
   const rows = Array.isArray(lineItems) && lineItems.length ? lineItems : [{}]
   const border = '1px solid #111827'
@@ -192,6 +195,9 @@ export default function MGMetalInvoicePrintLayout({
         </tbody>
       </table>
 
+      <div style={{ marginTop: '6px' }}>
+        <VoucherPrintNetAmounts rows={netAmountRows} fmt={fmt} border={border} fontSize="10.5px" />
+      </div>
       <div style={{ margin: '5px 0 3px 2px', fontStyle: 'italic' }}>Your account has been updated with :</div>
       <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', border, minHeight: '25px', alignItems: 'center' }}>
         <div style={{ borderRight: border, padding: '5px 5px', fontSize: '11px', fontWeight: '900' }}>{currencyLabel} {fmt(totals.grandTotal || totalGrossAmount)} {postingDirection}</div>

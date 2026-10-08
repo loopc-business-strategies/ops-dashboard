@@ -95,4 +95,54 @@ describe('Professional voucher print layouts', () => {
     expect(screen.getByText('Vendor Street')).toBeTruthy()
     expect(screen.getByText('PAY NO')).toBeTruthy()
   })
+
+  it('prints Net Amt in USD and UZS when net amount rows are provided', () => {
+    render(
+      <ProfessionalCurrencyVoucherPrintLayout
+        companyName="LoopC Trading LLC"
+        printTitle="PAYMENT VOUCHER"
+        copyLabel="ACCOUNTS COPY"
+        voucherType="payment"
+        accountDescription={() => 'Cash on Hand'}
+        docNoValue="PAY-0141"
+        dateValue="2026-10-08"
+        amountLabel="Amount (UZS)"
+        currencyLabel="UZS"
+        lineItems={[{ type: 'expense', amountFC: 145990130, amountLC: 13271.83, narration: 'Expenses' }]}
+        primaryLine={{}}
+        totals={{ grandTotal: 145990130 }}
+        amountWords="One Hundred Forty Five Million"
+        postingDirection="DEBITED"
+        normalizeLineType={(type) => type}
+        fmt={fmt}
+        netAmountRows={[
+          { code: 'USD', amount: 13271.83 },
+          { code: 'UZS', amount: 145990130 },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText(/Net Amt \(USD\)/)).toBeTruthy()
+    expect(screen.getByText(/Net Amt \(UZS\)/)).toBeTruthy()
+    expect(screen.getByText(/Net Amt \(USD\)/).textContent).toContain('13271.83')
+  })
+
+  it('omits the Net Amt strip when only one currency row exists', () => {
+    render(
+      <ProfessionalCurrencyVoucherPrintLayout
+        printTitle="PAYMENT VOUCHER"
+        voucherType="payment"
+        accountDescription={() => 'Cash on Hand'}
+        currencyLabel="USD"
+        lineItems={[]}
+        primaryLine={{}}
+        totals={{ grandTotal: 100 }}
+        normalizeLineType={(type) => type}
+        fmt={fmt}
+        netAmountRows={[{ code: 'USD', amount: 100 }]}
+      />,
+    )
+
+    expect(screen.queryByText(/Net Amt \(USD\)/)).toBeNull()
+  })
 })

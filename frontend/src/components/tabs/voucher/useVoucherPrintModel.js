@@ -18,6 +18,7 @@ import {
   normalizeVoucherFixingType,
   numberToWords,
 } from './voucherTabShared'
+import { buildNetAmountRows } from './voucherNetAmounts'
 
 /**
  * Pure print-model builder for voucher documents (MG layouts + generic print).
@@ -37,6 +38,7 @@ export function buildVoucherPrintModel({
   resolveVoucherParty = () => ({}),
   lineItems,
   baseCurrencyCode = 'USD',
+  voucherNetAmounts = null,
 }) {
   const branding = user?.branding || {}
   const tenant = user?.tenant || {}
@@ -156,6 +158,9 @@ export function buildVoucherPrintModel({
   const mgMetalPostingDirection = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'DEBITED' : 'CREDITED'
   const mgMetalRateValue = mgLineItems.find((line) => Number(line?.metalRate || 0) > 0)?.metalRate || ''
   const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue, currencyLabel || baseCurrencyCode || 'USD')} / SOZ (${currencyLabel || baseCurrencyCode || 'USD'})` : ''
+  const netAmountRows = voucherNetAmounts && !isSimpleMetalVoucher
+    ? buildNetAmountRows({ voucherCurrency: currencyLabel, voucherTotal: totals.grandTotal, voucherNetAmounts })
+    : []
 
   return {
     documentBranding,
@@ -216,6 +221,7 @@ export function buildVoucherPrintModel({
     isMetalVoucher,
     voucherType,
     baseCurrencyCode,
+    netAmountRows,
   }
 }
 
@@ -237,6 +243,7 @@ export function useVoucherPrintModel({
   resolveVoucherParty,
   lineItems,
   baseCurrencyCode = 'USD',
+  voucherNetAmounts = null,
 }) {
   return useMemo(
     () => buildVoucherPrintModel({
@@ -254,6 +261,7 @@ export function useVoucherPrintModel({
       resolveVoucherParty,
       lineItems,
       baseCurrencyCode,
+      voucherNetAmounts,
     }),
     [
       voucherType,
@@ -270,6 +278,7 @@ export function useVoucherPrintModel({
       resolveVoucherParty,
       lineItems,
       baseCurrencyCode,
+      voucherNetAmounts,
     ],
   )
 }

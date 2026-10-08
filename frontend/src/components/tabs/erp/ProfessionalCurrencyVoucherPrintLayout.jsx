@@ -1,4 +1,5 @@
 import { PROFESSIONAL_SHEET_STYLE, ProfessionalGoldTitleBar, buildProfessionalCurrencyDocLabel } from '../voucher/professionalVoucherPrint'
+import VoucherPrintNetAmounts from '../voucher/VoucherPrintNetAmounts'
 
 const DEFAULT_CURRENCY_SIGNATORIES = [
   { title: "CUSTOMER'S SIGNATURE" },
@@ -65,6 +66,7 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
   signatories,
   normalizeLineType,
   fmt,
+  netAmountRows = [],
 }) {
   const rows = lineItems.length ? lineItems : [primaryLine]
   const recordCount = lineItems.length || 1
@@ -202,6 +204,7 @@ export default function ProfessionalCurrencyVoucherPrintLayout({
         </tbody>
       </table>
 
+      <VoucherPrintNetAmounts rows={netAmountRows} fmt={fmt} border={border} fontSize="10.5px" />
       <div style={{ margin: '0 0 7px 6px', fontSize: '11px', fontStyle: 'italic' }}>Your account has been updated with :</div>
       <div style={{ display: 'grid', gridTemplateColumns: '215px 1fr', border, minHeight: '30px', alignItems: 'center', marginBottom: '13px' }}>
         <div style={{ borderRight: border, padding: '7px 8px', fontWeight: '900', fontStyle: 'italic', fontSize: '10.5px' }}>

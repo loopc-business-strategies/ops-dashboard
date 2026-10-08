@@ -1,4 +1,5 @@
 import { PROFESSIONAL_SHEET_STYLE, ProfessionalGoldTitleBar } from '../voucher/professionalVoucherPrint'
+import VoucherPrintNetAmounts from '../voucher/VoucherPrintNetAmounts'
 
 const DEFAULT_METAL_SIGNATORIES = [
   { title: "CUSTOMER'S SIGNATURE" },
@@ -61,6 +62,7 @@ export default function ProfessionalMetalInvoicePrintLayout({
   confirmedForLabel = 'Confirmed for & on behalf of',
   signatories,
   fmt,
+  netAmountRows = [],
 }) {
   const rows = Array.isArray(lineItems) && lineItems.length ? lineItems : [{}]
   const border = '1px solid #111827'
@@ -247,6 +249,9 @@ export default function ProfessionalMetalInvoicePrintLayout({
         </tbody>
       </table>
 
+      <div style={{ marginTop: '6px' }}>
+        <VoucherPrintNetAmounts rows={netAmountRows} fmt={fmt} border={border} fontSize="10px" />
+      </div>
       <div style={{ margin: '5px 0 3px 2px', fontStyle: 'italic', fontSize: '10px' }}>Your account has been updated with :</div>
       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', border, minHeight: '24px', alignItems: 'center' }}>
         <div style={{ borderRight: border, padding: '5px 5px', fontSize: '10px', fontWeight: '900' }}>{currencyLabel} {fmt(totals.grandTotal || totalGrossAmount)} {postingDirection}</div>

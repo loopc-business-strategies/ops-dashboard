@@ -219,3 +219,46 @@ describe('buildVoucherPrintModel tenant layout routing', () => {
     expect(model.useProfessionalCurrencyLayout).toBe(false)
   })
 })
+
+describe('buildVoucherPrintModel net amount rows', () => {
+  it('returns USD and UZS net rows for a UZS payment voucher', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      header: { ...baseArgs.header, currCode: 'UZS' },
+      totals: { grandTotal: 145990130 },
+      voucherType: 'payment',
+      user: { company: 'mg', name: 'MG User' },
+      voucherNetAmounts: { baseCurrency: 'USD', baseAmount: 13271.83, uzsAmount: 145990130, uzsPerBase: 11000 },
+    })
+
+    expect(model.netAmountRows).toEqual([
+      { code: 'USD', amount: 13271.83 },
+      { code: 'UZS', amount: 145990130 },
+    ])
+  })
+
+  it('returns a UZS row with the rate note for a USD purchase voucher', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      totals: { grandTotal: 1000 },
+      voucherType: 'purchase',
+      isMetalVoucher: true,
+      user: { company: 'mg', name: 'MG User' },
+      voucherNetAmounts: { baseCurrency: 'USD', baseAmount: 1000, uzsAmount: 12100000, uzsPerBase: 12100 },
+    })
+
+    expect(model.netAmountRows.map((row) => row.code)).toEqual(['USD', 'UZS'])
+    expect(model.netAmountRows[1].amount).toBe(12100000)
+    expect(model.netAmountRows[1].rateNote).toMatch(/12,100/)
+  })
+
+  it('returns no net rows when net amounts are not provided', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'payment',
+      user: { company: 'mg', name: 'MG User' },
+    })
+
+    expect(model.netAmountRows).toEqual([])
+  })
+})
