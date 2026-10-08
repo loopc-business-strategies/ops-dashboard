@@ -13,42 +13,13 @@ const {
   resolveBridgeFanoutTenants,
   upsertBridgeRatesForTenant,
 } = require('../../services/erpAccounting/metalRateBridgeService')
-const { createMetalPricingHelpers } = require('./reportRoutesMetalPricing')
 const { notifyErpUsers } = require('../../services/notificationDispatch')
 const { timingSafeEqualString } = require('../../utils/timingSafeEqualString')
-const { computeMarginMetricsRaw } = require('../../services/erpAccounting/metalMarginPolicy')
 const {
-  fetchFredPreciousMetalSpotBundle,
-  fetchAlphaVantagePreciousMetalSpotBundle,
-  fetchSilvDataPreciousMetalSpotBundle,
-} = require('../../services/metalSpotFeeds')
-
-const { toMoney } = require('../../shared/money')
-const TROY_OUNCE_GRAMS = 31.1034768
-function marketSpotToLiveRates(market = {}) {
-  const unit = String(market.unit || 'toz').toLowerCase()
-  const perToz = unit === 'toz' || unit === 'oz'
-  const metals = market.metals || {}
-  const gold = Number(metals.gold) || 0
-  const silver = Number(metals.silver) || 0
-  const platinum = Number(metals.platinum) || 0
-  if (gold <= 0 || silver <= 0 || platinum <= 0) return null
-
-  const toGram = (price) => (perToz ? price / TROY_OUNCE_GRAMS : price)
-  return {
-    goldPrice: toGram(gold),
-    silverPrice: toGram(silver),
-    platinumPrice: toGram(platinum),
-    priceCurrency: String(market.currency || 'USD').trim().toUpperCase() || 'USD',
-    priceUnit: 'G',
-    sourceGoldPrice: gold,
-    sourceSilverPrice: silver,
-    sourcePlatinumPrice: platinum,
-    sourceUnit: perToz ? 'TOZ' : 'G',
-    source: String(market.source || 'market').trim() || 'market',
-    updatedAt: market.updatedAt || new Date(),
-  }
-}
+  marketSpotToLiveRates,
+  createMarketSpotResolver,
+  resolveMt4StaleMs,
+} = require('../../services/erpAccounting/metalValuationRates')
 
 function registerCurrencyRoutes(deps) {
   const {
@@ -85,89 +56,7 @@ function registerCurrencyRoutes(deps) {
     return String(base?.code || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase() || 'USD'
   }
 
-  const {
-    fetchExternalMetalPrices,
-    buildFallbackMetalPrices,
-    getCurrencyMultiplier,
-  } = createMetalPricingHelpers(
-    { Currency, InventoryItem, MetalRate, toMoney },
-    computeMarginMetricsRaw,
-  )
-
-  const scaleUsdPerOzMetalsToRequest = async (metalsObj, currency, unit) => {
-    const mult = await getCurrencyMultiplier('USD', currency)
-    const unitFactor = String(unit || 'toz').toLowerCase() === 'g'
-      ? 1 / TROY_OUNCE_GRAMS
-      : String(unit || 'toz').toLowerCase() === 'kg'
-        ? 32.1507465686
-        : 1
-    const out = {}
-    for (const k of ['gold', 'silver', 'platinum', 'palladium']) {
-      const raw = Number(metalsObj[k] || 0)
-      out[k] = Number.isFinite(raw) && raw > 0 ? toMoney(raw * mult * unitFactor) : 0
-    }
-    return out
-  }
-
-  const resolveServerMarketSpot = async ({ currency = 'USD', unit = 'toz' } = {}) => {
-    const fredKey = String(process.env.FRED_API_KEY || '').trim()
-    const alphaKey = String(process.env.METALS_ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || '').trim()
-    let market
-
-    try {
-      market = await fetchExternalMetalPrices({ currency, unit })
-    } catch {
-      // try other providers below
-    }
-
-    if (!market) {
-      try {
-        const rawSilv = await fetchSilvDataPreciousMetalSpotBundle()
-        market = {
-          ...rawSilv,
-          metals: await scaleUsdPerOzMetalsToRequest(rawSilv.metals, currency, unit),
-          currency: String(currency || 'USD').toUpperCase(),
-          unit: String(unit || 'toz').toLowerCase(),
-        }
-      } catch {
-        // try FRED
-      }
-    }
-
-    if (!market && fredKey) {
-      try {
-        const rawFred = await fetchFredPreciousMetalSpotBundle()
-        market = {
-          ...rawFred,
-          metals: await scaleUsdPerOzMetalsToRequest(rawFred.metals, currency, unit),
-          currency: String(currency || 'USD').toUpperCase(),
-          unit: String(unit || 'toz').toLowerCase(),
-        }
-      } catch {
-        // try Alpha Vantage
-      }
-    }
-
-    if (!market && alphaKey) {
-      try {
-        const rawAv = await fetchAlphaVantagePreciousMetalSpotBundle({ apiKey: alphaKey })
-        market = {
-          ...rawAv,
-          metals: await scaleUsdPerOzMetalsToRequest(rawAv.metals, currency, unit),
-          currency: String(currency || 'USD').toUpperCase(),
-          unit: String(unit || 'toz').toLowerCase(),
-        }
-      } catch {
-        // use inventory / saved fallback
-      }
-    }
-
-    if (!market) {
-      market = await buildFallbackMetalPrices({ currency, unit })
-    }
-
-    return market
-  }
+  const { resolveServerMarketSpot } = createMarketSpotResolver({ Currency, InventoryItem, MetalRate })
 
   const isProduction = process.env.NODE_ENV === 'production'
   const metalRatesBridgeLimiter = rateLimit({
@@ -372,7 +261,7 @@ function registerCurrencyRoutes(deps) {
   router.get('/metal-rates/live', protect, async (req, res) => {
     try {
       const baseCurrencyCode = await resolveTenantBaseCurrencyCode()
-      const staleMs = Math.max(5000, Number(process.env.MT4_LIVE_STALE_MS || 30000))
+      const staleMs = resolveMt4StaleMs()
       const latestFeed = await MetalRate.findOne({
         source: 'mt4-bridge',
         goldPrice: { $gt: 0 },

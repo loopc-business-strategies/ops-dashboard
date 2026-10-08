@@ -1,6 +1,7 @@
 import {
   fmtMoveRow,
   fmtSpot,
+  liveMetalFallbackNote,
   metalStatusSubline,
 } from '../utils/liveMetalRates'
 import useLiveMetalRates from '../hooks/useLiveMetalRates'
@@ -17,6 +18,7 @@ const METALS = [
  */
 export default function TopbarMetalTickers() {
   const { snapshot, error } = useLiveMetalRates()
+  const fallbackNote = liveMetalFallbackNote(snapshot.source)
 
   const pillBase = {
     display: 'inline-flex',
@@ -36,15 +38,16 @@ export default function TopbarMetalTickers() {
     <div className="flex items-center justify-end gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
       {METALS.map(({ key, label, swatch, sym, labelColor }) => {
         const price = snapshot[key]
-        const move = snapshot.deltas && snapshot.prevSnapshot
+        const move = !fallbackNote && snapshot.deltas && snapshot.prevSnapshot
           ? fmtMoveRow(snapshot.deltas[key], snapshot.prevSnapshot[key])
           : null
+        const updatedLabel = snapshot.updatedAt ? `Updated ${new Date(snapshot.updatedAt).toLocaleString('en-GB')}` : ''
 
         return (
           <div
             key={key}
             style={pillBase}
-            title={snapshot.updatedAt ? `Updated ${new Date(snapshot.updatedAt).toLocaleString('en-GB')}` : undefined}
+            title={[fallbackNote, updatedLabel].filter(Boolean).join(' · ') || undefined}
           >
             <span
               style={{
@@ -76,7 +79,7 @@ export default function TopbarMetalTickers() {
                   marginTop: '0.12rem',
                   fontSize: '0.65rem',
                   fontWeight: 600,
-                  color: move ? (move.up ? 'var(--success)' : 'var(--danger)') : error ? 'var(--warning)' : 'var(--text-muted)',
+                  color: move ? (move.up ? 'var(--success)' : 'var(--danger)') : error || fallbackNote ? 'var(--warning)' : 'var(--text-muted)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -89,7 +92,7 @@ export default function TopbarMetalTickers() {
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>
                 ) : (
-                  <span>{metalStatusSubline(snapshot, price, error, key)}</span>
+                  <span>{fallbackNote && price > 0 && !error ? fallbackNote : metalStatusSubline(snapshot, price, error, key)}</span>
                 )}
               </div>
             </div>

@@ -48,7 +48,7 @@ function registerVendorRoutes(deps) {
     ChartOfAccount,
     Currency,
     BASE_CURRENCY_CODE,
-    getLatestMetalRate,
+    getValuationMetalRate,
     DEFAULT_METAL_RATES,
     _canAccessVendors,
     canManageVendors,
@@ -145,7 +145,7 @@ function registerVendorRoutes(deps) {
       const [summaries, paymentScheduleMap, latestRate, metalTxs] = await Promise.all([
         batchVendorSummaries(vendors),
         batchVendorPaymentCalendars(vendors, { horizonDays: 45 }),
-        typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : Promise.resolve(null),
+        typeof getValuationMetalRate === 'function' ? getValuationMetalRate() : Promise.resolve(null),
         vendorIds.length && Transaction
           ? Transaction.find({
               vendorId: { $in: vendorIds },

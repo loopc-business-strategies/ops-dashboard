@@ -52,4 +52,26 @@ describe('TopbarMetalTickers', () => {
     render(<TopbarMetalTickers />)
     expect(screen.getAllByText(/USD\/OZ · MT4/).length).toBe(3)
   })
+
+  test('says MT4 is offline instead of a movement row when showing market prices', () => {
+    vi.mocked(useLiveMetalRates).mockReturnValue({
+      snapshot: {
+        gold: 4105.05,
+        silver: 59.89,
+        platinum: 1633,
+        currency: 'USD',
+        unit: 'TOZ',
+        source: 'metals.dev',
+        updatedAt: new Date().toISOString(),
+        deltas: { gold: 0, silver: 0, platinum: 0 },
+        prevSnapshot: { gold: 4105.05, silver: 59.89, platinum: 1633 },
+      },
+      error: null,
+      streamWarning: null,
+    })
+
+    render(<TopbarMetalTickers />)
+    expect(screen.getAllByText('Market price · MT4 offline').length).toBe(3)
+    expect(screen.queryByText(/\+0\.00/)).toBeNull()
+  })
 })

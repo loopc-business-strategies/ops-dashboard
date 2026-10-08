@@ -237,6 +237,13 @@ export function formatLiveMetalSourceLabel(source = '') {
   return 'live'
 }
 
+/** Ticker note when prices are not coming from MT4 (the server falls back once MT4 is stale). */
+export function liveMetalFallbackNote(source = '') {
+  const src = String(source || '').trim().toLowerCase()
+  if (!src || src === MT4_BRIDGE_SOURCE || src === 'waiting-mt4' || src === 'mock-realtime') return ''
+  return formatLiveMetalSourceLabel(src) === 'saved' ? 'Saved price · MT4 offline' : 'Market price · MT4 offline'
+}
+
 export function metalStatusSubline(snapshot, price, error, _metalKey = 'gold') {
   const errorLabel = metalErrorLabel(error)
   if (errorLabel) return errorLabel

@@ -50,6 +50,13 @@ export default function ERPReportsTab({
   const TRIAL_BALANCE_UI_ROW_CAP = 500
   const DAY_BOOK_UI_ROW_CAP = 600
   const formatGrams = (value) => `${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
+  const formatRateTime = (value) => (value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '—')
+  const formatValuationPriceSource = ({ priceSource, rateUpdatedAt, feedUpdatedAt } = {}) => {
+    if (priceSource === 'market') return `Price: market price — MT4 feed offline since ${formatRateTime(feedUpdatedAt)}`
+    if (priceSource === 'mt4-stale') return `Price: last MT4 rate from ${formatRateTime(rateUpdatedAt)} — MT4 offline and no market price available`
+    if (priceSource === 'mt4') return `Price: MT4 live (${formatRateTime(rateUpdatedAt)})`
+    return `Price: saved rate (${formatRateTime(rateUpdatedAt)})`
+  }
 
   const trialBalanceForView = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
   const trialBalanceFiltered = trialBalanceForView.filter((row) => {
@@ -356,6 +363,9 @@ export default function ERPReportsTab({
                 {reports.profitLoss?.metalPositionRevaluation && (
                   <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem', fontSize: '0.84rem' }}>
                     <p style={{ margin: '0 0 0.3rem', fontWeight: '700' }}>Open metal position at live price (not posted)</p>
+                    <p style={{ margin: '0 0 0.3rem', fontSize: '0.78rem', color: ['market', 'mt4-stale'].includes(reports.profitLoss.metalPositionRevaluation.priceSource) ? C.danger : C.inkSoft }}>
+                      {formatValuationPriceSource(reports.profitLoss.metalPositionRevaluation)}
+                    </p>
                     {reports.profitLoss.metalPositionRevaluation.metals
                       .filter((row) => row.stockGrams || row.owedGrams)
                       .map((row) => (

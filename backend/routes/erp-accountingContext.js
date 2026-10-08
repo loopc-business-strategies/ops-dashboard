@@ -21,6 +21,10 @@ const {
   normalizeBrandingKey,
   createReportBrandingService,
 } = require('../services/erpAccounting/reportBrandingService')
+const {
+  createMarketSpotResolver,
+  createValuationMetalRateResolver,
+} = require('../services/erpAccounting/metalValuationRates')
 const { createVoucherVatService } = require('../services/erpAccounting/voucherVatService')
 const { createVoucherInventoryImpactService } = require('../services/erpAccounting/voucherInventoryImpactService')
 const { createVendorComplianceService } = require('../services/erpAccounting/vendorComplianceService')
@@ -218,6 +222,8 @@ const {
 
 const reportBrandingService = createReportBrandingService({ MetalRate })
 const { buildBrandingPayload, buildBrandingProfiles, getLatestMetalRate } = reportBrandingService
+const { resolveServerMarketSpot } = createMarketSpotResolver({ Currency, InventoryItem, MetalRate })
+const getValuationMetalRate = createValuationMetalRateResolver({ getLatestMetalRate, resolveServerMarketSpot })
 
 const voucherVatService = createVoucherVatService({
   ensureAccountByCode,
@@ -412,7 +418,7 @@ function registerErpAccountingRoutes(router) {
     ChartOfAccount,
     Transaction,
     DirectDeal,
-    getLatestMetalRate,
+    getValuationMetalRate,
     DEFAULT_METAL_RATES,
     canViewCustomers,
     canManageCustomers,
@@ -451,7 +457,7 @@ function registerErpAccountingRoutes(router) {
     DEFAULT_METAL_RATES,
     toMoney,
     parsePagination,
-    getLatestMetalRate,
+    getValuationMetalRate,
     getAccountSummaryScope,
     validateAccountParentAssignment,
     canViewAccounts,
@@ -561,7 +567,7 @@ function registerErpAccountingRoutes(router) {
     ChartOfAccount,
     Currency,
     BASE_CURRENCY_CODE,
-    getLatestMetalRate,
+    getValuationMetalRate,
     DEFAULT_METAL_RATES,
     canAccessVendors,
     canManageVendors,
@@ -721,7 +727,7 @@ function registerErpAccountingRoutes(router) {
     StockMovement,
     MetalRate,
     Currency,
-    getLatestMetalRate,
+    getValuationMetalRate,
     DEFAULT_METAL_RATES,
     toMoney,
     parseBool,

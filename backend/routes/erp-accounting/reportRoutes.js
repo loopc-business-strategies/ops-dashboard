@@ -75,7 +75,7 @@ function registerReportRoutes(deps) {
     StockMovement,
     MetalRate,
     Currency,
-    getLatestMetalRate,
+    getValuationMetalRate,
     DEFAULT_METAL_RATES,
     toMoney,
     parseBool,
@@ -466,7 +466,7 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
         ChartOfAccount,
         Transaction,
         DirectDeal,
-        getLatestMetalRate,
+        getValuationMetalRate,
         DEFAULT_METAL_RATES,
       })
       return res.json({
@@ -1433,7 +1433,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
 
     const vendorIdsForMargin = vendors.map((v) => v._id).filter(Boolean)
     const [latestMarginRate, customerMetalTxs, supplierMetalTxs, customerDirectDeals] = await Promise.all([
-      typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : Promise.resolve(null),
+      typeof getValuationMetalRate === 'function' ? getValuationMetalRate() : Promise.resolve(null),
       customerIdsForMargin.length && Transaction
         ? Transaction.find({
             customerId: { $in: customerIdsForMargin },

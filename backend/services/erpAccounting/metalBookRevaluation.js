@@ -103,6 +103,8 @@ function computeMetalBookRevaluation({
     adjustment: roundMoney(marketValue - Number(inventoryBookValue || 0)),
     priceCurrency: rates.priceCurrency || 'USD',
     rateUpdatedAt: rates.updatedAt || null,
+    priceSource: rates.priceSource || '',
+    feedUpdatedAt: rates.feedUpdatedAt || null,
   }
 }
 
@@ -112,7 +114,7 @@ async function loadMetalBookRevaluation({
   ChartOfAccount,
   Transaction,
   DirectDeal,
-  getLatestMetalRate,
+  getValuationMetalRate,
   DEFAULT_METAL_RATES,
 }) {
   const [inventoryItems, unfixedVouchers, transfers, directDeals, latestRate] = await Promise.all([
@@ -134,7 +136,7 @@ async function loadMetalBookRevaluation({
     DirectDeal.find({ status: 'confirmed', isDeleted: { $ne: true } })
       .select('lineItems.customerId lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode')
       .lean(),
-    typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : null,
+    typeof getValuationMetalRate === 'function' ? getValuationMetalRate() : null,
   ])
 
   const stockAccountIds = Array.from(new Set(inventoryItems

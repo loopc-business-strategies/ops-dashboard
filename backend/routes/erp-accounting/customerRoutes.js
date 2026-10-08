@@ -23,7 +23,7 @@ function registerCustomerRoutes(deps) {
     ChartOfAccount,
     Transaction,
     DirectDeal,
-    getLatestMetalRate,
+    getValuationMetalRate,
     DEFAULT_METAL_RATES,
     _canViewCustomers,
     canManageCustomers,
@@ -99,7 +99,7 @@ function registerCustomerRoutes(deps) {
               { $group: { _id: '$creditAccountId', total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
             ])
           : Promise.resolve([]),
-        typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : Promise.resolve(null),
+        typeof getValuationMetalRate === 'function' ? getValuationMetalRate() : Promise.resolve(null),
         customerIds.length && Transaction
           ? Transaction.find({
               customerId: { $in: customerIds },

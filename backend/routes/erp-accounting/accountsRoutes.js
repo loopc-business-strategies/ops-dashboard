@@ -99,7 +99,7 @@ function registerAccountsRoutes(deps) {
     DEFAULT_METAL_RATES,
     toMoney,
     parsePagination,
-    getLatestMetalRate,
+    getValuationMetalRate,
     getAccountSummaryScope,
     validateAccountParentAssignment,
     _canViewAccounts,
@@ -309,7 +309,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { $match: { creditAccountId: { $in: targetAccountIds }, ...ledgerExclusionMatch } },
         { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
-      getLatestMetalRate(),
+      getValuationMetalRate(),
       Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(),
     ])
 
@@ -324,6 +324,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           silverPrice: Number(latestRate.silverPrice || 0),
           priceCurrency: latestRate.priceCurrency || 'USD',
           updatedAt: latestRate.updatedAt,
+          priceSource: latestRate.priceSource || '',
+          feedUpdatedAt: latestRate.feedUpdatedAt || null,
         }
       : {
           ...DEFAULT_METAL_RATES,
