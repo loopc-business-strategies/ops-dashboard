@@ -5,6 +5,10 @@
  * Windows: one worker that is recycled once it exceeds WINDOWS_WORKER_MEMORY_LIMIT. Suites still run one at a
  * time, but a single in-band process grows past ~2 GB over the full suite and Node 24 on Windows aborts with
  * 0xC0000409. Passing --runInBand / -i / --maxWorkers / --detectOpenHandles keeps the caller's choice.
+ *
+ * --experimental-vm-modules: mongodb >= 7.6 loads `os` with a dynamic `import()`. Without the flag that import
+ * throws inside Jest's sandbox, the driver silently sends empty client metadata, and mongod rejects every
+ * connection with "Missing required sub-document 'driver'".
  */
 import { spawn } from 'node:child_process'
 import { fileURLToPath, URL } from 'node:url'
@@ -27,7 +31,15 @@ const modeArgs = callerChoseMode
 
 const child = spawn(
   process.execPath,
-  ['./node_modules/jest/bin/jest.js', ...modeArgs, '--cacheDirectory', './node_modules/.cache/jest', ...userArgs],
+  [
+    '--experimental-vm-modules',
+    '--disable-warning=ExperimentalWarning',
+    './node_modules/jest/bin/jest.js',
+    ...modeArgs,
+    '--cacheDirectory',
+    './node_modules/.cache/jest',
+    ...userArgs,
+  ],
   { cwd: backendDir, stdio: 'inherit', env: process.env },
 )
 
