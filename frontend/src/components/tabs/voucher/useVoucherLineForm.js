@@ -134,8 +134,8 @@ export function useVoucherLineForm({
   }
 
   const saveLine = () => {
-    if (!isMetalVoucher && !lineForm.acCode.trim()) { setError('A/C Code is required'); return }
-    if (isMetalVoucher && !lineForm.stockCode.trim()) { setError('Stock Code is required for metal vouchers'); return }
+    if (!isMetalVoucher && !String(lineForm.acCode || '').trim()) { setError('A/C Code is required'); return }
+    if (isMetalVoucher && !String(lineForm.stockCode || '').trim()) { setError('Stock Code is required for metal vouchers'); return }
     if (isSimpleMetalVoucher) {
       if (!hasMetalTransferLineQuantity(lineForm)) {
         setError('Gross weight, pure weight, or PCS is required')
@@ -161,8 +161,24 @@ export function useVoucherLineForm({
     } else {
       setLineItems((prev) => [...prev, line])
     }
-    setShowLineForm(false)
-    setEditingLineIdx(null)
+    if (!isMetalVoucher) {
+      const defaultType = 'Cash'
+      const baseLine = {
+        ...emptyLine(),
+        currCode: header.currCode || baseCurrencyCode,
+        currRate: header.currRate || '1.000000',
+        currRateSource: header.currRateSource || 'currency_table',
+        type: defaultType,
+        typeCode: defaultType.toUpperCase(),
+        acCode: pickDefaultAccountCodeByType(activeAccounts, defaultType) || '',
+      }
+      setLineForm(buildReceiptPaymentDefaultLine(baseLine))
+      setEditingLineIdx(null)
+      setShowLineForm(true)
+    } else {
+      setShowLineForm(false)
+      setEditingLineIdx(null)
+    }
     clearError()
   }
 

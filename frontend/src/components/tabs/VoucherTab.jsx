@@ -1494,6 +1494,7 @@ export default function VoucherTab({
         currentVoucherStatus={currentVoucherStatus}
         editingId={editingId}
         editingLineIdx={editingLineIdx}
+        error={error}
         formReadOnly={formReadOnly}
         entryLockInfo={entryLockInfo}
         handleAddLineClick={handleAddLineClick}

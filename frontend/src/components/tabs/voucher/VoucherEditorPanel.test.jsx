@@ -175,6 +175,20 @@ describe('VoucherEditorPanel party details', () => {
     expect(screen.getByRole('button', { name: 'Search party by code' })).toBeTruthy()
   })
 
+  it('shows visible amount fields and line errors inside the voucher', () => {
+    render(
+      <VoucherEditorPanel
+        {...minimalProps}
+        showLineForm
+        error="Amount is required"
+        lineForm={{ type: 'Cash', acCode: '1000', currCode: 'USD', currRate: '1.000000', amountFC: '', amountLC: '' }}
+      />,
+    )
+    expect(screen.getByRole('alert').textContent).toBe('Amount is required')
+    expect(screen.getByLabelText('Amount FC').getAttribute('placeholder')).toBe('0.00')
+    expect(screen.getByLabelText('Amount LC').getAttribute('placeholder')).toBe('0.00')
+  })
+
   it('shows one narration for every line item', () => {
     const setHdr = vi.fn()
     render(

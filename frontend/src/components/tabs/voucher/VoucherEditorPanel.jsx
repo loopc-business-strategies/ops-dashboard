@@ -38,6 +38,7 @@ export default function VoucherEditorPanel({
   currentVoucherStatus,
   editingId,
   editingLineIdx,
+  error = '',
   formReadOnly,
   entryLockInfo = null,
   handleAddLineClick,
@@ -399,6 +400,12 @@ export default function VoucherEditorPanel({
               </div>
             )
           })()}
+
+          {error ? (
+            <div role="alert" style={{ margin: '0 0.6rem 0.35rem', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#991B1B', fontSize: '0.8rem', fontWeight: 600 }}>
+              {error}
+            </div>
+          ) : null}
 
           {entryLockInfo?.locked && (
             <div
@@ -808,7 +815,7 @@ export default function VoucherEditorPanel({
               ) : (
               <>
               {/* Line items table */}
-              <div style={{ overflowX: 'auto', overflowY: cashSingleView ? 'auto' : 'visible', maxHeight: cashSingleView ? '7.5rem' : undefined, borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
+              <div style={{ overflowX: 'auto', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>
                     <tr style={isMetalVoucher ? metalWin.headerRow : { background: 'var(--brand-soft)' }}>
@@ -1166,18 +1173,22 @@ export default function VoucherEditorPanel({
                         </div>
                       )}
                       {/* Amount row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB' }}>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt FC</div>
-                        <input ref={lineAmtFcRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt LC *</div>
-                        <input ref={lineAmtLcRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1fr) minmax(140px, 1fr)', gap: '0.45rem', padding: '0.4rem 0.5rem', borderBottom: '1px solid #E5E7EB', background: '#FFFFFF' }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0 }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#4B5563', letterSpacing: '0.03em' }}>AMOUNT FC</span>
+                          <input ref={lineAmtFcRef} aria-label="Amount FC" placeholder="0.00" style={{ border: '1px solid #9CA3AF', borderRadius: 4, padding: '0.32rem 0.45rem', fontSize: '0.84rem', background: '#FFFFFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box', minHeight: '2rem' }} type="text" inputMode="decimal" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0 }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#4B5563', letterSpacing: '0.03em' }}>AMOUNT LC *</span>
+                          <input ref={lineAmtLcRef} aria-label="Amount LC" placeholder="0.00" style={{ border: '1px solid #9CA3AF', borderRadius: 4, padding: '0.32rem 0.45rem', fontSize: '0.84rem', background: '#FFFFFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box', minHeight: '2rem' }} type="text" inputMode="decimal" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
+                        </label>
                       </div>
 
                       {/* Action buttons */}
                       <div style={{ display: 'flex', gap: '0.4rem', padding: '0.32rem 0.55rem', background: '#F8FAFC', borderTop: '1px solid #D4D8DE' }}>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }} onClick={() => { saveLine(); if (!lineForm.acCode.trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
-                        <button ref={lineSaveBtnRef} style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'var(--grad-brand)', border: '1px solid var(--purple)', borderRadius: '0.15rem', cursor: 'pointer', color: 'var(--brand-on-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }} onClick={saveLine} onKeyDown={handleCashLineNavKeyDown}>Save</button>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }} onClick={cancelLine}>Cancel</button>
+                        <button type="button" style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }} onClick={() => { saveLine(); if (!String(lineForm.acCode || '').trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
+                        <button type="button" ref={lineSaveBtnRef} style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'var(--grad-brand)', border: '1px solid var(--purple)', borderRadius: '0.15rem', cursor: 'pointer', color: 'var(--brand-on-primary)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }} onClick={saveLine} onKeyDown={handleCashLineNavKeyDown}>Save</button>
+                        <button type="button" style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }} onClick={cancelLine}>Cancel</button>
                       </div>
                     </div>
                   )}
