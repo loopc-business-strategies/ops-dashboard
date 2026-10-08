@@ -18,8 +18,12 @@ import {
   resolveUnfixedOpenWeight,
   resolveVisibleStatementClosingBalance,
   sortStatementNewestFirst,
+  STATEMENT_DISPLAY_AMOUNT_FIELDS,
+  stampStatementDisplayRunningBalances,
   stampStatementRunningBalances,
+  sumStatementDisplayFxAdjustments,
   sumStatementSignedAmounts,
+  withStatementDisplayAmounts,
 } from '../statementHelpers'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '../metalMarginPolicy'
 import {
@@ -81,6 +85,9 @@ export function combineVoucherStatementRows(entries = []) {
         debitAmount: 0,
         creditAmount: 0,
         signedAmount: 0,
+        ...Object.fromEntries(STATEMENT_DISPLAY_AMOUNT_FIELDS
+          .filter((field) => entry?.[field] !== undefined)
+          .map((field) => [field, 0])),
         sourceTransactionType: entry?.sourceTransactionType || dealSide || entry?.referenceType || '',
         metalDealType: entry?.metalDealType || dealSide,
         referenceType: dealSide || entry?.referenceType || '',
@@ -96,6 +103,9 @@ export function combineVoucherStatementRows(entries = []) {
     row.debitAmount += Number(entry?.debitAmount || 0)
     row.creditAmount += Number(entry?.creditAmount || 0)
     row.signedAmount += Number(entry?.signedAmount || 0)
+    STATEMENT_DISPLAY_AMOUNT_FIELDS.forEach((field) => {
+      if (entry?.[field] !== undefined) row[field] = Number(row[field] || 0) + Number(entry[field] || 0)
+    })
     row.statementRowIds = Array.from(new Set([...(row.statementRowIds || []), entry?._id].filter(Boolean)))
     const incomingVoucherAmount = Number(entry?.unfixedVoucherAmount || 0)
     if (Number.isFinite(incomingVoucherAmount) && Math.abs(incomingVoucherAmount) > Math.abs(Number(row.unfixedVoucherAmount || 0))) {
@@ -132,6 +142,9 @@ export function combineVoucherStatementRows(entries = []) {
     row.debitAmount = toMoney(row.debitAmount)
     row.creditAmount = toMoney(row.creditAmount)
     row.signedAmount = toMoney(row.signedAmount)
+    STATEMENT_DISPLAY_AMOUNT_FIELDS.forEach((field) => {
+      if (row[field] !== undefined) row[field] = toMoney(row[field])
+    })
     row.unfixedVoucherAmount = toMoney(row.unfixedVoucherAmount || 0)
     return row
   })
@@ -365,7 +378,12 @@ export function useAccountEnquiryStatement({
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
   const resolveMetalCode = resolveStatementMetalCode
 
-  const statementEntries = combineVoucherStatementRows(rawStatementEntries).sort(sortStatementNewestFirst)
+  const statementEntries = combineVoucherStatementRows(
+    rawStatementEntries.map((entry) => withStatementDisplayAmounts(entry, {
+      displayCurrency: statementDisplayCurrency,
+      convert: convertStatementDisplayAmount,
+    })),
+  ).sort(sortStatementNewestFirst)
   stampStatementRunningBalances(
     statementEntries,
     Number(accountEnquiryData?.balances?.netBalance ?? 0),
@@ -502,16 +520,21 @@ export function useAccountEnquiryStatement({
   })
 
   const visibleStatementNetBalance = sumStatementSignedAmounts(filteredStatementEntries)
-  stampStatementRunningBalances(
+  const visibleStatementClosingBalance = resolveVisibleStatementClosingBalance({
+    filteredEntries: filteredStatementEntries,
+    allEntriesCount: statementEntries.length,
+    ledgerNetBalance: accountEnquiryData?.balances?.netBalance ?? 0,
+  })
+  stampStatementRunningBalances(filteredStatementEntries, visibleStatementClosingBalance)
+  // Rows not loaded (older pages, opening balance) stay at today's rate.
+  stampStatementDisplayRunningBalances(
     filteredStatementEntries,
-    resolveVisibleStatementClosingBalance({
-      filteredEntries: filteredStatementEntries,
-      allEntriesCount: statementEntries.length,
-      ledgerNetBalance: accountEnquiryData?.balances?.netBalance ?? 0,
-    }),
+    convertStatementDisplayAmount(visibleStatementClosingBalance) + sumStatementDisplayFxAdjustments(filteredStatementEntries),
   )
 
   const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
+  const modalTotalFundsInDisplayCurrency = convertStatementDisplayAmount(modalTotalFundsDisplay)
+    + sumStatementDisplayFxAdjustments(isCashOnHandEnquiry ? filteredStatementEntries : statementEntries)
   // Credit-positive margin funds: Debit ledger → negative, Credit ledger → positive.
   const marginEquityFundsForMetrics = -(isCashOnHandEnquiry ? visibleStatementNetBalance : totalFunds)
 
@@ -551,7 +574,7 @@ export function useAccountEnquiryStatement({
     : convertStatementDisplayAmount(rawMarginAmtDisplay)
 
   const modalDisplayMetrics = calculateAccountSummaryMetrics({
-    totalFunds: convertStatementDisplayAmount(marginEquityFundsForMetrics),
+    totalFunds: -modalTotalFundsInDisplayCurrency,
     revaluation: modalRevaluationDisplay,
     marginAmount: modalMarginAmtDisplay,
   })
@@ -628,7 +651,7 @@ export function useAccountEnquiryStatement({
     fixedMetalSummary,
     unfixedMetalSummary,
     unknownFixMetalEntries,
-    modalTotalFundsDisplay: convertStatementDisplayAmount(modalTotalFundsDisplay),
+    modalTotalFundsDisplay: modalTotalFundsInDisplayCurrency,
     modalRevaluationDisplay,
     modalNetEquityDisplay,
     modalMarginAmtDisplay,

@@ -143,7 +143,6 @@ export function buildStatementExportModel(ctx) {
     : accountEnquiryData?.balances?.netBalance
 
   const {
-    openingUsdBalance,
     openingPureWeight,
     closingUsdBalance,
     closingPureWeight,
@@ -154,16 +153,30 @@ export function buildStatementExportModel(ctx) {
     matchesMetalEntry: matchesExportMetalEntry,
   })
 
-  let runningUsdBalance = openingUsdBalance
+  // Rows carry display-currency amounts from the enquiry hook (original voucher
+  // amount when entered in the display currency); otherwise convert base.
+  const displayAmountOf = (entry, field, baseValue) => (
+    entry?.[field] != null && Number.isFinite(Number(entry[field]))
+      ? Number(entry[field])
+      : convertStatementDisplayAmount(baseValue)
+  )
+  const closingDisplayBalance = displayAmountOf(newestVisibleEntry, 'displayRunningBalance', closingUsdBalance)
+  const totalSignedDisplayMovement = exportEntries.reduce(
+    (sum, entry) => sum + displayAmountOf(entry, 'displaySignedAmount', resolveStatementSignedAmount(entry)),
+    0,
+  )
+  const openingDisplayBalance = closingDisplayBalance - totalSignedDisplayMovement
+
+  let runningDisplayBalance = openingDisplayBalance
   let runningPureWeight = openingPureWeight
   const entryRows = exportEntries.map((entry) => {
-    const debitUsd = Number(entry?.debitAmount || 0)
-    const creditUsd = Number(entry?.creditAmount || 0)
+    const debitDisplay = displayAmountOf(entry, 'displayDebitAmount', Number(entry?.debitAmount || 0))
+    const creditDisplay = displayAmountOf(entry, 'displayCreditAmount', Number(entry?.creditAmount || 0))
     const signedPureWeight = Number(entry?.metalSignedWeight || 0)
     const isSelectedMetalEntry = matchesStatementMetal(entry, statementMetalCode)
     const debitPure = isSelectedMetalEntry && signedPureWeight > 0 ? signedPureWeight : 0
     const creditPure = isSelectedMetalEntry && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
-    runningUsdBalance += resolveStatementSignedAmount(entry)
+    runningDisplayBalance += displayAmountOf(entry, 'displaySignedAmount', resolveStatementSignedAmount(entry))
     if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
     return {
       kind: 'entry',
@@ -171,9 +184,9 @@ export function buildStatementExportModel(ctx) {
         resolveStatementReceiptNo(entry) || '-',
         formatStatementDocDate(entry.date) || formatStatementDate(entry.date) || '-',
         buildStatementNarration(entry),
-        formatStatementBlankable(convertStatementDisplayAmount(debitUsd), 2),
-        formatStatementBlankable(convertStatementDisplayAmount(creditUsd), 2),
-        formatStatementDrCr(convertStatementDisplayAmount(runningUsdBalance), 2),
+        formatStatementBlankable(debitDisplay, 2),
+        formatStatementBlankable(creditDisplay, 2),
+        formatStatementDrCr(runningDisplayBalance, 2),
         formatStatementBlankable(debitPure, 3),
         formatStatementBlankable(creditPure, 3),
         formatStatementDrCr(runningPureWeight, 3),
@@ -181,8 +194,14 @@ export function buildStatementExportModel(ctx) {
     }
   })
 
-  const totalDebitUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.debitAmount || 0), 0)
-  const totalCreditUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.creditAmount || 0), 0)
+  const totalDebitDisplay = exportEntries.reduce(
+    (sum, entry) => sum + displayAmountOf(entry, 'displayDebitAmount', Number(entry?.debitAmount || 0)),
+    0,
+  )
+  const totalCreditDisplay = exportEntries.reduce(
+    (sum, entry) => sum + displayAmountOf(entry, 'displayCreditAmount', Number(entry?.creditAmount || 0)),
+    0,
+  )
   const totalDebitPure = exportEntries.reduce((sum, entry) => {
     const signedPureWeight = Number(entry?.metalSignedWeight || 0)
     return sum + (matchesExportMetalEntry(entry) && signedPureWeight > 0 ? signedPureWeight : 0)
@@ -200,7 +219,7 @@ export function buildStatementExportModel(ctx) {
       'Balance B/F',
       '',
       '',
-      formatStatementDrCr(convertStatementDisplayAmount(openingUsdBalance), 2),
+      formatStatementDrCr(openingDisplayBalance, 2),
       '',
       '',
       formatStatementDrCr(openingPureWeight, 3),
@@ -212,9 +231,9 @@ export function buildStatementExportModel(ctx) {
       '',
       '',
       'Balance C/F',
-      formatStatementBlankable(convertStatementDisplayAmount(totalDebitUsd), 2),
-      formatStatementBlankable(convertStatementDisplayAmount(totalCreditUsd), 2),
-      formatStatementDrCr(convertStatementDisplayAmount(closingUsdBalance), 2),
+      formatStatementBlankable(totalDebitDisplay, 2),
+      formatStatementBlankable(totalCreditDisplay, 2),
+      formatStatementDrCr(closingDisplayBalance, 2),
       formatStatementBlankable(totalDebitPure, 3),
       formatStatementBlankable(totalCreditPure, 3),
       formatStatementDrCr(closingPureWeight, 3),

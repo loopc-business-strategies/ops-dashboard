@@ -722,9 +722,9 @@ export default function AccountEnquiryModal({
                               const debitUsd = Number(entry.debitAmount || 0)
                               const creditUsd = Number(entry.creditAmount || 0)
                               const balanceUsd = Number(entry.runningBalance || 0)
-                              const debitDisplay = convertStatementDisplayAmount(debitUsd)
-                              const creditDisplay = convertStatementDisplayAmount(creditUsd)
-                              const balanceDisplay = convertStatementDisplayAmount(balanceUsd)
+                              const debitDisplay = entry.displayDebitAmount ?? convertStatementDisplayAmount(debitUsd)
+                              const creditDisplay = entry.displayCreditAmount ?? convertStatementDisplayAmount(creditUsd)
+                              const balanceDisplay = entry.displayRunningBalance ?? convertStatementDisplayAmount(balanceUsd)
                               const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
                               const entryMetalCode = resolveMetalCode(entry)
                               const isMetalRow = isMetalStatementEntry(entry) && entryMetalCode === statementSelectedMetalCode
