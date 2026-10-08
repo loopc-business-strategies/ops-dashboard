@@ -24,6 +24,7 @@ const { resolveRequestTenantKey } = require('../../config/tenants')
 const { enquiryCache, summaryAccountsCache } = require('../../utils/erpReadCaches')
 const { createServerTiming } = require('../../utils/serverTiming')
 const { _getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
+const { resolveStatementRowOriginalAmount } = require('../../services/erpAccounting/statementOriginalAmount')
 const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
 
 function accountsTenantKey(req) {
@@ -549,7 +550,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { _id: { $in: referenceIds } },
       ],
     })
-      .select('_id journalEntryId type amount exchangeRate voucherMeta.grandTotal voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.fixings voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.premiumValue voucherMeta.lineItems.rateType voucherMeta.lineItems.weightInOz')
+      .select('_id journalEntryId type amount currency exchangeRate voucherMeta.grandTotal voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.fixings voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.premiumValue voucherMeta.lineItems.rateType voucherMeta.lineItems.weightInOz')
       .lean()
 
     const voucherFixingRefIds = ledgerEntries
@@ -566,6 +567,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
     const transactionByLedgerId = new Map()
     const transactionById = new Map()
+    const linkedTxDocByLedgerId = new Map()
+    const linkedTxDocById = new Map()
     const directDealById = new Map()
     const transactionDisplayOffsetById = new Map()
     const referenceDisplayOffsetById = new Map()
@@ -613,8 +616,12 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         unfixedOpenWeight: fixingState ? fixingState.openWeight : 0,
         lineNarration,
       }
-      if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
+      if (tx.journalEntryId) {
+        transactionByLedgerId.set(String(tx.journalEntryId), txRef)
+        linkedTxDocByLedgerId.set(String(tx.journalEntryId), tx)
+      }
       transactionById.set(String(tx._id), txRef)
+      linkedTxDocById.set(String(tx._id), tx)
     })
 
     const voucherFixingRefById = new Map()
@@ -975,6 +982,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         ? String(preferredDisplayOffset.accountName || defaultOffsetName)
         : defaultOffsetName
       const dealType = String(linkedTx?.transactionType || '')
+      const { originalCurrency, originalAmount } = resolveStatementRowOriginalAmount({
+        entry,
+        transaction: linkedTxDocByLedgerId.get(String(entry._id)) || linkedTxDocById.get(String(entry.referenceId || '')) || null,
+        baseCurrencyCode,
+      })
       return {
         _id: entry._id,
         date: entry.date,
@@ -988,6 +1000,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         debitAmount: isDebitEntry ? convertedAmount : 0,
         creditAmount: isDebitEntry ? 0 : convertedAmount,
         signedAmount,
+        originalCurrency,
+        originalAmount,
         currentValue: 0,
         limitValue: Number(account.openingBalance || 0),
         offsetAccountCode: effectiveOffsetCode,
@@ -1029,6 +1043,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         debitAmount: 0,
         creditAmount: 0,
         signedAmount: 0,
+        originalCurrency: baseCurrencyCode,
+        originalAmount: 0,
         currentValue: 0,
         limitValue: Number(account.openingBalance || 0),
         offsetAccountCode: '',

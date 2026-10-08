@@ -99,6 +99,39 @@ describe('buildStatementExportModel', () => {
     expect(opening.cells[5]).toContain('800.00 Dr')
   })
 
+  test('uses display-currency row amounts (original voucher UZS) when present', () => {
+    const model = buildStatementExportModel({
+      ...baseCtx,
+      statementDisplayCurrency: 'UZS',
+      convertStatementDisplayAmount: (value) => Number(value || 0) * 12100,
+      filteredStatementEntries: [
+        {
+          _id: 'pay',
+          date: '2026-10-08T12:00:00',
+          description: 'payment voucher Pay/2026/0141',
+          debitAmount: 0,
+          creditAmount: 13271.83,
+          signedAmount: -13271.83,
+          displayDebitAmount: 0,
+          displayCreditAmount: 145990130,
+          displaySignedAmount: -145990130,
+          displayRunningBalance: -144256442,
+          metalSignedWeight: 0,
+          referenceType: 'payment',
+          runningBalance: -13128.55,
+        },
+      ],
+    })
+    const entry = model.tableRows.find((row) => row.kind === 'entry')
+    expect(entry.cells[4]).toBe('145,990,130.00')
+    expect(entry.cells[5]).toBe('144,256,442.00 Cr')
+    const opening = model.tableRows.find((row) => row.kind === 'opening')
+    expect(opening.cells[5]).toBe('1,733,688.00 Dr')
+    const closing = model.tableRows.find((row) => row.kind === 'closing')
+    expect(closing.cells[4]).toBe('145,990,130.00')
+    expect(closing.cells[5]).toBe('144,256,442.00 Cr')
+  })
+
   test('builds autoTable head with currency and metal group labels', () => {
     const model = buildStatementExportModel({
       ...baseCtx,

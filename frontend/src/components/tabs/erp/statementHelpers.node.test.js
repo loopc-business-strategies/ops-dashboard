@@ -16,8 +16,11 @@ import {
   resolveMarginEquityDirection,
   resolveUnfixedOpenWeight,
   resolveVisibleStatementClosingBalance,
+  stampStatementDisplayRunningBalances,
   stampStatementRunningBalances,
+  sumStatementDisplayFxAdjustments,
   sumStatementSignedAmounts,
+  withStatementDisplayAmounts,
   withSignedDirectionalPrefix,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
@@ -479,5 +482,55 @@ describe('statement helpers', () => {
     const visibleClosing = 143.28
     expect(resolveExposureDirection(visibleClosing)).toBe('Debit')
     expect(resolveExposureDirection(-visibleClosing)).toBe('Credit')
+  })
+})
+
+describe('statement display-currency amounts', () => {
+  // Today's master rate: 12,100 UZS per USD; the voucher was entered at 11,000.
+  const toUzs = (usd) => Math.round(usd * 12100 * 100) / 100
+
+  test('UZS voucher shows its original amount, not the today-rate conversion', () => {
+    const row = withStatementDisplayAmounts(
+      { _id: 'pay', signedAmount: -13271.83, creditAmount: 13271.83, originalCurrency: 'UZS', originalAmount: 145990130 },
+      { displayCurrency: 'UZS', convert: toUzs },
+    )
+    expect(row.displayCreditAmount).toBe(145990130)
+    expect(row.displayDebitAmount).toBe(0)
+    expect(row.displaySignedAmount).toBe(-145990130)
+    expect(row.displayFxAdjustment).toBeCloseTo(-145990130 + 160589143, 2)
+  })
+
+  test('rows entered in another currency convert at today\'s rate', () => {
+    const row = withStatementDisplayAmounts(
+      { _id: 'usd', signedAmount: 100, debitAmount: 100, originalCurrency: 'USD', originalAmount: 100 },
+      { displayCurrency: 'UZS', convert: toUzs },
+    )
+    expect(row.displayDebitAmount).toBe(1210000)
+    expect(row.displayFxAdjustment).toBe(0)
+  })
+
+  test('rows without original currency (older API) convert at today\'s rate', () => {
+    const row = withStatementDisplayAmounts(
+      { _id: 'old', signedAmount: -10, creditAmount: 10 },
+      { displayCurrency: 'UZS', convert: toUzs },
+    )
+    expect(row.displayCreditAmount).toBe(121000)
+    expect(row.displayFxAdjustment).toBe(0)
+  })
+
+  test('running balance and closing add up from displayed amounts', () => {
+    const rows = [
+      { _id: 'a', date: '2026-10-08', signedAmount: -13271.83, originalCurrency: 'UZS', originalAmount: 145990130 },
+      { _id: 'b', date: '2026-10-08', signedAmount: 13271.83, originalCurrency: 'UZS', originalAmount: 145990130 },
+      { _id: 'c', date: '2026-09-09', signedAmount: 143.28, originalCurrency: 'USD', originalAmount: 143.28 },
+    ].map((entry) => withStatementDisplayAmounts(entry, { displayCurrency: 'UZS', convert: toUzs }))
+    const closingBase = sumStatementSignedAmounts(rows)
+    const closingDisplay = toUzs(closingBase) + sumStatementDisplayFxAdjustments(rows)
+    stampStatementDisplayRunningBalances(rows, closingDisplay)
+
+    expect(closingDisplay).toBeCloseTo(toUzs(143.28), 2)
+    expect(rows.find((row) => row._id === 'c').displayRunningBalance).toBeCloseTo(toUzs(143.28), 2)
+    expect(rows.find((row) => row._id === 'b').displayRunningBalance).toBeCloseTo(toUzs(143.28), 2)
+    expect(rows.find((row) => row._id === 'a').displayRunningBalance).toBeCloseTo(toUzs(143.28) - 145990130, 2)
   })
 })

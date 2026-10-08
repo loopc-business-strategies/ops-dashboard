@@ -188,6 +188,53 @@ export function sumStatementSignedAmounts(entries = []) {
   return entries.reduce((sum, entry) => sum + Number(entry?.signedAmount || 0), 0)
 }
 
+export const STATEMENT_DISPLAY_AMOUNT_FIELDS = [
+  'displayDebitAmount',
+  'displayCreditAmount',
+  'displaySignedAmount',
+  'displayFxAdjustment',
+]
+
+/**
+ * Display-currency amounts for one API statement row (base-currency signedAmount).
+ * A row entered in the display currency shows its original voucher amount; any
+ * other row converts at today's rate. displayFxAdjustment is the difference.
+ */
+export function withStatementDisplayAmounts(entry = {}, { displayCurrency = '', convert = (value) => value } = {}) {
+  const signedBase = Number(entry?.signedAmount || 0)
+  const converted = Number(convert(signedBase)) || 0
+  const originalCurrency = normalizeStatementCurrencyCode(entry?.originalCurrency)
+  const originalAmount = Math.abs(Number(entry?.originalAmount))
+  const useOriginal = Boolean(originalCurrency)
+    && originalCurrency === normalizeStatementCurrencyCode(displayCurrency)
+    && Number.isFinite(originalAmount)
+    && signedBase !== 0
+  const displaySigned = useOriginal ? Math.sign(signedBase) * originalAmount : converted
+  return {
+    ...entry,
+    displayDebitAmount: displaySigned > 0 ? displaySigned : 0,
+    displayCreditAmount: displaySigned < 0 ? Math.abs(displaySigned) : 0,
+    displaySignedAmount: displaySigned,
+    displayFxAdjustment: displaySigned - converted,
+  }
+}
+
+export function sumStatementDisplayFxAdjustments(entries = []) {
+  return entries.reduce((sum, entry) => sum + Number(entry?.displayFxAdjustment || 0), 0)
+}
+
+/** Newest-first display-currency running balances. Mutates entry.displayRunningBalance in place. */
+export function stampStatementDisplayRunningBalances(entries = [], closingDisplayBalance = 0) {
+  const sorted = [...entries].sort(sortStatementNewestFirst)
+  let rb = Number(closingDisplayBalance)
+  if (!Number.isFinite(rb)) rb = 0
+  for (const row of sorted) {
+    row.displayRunningBalance = rb
+    rb -= Number(row?.displaySignedAmount || 0)
+  }
+  return sorted
+}
+
 /**
  * Newest-first running balances. Mutates entry.runningBalance in place.
  * Seed is the closing balance after the newest row.
