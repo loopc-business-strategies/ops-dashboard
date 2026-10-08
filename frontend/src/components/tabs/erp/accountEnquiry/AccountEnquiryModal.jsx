@@ -339,7 +339,7 @@ export default function AccountEnquiryModal({
                                   <td style={{ padding: '0.7rem', color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{row.dealSide}</td>
                                   <td style={{ padding: '0.7rem', color: '#111827' }}>{row.metalCode}</td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.openWeight, 3)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.amount, 2)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(convertStatementDisplayAmount(row.amount), 2)}</td>
                                 </tr>
                               )) : (
                                 <tr>
@@ -360,13 +360,13 @@ export default function AccountEnquiryModal({
                         <div style={{ marginTop: '0.65rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
                           <div style={{ border: '1px solid #BBF7D0', background: '#ECFDF5', borderRadius: '0.45rem', padding: '0.55rem' }}>
                             <p style={{ margin: 0, color: '#166534', fontWeight: '800', fontSize: '0.8rem' }}>Fixed</p>
-                            <p style={{ margin: '0.2rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Sales: {fixedMetalSummary.saleCount} ({formatStatementValue(fixedMetalSummary.saleAmount, 2)})</p>
-                            <p style={{ margin: '0.15rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Purchases: {fixedMetalSummary.purchaseCount} ({formatStatementValue(fixedMetalSummary.purchaseAmount, 2)})</p>
+                            <p style={{ margin: '0.2rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Sales: {fixedMetalSummary.saleCount} ({formatStatementValue(convertStatementDisplayAmount(fixedMetalSummary.saleAmount), 2)})</p>
+                            <p style={{ margin: '0.15rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Purchases: {fixedMetalSummary.purchaseCount} ({formatStatementValue(convertStatementDisplayAmount(fixedMetalSummary.purchaseAmount), 2)})</p>
                           </div>
                           <div style={{ border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: '0.45rem', padding: '0.55rem' }}>
                             <p style={{ margin: 0, color: '#92400E', fontWeight: '800', fontSize: '0.8rem' }}>Unfixed</p>
-                            <p style={{ margin: '0.2rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Sales: {unfixedMetalSummary.saleCount} ({formatStatementValue(unfixedMetalSummary.saleAmount, 2)})</p>
-                            <p style={{ margin: '0.15rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Purchases: {unfixedMetalSummary.purchaseCount} ({formatStatementValue(unfixedMetalSummary.purchaseAmount, 2)})</p>
+                            <p style={{ margin: '0.2rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Sales: {unfixedMetalSummary.saleCount} ({formatStatementValue(convertStatementDisplayAmount(unfixedMetalSummary.saleAmount), 2)})</p>
+                            <p style={{ margin: '0.15rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Purchases: {unfixedMetalSummary.purchaseCount} ({formatStatementValue(convertStatementDisplayAmount(unfixedMetalSummary.purchaseAmount), 2)})</p>
                           </div>
                         </div>
                         {unknownFixMetalEntries.length > 0 && (
