@@ -84,6 +84,7 @@ export const emptyHeader = () => ({
   valueDate: today(),
   fixingType: 'fixing',
   uzsRate: '',
+  narration: '',
 })
 
 export const DOC_PREFIX_BY_TYPE = {

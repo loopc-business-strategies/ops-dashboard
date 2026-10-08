@@ -65,29 +65,44 @@ export function useVoucherSave({
 
   let effectiveLineItems = [...lineItems]
   if (showLineForm && !isProductTransferSave) {
-    const hasLineAmount = isSimpleMetalSave
-      ? hasMetalTransferLineQuantity(lineForm)
-      : Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
-    if ((!isMetalVoucher && !lineForm.acCode.trim()) || !hasLineAmount) {
-      setError(isSimpleMetalSave
-        ? 'Complete stock/weight details and click Save Line, or cancel the open line before saving voucher'
-        : 'Complete line details and click Save Line, or cancel the open line before saving voucher')
-      return
+    const cashDraftBlank = !isMetalVoucher
+      && !String(lineForm.acCode || '').trim()
+      && !String(lineForm.amountLC || '').trim()
+      && !String(lineForm.amountFC || '').trim()
+    if (!cashDraftBlank) {
+      const hasLineAmount = isSimpleMetalSave
+        ? hasMetalTransferLineQuantity(lineForm)
+        : Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
+      if ((!isMetalVoucher && !String(lineForm.acCode || '').trim()) || !hasLineAmount) {
+        setError(isSimpleMetalSave
+          ? 'Complete stock/weight details and click Save Line, or cancel the open line before saving voucher'
+          : 'Complete line details and click Save Line, or cancel the open line before saving voucher')
+        return
+      }
+      const draftLine = {
+        ...lineForm,
+        type: normalizeLineType(lineForm.type),
+        amountLC: isSimpleMetalSave ? '' : (lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || ''),
+        amountWithVAT: isSimpleMetalSave ? '' : (lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC),
+      }
+      if (editingLineIdx !== null) {
+        effectiveLineItems = effectiveLineItems.map((l, i) => (i === editingLineIdx ? draftLine : l))
+      } else {
+        effectiveLineItems.push(draftLine)
+      }
+      setShowLineForm(false)
+      setEditingLineIdx(null)
     }
-    const draftLine = {
-      ...lineForm,
-      type: normalizeLineType(lineForm.type),
-      amountLC: isSimpleMetalSave ? '' : (lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || ''),
-      amountWithVAT: isSimpleMetalSave ? '' : (lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC),
-    }
-    if (editingLineIdx !== null) {
-      effectiveLineItems = effectiveLineItems.map((l, i) => (i === editingLineIdx ? draftLine : l))
-    } else {
-      effectiveLineItems.push(draftLine)
-    }
+  }
+  if (!isMetalVoucher && !isProductTransferSave) {
+    const sharedNarration = String(header.narration || '').trim()
+    effectiveLineItems = effectiveLineItems.map((line) => ({
+      ...line,
+      narration: sharedNarration,
+    }))
+  }
+  if (showLineForm || !isMetalVoucher) {
     setLineItems(effectiveLineItems)
-    setShowLineForm(false)
-    setEditingLineIdx(null)
   }
 
   if (isProductTransferSave) {

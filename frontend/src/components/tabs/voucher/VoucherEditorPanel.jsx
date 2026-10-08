@@ -235,6 +235,14 @@ export default function VoucherEditorPanel({
     return () => clearTimeout(timer)
   }, [keyboardNavEnabled, showLineForm, isMetalVoucher])
 
+  const cashSingleView = !isMetalVoucher && !isProductTransferVoucher
+
+  useEffect(() => {
+    if (!cashSingleView || formReadOnly || showLineForm) return
+    if (mode !== 'create' && mode !== 'view') return
+    openAddLine()
+  }, [cashSingleView, formReadOnly, showLineForm, mode, editingId, openAddLine])
+
   return (
     <>
       {/* ═══════════════════════════════════════════════════════ CREATE / VIEW MODE */}
@@ -258,8 +266,10 @@ export default function VoucherEditorPanel({
             style={(mode === 'create' || mode === 'view')
               ? {
                   width: isMetalVoucher ? 'min(1160px, 96vw)' : 'min(1180px, 96vw)',
-                  maxHeight: '92vh',
+                  maxHeight: cashSingleView ? 'calc(100vh - 1.25rem)' : '92vh',
                   overflowY: 'auto',
+                  display: cashSingleView ? 'flex' : undefined,
+                  flexDirection: cashSingleView ? 'column' : undefined,
                   background: isMetalVoucher ? '#E3E6EB' : S.white,
                   borderRadius: '0.7rem',
                   border: isMetalVoucher ? metalWin.shell.border : '2px solid #4F73AB',
@@ -371,7 +381,7 @@ export default function VoucherEditorPanel({
                 gap: 2,
                 flexWrap: 'nowrap',
                 overflowX: 'auto',
-                marginBottom: '0.6rem',
+                marginBottom: cashSingleView ? '0.25rem' : '0.6rem',
               }}>
                 <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" icon="new" onClick={() => openCreate()} disabled={!canCreate} />
                 <TbBtn tip={entryLockInfo?.locked ? 'View Only — this voucher is locked' : 'Edit — unlocks the current record for modification'} label={entryLockInfo?.locked ? 'View Only' : 'Edit'} icon={entryLockInfo?.locked ? 'view' : 'edit'} onClick={handleEditUnlock} disabled={isReadOnly || entryLockInfo?.locked || (!editingId && mode !== 'create')} />
@@ -431,7 +441,9 @@ export default function VoucherEditorPanel({
           <div style={
             isProductTransferVoucher
               ? { padding: '0.55rem 0.7rem', background: '#FFFFFF' }
-              : (isMetalVoucher ? metalWin.body : { padding: '0.75rem 0.9rem' })
+              : (isMetalVoucher ? metalWin.body : {
+                padding: cashSingleView ? '0.35rem 0.6rem 0.5rem' : '0.75rem 0.9rem',
+              })
           }
           >
 
@@ -462,8 +474,8 @@ export default function VoucherEditorPanel({
 
           {/* ── Header Details ── */}
           {menuTab === 'header' && (
-            <div style={isProductTransferVoucher ? productTransferSectionBox : sectionBox}>
-              <div style={isProductTransferVoucher ? productTransferSectionBody : sectionBody}>
+            <div style={isProductTransferVoucher ? productTransferSectionBox : { ...sectionBox, marginBottom: cashSingleView ? '0.35rem' : sectionBox.marginBottom }}>
+              <div style={isProductTransferVoucher ? productTransferSectionBody : { ...sectionBody, padding: cashSingleView ? '0.35rem 0.45rem' : sectionBody.padding }}>
                 {isProductTransferVoucher ? (
                   <div style={productTransferDocHeader}>
                     <div style={productTransferDocField}>
@@ -509,10 +521,10 @@ export default function VoucherEditorPanel({
                   </div>
                 )}
                 <div style={classicHeaderShell}>
-                  <div style={classicHeaderGrid}>
-                    <div style={{ ...classicPanel, flex: '0 1 640px', minWidth: '320px' }}>
-                      <div style={classicPanelTitle}>Party Details</div>
-                      <div style={classicPartyGrid}>
+                  <div style={{ ...classicHeaderGrid, alignItems: 'flex-start', gap: cashSingleView ? '0.4rem' : classicHeaderGrid.gap }}>
+                    <div style={{ ...classicPanel, flex: cashSingleView ? '1 1 320px' : '0 1 640px', minWidth: '280px', alignSelf: 'flex-start', height: 'auto' }}>
+                      <div style={{ ...classicPanelTitle, padding: cashSingleView ? '0.22rem 0.5rem' : classicPanelTitle.padding }}>Party Details</div>
+                      <div style={{ ...classicPartyGrid, padding: cashSingleView ? '0.28rem 0.45rem' : classicPartyGrid.padding }}>
                         {!isMetalVoucher && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                             <label style={classicLabel}>Party Account</label>
@@ -577,8 +589,8 @@ export default function VoucherEditorPanel({
                       })()}
                     </div>
 
-                    <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '300px' }}>
-                      <div style={classicRightGrid}>
+                    <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '280px', alignSelf: 'flex-start', height: 'auto' }}>
+                      <div style={{ ...classicRightGrid, gap: cashSingleView ? '0.16rem 0.4rem' : classicRightGrid.gap, padding: cashSingleView ? '0.28rem 0.45rem' : classicRightGrid.padding }}>
                         <label style={classicLabel}>Doc No :</label>
                         <input
                           style={classicReadInput}
@@ -773,7 +785,7 @@ export default function VoucherEditorPanel({
 
           {/* ── Line Items panel ── */}
           {(menuTab === 'header' || menuTab === 'lineItems') && (
-            <div style={isProductTransferVoucher ? productTransferSectionBox : sectionBox}>
+            <div style={isProductTransferVoucher ? productTransferSectionBox : { ...sectionBox, marginBottom: cashSingleView ? '0.35rem' : sectionBox.marginBottom, ...(cashSingleView ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
               <div style={{
                 ...(isMetalVoucher ? { ...classicPanelTitle, ...metalWin.tabLabel } : classicPanelTitle),
                 display: 'flex',
@@ -796,7 +808,7 @@ export default function VoucherEditorPanel({
               ) : (
               <>
               {/* Line items table */}
-              <div style={{ overflowX: 'auto', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
+              <div style={{ overflowX: 'auto', overflowY: cashSingleView ? 'auto' : 'visible', maxHeight: cashSingleView ? '7.5rem' : undefined, borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>
                     <tr style={isMetalVoucher ? metalWin.headerRow : { background: 'var(--brand-soft)' }}>
@@ -808,8 +820,8 @@ export default function VoucherEditorPanel({
                   <tbody>
                     {lineItems.length === 0 ? (
                       <tr>
-                        <td colSpan={lineTableHeaders.length} style={{ padding: '1rem', textAlign: 'center', color: S.muted, borderBottom: '1px solid #D7DBE0' }}>
-                          {formReadOnly ? 'No line items.' : 'Click "Add" below to add entries.'}
+                        <td colSpan={lineTableHeaders.length} style={{ padding: cashSingleView ? '0.35rem 0.5rem' : '1rem', textAlign: 'center', color: S.muted, borderBottom: '1px solid #D7DBE0' }}>
+                          {formReadOnly ? 'No line items.' : (cashSingleView ? 'No line items yet.' : 'Click "Add" below to add entries.')}
                         </td>
                       </tr>
                     ) : lineItems.map((l, i) => (
@@ -864,10 +876,12 @@ export default function VoucherEditorPanel({
               {/* ── Line Detail Add/Edit Form ── */}
               {showLineForm && (
                 <div style={{ borderTop: '2px solid #A0A8B0', background: '#FAFBFC', padding: 0 }}>
-                  <div style={{ ...classicPanelTitle }}>
-                    {editingLineIdx !== null ? 'Edit Line Item' : 'Add Line Item'}
-                  </div>
-                  <div style={{ padding: '0.5rem 0.55rem' }}>
+                  {!cashSingleView && (
+                    <div style={{ ...classicPanelTitle }}>
+                      {editingLineIdx !== null ? 'Edit Line Item' : 'Add Line Item'}
+                    </div>
+                  )}
+                  <div style={{ padding: cashSingleView ? '0.28rem 0.4rem' : '0.5rem 0.55rem' }}>
 
                   {isMetalVoucher ? (
                     <>
@@ -1159,11 +1173,6 @@ export default function VoucherEditorPanel({
                         <input ref={lineAmtLcRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
                       </div>
 
-                      {/* Narration row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', borderBottom: '1px solid #E5E7EB' }}>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Narration</div>
-                        <input ref={lineNarrationRef} style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', width: '100%', boxSizing: 'border-box' }} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} onKeyDown={handleCashLineNavKeyDown} />
-                      </div>
                       {/* Action buttons */}
                       <div style={{ display: 'flex', gap: '0.4rem', padding: '0.32rem 0.55rem', background: '#F8FAFC', borderTop: '1px solid #D4D8DE' }}>
                         <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'none' }} onClick={() => { saveLine(); if (!lineForm.acCode.trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
@@ -1180,8 +1189,8 @@ export default function VoucherEditorPanel({
               <div style={{ borderTop: '2px solid #B8BEC8', background: '#F8FAFC', padding: '0.38rem 0.55rem' }}>
                 <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   {/* Left: Add/Edit/Delete + Remarks */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.38rem', flex: 1 }}>
-                    {!isReadOnly && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.28rem', flex: 1, minWidth: 0 }}>
+                    {!isReadOnly && !cashSingleView && (
                       <div style={{ display: 'flex', gap: '0.3rem' }}>
                         <button
                           ref={addLineBtnRef}
@@ -1191,7 +1200,30 @@ export default function VoucherEditorPanel({
                         >Add</button>
                       </div>
                     )}
-
+                    {cashSingleView && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', minWidth: 0 }}>
+                        <label htmlFor="voucher-shared-narration" style={classicLabel}>Narration</label>
+                        <input
+                          id="voucher-shared-narration"
+                          ref={lineNarrationRef}
+                          style={{ ...classicInput, minHeight: '1.6rem' }}
+                          value={header.narration || ''}
+                          onChange={(e) => setHdr('narration', e.target.value)}
+                          onKeyDown={handleCashLineNavKeyDown}
+                          placeholder="One narration for all line items"
+                          readOnly={formReadOnly}
+                        />
+                      </div>
+                    )}
+                    {cashSingleView && !isReadOnly && (
+                      <button
+                        ref={addLineBtnRef}
+                        type="button"
+                        style={{ alignSelf: 'flex-start', padding: '0.16rem 0.6rem', fontSize: '0.72rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer' }}
+                        onClick={handleAddLineClick}
+                        onKeyDown={handleHeaderNavKeyDown}
+                      >Add</button>
+                    )}
                   </div>
                   {/* Right: Amount Summary / Total Summary */}
                   <div style={{ border: '1px solid #8EA0C5', borderRadius: '0.15rem', background: '#FFFFFF', minWidth: '245px', overflow: 'hidden', flexShrink: 0 }}>
@@ -1342,7 +1374,7 @@ export default function VoucherEditorPanel({
           {!isReadOnly && (
             <div style={isProductTransferVoucher
               ? productTransferFooter
-              : { display: 'flex', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${S.border}` }}
+              : { display: 'flex', gap: '0.55rem', marginTop: cashSingleView ? '0.35rem' : '1rem', paddingTop: cashSingleView ? '0.4rem' : '1rem', borderTop: `1px solid ${S.border}` }}
             >
               <button
                 style={{

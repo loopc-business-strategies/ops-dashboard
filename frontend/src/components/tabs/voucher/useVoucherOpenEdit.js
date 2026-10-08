@@ -68,6 +68,11 @@ export function useVoucherOpenEdit({
   const headerRateSource = m.currRateSource || m.rateMeta?.headerRateSource || 'manual'
   const loadedRate = parseFloat(v.exchangeRate)
   const normalizedHeaderRate = backendRateToDisplayRate(loadedRate, voucherCurrency, isReceiptPaymentVoucher)
+  const sharedNarration = (m.lineItems || [])
+    .map((line) => String(line?.narration || line?.remarks || '').trim())
+    .find(Boolean) || ''
+  const storedDescription = String(v.description || '').trim()
+  const genericDescription = storedDescription.toLowerCase() === `${voucherKind} voucher`
   const nextHeader = {
     branch: m.branch || '',
     partyCode: m.partyCode || '',
@@ -82,6 +87,7 @@ export function useVoucherOpenEdit({
     valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
     fixingType: normalizeVoucherFixingType(m.fixingType),
     uzsRate: Number(m.rateMeta?.uzsPerBase) > 0 ? String(m.rateMeta.uzsPerBase) : '',
+    narration: sharedNarration || (genericDescription ? '' : storedDescription),
   }
   let nextPartyId = m.partyAccountId
     ? `account:${String(m.partyAccountId)}`

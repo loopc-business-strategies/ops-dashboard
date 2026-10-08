@@ -152,6 +152,7 @@ export function useVoucherLineForm({
     const line = {
       ...computedLineForm,
       type: normalizeLineType(computedLineForm.type),
+      narration: isMetalVoucher ? computedLineForm.narration : String(header.narration || '').trim(),
       amountLC: isSimpleMetalVoucher ? '' : (computedLineForm.amountLC || computedLineForm.totalAmount || computedLineForm.metalAmount || ''),
       amountWithVAT: isSimpleMetalVoucher ? '' : (computedLineForm.amountWithVAT || computedLineForm.amountLC || computedLineForm.amountFC),
     }

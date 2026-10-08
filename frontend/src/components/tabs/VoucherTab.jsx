@@ -416,6 +416,7 @@ export default function VoucherTab({
       docDate: String(snapshotHeader?.docDate || ''),
       valueDate: String(snapshotHeader?.valueDate || ''),
       fixingType: String(snapshotHeader?.fixingType || ''),
+      narration: String(snapshotHeader?.narration || ''),
     },
     selectedPartyId: String(snapshotPartyId || ''),
     lineItems: Array.isArray(snapshotLineItems)

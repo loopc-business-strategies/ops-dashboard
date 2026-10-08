@@ -174,6 +174,24 @@ describe('VoucherEditorPanel party details', () => {
     expect(screen.queryByText('No party selected')).toBeNull()
     expect(screen.getByRole('button', { name: 'Search party by code' })).toBeTruthy()
   })
+
+  it('shows one narration for every line item', () => {
+    const setHdr = vi.fn()
+    render(
+      <VoucherEditorPanel
+        {...minimalProps}
+        setHdr={setHdr}
+        showLineForm
+        lineForm={{ type: 'Cash', narration: 'Line only', acCode: '1000', currCode: 'USD', currRate: '1', amountFC: '', amountLC: '' }}
+        header={{ ...minimalProps.header, narration: 'Shared note' }}
+      />,
+    )
+    const narration = screen.getByLabelText('Narration')
+    expect(narration.value).toBe('Shared note')
+    expect(screen.queryByDisplayValue('Line only')).toBeNull()
+    fireEvent.change(narration, { target: { value: 'Paid supplier' } })
+    expect(setHdr).toHaveBeenCalledWith('narration', 'Paid supplier')
+  })
 })
 
 describe('VoucherEditorPanel workflow', () => {
