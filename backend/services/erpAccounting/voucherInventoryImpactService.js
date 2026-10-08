@@ -9,6 +9,7 @@ const {
   isMetalTransferType,
   isMetalProductTransferType,
   buildStockMovementReason,
+  stockMovementReasonPattern,
   sumVoucherLinePureWeight,
 } = require('../../utils/metalStockVoucherTypes')
 const {
@@ -16,6 +17,8 @@ const {
   scoreInventoryLineMatch,
 } = require('../../utils/voucherInventoryLookup')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
+const { isUnfixedFixingType } = require('./metalPositionPolicy')
+const { calculateUnfixedPremiumAmount } = require('./voucherFixingService')
 const {
   createLotsFromPurchasePlans,
   assertAndConsumeVaultLotsForStockOut,
@@ -147,6 +150,11 @@ function createVoucherInventoryImpactService({
       })
       : null
 
+    // Unfixed purchases only book their premium to inventory; the metal value arrives with each fixing.
+    const isUnfixedPurchase = transactionType === 'purchase'
+      && isUnfixedFixingType(tx?.voucherMeta?.fixingType || tx?.metalFixStatus)
+    const exchangeRate = Number(tx?.exchangeRate || 1) > 0 ? Number(tx.exchangeRate) : 1
+
     const inventoryPlans = resolvedLines.map(({ line, item, quantity, lineAmount }) => {
       const inventoryAccountId = item.ledgerAccountId || defaultInventoryAccount._id
       const transferSide = String(line?.transferSide || '').toLowerCase()
@@ -161,7 +169,8 @@ function createVoucherInventoryImpactService({
         inventoryAccountId,
         transferSide: transferSide || null,
         costAmount: isOutPlan ? toMoney(quantity * Number(item.unitCost || 0)) : 0,
-        incomingValue: 0,
+        incomingValue: isUnfixedPurchase ? toMoney(calculateUnfixedPremiumAmount([line]) * exchangeRate) : 0,
+        unfixedPurchase: isUnfixedPurchase,
       }
     })
 
@@ -200,9 +209,10 @@ function createVoucherInventoryImpactService({
     // Party metal_receipt: dilute with 0 value. Product Metal Transfer: carry From costAmount.
     const isPartyTransfer = isMetalTransferType(transactionType)
     const isProductTransfer = isMetalProductTransferType(transactionType)
+    const isUnfixedPurchase = Boolean(plan.unfixedPurchase)
     const incomingValue = isPartyTransfer
       ? 0
-      : isProductTransfer
+      : isProductTransfer || isUnfixedPurchase
         ? toMoney(Number(plan.incomingValue || 0))
         : Number(plan.lineAmount || 0)
     item.quantity = nextQty
@@ -210,6 +220,8 @@ function createVoucherInventoryImpactService({
     item.updatedBy = user._id
     if (isPartyTransfer) {
       item.unitCost = nextQty > 0 ? toMoney(currentValue / nextQty) : 0
+    } else if (isUnfixedPurchase) {
+      item.unitCost = nextQty > 0 ? toMoney(Math.max(currentValue + incomingValue, 0) / nextQty) : 0
     } else if (incomingValue > 0 && nextQty > 0) {
       item.unitCost = toMoney((currentValue + incomingValue) / nextQty)
     } else if (isProductTransfer && nextQty > 0) {
@@ -224,7 +236,8 @@ function createVoucherInventoryImpactService({
       change: movementQty,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
-      valueDelta: isProductTransfer ? incomingValue : 0,
+      valueDelta: isProductTransfer || isUnfixedPurchase ? incomingValue : 0,
+      carriesValue: isUnfixedPurchase,
       reason: buildStockMovementReason(tx, transactionType),
       actorId: user._id,
       actorName: user.name,
@@ -366,7 +379,44 @@ function createVoucherInventoryImpactService({
     }
   }
 
+  /**
+   * A purchase fixing books metal value to the voucher's inventory account; spread it
+   * over the voucher's items (by grams) so their average cost matches the ledger.
+   * `amount` is in base currency; negative when a fixing is removed.
+   * Vouchers whose stock-in already carried their indicative value (posted before
+   * zero-cost unfixed stock) are skipped so that value is not counted twice.
+   */
+  const applyVoucherFixingInventoryValue = async ({ tx, amount, session = null }) => {
+    const value = Number(amount || 0)
+    const vocNo = String(tx?.voucherMeta?.vocNo || '').trim()
+    if (String(tx?.type || '').toLowerCase() !== 'purchase' || !value || !vocNo) return
+    const zeroCostStockIn = await withSession(StockMovement.exists({
+      isDeleted: { $ne: true },
+      carriesValue: true,
+      reason: stockMovementReasonPattern('purchase', vocNo),
+    }), session)
+    if (!zeroCostStockIn) return
+    const resolved = await resolveVoucherInventoryItems(tx, session)
+    const totalQty = resolved.reduce((sum, row) => sum + row.quantity, 0)
+    if (!(totalQty > 0)) return
+
+    const byItem = new Map()
+    for (const { item, quantity } of resolved) {
+      const key = String(item._id)
+      const entry = byItem.get(key) || { item, share: 0 }
+      entry.share += value * (quantity / totalQty)
+      byItem.set(key, entry)
+    }
+    for (const { item, share } of byItem.values()) {
+      const qty = Number(item.quantity || 0)
+      if (!(qty > 0)) continue
+      item.unitCost = toMoney(Math.max(qty * Number(item.unitCost || 0) + share, 0) / qty)
+      await item.save(writeOpts(session))
+    }
+  }
+
   return {
+    applyVoucherFixingInventoryValue,
     resolveVoucherInventoryLineQuantity,
     resolveVoucherInventoryLineAmount,
     resolveTransferPostingAmount,

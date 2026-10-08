@@ -82,7 +82,9 @@ describe('createVoucherFixingService', () => {
         return created
       })),
       updateMany: jest.fn(async () => ({ modifiedCount: 1 })),
+      find: jest.fn(() => ({ select: () => ({ lean: () => Promise.resolve([{ amount: 20000 }]) }) })),
     }
+    const applyFixingInventoryValue = jest.fn(async () => {})
     const Transaction = { findById: jest.fn(() => Promise.resolve(tx)) }
     const Currency = {
       findOne: jest.fn(() => ({ select: () => ({ lean: () => Promise.resolve({ code: 'USD' }) }) })),
@@ -95,15 +97,16 @@ describe('createVoucherFixingService', () => {
       BASE_CURRENCY_CODE: 'USD',
       assertAccountingPeriodOpen,
       appendTransactionAudit: (target, user, action) => target.auditTrail.push({ action }),
+      applyFixingInventoryValue,
     })
-    return { service, Ledger, ledgerRows, assertAccountingPeriodOpen }
+    return { service, Ledger, ledgerRows, assertAccountingPeriodOpen, applyFixingInventoryValue }
   }
 
   const user = { _id: '6ac605b8dffb0a7e2d41a899', department: 'Finance' }
 
   test('posts the metal value with the voucher accounts and records the fixed grams', async () => {
     const tx = buildUnfixedPurchase()
-    const { service, ledgerRows, assertAccountingPeriodOpen } = buildService(tx)
+    const { service, ledgerRows, assertAccountingPeriodOpen, applyFixingInventoryValue } = buildService(tx)
 
     const result = await service.addVoucherFixing({
       transactionId: tx._id,
@@ -129,6 +132,7 @@ describe('createVoucherFixingService', () => {
     expect(assertAccountingPeriodOpen).toHaveBeenCalledWith(expect.objectContaining({ tenant: 'mg' }))
     expect(assertAccountingPeriodOpen.mock.calls[0][0].createdAt).toBeUndefined()
     expect(tx.auditTrail.map((row) => row.action)).toContain('fixing_added')
+    expect(applyFixingInventoryValue).toHaveBeenCalledWith(expect.objectContaining({ tx, amount: ledgerRows[0].amount }))
   })
 
   test('refuses to fix more grams than are still open', async () => {
@@ -147,7 +151,7 @@ describe('createVoucherFixingService', () => {
     const tx = buildUnfixedPurchase({
       fixings: [{ _id: '6ac605b8dffb0a7e2d41a8f1', pureWeight: 199.98, date: new Date('2026-10-07'), createdAt: new Date('2026-10-07T09:00:00Z') }],
     })
-    const { service, Ledger, assertAccountingPeriodOpen } = buildService(tx)
+    const { service, Ledger, assertAccountingPeriodOpen, applyFixingInventoryValue } = buildService(tx)
 
     const result = await service.removeVoucherFixing({
       transactionId: tx._id,
@@ -165,5 +169,6 @@ describe('createVoucherFixingService', () => {
     expect(tx.voucherMeta.fixings[0].isDeleted).toBe(true)
     expect(result.state.openWeight).toBeCloseTo(199.98, 6)
     expect(assertAccountingPeriodOpen.mock.calls[0][0].createdAt).toEqual(new Date('2026-10-07T09:00:00Z'))
+    expect(applyFixingInventoryValue).toHaveBeenCalledWith(expect.objectContaining({ tx, amount: -20000 }))
   })
 })

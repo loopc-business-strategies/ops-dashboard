@@ -68,6 +68,7 @@ function registerTransactionRoutes(deps) {
     toQty,
     assertAccountingPeriodOpen,
     effectiveTransactionDate,
+    applyVoucherFixingInventoryValue,
   } = deps
 
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
@@ -143,6 +144,7 @@ const voucherFixingService = createVoucherFixingService({
   BASE_CURRENCY_CODE,
   assertAccountingPeriodOpen,
   appendTransactionAudit,
+  applyFixingInventoryValue: applyVoucherFixingInventoryValue,
 })
 
 const assertNoActiveVoucherFixings = (tx) => {

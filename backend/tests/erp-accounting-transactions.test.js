@@ -517,6 +517,95 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
   })
 
+  test('unfixed purchase stock carries no metal cost until it is fixed', async () => {
+    const financeUser = await createUser({ name: 'Finance Unfixed Cost' })
+    const payableAccount = await ChartOfAccount.create({
+      accountName: 'Unfixed Cost Vendor Payable',
+      accountCode: '2311',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Gold Bar Stock - Unfixed Cost',
+      accountCode: '12017',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const vendor = await Vendor.create({
+      name: 'Unfixed Cost Vendor',
+      ledgerAccountId: payableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const item = await InventoryItem.create({
+      name: 'Gold Bar Unfixed',
+      sku: 'GOLD-BAR-UF',
+      category: 'recordType=product;mainStock=gold;productPurity=1',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const postPurchase = async (vocNo, fixingType, amountLC) => {
+      const createRes = await request(app)
+        .post('/api/erp-accounting/transactions')
+        .set(authHeader(financeUser))
+        .send({
+          type: 'purchase',
+          amount: amountLC,
+          description: `${fixingType} purchase`,
+          currency: 'USD',
+          vendorId: vendor._id.toString(),
+          metalFixStatus: fixingType,
+          voucherMeta: {
+            vocNo,
+            fixingType,
+            lineItems: [{ stockCode: item.sku, productType: item.name, grossWeight: 200, purity: 1, pureWeight: 200, amountLC }],
+          },
+        })
+      expect(createRes.status).toBe(201)
+      const postRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'post' })
+      expect(postRes.status).toBe(200)
+      return createRes.body.transaction._id
+    }
+    const readItem = () => InventoryItem.findById(item._id).lean()
+
+    const unfixedId = await postPurchase('Pur/2026/0951', 'non-fixing', 26313.23)
+    expect(await readItem()).toMatchObject({ quantity: 200, unitCost: 0 })
+
+    await postPurchase('Pur/2026/0952', 'fixing', 26357.15)
+    expect(await readItem()).toMatchObject({ quantity: 400, unitCost: 65.89 })
+
+    const fixRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${unfixedId}/fixings`)
+      .set(authHeader(financeUser))
+      .send({ rate: 4000, rateType: 'OZ', pureWeight: 200, date: new Date().toISOString() })
+    expect(fixRes.status).toBe(201)
+    const fixingValue = 200 / 31.1034768 * 4000
+    expect((await readItem()).unitCost).toBeCloseTo((400 * 65.89 + fixingValue) / 400, 2)
+
+    const removeRes = await request(app)
+      .delete(`/api/erp-accounting/transactions/${unfixedId}/fixings/${fixRes.body.fixing._id}`)
+      .set(authHeader(financeUser))
+      .send({ reason: 'wrong rate' })
+    expect(removeRes.status).toBe(200)
+    expect((await readItem()).unitCost).toBeCloseTo(65.89, 2)
+
+    // A voucher posted before zero-cost stock already carries its value; fixing must not add it again.
+    await StockMovement.updateMany({ reason: /Pur\/2026\/0951/ }, { $set: { carriesValue: false } })
+    const legacyFixRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${unfixedId}/fixings`)
+      .set(authHeader(financeUser))
+      .send({ rate: 4000, rateType: 'OZ', pureWeight: 200, date: new Date().toISOString() })
+    expect(legacyFixRes.status).toBe(201)
+    expect((await readItem()).unitCost).toBeCloseTo(65.89, 2)
+  })
+
   test('posting metal receipt voucher updates inventory without monetary ledger entry', async () => {
     const financeUser = await createUser({ name: 'Finance Metal Receipt' })
     const partyAccount = await ChartOfAccount.create({

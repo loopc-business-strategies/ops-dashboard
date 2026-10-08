@@ -4,8 +4,9 @@
  * A fixing prices some (or all) of the voucher's open grams on its own date:
  * it posts the metal value with the voucher's own debit/credit accounts and
  * records the fixed grams on the voucher, so positions only count open grams.
- * Stock is untouched (the metal moved when the voucher was posted) and the
- * voucher itself is not edited, so the 24-hour voucher lock does not apply.
+ * Stock quantity is untouched (the metal moved when the voucher was posted);
+ * a purchase fixing adds its value to the stock's average cost. The voucher
+ * itself is not edited, so the 24-hour voucher lock does not apply.
  */
 
 const mongoose = require('mongoose')
@@ -138,9 +139,13 @@ function createVoucherFixingService({
   BASE_CURRENCY_CODE,
   assertAccountingPeriodOpen,
   appendTransactionAudit,
+  applyFixingInventoryValue,
 }) {
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
     ? assertAccountingPeriodOpen
+    : async () => {}
+  const applyInventoryValue = typeof applyFixingInventoryValue === 'function'
+    ? applyFixingInventoryValue
     : async () => {}
 
   const loadVoucher = async (transactionId, session) => {
@@ -227,6 +232,7 @@ function createVoucherFixingService({
       exchangeRate: 1,
       notes: String(notes || '').trim(),
     }], writeOpts(session)).then((rows) => rows[0])
+    await applyInventoryValue({ tx, amount: ledgerEntry.amount, session })
 
     if (!tx.voucherMeta) tx.voucherMeta = {}
     if (!Array.isArray(tx.voucherMeta.fixings)) tx.voucherMeta.fixings = []
@@ -280,11 +286,18 @@ function createVoucherFixingService({
     })
 
     const now = new Date()
+    const fixingLedgerRows = await withSession(Ledger.find({
+      referenceType: 'voucher_fixing',
+      referenceId: fixing._id,
+      isDeleted: { $ne: true },
+    }).select('amount').lean(), session)
     await Ledger.updateMany(
       { referenceType: 'voucher_fixing', referenceId: fixing._id, isDeleted: { $ne: true } },
       { $set: { isDeleted: true, deletedAt: now, updatedBy: user._id } },
       writeOpts(session),
     )
+    const removedValue = (fixingLedgerRows || []).reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    await applyInventoryValue({ tx, amount: -removedValue, session })
 
     fixing.isDeleted = true
     fixing.deletedAt = now

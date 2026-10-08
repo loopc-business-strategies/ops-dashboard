@@ -30,6 +30,11 @@ const stockMovementSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    /** valueDelta was the full value brought in (even when 0), so a void removes exactly that value. */
+    carriesValue: {
+      type: Boolean,
+      default: false,
+    },
     reason: {
       type: String,
       required: true,

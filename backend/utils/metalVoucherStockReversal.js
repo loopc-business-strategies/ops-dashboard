@@ -43,7 +43,7 @@ async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, Invent
       const beforeQty = Number(item.quantity || 0)
       const nextQty = Math.max(0, toQty(beforeQty - change))
 
-      if (valueDelta !== 0) {
+      if (valueDelta !== 0 || mov.carriesValue) {
         // Undo book-value carried with Metal Transfer To IN (or any valued stock-in movement).
         const beforeValue = beforeQty * Number(item.unitCost || 0)
         const nextValue = Math.max(0, beforeValue - valueDelta)

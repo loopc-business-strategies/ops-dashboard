@@ -252,6 +252,7 @@ const {
   _resolveTransferPostingAmount,
   prepareVoucherInventoryImpact,
   applyVoucherInventoryImpact,
+  applyVoucherFixingInventoryValue,
 } = voucherInventoryService
 
 const {
@@ -686,6 +687,7 @@ function registerErpAccountingRoutes(router) {
     toQty,
     assertAccountingPeriodOpen,
     effectiveTransactionDate,
+    applyVoucherFixingInventoryValue,
   })
   
   registerAttachmentRoutes({
