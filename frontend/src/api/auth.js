@@ -74,5 +74,12 @@ const deleteUser = async (_token, id, reason = '') =>
 const updatePermissions = async (_token, id, modulePermissions) =>
   (await axios.put(`${BASE}/users/${id}/permissions`, { modulePermissions }, cfg())).data
 
-const authAPI = { login, setup, setupStatus, getMe, logout, changePassword, getUsers, createUser, updateUserRole, toggleUser, deleteUser, updatePermissions }
+// Own sidebar section / item order (MG only)
+const getNavLayout = async () =>
+  (await axios.get(`${BASE}/me/nav-layout`, cfg())).data
+
+const saveNavLayout = async (navLayout) =>
+  (await axios.put(`${BASE}/me/nav-layout`, navLayout, cfg())).data
+
+const authAPI = { login, setup, setupStatus, getMe, logout, changePassword, getUsers, createUser, updateUserRole, toggleUser, deleteUser, updatePermissions, getNavLayout, saveNavLayout }
 export default authAPI

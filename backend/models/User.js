@@ -231,6 +231,12 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+
+    // MG sidebar arrangement: { sections: [...], items: { main, departments, erp, admin } } — ids only
+    navLayout: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: true, // auto-adds createdAt and updatedAt

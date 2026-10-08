@@ -9,6 +9,7 @@
 //   POST /api/auth/login            ← login with name + password
 //   GET  /api/auth/me               ← get my own profile
 //   PUT  /api/auth/change-password  ← change own password (any logged-in user)
+//   GET/PUT /api/auth/me/nav-layout ← MG sidebar order (own account)
 //   POST /api/auth/me/push-token    ← register Expo push token (mobile)
 //   DELETE /api/auth/me/push-token  ← remove Expo push token
 //   POST /api/auth/me/web-push-subscription   ← register Web Push (browser)
@@ -512,6 +513,49 @@ router.put('/me/notification-preferences', protect, async (req, res) => {
     res.json({ success: true, notificationPreferences: merged })
   } catch (err) {
     console.error('PUT /me/notification-preferences error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ==========================================
+// GET/PUT /api/auth/me/nav-layout — MG sidebar section + item order (ids only)
+// ==========================================
+const NAV_SECTIONS = ['workspace', 'departments', 'erp', 'admin']
+const navIdList = Joi.array().items(Joi.string().trim().max(60).pattern(/^[A-Za-z0-9_-]+$/)).max(60).unique()
+const navLayoutSchema = Joi.object({
+  sections: Joi.array().items(Joi.string().valid(...NAV_SECTIONS)).max(NAV_SECTIONS.length).unique().default([]),
+  items: Joi.object({
+    main: navIdList,
+    departments: navIdList,
+    erp: navIdList,
+    admin: navIdList,
+  }).default({}),
+})
+
+const requireMgNavLayout = (req, res, next) => {
+  if (req.tenant !== 'mg') {
+    return res.status(403).json({ success: false, message: 'Sidebar customization is only available for MG.' })
+  }
+  return next()
+}
+
+router.get('/me/nav-layout', protect, requireMgNavLayout, (req, res) => {
+  res.json({ success: true, navLayout: req.user.navLayout || {} })
+})
+
+router.put('/me/nav-layout', protect, requireMgNavLayout, validateBody(navLayoutSchema), async (req, res) => {
+  try {
+    const navLayout = { sections: req.body.sections || [], items: req.body.items || {} }
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+    user.navLayout = navLayout
+    user.markModified('navLayout')
+    await user.save({ validateBeforeSave: false })
+    req.user.navLayout = navLayout
+    res.json({ success: true, navLayout })
+  } catch (err) {
+    console.error('PUT /me/nav-layout error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })

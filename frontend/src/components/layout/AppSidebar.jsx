@@ -1,5 +1,31 @@
 import React from 'react'
 import { NavItem } from './navConfig'
+import { NAV_SECTIONS, orderSections } from './navLayout'
+
+function MoveButtons({ label, index, count, onMove }) {
+  return (
+    <span className="sidebar-move">
+      <button
+        type="button"
+        className="sidebar-move-btn"
+        aria-label={`Move ${label} up`}
+        disabled={index === 0}
+        onClick={() => onMove(-1)}
+      >
+        ▲
+      </button>
+      <button
+        type="button"
+        className="sidebar-move-btn"
+        aria-label={`Move ${label} down`}
+        disabled={index === count - 1}
+        onClick={() => onMove(1)}
+      >
+        ▼
+      </button>
+    </span>
+  )
+}
 
 /**
  * Branded enterprise sidebar — preserves all existing nav groups/items.
@@ -30,7 +56,97 @@ export default function AppSidebar({
   onModuleNavigate,
   onMouseEnter,
   onMouseLeave,
+  customizable = false,
+  navLayout = null,
+  workspaceOpen = true,
+  setWorkspaceOpen,
 }) {
+  const editing = Boolean(customizable && navLayout?.editing)
+
+  const renderNavItem = (sectionKey, item) => {
+    if (sectionKey === 'erp') {
+      return (
+        <NavItem
+          key={item.id}
+          {...item}
+          href={buildNavHref(item)}
+          active={activeTab === 'erp' && erpSubTab === item.erpSub}
+          openInNewTab={false}
+          onSameTabNavigate={() => onErpNavigate?.(item.erpSub)}
+          onAfterClick={sidebarLinkAfterClick}
+          onPrefetch={() => {
+            prefetchTabChunk('erp')
+            prefetchTabChunk(item.id)
+          }}
+        />
+      )
+    }
+    return (
+      <NavItem
+        key={item.id}
+        {...item}
+        href={buildNavHref(item)}
+        active={activeTab === item.id}
+        openInNewTab={sectionKey === 'departments' && item.id === 'production-new'}
+        onSameTabNavigate={() => onModuleNavigate?.(item.id)}
+        onAfterClick={sidebarLinkAfterClick}
+        onPrefetch={() => prefetchTabChunk(item.id)}
+      />
+    )
+  }
+
+  const renderCustomSections = () => {
+    const config = {
+      workspace: { title: 'Workspace', items: mainItems, open: workspaceOpen, setOpen: setWorkspaceOpen },
+      departments: { title: t('departments'), items: deptItems, open: deptOpen, setOpen: setDeptOpen },
+      erp: { title: 'ERP', items: erpItems, open: erpOpen, setOpen: setErpOpen },
+      admin: { title: t('adminSection'), items: adminItems, open: adminOpen, setOpen: setAdminOpen },
+    }
+    const available = NAV_SECTIONS.map((s) => s.key).filter((key) => config[key].items.length > 0)
+    const ordered = orderSections(navLayout?.layout?.sections, available)
+    const groupOf = Object.fromEntries(NAV_SECTIONS.map((s) => [s.key, s.group]))
+
+    return ordered.map((key, sectionIndex) => {
+      const section = config[key]
+      const itemIds = section.items.map((item) => item.id)
+      return (
+        <React.Fragment key={key}>
+          {sectionIndex > 0 && <div className="sidebar-divider" role="separator" />}
+          <div className="sidebar-section-head">
+            <button
+              type="button"
+              className="sidebar-section-title w-full"
+              onClick={() => section.setOpen?.((v) => !v)}
+              aria-expanded={section.open}
+            >
+              <span>{section.title}</span>
+              <span className="section-chevron" aria-hidden="true">{section.open ? '▴' : '▾'}</span>
+            </button>
+            {editing ? (
+              <MoveButtons
+                label={section.title}
+                index={sectionIndex}
+                count={ordered.length}
+                onMove={(delta) => navLayout.moveSection(ordered, sectionIndex, delta)}
+              />
+            ) : null}
+          </div>
+          {section.open && section.items.map((item, itemIndex) => (editing ? (
+            <div key={item.id} className="sidebar-item sidebar-item--edit">
+              <span className="sidebar-item-label truncate">{item.label}</span>
+              <MoveButtons
+                label={item.label}
+                index={itemIndex}
+                count={itemIds.length}
+                onMove={(delta) => navLayout.moveItem(groupOf[key], itemIds, itemIndex, delta)}
+              />
+            </div>
+          ) : renderNavItem(key, item)))}
+        </React.Fragment>
+      )
+    })
+  }
+
   return (
     <aside
       className={`sidebar fixed inset-y-0 z-50 flex flex-col transform transition-transform duration-300 ease-in-out
@@ -62,6 +178,8 @@ export default function AppSidebar({
       </div>
 
       <nav className="sidebar-nav flex-1 overflow-y-auto" aria-label="Modules">
+        {customizable ? renderCustomSections() : (
+        <>
         {mainItems.length > 0 ? (
           <p className="sidebar-section-label" id="sidebar-workspace-label">Workspace</p>
         ) : null}
@@ -164,7 +282,34 @@ export default function AppSidebar({
             ))}
           </>
         )}
+        </>
+        )}
       </nav>
+
+      {customizable && navLayout ? (
+        <div className="sidebar-customize flex-shrink-0">
+          {navLayout.error ? <p className="sidebar-customize-error" role="alert">{navLayout.error}</p> : null}
+          {editing ? (
+            <div className="sidebar-customize-row">
+              <button type="button" className="sidebar-customize-btn" onClick={navLayout.reset} disabled={navLayout.saving}>
+                Reset to default
+              </button>
+              <button
+                type="button"
+                className="sidebar-customize-btn sidebar-customize-btn--primary"
+                onClick={navLayout.save}
+                disabled={navLayout.saving}
+              >
+                {navLayout.saving ? 'Saving…' : 'Done'}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="sidebar-customize-btn" onClick={navLayout.startEdit}>
+              Customize sidebar
+            </button>
+          )}
+        </div>
+      ) : null}
 
       <div className="sidebar-footer flex-shrink-0">
         <button

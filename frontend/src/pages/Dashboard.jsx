@@ -20,6 +20,8 @@ import ChangePasswordModal from '../components/ChangePasswordModal'
 import AppShell from '../components/layout/AppShell'
 import AppSidebar from '../components/layout/AppSidebar'
 import { getNavItems } from '../components/layout/navConfig'
+import { applyItemOrder } from '../components/layout/navLayout'
+import { useNavLayout } from '../components/layout/useNavLayout'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
 import {
@@ -440,6 +442,7 @@ function Dashboard() {
   const [adminOpen,    setAdminOpen]    = useState(true)
   const [deptOpen,     setDeptOpen]     = useState(true)
   const [erpOpen,      setErpOpen]      = useState(true)
+  const [workspaceOpen, setWorkspaceOpen] = useState(true)
   const [erpSubTab,    setErpSubTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).erpSubTab)
   /** Keep Overview/ERP mounted after first visit to avoid full remount/refetch on return. */
   const [visitedKeepAliveTabs, setVisitedKeepAliveTabs] = useState(() => {
@@ -481,6 +484,8 @@ function Dashboard() {
   // Desktop: hamburger pin + edge hover open / mouseleave auto-hide when unpinned.
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
+  const navCustomizable = branding.key === 'mg'
+  const navLayout = useNavLayout(navCustomizable)
   const includeCompany = useMemo(
     () => typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname),
     [],
@@ -952,10 +957,14 @@ function Dashboard() {
   }, [navigateToTab])
 
   // Group nav items
-  const mainItems  = navItems.filter(n => n.group === 'main')
-  const adminItems = navItems.filter(n => n.group === 'admin')
-  const deptItems  = navItems.filter(n => n.group === 'departments')
-  const erpItems   = navItems.filter(n => n.group === 'erp')
+  const orderGroup = (group) => {
+    const items = navItems.filter(n => n.group === group)
+    return navCustomizable ? applyItemOrder(items, navLayout.layout.items[group]) : items
+  }
+  const mainItems  = orderGroup('main')
+  const adminItems = orderGroup('admin')
+  const deptItems  = orderGroup('departments')
+  const erpItems   = orderGroup('erp')
 
   const handleLogout = () => { logout(); navigate('/login') }
   const languageCode = (langMeta?.code || 'en').toUpperCase()
@@ -1002,6 +1011,10 @@ function Dashboard() {
         onErpNavigate={(erpSub) => navigateToTab('erp', { erpSub, sub: null })}
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
+        customizable={navCustomizable}
+        navLayout={navCustomizable ? navLayout : null}
+        workspaceOpen={workspaceOpen}
+        setWorkspaceOpen={setWorkspaceOpen}
       />
       {isDesktop && !sidebarOpen ? (
         <div
