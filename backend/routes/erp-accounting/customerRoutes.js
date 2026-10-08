@@ -5,6 +5,8 @@ const {
   roundMetalPosition,
   createEmptyPartyPositionRow,
   addOpenUnfixedVoucherToPartyRow,
+  buildCustomerMetalTransferFilter,
+  accumulateMetalTransfersIntoMap,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { computeMarginMetricsRaw, shouldSuppressSpotMetalMtmForCustomerDashboard } = require('../../services/erpAccounting/metalMarginPolicy')
 
@@ -86,7 +88,8 @@ function registerCustomerRoutes(deps) {
 
       const accountIds = customers.map((customer) => customer.ledgerAccountId?._id).filter(Boolean)
       const customerIds = customers.map((customer) => customer._id).filter(Boolean)
-      const [debitAggs, creditAggs, latestRate, metalTxs, directDeals] = await Promise.all([
+      const transferFilter = buildCustomerMetalTransferFilter(customers)
+      const [debitAggs, creditAggs, latestRate, metalTxs, directDeals, metalTransfers] = await Promise.all([
         accountIds.length
           ? Ledger.aggregate([
               { $match: { debitAccountId: { $in: accountIds }, isDeleted: { $ne: true } } },
@@ -115,6 +118,9 @@ function registerCustomerRoutes(deps) {
               'lineItems.customerId': { $in: customerIds },
             }).select('lineItems.customerId lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode').lean()
           : Promise.resolve([]),
+        transferFilter && Transaction
+          ? Transaction.find(transferFilter).select('customerId type voucherMeta.partyAccountId voucherMeta.partyCode voucherMeta.lineItems').lean()
+          : Promise.resolve([]),
       ])
       const debitMap = new Map(debitAggs.map((row) => [String(row._id), row.total]))
       const creditMap = new Map(creditAggs.map((row) => [String(row._id), row.total]))
@@ -133,6 +139,7 @@ function registerCustomerRoutes(deps) {
         metalPositionMap.set(customerId, position)
       })
       accumulateDirectDealMetalIntoMap(directDeals || [], metalPositionMap)
+      accumulateMetalTransfersIntoMap(metalTransfers || [], customers, metalPositionMap)
 
       const data = customers.map((customer) => {
         const accountId = String(customer.ledgerAccountId?._id || '')

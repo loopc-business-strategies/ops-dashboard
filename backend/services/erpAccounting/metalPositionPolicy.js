@@ -3,7 +3,10 @@
  * Position = unfixed sale/purchase + metal transfers (caller) + confirmed direct deals.
  */
 
+const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
+
 const OZ_TO_GRAM = 31.1034768
+const METAL_TRANSFER_POSITION_TYPES = ['metal_receipt', 'metal_payment']
 
 function isUnfixedFixingType(value) {
   const normalized = String(value || '').trim().toLowerCase()
@@ -157,6 +160,78 @@ function addOpenUnfixedVoucherToPartyRow(row, tx = {}) {
   return true
 }
 
+/**
+ * Adds a metal receipt/payment to a party row: Dr/Cr grams (payment +, receipt -)
+ * into gold/silverPosition and the opposite into the valuation grams, since like
+ * an unfixed voucher a receipt is metal the party is owed and a payment settles it.
+ */
+function addMetalTransferToPartyRow(row, tx = {}) {
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  let added = false
+  for (const line of lines) {
+    const signedWeight = resolveTransferSignedPureWeight(tx.type, [line])
+    if (!signedWeight) continue
+    if (isSilverLine(line?.stockCode)) {
+      row.silverPosition += signedWeight
+      row.silverValuationPosition -= signedWeight
+    } else {
+      row.goldPosition += signedWeight
+      row.goldValuationPosition -= signedWeight
+    }
+    added = true
+  }
+  return added
+}
+
+/** Posted metal receipts/payments for these customers, matched like Account Summary. */
+function buildCustomerMetalTransferFilter(customers = []) {
+  const customerIds = []
+  const accountIds = []
+  const accountCodes = []
+  for (const customer of customers) {
+    if (customer?._id) customerIds.push(customer._id)
+    const account = customer?.ledgerAccountId
+    if (account?._id) accountIds.push(account._id, String(account._id))
+    const code = String(account?.accountCode || '').trim()
+    if (code) accountCodes.push(code)
+  }
+  const or = []
+  if (customerIds.length) or.push({ customerId: { $in: customerIds } })
+  if (accountIds.length) or.push({ 'voucherMeta.partyAccountId': { $in: accountIds } })
+  if (accountCodes.length) or.push({ 'voucherMeta.partyCode': { $in: accountCodes } })
+  if (!or.length) return null
+  return {
+    isDeleted: { $ne: true },
+    status: 'posted',
+    type: { $in: METAL_TRANSFER_POSITION_TYPES },
+    $or: or,
+  }
+}
+
+function accumulateMetalTransfersIntoMap(transfers = [], customers = [], positionMap = new Map()) {
+  const byCustomerId = new Map()
+  const byAccountId = new Map()
+  const byAccountCode = new Map()
+  for (const customer of customers) {
+    const customerId = String(customer?._id || '')
+    if (!customerId) continue
+    byCustomerId.set(customerId, customerId)
+    const account = customer?.ledgerAccountId
+    if (account?._id) byAccountId.set(String(account._id), customerId)
+    const code = String(account?.accountCode || '').trim()
+    if (code) byAccountCode.set(code, customerId)
+  }
+  for (const tx of transfers) {
+    const customerId = byCustomerId.get(String(tx?.customerId || ''))
+      || byAccountId.get(String(tx?.voucherMeta?.partyAccountId || ''))
+      || byAccountCode.get(String(tx?.voucherMeta?.partyCode || '').trim())
+    if (!customerId) continue
+    const position = positionMap.get(customerId) || createEmptyPartyPositionRow()
+    if (addMetalTransferToPartyRow(position, tx)) positionMap.set(customerId, position)
+  }
+  return positionMap
+}
+
 function accumulateDirectDealMetalForCustomer(directDeals = [], customerId) {
   const position = createEmptyMetalPosition()
   const targetId = String(customerId || '')
@@ -230,6 +305,9 @@ module.exports = {
   resolveVoucherFixedWeightByMetal,
   addOpenUnfixedVoucherWeight,
   addOpenUnfixedVoucherToPartyRow,
+  addMetalTransferToPartyRow,
+  buildCustomerMetalTransferFilter,
+  accumulateMetalTransfersIntoMap,
   accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalForCustomer,
   accumulateDirectDealMetalIntoMap,

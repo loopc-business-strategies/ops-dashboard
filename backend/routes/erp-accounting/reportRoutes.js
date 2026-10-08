@@ -43,6 +43,8 @@ const {
   accumulateDirectDealMetalIntoMap,
   addOpenUnfixedVoucherWeight,
   addOpenUnfixedVoucherToPartyRow,
+  buildCustomerMetalTransferFilter,
+  accumulateMetalTransfersIntoMap,
   createEmptyPartyPositionRow,
   listActiveVoucherFixings,
   resolveDirectDealCompanyDirection,
@@ -1432,7 +1434,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     const customerPeriodMetrics = computeCustomerPeriodMetrics(periodLedger, customerLedgerIdSet, accountMetaMap)
 
     const vendorIdsForMargin = vendors.map((v) => v._id).filter(Boolean)
-    const [latestMarginRate, customerMetalTxs, supplierMetalTxs, customerDirectDeals] = await Promise.all([
+    const customerTransferFilter = buildCustomerMetalTransferFilter(customers)
+    const [latestMarginRate, customerMetalTxs, supplierMetalTxs, customerDirectDeals, customerMetalTransfers] = await Promise.all([
       typeof getValuationMetalRate === 'function' ? getValuationMetalRate() : Promise.resolve(null),
       customerIdsForMargin.length && Transaction
         ? Transaction.find({
@@ -1465,6 +1468,9 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
             'lineItems.customerId': { $in: customerIdsForMargin },
           }).select('lineItems.customerId lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode').lean()
         : Promise.resolve([]),
+      customerTransferFilter && Transaction
+        ? Transaction.find(customerTransferFilter).select('customerId type voucherMeta.partyAccountId voucherMeta.partyCode voucherMeta.lineItems').lean()
+        : Promise.resolve([]),
     ])
     const marginRates = latestMarginRate
       ? {
@@ -1481,6 +1487,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       marginMetalPositionMap.set(customerId, position)
     })
     accumulateDirectDealMetalIntoMap(customerDirectDeals || [], marginMetalPositionMap)
+    accumulateMetalTransfersIntoMap(customerMetalTransfers || [], customers, marginMetalPositionMap)
 
     const customerMargins = customers.map((customer) => {
       const opening = Number(customer.ledgerAccountId?.openingBalance ?? customer.openingBalance ?? 0)

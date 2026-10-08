@@ -10,6 +10,9 @@ const {
   isUnfixedFixingType,
   createEmptyPartyPositionRow,
   addOpenUnfixedVoucherToPartyRow,
+  addMetalTransferToPartyRow,
+  buildCustomerMetalTransferFilter,
+  accumulateMetalTransfersIntoMap,
 } = require('../services/erpAccounting/metalPositionPolicy')
 
 describe('metalPositionPolicy', () => {
@@ -160,5 +163,43 @@ describe('metalPositionPolicy', () => {
       voucherMeta: { fixingType: 'fixing', lineItems: [{ stockCode: 'XAU', pureWeight: 50 }] },
     })).toBe(false)
     expect(fixedRow).toEqual(createEmptyPartyPositionRow())
+  })
+
+  test('metal receipts are owed to the party and payments settle them, matched like Account Summary', () => {
+    const accountA = '64b000000000000000000001'
+    const customers = [
+      { _id: 'c1', ledgerAccountId: { _id: accountA, accountCode: '1013' } },
+      { _id: 'c2', ledgerAccountId: { _id: '64b000000000000000000002', accountCode: '1301' } },
+      { _id: 'c3', ledgerAccountId: { _id: '64b000000000000000000003', accountCode: '1302' } },
+    ]
+    const filter = buildCustomerMetalTransferFilter(customers)
+    expect(filter.type).toEqual({ $in: ['metal_receipt', 'metal_payment'] })
+    expect(filter.status).toBe('posted')
+    expect(filter.$or).toEqual(expect.arrayContaining([
+      { customerId: { $in: ['c1', 'c2', 'c3'] } },
+      { 'voucherMeta.partyCode': { $in: ['1013', '1301', '1302'] } },
+    ]))
+
+    const map = accumulateMetalTransfersIntoMap([
+      { type: 'metal_receipt', customerId: 'c1', voucherMeta: { lineItems: [{ stockCode: 'XAU', pureWeight: 1000 }] } },
+      { type: 'metal_payment', voucherMeta: { partyAccountId: accountA, lineItems: [{ stockCode: 'XAU', pureWeight: 400 }] } },
+      { type: 'metal_payment', voucherMeta: { partyCode: '1301', lineItems: [{ stockCode: 'XAG', grossWeight: 100, purity: 999 }] } },
+      { type: 'metal_receipt', customerId: 'someone-else', voucherMeta: { lineItems: [{ stockCode: 'XAU', pureWeight: 5 }] } },
+    ], customers)
+
+    expect(map.get('c1').goldPosition).toBeCloseTo(-600, 6)
+    expect(map.get('c1').goldValuationPosition).toBeCloseTo(600, 6)
+    expect(map.get('c2').silverPosition).toBeCloseTo(99.9, 6)
+    expect(map.get('c2').silverValuationPosition).toBeCloseTo(-99.9, 6)
+    expect(map.has('c3')).toBe(false)
+    expect(map.size).toBe(2)
+  })
+
+  test('metal transfers add to an existing party row', () => {
+    const row = createEmptyPartyPositionRow()
+    row.goldValuationPosition = 50
+    expect(addMetalTransferToPartyRow(row, { type: 'metal_receipt', voucherMeta: { lineItems: [{ stockCode: 'XAU', pureWeight: 20 }] } })).toBe(true)
+    expect(row.goldValuationPosition).toBeCloseTo(70, 6)
+    expect(addMetalTransferToPartyRow(row, { type: 'sale', voucherMeta: { lineItems: [{ stockCode: 'XAU', pureWeight: 20 }] } })).toBe(false)
   })
 })
