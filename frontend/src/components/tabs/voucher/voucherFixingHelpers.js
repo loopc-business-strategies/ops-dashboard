@@ -93,6 +93,22 @@ export function resolveVoucherFixingBadge(voucher = {}) {
   return { label: `Part fixed (${state.openWeight.toFixed(2)} g open)`, tone: 'partial' }
 }
 
+/**
+ * Unfixed sale/purchase totals are priced at the voucher rate but not booked: the ledger
+ * holds only the premium until fixings post the metal value at their own rates.
+ */
+export function resolveVoucherIndicativeTotalNote(voucher = {}) {
+  const type = String(voucher?.type || '').toLowerCase()
+  if (type !== 'sale' && type !== 'purchase') return null
+  const state = summarizeVoucherFixing(voucher)
+  if (!state.isUnfixed) return null
+  const grams = (value) => `${Number(value || 0).toFixed(2)} g`
+  const title = state.fixedWeight > 0
+    ? `Indicative value at the voucher rate. Each fixing books its own value (${grams(state.fixedWeight)} of ${grams(state.totalWeight)} fixed).`
+    : 'Indicative value at the voucher rate. Not booked: only the premium is posted until the grams are fixed.'
+  return { label: 'indicative', title }
+}
+
 export function canFixVoucher(voucher = {}) {
   const type = String(voucher?.type || '').toLowerCase()
   if (type !== 'sale' && type !== 'purchase') return false

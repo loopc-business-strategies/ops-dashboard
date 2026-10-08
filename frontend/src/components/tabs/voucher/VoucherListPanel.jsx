@@ -1,7 +1,7 @@
 import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, inputStyle, isMetalStockVoucherType, isSaveSubmitOnlyVoucherType, S } from './voucherTabShared'
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
-import { canFixVoucher, resolveVoucherFixingBadge, summarizeVoucherFixing } from './voucherFixingHelpers'
+import { canFixVoucher, resolveVoucherFixingBadge, resolveVoucherIndicativeTotalNote, summarizeVoucherFixing } from './voucherFixingHelpers'
 
 const FIXING_BADGE_COLORS = {
   fixed: { bg: '#DCFCE7', color: '#166534' },
@@ -148,6 +148,7 @@ export default function VoucherListPanel({
                 const fixingBadge = resolveVoucherFixingBadge(voucher)
                 const fixingBadgeStyle = FIXING_BADGE_COLORS[fixingBadge.tone] || FIXING_BADGE_COLORS.fixed
                 const hasFixings = summarizeVoucherFixing(voucher).allFixings.length > 0
+                const indicativeNote = resolveVoucherIndicativeTotalNote({ ...voucher, type: voucher.type || voucherType })
                 const periodLocked = Boolean(isEntryLocked(voucher))
                 return (
                   <tr key={voucher._id} style={{ background: index % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
@@ -168,7 +169,14 @@ export default function VoucherListPanel({
                     {!isSimpleMetalVoucher && (
                       <td style={{ padding: '0.55rem 0.75rem' }}>{voucher.currency}</td>
                     )}
-                    <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand, voucher.currency)}</td>
+                    {indicativeNote ? (
+                      <td title={indicativeNote.title} style={{ padding: '0.55rem 0.75rem', textAlign: 'right', color: S.muted, fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                        {fmt(grand, voucher.currency)}
+                        <div style={{ fontSize: '0.7rem', fontWeight: '700', fontStyle: 'normal', color: '#92400E' }}>{indicativeNote.label}</div>
+                      </td>
+                    ) : (
+                      <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand, voucher.currency)}</td>
+                    )}
                     <td style={{ padding: '0.55rem 0.75rem' }}>
                       <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: statusStyle.bg, color: statusStyle.color }}>
                         {displayStatus}

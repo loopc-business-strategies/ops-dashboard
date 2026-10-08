@@ -4,6 +4,7 @@ import {
   computeVoucherFixingAmount,
   fromPerOunceRate,
   resolveVoucherFixingBadge,
+  resolveVoucherIndicativeTotalNote,
   summarizeVoucherFixing,
   toPerOunceRate,
 } from './voucherFixingHelpers'
@@ -42,6 +43,15 @@ describe('voucherFixingHelpers', () => {
     expect(canFixVoucher(unfixedPurchase([], { status: 'draft' }))).toBe(false)
     expect(canFixVoucher(unfixedPurchase([{ pureWeight: 199.98 }]))).toBe(false)
     expect(canFixVoucher(unfixedPurchase([], { type: 'metal_receipt' }))).toBe(false)
+  })
+
+  test('list total is indicative only for unfixed sale and purchase vouchers', () => {
+    expect(resolveVoucherIndicativeTotalNote(unfixedPurchase())).toMatchObject({ label: 'indicative' })
+    expect(resolveVoucherIndicativeTotalNote(unfixedPurchase()).title).toContain('only the premium is posted')
+    expect(resolveVoucherIndicativeTotalNote(unfixedPurchase([{ pureWeight: 100 }])).title).toContain('100.00 g of 199.98 g fixed')
+    expect(resolveVoucherIndicativeTotalNote(unfixedPurchase([], { type: 'sale' }))).not.toBeNull()
+    expect(resolveVoucherIndicativeTotalNote({ type: 'purchase', voucherMeta: { fixingType: 'fixing' } })).toBeNull()
+    expect(resolveVoucherIndicativeTotalNote(unfixedPurchase([], { type: 'metal_receipt' }))).toBeNull()
   })
 
   test('amount and rate conversions follow the rate unit', () => {
