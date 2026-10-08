@@ -20,7 +20,7 @@ jobs:
     name: Playwright staging auth
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.56.1-jammy
+      image: mcr.microsoft.com/playwright:v1.63.0-jammy
     timeout-minutes: 25
     env:
       STAGING_E2E_WAIT_SECONDS: ${{ vars.STAGING_E2E_WAIT_SECONDS || '90' }}
