@@ -63,6 +63,7 @@ const TOPIC_GROUPS = [
     topics: [
       { key: 'report_digest', label: 'Daily report digest', desc: 'Scheduled and on-demand report summaries.' },
       { key: 'gold_price_alert', label: 'Gold price alerts', desc: 'When gold price moves significantly.' },
+      { key: 'mt4_feed_alert', label: 'MT4 price feed', desc: 'When MT4 prices stop for 10 minutes during market hours, and when they return.' },
       { key: 'low_stock', label: 'Low stock', desc: 'Inventory low-stock alerts.' },
     ],
   },

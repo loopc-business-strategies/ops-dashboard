@@ -103,6 +103,11 @@ function buildCopy(type, data = {}) {
       return { title: String(data.title || `${MOBILE_APP_NAME} report`).slice(0, MAX_TITLE), body: (msg || 'Daily report').slice(0, MAX_BODY) }
     case 'gold_price_alert':
       return { title: 'Gold price alert', body: (msg || 'Gold price moved significantly.').slice(0, MAX_BODY) }
+    case 'mt4_feed_alert':
+      return {
+        title: data.status === 'online' ? 'MT4 prices back' : 'MT4 price feed offline',
+        body: (msg || 'The MT4 price feed stopped updating.').slice(0, MAX_BODY),
+      }
     case 'account_balance_sign_changed':
       return { title: 'Account crossed zero', body: 'An account balance changed from negative to positive or vice versa.'.slice(0, MAX_BODY) }
     default:

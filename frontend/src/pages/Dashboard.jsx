@@ -212,6 +212,14 @@ function mapRealtimeNotificationPayload(payload) {
   if (type === 'gold_price_alert') {
     return { title: 'Gold price alert', msg: msg || 'Gold price moved.', dotColor: 'bg-yellow-400' }
   }
+  if (type === 'mt4_feed_alert') {
+    const online = data.status === 'online'
+    return {
+      title: online ? 'MT4 prices back' : 'MT4 price feed offline',
+      msg: msg || (online ? 'MT4 prices are updating again.' : 'The MT4 price feed stopped updating.'),
+      dotColor: online ? 'bg-emerald-400' : 'bg-red-500',
+    }
+  }
   if (type === 'account_balance_sign_changed') {
     return {
       title: 'Account balance crossed zero',

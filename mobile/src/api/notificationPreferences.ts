@@ -90,6 +90,7 @@ export const TOPIC_GROUPS: { title: string; topics: { key: string; label: string
     topics: [
       { key: 'report_digest', label: 'Daily report' },
       { key: 'gold_price_alert', label: 'Gold price alerts' },
+      { key: 'mt4_feed_alert', label: 'MT4 price feed' },
     ],
   },
 ]

@@ -197,6 +197,12 @@ async function startServer() {
       console.warn('[startup] notification digest job not started:', e.message)
     }
     try {
+      const { startMt4FeedWatchJob } = require('./jobs/mt4FeedWatchJob')
+      startMt4FeedWatchJob()
+    } catch (e) {
+      console.warn('[startup] MT4 feed watch job not started:', e.message)
+    }
+    try {
       const { startUploadVolumeMigrationJob } = require('./jobs/uploadVolumeMigrationJob')
       startUploadVolumeMigrationJob()
     } catch (e) {

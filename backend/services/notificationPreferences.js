@@ -13,6 +13,7 @@ const DEFAULT_NOTIFICATION_TOPICS = {
   chat_mention: true,
   report_digest: true,
   gold_price_alert: true,
+  mt4_feed_alert: true,
   sales_ai_alert: true,
   low_stock: true,
   // legacy aliases still stored in older payloads
