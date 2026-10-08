@@ -33,8 +33,6 @@ const minimalProps = {
   handleAddLineClick: vi.fn(),
   handleAmountFC: vi.fn(),
   handleAmountLC: vi.fn(),
-  handleBarcodeAction: vi.fn(),
-  handleCancelChanges: vi.fn(),
   handleCurrRateChange: vi.fn(),
   handleDeleteLineClick: vi.fn(),
   handleDeleteVoucher: vi.fn(),
@@ -86,7 +84,6 @@ const minimalProps = {
   partyComboGroups: [],
   receiptPaymentNetAmtLabelCurrency: 'USD',
   recentPartyVouchers: [],
-  refreshParties: vi.fn(),
   resolveVoucherParty: vi.fn(),
   runToolbarAction: (_label, action) => action?.(),
   saveLine: vi.fn(),
@@ -131,6 +128,18 @@ describe('VoucherEditorPanel print preview', () => {
     render(<VoucherEditorPanel {...minimalProps} />)
     fireEvent.mouseDown(screen.getByRole('button', { name: 'Print/Preview' }), { button: 0 })
     expect(window.print).toHaveBeenCalled()
+  })
+})
+
+describe('VoucherEditorPanel toolbar', () => {
+  it('does not show Cancel, Barcode, Parties or Exit buttons', () => {
+    render(<VoucherEditorPanel {...minimalProps} />)
+    for (const name of ['New', 'Edit', 'Delete', 'Save', 'Print/Preview', 'Search/Find']) {
+      expect(screen.getByRole('button', { name })).toBeTruthy()
+    }
+    for (const tip of [/^Cancel —/, /^Barcode —/, /^Refresh Parties —/, /^Exit —/]) {
+      expect(screen.queryByTitle(tip)).toBeNull()
+    }
   })
 })
 

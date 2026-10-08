@@ -804,9 +804,7 @@ export default function VoucherTab({
     navNext,
     navLast,
     handleEditUnlock,
-    handleCancelChanges,
     handleSearchFind,
-    handleBarcodeAction,
     handleExitVoucherForm,
     handleDeleteVoucher,
   } = useVoucherToolbarNav({
@@ -818,7 +816,6 @@ export default function VoucherTab({
     voucherType,
     isReadOnly: mutateReadOnly,
     currentVoucherStatus,
-    lastViewedIdRef,
     openVoucher,
     openCreate,
     fetchServerNextVocNo,
@@ -1500,8 +1497,6 @@ export default function VoucherTab({
         handleAddLineClick={handleAddLineClick}
         handleAmountFC={handleAmountFC}
         handleAmountLC={handleAmountLC}
-        handleBarcodeAction={handleBarcodeAction}
-        handleCancelChanges={handleCancelChanges}
         handleCurrRateChange={handleCurrRateChange}
         handleDeleteLineClick={handleDeleteLineClick}
         handleDeleteVoucher={handleDeleteVoucher}
@@ -1554,7 +1549,6 @@ export default function VoucherTab({
         receiptPaymentNetAmtLabelCurrency={receiptPaymentNetAmtLabelCurrency}
         voucherNetAmounts={voucherNetAmounts}
         recentPartyVouchers={recentPartyVouchers}
-        refreshParties={refreshParties}
         resolveVoucherParty={resolveVoucherParty}
         runToolbarAction={runToolbarAction}
         saveLine={saveLine}
