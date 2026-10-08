@@ -111,7 +111,7 @@ function VoucherPreviewModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1100,
+        zIndex: 1300,
         padding: '1rem',
       }}
     >

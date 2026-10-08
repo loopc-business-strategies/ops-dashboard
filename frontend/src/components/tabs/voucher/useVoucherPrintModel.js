@@ -20,6 +20,29 @@ import {
 } from './voucherTabShared'
 import { buildNetAmountRows } from './voucherNetAmounts'
 
+const upperCode = (value) => String(value || '').trim().toUpperCase()
+
+/**
+ * Receipt/payment `totals.grandTotal` is the sum of line amounts in their own currency.
+ * When those lines are not all in the header currency, that sum has no single currency,
+ * so the printed total falls back to the base-currency equivalent (sum of amountLC).
+ */
+export function resolvePrintTotals({ voucherType, header, effectiveLineItems, totals, baseCurrencyCode = 'USD' }) {
+  const base = upperCode(baseCurrencyCode) || 'USD'
+  const headerCode = upperCode(header?.currCode) || base
+  if (voucherType !== 'payment' && voucherType !== 'receipt') return { totals, currency: headerCode }
+
+  const fcLines = (effectiveLineItems || []).filter((line) => (Number.parseFloat(line?.amountFC) || 0) > 0)
+  if (!fcLines.length || fcLines.every((line) => (upperCode(line?.currCode) || headerCode) === headerCode)) {
+    return { totals, currency: headerCode }
+  }
+  const baseTotal = (effectiveLineItems || []).reduce(
+    (sum, line) => sum + (Number.parseFloat(line?.amountLC) || Number.parseFloat(line?.amountWithVAT) || 0),
+    0,
+  )
+  return { totals: { ...totals, grandTotal: baseTotal }, currency: base }
+}
+
 /**
  * Pure print-model builder for voucher documents (MG layouts + generic print).
  */
@@ -27,7 +50,7 @@ export function buildVoucherPrintModel({
   voucherType,
   header,
   effectiveLineItems,
-  totals,
+  totals: editorTotals,
   accounts,
   user,
   reportBranding,
@@ -40,13 +63,20 @@ export function buildVoucherPrintModel({
   baseCurrencyCode = 'USD',
   voucherNetAmounts = null,
 }) {
+  const { totals, currency: printCurrency } = resolvePrintTotals({
+    voucherType,
+    header,
+    effectiveLineItems,
+    totals: editorTotals,
+    baseCurrencyCode,
+  })
   const branding = user?.branding || {}
   const tenant = user?.tenant || {}
   const activeTenantBranding = resolveErpUserTenantBranding(user)
   const voucherPrintSettings = resolveVoucherPrintSettings({ reportBranding, user, tenantBranding: activeTenantBranding })
   const documentBranding = voucherPrintSettings
   const voucher = {
-    currency: header?.currCode || baseCurrencyCode || 'USD',
+    currency: printCurrency,
     partyName: header?.partyName || '',
     partyAccount: header?.partyCode || '',
   }

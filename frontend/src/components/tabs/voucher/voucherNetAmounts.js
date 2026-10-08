@@ -48,6 +48,7 @@ export function resolveVoucherNetAmounts({
   let baseAmount = 0
   let uzsAmount = 0
   let hasUzsLine = false
+  let usesRate = false
 
   if (isReceiptPayment) {
     for (const line of lineItems || []) {
@@ -57,10 +58,12 @@ export function resolveVoucherNetAmounts({
         hasUzsLine = true
         uzsAmount += toNumber(line?.amountFC)
       } else {
+        usesRate = true
         uzsAmount += lineBase * rate
       }
     }
   } else {
+    usesRate = true
     baseAmount = toNumber(grandTotal)
     uzsAmount = baseAmount * rate
   }
@@ -71,6 +74,7 @@ export function resolveVoucherNetAmounts({
     baseAmount: roundMoney(baseAmount, base),
     uzsAmount: uzsAvailable ? roundMoney(uzsAmount, SECONDARY_NET_CURRENCY) : null,
     uzsPerBase: rate,
+    usesRate,
   }
 }
 
@@ -108,7 +112,9 @@ export function buildNetAmountRows({ voucherCurrency = '', voucherTotal = 0, vou
   }
   rows.push({ code: base, amount: voucherNetAmounts.baseAmount })
   if (voucherNetAmounts.uzsAmount != null) {
-    const showRate = ownCode !== SECONDARY_NET_CURRENCY && voucherNetAmounts.uzsPerBase > 0
+    const showRate = ownCode !== SECONDARY_NET_CURRENCY
+      && voucherNetAmounts.uzsPerBase > 0
+      && voucherNetAmounts.usesRate !== false
     rows.push({
       code: SECONDARY_NET_CURRENCY,
       amount: voucherNetAmounts.uzsAmount,

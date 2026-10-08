@@ -114,4 +114,18 @@ describe('buildNetAmountRows', () => {
   test('falls back to the single voucher-currency row', () => {
     expect(buildNetAmountRows({ voucherCurrency: 'usd', voucherTotal: 5 })).toEqual([{ code: 'USD', amount: 5 }])
   })
+
+  test('USD-header payment with only UZS lines shows no rate note', () => {
+    const voucherNetAmounts = resolveVoucherNetAmounts({
+      isReceiptPayment: true,
+      lineItems: [{ currCode: 'UZS', amountFC: 145990130, amountLC: 13271.83 }],
+      baseCurrencyCode: 'USD',
+      uzsPerBase: 12100,
+    })
+    expect(voucherNetAmounts.usesRate).toBe(false)
+    expect(buildNetAmountRows({ voucherCurrency: 'USD', voucherTotal: 145990130, voucherNetAmounts })).toEqual([
+      { code: 'USD', amount: 13271.83 },
+      { code: 'UZS', amount: 145990130 },
+    ])
+  })
 })
