@@ -44,6 +44,15 @@ export function moveInList(list, index, delta) {
   return next
 }
 
+/** Copy of `list` with the entry at `from` moved to position `to`; unchanged when either index is out of range. */
+export function reorderList(list, from, to) {
+  const next = [...list]
+  if (from === to || from < 0 || from >= next.length || to < 0 || to >= next.length) return next
+  const [entry] = next.splice(from, 1)
+  next.splice(to, 0, entry)
+  return next
+}
+
 export function normalizeNavLayout(raw) {
   const sections = Array.isArray(raw?.sections) ? raw.sections.filter((s) => DEFAULT_SECTION_ORDER.includes(s)) : []
   const items = {}

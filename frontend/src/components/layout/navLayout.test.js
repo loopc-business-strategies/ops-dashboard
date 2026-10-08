@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { applyItemOrder, moveInList, normalizeNavLayout, orderSections } from './navLayout'
+import { applyItemOrder, moveInList, normalizeNavLayout, orderSections, reorderList } from './navLayout'
 
 const items = (...ids) => ids.map((id) => ({ id }))
 const ids = (list) => list.map((item) => item.id)
@@ -38,6 +38,19 @@ describe('moveInList', () => {
   test('unchanged at either end', () => {
     expect(moveInList(['a', 'b'], 0, -1)).toEqual(['a', 'b'])
     expect(moveInList(['a', 'b'], 1, 1)).toEqual(['a', 'b'])
+  })
+})
+
+describe('reorderList', () => {
+  test('moves an entry down and up', () => {
+    expect(reorderList(['a', 'b', 'c', 'd'], 0, 2)).toEqual(['b', 'c', 'a', 'd'])
+    expect(reorderList(['a', 'b', 'c', 'd'], 3, 1)).toEqual(['a', 'd', 'b', 'c'])
+  })
+
+  test('unchanged for the same or out-of-range index', () => {
+    expect(reorderList(['a', 'b'], 1, 1)).toEqual(['a', 'b'])
+    expect(reorderList(['a', 'b'], -1, 0)).toEqual(['a', 'b'])
+    expect(reorderList(['a', 'b'], 0, 5)).toEqual(['a', 'b'])
   })
 })
 

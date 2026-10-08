@@ -1,30 +1,54 @@
-import React from 'react'
+import React, { useRef, useState } from 'react'
 import { NavItem } from './navConfig'
 import { NAV_SECTIONS, orderSections } from './navLayout'
 
-function MoveButtons({ label, index, count, onMove }) {
-  return (
-    <span className="sidebar-move">
+/** Items of one section with a ☰ handle; dragging (mouse, touch or pen) or ArrowUp/Down on the handle reorders them. */
+function DraggableItems({ items, onReorder, onMoveBy }) {
+  const rowRefs = useRef({})
+  const [dragId, setDragId] = useState(null)
+  const ids = items.map((item) => item.id)
+
+  const targetIndex = (id, clientY) => ids.reduce((count, other) => {
+    if (other === id) return count
+    const rect = rowRefs.current[other]?.getBoundingClientRect()
+    return rect && clientY > rect.top + rect.height / 2 ? count + 1 : count
+  }, 0)
+
+  return items.map((item, index) => (
+    <div
+      key={item.id}
+      ref={(el) => { rowRefs.current[item.id] = el }}
+      className={`sidebar-item sidebar-item--edit${dragId === item.id ? ' sidebar-item--dragging' : ''}`}
+    >
       <button
         type="button"
-        className="sidebar-move-btn"
-        aria-label={`Move ${label} up`}
-        disabled={index === 0}
-        onClick={() => onMove(-1)}
+        className="sidebar-drag-handle"
+        aria-label={`Drag ${item.label} to change its position`}
+        title="Drag to change position"
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return
+          e.preventDefault()
+          e.currentTarget.setPointerCapture?.(e.pointerId)
+          setDragId(item.id)
+        }}
+        onPointerMove={(e) => {
+          if (dragId !== item.id) return
+          const to = targetIndex(item.id, e.clientY)
+          if (to !== index) onReorder(ids, index, to)
+        }}
+        onPointerUp={() => setDragId(null)}
+        onPointerCancel={() => setDragId(null)}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+          e.preventDefault()
+          onMoveBy(ids, index, e.key === 'ArrowUp' ? -1 : 1)
+        }}
       >
-        ▲
+        ☰
       </button>
-      <button
-        type="button"
-        className="sidebar-move-btn"
-        aria-label={`Move ${label} down`}
-        disabled={index === count - 1}
-        onClick={() => onMove(1)}
-      >
-        ▼
-      </button>
-    </span>
-  )
+      <span className="sidebar-item-label truncate">{item.label}</span>
+    </div>
+  ))
 }
 
 /**
@@ -106,42 +130,43 @@ export default function AppSidebar({
     const ordered = orderSections(navLayout?.layout?.sections, available)
     const groupOf = Object.fromEntries(NAV_SECTIONS.map((s) => [s.key, s.group]))
 
+    if (editing) {
+      return (
+        <>
+          <p className="sidebar-customize-title">Customize navigation</p>
+          {ordered.map((key, sectionIndex) => {
+            const section = config[key]
+            return (
+              <React.Fragment key={key}>
+                {sectionIndex > 0 && <div className="sidebar-divider" role="separator" />}
+                <p className="sidebar-section-label">{section.title}</p>
+                <DraggableItems
+                  items={section.items}
+                  onReorder={(ids, from, to) => navLayout.reorderItem(groupOf[key], ids, from, to)}
+                  onMoveBy={(ids, index, delta) => navLayout.moveItem(groupOf[key], ids, index, delta)}
+                />
+              </React.Fragment>
+            )
+          })}
+        </>
+      )
+    }
+
     return ordered.map((key, sectionIndex) => {
       const section = config[key]
-      const itemIds = section.items.map((item) => item.id)
       return (
         <React.Fragment key={key}>
           {sectionIndex > 0 && <div className="sidebar-divider" role="separator" />}
-          <div className="sidebar-section-head">
-            <button
-              type="button"
-              className="sidebar-section-title w-full"
-              onClick={() => section.setOpen?.((v) => !v)}
-              aria-expanded={section.open}
-            >
-              <span>{section.title}</span>
-              <span className="section-chevron" aria-hidden="true">{section.open ? '▴' : '▾'}</span>
-            </button>
-            {editing ? (
-              <MoveButtons
-                label={section.title}
-                index={sectionIndex}
-                count={ordered.length}
-                onMove={(delta) => navLayout.moveSection(ordered, sectionIndex, delta)}
-              />
-            ) : null}
-          </div>
-          {section.open && section.items.map((item, itemIndex) => (editing ? (
-            <div key={item.id} className="sidebar-item sidebar-item--edit">
-              <span className="sidebar-item-label truncate">{item.label}</span>
-              <MoveButtons
-                label={item.label}
-                index={itemIndex}
-                count={itemIds.length}
-                onMove={(delta) => navLayout.moveItem(groupOf[key], itemIds, itemIndex, delta)}
-              />
-            </div>
-          ) : renderNavItem(key, item)))}
+          <button
+            type="button"
+            className="sidebar-section-title w-full"
+            onClick={() => section.setOpen?.((v) => !v)}
+            aria-expanded={section.open}
+          >
+            <span>{section.title}</span>
+            <span className="section-chevron" aria-hidden="true">{section.open ? '▴' : '▾'}</span>
+          </button>
+          {section.open && section.items.map((item) => renderNavItem(key, item))}
         </React.Fragment>
       )
     })

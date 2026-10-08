@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import authAPI from '../../api/auth'
-import { EMPTY_NAV_LAYOUT, moveInList, normalizeNavLayout } from './navLayout'
+import { EMPTY_NAV_LAYOUT, moveInList, normalizeNavLayout, reorderList } from './navLayout'
 
 /**
  * Per-user sidebar order saved on the account (MG only). While customizing, moves go to a draft
@@ -44,6 +44,13 @@ export function useNavLayout(enabled) {
     })
   }, [])
 
+  const reorderItem = useCallback((group, orderedIds, from, to) => {
+    setDraft((d) => {
+      const base = d || EMPTY_NAV_LAYOUT
+      return { ...base, items: { ...base.items, [group]: reorderList(orderedIds, from, to) } }
+    })
+  }, [])
+
   const reset = useCallback(() => setDraft(EMPTY_NAV_LAYOUT), [])
 
   const save = useCallback(async () => {
@@ -63,5 +70,5 @@ export function useNavLayout(enabled) {
     }
   }, [draft, saving])
 
-  return { layout, editing, saving, error, startEdit, moveSection, moveItem, reset, save }
+  return { layout, editing, saving, error, startEdit, moveSection, moveItem, reorderItem, reset, save }
 }
