@@ -11,6 +11,7 @@ import { useVoucherLineForm } from './voucher/useVoucherLineForm'
 import { useVoucherOpenEdit } from './voucher/useVoucherOpenEdit'
 import { useVoucherToolbarNav } from './voucher/useVoucherToolbarNav'
 import { useVoucherSave } from './voucher/useVoucherSave'
+import { resolveMasterUzsPerBase, resolveVoucherNetAmounts, resolveVoucherUzsPerBase } from './voucher/voucherNetAmounts'
 import { runVoucherWorkflowAction } from './voucher/voucherErpApi'
 import { BASE } from '../../api/erp-accounting/client'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
@@ -550,6 +551,19 @@ export default function VoucherTab({
         ? receiptPaymentFcSum
         : receiptPaymentLegacyGrand,
   }
+
+  const voucherUzsPerBase = resolveVoucherUzsPerBase({
+    isReceiptPayment: isReceiptOrPaymentVoucher,
+    header,
+    masterUzsPerBase: resolveMasterUzsPerBase(currencyOptions),
+  })
+  const voucherNetAmounts = resolveVoucherNetAmounts({
+    isReceiptPayment: isReceiptOrPaymentVoucher,
+    lineItems: effectiveLineItems,
+    grandTotal: totals.grandTotal,
+    baseCurrencyCode,
+    uzsPerBase: voucherUzsPerBase,
+  })
 
   const printModel = useVoucherPrintModel({
     voucherType,
@@ -1095,6 +1109,7 @@ export default function VoucherTab({
     vendors,
     latestMetalRates,
     totals,
+    voucherUzsPerBase,
     editingId,
     token,
     voucherErpApi,
@@ -1548,6 +1563,7 @@ export default function VoucherTab({
         openCreate={openCreate}
         partyComboGroups={partyComboGroups}
         receiptPaymentNetAmtLabelCurrency={receiptPaymentNetAmtLabelCurrency}
+        voucherNetAmounts={voucherNetAmounts}
         recentPartyVouchers={recentPartyVouchers}
         refreshParties={refreshParties}
         resolveVoucherParty={resolveVoucherParty}
