@@ -309,7 +309,7 @@ export default function AccountEnquiryModal({
                                       preferredDirection: resolveMarginEquityDirection(row.currentValue),
                                     })}
                                   </td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementNullableValue(row.breakEven, 4)}</td>
                                 </tr>
                               ))}
                             </tbody>

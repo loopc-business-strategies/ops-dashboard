@@ -62,14 +62,16 @@ function resolveStatementReceiptNo(entry = {}) {
   return '-'
 }
 
-function combineVoucherStatementRows(entries = []) {
+export function combineVoucherStatementRows(entries = []) {
   const grouped = new Map()
   const orderedKeys = []
   entries.forEach((entry, index) => {
     const dealSide = resolveDealSide(entry)
     const sourceId = String(entry?.sourceTransactionId || '').trim()
     const receiptNo = resolveStatementReceiptNo(entry)
-    const canGroup = sourceId && ['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(dealSide)
+    // Each fixing-deal line is its own buy or sell, so deal lines are never merged.
+    const isDirectDealLine = String(entry?.referenceType || '').toLowerCase() === 'direct_deal'
+    const canGroup = sourceId && !isDirectDealLine && ['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(dealSide)
     const key = canGroup ? `tx:${sourceId}` : `row:${entry?._id || index}`
     if (!grouped.has(key)) {
       grouped.set(key, {
@@ -167,6 +169,18 @@ function buildPureWeightRunningBalancesByEntryKey(entries, selectedMetalCode) {
     closing -= Number(entry.metalSignedWeight || 0)
   }
   return map
+}
+
+/**
+ * Spot price per gram at which net equity reaches zero.
+ * `ledgerNet` is Debit-positive; `valuationGrams` is positive in the customer's favour.
+ * Null when cash and metal are on the same side, because no price brings equity to zero.
+ */
+export function resolveBreakEvenPricePerGram(ledgerNet, valuationGrams) {
+  const grams = Number(valuationGrams || 0)
+  if (!Number.isFinite(grams) || Math.abs(grams) < 0.000001) return null
+  const price = Number(ledgerNet || 0) / grams
+  return Number.isFinite(price) && price > 0 ? price : null
 }
 
 function summarizeMetalDealRows(rows) {
@@ -414,13 +428,10 @@ export function useAccountEnquiryStatement({
 
   const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
 
-  const resolvePayableBreakEvenPrice = (metalBalance) => {
-    const grams = Math.abs(Number(metalBalance || 0))
-    if (grams <= 0) return 0
-    return Math.abs(totalFunds) / grams
+  const displayBreakEven = (valuationGrams) => {
+    const price = resolveBreakEvenPricePerGram(totalFunds, valuationGrams)
+    return price == null ? null : convertStatementDisplayAmount(price)
   }
-
-  const breakEvenPrice = resolvePayableBreakEvenPrice(xauBalance)
 
   const displayModalPositionCurrentValue = (spotBasedValue, bookedValue) => {
     if (enquiryUseLiveSpotMtm || enquirySuppressMetalSpotMtm || !useVoucherRevaluation) {
@@ -437,7 +448,7 @@ export function useAccountEnquiryStatement({
       balance: xauBalance,
       price: convertMetalSpotDisplayAmount(goldPriceUSD),
       currentValue: displayModalPositionCurrentValue(xauSpotValue, statementUnfixedVoucherRevaluationByMetal.gold),
-      breakEven: convertStatementDisplayAmount(breakEvenPrice),
+      breakEven: displayBreakEven(xauValuationBalance),
     },
     {
       key: 'xag',
@@ -446,7 +457,7 @@ export function useAccountEnquiryStatement({
       balance: xagBalance,
       price: convertMetalSpotDisplayAmount(silverPriceUSD),
       currentValue: displayModalPositionCurrentValue(xagSpotValue, statementUnfixedVoucherRevaluationByMetal.silver),
-      breakEven: convertStatementDisplayAmount(resolvePayableBreakEvenPrice(xagBalance)),
+      breakEven: displayBreakEven(xagValuationBalance),
     },
   ] : []
 
