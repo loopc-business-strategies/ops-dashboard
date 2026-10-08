@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * mongodump all tenant databases and upload gzip archives to S3-compatible storage.
+ * Archives are encrypted with BACKUP_ENCRYPTION_PASSPHRASE before they leave the runner;
+ * decrypt with scripts/decrypt-backup.mjs.
  * Requires: mongodump + aws CLI on PATH (or dry-run mode).
  */
 import { createRequire } from 'node:module'
@@ -11,6 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { loadCatalogTenantKeys } from './loadCatalogTenantKeys.mjs'
+import { encryptFile, ENCRYPTED_SUFFIX, normalizePassphrase } from './backupCrypto.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -52,7 +55,7 @@ function run(cmd, args, opts = {}) {
 function s3UriFor(tenantKey, dateStamp) {
   const bucket = requireEnv('BACKUP_S3_BUCKET')
   const prefix = String(process.env.BACKUP_S3_PREFIX || 'ops-dashboard').replace(/\/$/, '')
-  return `s3://${bucket}/${prefix}/${tenantKey}/${dateStamp}/archive.gz`
+  return `s3://${bucket}/${prefix}/${tenantKey}/${dateStamp}/archive.gz${ENCRYPTED_SUFFIX}`
 }
 
 function uploadToS3(localPath, s3Uri) {
@@ -117,10 +120,12 @@ async function main() {
     }
     console.log(`  BACKUP_S3_BUCKET: ${process.env.BACKUP_S3_BUCKET ? 'set' : 'missing'}`)
     console.log(`  BACKUP_S3_ACCESS_KEY: ${process.env.BACKUP_S3_ACCESS_KEY ? 'set' : 'missing'}`)
+    console.log(`  BACKUP_ENCRYPTION_PASSPHRASE: ${process.env.BACKUP_ENCRYPTION_PASSPHRASE ? 'set' : 'missing'}`)
     console.log('\nDry-run OK — set secrets and run without --dry-run to upload dumps.')
     return
   }
 
+  const passphrase = normalizePassphrase(requireEnv('BACKUP_ENCRYPTION_PASSPHRASE'))
   run('mongodump', ['--version'])
   if (!artifactDir) {
     run('aws', ['--version'])
@@ -136,17 +141,20 @@ async function main() {
       const archivePath = path.join(tmpRoot, `${key}-${dateStamp}.archive.gz`)
       process.stdout.write(`  ${key} mongodump... `)
       run('mongodump', ['--uri', uri, '--gzip', `--archive=${archivePath}`])
-      const sizeMb = (fs.statSync(archivePath).size / (1024 * 1024)).toFixed(2)
-      console.log(`OK (${sizeMb} MB)`)
+      const encryptedPath = `${archivePath}${ENCRYPTED_SUFFIX}`
+      await encryptFile(archivePath, encryptedPath, passphrase)
+      fs.rmSync(archivePath, { force: true })
+      const sizeMb = (fs.statSync(encryptedPath).size / (1024 * 1024)).toFixed(2)
+      console.log(`OK, encrypted (${sizeMb} MB)`)
 
       if (!artifactDir) {
         const s3Uri = s3UriFor(key, dateStamp)
         process.stdout.write(`  ${key} upload ${s3Uri}... `)
-        uploadToS3(archivePath, s3Uri)
+        uploadToS3(encryptedPath, s3Uri)
         console.log('OK')
         pruneOldBackups(key)
       } else {
-        console.log(`  ${key} saved to ${archivePath}`)
+        console.log(`  ${key} saved to ${encryptedPath}`)
       }
     }
     console.log(artifactDir ? '\nAll tenant backups written to artifact dir.' : '\nAll tenant backups uploaded.')

@@ -27,7 +27,7 @@ Document actual restore times in your ops log after each quarterly drill.
 | Phase | When | What runs | GitHub |
 |-------|------|-----------|--------|
 | **1 — Deferred** (now) | Before Atlas M10+ | Upload storage + Mongo connectivity via `/api/ready` | `ATLAS_BACKUP_PHASE=deferred` (default) |
-| **2 — Interim dumps** (optional) | When S3 secrets ready | Weekly `mongodump` → S3/R2 | `MONGO_BACKUP_ENABLED=true` |
+| **2 — Interim dumps** (optional) | When S3 secrets ready | Daily encrypted `mongodump` → S3/R2 | `MONGO_BACKUP_ENABLED=true` |
 | **3 — Strict** | After Atlas Cloud Backup on all projects | Atlas API schedule + snapshot checks | `ATLAS_BACKUP_PHASE=strict` |
 
 ### GitHub Actions variables
@@ -38,15 +38,25 @@ Document actual restore times in your ops log after each quarterly drill.
 | `MONGO_BACKUP_ENABLED` | `true` | `true` |
 | `MONGO_BACKUP_S3_CONFIGURED` | `false` (unset) | `true` after R2 secrets set |
 
-Until `MONGO_BACKUP_S3_CONFIGURED=true`, the weekly mongodump workflow stores gzip archives as **GitHub Actions artifacts** (7-day retention). After R2 secrets are set, run `npm run setup:mongo-backup-rollout --github` to flip S3 mode.
+Until `MONGO_BACKUP_S3_CONFIGURED=true`, the daily mongodump workflow stores archives as **GitHub Actions artifacts** (90-day retention). After R2 secrets are set, run `npm run setup:mongo-backup-rollout --github` to flip S3 mode.
 
-Workflows: [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) (quarterly), [mongo-backup-mongodump.yml](../.github/workflows/mongo-backup-mongodump.yml) (weekly, gated).
+Workflows: [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) (quarterly), [mongo-backup-mongodump.yml](../.github/workflows/mongo-backup-mongodump.yml) (daily 03:00 UTC, gated).
+
+### Backup encryption (required)
+
+The repository is public, so anyone can download its Actions artifacts. Every archive is encrypted (AES-256-GCM, scrypt key) with the `BACKUP_ENCRYPTION_PASSPHRASE` GitHub secret before upload, and the workflow uploads only `*.archive.gz.enc` files. The backup fails if the secret is missing. Keep an offline copy of the passphrase: without it the backups cannot be restored.
+
+Restore a tenant:
+
+1. Download the `mongo-backup-<run id>` artifact (`gh run download <run id> -n mongo-backup-<run id>`).
+2. Decrypt: `node scripts/decrypt-backup.mjs mg-2026-10-08.archive.gz.enc --passphrase-file <path>` (or set `BACKUP_ENCRYPTION_PASSPHRASE`). Writes `mg-2026-10-08.archive.gz`.
+3. Restore into a scratch database first: `mongorestore --gzip --archive=mg-2026-10-08.archive.gz --uri <target>`.
 
 ### GitHub secrets (optional)
 
 **Phase 1 strict / API checks (later):** `ATLAS_PUBLIC_KEY`, `ATLAS_PRIVATE_KEY`, `ATLAS_GROUP_ID_MG`, `ATLAS_GROUP_ID_CG`, `ATLAS_GROUP_ID_LOOPC`
 
-**Phase 2 mongodump:** `MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`, `MONGO_URI_VB`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`
+**Phase 2 mongodump:** `MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`, `MONGO_URI_VB`, `BACKUP_ENCRYPTION_PASSPHRASE` (required), `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`
 
 Local:
 
@@ -109,7 +119,7 @@ Automated CI only checks **connectivity** (`npm run verify:mongo-backup-drill`).
 | Workflow | Schedule | What it checks |
 |----------|----------|----------------|
 | [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) | 1st of Jan/Apr/Jul/Oct 09:00 UTC | `verify:upload-storage` + `drill:atlas-backup-plan` (deferred or strict) |
-| [mongo-backup-mongodump.yml](../.github/workflows/mongo-backup-mongodump.yml) | Weekly Sun 03:00 UTC | `mongodump` to S3 when `MONGO_BACKUP_ENABLED=true` |
+| [mongo-backup-mongodump.yml](../.github/workflows/mongo-backup-mongodump.yml) | Daily 03:00 UTC | Encrypted `mongodump` (artifacts, or S3 when configured) when `MONGO_BACKUP_ENABLED=true` |
 
 Manual run: **Actions → Mongo Backup Drill → Run workflow**.
 
@@ -151,7 +161,7 @@ npm run verify:upload-storage
 Complete once per quarter (or after any cluster migration):
 
 - [ ] **Atlas / provider dashboard:** Continuous backup or snapshot schedule is **enabled** for every tenant cluster.
-- [ ] **Retention** documented (minimum 7 days) — today: GH Actions mongodump artifacts ≈ **7 days** until S3/R2.
+- [ ] **Retention** documented (minimum 7 days) — today: daily encrypted GH Actions mongodump artifacts kept **90 days** until S3/R2.
 - [x] **Connectivity drill:** `npm run verify:mongo-backup-drill` + GitHub **Mongo Backup Drill** green (2026-09-16, deferred phase).
 - [ ] **Restore drill:** Restore a snapshot to a **non-production** cluster; confirm at least one known document per tenant.
 - [x] **Upload volume:** `npm run verify:upload-storage` passes for production and staging (2026-09-16).

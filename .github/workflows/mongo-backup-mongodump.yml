@@ -2,8 +2,8 @@ name: Mongo Backup Mongodump
 
 on:
   schedule:
-    # 03:00 UTC every Sunday
-    - cron: '0 3 * * 0'
+    # 03:00 UTC daily
+    - cron: '0 3 * * *'
   push:
     branches: [main]
     paths:
@@ -57,9 +57,10 @@ jobs:
           BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
           BACKUP_S3_ACCESS_KEY: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
           BACKUP_S3_SECRET_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
           BACKUP_S3_REGION: ${{ vars.BACKUP_S3_REGION || 'auto' }}
           BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX || 'ops-dashboard' }}
-          BACKUP_RETAIN_DAYS: ${{ vars.BACKUP_RETAIN_DAYS || '7' }}
+          BACKUP_RETAIN_DAYS: ${{ vars.BACKUP_RETAIN_DAYS || '90' }}
         run: npm run backup:mongodump
 
       - name: Run mongodump backup to artifacts (interim until R2 configured)
@@ -69,16 +70,18 @@ jobs:
           MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
           MONGO_URI_LOOPC: ${{ secrets.MONGO_URI_LOOPC }}
           MONGO_URI_VB: ${{ secrets.MONGO_URI_VB }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
           BACKUP_ARTIFACT_DIR: backup-artifacts
         run: npm run backup:mongodump
 
+      # The repository is public: only encrypted archives may be uploaded.
       - name: Upload backup artifacts
         if: ${{ vars.MONGO_BACKUP_S3_CONFIGURED != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: mongo-backup-${{ github.run_id }}
-          path: backup-artifacts/*.archive.gz
-          retention-days: 7
+          path: backup-artifacts/*.archive.gz.enc
+          retention-days: 90
           if-no-files-found: error
 
   skipped-notice:
