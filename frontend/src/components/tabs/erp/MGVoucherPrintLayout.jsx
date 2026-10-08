@@ -1,3 +1,5 @@
+import VoucherPrintNetAmounts from '../voucher/VoucherPrintNetAmounts'
+
 export default function MGVoucherPrintLayout({
   companyName,
   companyAddress,
@@ -22,6 +24,7 @@ export default function MGVoucherPrintLayout({
   partyPhone,
   normalizeLineType,
   fmt,
+  netAmountRows = [],
 }) {
   const rows = lineItems.length ? lineItems : [primaryLine]
   const recordCount = lineItems.length || 1
@@ -152,6 +155,7 @@ export default function MGVoucherPrintLayout({
         </tbody>
       </table>
 
+      <VoucherPrintNetAmounts rows={netAmountRows} fmt={fmt} border={border} />
       <div style={{ margin: '0 0 7px 6px', fontSize: '11px', fontStyle: 'italic' }}>Your account has been updated with :</div>
       <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', border, minHeight: '31px', alignItems: 'center', marginBottom: '13px' }}>
         <div style={{ borderRight: border, padding: '7px 9px', fontWeight: '900', fontStyle: 'italic' }}>
