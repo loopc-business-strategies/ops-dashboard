@@ -1,7 +1,7 @@
 import { emptyHeader } from './voucherTabShared'
 
 /**
- * ERP toolbar navigation, search, unlock, cancel, barcode, exit, delete.
+ * ERP toolbar navigation, search, unlock, exit, delete.
  */
 export function useVoucherToolbarNav({
   vouchers,
@@ -12,7 +12,6 @@ export function useVoucherToolbarNav({
   voucherType,
   isReadOnly,
   currentVoucherStatus,
-  lastViewedIdRef,
   openVoucher,
   openCreate,
   fetchServerNextVocNo,
@@ -102,37 +101,6 @@ const handleEditUnlock = () => {
   showMsg('Mode: EDIT')
 }
 
-const handleCancelChanges = () => {
-  if (mode === 'create') {
-    if (window.confirm('Discard unsaved changes?')) {
-      // If editing an existing voucher, revert to it
-      if (editingId) {
-        const existing = vouchers.find((v) => v._id === editingId)
-        if (existing) {
-          openVoucher(existing)
-          showMsg('Changes discarded')
-          return
-        }
-      }
-      // New blank form — go back to last viewed voucher if available
-      const prev = lastViewedIdRef.current
-        ? vouchers.find(v => v._id === lastViewedIdRef.current)
-        : null
-      if (prev) {
-        openVoucher(prev)
-        showMsg('Cancelled — returned to last entry')
-      } else if (vouchers.length > 0) {
-        openVoucher(vouchers[vouchers.length - 1])
-        showMsg('Cancelled — returned to last entry')
-      } else {
-        setMode('list')
-      }
-    }
-    return
-  }
-  setMode('list')
-}
-
 const handleSearchFind = () => {
   const term = window.prompt('Search vouchers by voucher number, party code/name, or date (YYYY-MM-DD):', '')
   if (term === null) return
@@ -158,13 +126,6 @@ const handleSearchFind = () => {
   }
 
   setError('No voucher matched your search')
-}
-
-const handleBarcodeAction = () => {
-  const activeLine = lineItems.find((line) => String(line.stockCode || '').trim())
-  const stockCode = activeLine?.stockCode || 'N/A'
-  const voucherNo = header.vocNo || 'NEW'
-  alert(`Voucher: ${voucherNo}\nStock Barcode Ref: ${stockCode}`)
 }
 
 const handleExitVoucherForm = () => {
@@ -241,9 +202,7 @@ const handleDeleteVoucher = async () => {
     navNext,
     navLast,
     handleEditUnlock,
-    handleCancelChanges,
     handleSearchFind,
-    handleBarcodeAction,
     handleExitVoucherForm,
     handleDeleteVoucher,
   }

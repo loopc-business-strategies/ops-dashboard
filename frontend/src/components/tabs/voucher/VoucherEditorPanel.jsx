@@ -44,8 +44,6 @@ export default function VoucherEditorPanel({
   handleAddLineClick,
   handleAmountFC,
   handleAmountLC,
-  handleBarcodeAction,
-  handleCancelChanges,
   handleCurrRateChange,
   handleDeleteLineClick,
   handleDeleteVoucher,
@@ -100,7 +98,6 @@ export default function VoucherEditorPanel({
   receiptPaymentNetAmtLabelCurrency,
   voucherNetAmounts = null,
   recentPartyVouchers,
-  refreshParties,
   resolveVoucherParty,
   runToolbarAction,
   saveLine,
@@ -385,7 +382,6 @@ export default function VoucherEditorPanel({
                 <TbBtn tip="Edit — unlocks the current record for modification" label={entryLockInfo?.locked ? 'View Only' : 'Edit'} onClick={handleEditUnlock} disabled={isReadOnly || entryLockInfo?.locked || (!editingId && mode !== 'create')} />
                 <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} disabled={isReadOnly || entryLockInfo?.locked || (Boolean(editingId) && !canDeleteCurrentVoucher)} />
                 <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} disabled={formReadOnly} />
-                <TbBtn tip="Cancel — discards unsaved changes" label="Cancel" onClick={handleCancelChanges} />
                 <Sep />
                 <TbBtn tip="|◀ First — jumps to the very first voucher on record" label="|◀ First" icon="⏮" onClick={navFirst} disabled={curIdx <= 0} />
                 <TbBtn tip="◀ Previous — goes one record back" label="◀ Previous" icon="◀" onClick={navPrev} disabled={curIdx <= 0} />
@@ -394,10 +390,6 @@ export default function VoucherEditorPanel({
                 <Sep />
                 <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => (onPrintPreview ? onPrintPreview() : window.print())} />
                 <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
-                <TbBtn tip="Barcode — scan or view an item barcode linked to stock" label="Barcode" onClick={handleBarcodeAction} />
-                <TbBtn tip="Refresh Parties — reload customer and vendor list" label="↺ Parties" onClick={() => refreshParties({ force: true })} />
-                <Sep />
-                <TbBtn tip="Exit — closes the voucher form and returns to the main menu" label="Exit" icon="■" onClick={handleExitVoucherForm} style={{ color: '#b00020' }} />
                 <div style={{ flex: 1 }} />
               </div>
             )
