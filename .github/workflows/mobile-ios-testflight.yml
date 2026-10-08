@@ -105,7 +105,7 @@ jobs:
         run: chmod +x scripts/gha-ios-build.sh && ./scripts/gha-ios-build.sh
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nexa-ios-ipa
           path: mobile/build/export/*.ipa

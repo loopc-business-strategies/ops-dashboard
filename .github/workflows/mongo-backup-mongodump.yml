@@ -77,7 +77,7 @@ jobs:
       # The repository is public: only encrypted archives may be uploaded.
       - name: Upload backup artifacts
         if: ${{ vars.MONGO_BACKUP_S3_CONFIGURED != 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mongo-backup-${{ github.run_id }}
           path: backup-artifacts/*.archive.gz.enc
