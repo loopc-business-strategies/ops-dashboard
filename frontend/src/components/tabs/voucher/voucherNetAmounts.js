@@ -74,6 +74,23 @@ export function resolveVoucherNetAmounts({
   }
 }
 
+/** UZS rate and net amounts for the voucher being edited. */
+export function resolveVoucherSummaryNetAmounts({
+  isReceiptPayment = false,
+  header = {},
+  currencyOptions = [],
+  lineItems = [],
+  grandTotal = 0,
+  baseCurrencyCode = 'USD',
+} = {}) {
+  const uzsPerBase = resolveVoucherUzsPerBase({
+    isReceiptPayment,
+    header,
+    masterUzsPerBase: resolveMasterUzsPerBase(currencyOptions),
+  })
+  return resolveVoucherNetAmounts({ isReceiptPayment, lineItems, grandTotal, baseCurrencyCode, uzsPerBase })
+}
+
 const formatRate = (rate) => Number(rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
