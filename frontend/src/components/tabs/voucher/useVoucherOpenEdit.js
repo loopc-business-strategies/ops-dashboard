@@ -81,6 +81,7 @@ export function useVoucherOpenEdit({
     docDate: m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
     valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
     fixingType: normalizeVoucherFixingType(m.fixingType),
+    uzsRate: Number(m.rateMeta?.uzsPerBase) > 0 ? String(m.rateMeta.uzsPerBase) : '',
   }
   let nextPartyId = m.partyAccountId
     ? `account:${String(m.partyAccountId)}`

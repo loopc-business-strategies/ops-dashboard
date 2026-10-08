@@ -19,6 +19,7 @@ import {
   shouldSkipAutofilledAmountLc,
 } from './voucherKeyboardNav'
 import MetalTransferEditor from './MetalTransferEditor'
+import { buildNetAmountRows } from './voucherNetAmounts'
 
 export default function VoucherEditorPanel({
   applyLineAutoCalc,
@@ -97,6 +98,7 @@ export default function VoucherEditorPanel({
   onPrintPreview,
   partyComboGroups,
   receiptPaymentNetAmtLabelCurrency,
+  voucherNetAmounts = null,
   recentPartyVouchers,
   refreshParties,
   resolveVoucherParty,
@@ -1280,12 +1282,19 @@ export default function VoucherEditorPanel({
                             <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount, header.currCode || baseCurrencyCode)}</td>
                           </tr>
                         )}
-                        {!isSimpleMetalVoucher && (
-                        <tr style={{ background: '#F1F3F6' }}>
-                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{`Net Amt (${receiptPaymentNetAmtLabelCurrency || header.currCode || baseCurrencyCode || 'USD'}) :`}</td>
-                          <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(totals.grandTotal, receiptPaymentNetAmtLabelCurrency || header.currCode || baseCurrencyCode)}</td>
-                        </tr>
-                        )}
+                        {!isSimpleMetalVoucher && buildNetAmountRows({
+                          voucherCurrency: receiptPaymentNetAmtLabelCurrency || header.currCode || baseCurrencyCode || 'USD',
+                          voucherTotal: totals.grandTotal,
+                          voucherNetAmounts,
+                        }).map((row) => (
+                          <tr key={row.code} style={{ background: '#F1F3F6', borderTop: '1px solid #E8EAED' }}>
+                            <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>
+                              {`Net Amt (${row.code}) :`}
+                              {row.rateNote && <div style={{ fontSize: '0.66rem', fontWeight: '500', color: '#6B7280' }}>{row.rateNote}</div>}
+                            </td>
+                            <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(row.amount, row.code)}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
