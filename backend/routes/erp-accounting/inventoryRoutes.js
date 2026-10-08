@@ -140,11 +140,21 @@ function registerInventoryRoutes(deps) {
       const resolvedCurrency = String(currency || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
       const sanitizedCategory = sanitizeInventoryCategoryPurity(category, name)
 
+      const stockParent = await ChartOfAccount.findOne({
+        accountType: 'Asset',
+        isActive: true,
+        $or: [
+          { accountName: /^stock in hand$/i },
+          { accountCode: '1200' },
+        ],
+      }).sort({ accountCode: 1 })
+
       const accountCode = await nextInventoryAccountCode()
       const stockAccount = await ChartOfAccount.create({
         accountName: `${name} Stock`,
         accountCode,
         accountType: 'Asset',
+        parentAccountId: stockParent?._id || null,
         currency: resolvedCurrency,
         description: `Auto-created stock account for ${name}`,
         createdBy: req.user._id,

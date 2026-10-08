@@ -293,6 +293,26 @@ describe('ERP accounting API contracts', () => {
 `)
   })
 
+  test('new product stock accounts are created under Stock in Hand', async () => {
+    const financeUser = await createUser()
+    const stockInHand = await ChartOfAccount.create({
+      accountName: 'Stock in Hand',
+      accountCode: '1200',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+
+    const res = await request(app)
+      .post('/api/erp-accounting/inventory/products')
+      .set(authHeader(financeUser))
+      .send({ name: 'Gold Bar', unit: 'grams', currency: 'USD' })
+    expect(res.status).toBe(201)
+
+    const stockAccount = await ChartOfAccount.findById(res.body.product.ledgerAccountId).lean()
+    expect(stockAccount).toMatchObject({ accountName: 'Gold Bar Stock', accountCode: '12000', accountType: 'Asset' })
+    expect(String(stockAccount.parentAccountId)).toBe(String(stockInHand._id))
+  })
+
   test('direct deal creation auto-generates doc numbers', async () => {
     const financeUser = await createUser()
 
