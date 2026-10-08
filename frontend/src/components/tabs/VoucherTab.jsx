@@ -1372,7 +1372,7 @@ export default function VoucherTab({
     ? (isSimpleMetalVoucher
       ? ['No.', 'Stock Code', 'Product Type', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', '']
       : ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', ''])
-    : ['No.', 'A/C Code', 'Type', 'Curr', 'Amount FC', 'Amount LC', '']
+    : ['No.', 'A/C Code', 'Type', 'Amount FC', 'Amount LC', '']
   const inventoryStockOptions = getInventoryStockMappingOptions(inventoryProducts)
 
   // ────────────────────────────────────────────────────────────────────────────

@@ -185,6 +185,7 @@ describe('VoucherEditorPanel party details', () => {
       />,
     )
     expect(screen.getByRole('alert').textContent).toBe('Amount is required')
+    expect(screen.getByRole('button', { name: 'Add line item' })).toBeTruthy()
     expect(screen.getByLabelText('Amount FC').getAttribute('placeholder')).toBe('0.00')
     expect(screen.getByLabelText('Amount LC').getAttribute('placeholder')).toBe('0.00')
   })

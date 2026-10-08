@@ -94,7 +94,7 @@ export function useVoucherSave({
       setEditingLineIdx(null)
     }
   }
-  if (!isMetalVoucher && !isProductTransferSave) {
+  if (!isProductTransferSave) {
     const sharedNarration = String(header.narration || '').trim()
     effectiveLineItems = effectiveLineItems.map((line) => ({
       ...line,

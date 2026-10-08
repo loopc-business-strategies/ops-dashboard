@@ -152,7 +152,12 @@ export function useVoucherLineForm({
     const line = {
       ...computedLineForm,
       type: normalizeLineType(computedLineForm.type),
-      narration: isMetalVoucher ? computedLineForm.narration : String(header.narration || '').trim(),
+      ...(!isMetalVoucher ? {
+        currCode: header.currCode || baseCurrencyCode,
+        currRate: header.currRate || '1.000000',
+        currRateSource: header.currRateSource || 'currency_table',
+      } : {}),
+      narration: String(header.narration || '').trim(),
       amountLC: isSimpleMetalVoucher ? '' : (computedLineForm.amountLC || computedLineForm.totalAmount || computedLineForm.metalAmount || ''),
       amountWithVAT: isSimpleMetalVoucher ? '' : (computedLineForm.amountWithVAT || computedLineForm.amountLC || computedLineForm.amountFC),
     }
@@ -300,19 +305,21 @@ export function useVoucherLineForm({
 
   const handleHeaderCurrRateChange = (val) => {
     const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode).trim().toUpperCase()
-    if (normalizedHeaderCurrency === 'USD') {
-      setHeader((prev) => ({
-        ...prev,
-        currRate: '1.000000',
-        currRateSource: 'base_currency',
-      }))
-      return
-    }
+    const nextRate = normalizedHeaderCurrency === 'USD' ? '1.000000' : val
+    const nextSource = normalizedHeaderCurrency === 'USD' ? 'base_currency' : 'manual'
     setHeader((prev) => ({
       ...prev,
-      currRate: val,
-      currRateSource: 'manual',
+      currRate: nextRate,
+      currRateSource: nextSource,
     }))
+    if (!isMetalVoucher && ['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())) {
+      setLineForm((prev) => recalcReceiptPaymentLine({
+        ...prev,
+        currCode: normalizedHeaderCurrency,
+        currRate: nextRate,
+        currRateSource: nextSource,
+      }, 'rate'))
+    }
   }
 
   const handleHeaderCurrencyChange = (nextCode) => {
