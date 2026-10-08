@@ -827,7 +827,7 @@ export default function DirectDealsTab({
     }))
 
     const instructionsRows = [
-      { Rule: 'Direction', Value: 'Must be Buy or Sell' },
+      { Rule: 'Direction', Value: 'Buy or Sell, from the customer\'s side: Buy = customer buys (MG sale), Sell = customer sells (MG purchase)' },
       { Rule: 'Metal', Value: 'Use XAU, XAG, XPT, XPD (or your configured symbol)' },
       { Rule: 'Qty', Value: 'Must be greater than zero, in the unit given by StockCode' },
       { Rule: 'StockCode', Value: 'OZ, GRAM or KG' },
@@ -1286,10 +1286,10 @@ export default function DirectDealsTab({
               {/* Lines table */}
               <div style={{ border: '2px solid #888', background: '#fff' }}>
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed', minWidth: 780 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed', minWidth: 820 }}>
                     <colgroup>
                       <col style={{ width: 160 }} />
-                      <col style={{ width: 80 }} />
+                      <col style={{ width: 120 }} />
                       <col style={{ width: 68 }} />
                       <col style={{ width: 95 }} />
                       <col style={{ width: 80 }} />
@@ -1327,8 +1327,8 @@ export default function DirectDealsTab({
                           {/* Direction */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
                             <select data-dd-nav={`${10 + idx}-1-direction`} value={line.direction} onChange={(e) => updateLine(idx, 'direction', e.target.value)} onKeyDown={handleDealNavKeyDown} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
-                              <option value="buy">Buy</option>
-                              <option value="sell">Sell</option>
+                              <option value="buy">Customer buys</option>
+                              <option value="sell">Customer sells</option>
                             </select>
                           </td>
                           {/* Metal */}
@@ -1512,8 +1512,8 @@ export default function DirectDealsTab({
                       </td>
                       <td style={{ padding: '0.3rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '95px' }}>
                         <select value={row.direction} onChange={(e) => updatePreviewRow(idx, 'direction', e.target.value)} style={inputStyle}>
-                          <option value='buy'>buy</option>
-                          <option value='sell'>sell</option>
+                          <option value='buy'>Customer buys</option>
+                          <option value='sell'>Customer sells</option>
                         </select>
                       </td>
                       <td style={{ padding: '0.3rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '88px' }}>

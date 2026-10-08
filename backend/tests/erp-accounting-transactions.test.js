@@ -2710,8 +2710,8 @@ describe('ERP accounting transactions workflow', () => {
       .set(authHeader(financeUser))
 
     expect(enquiryRes.status).toBe(200)
-    // Direct deal buy (+10000 g Dr) less unfixed purchase (995 g Cr).
-    expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(9005, 2)
+    // Direct deal buy (10000 g held for the customer, Cr) plus unfixed purchase (995 g Cr).
+    expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(-10995, 2)
     // The open purchase still owes the customer its 995 g price, so it values in their favour.
     expect(Number(enquiryRes.body.metals?.goldValuationBalance || 0)).toBeCloseTo(10995, 2)
 
@@ -2722,7 +2722,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(customersRes.status).toBe(200)
     const customerRow = (customersRes.body.customers || []).find((row) => String(row._id) === String(customer._id))
     expect(customerRow).toBeTruthy()
-    expect(Number(customerRow.goldPosition || 0)).toBeCloseTo(9005, 2)
+    expect(Number(customerRow.goldPosition || 0)).toBeCloseTo(-10995, 2)
     expect(Number(customerRow.goldValuationPosition || 0)).toBeCloseTo(10995, 2)
 
     const dashRes = await request(app)
@@ -2732,7 +2732,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(dashRes.status).toBe(200)
     const marginRow = (dashRes.body.customerMargins || []).find((row) => String(row.id) === String(customer._id))
     expect(marginRow).toBeTruthy()
-    expect(Number(marginRow.goldPosition || 0)).toBeCloseTo(9005, 2)
+    expect(Number(marginRow.goldPosition || 0)).toBeCloseTo(-10995, 2)
     expect(Number(marginRow.goldValuationPosition || 0)).toBeCloseTo(10995, 2)
   })
 

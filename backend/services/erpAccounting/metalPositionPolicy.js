@@ -36,15 +36,23 @@ function resolveDirectDealLineSignedWeight(line = {}) {
   const grams = resolveDirectDealLineWeightGram(line)
   if (grams <= 0) return 0
   const direction = String(line?.direction || '').trim().toLowerCase()
-  // Metal stays on account: buy => customer holds the grams (positive, in the
-  // customer's favour, offsetting the cash debit); sell => customer gives grams up.
+  // Valuation sign. Metal stays on account: buy => customer holds the grams (positive,
+  // in the customer's favour, offsetting the cash debit); sell => customer gives grams up.
   return direction === 'buy' ? grams : -grams
+}
+
+/**
+ * Dr/Cr grams shown for a deal line, opposite to its cash side: a buy leaves metal
+ * held for the customer (Cr, like a metal receipt), a sell takes it out (Dr).
+ */
+function resolveDirectDealLineDisplayWeight(line = {}) {
+  return -resolveDirectDealLineSignedWeight(line) || 0
 }
 
 /**
  * Unfixed sale/purchase voucher grams follow the same side as the trade:
  * sale => metal to the party (positive / Dr), purchase => metal from the party
- * (negative / Cr). Matches direct deals and metal payment (Dr) / receipt (Cr).
+ * (negative / Cr). Matches metal payment (Dr) / receipt (Cr).
  */
 function resolveUnfixedVoucherWeightSign(txType = '') {
   const type = String(txType || '').trim().toLowerCase()
@@ -232,6 +240,7 @@ function accumulateMetalTransfersIntoMap(transfers = [], customers = [], positio
   return positionMap
 }
 
+/** Valuation grams (positive = in the customer's favour); negate for Dr/Cr display. */
 function accumulateDirectDealMetalForCustomer(directDeals = [], customerId) {
   const position = createEmptyMetalPosition()
   const targetId = String(customerId || '')
@@ -261,10 +270,10 @@ function accumulateDirectDealMetalIntoMap(directDeals = [], positionMap = new Ma
       if (!signedWeight) continue
       const position = positionMap.get(customerId) || createEmptyPartyPositionRow()
       if (isSilverLine(line?.stockCode, resolveDirectDealLineMetalCode(line))) {
-        position.silverPosition += signedWeight
+        position.silverPosition -= signedWeight
         position.silverValuationPosition = Number(position.silverValuationPosition || 0) + signedWeight
       } else {
-        position.goldPosition += signedWeight
+        position.goldPosition -= signedWeight
         position.goldValuationPosition = Number(position.goldValuationPosition || 0) + signedWeight
       }
       positionMap.set(customerId, position)
@@ -294,6 +303,7 @@ module.exports = {
   roundMetalPosition,
   resolveDirectDealLineWeightGram,
   resolveDirectDealLineSignedWeight,
+  resolveDirectDealLineDisplayWeight,
   resolveDirectDealLineMetalCode,
   resolveUnfixedVoucherWeightSign,
   resolveUnfixedVoucherValuationSign,

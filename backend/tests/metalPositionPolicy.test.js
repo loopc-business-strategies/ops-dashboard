@@ -4,6 +4,7 @@ const {
   accumulateDirectDealMetalIntoMap,
   mergeMetalPositions,
   resolveDirectDealLineSignedWeight,
+  resolveDirectDealLineDisplayWeight,
   resolveUnfixedVoucherWeightSign,
   resolveUnfixedVoucherValuationSign,
   resolveDirectDealCompanyDirection,
@@ -59,7 +60,7 @@ describe('metalPositionPolicy', () => {
     expect(resolveDirectDealCompanyDirection('')).toBe('')
   })
 
-  test('direct deal buy then unfixed purchase back nets to the remaining grams', () => {
+  test('direct deal buy and an open unfixed purchase both value in the customer favour', () => {
     const customerId = 'cust-1303'
     const metalTxs = [{
       customerId,
@@ -79,11 +80,11 @@ describe('metalPositionPolicy', () => {
       }],
     }]
 
-    const unfixed = accumulateUnfixedMetalFromTransactions(metalTxs)
+    const unfixed = accumulateUnfixedMetalFromTransactions(metalTxs, { valuation: true })
     const direct = accumulateDirectDealMetalForCustomer(directDeals, customerId)
     const merged = mergeMetalPositions(unfixed, direct)
 
-    expect(merged.gold).toBeCloseTo(0.02, 6)
+    expect(merged.gold).toBeCloseTo(399.98, 6)
     expect(merged.silver).toBe(0)
   })
 
@@ -126,8 +127,22 @@ describe('metalPositionPolicy', () => {
       }],
     }], map)
 
-    expect(map.get(customerId).goldPosition).toBeCloseTo(500, 6)
+    expect(map.get(customerId).goldPosition).toBeCloseTo(-500, 6)
     expect(map.get(customerId).goldValuationPosition).toBeCloseTo(500, 6)
+  })
+
+  test('deal grams show opposite the cash: buy Cr, sell Dr; taking delivery clears a buy', () => {
+    expect(resolveDirectDealLineDisplayWeight({ direction: 'buy', qty: 100, stockCode: 'GRAM' })).toBeCloseTo(-100, 6)
+    expect(resolveDirectDealLineDisplayWeight({ direction: 'sell', qty: 50, stockCode: 'GRAM' })).toBeCloseTo(50, 6)
+
+    const map = accumulateDirectDealMetalIntoMap([{
+      lineItems: [{ customerId: 'c1', direction: 'buy', metal: 'XAU', qty: 100, stockCode: 'GRAM' }],
+    }])
+    accumulateMetalTransfersIntoMap([
+      { type: 'metal_payment', customerId: 'c1', voucherMeta: { lineItems: [{ stockCode: 'XAU', pureWeight: 100 }] } },
+    ], [{ _id: 'c1' }], map)
+    expect(map.get('c1').goldPosition).toBeCloseTo(0, 6)
+    expect(map.get('c1').goldValuationPosition).toBeCloseTo(0, 6)
   })
 
   test('open unfixed vouchers value on the customer side: purchase (+), sale (-)', () => {

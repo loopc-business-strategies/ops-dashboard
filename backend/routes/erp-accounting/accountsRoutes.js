@@ -10,7 +10,7 @@ const {
   _isUnfixedFixingType,
   accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalForCustomer,
-  resolveDirectDealLineSignedWeight,
+  resolveDirectDealLineDisplayWeight,
   resolveDirectDealLineMetalCode,
   resolveUnfixedVoucherWeightSign,
 } = require('../../services/erpAccounting/metalPositionPolicy')
@@ -526,8 +526,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         .select('lineItems.customerId lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode')
         .lean()
       const directDealMetal = accumulateDirectDealMetalForCustomer(customerDirectDeals, linkedCustomer._id)
-      goldBalance += directDealMetal.gold
-      silverBalance += directDealMetal.silver
+      goldBalance -= directDealMetal.gold
+      silverBalance -= directDealMetal.silver
       goldValuationBalance += directDealMetal.gold
       silverValuationBalance += directDealMetal.silver
     }
@@ -954,7 +954,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
               metalFixStatus: String(deal.entryType || 'fixing') === 'fixing' ? 'fixed' : '',
               metalCode: resolveDirectDealLineMetalCode(line),
               isMetalTrade: true,
-              metalSignedWeight: resolveDirectDealLineSignedWeight(line),
+              metalSignedWeight: resolveDirectDealLineDisplayWeight(line),
             }
           }
         }
