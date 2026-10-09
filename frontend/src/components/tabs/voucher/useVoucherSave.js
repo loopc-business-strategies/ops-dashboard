@@ -66,7 +66,6 @@ export function useVoucherSave({
   let effectiveLineItems = [...lineItems]
   if (showLineForm && !isProductTransferSave) {
     const cashDraftBlank = !isMetalVoucher
-      && !String(lineForm.acCode || '').trim()
       && !String(lineForm.amountLC || '').trim()
       && !String(lineForm.amountFC || '').trim()
     if (!cashDraftBlank) {
@@ -203,7 +202,10 @@ export function useVoucherSave({
         ...(Number(voucherUzsPerBase) > 0 ? { uzsPerBase: Number(voucherUzsPerBase) } : {}),
       },
       ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
-      ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave && !isProductTransferSave ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
+      ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave && !isProductTransferSave ? {
+        fixingType: normalizeVoucherFixingType(header.fixingType),
+        metalRate: Number(header.metalRate) || 0,
+      } : {}),
       lineItems: effectiveLineItems.map((l) => {
         const metalLine = isMetalStockVoucherType(voucherType) ? hydrateMetalLineWeights(l) : l
         return {

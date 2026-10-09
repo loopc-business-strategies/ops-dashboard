@@ -128,6 +128,8 @@ export default function VoucherEditorPanel({
   const valueDateRef = useRef(null)
   const headerCurrRef = useRef(null)
   const headerRateRef = useRef(null)
+  const headerPriceRef = useRef(null)
+  const fixingTypeRef = useRef(null)
   const addLineBtnRef = useRef(null)
   const lineTypeRef = useRef(null)
   const lineAcCodeRef = useRef(null)
@@ -137,45 +139,130 @@ export default function VoucherEditorPanel({
   const lineNarrationRef = useRef(null)
   const lineSaveBtnRef = useRef(null)
   const metalStockRef = useRef(null)
+  const metalLocationRef = useRef(null)
+  const metalProductRef = useRef(null)
+  const metalPcsRef = useRef(null)
   const metalGrossRef = useRef(null)
   const metalPurityRef = useRef(null)
+  const metalPureRef = useRef(null)
+  const metalOzRef = useRef(null)
+  const metalRateTypeRef = useRef(null)
+  const metalMakingRateRef = useRef(null)
+  const metalPurityDiffRef = useRef(null)
+  const metalPremCurrRef = useRef(null)
+  const metalPremiumRef = useRef(null)
+  const metalRateTypeTextRef = useRef(null)
+  const metalLineRateRef = useRef(null)
+  const metalMakingRef = useRef(null)
+  const metalTaxRef = useRef(null)
   const metalSaveBtnRef = useRef(null)
+  const metalClearBtnRef = useRef(null)
+  const transferFromProductRef = useRef(null)
+  const transferFromPcsRef = useRef(null)
+  const transferFromGrossRef = useRef(null)
+  const transferToProductRef = useRef(null)
+  const transferToPcsRef = useRef(null)
+  const saveVoucherBtnRef = useRef(null)
+  const cancelVoucherBtnRef = useRef(null)
   const pendingFocusLineFieldRef = useRef(false)
 
   const showRefRate = ['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())
     && String(lineForm.currCode || 'USD').toUpperCase() !== baseCurrencyCode
 
-  const getHeaderNavOrder = useCallback(() => {
-    if (isSimpleMetalVoucher) {
-      return [partyAccountRef, partyCodeRef, docDateRef, addLineBtnRef]
-    }
-    return [
-      partyAccountRef,
-      partyCodeRef,
-      docDateRef,
-      valueDateRef,
-      headerCurrRef,
-      headerRateRef,
-      addLineBtnRef,
-    ]
-  }, [isSimpleMetalVoucher])
+  const isProfessionalMetal = isMetalVoucher && !isSimpleMetalVoucher && !isProductTransferVoucher
 
-  const getCashLineNavOrder = useCallback(() => ([
+  const getProfessionalMetalNavOrder = useCallback(() => ([
+    partyCodeRef,
+    partyAccountRef,
+    fixingTypeRef,
+    docDateRef,
+    valueDateRef,
+    headerCurrRef,
+    headerRateRef,
+    headerPriceRef,
+    metalStockRef,
+    metalLocationRef,
+    metalProductRef,
+    metalPcsRef,
+    metalGrossRef,
+    metalPurityRef,
+    metalPureRef,
+    metalOzRef,
+    metalRateTypeRef,
+    metalMakingRateRef,
+    metalPurityDiffRef,
+    metalPremCurrRef,
+    metalPremiumRef,
+    metalRateTypeTextRef,
+    metalLineRateRef,
+    metalMakingRef,
+    metalSaveBtnRef,
+    metalClearBtnRef,
+    metalTaxRef,
+    lineNarrationRef,
+    saveVoucherBtnRef,
+    cancelVoucherBtnRef,
+  ]), [])
+
+  const getSimpleMetalNavOrder = useCallback(() => ([
+    partyCodeRef,
+    partyAccountRef,
+    docDateRef,
+    metalStockRef,
+    metalProductRef,
+    metalPcsRef,
+    metalGrossRef,
+    metalPurityRef,
+    metalPureRef,
+    metalSaveBtnRef,
+    metalClearBtnRef,
+    lineNarrationRef,
+    saveVoucherBtnRef,
+    cancelVoucherBtnRef,
+  ]), [])
+
+  const getCashEntryNavOrder = useCallback(() => ([
+    partyCodeRef,
+    partyAccountRef,
+    docDateRef,
+    valueDateRef,
+    headerCurrRef,
+    headerRateRef,
     lineTypeRef,
     lineAcCodeRef,
     ...(showRefRate ? [lineRefRateRef] : []),
     lineAmtFcRef,
     lineAmtLcRef,
-    lineNarrationRef,
+    addLineBtnRef,
     lineSaveBtnRef,
+    lineNarrationRef,
+    saveVoucherBtnRef,
+    cancelVoucherBtnRef,
   ]), [showRefRate])
 
-  const getMetalLineNavOrder = useCallback(() => ([
-    metalStockRef,
-    metalGrossRef,
-    metalPurityRef,
-    metalSaveBtnRef,
+  const getTransferNavOrder = useCallback(() => ([
+    docDateRef,
+    transferFromProductRef,
+    transferFromPcsRef,
+    transferFromGrossRef,
+    transferToProductRef,
+    transferToPcsRef,
+    saveVoucherBtnRef,
+    cancelVoucherBtnRef,
   ]), [])
+
+  const getHeaderNavOrder = useCallback(() => {
+    if (isProfessionalMetal) return getProfessionalMetalNavOrder()
+    if (isSimpleMetalVoucher) return getSimpleMetalNavOrder()
+    if (isProductTransferVoucher) return getTransferNavOrder()
+    return getCashEntryNavOrder()
+  }, [isProfessionalMetal, isSimpleMetalVoucher, isProductTransferVoucher, getProfessionalMetalNavOrder, getSimpleMetalNavOrder, getTransferNavOrder, getCashEntryNavOrder])
+
+  const getCashLineNavOrder = useCallback(() => getCashEntryNavOrder(), [getCashEntryNavOrder])
+
+  const getMetalLineNavOrder = useCallback(() => (
+    isProfessionalMetal ? getProfessionalMetalNavOrder() : getSimpleMetalNavOrder()
+  ), [isProfessionalMetal, getProfessionalMetalNavOrder, getSimpleMetalNavOrder])
 
   const handleHeaderNavKeyDown = useCallback((e) => {
     if (!keyboardNavEnabled || formReadOnly) return
@@ -184,7 +271,7 @@ export default function VoucherEditorPanel({
       order: getHeaderNavOrder,
       onBeforeMove: (_evt, { nextIndex, wrapForward }) => {
         const order = getHeaderNavOrder()
-        const movingToAdd = wrapForward || order[nextIndex] === addLineBtnRef
+        const movingToAdd = wrapForward || order[nextIndex] === addLineBtnRef || order[nextIndex] === metalSaveBtnRef
         if (movingToAdd && !showLineForm) {
           pendingFocusLineFieldRef.current = true
           handleAddLineClick()
@@ -231,6 +318,33 @@ export default function VoucherEditorPanel({
 
   const cashSingleView = !isMetalVoucher && !isProductTransferVoucher
   const compactHeader = !isProductTransferVoucher
+  const stockLabelCell = {
+    padding: '0 0.4rem',
+    fontSize: '0.72rem',
+    background: S.headerBg,
+    display: 'flex',
+    alignItems: 'center',
+    height: 28,
+    minWidth: 0,
+    whiteSpace: 'nowrap',
+    borderBottom: `1px solid ${S.border}`,
+    borderRight: `1px solid ${S.border}`,
+    boxSizing: 'border-box',
+  }
+  const stockFieldCell = {
+    ...inputStyle,
+    border: 0,
+    borderRadius: 0,
+    borderBottom: `1px solid ${S.border}`,
+    borderRight: `1px solid ${S.border}`,
+    padding: '0 0.35rem',
+    height: 28,
+    minHeight: 28,
+    width: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
+    fontSize: '0.75rem',
+  }
 
   useEffect(() => {
     if (!compactHeader || formReadOnly || showLineForm) return
@@ -262,7 +376,7 @@ export default function VoucherEditorPanel({
               ? {
                   width: cashSingleView
                     ? 'min(760px, 94vw)'
-                    : (isMetalVoucher && !isSimpleMetalVoucher ? 'min(980px, 96vw)' : 'min(860px, 94vw)'),
+                    : (isMetalVoucher && !isSimpleMetalVoucher ? 'min(1080px, 96vw)' : 'min(860px, 94vw)'),
                   maxHeight: 'calc(100vh - 0.45rem)',
                   overflowY: 'auto',
                   display: 'flex',
@@ -477,13 +591,15 @@ export default function VoucherEditorPanel({
 
           {/* ── Header Details ── */}
           {menuTab === 'header' && (
-            <div style={isProductTransferVoucher ? productTransferSectionBox : { ...sectionBox, marginBottom: cashSingleView ? '0.35rem' : sectionBox.marginBottom }}>
-              <div style={isProductTransferVoucher ? productTransferSectionBody : { ...sectionBody, padding: cashSingleView ? '0.35rem 0.45rem' : sectionBody.padding }}>
+            <div style={isProductTransferVoucher ? productTransferSectionBox : { ...sectionBox, marginBottom: (cashSingleView || compactHeader) ? '0.2rem' : sectionBox.marginBottom }}>
+              <div style={isProductTransferVoucher ? productTransferSectionBody : { ...sectionBody, padding: (cashSingleView || compactHeader) ? '0.28rem 0.4rem' : sectionBody.padding }}>
                 {isProductTransferVoucher ? (
                   <div style={productTransferDocHeader}>
                     <div style={productTransferDocField}>
                       <label style={productTransferDocLabel}>Doc No :</label>
                       <input
+                        aria-label="Doc No"
+                        tabIndex={-1}
                         style={{ ...productTransferDocInput, background: '#F8FAFB', color: '#4B5563' }}
                         value={header.vocNo}
                         readOnly
@@ -493,6 +609,7 @@ export default function VoucherEditorPanel({
                       <label style={productTransferDocLabel}>Doc Date :</label>
                       <input
                         ref={docDateRef}
+                        aria-label="Date"
                         style={formReadOnly
                           ? { ...productTransferDocDateInput, background: '#F8FAFB', color: '#4B5563' }
                           : productTransferDocDateInput}
@@ -602,49 +719,61 @@ export default function VoucherEditorPanel({
                         const partyTypeLabel = resolvedParty?.partyType === 'vendor'
                           ? 'Vendor'
                           : resolvedParty?.partyType === 'customer' ? 'Customer' : ''
-                        const contact = [resolvedParty?.phone, resolvedParty?.email, resolvedParty?.address]
+                        const contactParts = [resolvedParty?.phone, resolvedParty?.email, resolvedParty?.address]
+                          .map((value) => String(value || '').trim())
+                          .filter(Boolean)
+                        const contact = contactParts.join(' · ')
+                        const shortContact = [resolvedParty?.phone, resolvedParty?.address]
                           .map((value) => String(value || '').trim())
                           .filter(Boolean)
                           .join(' · ')
                         return (
-                          <div style={compactHeader ? { padding: '0.15rem 0.55rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0 } : classicPartySummary} title={[partyName, partyTypeLabel, contact].filter(Boolean).join(' · ')}>
-                            <strong style={{ color: '#111827', fontSize: compactHeader ? '0.95rem' : undefined }}>{partyName}</strong>
-                            {partyTypeLabel ? <span style={classicPartyTypeTag}>{partyTypeLabel}</span> : null}
-                            {contact ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.75rem', color: '#4B5563' }}>{contact}</span> : null}
+                          <div style={compactHeader ? { padding: '0.08rem 0.55rem 0.28rem', display: 'flex', flexDirection: 'column', gap: '0.05rem', maxWidth: 280, minWidth: 0 } : classicPartySummary} title={[partyName, partyTypeLabel, contact].filter(Boolean).join(' · ')}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+                              <strong style={{ color: '#111827', fontSize: compactHeader ? '0.82rem' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{partyName}</strong>
+                              {partyTypeLabel ? <span style={classicPartyTypeTag}>{partyTypeLabel}</span> : null}
+                            </div>
+                            {(compactHeader ? shortContact : contact) ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.7rem', color: '#4B5563' }}>{compactHeader ? shortContact : contact}</span> : null}
                           </div>
                         )
                       })()}
                     </div>
 
                     {compactHeader ? (
-                      <div style={{ flex: '0 0 292px', width: 292, display: 'grid', gridTemplateColumns: '78px minmax(0, 1fr)', columnGap: '0.4rem', rowGap: '0.32rem', alignItems: 'center', alignSelf: 'flex-start' }}>
-                        <span style={{ fontSize: '0.78rem', color: '#1F2937' }}>Doc No :</span>
-                        <div style={{ display: 'flex', gap: '0.3rem', minWidth: 0 }}>
-                          <input aria-label="Doc No" style={{ ...classicReadInput, flex: 1, minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px' }} value={header.vocNo} readOnly />
-                          {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
-                            <select aria-label="Fixing Type" style={{ ...(formReadOnly ? classicReadInput : classicInput), width: 88, flex: '0 0 88px', minHeight: '1.5rem', padding: '0.08rem 0.2rem', borderRadius: '2px' }} value={header.fixingType} onChange={e => setHdr('fixingType', e.target.value)} disabled={formReadOnly}>
-                              <option value="fixing">Fixed</option>
-                              <option value="non-fixing">UnFixed</option>
-                            </select>
-                          ) : (
-                            <input aria-label="Type" title="Voucher type" style={{ ...classicReadInput, width: 52, flex: '0 0 52px', minHeight: '1.5rem', padding: '0.08rem 0.25rem', borderRadius: '2px', textAlign: 'center' }} value={voucherCode} readOnly />
-                          )}
-                        </div>
-                        <span style={{ fontSize: '0.78rem', color: '#1F2937' }}>Doc Date :</span>
-                        <input ref={docDateRef} aria-label="Date" style={{ ...(formReadOnly ? classicReadInput : classicInput), minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px' }} type="date" value={header.docDate} onChange={e => setHdr('docDate', e.target.value)} onKeyDown={handleHeaderNavKeyDown} readOnly={formReadOnly} />
-                        {!isSimpleMetalVoucher && <>
-                        <span style={{ fontSize: '0.78rem', color: '#1F2937' }}>Value Date :</span>
-                        <input ref={valueDateRef} aria-label="Value" style={{ ...(formReadOnly ? classicReadInput : classicInput), minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px' }} type="date" value={header.valueDate} onChange={e => setHdr('valueDate', e.target.value)} onKeyDown={handleHeaderNavKeyDown} readOnly={formReadOnly} />
-                        <span style={{ fontSize: '0.78rem', color: '#1F2937' }}>Currency :</span>
-                        <div style={{ display: 'flex', gap: '0.3rem', minWidth: 0 }}>
-                          <select ref={headerCurrRef} aria-label="Curr" style={{ ...(formReadOnly ? classicReadInput : classicInput), width: 72, flex: '0 0 72px', minHeight: '1.5rem', padding: '0.08rem 0.2rem', borderRadius: '2px' }} value={header.currCode} onChange={e => handleHeaderCurrencyChange(e.target.value)} onKeyDown={handleHeaderNavKeyDown} disabled={formReadOnly}>
-                            {currencyOptions.length === 0 ? <option value="USD">USD</option> : currencyOptions.map((item) => (
-                              <option key={item.code} value={item.code}>{item.code}</option>
-                            ))}
+                      <div style={{ flex: isSimpleMetalVoucher ? '0 0 292px' : '0 0 420px', width: isSimpleMetalVoucher ? 292 : 420, display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '72px minmax(0, 1fr)' : '76px minmax(0, 1fr) 64px 112px', columnGap: '0.35rem', rowGap: '0.28rem', alignItems: 'center', alignSelf: 'flex-start' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Doc No :</span>
+                        <input aria-label="Doc No" tabIndex={-1} style={{ ...classicReadInput, width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px', boxSizing: 'border-box' }} value={header.vocNo} readOnly />
+                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
+                          <select ref={fixingTypeRef} aria-label="Fixing Type" style={{ ...(formReadOnly ? classicReadInput : classicInput), gridColumn: '4', width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.2rem', borderRadius: '2px', boxSizing: 'border-box' }} value={header.fixingType} onChange={e => setHdr('fixingType', e.target.value)} onKeyDown={handleHeaderNavKeyDown} disabled={formReadOnly}>
+                            <option value="fixing">Fixed</option>
+                            <option value="non-fixing">UnFixed</option>
                           </select>
-                          <input ref={headerRateRef} aria-label="Rate" style={{ ...(formReadOnly ? classicReadInput : classicInput), flex: 1, minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px' }} value={header.currRate} onChange={e => handleHeaderCurrRateChange(e.target.value)} onKeyDown={handleHeaderNavKeyDown} type="number" step="0.000001" readOnly={formReadOnly} />
-                        </div>
-                        </>}
+                        ) : !isSimpleMetalVoucher ? (
+                          <input aria-label="Type" title="Voucher type" style={{ ...classicReadInput, gridColumn: '4', width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.25rem', borderRadius: '2px', textAlign: 'center', boxSizing: 'border-box' }} value={voucherCode} readOnly />
+                        ) : null}
+                        <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Doc Date :</span>
+                        <input ref={docDateRef} aria-label="Date" style={{ ...(formReadOnly ? classicReadInput : classicInput), minHeight: '1.5rem', width: '100%', minWidth: 0, padding: '0.08rem 0.2rem', borderRadius: '2px', fontSize: '0.75rem', boxSizing: 'border-box' }} type="date" value={header.docDate} onChange={e => setHdr('docDate', e.target.value)} onKeyDown={handleHeaderNavKeyDown} readOnly={formReadOnly} />
+                        {!isSimpleMetalVoucher && (
+                          <>
+                            <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Val Date :</span>
+                            <input ref={valueDateRef} aria-label="Value" style={{ ...(formReadOnly ? classicReadInput : classicInput), minHeight: '1.5rem', width: '100%', minWidth: 0, padding: '0.08rem 0.2rem', borderRadius: '2px', fontSize: '0.75rem', boxSizing: 'border-box' }} type="date" value={header.valueDate} onChange={e => setHdr('valueDate', e.target.value)} onKeyDown={handleHeaderNavKeyDown} readOnly={formReadOnly} />
+                            <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Currency :</span>
+                            <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(0, 1fr)', gap: '0.28rem', minWidth: 0 }}>
+                              <select ref={headerCurrRef} aria-label="Curr" style={{ ...(formReadOnly ? classicReadInput : classicInput), width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.15rem', borderRadius: '2px', boxSizing: 'border-box' }} value={header.currCode} onChange={e => handleHeaderCurrencyChange(e.target.value)} onKeyDown={handleHeaderNavKeyDown} disabled={formReadOnly}>
+                                {currencyOptions.length === 0 ? <option value="USD">USD</option> : currencyOptions.map((item) => (
+                                  <option key={item.code} value={item.code}>{item.code}</option>
+                                ))}
+                              </select>
+                              <input ref={headerRateRef} aria-label="Rate" style={{ ...(formReadOnly ? classicReadInput : classicInput), width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.28rem', borderRadius: '2px', boxSizing: 'border-box' }} value={header.currRate} onChange={e => handleHeaderCurrRateChange(e.target.value)} onKeyDown={handleHeaderNavKeyDown} type="number" step="0.000001" readOnly={formReadOnly} />
+                            </div>
+                            {isMetalStockVoucherType(voucherType) ? (
+                              <>
+                                <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Price :</span>
+                                <input ref={headerPriceRef} aria-label="Price" style={{ ...(formReadOnly ? classicReadInput : classicInput), width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.28rem', borderRadius: '2px', textAlign: 'right', boxSizing: 'border-box' }} value={header.metalRate || ''} onChange={e => setHdr('metalRate', e.target.value)} onKeyDown={handleHeaderNavKeyDown} type="number" step="0.01" readOnly={formReadOnly} />
+                              </>
+                            ) : <span style={{ gridColumn: '3 / span 2' }} />}
+                          </>
+                        )}
                       </div>
                     ) : (
                     <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '280px', alignSelf: 'flex-start', height: 'auto' }}>
@@ -844,7 +973,7 @@ export default function VoucherEditorPanel({
 
           {/* ── Line Items panel ── */}
           {(menuTab === 'header' || menuTab === 'lineItems') && (
-            <div style={isProductTransferVoucher ? productTransferSectionBox : { ...sectionBox, marginBottom: cashSingleView ? '0.35rem' : sectionBox.marginBottom, ...(cashSingleView ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
+            <div style={isProductTransferVoucher ? productTransferSectionBox : { ...sectionBox, marginBottom: (cashSingleView || compactHeader) ? '0.15rem' : sectionBox.marginBottom, ...(cashSingleView ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
               <div style={{
                 ...(isMetalVoucher ? { ...classicPanelTitle, ...metalWin.tabLabel } : classicPanelTitle),
                 display: 'flex',
@@ -863,6 +992,12 @@ export default function VoucherEditorPanel({
                   inventoryProducts={inventoryProducts}
                   formReadOnly={formReadOnly}
                   loadingInventoryProducts={loadingInventoryProducts}
+                  onFieldKeyDown={handleHeaderNavKeyDown}
+                  fromProductRef={transferFromProductRef}
+                  fromPcsRef={transferFromPcsRef}
+                  fromGrossRef={transferFromGrossRef}
+                  toProductRef={transferToProductRef}
+                  toPcsRef={transferToPcsRef}
                 />
               ) : (
               <>
@@ -872,7 +1007,7 @@ export default function VoucherEditorPanel({
                   <thead>
                     <tr style={isMetalVoucher ? metalWin.headerRow : { background: 'var(--brand-soft)' }}>
                       {lineTableHeaders.map(h => (
-                        <th key={h} style={{ padding: '0.34rem 0.48rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: isMetalVoucher ? '#374151' : '#374151', borderBottom: isMetalVoucher ? '1px solid #C9CED6' : '1px solid #C9CED6', borderRight: isMetalVoucher ? '1px solid #E5E7EB' : '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ padding: compactHeader ? '0.14rem 0.4rem' : '0.34rem 0.48rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: isMetalVoucher ? '#374151' : '#374151', borderBottom: isMetalVoucher ? '1px solid #C9CED6' : '1px solid #C9CED6', borderRight: isMetalVoucher ? '1px solid #E5E7EB' : '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -885,23 +1020,23 @@ export default function VoucherEditorPanel({
                       </tr>
                     ) : lineItems.map((l, i) => (
                       <tr key={i} style={{ background: i % 2 === 0 ? '#FFFFFF' : '#FBFBFC', borderBottom: isMetalVoucher ? metalWin.tableCell.borderBottom : '1px solid #D7DBE0' }}>
-                        <td style={{ padding: '0.28rem 0.48rem', borderRight: isMetalVoucher ? metalWin.tableCell.borderRight : '1px solid #EEF1F4', background: isMetalVoucher ? metalWin.tableCell.background : undefined }}>{i + 1}</td>
+                        <td style={{ padding: compactHeader ? '0.12rem 0.4rem' : '0.28rem 0.48rem', borderRight: isMetalVoucher ? metalWin.tableCell.borderRight : '1px solid #EEF1F4', background: isMetalVoucher ? metalWin.tableCell.background : undefined }}>{i + 1}</td>
                         {isMetalVoucher ? (
                           <>
-                            <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.stockCode || '-'}</td>
+                            <td style={{ padding: '0.12rem 0.4rem', fontWeight: '600', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.stockCode || '-'}</td>
                             {isSimpleMetalVoucher && (
-                              <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.productType || '-'}</td>
+                              <td style={{ padding: '0.12rem 0.4rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.productType || '-'}</td>
                             )}
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pcs || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.grossWeight || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.purity || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pureWeight || '-'}</td>
+                            <td style={{ padding: '0.12rem 0.4rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pcs || '-'}</td>
+                            <td style={{ padding: '0.12rem 0.4rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.grossWeight || '-'}</td>
+                            <td style={{ padding: '0.12rem 0.4rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.purity || '-'}</td>
+                            <td style={{ padding: '0.12rem 0.4rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pureWeight || '-'}</td>
                             {!isSimpleMetalVoucher && (
                               <>
-                                <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.rateType || '-'}</td>
-                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
-                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.metalAmount, header.currCode || baseCurrencyCode)}</td>
-                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.totalAmount || l.amountLC, header.currCode || baseCurrencyCode)}</td>
+                                <td style={{ padding: '0.12rem 0.4rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.rateType || '-'}</td>
+                                <td style={{ padding: '0.12rem 0.4rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
+                                <td style={{ padding: '0.12rem 0.4rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.metalAmount, header.currCode || baseCurrencyCode)}</td>
+                                <td style={{ padding: '0.12rem 0.4rem', textAlign: 'right', fontWeight: '700', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.totalAmount || l.amountLC, header.currCode || baseCurrencyCode)}</td>
                               </>
                             )}
                           </>
@@ -943,217 +1078,149 @@ export default function VoucherEditorPanel({
 
                   {isMetalVoucher ? (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : 'minmax(460px, 1.8fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 1fr)', gap: '0.35rem', alignItems: 'start', marginBottom: '0.25rem' }}>
-                        <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(180px, 1fr)' : '110px minmax(180px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Stock *</div>
-                            <select
-                              ref={metalStockRef}
-                              style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem' }}
-                              value={lineForm.stockCode}
-                              onChange={(e) => handleStockSelection(e.target.value)}
-                              onKeyDown={handleMetalLineNavKeyDown}
-                            >
-                              <option value="">{loadingInventoryProducts ? 'Loading stock...' : 'Select stock'}</option>
-                              {inventoryStockOptions.map((option) => (
-                                <option key={option.code} value={option.code}>{option.label}</option>
-                              ))}
-                            </select>
-                            {!isSimpleMetalVoucher && (
-                              <>
-                                <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Location</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem' }} value={lineForm.location} onChange={e => setLF('location', e.target.value)} />
-                              </>
-                            )}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Product Type</div>
-                            <select
-                              style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem' }}
-                              value={lineForm.productType}
-                              onChange={(e) => {
-                                const selectedName = e.target.value
-                                if (!selectedName) {
-                                  setLineForm((prev) => ({ ...prev, productType: '' }))
-                                  return
-                                }
-                                setLineForm((prev) => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
-                              }}
-                            >
-                              <option value="">Select product type</option>
-                              {getInventoryCatalogProductsForStock(inventoryProducts, lineForm.stockCode)
-                                .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
-                              }
-                            </select>
-                            <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>PCS</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(90px, 1fr)' : '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', background: S.headerBg }}>Gross Weight</div>
-                            <input ref={metalGrossRef} style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', background: S.headerBg }}>Purity</div>
-                            <input ref={metalPurityRef} style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
-                            <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Pure Weight</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} />
-                          </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : 'minmax(0, 1.4fr) minmax(0, 0.78fr) minmax(0, 0.82fr) minmax(0, 1.05fr)', gap: '0.35rem', alignItems: 'stretch', marginBottom: '0.25rem' }}>
+                        <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '108px minmax(0, 1fr) 108px minmax(0, 1fr)', alignContent: 'start' }}>
+                          {!isSimpleMetalVoucher && <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700', justifyContent: 'flex-start' }}>Stock</div>}
+                          <div style={{ ...stockLabelCell, fontWeight: '700', color: S.ink }}>Stock *</div>
+                          <select
+                            ref={metalStockRef}
+                            aria-label="Stock"
+                            style={{ ...stockFieldCell, gridColumn: isSimpleMetalVoucher ? '2 / -1' : undefined }}
+                            value={lineForm.stockCode}
+                            onChange={(e) => handleStockSelection(e.target.value)}
+                            onKeyDown={handleMetalLineNavKeyDown}
+                          >
+                            <option value="">{loadingInventoryProducts ? 'Loading stock...' : 'Select stock'}</option>
+                            {inventoryStockOptions.map((option) => (
+                              <option key={option.code} value={option.code}>{option.label}</option>
+                            ))}
+                          </select>
                           {!isSimpleMetalVoucher && (
                             <>
-                              <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', background: S.headerBg }}>Weight In OZ.</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} value={lineForm.weightInOz || ((parseFloat(lineForm.pureWeight) || 0) > 0 ? ((parseFloat(lineForm.pureWeight) || 0) / 31.1034768).toFixed(3) : '')} onChange={e => setLF('weightInOz', e.target.value)} />
-                                <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }} />
-                                <div style={{ borderLeft: `1px solid ${S.border}`, background: '#F9FAFB' }} />
-                              </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', background: S.headerBg }}>Tax Type</div>
-                                <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem' }} value={lineForm.vatType || 'VAT'} onChange={e => setLF('vatType', e.target.value)}>
-                                  <option value="VAT">VAT</option>
-                                  <option value="GST">GST</option>
-                                  <option value="Sales Tax">Sales Tax</option>
-                                  <option value="None">None</option>
-                                </select>
-                                <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }} />
-                                <div style={{ borderLeft: `1px solid ${S.border}`, background: '#F9FAFB' }} />
-                              </div>
+                              <div style={{ ...stockLabelCell, fontWeight: '700', color: S.ink }}>Location</div>
+                              <input ref={metalLocationRef} aria-label="Location" style={stockFieldCell} value={lineForm.location} onChange={e => setLF('location', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
                             </>
                           )}
-
-                        </div>
-
-                        {!isSimpleMetalVoucher && (
-                        <div style={{ display: 'contents' }}>
-                          <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                            <div style={{ padding: '0.08rem 0.35rem', fontSize: '0.68rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Making / Margin</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Rate Type</div>
-                              <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)}>
-                                <option value="OZ">OZ</option>
-                                <option value="GRAM">GRAM</option>
-                                <option value="KG">KG</option>
-                              </select>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Rate</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }}
-                                type="number"
-                                step="0.01"
-                                value={lineForm.metalRate}
-                                onChange={e => setLF('metalRate', e.target.value)}
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)' }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Amount</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right', background: '#F9FAFB' }}
-                                type="number"
-                                step="0.01"
-                                value={lineForm.metalAmount}
-                                readOnly
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderTop: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Purity Diff</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purityDiff} onChange={e => setLF('purityDiff', e.target.value)} />
-                            </div>
-                          </div>
-
-                          <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                            <div style={{ padding: '0.08rem 0.35rem', fontSize: '0.68rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Premium Values</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Premi. Curr.</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(44px, 1fr)' }}>
-                                <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)}>
-                                  {currencyOptions.length === 0 ? (
-                                    <option value="USD">USD</option>
-                                  ) : currencyOptions.map((item) => (
-                                    <option key={item.code} value={item.code}>{item.code}</option>
-                                  ))}
-                                </select>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.35rem', textAlign: 'right' }} type="number" step="0.000001" value={lineForm.premiumValue} onChange={e => setLF('premiumValue', e.target.value)} />
-                              </div>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Rate</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(44px, 1fr)' }}>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.35rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLF('metalRate', e.target.value)} />
-                              </div>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Total (FC)</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} readOnly value={lineForm.metalAmount || ''} />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)' }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Total (LC)</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} readOnly value={lineForm.totalAmount || lineForm.amountLC || ''} />
-                            </div>
-                          </div>
-                        </div>
-                        )}
-
-                        {!isSimpleMetalVoucher && (
-                        <div style={{ display: 'contents' }}>
-                          <div style={{ border: `1px solid ${S.border}`, background: S.white, minWidth: 0 }}>
-                            <div style={{ padding: '0.08rem 0.35rem', fontSize: '0.68rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Metal Rate & Amount</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Rate Type</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Rate</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, metalRate: e.target.value }))} />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Metal Amt</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right', color: '#991B1B', fontWeight: '700', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.metalAmount} readOnly />
-                            </div>
+                          <div style={{ ...stockLabelCell, fontWeight: '700', color: S.ink }}>Product Type</div>
+                          <select
+                            ref={metalProductRef}
+                            aria-label="Product Type"
+                            style={stockFieldCell}
+                            value={lineForm.productType}
+                            onKeyDown={handleMetalLineNavKeyDown}
+                            onChange={(e) => {
+                              const selectedName = e.target.value
+                              if (!selectedName) {
+                                setLineForm((prev) => ({ ...prev, productType: '' }))
+                                return
+                              }
+                              setLineForm((prev) => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
+                            }}
+                          >
+                            <option value="">Select product type</option>
+                            {getInventoryCatalogProductsForStock(inventoryProducts, lineForm.stockCode)
+                              .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
+                            }
+                          </select>
+                          <div style={stockLabelCell}>PCS</div>
+                          <input ref={metalPcsRef} aria-label="PCS" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
+                          <div style={stockLabelCell}>Gross Weight</div>
+                          <input ref={metalGrossRef} aria-label="Gross Weight" style={{ ...stockFieldCell, textAlign: 'right', gridColumn: isSimpleMetalVoucher ? '2 / -1' : undefined }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
+                          {!isSimpleMetalVoucher && (
                             <>
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Premium Amt</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.premiumAmount || ''} readOnly />
-                              </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem' }}>Making Chg.</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.makingCharges} onChange={e => setLF('makingCharges', e.target.value)} />
-                              </div>
+                              <div style={stockLabelCell}>Purity</div>
+                              <input ref={metalPurityRef} aria-label="Purity" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                             </>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', fontWeight: '700' }}>Total</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right', fontWeight: '700', background: '#F9FAFB' }}
-                                type="number"
-                                step="0.01"
-                                value={lineForm.totalAmount}
-                                readOnly
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)' }}>
-                              <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', fontWeight: '700' }}>Total Amt+Tax</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right', fontWeight: '700' }}
-                                readOnly
-                                value={lineForm.amountWithVAT || ''}
-                              />
-                            </div>
+                          )}
+                          {isSimpleMetalVoucher ? (
+                            <>
+                              <div style={stockLabelCell}>Purity</div>
+                              <input ref={metalPurityRef} aria-label="Purity" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
+                              <div style={stockLabelCell}>Pure Weight</div>
+                              <input ref={metalPureRef} aria-label="Pure Weight" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} onKeyDown={handleMetalLineNavKeyDown} />
+                            </>
+                          ) : (
+                            <>
+                              <div style={stockLabelCell}>Pure Weight</div>
+                              <input ref={metalPureRef} aria-label="Pure Weight" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} onKeyDown={handleMetalLineNavKeyDown} />
+                              <div style={stockLabelCell}>Weight In OZ.</div>
+                              <input ref={metalOzRef} aria-label="Weight In OZ" style={{ ...stockFieldCell, textAlign: 'right' }} value={lineForm.weightInOz || ((parseFloat(lineForm.pureWeight) || 0) > 0 ? ((parseFloat(lineForm.pureWeight) || 0) / 31.1034768).toFixed(3) : '')} onChange={e => setLF('weightInOz', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                            </>
+                          )}
+                        </div>
+
+                        {!isSimpleMetalVoucher && (
+                        <div style={{ display: 'contents' }}>
+                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr)', alignContent: 'start' }}>
+                            <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700' }}>Making / Margin</div>
+                            <div style={stockLabelCell}>Rate Type</div>
+                            <select ref={metalRateTypeRef} aria-label="Making Rate Type" style={stockFieldCell} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} onKeyDown={handleMetalLineNavKeyDown}>
+                              <option value="OZ">OZ</option>
+                              <option value="GRAM">GRAM</option>
+                              <option value="KG">KG</option>
+                            </select>
+                            <div style={stockLabelCell}>Rate</div>
+                            <input ref={metalMakingRateRef} aria-label="Making Rate" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLF('metalRate', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                            <div style={stockLabelCell}>Amount</div>
+                            <input tabIndex={-1} aria-label="Making Amount" style={{ ...stockFieldCell, textAlign: 'right', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.metalAmount} readOnly />
+                            <div style={stockLabelCell}>Purity Diff</div>
+                            <input ref={metalPurityDiffRef} aria-label="Purity Diff" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.purityDiff} onChange={e => setLF('purityDiff', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                          </div>
+
+                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr)', alignContent: 'start' }}>
+                            <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700' }}>Premium Values</div>
+                            <div style={stockLabelCell}>Currency</div>
+                            <select ref={metalPremCurrRef} aria-label="Premium Currency" style={stockFieldCell} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)} onKeyDown={handleMetalLineNavKeyDown}>
+                              {currencyOptions.length === 0 ? (
+                                <option value="USD">USD</option>
+                              ) : currencyOptions.map((item) => (
+                                <option key={item.code} value={item.code}>{item.code}</option>
+                              ))}
+                            </select>
+                            <div style={stockLabelCell}>Premium</div>
+                            <input ref={metalPremiumRef} aria-label="Premium" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.000001" value={lineForm.premiumValue} onChange={e => setLF('premiumValue', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                            <div style={stockLabelCell}>Total (FC)</div>
+                            <input tabIndex={-1} aria-label="Total FC" style={{ ...stockFieldCell, textAlign: 'right', background: '#F9FAFB' }} readOnly value={lineForm.metalAmount || ''} />
+                            <div style={stockLabelCell}>Total (LC)</div>
+                            <input tabIndex={-1} aria-label="Total LC" style={{ ...stockFieldCell, textAlign: 'right', background: '#F9FAFB' }} readOnly value={lineForm.totalAmount || lineForm.amountLC || ''} />
+                          </div>
+
+                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) 72px minmax(0, 1fr)', alignContent: 'start', minWidth: 0 }}>
+                            <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700' }}>Metal Rate & Amount</div>
+                            <div style={stockLabelCell}>Rate Type</div>
+                            <input ref={metalRateTypeTextRef} aria-label="Metal Rate Type" style={stockFieldCell} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                            <div style={stockLabelCell}>Rate</div>
+                            <input ref={metalLineRateRef} aria-label="Metal Rate" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, metalRate: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
+                            <div style={stockLabelCell}>Metal Amt</div>
+                            <input tabIndex={-1} aria-label="Metal Amount" style={{ ...stockFieldCell, textAlign: 'right', color: '#991B1B', fontWeight: '700', background: '#F9FAFB' }} readOnly value={lineForm.metalAmount} />
+                            <div style={stockLabelCell}>Prem Amt</div>
+                            <input tabIndex={-1} aria-label="Premium Amount" style={{ ...stockFieldCell, textAlign: 'right', background: '#F9FAFB' }} readOnly value={lineForm.premiumAmount || ''} />
+                            <div style={stockLabelCell}>Making</div>
+                            <input ref={metalMakingRef} aria-label="Making Charges" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.01" value={lineForm.makingCharges} onChange={e => setLF('makingCharges', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                            <div style={{ ...stockLabelCell, fontWeight: '700' }}>Total</div>
+                            <input tabIndex={-1} aria-label="Line Total" style={{ ...stockFieldCell, textAlign: 'right', fontWeight: '700', background: '#F9FAFB' }} readOnly value={lineForm.totalAmount} />
+                            <div style={{ ...stockLabelCell, fontWeight: '700' }}>Tot+Tax</div>
+                            <input tabIndex={-1} aria-label="Amount With Tax" style={{ ...stockFieldCell, textAlign: 'right', fontWeight: '700', gridColumn: '2 / -1' }} readOnly value={lineForm.amountWithVAT || ''} />
                           </div>
                         </div>
                         )}
                       </div>
 
                       {isMetalVoucher && (
-                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                          <button type="button" ref={metalSaveBtnRef} style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine} onKeyDown={handleMetalLineNavKeyDown}>Add line item</button>
-                          <button type="button" style={{ ...btn('secondary'), minWidth: '92px' }} onClick={openAddLine}>Clear</button>
-                        </div>
-                      )}
-
-                      {!isSimpleMetalVoucher && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 160px)', marginBottom: '0.35rem' }}>
-                          <div style={{ padding: '0.06rem 0.35rem', fontSize: '0.72rem', background: S.headerBg, display: 'flex', alignItems: 'center' }}>Silver Purity %</div>
-                          <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.06rem 0.35rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.silverPurity} onChange={e => setLF('silverPurity', e.target.value)} />
+                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.12rem', alignItems: 'center' }}>
+                          <button type="button" ref={metalSaveBtnRef} style={{ ...btn('primary'), minWidth: '92px', padding: '0.28rem 0.7rem' }} onClick={saveLine} onKeyDown={handleMetalLineNavKeyDown}>Add line item</button>
+                          <button type="button" ref={metalClearBtnRef} style={{ ...btn('secondary'), minWidth: '72px', padding: '0.28rem 0.7rem' }} onClick={openAddLine} onKeyDown={handleMetalLineNavKeyDown}>Clear</button>
+                          {!isSimpleMetalVoucher && (
+                            <>
+                              <span style={{ marginLeft: '0.35rem', fontSize: '0.72rem', color: '#374151' }}>Tax</span>
+                              <select ref={metalTaxRef} aria-label="Tax Type" style={{ ...inputStyle, height: 26, width: 88, padding: '0 0.25rem' }} value={lineForm.vatType || 'VAT'} onChange={e => setLF('vatType', e.target.value)} onKeyDown={handleMetalLineNavKeyDown}>
+                                <option value="VAT">VAT</option>
+                                <option value="GST">GST</option>
+                                <option value="Sales Tax">Sales Tax</option>
+                                <option value="None">None</option>
+                              </select>
+                            </>
+                          )}
                         </div>
                       )}
                     </>
@@ -1162,7 +1229,7 @@ export default function VoucherEditorPanel({
                       {/* Type and account stay short. Amounts sit on the right so the row fills the voucher. */}
                       <div style={{ display: 'grid', gridTemplateColumns: '52px 88px 52px minmax(180px, 240px) 1fr 148px 148px', borderBottom: '1px solid #E5E7EB', alignItems: 'center', minHeight: 0 }}>
                         <div style={{ height: 26, padding: '0 0.35rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.68rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Type</div>
-                        <select ref={lineTypeRef} style={{ height: 26, border: 0, borderRadius: 0, padding: '0 0.2rem', fontSize: '0.75rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB', width: '100%' }} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)} onKeyDown={handleCashLineNavKeyDown}>
+                        <select ref={lineTypeRef} aria-label="Line Type" style={{ height: 26, border: 0, borderRadius: 0, padding: '0 0.2rem', fontSize: '0.75rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB', width: '100%' }} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)} onKeyDown={handleCashLineNavKeyDown}>
                           <option value="Cash">Cash</option>
                           <option value="TT">TT</option>
                           <option value="Card">Card</option>
@@ -1202,7 +1269,7 @@ export default function VoucherEditorPanel({
                         {cashSingleView ? (
                           <>
                             <button type="button" ref={addLineBtnRef} style={{ padding: '0.28rem 0.75rem', fontSize: '0.78rem', fontWeight: '700', background: 'var(--grad-brand)', border: '1px solid var(--purple)', borderRadius: '0.15rem', cursor: 'pointer', color: 'var(--brand-on-primary)' }} onClick={saveLine} onKeyDown={handleCashLineNavKeyDown}>Add line item</button>
-                            <button type="button" ref={lineSaveBtnRef} style={{ padding: '0.28rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer' }} onClick={openAddLine}>Clear</button>
+                            <button type="button" ref={lineSaveBtnRef} style={{ padding: '0.28rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: '#FFFFFF', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer' }} onClick={openAddLine} onKeyDown={handleCashLineNavKeyDown}>Clear</button>
                           </>
                         ) : (
                           <>
@@ -1219,7 +1286,7 @@ export default function VoucherEditorPanel({
               )}
 
               {/* ── Bottom strip: Actions + Remarks + Amount Summary ── */}
-              <div style={{ borderTop: '2px solid #B8BEC8', background: '#F8FAFC', padding: '0.38rem 0.55rem' }}>
+              <div style={{ borderTop: '2px solid #B8BEC8', background: '#F8FAFC', padding: compactHeader ? '0.22rem 0.5rem' : '0.38rem 0.55rem' }}>
                 <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   {/* Left: Add/Edit/Delete + Remarks */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.28rem', flex: 1, minWidth: 0 }}>
@@ -1242,7 +1309,7 @@ export default function VoucherEditorPanel({
                           style={{ ...classicInput, minHeight: '1.6rem' }}
                           value={header.narration || ''}
                           onChange={(e) => setHdr('narration', e.target.value)}
-                          onKeyDown={handleCashLineNavKeyDown}
+                          onKeyDown={isMetalVoucher ? handleMetalLineNavKeyDown : handleCashLineNavKeyDown}
                           placeholder="One narration for all line items"
                           readOnly={formReadOnly}
                         />
@@ -1397,21 +1464,27 @@ export default function VoucherEditorPanel({
           {!isReadOnly && (
             <div style={isProductTransferVoucher
               ? productTransferFooter
-              : { display: 'flex', gap: '0.55rem', marginTop: cashSingleView ? '0.35rem' : '1rem', paddingTop: cashSingleView ? '0.4rem' : '1rem', borderTop: `1px solid ${S.border}` }}
+              : { display: 'flex', gap: '0.55rem', marginTop: (cashSingleView || compactHeader) ? '0.15rem' : '1rem', padding: (cashSingleView || compactHeader) ? '0.28rem 0.55rem 0.4rem' : '1rem 0 0', borderTop: `1px solid ${S.border}` }}
             >
               <button
+                type="button"
+                ref={saveVoucherBtnRef}
                 style={{
                   ...(isProductTransferVoucher ? productTransferActionBtn('primary') : btn('primary')),
                   opacity: saving ? 0.7 : 1,
                 }}
                 onClick={saveVoucher}
+                onKeyDown={handleHeaderNavKeyDown}
                 disabled={saving}
               >
                 {saving ? 'Saving...' : (editingId ? '💾 Update Voucher' : '💾 Save Voucher')}
               </button>
               <button
+                type="button"
+                ref={cancelVoucherBtnRef}
                 style={isProductTransferVoucher ? productTransferActionBtn('secondary') : btn('secondary')}
                 onClick={() => setMode('list')}
+                onKeyDown={handleHeaderNavKeyDown}
               >
                 {t('cancel')}
               </button>

@@ -86,6 +86,7 @@ export function useVoucherOpenEdit({
     docDate: m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
     valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
     fixingType: normalizeVoucherFixingType(m.fixingType),
+    metalRate: Number(m.metalRate) > 0 ? String(m.metalRate) : '',
     uzsRate: Number(m.rateMeta?.uzsPerBase) > 0 ? String(m.rateMeta.uzsPerBase) : '',
     narration: sharedNarration || (genericDescription ? '' : storedDescription),
   }

@@ -164,7 +164,8 @@ describe('VoucherEditorPanel party details', () => {
     )
     expect(screen.getByText('Acme Metals')).toBeTruthy()
     expect(screen.getByText('Vendor')).toBeTruthy()
-    expect(screen.getByText('+998 90 000 · a@acme.uz')).toBeTruthy()
+    expect(screen.getByText('+998 90 000')).toBeTruthy()
+    expect(screen.getByTitle(/a@acme.uz/)).toBeTruthy()
     expect(screen.queryByText('Email')).toBeNull()
     expect(screen.getAllByDisplayValue('V001')).toHaveLength(1)
   })
@@ -201,6 +202,15 @@ describe('VoucherEditorPanel party details', () => {
         />,
       )
       expect(screen.getByRole('button', { name: 'Add line item' })).toBeTruthy()
+      expect(screen.getByLabelText('Date')).toBeTruthy()
+      if (extra.voucherType === 'payment') {
+        expect(screen.getByLabelText('Value')).toBeTruthy()
+        expect(screen.queryByLabelText('Price')).toBeNull()
+      }
+      if (extra.voucherType === 'purchase') {
+        expect(screen.getByLabelText('Value')).toBeTruthy()
+        expect(screen.getByLabelText('Price')).toBeTruthy()
+      }
       unmount()
     }
   })

@@ -35,7 +35,6 @@ export const emptyLine = () => ({
   premiumValue: '',
   premiumAmount: '',
   makingCharges: '',
-  silverPurity: '0',
   vatType: 'VAT',
   remarks: '',
   type: 'Cash',
@@ -83,6 +82,7 @@ export const emptyHeader = () => ({
   docDate: today(),
   valueDate: today(),
   fixingType: 'fixing',
+  metalRate: '',
   uzsRate: '',
   narration: '',
 })

@@ -69,6 +69,10 @@ function SidePanel({
   formReadOnly,
   grossReadOnly,
   onChangeSide,
+  onFieldKeyDown,
+  productRef,
+  pcsRef,
+  grossRef,
 }) {
   const productId = String(line.inventoryItemId || '')
   const selected = products.find((p) => String(p._id) === productId) || null
@@ -99,9 +103,12 @@ function SidePanel({
         <div style={fieldStack}>
           <label style={fieldLabel}>Product</label>
           <select
+            ref={productRef}
+            aria-label={`${title} Product`}
             style={compactInput}
             disabled={formReadOnly}
             value={productId}
+            onKeyDown={onFieldKeyDown}
             onChange={(e) => {
               const id = e.target.value
               const product = products.find((p) => String(p._id) === id)
@@ -141,17 +148,20 @@ function SidePanel({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div style={fieldStack}>
             <label style={fieldLabel}>Purity</label>
-            <input style={compactReadInput} readOnly value={line.purity || ''} />
+            <input aria-label={`${title} Purity`} tabIndex={-1} style={compactReadInput} readOnly value={line.purity || ''} />
           </div>
           <div style={fieldStack}>
             <label style={fieldLabel}>Qty (PCS)</label>
             <input
+              ref={pcsRef}
+              aria-label={`${title} PCS`}
               style={compactInput}
               type="number"
               step="1"
               disabled={formReadOnly}
               value={line.pcs || ''}
               onChange={(e) => onChangeSide(side, { pcs: e.target.value })}
+              onKeyDown={onFieldKeyDown}
             />
           </div>
         </div>
@@ -160,6 +170,9 @@ function SidePanel({
           <div style={fieldStack}>
             <label style={fieldLabel}>Gross Weight (g)</label>
             <input
+              ref={grossReadOnly ? undefined : grossRef}
+              aria-label={`${title} Gross`}
+              tabIndex={grossReadOnly ? -1 : undefined}
               style={grossReadOnly ? compactReadInput : compactInput}
               type="number"
               step="0.001"
@@ -167,11 +180,14 @@ function SidePanel({
               readOnly={grossReadOnly}
               value={line.grossWeight || ''}
               onChange={(e) => onChangeSide(side, { grossWeight: e.target.value })}
+              onKeyDown={grossReadOnly ? undefined : onFieldKeyDown}
             />
           </div>
           <div style={fieldStack}>
             <label style={fieldLabel}>Pure Weight (g)</label>
             <input
+              aria-label={`${title} Pure`}
+              tabIndex={-1}
               style={compactReadInput}
               readOnly
               value={line.pureWeight || ''}
@@ -192,6 +208,12 @@ export default function MetalTransferEditor({
   inventoryProducts,
   formReadOnly,
   loadingInventoryProducts,
+  onFieldKeyDown,
+  fromProductRef,
+  fromPcsRef,
+  fromGrossRef,
+  toProductRef,
+  toPcsRef,
 }) {
   const products = useMemo(() => catalogProducts(inventoryProducts), [inventoryProducts])
   const fromLine = getTransferSideLine(lineItems, 'from')
@@ -259,6 +281,10 @@ export default function MetalTransferEditor({
             formReadOnly={formReadOnly}
             grossReadOnly={false}
             onChangeSide={syncSides}
+            onFieldKeyDown={onFieldKeyDown}
+            productRef={fromProductRef}
+            pcsRef={fromPcsRef}
+            grossRef={fromGrossRef}
           />
           <SidePanel
             title="To"
@@ -268,6 +294,9 @@ export default function MetalTransferEditor({
             formReadOnly={formReadOnly}
             grossReadOnly
             onChangeSide={syncSides}
+            onFieldKeyDown={onFieldKeyDown}
+            productRef={toProductRef}
+            pcsRef={toPcsRef}
           />
         </div>
       )}
