@@ -175,6 +175,36 @@ describe('VoucherEditorPanel party details', () => {
     expect(screen.getByRole('button', { name: 'Search party by code' })).toBeTruthy()
   })
 
+  it('shows Add line item on payment, purchase, and metal receipt', () => {
+    const metalLine = {
+      stockCode: '', location: '', productType: '', pcs: '', grossWeight: '', purity: '',
+      pureWeight: '', weightInOz: '', vatType: 'VAT', rateType: 'OZ', metalRate: '', metalAmount: '',
+      purityDiff: '', currCode: 'USD', premiumValue: '', totalAmount: '', amountLC: '',
+      premiumAmount: '', makingCharges: '', amountWithVAT: '', silverPurity: '',
+    }
+    const header = { ...minimalProps.header, fixingType: 'fixing', currRate: '1', vocNo: 'X/1', valueDate: '2026-07-08', narration: '', partyCode: '' }
+    const totals = { grandTotal: 0, metalTotal: 0, premiumTotal: 0, makingTotal: 0, total: 0, vatAmount: 0, grossWeightTotal: 0, pureWeightTotal: 0, pcsTotal: 0 }
+    const cases = [
+      { voucherType: 'payment' },
+      { voucherType: 'purchase', isMetalVoucher: true, lineForm: metalLine },
+      { voucherType: 'metal_receipt', isMetalVoucher: true, isSimpleMetalVoucher: true, lineForm: metalLine },
+    ]
+    for (const extra of cases) {
+      const { unmount } = render(
+        <VoucherEditorPanel
+          {...minimalProps}
+          {...extra}
+          showLineForm
+          header={header}
+          totals={totals}
+          lineTableHeaders={['No.', 'Stock Code']}
+        />,
+      )
+      expect(screen.getByRole('button', { name: 'Add line item' })).toBeTruthy()
+      unmount()
+    }
+  })
+
   it('shows visible amount fields and line errors inside the voucher', () => {
     render(
       <VoucherEditorPanel

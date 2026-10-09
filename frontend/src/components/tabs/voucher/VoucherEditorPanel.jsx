@@ -880,7 +880,7 @@ export default function VoucherEditorPanel({
                     {lineItems.length === 0 ? (
                       <tr>
                         <td colSpan={lineTableHeaders.length} style={{ padding: cashSingleView ? '0.35rem 0.5rem' : '1rem', textAlign: 'center', color: S.muted, borderBottom: '1px solid #D7DBE0' }}>
-                          {formReadOnly ? 'No line items.' : (cashSingleView ? 'No line items yet.' : 'Click "Add" below to add entries.')}
+                          {formReadOnly ? 'No line items.' : 'No line items yet.'}
                         </td>
                       </tr>
                     ) : lineItems.map((l, i) => (
@@ -1145,15 +1145,8 @@ export default function VoucherEditorPanel({
 
                       {isMetalVoucher && (
                         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                          <button style={{ ...btn('gray'), minWidth: '92px' }} onClick={() => {
-                            saveLine()
-                            if (!lineForm.stockCode.trim()) return
-                            setTimeout(() => openAddLine(), 50)
-                          }}>
-                            Continue
-                          </button>
-                          <button ref={metalSaveBtnRef} style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine} onKeyDown={handleMetalLineNavKeyDown}>Save</button>
-                          <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
+                          <button type="button" ref={metalSaveBtnRef} style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine} onKeyDown={handleMetalLineNavKeyDown}>Add line item</button>
+                          <button type="button" style={{ ...btn('secondary'), minWidth: '92px' }} onClick={openAddLine}>Clear</button>
                         </div>
                       )}
 

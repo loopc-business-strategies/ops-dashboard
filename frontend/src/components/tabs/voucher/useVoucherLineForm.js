@@ -181,8 +181,7 @@ export function useVoucherLineForm({
       setEditingLineIdx(null)
       setShowLineForm(true)
     } else {
-      setShowLineForm(false)
-      setEditingLineIdx(null)
+      openAddLine()
     }
     clearError()
   }
