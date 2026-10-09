@@ -5,6 +5,7 @@ import {
   normalizeVoucherFixingType,
   displayRateToBackendRate,
   hasMetalTransferLineQuantity,
+  isOpenMetalLineBlank,
   isMetalStockVoucherType,
   isMetalTransferVoucherType,
   isMetalProductTransferVoucherType,
@@ -51,12 +52,12 @@ export function useVoucherSave({
   setVouchers,
   setMode,
 }) {
-  const saveVoucher = async () => {
+  const saveVoucher = async ({ andSubmit = false } = {}) => {
   clearError()
 
   if (formReadOnly) {
     setError('Click Edit to unlock the voucher before saving changes')
-    return
+    return false
   }
 
   const normalizedVoucherType = String(voucherType || '').toLowerCase()
@@ -70,10 +71,7 @@ export function useVoucherSave({
       && !String(lineForm.amountFC || '').trim()
     const metalDraftBlank = isMetalVoucher
       && !isSimpleMetalSave
-      && !String(lineForm.stockCode || '').trim()
-      && !String(lineForm.grossWeight || '').trim()
-      && !String(lineForm.metalAmount || '').trim()
-      && !String(lineForm.amountLC || '').trim()
+      && isOpenMetalLineBlank(lineForm)
     if (cashDraftBlank || metalDraftBlank) {
       // The next empty row stays open for another line and is not part of the voucher.
     } else if ((!isMetalVoucher && !String(lineForm.acCode || '').trim()) || !(isSimpleMetalSave
@@ -82,7 +80,7 @@ export function useVoucherSave({
       setError(isSimpleMetalSave
         ? 'Complete stock/weight details and click Save Line, or cancel the open line before saving voucher'
         : 'Complete line details and click Save Line, or cancel the open line before saving voucher')
-      return
+      return false
     } else {
       const draftLine = {
         ...lineForm,
@@ -115,29 +113,29 @@ export function useVoucherSave({
     const toLine = getTransferSideLine(effectiveLineItems, 'to')
     if (!fromLine.inventoryItemId || !toLine.inventoryItemId) {
       setError('Select both From and To products')
-      return
+      return false
     }
     if (String(fromLine.inventoryItemId) === String(toLine.inventoryItemId)) {
       setError('From and To products must be different')
-      return
+      return false
     }
     if (!(parseFloat(fromLine.grossWeight) > 0) || !(parseFloat(toLine.grossWeight) > 0)) {
       setError('Enter From gross weight (To gross is calculated from pure conservation)')
-      return
+      return false
     }
     if (!(parseFloat(fromLine.pureWeight) > 0) || !(parseFloat(toLine.pureWeight) > 0)) {
       setError('Pure weight must be positive on From and To')
-      return
+      return false
     }
     effectiveLineItems = [fromLine, toLine]
   } else {
-    if (!header.partyCode.trim()) { setError('Party Code is required'); return }
-    if (!effectiveLineItems.length) { setError('Add at least one line item'); return }
+    if (!header.partyCode.trim()) { setError('Party Code is required'); return false }
+    if (!effectiveLineItems.length) { setError('Add at least one line item'); return false }
     const resolvedPartyCheck = resolveVoucherParty(header.partyCode)
     const selectedAccountCheck = findPartyOptionByCode(header.partyCode)
     if (!resolvedPartyCheck && !selectedAccountCheck) {
       setError('Party must match a customer, vendor, or chart account')
-      return
+      return false
     }
   }
 
@@ -163,7 +161,7 @@ export function useVoucherSave({
   const requiresReferenceRate = isReceiptPayment && normalizedHeaderCurrency !== String(baseCurrencyCode || 'USD').trim().toUpperCase()
   if (requiresReferenceRate && (!Number.isFinite(backendHeaderRate) || backendHeaderRate <= 0)) {
     setError(`Reference exchange rate is required for ${normalizedVoucherType} transactions in ${normalizedHeaderCurrency}`)
-    return
+    return false
   }
 
   const receiptPaymentDocTotal = isReceiptPayment
@@ -266,11 +264,34 @@ export function useVoucherSave({
     let savedId = editingId
     if (editingId) {
       await voucherErpApi.updateTransaction(token, editingId, payload)
-      showMsg('Voucher updated successfully')
     } else {
       const res = await voucherErpApi.createTransaction(token, payload)
       savedId = res?.transaction?._id || null
-      showMsg('Voucher saved successfully')
+    }
+    let submitted = false
+    if (andSubmit) {
+      if (!savedId) {
+        setError('Voucher was saved but could not be submitted')
+        return false
+      }
+      const submitOnce = (confirmVendorAdvance) => voucherErpApi.submitTransaction(token, savedId, {
+        postImmediately: true,
+        ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}),
+      })
+      try {
+        await submitOnce(false)
+        submitted = true
+      } catch (submitError) {
+        const needsAdvanceConfirmation = submitError?.response?.status === 409
+          && submitError?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
+        if (!needsAdvanceConfirmation) throw submitError
+        if (!window.confirm(submitError.response?.data?.message || 'This payment will create a vendor advance. Continue?')) {
+          setError('Voucher saved. Submit was cancelled.')
+        } else {
+          await submitOnce(true)
+          submitted = true
+        }
+      }
     }
     await loadVouchers()
     const res2 = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
@@ -279,7 +300,6 @@ export function useVoucherSave({
       voucherType
     )
     setVouchers(refreshed)
-    // Open the voucher that was just saved/updated
     const toOpen = savedId
       ? refreshed.find(t => t._id === savedId)
       : refreshed[refreshed.length - 1]
@@ -290,8 +310,12 @@ export function useVoucherSave({
     } else {
       setMode('list')
     }
+    if (andSubmit && submitted) showMsg('Voucher saved and submitted')
+    else if (!andSubmit) showMsg(editingId ? 'Voucher updated successfully' : 'Voucher saved successfully')
+    return !andSubmit || submitted
   } catch (e) {
-    setError(e.response?.data?.message || 'Failed to save voucher')
+    setError(e.response?.data?.message || (andSubmit ? 'Failed to save and submit voucher' : 'Failed to save voucher'))
+    return false
   } finally {
     setSaving(false)
   }

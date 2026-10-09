@@ -117,6 +117,27 @@ export const hasMetalTransferLineQuantity = (line = {}) => (
   || (parseFloat(line.pureWeight) || 0) > 0
   || (parseFloat(line.pcs) || 0) > 0
 )
+
+/** Open metal line with no stock and no entered quantity or money. Zeros do not count. */
+export const isOpenMetalLineBlank = (line = {}) => {
+  const text = (value) => String(value ?? '').trim()
+  const nonzero = (value) => {
+    const n = parseFloat(text(value).replace(/,/g, ''))
+    return Number.isFinite(n) && n !== 0
+  }
+  if (text(line.stockCode) || text(line.inventoryItemId) || text(line.productType)) return false
+  return !(
+    nonzero(line.grossWeight)
+    || nonzero(line.pureWeight)
+    || nonzero(line.pcs)
+    || nonzero(line.metalAmount)
+    || nonzero(line.amountLC)
+    || nonzero(line.totalAmount)
+    || nonzero(line.makingCharges)
+    || nonzero(line.premiumAmount)
+    || nonzero(line.vatAmountLC)
+  )
+}
 export const isMetalStockInVoucherType = (type) => (
   METAL_STOCK_IN_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
 )

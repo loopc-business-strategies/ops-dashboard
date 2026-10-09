@@ -203,8 +203,15 @@ export default function VoucherTab({
       accountCurrency: String(vendor.ledgerAccountId?.currency || vendor.currency || '').trim().toUpperCase(),
       email: vendor.email || '',
       phone: vendor.phone || '',
-      address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode),
+      address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode, chartAddressForCode(vendor.ledgerAccountId?.accountCode || vendor.vendorCode)),
     })
+
+    const chartAddressForCode = (code) => {
+      const lookup = normalizeLookupValue(code)
+      if (!lookup) return ''
+      const account = chartAccounts.find((item) => normalizeLookupValue(getAccountCodeValue(item)) === lookup)
+      return String(account?.address || '').trim()
+    }
 
     const toCustomer = (customer) => ({
       customerId: customer._id,
@@ -216,7 +223,7 @@ export default function VoucherTab({
       accountCurrency: String(customer.ledgerAccountId?.currency || customer.currency || '').trim().toUpperCase(),
       email: customer.email || '',
       phone: customer.phone || '',
-      address: customer.address || '',
+      address: formatPartyAddress(customer.address, chartAddressForCode(customer.ledgerAccountId?.accountCode)),
     })
 
     // Sale/receipt: prefer customer (counterparty is usually buyer). Purchase/payment: prefer vendor (supplier).
@@ -229,7 +236,7 @@ export default function VoucherTab({
       if (customerMatch) return toCustomer(customerMatch)
     }
     return null
-  }, [activeCustomers, activeVendors, voucherType])
+  }, [activeCustomers, activeVendors, chartAccounts, voucherType])
 
   const partyOptions = useMemo(() => {
     const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
@@ -472,8 +479,8 @@ export default function VoucherTab({
     lineFormPurity: lineForm.purity,
     lineFormMetalRate: lineForm.metalRate,
     lineFormRateType: lineForm.rateType,
-    lineFormVatPer: lineForm.vatPer,
-    lineFormPremiumValue: lineForm.premiumValue,
+    lineFormPremiumAmount: lineForm.premiumAmount,
+    lineFormVatAmount: lineForm.vatAmountLC,
     lineFormMakingCharges: lineForm.makingCharges,
     headerCurrCode: header.currCode,
     headerCurrRate: header.currRate,

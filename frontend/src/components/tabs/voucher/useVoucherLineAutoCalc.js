@@ -35,8 +35,8 @@ export function useVoucherLineAutoCalc({
   lineFormPurity,
   lineFormMetalRate,
   lineFormRateType,
-  lineFormVatPer,
-  lineFormPremiumValue,
+  lineFormPremiumAmount,
+  lineFormVatAmount,
   lineFormMakingCharges,
   headerCurrCode = '',
   headerCurrRate = '',
@@ -81,15 +81,11 @@ export function useVoucherLineAutoCalc({
     const existingMetalAmount = parseAmount(next.metalAmount) || 0
     const effectiveMetalAmount = computedMetalAmount > 0 ? computedMetalAmount : existingMetalAmount
 
-    const premiumRate = parseAmount(next.premiumValue) || 0
-    const computedPremiumAmount = rateQty > 0 && premiumRate !== 0
-      ? roundMoney(rateQty * premiumRate, moneyCur)
-      : 0
+    const premiumAmount = parseAmount(next.premiumAmount) || 0
     const makingChargesAmt = parseAmount(next.makingCharges) || 0
 
-    const baseTotal = roundMoney(effectiveMetalAmount + computedPremiumAmount + makingChargesAmt, moneyCur)
-    const vatPer = parseAmount(next.vatPer) || 0
-    const vatAmount = roundMoney((baseTotal * vatPer) / 100, moneyCur)
+    const baseTotal = roundMoney(effectiveMetalAmount + premiumAmount + makingChargesAmt, moneyCur)
+    const vatAmount = parseAmount(next.vatAmountLC) || 0
     const amountWithVAT = roundMoney(baseTotal + vatAmount, moneyCur)
     const headerCode = String(headerCurrCode || '').trim().toUpperCase()
     const baseCode = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
@@ -107,14 +103,14 @@ export function useVoucherLineAutoCalc({
       weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
       metalRate: effectiveMetalRate > 0 ? String(roundMoney(effectiveMetalRate, moneyCur)) : (next.metalRate || ''),
       metalAmount: effectiveMetalAmount > 0 ? String(roundMoney(effectiveMetalAmount, moneyCur)) : '',
-      premiumAmount: computedPremiumAmount !== 0 ? String(roundMoney(computedPremiumAmount, moneyCur)) : '',
+      premiumAmount: next.premiumAmount || '',
       totalAmount: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
       amountLC: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
       amountFC: useHeaderFx && amountWithVAT > 0 ? String(foreignAmount) : (next.amountFC || ''),
       currRate: useHeaderFx ? String(fxRate) : (next.currRate || ''),
-      vatAmountLC: vatPer > 0 ? String(roundMoney(vatAmount, moneyCur)) : '',
-      vatAmountFC: vatPer > 0 ? String(roundMoney(vatAmount, moneyCur)) : '',
-      amountWithVAT: baseTotal > 0 ? String(roundMoney(amountWithVAT, moneyCur)) : '',
+      vatAmountLC: next.vatAmountLC || '',
+      vatAmountFC: next.vatAmountLC || '',
+      amountWithVAT: (baseTotal > 0 || vatAmount > 0) ? String(roundMoney(amountWithVAT, moneyCur)) : '',
     }
 
     // Keep the field the user is actively editing as raw typed text (no toFixed rewrite).
@@ -268,7 +264,7 @@ export function useVoucherLineAutoCalc({
     if (!showLineForm || !isMetalStockVoucherType(voucherType)) return
     setLineForm((prev) => {
       // Preserve metalRate while typing so toFixed does not jump the cursor.
-      const calculated = applyLineAutoCalc(prev, { preserveKeys: ['metalRate', 'grossWeight', 'purity', 'premiumValue', 'makingCharges', 'vatPer'] })
+      const calculated = applyLineAutoCalc(prev, { preserveKeys: ['metalRate', 'grossWeight', 'purity', 'premiumAmount', 'makingCharges', 'vatAmountLC'] })
       const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'amountFC', 'currRate', 'vatAmountLC', 'vatAmountFC', 'amountWithVAT']
       const hasChanges = keys.some((key) => String(prev[key] || '') !== String(calculated[key] || ''))
       return hasChanges ? calculated : prev
@@ -280,8 +276,8 @@ export function useVoucherLineAutoCalc({
     lineFormPurity,
     lineFormMetalRate,
     lineFormRateType,
-    lineFormVatPer,
-    lineFormPremiumValue,
+    lineFormPremiumAmount,
+    lineFormVatAmount,
     lineFormMakingCharges,
     headerCurrCode,
     headerCurrRate,

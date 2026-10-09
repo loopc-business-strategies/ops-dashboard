@@ -18,6 +18,7 @@ export {
   isMetalTransferVoucherType,
   isMetalProductTransferVoucherType,
   hasMetalTransferLineQuantity,
+  isOpenMetalLineBlank,
   isMetalStockInVoucherType,
   isMetalStockOutVoucherType,
   isSaveSubmitOnlyVoucherType,

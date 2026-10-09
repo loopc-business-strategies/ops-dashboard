@@ -4,6 +4,7 @@ import {
   emptyLine,
   getAccountCodeValue,
   hasMetalTransferLineQuantity,
+  isOpenMetalLineBlank,
   normalizeLineType,
   normalizeRateType,
   pickDefaultAccountCodeByType,
@@ -135,6 +136,10 @@ export function useVoucherLineForm({
 
   const saveLine = () => {
     if (!isMetalVoucher && !String(lineForm.acCode || '').trim()) { setError('A/C Code is required'); return }
+    if (isMetalVoucher && !isSimpleMetalVoucher && isOpenMetalLineBlank(lineForm)) {
+      clearError()
+      return
+    }
     if (isMetalVoucher && !String(lineForm.stockCode || '').trim()) { setError('Stock Code is required for metal vouchers'); return }
     if (isSimpleMetalVoucher) {
       if (!hasMetalTransferLineQuantity(lineForm)) {
