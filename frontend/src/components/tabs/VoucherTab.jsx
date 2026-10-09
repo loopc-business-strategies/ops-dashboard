@@ -475,6 +475,7 @@ export default function VoucherTab({
     lineFormPremiumValue: lineForm.premiumValue,
     lineFormMakingCharges: lineForm.makingCharges,
     headerCurrCode: header.currCode,
+    headerCurrRate: header.currRate,
     baseCurrencyCode,
   })
 

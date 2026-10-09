@@ -159,21 +159,23 @@ describe('VoucherEditorPanel party details', () => {
       <VoucherEditorPanel
         {...minimalProps}
         header={{ ...minimalProps.header, partyCode: 'V001' }}
-        resolveVoucherParty={() => ({ partyName: 'Acme Metals', partyType: 'vendor', phone: '+998 90 000', email: 'a@acme.uz', address: '' })}
+        resolveVoucherParty={() => ({ partyName: 'Acme Metals', partyType: 'vendor', phone: '+998 90 000', email: 'a@acme.uz', address: '12 Amir Temur Street, Yunusabad, Tashkent' })}
       />,
     )
     expect(screen.getByText('Acme Metals')).toBeTruthy()
     expect(screen.getByText('Vendor')).toBeTruthy()
     expect(screen.getByText('+998 90 000')).toBeTruthy()
+    expect(screen.getByText('12 Amir Temur Street, Yunusabad, Tashkent')).toBeTruthy()
     expect(screen.getByTitle(/a@acme.uz/)).toBeTruthy()
     expect(screen.queryByText('Email')).toBeNull()
-    expect(screen.getAllByDisplayValue('V001')).toHaveLength(1)
+    expect(screen.queryByDisplayValue('V001')).toBeNull()
   })
 
   it('hides the party line when no party is selected', () => {
     render(<VoucherEditorPanel {...minimalProps} />)
     expect(screen.queryByText('No party selected')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Search party by code' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Search party by code' })).toBeNull()
+    expect(screen.queryByPlaceholderText('Auto from vendor')).toBeNull()
   })
 
   it('shows Add line item on payment, purchase, and metal receipt', () => {

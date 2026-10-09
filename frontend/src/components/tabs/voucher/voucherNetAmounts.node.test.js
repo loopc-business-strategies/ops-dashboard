@@ -27,6 +27,17 @@ describe('voucher UZS rate', () => {
     expect(rate).toBe(11000)
   })
 
+  test('a metal voucher in UZS uses the rate typed next to the currency', () => {
+    expect(resolveVoucherUzsPerBase({
+      header: { currCode: 'UZS', currRate: '11000', uzsRate: '12100' },
+      masterUzsPerBase: 12100,
+    })).toBe(11000)
+    expect(resolveVoucherUzsPerBase({
+      header: { currCode: 'UZS', currRate: '', uzsRate: '11500' },
+      masterUzsPerBase: 12100,
+    })).toBe(11500)
+  })
+
   test('other vouchers use the saved rate, then today\'s master rate', () => {
     expect(resolveVoucherUzsPerBase({ header: { currCode: 'USD', uzsRate: '11500' }, masterUzsPerBase: 12100 })).toBe(11500)
     expect(resolveVoucherUzsPerBase({ header: { currCode: 'USD', uzsRate: '' }, masterUzsPerBase: 12100 })).toBe(12100)

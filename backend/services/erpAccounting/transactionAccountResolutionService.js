@@ -376,12 +376,17 @@ function createTransactionAccountResolutionService({
     const voucherNetAmount = resolveVoucherNetLineAmount(transaction)
     const voucherVatAmount = resolveVoucherVatAmount(transaction)
     const voucherGrossAmount = toMoney(voucherNetAmount + voucherVatAmount)
+    const transactionBaseAmount = currencyCode === baseCurrencyCode
+      ? transactionAmount
+      : transactionAmount * exchangeRate
+    const grossMatchesVoucher = Math.abs(transactionBaseAmount - voucherGrossAmount) <= 0.02
+      || Math.abs(transactionAmount - voucherGrossAmount) <= 0.02
     const shouldPostNetMainAmount = isMetalStockType(String(transaction.type || '').toLowerCase())
       && voucherNetAmount > 0
       && voucherVatAmount > 0
-      && Math.abs(transactionAmount - voucherGrossAmount) <= 0.02
-    const postingAmount = shouldPostNetMainAmount ? voucherNetAmount : transactionAmount
-    const amountInBase = postingAmount * exchangeRate
+      && grossMatchesVoucher
+    // Foreign vouchers already convert amount × rate into dollars. Net VAT split must stay in dollars.
+    const amountInBase = shouldPostNetMainAmount ? voucherNetAmount : transactionBaseAmount
 
     const ledgerDate = transaction.voucherMeta?.valueDate || transaction.date || new Date()
     await assertPeriod({ date: ledgerDate })

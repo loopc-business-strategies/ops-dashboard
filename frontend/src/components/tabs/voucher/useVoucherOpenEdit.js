@@ -67,7 +67,9 @@ export function useVoucherOpenEdit({
   const isReceiptPaymentVoucher = voucherKind === 'receipt' || voucherKind === 'payment'
   const headerRateSource = m.currRateSource || m.rateMeta?.headerRateSource || 'manual'
   const loadedRate = parseFloat(v.exchangeRate)
-  const normalizedHeaderRate = backendRateToDisplayRate(loadedRate, voucherCurrency, isReceiptPaymentVoucher)
+  const baseCode = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  const showPerUsdRate = isReceiptPaymentVoucher || (voucherCurrency !== baseCode)
+  const normalizedHeaderRate = backendRateToDisplayRate(loadedRate, voucherCurrency, showPerUsdRate)
   const sharedNarration = (m.lineItems || [])
     .map((line) => String(line?.narration || line?.remarks || '').trim())
     .find(Boolean) || ''

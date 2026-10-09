@@ -68,16 +68,22 @@ export function useVoucherSave({
     const cashDraftBlank = !isMetalVoucher
       && !String(lineForm.amountLC || '').trim()
       && !String(lineForm.amountFC || '').trim()
-    if (!cashDraftBlank) {
-      const hasLineAmount = isSimpleMetalSave
-        ? hasMetalTransferLineQuantity(lineForm)
-        : Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
-      if ((!isMetalVoucher && !String(lineForm.acCode || '').trim()) || !hasLineAmount) {
-        setError(isSimpleMetalSave
-          ? 'Complete stock/weight details and click Save Line, or cancel the open line before saving voucher'
-          : 'Complete line details and click Save Line, or cancel the open line before saving voucher')
-        return
-      }
+    const metalDraftBlank = isMetalVoucher
+      && !isSimpleMetalSave
+      && !String(lineForm.stockCode || '').trim()
+      && !String(lineForm.grossWeight || '').trim()
+      && !String(lineForm.metalAmount || '').trim()
+      && !String(lineForm.amountLC || '').trim()
+    if (cashDraftBlank || metalDraftBlank) {
+      // The next empty row stays open for another line and is not part of the voucher.
+    } else if ((!isMetalVoucher && !String(lineForm.acCode || '').trim()) || !(isSimpleMetalSave
+      ? hasMetalTransferLineQuantity(lineForm)
+      : Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount))) {
+      setError(isSimpleMetalSave
+        ? 'Complete stock/weight details and click Save Line, or cancel the open line before saving voucher'
+        : 'Complete line details and click Save Line, or cancel the open line before saving voucher')
+      return
+    } else {
       const draftLine = {
         ...lineForm,
         type: normalizeLineType(lineForm.type),
@@ -239,7 +245,22 @@ export function useVoucherSave({
   const payloadLineTotal = isReceiptPayment && receiptPaymentDocTotal > 0
     ? receiptPaymentDocTotal
     : effectiveLineItems.reduce((s, l) => s + (moneyOrZero(l.amountWithVAT) || moneyOrZero(l.amountLC)), 0)
-  payload.amount = (isSimpleMetalSave || isProductTransferSave) ? 0.01 : (payloadLineTotal || 0.01)
+  const baseCode = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  const headerDisplayRate = Number(header.currRate) || 0
+  const postHeaderForeignAmount = !isReceiptPayment
+    && !isSimpleMetalSave
+    && !isProductTransferSave
+    && normalizedHeaderCurrency !== baseCode
+    && headerDisplayRate > 0
+    && payloadLineTotal > 0
+  if (postHeaderForeignAmount) {
+    // Ledger stays in USD (foreign amount × USD-per-unit). The statement keeps the som figure from this rate.
+    payload.currency = normalizedHeaderCurrency
+    payload.exchangeRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency, true)
+    payload.amount = Math.round(payloadLineTotal * headerDisplayRate * 100) / 100
+  } else {
+    payload.amount = (isSimpleMetalSave || isProductTransferSave) ? 0.01 : (payloadLineTotal || 0.01)
+  }
   setSaving(true)
   try {
     let savedId = editingId

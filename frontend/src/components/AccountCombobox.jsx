@@ -33,6 +33,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
   style = {},
   disabled = false,
   onKeyDown = null,
+  maxHeight = 300,
 }, ref) {
   const allOptions = groups.flatMap((g) => g.options)
   const labelFor = (val) => allOptions.find((o) => o.value === val)?.label || ''

@@ -19,6 +19,22 @@ describe('voucherVatService', () => {
     expect(svc.resolveVoucherLineVatAmount({ amountWithVAT: 110, totalAmount: 100 })).toBe(10)
   })
 
+  test('resolveVatLedgerMoney keeps a dollar VAT row in dollars', () => {
+    expect(svc.resolveVatLedgerMoney({ vatAmount: 12, currency: 'USD', exchangeRate: 1 })).toEqual({
+      amount: 12,
+      currency: 'USD',
+      exchangeRate: 1,
+    })
+  })
+
+  test('resolveVatLedgerMoney stores som VAT so amount times rate equals the dollar VAT', () => {
+    const rate = 1 / 12100
+    const row = svc.resolveVatLedgerMoney({ vatAmount: 12, currency: 'UZS', exchangeRate: rate })
+    expect(row.currency).toBe('UZS')
+    expect(row.amount).toBe(145200)
+    expect(row.amount * row.exchangeRate).toBeCloseTo(12, 2)
+  })
+
   test('resolveVoucherVatAmount sums lines', () => {
     const tx = {
       voucherMeta: {

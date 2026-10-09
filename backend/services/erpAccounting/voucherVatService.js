@@ -45,6 +45,25 @@ function createVoucherVatService({
     return toMoney(total)
   }
 
+  /**
+   * Line VAT is in base currency. A UZS voucher stores the som VAT on the ledger
+   * so amount × exchangeRate stays the dollar VAT and the statement shows the som figure.
+   */
+  const resolveVatLedgerMoney = ({ vatAmount, currency, exchangeRate } = {}) => {
+    const code = String(currency || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase() || 'USD'
+    const base = String(BASE_CURRENCY_CODE || 'USD').trim().toUpperCase() || 'USD'
+    const rate = Number(exchangeRate)
+    const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1
+    if (code === base || safeRate === 1) {
+      return { amount: toMoney(vatAmount), currency: code === base ? base : code, exchangeRate: code === base ? 1 : safeRate }
+    }
+    return {
+      amount: toMoney(Number(vatAmount) / safeRate),
+      currency: code,
+      exchangeRate: safeRate,
+    }
+  }
+
   const resolveVoucherNetLineAmount = (tx) => {
     const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
     if (!lines.length) return 0
@@ -163,19 +182,25 @@ function createVoucherVatService({
       throw new Error('VAT posting debit and credit accounts cannot be identical')
     }
 
+    const vatLedger = resolveVatLedgerMoney({
+      vatAmount,
+      currency: tx.currency || BASE_CURRENCY_CODE,
+      exchangeRate: tx.exchangeRate,
+    })
+
     return Ledger.create([{
       date: tx.voucherMeta?.valueDate || tx.date || new Date(),
       debitAccountId: posting.debitAccountId,
       creditAccountId: posting.creditAccountId,
-      amount: vatAmount,
+      amount: vatLedger.amount,
       description: `Auto VAT ${isMetalStockOutType(transactionType) ? 'output' : 'input'} for transaction ${tx._id}`,
       referenceType: posting.referenceType,
       referenceId: tx._id,
       createdBy: user._id,
       updatedBy: user._id,
       department: user.department || tx.department || '',
-      currency: tx.currency || BASE_CURRENCY_CODE,
-      exchangeRate: Number(tx.exchangeRate || 1),
+      currency: vatLedger.currency,
+      exchangeRate: vatLedger.exchangeRate,
       notes: 'Auto VAT split from voucher line amounts.',
     }], writeOpts(session)).then((rows) => rows[0])
   }
@@ -183,6 +208,7 @@ function createVoucherVatService({
   return {
     resolveVoucherLineVatAmount,
     resolveVoucherVatAmount,
+    resolveVatLedgerMoney,
     resolveVoucherNetLineAmount,
     resolveVatPostingAccounts,
     applyVoucherVatImpact,

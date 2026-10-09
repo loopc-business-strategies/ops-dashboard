@@ -139,7 +139,6 @@ export default function VoucherEditorPanel({
   const lineNarrationRef = useRef(null)
   const lineSaveBtnRef = useRef(null)
   const metalStockRef = useRef(null)
-  const metalLocationRef = useRef(null)
   const metalProductRef = useRef(null)
   const metalPcsRef = useRef(null)
   const metalGrossRef = useRef(null)
@@ -181,13 +180,12 @@ export default function VoucherEditorPanel({
     headerRateRef,
     headerPriceRef,
     metalStockRef,
-    metalLocationRef,
     metalProductRef,
-    metalPcsRef,
     metalGrossRef,
     metalPurityRef,
     metalPureRef,
     metalOzRef,
+    metalPcsRef,
     metalRateTypeRef,
     metalMakingRateRef,
     metalPurityDiffRef,
@@ -633,39 +631,16 @@ export default function VoucherEditorPanel({
                       flex: '1 1 280px',
                       minWidth: 220,
                       alignSelf: 'stretch',
+                      position: 'relative',
+                      zIndex: 30,
                       border: '1px solid #8AA4C8',
                       borderRadius: '2px',
                       background: '#F4F7FB',
-                      overflow: 'hidden',
-                    } : { ...classicPanel, flex: '0 1 640px', minWidth: '280px', alignSelf: 'flex-start', height: 'auto' }}>
+                      overflow: 'visible',
+                    } : { ...classicPanel, flex: '0 1 640px', minWidth: '280px', alignSelf: 'flex-start', height: 'auto', position: 'relative', zIndex: 30 }}>
                       {compactHeader ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.18rem 0.35rem 0.18rem 0.55rem', background: '#E7EEF8', borderBottom: '1px solid #C5D4EA' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', padding: '0.22rem 0.55rem', background: '#E7EEF8', borderBottom: '1px solid #C5D4EA' }}>
                           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1E3A5F', whiteSpace: 'nowrap' }}>Party Details</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', minWidth: 0 }}>
-                            <input
-                              ref={partyCodeRef}
-                              aria-label="Party Code"
-                              style={{ ...(formReadOnly ? classicReadInput : classicInput), width: 108, minHeight: '1.45rem', padding: '0.08rem 0.35rem', borderRadius: '2px' }}
-                              value={header.partyCode ?? ''}
-                              onChange={e => setHdr('partyCode', e.target.value)}
-                              onKeyDown={(e) => {
-                                handlePartyCodeEnter(e)
-                                handleHeaderNavKeyDown(e)
-                              }}
-                              placeholder={voucherConfig.partyPlaceholder}
-                              readOnly={formReadOnly}
-                            />
-                            <button
-                              type="button"
-                              style={{ ...classicPartySearchBtn, width: '1.55rem', height: '1.45rem', borderRadius: '2px' }}
-                              onClick={searchPartyByCode}
-                              disabled={formReadOnly}
-                              title="Search party by code"
-                              aria-label="Search party by code"
-                            >
-                              <VoucherToolbarIcon name="search" size={14} />
-                            </button>
-                          </div>
                         </div>
                       ) : (
                         <div style={classicPanelTitle}>Party Details</div>
@@ -681,6 +656,7 @@ export default function VoucherEditorPanel({
                               onChange={(val) => handlePartySelect(val)}
                               onKeyDown={handleHeaderNavKeyDown}
                               placeholder="Type account name or code…"
+                              maxHeight={168}
                               style={formReadOnly ? classicReadInput : { ...classicInput, ...(compactHeader ? { minHeight: '1.55rem', borderRadius: '2px', background: '#FFFFFF' } : {}) }}
                               disabled={formReadOnly}
                             />
@@ -723,21 +699,24 @@ export default function VoucherEditorPanel({
                         const partyTypeLabel = resolvedParty?.partyType === 'vendor'
                           ? 'Vendor'
                           : resolvedParty?.partyType === 'customer' ? 'Customer' : ''
-                        const contactParts = [resolvedParty?.phone, resolvedParty?.email, resolvedParty?.address]
+                        const phone = String(resolvedParty?.phone || '').trim()
+                        const address = String(resolvedParty?.address || '').trim()
+                        const contactParts = [phone, resolvedParty?.email, address]
                           .map((value) => String(value || '').trim())
                           .filter(Boolean)
                         const contact = contactParts.join(' · ')
-                        const shortContact = [resolvedParty?.phone, resolvedParty?.address]
-                          .map((value) => String(value || '').trim())
-                          .filter(Boolean)
-                          .join(' · ')
                         return (
-                          <div style={compactHeader ? { padding: '0.08rem 0.55rem 0.28rem', display: 'flex', flexDirection: 'column', gap: '0.05rem', maxWidth: 280, minWidth: 0 } : classicPartySummary} title={[partyName, partyTypeLabel, contact].filter(Boolean).join(' · ')}>
+                          <div style={compactHeader ? { padding: '0.08rem 0.55rem 0.28rem', display: 'flex', flexDirection: 'column', gap: '0.05rem', minWidth: 0 } : classicPartySummary} title={[partyName, partyTypeLabel, contact].filter(Boolean).join(' · ')}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
                               <strong style={{ color: '#111827', fontSize: compactHeader ? '0.82rem' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{partyName}</strong>
                               {partyTypeLabel ? <span style={classicPartyTypeTag}>{partyTypeLabel}</span> : null}
                             </div>
-                            {(compactHeader ? shortContact : contact) ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.7rem', color: '#4B5563' }}>{compactHeader ? shortContact : contact}</span> : null}
+                            {compactHeader ? (
+                              <>
+                                {phone ? <span style={{ fontSize: '0.7rem', color: '#4B5563' }}>{phone}</span> : null}
+                                {address ? <span style={{ fontSize: '0.7rem', color: '#4B5563', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{address}</span> : null}
+                              </>
+                            ) : contact ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.7rem', color: '#4B5563' }}>{contact}</span> : null}
                           </div>
                         )
                       })()}
@@ -745,15 +724,40 @@ export default function VoucherEditorPanel({
 
                     {compactHeader ? (
                       <div style={{ flex: isSimpleMetalVoucher ? '0 0 292px' : '0 0 420px', width: isSimpleMetalVoucher ? 292 : 420, display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '72px minmax(0, 1fr)' : '76px minmax(0, 1fr) 64px 112px', columnGap: '0.35rem', rowGap: '0.28rem', alignItems: 'center', alignSelf: 'flex-start' }}>
-                        <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Doc No :</span>
-                        <input aria-label="Doc No" tabIndex={-1} style={{ ...classicReadInput, width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px', boxSizing: 'border-box' }} value={header.vocNo} readOnly />
                         {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
-                          <select ref={fixingTypeRef} aria-label="Fixing Type" style={{ ...(formReadOnly ? classicReadInput : classicInput), gridColumn: '4', width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.2rem', borderRadius: '2px', boxSizing: 'border-box' }} value={header.fixingType} onChange={e => setHdr('fixingType', e.target.value)} onKeyDown={handleHeaderNavKeyDown} disabled={formReadOnly}>
-                            <option value="fixing">Fixed</option>
-                            <option value="non-fixing">UnFixed</option>
-                          </select>
-                        ) : !isSimpleMetalVoucher ? (
-                          <input aria-label="Type" title="Voucher type" style={{ ...classicReadInput, gridColumn: '4', width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.25rem', borderRadius: '2px', textAlign: 'center', boxSizing: 'border-box' }} value={voucherCode} readOnly />
+                          <>
+                            <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Fixing :</span>
+                            <select
+                              ref={fixingTypeRef}
+                              aria-label="Fixing Type"
+                              style={{ ...(formReadOnly ? classicReadInput : classicInput), gridColumn: '2 / -1', width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.2rem', borderRadius: '2px', boxSizing: 'border-box' }}
+                              value={header.fixingType}
+                              onChange={e => setHdr('fixingType', e.target.value)}
+                              onKeyDown={(e) => {
+                                if (!formReadOnly && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                                  e.preventDefault()
+                                  const next = e.currentTarget.value === 'non-fixing' ? 'fixing' : 'non-fixing'
+                                  e.currentTarget.value = next
+                                  setHdr('fixingType', next)
+                                  return
+                                }
+                                handleHeaderNavKeyDown(e)
+                              }}
+                              disabled={formReadOnly}
+                            >
+                              <option value="fixing">Fixed</option>
+                              <option value="non-fixing">UnFixed</option>
+                            </select>
+                          </>
+                        ) : null}
+                        {!(isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher) ? (
+                          <>
+                            <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Doc No :</span>
+                            <input aria-label="Doc No" tabIndex={-1} style={{ ...classicReadInput, width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px', boxSizing: 'border-box' }} value={header.vocNo} readOnly />
+                          </>
+                        ) : null}
+                        {!isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
+                          <input aria-label="Type" title="Voucher type" tabIndex={-1} style={{ ...classicReadInput, gridColumn: '4', width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.25rem', borderRadius: '2px', textAlign: 'center', boxSizing: 'border-box' }} value={voucherCode} readOnly />
                         ) : null}
                         <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Doc Date :</span>
                         <input ref={docDateRef} aria-label="Date" style={{ ...(formReadOnly ? classicReadInput : classicInput), minHeight: '1.5rem', width: '100%', minWidth: 0, padding: '0.08rem 0.2rem', borderRadius: '2px', fontSize: '0.75rem', boxSizing: 'border-box' }} type="date" value={header.docDate} onChange={e => setHdr('docDate', e.target.value)} onKeyDown={handleHeaderNavKeyDown} readOnly={formReadOnly} />
@@ -778,6 +782,19 @@ export default function VoucherEditorPanel({
                             ) : <span style={{ gridColumn: '3 / span 2' }} />}
                           </>
                         )}
+                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
+                          <>
+                            <span style={{ fontSize: '0.74rem', color: '#1F2937', textAlign: 'right' }}>Doc No :</span>
+                            <input
+                              aria-label="Doc No"
+                              tabIndex={-1}
+                              style={{ ...classicReadInput, gridColumn: '2 / -1', width: '100%', minWidth: 0, minHeight: '1.5rem', padding: '0.08rem 0.35rem', borderRadius: '2px', boxSizing: 'border-box' }}
+                              value={header.vocNo}
+                              readOnly
+                              onFocus={() => docDateRef.current?.focus()}
+                            />
+                          </>
+                        ) : null}
                       </div>
                     ) : (
                     <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '280px', alignSelf: 'flex-start', height: 'auto' }}>
@@ -1082,14 +1099,14 @@ export default function VoucherEditorPanel({
 
                   {isMetalVoucher ? (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : 'minmax(0, 1.4fr) minmax(0, 0.78fr) minmax(0, 0.82fr) minmax(0, 1.05fr)', gap: '0.35rem', alignItems: 'stretch', marginBottom: '0.25rem' }}>
-                        <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '108px minmax(0, 1fr) 108px minmax(0, 1fr)', alignContent: 'start' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : 'minmax(0, 1.35fr) minmax(0, 0.85fr) minmax(0, 0.9fr) minmax(0, 1.15fr)', gap: '0.35rem', alignItems: 'stretch', marginBottom: '0.25rem' }}>
+                        <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, borderRight: `1px solid ${S.border}`, borderBottom: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '104px minmax(0, 1fr) 104px minmax(0, 1fr)', gridAutoRows: 28, alignContent: 'start', minWidth: 0, height: '100%', boxSizing: 'border-box' }}>
                           {!isSimpleMetalVoucher && <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700', justifyContent: 'flex-start' }}>Stock</div>}
                           <div style={{ ...stockLabelCell, fontWeight: '700', color: S.ink }}>Stock *</div>
                           <select
                             ref={metalStockRef}
                             aria-label="Stock"
-                            style={{ ...stockFieldCell, gridColumn: isSimpleMetalVoucher ? '2 / -1' : undefined }}
+                            style={{ ...stockFieldCell, gridColumn: '2 / -1' }}
                             value={lineForm.stockCode}
                             onChange={(e) => handleStockSelection(e.target.value)}
                             onKeyDown={handleMetalLineNavKeyDown}
@@ -1099,17 +1116,11 @@ export default function VoucherEditorPanel({
                               <option key={option.code} value={option.code}>{option.label}</option>
                             ))}
                           </select>
-                          {!isSimpleMetalVoucher && (
-                            <>
-                              <div style={{ ...stockLabelCell, fontWeight: '700', color: S.ink }}>Location</div>
-                              <input ref={metalLocationRef} aria-label="Location" style={stockFieldCell} value={lineForm.location} onChange={e => setLF('location', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
-                            </>
-                          )}
                           <div style={{ ...stockLabelCell, fontWeight: '700', color: S.ink }}>Product Type</div>
                           <select
                             ref={metalProductRef}
                             aria-label="Product Type"
-                            style={stockFieldCell}
+                            style={{ ...stockFieldCell, gridColumn: '2 / -1' }}
                             value={lineForm.productType}
                             onKeyDown={handleMetalLineNavKeyDown}
                             onChange={(e) => {
@@ -1126,8 +1137,6 @@ export default function VoucherEditorPanel({
                               .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
                             }
                           </select>
-                          <div style={stockLabelCell}>PCS</div>
-                          <input ref={metalPcsRef} aria-label="PCS" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                           <div style={stockLabelCell}>Gross Weight</div>
                           <input ref={metalGrossRef} aria-label="Gross Weight" style={{ ...stockFieldCell, textAlign: 'right', gridColumn: isSimpleMetalVoucher ? '2 / -1' : undefined }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                           {!isSimpleMetalVoucher && (
@@ -1142,6 +1151,8 @@ export default function VoucherEditorPanel({
                               <input ref={metalPurityRef} aria-label="Purity" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                               <div style={stockLabelCell}>Pure Weight</div>
                               <input ref={metalPureRef} aria-label="Pure Weight" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} onKeyDown={handleMetalLineNavKeyDown} />
+                              <div style={stockLabelCell}>PCS</div>
+                              <input ref={metalPcsRef} aria-label="PCS" style={{ ...stockFieldCell, textAlign: 'right', gridColumn: '2 / -1' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                             </>
                           ) : (
                             <>
@@ -1149,13 +1160,15 @@ export default function VoucherEditorPanel({
                               <input ref={metalPureRef} aria-label="Pure Weight" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} onKeyDown={handleMetalLineNavKeyDown} />
                               <div style={stockLabelCell}>Weight In OZ.</div>
                               <input ref={metalOzRef} aria-label="Weight In OZ" style={{ ...stockFieldCell, textAlign: 'right' }} value={lineForm.weightInOz || ((parseFloat(lineForm.pureWeight) || 0) > 0 ? ((parseFloat(lineForm.pureWeight) || 0) / 31.1034768).toFixed(3) : '')} onChange={e => setLF('weightInOz', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                              <div style={stockLabelCell}>PCS</div>
+                              <input ref={metalPcsRef} aria-label="PCS" style={{ ...stockFieldCell, textAlign: 'right', gridColumn: '2 / -1' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} onKeyDown={handleMetalLineNavKeyDown} />
                             </>
                           )}
                         </div>
 
                         {!isSimpleMetalVoucher && (
                         <div style={{ display: 'contents' }}>
-                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr)', alignContent: 'start' }}>
+                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, borderRight: `1px solid ${S.border}`, borderBottom: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', gridAutoRows: 28, alignContent: 'start', minWidth: 0, height: '100%', boxSizing: 'border-box' }}>
                             <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700' }}>Making / Margin</div>
                             <div style={stockLabelCell}>Rate Type</div>
                             <select ref={metalRateTypeRef} aria-label="Making Rate Type" style={stockFieldCell} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} onKeyDown={handleMetalLineNavKeyDown}>
@@ -1171,7 +1184,7 @@ export default function VoucherEditorPanel({
                             <input ref={metalPurityDiffRef} aria-label="Purity Diff" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.001" value={lineForm.purityDiff} onChange={e => setLF('purityDiff', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
                           </div>
 
-                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr)', alignContent: 'start' }}>
+                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, borderRight: `1px solid ${S.border}`, borderBottom: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', gridAutoRows: 28, alignContent: 'start', minWidth: 0, height: '100%', boxSizing: 'border-box' }}>
                             <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700' }}>Premium Values</div>
                             <div style={stockLabelCell}>Currency</div>
                             <select ref={metalPremCurrRef} aria-label="Premium Currency" style={stockFieldCell} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)} onKeyDown={handleMetalLineNavKeyDown}>
@@ -1181,15 +1194,17 @@ export default function VoucherEditorPanel({
                                 <option key={item.code} value={item.code}>{item.code}</option>
                               ))}
                             </select>
+                            <div style={stockLabelCell}>Rate</div>
+                            <input aria-label="Voucher Rate" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.000001" value={header.currRate} onChange={e => handleHeaderCurrRateChange(e.target.value)} onKeyDown={handleMetalLineNavKeyDown} readOnly={formReadOnly || String(header.currCode || baseCurrencyCode).trim().toUpperCase() === String(baseCurrencyCode || 'USD').trim().toUpperCase()} />
                             <div style={stockLabelCell}>Premium</div>
                             <input ref={metalPremiumRef} aria-label="Premium" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.000001" value={lineForm.premiumValue} onChange={e => setLF('premiumValue', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
                             <div style={stockLabelCell}>Total (FC)</div>
-                            <input tabIndex={-1} aria-label="Total FC" style={{ ...stockFieldCell, textAlign: 'right', background: '#F9FAFB' }} readOnly value={lineForm.metalAmount || ''} />
+                            <input tabIndex={-1} aria-label="Total FC" style={{ ...stockFieldCell, textAlign: 'right', background: '#F9FAFB' }} readOnly value={String(header.currCode || '').trim().toUpperCase() !== String(baseCurrencyCode || 'USD').trim().toUpperCase() ? (lineForm.amountFC || '') : (lineForm.metalAmount || '')} />
                             <div style={stockLabelCell}>Total (LC)</div>
                             <input tabIndex={-1} aria-label="Total LC" style={{ ...stockFieldCell, textAlign: 'right', background: '#F9FAFB' }} readOnly value={lineForm.totalAmount || lineForm.amountLC || ''} />
                           </div>
 
-                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) 72px minmax(0, 1fr)', alignContent: 'start', minWidth: 0 }}>
+                          <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, borderRight: `1px solid ${S.border}`, borderBottom: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '78px minmax(0, 1fr) 78px minmax(0, 1fr)', gridAutoRows: 28, alignContent: 'start', minWidth: 0, height: '100%', boxSizing: 'border-box' }}>
                             <div style={{ ...stockLabelCell, gridColumn: '1 / -1', fontWeight: '700' }}>Metal Rate & Amount</div>
                             <div style={stockLabelCell}>Rate Type</div>
                             <input ref={metalRateTypeTextRef} aria-label="Metal Rate Type" style={stockFieldCell} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
@@ -1290,10 +1305,10 @@ export default function VoucherEditorPanel({
               )}
 
               {/* ── Bottom strip: Actions + Remarks + Amount Summary ── */}
-              <div style={{ borderTop: '2px solid #B8BEC8', background: '#F8FAFC', padding: compactHeader ? '0.22rem 0.5rem' : '0.38rem 0.55rem' }}>
-                <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div style={{ borderTop: '2px solid #B8BEC8', background: '#F8FAFC', padding: compactHeader ? '0.18rem 0.45rem' : '0.38rem 0.55rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: '0.4rem', alignItems: 'stretch' }}>
                   {/* Left: Add/Edit/Delete + Remarks */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.28rem', flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.16rem', minWidth: 0, minHeight: 0 }}>
                     {!isReadOnly && !cashSingleView && !showLineForm && (
                       <div style={{ display: 'flex', gap: '0.3rem' }}>
                         <button
@@ -1305,12 +1320,13 @@ export default function VoucherEditorPanel({
                       </div>
                     )}
                     {compactHeader && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', minWidth: 0 }}>
-                        <label htmlFor="voucher-shared-narration" style={classicLabel}>Narration</label>
-                        <input
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.08rem', minWidth: 0, flex: 1, minHeight: 0 }}>
+                        <label htmlFor="voucher-shared-narration" style={{ ...classicLabel, lineHeight: 1.1 }}>Narration</label>
+                        <textarea
                           id="voucher-shared-narration"
                           ref={lineNarrationRef}
-                          style={{ ...classicInput, minHeight: '1.6rem' }}
+                          rows={2}
+                          style={{ ...classicInput, width: '100%', minHeight: '3.2rem', height: '100%', resize: 'none', borderRadius: '2px', padding: '0.28rem 0.4rem', fontSize: '0.78rem', lineHeight: 1.35 }}
                           value={header.narration || ''}
                           onChange={(e) => setHdr('narration', e.target.value)}
                           onKeyDown={isMetalVoucher ? handleMetalLineNavKeyDown : handleCashLineNavKeyDown}
@@ -1321,54 +1337,54 @@ export default function VoucherEditorPanel({
                     )}
                   </div>
                   {/* Right: Amount Summary / Total Summary */}
-                  <div style={{ border: '1px solid #8EA0C5', borderRadius: '0.15rem', background: '#FFFFFF', minWidth: '245px', overflow: 'hidden', flexShrink: 0 }}>
-                    <div style={{ ...(isMetalVoucher ? metalWin.summaryHeader : { background: 'var(--brand-soft)', color: '#374151' }), borderBottom: isMetalVoucher ? `1px solid ${S.greenDark}` : '1px solid #8EA0C5', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{isSimpleMetalVoucher ? 'Total Summary' : 'Amount Summary'}</div>
+                  <div style={{ border: '1px solid #8EA0C5', borderRadius: '0.15rem', background: '#FFFFFF', width: '100%', overflow: 'hidden' }}>
+                    <div style={{ ...(isMetalVoucher ? metalWin.summaryHeader : { background: 'var(--brand-soft)', color: '#374151' }), borderBottom: isMetalVoucher ? `1px solid ${S.greenDark}` : '1px solid #8EA0C5', padding: '0.12rem 0.55rem', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{isSimpleMetalVoucher ? 'Total Summary' : 'Amount Summary'}</div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
                       <tbody>
                         {isSimpleMetalVoucher && (
                           <>
                             <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                              <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Weight :</td>
-                              <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.grossWeightTotal > 0 ? totals.grossWeightTotal.toFixed(3) : '0.000'}</td>
+                              <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Gross Weight :</td>
+                              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{totals.grossWeightTotal > 0 ? totals.grossWeightTotal.toFixed(3) : '0.000'}</td>
                             </tr>
                             <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                              <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Pure Weight :</td>
-                              <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.pureWeightTotal > 0 ? totals.pureWeightTotal.toFixed(3) : '0.000'}</td>
+                              <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Pure Weight :</td>
+                              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{totals.pureWeightTotal > 0 ? totals.pureWeightTotal.toFixed(3) : '0.000'}</td>
                             </tr>
                             <tr style={{ background: '#F1F3F6' }}>
-                              <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>Total PCS :</td>
-                              <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{totals.pcsTotal > 0 ? Math.round(totals.pcsTotal).toLocaleString('en-US') : '0'}</td>
+                              <td style={{ padding: '0.1rem 0.55rem', color: '#111827', fontWeight: '700' }}>Total PCS :</td>
+                              <td style={{ padding: '0.1rem 0.55rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{totals.pcsTotal > 0 ? Math.round(totals.pcsTotal).toLocaleString('en-US') : '0'}</td>
                             </tr>
                           </>
                         )}
                         {!isSimpleMetalVoucher && isMetalVoucher && (
                           <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Metal Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.metalTotal, header.currCode || baseCurrencyCode)}</td>
+                            <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Metal Amount :</td>
+                            <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.metalTotal, header.currCode || baseCurrencyCode)}</td>
                           </tr>
                         )}
                         {!isSimpleMetalVoucher && isMetalVoucher && totals.premiumTotal !== 0 && (
                           <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Premium Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.premiumTotal, header.currCode || baseCurrencyCode)}</td>
+                            <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Premium Amount :</td>
+                            <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.premiumTotal, header.currCode || baseCurrencyCode)}</td>
                           </tr>
                         )}
                         {!isSimpleMetalVoucher && isMetalVoucher && totals.makingTotal !== 0 && (
                           <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Making Charges :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.makingTotal, header.currCode || baseCurrencyCode)}</td>
+                            <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Making Charges :</td>
+                            <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.makingTotal, header.currCode || baseCurrencyCode)}</td>
                           </tr>
                         )}
                         {!isSimpleMetalVoucher && isMetalVoucher && (
                           <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total, header.currCode || baseCurrencyCode)}</td>
+                            <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Gross Amount :</td>
+                            <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total, header.currCode || baseCurrencyCode)}</td>
                           </tr>
                         )}
                         {!isSimpleMetalVoucher && isMetalVoucher && (
                           <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>VAT Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount, header.currCode || baseCurrencyCode)}</td>
+                            <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>VAT Amount :</td>
+                            <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount, header.currCode || baseCurrencyCode)}</td>
                           </tr>
                         )}
                         {!isSimpleMetalVoucher && buildNetAmountRows({
@@ -1377,10 +1393,10 @@ export default function VoucherEditorPanel({
                           voucherNetAmounts,
                         }).map((row) => (
                           <tr key={row.code} style={{ background: '#F1F3F6', borderTop: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>
+                            <td style={{ padding: '0.1rem 0.55rem', color: '#111827', fontWeight: '700' }}>
                               {`Net Amt (${row.code}) :`}
                             </td>
-                            <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(row.amount, row.code)}</td>
+                            <td style={{ padding: '0.1rem 0.55rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(row.amount, row.code)}</td>
                           </tr>
                         ))}
                       </tbody>

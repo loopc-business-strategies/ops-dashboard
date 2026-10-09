@@ -18,11 +18,11 @@ export function resolveMasterUzsPerBase(currencyOptions = []) {
 }
 
 /**
- * UZS rate for a voucher: a UZS receipt/payment uses its own header rate; any other
- * voucher uses the rate saved with it, falling back to today's master rate.
+ * UZS rate for a voucher: a voucher whose currency is UZS uses the rate typed next
+ * to that currency. Any other voucher uses the rate saved with it, then today's master rate.
  */
-export function resolveVoucherUzsPerBase({ isReceiptPayment = false, header = {}, masterUzsPerBase = 0 } = {}) {
-  if (isReceiptPayment && normalizeCode(header.currCode) === SECONDARY_NET_CURRENCY) {
+export function resolveVoucherUzsPerBase({ header = {}, masterUzsPerBase = 0 } = {}) {
+  if (normalizeCode(header.currCode) === SECONDARY_NET_CURRENCY) {
     const headerRate = toNumber(header.currRate)
     if (headerRate > 0) return headerRate
   }
@@ -112,9 +112,9 @@ export function buildNetAmountRows({ voucherCurrency = '', voucherTotal = 0, vou
   }
   rows.push({ code: base, amount: voucherNetAmounts.baseAmount })
   if (voucherNetAmounts.uzsAmount != null) {
-    const showRate = ownCode !== SECONDARY_NET_CURRENCY
-      && voucherNetAmounts.uzsPerBase > 0
+    const showRate = voucherNetAmounts.uzsPerBase > 0
       && voucherNetAmounts.usesRate !== false
+      && (ownCode !== SECONDARY_NET_CURRENCY || voucherNetAmounts.usesRate === true)
     rows.push({
       code: SECONDARY_NET_CURRENCY,
       amount: voucherNetAmounts.uzsAmount,
