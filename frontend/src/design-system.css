@@ -582,6 +582,77 @@ button.tab.on,
 .stat-card-label  { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
 .stat-card-value  { font-size: 30px; font-weight: 800; color: var(--text-primary); line-height: 1; }
 .stat-card-sub    { font-size: 11px; color: var(--text-muted); margin-top: 8px; display: flex; align-items: center; gap: 5px; }
+
+.voucher-type-bar {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 1rem;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+.voucher-type-card {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 3px 7px 3px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: var(--transition);
+}
+.voucher-type-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+}
+.voucher-type-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+.voucher-type-card.active {
+  background: var(--brand-soft);
+  border-color: var(--brand-border);
+  color: var(--brand-dark);
+}
+.voucher-type-card.active::before {
+  background: var(--brand-primary);
+}
+.voucher-type-card-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  flex-shrink: 0;
+}
+.voucher-type-card.active .voucher-type-card-icon {
+  background: #fff;
+}
+@media (max-width: 900px) {
+  .voucher-type-bar { flex-wrap: wrap; }
+  .voucher-type-card { flex: 1 1 148px; }
+}
 .stat-dot         { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .stats-grid       { display: grid; gap: 12px; }
 .stats-grid.cols-4{ grid-template-columns: repeat(4, minmax(0,1fr)); }

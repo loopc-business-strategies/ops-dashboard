@@ -4,7 +4,8 @@ import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
 import { liveRatesToMetalRatesState } from '../../utils/liveMetalRates'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
-import { fmt, S, btn, tabBtn, emptyLine, emptyHeader, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, formatPartyAddress, getInventoryStockMappingOptions, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, isMetalProductTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { fmt, S, btn, emptyLine, emptyHeader, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, formatPartyAddress, getInventoryStockMappingOptions, getAccountCodeValue, isMetalStockVoucherType, isMetalTransferVoucherType, isMetalProductTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import VoucherToolbarIcon from './voucher/VoucherToolbarIcon'
 import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
 import { useVoucherLineAutoCalc } from './voucher/useVoucherLineAutoCalc'
 import { useVoucherLineForm } from './voucher/useVoucherLineForm'
@@ -1446,25 +1447,34 @@ export default function VoucherTab({
       )}
 
       {/* ── Voucher type switcher ── */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="voucher-type-bar" role="tablist">
         {enabledVoucherTypes.map((type) => {
           const tabLabels = {
-            payment: { icon: '💳', label: t('paymentVoucher') },
-            receipt: { icon: '🧾', label: t('receiptVoucher') },
-            purchase: { icon: '🟫', label: 'Metal Purchase' },
-            sale: { icon: '🟨', label: 'Metal Sale' },
-            metal_receipt: { icon: '📥', label: 'Metal Receipt' },
-            metal_payment: { icon: '📤', label: 'Metal Payment' },
-            metal_transfer: { icon: '🔁', label: 'Metal Transfer' },
+            payment: { icon: 'payment', label: t('paymentVoucher') },
+            receipt: { icon: 'receipt', label: t('receiptVoucher') },
+            purchase: { icon: 'purchase', label: 'Metal Purchase' },
+            sale: { icon: 'sale', label: 'Metal Sale' },
+            metal_receipt: { icon: 'metalReceipt', label: 'Metal Receipt' },
+            metal_payment: { icon: 'metalPayment', label: 'Metal Payment' },
+            metal_transfer: { icon: 'metalTransfer', label: 'Metal Transfer' },
           }
           const tab = tabLabels[type] || { icon: '', label: type }
+          const active = voucherType === type
           return (
             <button
               key={type}
-              style={tabBtn(voucherType === type)}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={active ? 'voucher-type-card active' : 'voucher-type-card'}
               onClick={() => switchVoucherTab(type)}
             >
-              {tab.icon ? `${tab.icon} ` : ''}{tab.label}
+              {tab.icon ? (
+                <span className="voucher-type-card-icon">
+                  <VoucherToolbarIcon name={tab.icon} size={11} />
+                </span>
+              ) : null}
+              {tab.label}
             </button>
           )
         })}
