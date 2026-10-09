@@ -856,6 +856,16 @@ export default function VoucherTab({
     openVoucherRef,
   })
 
+  const applyWorkflowResult = (result) => {
+    const posted = result?.transaction
+    if (!posted?._id) return
+    setVouchers((prev) => prev.map((row) => (
+      String(row._id) === String(posted._id)
+        ? { ...row, status: posted.status || row.status }
+        : row
+    )))
+  }
+
   const handleWorkflowAction = async (action) => {
     if (!editingId) return
     if ((action === 'return' || action === 'reject') && !workflowNote.trim()) {
@@ -865,6 +875,19 @@ export default function VoucherTab({
 
     setSaving(true)
     clearError()
+    const previousStatus = vouchers.find((row) => String(row._id) === String(editingId))?.status
+    const showPostedNow = action === 'submit' || action === 'post'
+    if (showPostedNow) {
+      setVouchers((prev) => prev.map((row) => (
+        String(row._id) === String(editingId) ? { ...row, status: 'posted' } : row
+      )))
+    }
+    const restoreStatus = () => {
+      if (!showPostedNow || !previousStatus) return
+      setVouchers((prev) => prev.map((row) => (
+        String(row._id) === String(editingId) ? { ...row, status: previousStatus } : row
+      )))
+    }
     try {
       // All tenants: submit always posts (backend forces postImmediately).
       const requestAction = async (confirmVendorAdvance = false) => runVoucherWorkflowAction(
@@ -878,19 +901,24 @@ export default function VoucherTab({
         },
       )
 
+      let result
       try {
-        await requestAction(false)
+        result = await requestAction(false)
       } catch (e) {
         const needsAdvanceConfirmation = (action === 'submit' || action === 'post')
           && e?.response?.status === 409
           && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
 
         if (!needsAdvanceConfirmation) throw e
-        if (!window.confirm(e.response?.data?.message || 'This payment will create a vendor advance. Continue?')) return
-        await requestAction(true)
+        if (!window.confirm(e.response?.data?.message || 'This payment will create a vendor advance. Continue?')) {
+          restoreStatus()
+          return
+        }
+        result = await requestAction(true)
       }
-      await loadVouchers()
+      applyWorkflowResult(result)
       setWorkflowNote('')
+      void loadVouchers()
       const actionLabel = action === 'submit'
         ? 'submitted and posted'
         : action === 'approve'
@@ -902,6 +930,7 @@ export default function VoucherTab({
               : 'posted'
       showMsg(`Voucher ${actionLabel} successfully`)
     } catch (e) {
+      restoreStatus()
       setError(e.response?.data?.message || `Failed to ${action} voucher`)
     } finally {
       setSaving(false)
@@ -925,6 +954,19 @@ export default function VoucherTab({
 
     setSaving(true)
     clearError()
+    const previousStatus = voucher.status
+    const showPostedNow = action === 'submit' || action === 'post'
+    if (showPostedNow) {
+      setVouchers((prev) => prev.map((row) => (
+        String(row._id) === String(voucher._id) ? { ...row, status: 'posted' } : row
+      )))
+    }
+    const restoreStatus = () => {
+      if (!showPostedNow || !previousStatus) return
+      setVouchers((prev) => prev.map((row) => (
+        String(row._id) === String(voucher._id) ? { ...row, status: previousStatus } : row
+      )))
+    }
     try {
       // All tenants: submit always posts (backend forces postImmediately).
       const requestAction = async (confirmVendorAdvance = false) => runVoucherWorkflowAction(
@@ -938,18 +980,23 @@ export default function VoucherTab({
         },
       )
 
+      let result
       try {
-        await requestAction(false)
+        result = await requestAction(false)
       } catch (e) {
         const needsAdvanceConfirmation = (action === 'submit' || action === 'post')
           && e?.response?.status === 409
           && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
 
         if (!needsAdvanceConfirmation) throw e
-        if (!window.confirm(e.response?.data?.message || 'This payment will create a vendor advance. Continue?')) return
-        await requestAction(true)
+        if (!window.confirm(e.response?.data?.message || 'This payment will create a vendor advance. Continue?')) {
+          restoreStatus()
+          return
+        }
+        result = await requestAction(true)
       }
-      await loadVouchers()
+      applyWorkflowResult(result)
+      void loadVouchers()
       const actionLabel = action === 'submit'
         ? 'submitted and posted'
         : action === 'approve'
@@ -961,6 +1008,7 @@ export default function VoucherTab({
               : 'posted'
       showMsg(`Voucher #${voucher.voucherMeta?.vocNo || '-'} ${actionLabel}`)
     } catch (e) {
+      restoreStatus()
       setError(e.response?.data?.message || `Failed to ${action} voucher`)
     } finally {
       setSaving(false)

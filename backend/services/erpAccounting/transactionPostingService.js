@@ -126,35 +126,43 @@ function createTransactionPostingService(deps) {
     tx.debitAccountId = resolved.debitAccountId
     tx.creditAccountId = resolved.creditAccountId
 
-    // Snapshot balances before any ledger rows for this posting are added/removed (Account Summary sign flips).
+    // Submit posts immediately and does not notify on sign flips. Scanning every
+    // account balance inside the transaction is what made Submit feel slow.
+    const trackAccountSignFlips = !options.fromSubmit
     const watchedAccountIds = new Set()
-    addMongoId(watchedAccountIds, resolved.debitAccountId)
-    addMongoId(watchedAccountIds, resolved.creditAccountId)
-    const preTxLedgerRows = await withSession(Ledger.find({
-      referenceId: tx._id,
-      isDeleted: { $ne: true },
-    }).select('debitAccountId creditAccountId').lean(), session)
-    for (const row of preTxLedgerRows) {
-      addMongoId(watchedAccountIds, row.debitAccountId)
-      addMongoId(watchedAccountIds, row.creditAccountId)
-    }
-    const invPlans = Array.isArray(preparedVoucherImpact?.inventoryPlans) ? preparedVoucherImpact.inventoryPlans : []
-    for (const plan of invPlans) {
-      addMongoId(watchedAccountIds, plan.inventoryAccountId)
-    }
-    addMongoId(watchedAccountIds, preparedVoucherImpact?.cogsAccountId)
-    if (typeof resolveVatPostingAccounts === 'function') {
-      try {
-        const vatPosting = await resolveVatPostingAccounts({ user, tx, resolvedAccounts: resolved, session })
-        addMongoId(watchedAccountIds, vatPosting?.debitAccountId)
-        addMongoId(watchedAccountIds, vatPosting?.creditAccountId)
-      } catch {
-        // VAT resolution is optional for non-VAT voucher types.
-      }
-    }
     const balanceBeforeByAccount = new Map()
-    for (const id of watchedAccountIds) {
-      balanceBeforeByAccount.set(id, Number(await getEnquiryNetBalanceForAccount(id, session) || 0))
+    if (trackAccountSignFlips) {
+      addMongoId(watchedAccountIds, resolved.debitAccountId)
+      addMongoId(watchedAccountIds, resolved.creditAccountId)
+      const preTxLedgerRows = await withSession(Ledger.find({
+        referenceId: tx._id,
+        isDeleted: { $ne: true },
+      }).select('debitAccountId creditAccountId').lean(), session)
+      for (const row of preTxLedgerRows) {
+        addMongoId(watchedAccountIds, row.debitAccountId)
+        addMongoId(watchedAccountIds, row.creditAccountId)
+      }
+      const invPlans = Array.isArray(preparedVoucherImpact?.inventoryPlans) ? preparedVoucherImpact.inventoryPlans : []
+      for (const plan of invPlans) {
+        addMongoId(watchedAccountIds, plan.inventoryAccountId)
+      }
+      addMongoId(watchedAccountIds, preparedVoucherImpact?.cogsAccountId)
+      if (typeof resolveVatPostingAccounts === 'function') {
+        try {
+          const vatPosting = await resolveVatPostingAccounts({ user, tx, resolvedAccounts: resolved, session })
+          addMongoId(watchedAccountIds, vatPosting?.debitAccountId)
+          addMongoId(watchedAccountIds, vatPosting?.creditAccountId)
+        } catch {
+          // VAT resolution is optional for non-VAT voucher types.
+        }
+      }
+      const beforeBalances = await Promise.all([...watchedAccountIds].map(async (id) => [
+        id,
+        Number(await getEnquiryNetBalanceForAccount(id, session) || 0),
+      ]))
+      for (const [id, balance] of beforeBalances) {
+        balanceBeforeByAccount.set(id, balance)
+      }
     }
 
     const skipMainLedger = isMetalTransferType(transactionType) || isMetalProductTransferType(transactionType)
@@ -287,37 +295,41 @@ function createTransactionPostingService(deps) {
     appendTransactionAudit(tx, user, 'post', { fromStatus, toStatus: 'posted', comment: note })
     await tx.save(writeOpts(session))
 
-    const afterLedgerRows = await withSession(Ledger.find({
-      referenceId: tx._id,
-      isDeleted: { $ne: true },
-    }).select('debitAccountId creditAccountId').lean(), session)
-    const afterAccountIds = new Set(watchedAccountIds)
-    for (const row of afterLedgerRows) {
-      addMongoId(afterAccountIds, row.debitAccountId)
-      addMongoId(afterAccountIds, row.creditAccountId)
-    }
-
     const accountSignFlips = []
-    const EPS = 1e-9
-    for (const id of afterAccountIds) {
-      const afterVal = Number(await getEnquiryNetBalanceForAccount(id, session) || 0)
-      let beforeVal
-      if (balanceBeforeByAccount.has(id)) {
-        beforeVal = balanceBeforeByAccount.get(id)
-      } else {
-        const delta = await sumLedgerSignedDeltaForTxOnAccount(tx._id, id, session)
-        beforeVal = afterVal - delta
+    if (trackAccountSignFlips) {
+      const afterLedgerRows = await withSession(Ledger.find({
+        referenceId: tx._id,
+        isDeleted: { $ne: true },
+      }).select('debitAccountId creditAccountId').lean(), session)
+      const afterAccountIds = new Set(watchedAccountIds)
+      for (const row of afterLedgerRows) {
+        addMongoId(afterAccountIds, row.debitAccountId)
+        addMongoId(afterAccountIds, row.creditAccountId)
       }
-      if (beforeVal * afterVal >= -EPS) continue
 
-      const meta = await withSession(ChartOfAccount.findById(id).select('accountCode accountName').lean(), session)
-      accountSignFlips.push({
-        accountId: String(id),
-        accountCode: String(meta?.accountCode || '').trim(),
-        accountName: String(meta?.accountName || '').trim(),
-        beforeBalance: beforeVal,
-        afterBalance: afterVal,
-      })
+      const EPS = 1e-9
+      const afterBalances = await Promise.all([...afterAccountIds].map(async (id) => {
+        const afterVal = Number(await getEnquiryNetBalanceForAccount(id, session) || 0)
+        let beforeVal
+        if (balanceBeforeByAccount.has(id)) {
+          beforeVal = balanceBeforeByAccount.get(id)
+        } else {
+          const delta = await sumLedgerSignedDeltaForTxOnAccount(tx._id, id, session)
+          beforeVal = afterVal - delta
+        }
+        return { id, beforeVal, afterVal }
+      }))
+      for (const { id, beforeVal, afterVal } of afterBalances) {
+        if (beforeVal * afterVal >= -EPS) continue
+        const meta = await withSession(ChartOfAccount.findById(id).select('accountCode accountName').lean(), session)
+        accountSignFlips.push({
+          accountId: String(id),
+          accountCode: String(meta?.accountCode || '').trim(),
+          accountName: String(meta?.accountName || '').trim(),
+          beforeBalance: beforeVal,
+          afterBalance: afterVal,
+        })
+      }
     }
 
     return { transaction: tx, ledgerEntry, accountSignFlips }
