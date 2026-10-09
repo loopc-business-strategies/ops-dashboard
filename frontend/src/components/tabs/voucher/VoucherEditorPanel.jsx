@@ -411,17 +411,22 @@ export default function VoucherEditorPanel({
             }}
             onMouseDown={mode === 'create' ? handleModalHeaderMouseDown : undefined}
           >
-            <div style={{ width: 60 }} />
+            <div style={{ width: 84 }} />
             <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.2px', textShadow: '0 1px 0 rgba(0,0,0,0.28)' }}>
               {voucherLabelT}{header.vocNo ? ` — #${header.vocNo}` : ''}
             </span>
-            <div style={{ display: 'flex', gap: 2 }}>
-              {['─', '□'].map((ch) => (
-                <button key={ch} type="button" style={{ width: 18, height: 15, background: '#F8FAFC', border: '1px solid #6F7B8B', borderTop: '1px solid #EFF3F8', borderLeft: '1px solid #E5EAF1', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#1F2937', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'none' }}>{ch}</button>
-              ))}
+            <div className="voucher-win-controls" style={{ display: 'flex', gap: 4 }}>
+              <button type="button" className="voucher-win-btn" aria-label="Minimize" title="Minimize">
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
+              </button>
+              <button type="button" className="voucher-win-btn" aria-label="Maximize" title="Maximize">
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="2.2" width="7.6" height="7.6" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>
+              </button>
               <button
                 type="button"
+                className="voucher-win-btn voucher-win-btn-close"
                 title="Close"
+                aria-label="Close"
                 onMouseDown={(e) => {
                   if (e.button !== 0) return
                   e.preventDefault()
@@ -431,9 +436,8 @@ export default function VoucherEditorPanel({
                 onClick={(e) => {
                   e.preventDefault()
                 }}
-                style={{ width: 18, height: 15, background: '#FEF2F2', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'none' }}
               >
-                ✕
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3L3 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
               </button>
             </div>
           </div>
