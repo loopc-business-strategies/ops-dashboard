@@ -46,6 +46,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
   const inputRef = useRef(null)
   const listScrollRef = useRef(null)
   const skipBlurCommitRef = useRef(false)
+  const listTouchedRef = useRef(false)
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
@@ -105,26 +106,37 @@ const AccountCombobox = forwardRef(function AccountCombobox({
     node?.scrollIntoView?.({ block: 'nearest' })
   }, [highlightedFlatIndex, useVirtual, open])
 
-  const handleSelect = useCallback((opt) => {
+  const advanceToNextField = useCallback(() => {
+    const target = inputRef.current
+    window.setTimeout(() => {
+      if (typeof onKeyDown === 'function') onKeyDown(makeTabNavEvent(target))
+    }, 0)
+  }, [onKeyDown])
+
+  const handleSelect = useCallback((opt, { advance = false } = {}) => {
     if (!opt) return
     skipBlurCommitRef.current = true
+    listTouchedRef.current = false
     setInputVal(opt.label)
     setQuery('')
     setOpen(false)
     onChange(opt.value, opt.label)
-  }, [onChange])
+    if (advance) advanceToNextField()
+  }, [onChange, advanceToNextField])
 
   const handleInput = (e) => {
     const q = e.target.value
     setInputVal(q)
     setQuery(q)
     setOpen(true)
+    listTouchedRef.current = Boolean(q.trim())
     if (!q.trim()) {
       onChange('', '')
     }
   }
 
   const handleFocus = () => {
+    listTouchedRef.current = false
     setQuery('')
     setOpen(true)
   }
@@ -169,6 +181,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
         return
       }
       if (!optionCount) return
+      listTouchedRef.current = true
       setHighlightIndex((prev) => (prev + 1) % optionCount)
       return
     }
@@ -180,6 +193,7 @@ const AccountCombobox = forwardRef(function AccountCombobox({
         return
       }
       if (!optionCount) return
+      listTouchedRef.current = true
       setHighlightIndex((prev) => (prev - 1 + optionCount) % optionCount)
       return
     }
@@ -209,7 +223,9 @@ const AccountCombobox = forwardRef(function AccountCombobox({
 
     if (e.key === 'Tab') {
       skipBlurCommitRef.current = true
-      commitHighlighted()
+      const picking = listTouchedRef.current || !value
+      if (picking) commitHighlighted()
+      else setOpen(false)
       if (typeof onKeyDown === 'function') onKeyDown(e)
       return
     }
@@ -350,7 +366,7 @@ function HoverOption({ opt, onSelect, optionStyle, highlighted = false, flatInde
       role="option"
       aria-selected={highlighted}
       data-combobox-flat-index={flatIndex}
-      onMouseDown={() => onSelect(opt)}
+      onMouseDown={() => onSelect(opt, { advance: true })}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={optionStyle(highlighted || hovered)}

@@ -45,6 +45,68 @@ describe('AccountCombobox keyboard', () => {
     vi.useRealTimers()
   })
 
+  test('Enter still replaces the current account with the highlighted row', () => {
+    vi.useFakeTimers()
+    const onChange = vi.fn()
+    const onKeyDown = vi.fn()
+    render(
+      <AccountCombobox
+        groups={groups}
+        value="1000"
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+      />,
+    )
+    const input = screen.getByRole('combobox')
+    fireEvent.focus(input)
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledWith('1000', '1000 - Cash on Hand')
+    vi.advanceTimersByTime(0)
+    expect(onKeyDown.mock.calls[0][0].key).toBe('Tab')
+    vi.useRealTimers()
+  })
+
+  test('Tab keeps the current account when the list was only opened', () => {
+    const onChange = vi.fn()
+    const onKeyDown = vi.fn()
+    render(
+      <AccountCombobox
+        groups={groups}
+        value="1000"
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+      />,
+    )
+    const input = screen.getByRole('combobox')
+    fireEvent.focus(input)
+    expect(screen.getByRole('listbox')).toBeTruthy()
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onKeyDown).toHaveBeenCalled()
+    expect(onKeyDown.mock.calls[0][0].key).toBe('Tab')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(input.value).toBe('1000 - Cash on Hand')
+  })
+
+  test('Tab after ArrowDown commits the highlighted account', () => {
+    const onChange = vi.fn()
+    const onKeyDown = vi.fn()
+    render(
+      <AccountCombobox
+        groups={groups}
+        value="1000"
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+      />,
+    )
+    const input = screen.getByRole('combobox')
+    fireEvent.focus(input)
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect(onChange).toHaveBeenCalledWith('100001', '100001 - cash-soms')
+    expect(onKeyDown.mock.calls[0][0].key).toBe('Tab')
+  })
+
   test('Tab commits the first matching account', () => {
     const onChange = vi.fn()
     const onKeyDown = vi.fn()
@@ -87,6 +149,28 @@ describe('AccountCombobox keyboard', () => {
     vi.advanceTimersByTime(200)
     expect(onChange.mock.calls.some(([value]) => value === '1000')).toBe(false)
     expect(onChange).toHaveBeenLastCalledWith('100001', '100001 - cash-soms')
+    vi.useRealTimers()
+  })
+
+  test('a click selects that account and asks the parent to move on', () => {
+    vi.useFakeTimers()
+    const onChange = vi.fn()
+    const onKeyDown = vi.fn()
+    render(
+      <AccountCombobox
+        groups={groups}
+        value="1000"
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+      />,
+    )
+    const input = screen.getByRole('combobox')
+    fireEvent.focus(input)
+    fireEvent.mouseDown(screen.getByRole('option', { name: '100001 - cash-soms' }))
+    expect(onChange).toHaveBeenCalledWith('100001', '100001 - cash-soms')
+    vi.advanceTimersByTime(0)
+    expect(onKeyDown).toHaveBeenCalled()
+    expect(onKeyDown.mock.calls[0][0].key).toBe('Tab')
     vi.useRealTimers()
   })
 
