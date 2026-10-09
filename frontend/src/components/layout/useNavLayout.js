@@ -44,6 +44,10 @@ export function useNavLayout(enabled) {
     })
   }, [])
 
+  const reorderSection = useCallback((orderedKeys, from, to) => {
+    setDraft((d) => ({ ...(d || EMPTY_NAV_LAYOUT), sections: reorderList(orderedKeys, from, to) }))
+  }, [])
+
   const reorderItem = useCallback((group, orderedIds, from, to) => {
     setDraft((d) => {
       const base = d || EMPTY_NAV_LAYOUT
@@ -70,5 +74,5 @@ export function useNavLayout(enabled) {
     }
   }, [draft, saving])
 
-  return { layout, editing, saving, error, startEdit, moveSection, moveItem, reorderItem, reset, save }
+  return { layout, editing, saving, error, startEdit, moveSection, moveItem, reorderSection, reorderItem, reset, save }
 }

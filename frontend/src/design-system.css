@@ -339,7 +339,14 @@ html, body, #root {
 .sidebar-section-head { display: flex; align-items: center; gap: 6px; }
 .sidebar-section-head .sidebar-section-title { flex: 1; min-width: 0; }
 .sidebar-item--edit { cursor: default; gap: 8px; user-select: none; }
-.sidebar-item--dragging { background: rgba(255, 255, 255, 0.22); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); }
+.sidebar-section-block { position: relative; }
+.sidebar-section--edit { display: flex; align-items: center; gap: 2px; padding-right: 8px; }
+.sidebar-section--edit .sidebar-section-label { padding-left: 0; }
+.sidebar-row--dragging {
+  z-index: 3; position: relative; transition: none;
+  background: rgba(255, 255, 255, 0.22); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+.sidebar-row--shift { position: relative; z-index: 1; transition: transform 160ms ease; }
 .sidebar-drag-handle {
   width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -350,7 +357,7 @@ html, body, #root {
 .sidebar-drag-handle:hover, .sidebar-drag-handle:focus-visible {
   color: var(--sidebar-fg); background: rgba(255, 255, 255, 0.14); border-color: var(--sidebar-border);
 }
-.sidebar-item--dragging .sidebar-drag-handle { cursor: grabbing; color: var(--sidebar-fg); }
+.sidebar-row--dragging .sidebar-drag-handle { cursor: grabbing; color: var(--sidebar-fg); }
 .sidebar-customize-title {
   font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--sidebar-fg); margin: 4px 0 6px; padding: 0 12px;

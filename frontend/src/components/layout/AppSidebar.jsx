@@ -1,54 +1,164 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { NavItem } from './navConfig'
-import { NAV_SECTIONS, orderSections } from './navLayout'
+import { NAV_SECTIONS, dragShift, orderSections } from './navLayout'
 
-/** Items of one section with a ☰ handle; dragging (mouse, touch or pen) or ArrowUp/Down on the handle reorders them. */
+/**
+ * Follows the pointer with translateY and slides the other rows aside.
+ * The new order is applied once, on release, so the row does not jump under the cursor.
+ */
+function usePointerReorder(onCommit) {
+  const commitRef = useRef(onCommit)
+  commitRef.current = onCommit
+  const dragRef = useRef(null)
+  const [drag, setDrag] = useState(null)
+
+  useEffect(() => () => dragRef.current?.stopListening?.(), [])
+
+  const begin = (index, clientY, slot, count) => {
+    if (dragRef.current) return
+    const state = {
+      index,
+      startY: clientY,
+      dy: 0,
+      slot: slot || 40,
+      count,
+      shifts: Array.from({ length: count }, () => 0),
+      to: index,
+    }
+    const move = (e) => {
+      const current = dragRef.current
+      if (!current) return
+      const dy = e.clientY - current.startY
+      const slots = current.slot > 0 ? Math.round(dy / current.slot) : 0
+      const { shifts, to } = dragShift(current.count, current.index, slots)
+      const next = { ...current, dy, shifts, to }
+      dragRef.current = next
+      setDrag(next)
+    }
+    const finish = (commit) => {
+      const current = dragRef.current
+      current?.stopListening?.()
+      dragRef.current = null
+      setDrag(null)
+      if (commit && current && current.to !== current.index) commitRef.current(current.index, current.to)
+    }
+    const up = () => finish(true)
+    const cancel = () => finish(false)
+    state.stopListening = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+    }
+    dragRef.current = state
+    setDrag(state)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
+  }
+
+  const rowMotion = (index) => {
+    if (!drag) return { className: '', style: undefined }
+    if (index === drag.index) {
+      return { className: ' sidebar-row--dragging', style: { transform: `translateY(${drag.dy}px)` } }
+    }
+    const slots = drag.shifts[index] || 0
+    if (!slots) return { className: '', style: undefined }
+    return { className: ' sidebar-row--shift', style: { transform: `translateY(${slots * drag.slot}px)` } }
+  }
+
+  return { begin, rowMotion }
+}
+
+function DragHandle({ label, onDragStart, onMoveBy }) {
+  return (
+    <button
+      type="button"
+      className="sidebar-drag-handle"
+      aria-label={`Drag ${label} to change its position`}
+      title="Drag to change position"
+      onPointerDown={(e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return
+        e.preventDefault()
+        e.stopPropagation()
+        onDragStart(e.clientY)
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+        e.preventDefault()
+        onMoveBy(e.key === 'ArrowUp' ? -1 : 1)
+      }}
+    >
+      ☰
+    </button>
+  )
+}
+
+/** Items of one section; the ☰ drags within this section only. */
 function DraggableItems({ items, onReorder, onMoveBy }) {
   const rowRefs = useRef({})
-  const [dragId, setDragId] = useState(null)
-  const ids = items.map((item) => item.id)
+  const { begin, rowMotion } = usePointerReorder((from, to) => {
+    onReorder(items.map((item) => item.id), from, to)
+  })
 
-  const targetIndex = (id, clientY) => ids.reduce((count, other) => {
-    if (other === id) return count
-    const rect = rowRefs.current[other]?.getBoundingClientRect()
-    return rect && clientY > rect.top + rect.height / 2 ? count + 1 : count
-  }, 0)
-
-  return items.map((item, index) => (
-    <div
-      key={item.id}
-      ref={(el) => { rowRefs.current[item.id] = el }}
-      className={`sidebar-item sidebar-item--edit${dragId === item.id ? ' sidebar-item--dragging' : ''}`}
-    >
-      <button
-        type="button"
-        className="sidebar-drag-handle"
-        aria-label={`Drag ${item.label} to change its position`}
-        title="Drag to change position"
-        onPointerDown={(e) => {
-          if (e.pointerType === 'mouse' && e.button !== 0) return
-          e.preventDefault()
-          e.currentTarget.setPointerCapture?.(e.pointerId)
-          setDragId(item.id)
-        }}
-        onPointerMove={(e) => {
-          if (dragId !== item.id) return
-          const to = targetIndex(item.id, e.clientY)
-          if (to !== index) onReorder(ids, index, to)
-        }}
-        onPointerUp={() => setDragId(null)}
-        onPointerCancel={() => setDragId(null)}
-        onKeyDown={(e) => {
-          if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
-          e.preventDefault()
-          onMoveBy(ids, index, e.key === 'ArrowUp' ? -1 : 1)
-        }}
+  return items.map((item, index) => {
+    const motion = rowMotion(index)
+    return (
+      <div
+        key={item.id}
+        ref={(el) => { rowRefs.current[item.id] = el }}
+        className={`sidebar-item sidebar-item--edit${motion.className}`}
+        style={motion.style}
       >
-        ☰
-      </button>
-      <span className="sidebar-item-label truncate">{item.label}</span>
-    </div>
-  ))
+        <DragHandle
+          label={item.label}
+          onDragStart={(clientY) => begin(index, clientY, rowRefs.current[item.id]?.offsetHeight, items.length)}
+          onMoveBy={(delta) => onMoveBy(items.map((row) => row.id), index, delta)}
+        />
+        <span className="sidebar-item-label truncate">{item.label}</span>
+      </div>
+    )
+  })
+}
+
+/** Customize view: ☰ on each section moves the whole block, ☰ on each item moves it inside the section. */
+function CustomizeSections({ ordered, config, groupOf, navLayout }) {
+  const blockRefs = useRef({})
+  const { begin, rowMotion } = usePointerReorder((from, to) => {
+    navLayout.reorderSection(ordered, from, to)
+  })
+
+  return (
+    <>
+      <p className="sidebar-customize-title">Customize navigation</p>
+      {ordered.map((key, index) => {
+        const section = config[key]
+        const motion = rowMotion(index)
+        return (
+          <div
+            key={key}
+            ref={(el) => { blockRefs.current[key] = el }}
+            className={`sidebar-section-block${motion.className}`}
+            style={motion.style}
+          >
+            {index > 0 ? <div className="sidebar-divider" role="separator" /> : null}
+            <div className="sidebar-section--edit">
+              <DragHandle
+                label={`${section.title} section`}
+                onDragStart={(clientY) => begin(index, clientY, blockRefs.current[key]?.offsetHeight, ordered.length)}
+                onMoveBy={(delta) => navLayout.moveSection(ordered, index, delta)}
+              />
+              <span className="sidebar-section-label">{section.title}</span>
+            </div>
+            <DraggableItems
+              items={section.items}
+              onReorder={(ids, from, to) => navLayout.reorderItem(groupOf[key], ids, from, to)}
+              onMoveBy={(ids, itemIndex, delta) => navLayout.moveItem(groupOf[key], ids, itemIndex, delta)}
+            />
+          </div>
+        )
+      })}
+    </>
+  )
 }
 
 /**
@@ -132,23 +242,7 @@ export default function AppSidebar({
 
     if (editing) {
       return (
-        <>
-          <p className="sidebar-customize-title">Customize navigation</p>
-          {ordered.map((key, sectionIndex) => {
-            const section = config[key]
-            return (
-              <React.Fragment key={key}>
-                {sectionIndex > 0 && <div className="sidebar-divider" role="separator" />}
-                <p className="sidebar-section-label">{section.title}</p>
-                <DraggableItems
-                  items={section.items}
-                  onReorder={(ids, from, to) => navLayout.reorderItem(groupOf[key], ids, from, to)}
-                  onMoveBy={(ids, index, delta) => navLayout.moveItem(groupOf[key], ids, index, delta)}
-                />
-              </React.Fragment>
-            )
-          })}
-        </>
+        <CustomizeSections ordered={ordered} config={config} groupOf={groupOf} navLayout={navLayout} />
       )
     }
 

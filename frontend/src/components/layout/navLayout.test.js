@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { applyItemOrder, moveInList, normalizeNavLayout, orderSections, reorderList } from './navLayout'
+import { applyItemOrder, dragShift, moveInList, normalizeNavLayout, orderSections, reorderList } from './navLayout'
 
 const items = (...ids) => ids.map((id) => ({ id }))
 const ids = (list) => list.map((item) => item.id)
@@ -51,6 +51,18 @@ describe('reorderList', () => {
     expect(reorderList(['a', 'b'], 1, 1)).toEqual(['a', 'b'])
     expect(reorderList(['a', 'b'], -1, 0)).toEqual(['a', 'b'])
     expect(reorderList(['a', 'b'], 0, 5)).toEqual(['a', 'b'])
+  })
+})
+
+describe('dragShift', () => {
+  test('slides neighbours down and up', () => {
+    expect(dragShift(4, 0, 2)).toEqual({ shifts: [0, -1, -1, 0], to: 2 })
+    expect(dragShift(4, 3, -2)).toEqual({ shifts: [0, 1, 1, 0], to: 1 })
+  })
+
+  test('clamps at either end', () => {
+    expect(dragShift(3, 0, -5)).toEqual({ shifts: [0, 0, 0], to: 0 })
+    expect(dragShift(3, 2, 4)).toEqual({ shifts: [0, 0, 0], to: 2 })
   })
 })
 

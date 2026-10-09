@@ -53,6 +53,22 @@ export function reorderList(list, from, to) {
   return next
 }
 
+/**
+ * How many slots each row should slide while index `from` is dragged by `deltaSlots`
+ * (positive = down). The dragged row is 0 here; it follows the pointer separately.
+ * `to` is the clamped drop index.
+ */
+export function dragShift(count, from, deltaSlots) {
+  const shifts = Array.from({ length: Math.max(0, count) }, () => 0)
+  if (from < 0 || from >= count) return { shifts, to: from }
+  const to = Math.max(0, Math.min(count - 1, from + deltaSlots))
+  const step = to > from ? -1 : 1
+  for (let i = Math.min(from, to); i <= Math.max(from, to); i += 1) {
+    if (i !== from) shifts[i] = step
+  }
+  return { shifts, to }
+}
+
 export function normalizeNavLayout(raw) {
   const sections = Array.isArray(raw?.sections) ? raw.sections.filter((s) => DEFAULT_SECTION_ORDER.includes(s)) : []
   const items = {}
