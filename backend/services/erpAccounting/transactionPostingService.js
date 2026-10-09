@@ -25,12 +25,30 @@ function createTransactionPostingService(deps) {
   } = deps
   const { withSession, writeOpts } = require('../../utils/mongoTransaction')
   const { roundMoney } = require('../../shared/money')
+  const { applyVoucherLedgerSplit } = require('./voucherLedgerSplit')
 
   const noopAssert = async () => {}
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function' ? assertAccountingPeriodOpen : noopAssert
   const resolveTxDate = typeof effectiveTransactionDate === 'function'
     ? effectiveTransactionDate
     : (tx) => (tx?.voucherMeta?.valueDate || tx?.date || new Date())
+
+  const resolveChartAccountId = async (code, session) => {
+    const key = String(code || '').trim()
+    if (!key) return null
+    if (/^[a-f\d]{24}$/i.test(key)) {
+      const byId = await withSession(ChartOfAccount.findById(key).select('_id'), session)
+      return byId?._id || null
+    }
+    const matches = await withSession(
+      ChartOfAccount.find({ accountCode: key }).sort({ isActive: -1, createdAt: 1, _id: 1 }),
+      session,
+    )
+    const account = matches.find((row) => row.isActive && row.accountType === 'Asset')
+      || matches.find((row) => row.isActive)
+      || matches[0]
+    return account?._id || null
+  }
 
   const addMongoId = (set, id) => {
     if (id == null || id === '') return
@@ -193,6 +211,15 @@ function createTransactionPostingService(deps) {
             transaction: tx,
             referenceType: tx.type,
             session,
+          })
+          await applyVoucherLedgerSplit({
+            tx,
+            ledgerEntry,
+            inventoryPlans: preparedVoucherImpact?.inventoryPlans,
+            resolveAccountId: (code) => resolveChartAccountId(code, session),
+            Ledger,
+            session,
+            writeOpts,
           })
         } else {
           const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
