@@ -49,6 +49,7 @@ export default function VoucherListPanel({
   onOpenFixing = null,
   displayVoucherDocNo,
   erpAdvancedListFiltersEnabled,
+  baseCurrencyCode = 'USD',
 }) {
   const colCount = 7
     + (isSimpleMetalVoucher ? 0 : 2)
@@ -142,6 +143,9 @@ export default function VoucherListPanel({
                 if (!voucher) return null
                 const meta = voucher.voucherMeta || {}
                 const grand = computeVoucherGrandTotal(voucher, voucherType)
+                const grandCurrency = isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher
+                  ? (baseCurrencyCode || 'USD')
+                  : (voucher.currency || baseCurrencyCode || 'USD')
                 const displayStatus = formatVoucherWorkflowStatusLabel(voucher.status, voucher.type || voucherType)
                 const statusStyle = STATUS_COLORS[displayStatus] || STATUS_COLORS[voucher.status] || { bg: '#F3F4F6', color: '#374151' }
                 const saveSubmitOnly = isSaveSubmitOnlyVoucherType(voucher.type || voucherType)
@@ -171,11 +175,11 @@ export default function VoucherListPanel({
                     )}
                     {indicativeNote ? (
                       <td title={indicativeNote.title} style={{ padding: '0.55rem 0.75rem', textAlign: 'right', color: S.muted, fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                        {fmt(grand, voucher.currency)}
+                        {fmt(grand, grandCurrency)}
                         <div style={{ fontSize: '0.7rem', fontWeight: '700', fontStyle: 'normal', color: '#92400E' }}>{indicativeNote.label}</div>
                       </td>
                     ) : (
-                      <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand, voucher.currency)}</td>
+                      <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand, grandCurrency)}</td>
                     )}
                     <td style={{ padding: '0.55rem 0.75rem' }}>
                       <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: statusStyle.bg, color: statusStyle.color }}>

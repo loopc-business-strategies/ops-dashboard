@@ -1524,6 +1524,7 @@ export default function VoucherTab({
           handleRevalueFxJournal={handleRevalueFxJournal}
           onOpenFixing={(voucher) => { clearError(); setFixingVoucher(voucher) }}
           displayVoucherDocNo={resolveDisplayVoucherDocNo}
+          baseCurrencyCode={baseCurrencyCode}
           erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
         />
       )}
