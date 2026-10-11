@@ -159,6 +159,14 @@ export function useVoucherSave({
   const isReceiptPayment = ['receipt', 'payment'].includes(normalizedVoucherType)
   const backendHeaderRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency, isReceiptPayment)
   const requiresReferenceRate = isReceiptPayment && normalizedHeaderCurrency !== String(baseCurrencyCode || 'USD').trim().toUpperCase()
+  // Ref Rate is the rate on the original invoice. Leave it blank and the book rate is used.
+  // The cash rate itself is not the reference, or the exchange difference is always zero.
+  const lineReferenceDisplay = effectiveLineItems
+    .map((line) => Number(line?.referenceRate))
+    .find((rate) => Number.isFinite(rate) && rate > 0)
+  const referenceBackendRate = lineReferenceDisplay
+    ? displayRateToBackendRate(lineReferenceDisplay, normalizedHeaderCurrency, true)
+    : null
   if (requiresReferenceRate && (!Number.isFinite(backendHeaderRate) || backendHeaderRate <= 0)) {
     setError(`Reference exchange rate is required for ${normalizedVoucherType} transactions in ${normalizedHeaderCurrency}`)
     return false
@@ -205,7 +213,7 @@ export function useVoucherSave({
         goldPriceUpdatedAt: latestMetalRates.updatedAt || null,
         ...(Number(voucherUzsPerBase) > 0 ? { uzsPerBase: Number(voucherUzsPerBase) } : {}),
       },
-      ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
+      ...(requiresReferenceRate && referenceBackendRate ? { referenceExchangeRate: referenceBackendRate } : {}),
       ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave && !isProductTransferSave ? {
         fixingType: normalizeVoucherFixingType(header.fixingType),
         metalRate: Number(header.metalRate) || 0,
