@@ -387,7 +387,7 @@ export default function ERPReportsTab({
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.35rem' }}>Purchases and sales</p>
                 <p style={{ margin: '0 0 0.6rem', fontSize: '0.76rem', color: C.inkSoft, lineHeight: 1.35 }}>
-                  Every posted purchase and sale in this period. Sales are in Sales Revenue. The cost of grams already sold is in Cost Of Goods Sold. A purchase still in stock is listed here and stays on the stock account until it is sold.
+                  Every posted purchase and sale in this period. Sales are included in Sales Revenue. Purchases are included in Cost Of Goods Sold.
                 </p>
                 <div style={{ overflowX: 'auto', maxHeight: '320px', overflowY: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
