@@ -421,6 +421,8 @@ describe('ERP accounting transactions workflow', () => {
     expect(Number(saleLedger.amount)).toBe(1500)
     expect(String(cogsLedger.creditAccountId)).toBe(String(inventoryAccount._id))
     expect(Number(cogsLedger.amount)).toBe(500)
+    expect(cogsLedger.currency).toBe('USD')
+    expect(Number(cogsLedger.exchangeRate)).toBe(1)
 
     const secondPostRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)

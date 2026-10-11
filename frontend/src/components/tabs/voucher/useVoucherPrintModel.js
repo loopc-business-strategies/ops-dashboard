@@ -30,6 +30,9 @@ const upperCode = (value) => String(value || '').trim().toUpperCase()
 export function resolvePrintTotals({ voucherType, header, effectiveLineItems, totals, baseCurrencyCode = 'USD' }) {
   const base = upperCode(baseCurrencyCode) || 'USD'
   const headerCode = upperCode(header?.currCode) || base
+  if (['purchase', 'sale', 'metal_receipt', 'metal_payment'].includes(voucherType)) {
+    return { totals, currency: base }
+  }
   if (voucherType !== 'payment' && voucherType !== 'receipt') return { totals, currency: headerCode }
 
   const fcLines = (effectiveLineItems || []).filter((line) => (Number.parseFloat(line?.amountFC) || 0) > 0)

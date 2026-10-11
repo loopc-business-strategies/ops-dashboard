@@ -306,8 +306,10 @@ function createVoucherInventoryImpactService({
         createdBy: user._id,
         updatedBy: user._id,
         department: user.department || tx.department || '',
-        currency: tx.currency || BASE_CURRENCY_CODE,
-        exchangeRate: Number(tx.exchangeRate || 1),
+        // Cost is already in base currency (quantity × unit cost). The voucher
+        // currency is only the party's foreign amount, so it must not convert COGS again.
+        currency: BASE_CURRENCY_CODE,
+        exchangeRate: 1,
       }], writeOpts(session))
     }
   }

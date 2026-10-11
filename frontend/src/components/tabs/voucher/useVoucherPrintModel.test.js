@@ -235,9 +235,9 @@ describe('resolvePrintTotals', () => {
     expect(result.totals.grandTotal).toBeCloseTo(13271.83, 2)
   })
 
-  it('leaves metal vouchers unchanged', () => {
+  it('keeps metal voucher amounts in the base currency when the header is UZS', () => {
     const totals = { grandTotal: 500 }
-    expect(resolvePrintTotals({ voucherType: 'purchase', header: { currCode: 'USD' }, effectiveLineItems: [uzsLine], totals }))
+    expect(resolvePrintTotals({ voucherType: 'purchase', header: { currCode: 'UZS' }, effectiveLineItems: [uzsLine], totals }))
       .toEqual({ totals, currency: 'USD' })
   })
 })
