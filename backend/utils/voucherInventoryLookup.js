@@ -58,9 +58,11 @@ const collectVoucherLineInventoryCandidates = async (line, session = null) => {
   const metalHint = String(line?.metalSymbol || line?.metalName || '').trim()
 
   const directId = line?.inventoryItemId || line?.itemId
+  const productName = String(productType || '').trim().toLowerCase()
   if (directId && /^[a-f\d]{24}$/i.test(String(directId))) {
     const one = await withSession(InventoryItem.findOne({ _id: directId, isDeleted: { $ne: true } }), session)
-    return one ? [one] : []
+    const itemName = String(one?.name || '').trim().toLowerCase()
+    if (one && (!productName || itemName === productName)) return [one]
   }
 
   if (!stockCode && !productType) return []

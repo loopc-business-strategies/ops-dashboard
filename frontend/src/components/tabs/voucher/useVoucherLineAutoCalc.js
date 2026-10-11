@@ -221,7 +221,6 @@ export function useVoucherLineAutoCalc({
       })
       return applyLineAutoCalc({
         ...prev,
-        inventoryItemId: String(product._id),
         stockCode: String(product.sku || normalizedStockCode),
         stockGroup,
         metalSymbol: symbol,
@@ -233,6 +232,8 @@ export function useVoucherLineAutoCalc({
         metalRate: defaultRate > 0 ? String(roundMoney(defaultRate, storedCurrency || resolveLineCurrency(prev))) : '',
         rateType: resolvedRateType,
         currCode: storedCurrency,
+        // The stock row is the metal (GOLD), not the product. Product Type sets the item.
+        inventoryItemId: '',
         vatType,
         vatPer,
         // Reset product when stock changes so Product Type stays aligned to inventory stock type.

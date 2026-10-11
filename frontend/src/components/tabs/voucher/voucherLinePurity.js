@@ -58,11 +58,15 @@ export function resolveCatalogProductForVoucherLine({
 } = {}) {
   const list = Array.isArray(catalogProducts) ? catalogProducts : []
   const id = String(inventoryItemId || '').trim()
-  if (id) {
-    const byId = list.find((item) => String(item?._id || '') === id)
-    if (byId) return byId
-  }
   const name = String(productName || '').trim().toLowerCase()
-  if (!name) return null
-  return list.find((item) => String(item?.name || '').trim().toLowerCase() === name) || null
+  const byId = id ? list.find((item) => String(item?._id || '') === id) : null
+  const byName = name
+    ? list.find((item) => String(item?.name || '').trim().toLowerCase() === name)
+    : null
+  if (byId && byName && String(byId._id) !== String(byName._id)) {
+    const idName = String(byId.name || '').trim().toLowerCase()
+    if (idName !== name) return byName
+    return byId
+  }
+  return byName || byId || null
 }

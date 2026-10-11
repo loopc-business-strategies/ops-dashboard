@@ -61,4 +61,16 @@ describe('voucherLinePurity', () => {
       inventoryItemId: '',
     })?._id).toBe('a1')
   })
+
+  test('resolveCatalogProductForVoucherLine follows the selected name when the stored id is a different product', () => {
+    const catalog = [
+      { _id: 'alloy', name: 'Gold Alloy' },
+      { _id: 'bar', name: 'Gold Bar' },
+    ]
+    expect(resolveCatalogProductForVoucherLine({
+      catalogProducts: catalog,
+      productName: 'Gold Bar',
+      inventoryItemId: 'alloy',
+    })?._id).toBe('bar')
+  })
 })
