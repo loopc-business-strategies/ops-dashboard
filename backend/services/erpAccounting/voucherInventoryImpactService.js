@@ -236,8 +236,10 @@ function createVoucherInventoryImpactService({
       change: movementQty,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
-      valueDelta: isProductTransfer || isUnfixedPurchase ? incomingValue : 0,
-      carriesValue: isUnfixedPurchase,
+      // Remember the book value this stock-in added so an edit or void can
+      // take that value back out of the average cost before the new figures post.
+      valueDelta: isPartyTransfer ? 0 : incomingValue,
+      carriesValue: isUnfixedPurchase || isPartyTransfer || (!isProductTransfer && incomingValue > 0),
       reason: buildStockMovementReason(tx, transactionType),
       actorId: user._id,
       actorName: user.name,

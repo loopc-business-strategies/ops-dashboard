@@ -130,4 +130,54 @@ describe('reverseMetalVoucherStockForVoid', () => {
     expect(Number(after.quantity)).toBe(200)
     expect(Number(after.unitCost)).toBe(131.78)
   })
+
+  test('voiding a fixed purchase removes the voucher amount from average cost', async () => {
+    const user = await User.create({
+      name: 'void-fixed-user',
+      email: 'void-fixed@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: 'gold bar fixed void',
+      sku: 'GOLD-FX-VOID',
+      category: 'recordType=product;mainStock=gold',
+      quantity: 200,
+      unit: 'grams',
+      unitCost: 15,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: item._id,
+      itemName: item.name,
+      change: 100,
+      quantityBefore: 100,
+      quantityAfter: 200,
+      valueDelta: 0,
+      carriesValue: false,
+      reason: 'Voucher purchase (FIXED) #Pur/2026/fixed-void',
+      actorId: user._id,
+      actorName: user.name,
+    })
+
+    await reverseMetalVoucherStockForVoid({
+      tx: {
+        type: 'purchase',
+        voucherMeta: {
+          vocNo: 'Pur/2026/fixed-void',
+          lineItems: [{ inventoryItemId: item._id, amountLC: 1000, grossWeight: 100 }],
+        },
+      },
+      user,
+      StockMovement,
+      InventoryItem,
+      toQty,
+      deleteReason: 'unit test void',
+    })
+
+    const after = await InventoryItem.findById(item._id)
+    expect(Number(after.quantity)).toBe(100)
+    expect(Number(after.unitCost)).toBe(20)
+  })
 })

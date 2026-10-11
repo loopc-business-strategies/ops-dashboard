@@ -163,7 +163,9 @@ export default function VoucherEditorPanel({
     && String(lineForm.currCode || 'USD').toUpperCase() !== baseCurrencyCode
 
   const isProfessionalMetal = isMetalVoucher && !isSimpleMetalVoucher && !isProductTransferVoucher
-  const saveAndSubmitOnly = isProfessionalMetal && currentVoucherStatus !== 'posted'
+  // A posted voucher is already in inventory, the account statement, and the reports.
+  // Saving an edit reverses that posting, so the same save must post the new figures.
+  const saveAndSubmitOnly = currentVoucherStatus === 'posted' || (isProfessionalMetal && currentVoucherStatus !== 'posted')
   const saveCurrentVoucher = () => saveVoucher(saveAndSubmitOnly ? { andSubmit: true } : undefined)
 
   const getProfessionalMetalNavOrder = useCallback(() => ([

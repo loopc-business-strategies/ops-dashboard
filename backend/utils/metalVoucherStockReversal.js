@@ -18,6 +18,31 @@ const {
 
 const toMoney = (n) => Math.round(Number(n || 0) * 100) / 100
 
+function bookedLineAmount(line = {}) {
+  for (const key of ['amountLC', 'totalAmount', 'metalAmount', 'amountWithVAT']) {
+    const amount = Number(line?.[key] || 0)
+    if (Number.isFinite(amount) && amount > 0) return toMoney(amount)
+  }
+  return 0
+}
+
+/**
+ * Older fixed purchases stored no book-value on the movement. The voucher line
+ * still has the amount that was added, so an edit can remove that amount.
+ * A metal receipt added weight with no value and only diluted the average.
+ */
+function inferStockInBookValue(tx, mov) {
+  const type = String(tx?.type || '').toLowerCase()
+  if (type === 'metal_receipt') return { valueDelta: 0, carriesValue: true }
+  if (type !== 'purchase') return { valueDelta: 0, carriesValue: false }
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  const itemId = String(mov?.itemId || '')
+  const matched = lines.filter((line) => String(line?.inventoryItemId || line?.itemId || '') === itemId)
+  const source = matched.length ? matched : (lines.length === 1 ? lines : [])
+  const valueDelta = toMoney(source.reduce((sum, line) => sum + bookedLineAmount(line), 0))
+  return { valueDelta, carriesValue: valueDelta > 0 }
+}
+
 async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, InventoryItem, toQty, deleteReason, session = null }) {
   if (!StockMovement || !InventoryItem || !toQty) return
   const vocNo = String(tx?.voucherMeta?.vocNo || '').trim()
@@ -39,11 +64,17 @@ async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, Invent
     const item = await withSession(InventoryItem.findById(mov.itemId), session)
     if (item && !item.isDeleted) {
       const change = Number(mov.change || 0)
-      const valueDelta = Number(mov.valueDelta || 0)
+      let valueDelta = Number(mov.valueDelta || 0)
+      let carriesValue = Boolean(mov.carriesValue)
+      if (change > 0 && valueDelta === 0 && !carriesValue) {
+        const inferred = inferStockInBookValue(tx, mov)
+        valueDelta = inferred.valueDelta
+        carriesValue = inferred.carriesValue
+      }
       const beforeQty = Number(item.quantity || 0)
       const nextQty = Math.max(0, toQty(beforeQty - change))
 
-      if (valueDelta !== 0 || mov.carriesValue) {
+      if (valueDelta !== 0 || carriesValue) {
         // Undo book-value carried with Metal Transfer To IN (or any valued stock-in movement).
         const beforeValue = beforeQty * Number(item.unitCost || 0)
         const nextValue = Math.max(0, beforeValue - valueDelta)
