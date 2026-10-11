@@ -397,6 +397,39 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
   }
 })
 
+async function listPostedPurchaseAndSaleVouchers({ Transaction, toMoney, buildDateQuery, startDate, endDate }) {
+  const query = {
+    type: { $in: ['purchase', 'sale'] },
+    status: 'posted',
+    isDeleted: { $ne: true },
+  }
+  const dateQuery = buildDateQuery(startDate, endDate)
+  if (dateQuery) query.date = dateQuery
+  const rows = await Transaction.find(query)
+    .select('type date amount currency exchangeRate voucherMeta.vocNo voucherMeta.partyCode voucherMeta.partyName voucherMeta.lineItems.amountLC voucherMeta.lineItems.amountWithVAT')
+    .sort({ date: 1, createdAt: 1 })
+    .lean()
+  const vouchers = rows.map((tx) => {
+    const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+    const lineTotal = lines.reduce((sum, line) => sum + Number(line?.amountLC || line?.amountWithVAT || 0), 0)
+    const amount = lineTotal > 0
+      ? toMoney(lineTotal)
+      : toMoney(Number(tx.amount || 0) * Number(tx.exchangeRate || 1))
+    return {
+      id: String(tx._id),
+      type: tx.type,
+      vocNo: String(tx?.voucherMeta?.vocNo || ''),
+      date: tx.date || null,
+      partyCode: String(tx?.voucherMeta?.partyCode || ''),
+      partyName: String(tx?.voucherMeta?.partyName || ''),
+      amount,
+    }
+  })
+  const totalSales = toMoney(vouchers.filter((row) => row.type === 'sale').reduce((sum, row) => sum + Number(row.amount || 0), 0))
+  const totalPurchases = toMoney(vouchers.filter((row) => row.type === 'purchase').reduce((sum, row) => sum + Number(row.amount || 0), 0))
+  return { vouchers, totalSales, totalPurchases }
+}
+
 router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -437,6 +470,13 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
     const netProfit = currentPeriod.netProfit
     const prevNet = Number(previousPeriod?.netProfit || 0)
     const varianceVsPrevious = previousPeriod ? toMoney(Number(netProfit) - prevNet) : null
+    const metalVouchers = await listPostedPurchaseAndSaleVouchers({
+      Transaction,
+      toMoney,
+      buildDateQuery,
+      startDate,
+      endDate,
+    })
 
     const payload = {
       success: true,
@@ -453,6 +493,7 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
       varianceVsPrevious,
       monthlyComparison: comparisonData.monthlyComparison,
       quarterlyComparison: comparisonData.quarterlyComparison,
+      metalVouchers,
       generatedAt: new Date(),
     }
     return payload

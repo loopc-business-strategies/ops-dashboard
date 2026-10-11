@@ -303,6 +303,14 @@ export function buildReportPdfTable({
         ...expenseRows,
         ['Subtotal', '', 'Total Expense', formatMoney(reports.profitLoss?.totalExpense)],
         ['Total', 'NET', 'Net Profit', formatMoney(reports.profitLoss?.netProfit)],
+        ...(reports.profitLoss?.metalVouchers?.vouchers || []).map((row) => [
+          row.type === 'sale' ? 'Sale' : 'Purchase',
+          row.vocNo || '',
+          [row.partyCode, row.partyName].filter(Boolean).join(' '),
+          formatMoney(row.amount),
+        ]),
+        ['Subtotal', '', 'Total sales', formatMoney(reports.profitLoss?.metalVouchers?.totalSales)],
+        ['Subtotal', '', 'Total purchases', formatMoney(reports.profitLoss?.metalVouchers?.totalPurchases)],
         ...monthlyRows,
       ],
     }

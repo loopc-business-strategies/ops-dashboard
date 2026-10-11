@@ -385,6 +385,41 @@ export default function ERPReportsTab({
                 )}
               </div>
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.35rem' }}>Purchases and sales</p>
+                <p style={{ margin: '0 0 0.6rem', fontSize: '0.76rem', color: C.inkSoft, lineHeight: 1.35 }}>
+                  Every posted purchase and sale in this period. Sales are in Sales Revenue. The cost of grams already sold is in Cost Of Goods Sold. A purchase still in stock is listed here and stays on the stock account until it is sold.
+                </p>
+                <div style={{ overflowX: 'auto', maxHeight: '320px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                        <th style={{ padding: '0.55rem', textAlign: 'left' }}>Type</th>
+                        <th style={{ padding: '0.55rem', textAlign: 'left' }}>Doc No</th>
+                        <th style={{ padding: '0.55rem', textAlign: 'left' }}>Date</th>
+                        <th style={{ padding: '0.55rem', textAlign: 'left' }}>Party</th>
+                        <th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reports.profitLoss?.metalVouchers?.vouchers || []).map((row) => (
+                        <tr key={row.id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                          <td style={{ padding: '0.55rem' }}>{row.type === 'sale' ? 'Sale' : 'Purchase'}</td>
+                          <td style={{ padding: '0.55rem' }}>{row.vocNo}</td>
+                          <td style={{ padding: '0.55rem' }}>{row.date ? String(row.date).slice(0, 10) : ''}</td>
+                          <td style={{ padding: '0.55rem' }}>{[row.partyCode, row.partyName].filter(Boolean).join(' ')}</td>
+                          <td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td>
+                        </tr>
+                      ))}
+                      {(reports.profitLoss?.metalVouchers?.vouchers || []).length === 0 && (
+                        <tr><td colSpan={5} style={{ padding: '0.7rem', color: C.inkSoft }}>No posted purchases or sales in this period.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p style={{ margin: '0.6rem 0 0.15rem', fontWeight: '700' }}>Total sales: {formatMoney(reports.profitLoss?.metalVouchers?.totalSales || 0)}</p>
+                <p style={{ margin: '0.15rem 0 0', fontWeight: '700' }}>Total purchases: {formatMoney(reports.profitLoss?.metalVouchers?.totalPurchases || 0)}</p>
+              </div>
+              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Monthly Comparison</p>
                 <div style={{ overflowX: 'auto', marginBottom: '0.9rem' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
