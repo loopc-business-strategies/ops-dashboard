@@ -174,7 +174,6 @@ export default function VoucherEditorPanel({
     headerCurrRef,
     headerRateRef,
     headerPriceRef,
-    lineNarrationRef,
     metalStockRef,
     metalProductRef,
     metalGrossRef,
@@ -187,6 +186,7 @@ export default function VoucherEditorPanel({
     metalTaxRef,
     metalSaveBtnRef,
     metalClearBtnRef,
+    lineNarrationRef,
     saveVoucherBtnRef,
     cancelVoucherBtnRef,
   ]), [])
@@ -1272,8 +1272,8 @@ export default function VoucherEditorPanel({
                           <div style={{ borderTop: `1px solid ${S.border}`, borderLeft: `1px solid ${S.border}`, borderRight: `1px solid ${S.border}`, borderBottom: `1px solid ${S.border}`, background: S.white, display: 'grid', gridTemplateColumns: '78px minmax(0, 1fr)', gridAutoRows: 28, alignContent: 'start', minWidth: 0, height: 'auto', boxSizing: 'border-box' }}>
                             <div style={stockLabelCell}>Making</div>
                             <input ref={metalMakingRef} aria-label="Making Charges" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.01" value={lineForm.makingCharges} onChange={e => setLF('makingCharges', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
-                            <div style={stockLabelCell}>Premium</div>
-                            <input ref={metalPremiumRef} aria-label="Premium" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.01" value={lineForm.premiumAmount} onChange={e => setLF('premiumAmount', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
+                            <div style={stockLabelCell}>Premium / oz</div>
+                            <input ref={metalPremiumRef} aria-label="Premium" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.01" value={lineForm.premiumValue || ''} onChange={e => setLF('premiumValue', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
                             <div style={stockLabelCell}>Tax</div>
                             <input ref={metalTaxRef} aria-label="Tax" style={{ ...stockFieldCell, textAlign: 'right' }} type="number" step="0.01" value={lineForm.vatAmountLC} onChange={e => setLF('vatAmountLC', e.target.value)} onKeyDown={handleMetalLineNavKeyDown} />
                           </div>

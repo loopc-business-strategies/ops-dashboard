@@ -60,19 +60,23 @@ viteLogger.warn = (msg, options) => {
  * Dev server serves files outside node_modules as raw ESM, so CommonJS shared by the
  * backend (`module.exports`) throws "module is not defined". Builds convert it already.
  */
-const DEV_CJS_SHARED_FILES = ['/backend/shared/money.js']
+const DEV_CJS_SHARED_FILE = /[/\\]backend[/\\]shared[/\\]money\.js$/
+
+function wrapDevCjsShared(code) {
+  return `const module = { exports: {} };\nconst exports = module.exports;\n${code}\nexport default module.exports;\n`
+}
 
 function createDevCjsSharedPlugin() {
   return {
     name: 'dev-cjs-backend-shared',
-    apply: (_config, { command }) => command === 'serve' && !process.env.VITEST,
-    transform(code, id) {
-      const file = id.split('?')[0].replace(/\\/g, '/')
-      if (!DEV_CJS_SHARED_FILES.some((suffix) => file.endsWith(suffix))) return null
-      return {
-        code: `const module = { exports: {} };\nconst exports = module.exports;\n${code}\nexport default module.exports;\n`,
-        map: null,
-      }
+    apply: 'serve',
+    enforce: 'pre',
+    transform: {
+      filter: { id: DEV_CJS_SHARED_FILE },
+      handler(code) {
+        if (process.env.VITEST) return null
+        return { code: wrapDevCjsShared(code), map: null }
+      },
     },
   }
 }

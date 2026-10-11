@@ -42,4 +42,39 @@ describe('useVoucherLineAutoCalc', () => {
     expect(Number(line.amountLC)).toBeCloseTo(1346.5, 1)
     expect(line.amountFC).toBe(String(Math.round(Number(line.amountWithVAT) * 11000)))
   })
+
+  test('the Price field replaces the live line rate', () => {
+    const { result } = renderHook(() => useVoucherLineAutoCalc({
+      token: '',
+      canView: false,
+      voucherType: 'purchase',
+      voucherErpApi: { getInventoryProducts: vi.fn() },
+      showLineForm: false,
+      setLineForm: vi.fn(),
+      headerMetalRate: '4100',
+      baseCurrencyCode: 'USD',
+    }))
+    const line = result.current.applyLineAutoCalc({
+      grossWeight: '100',
+      purity: '1',
+      metalRate: '4194.73',
+      rateType: 'OZ',
+    })
+    expect(line.metalRate).toBe('4100')
+    expect(line.metalAmount).toBe('13181.81')
+  })
+
+  test('premium is a rate per ounce', () => {
+    const { applyLineAutoCalc } = renderAutoCalc()
+    const line = applyLineAutoCalc({
+      grossWeight: '100',
+      purity: '1',
+      metalRate: '4100',
+      rateType: 'OZ',
+      premiumValue: '100',
+    })
+    expect(line.weightInOz).toBe('3.215')
+    expect(line.premiumAmount).toBe('321.51')
+    expect(line.totalAmount).toBe('13503.32')
+  })
 })

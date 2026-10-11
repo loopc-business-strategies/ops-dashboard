@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { resolveLiveVoucherMetalRate } from '../../../utils/liveMetalRates'
 import { parseAmount, roundMoney } from '../../../utils/money'
 import { resolveProductLineVatFields } from './resolveProductLineVat'
 import { resolveProductTypeGrossWeight } from './resolveProductTypeGrossWeight'
@@ -28,18 +27,18 @@ export function useVoucherLineAutoCalc({
   canView,
   voucherType,
   voucherErpApi,
-  latestMetalRates,
   showLineForm,
   setLineForm,
   lineFormGrossWeight,
   lineFormPurity,
   lineFormMetalRate,
   lineFormRateType,
-  lineFormPremiumAmount,
+  lineFormPremiumValue,
   lineFormVatAmount,
   lineFormMakingCharges,
   headerCurrCode = '',
   headerCurrRate = '',
+  headerMetalRate = '',
   baseCurrencyCode = 'USD',
 }) {
   const [inventoryProducts, setInventoryProducts] = useState([])
@@ -68,7 +67,9 @@ export function useVoucherLineAutoCalc({
     const weightInOz = pureWeight > 0 ? pureWeight / 31.1034768 : 0
 
     const rateType = normalizeRateType(next.rateType)
-    const metalRate = parseAmount(next.metalRate) || 0
+    const headerPrice = parseAmount(headerMetalRate) || 0
+    if (headerPrice > 0) next.metalRate = headerMetalRate
+    const metalRate = headerPrice > 0 ? headerPrice : (parseAmount(next.metalRate) || 0)
     const rateQty = rateType === 'GRAM'
       ? pureWeight
       : rateType === 'KG'
@@ -81,7 +82,11 @@ export function useVoucherLineAutoCalc({
     const existingMetalAmount = parseAmount(next.metalAmount) || 0
     const effectiveMetalAmount = computedMetalAmount > 0 ? computedMetalAmount : existingMetalAmount
 
-    const premiumAmount = parseAmount(next.premiumAmount) || 0
+    const hasPremiumRate = String(next.premiumValue ?? '').trim() !== ''
+    const premiumPerOz = hasPremiumRate ? (parseAmount(next.premiumValue) || 0) : 0
+    const premiumAmount = hasPremiumRate
+      ? (weightInOz > 0 && premiumPerOz > 0 ? roundMoney(weightInOz * premiumPerOz, moneyCur) : 0)
+      : (parseAmount(next.premiumAmount) || 0)
     const makingChargesAmt = parseAmount(next.makingCharges) || 0
 
     const baseTotal = roundMoney(effectiveMetalAmount + premiumAmount + makingChargesAmt, moneyCur)
@@ -103,7 +108,7 @@ export function useVoucherLineAutoCalc({
       weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
       metalRate: effectiveMetalRate > 0 ? String(roundMoney(effectiveMetalRate, moneyCur)) : (next.metalRate || ''),
       metalAmount: effectiveMetalAmount > 0 ? String(roundMoney(effectiveMetalAmount, moneyCur)) : '',
-      premiumAmount: next.premiumAmount || '',
+      premiumAmount: premiumAmount > 0 ? String(roundMoney(premiumAmount, moneyCur)) : (hasPremiumRate ? '' : (next.premiumAmount || '')),
       totalAmount: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
       amountLC: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
       amountFC: useHeaderFx && amountWithVAT > 0 ? String(foreignAmount) : (next.amountFC || ''),
@@ -118,7 +123,7 @@ export function useVoucherLineAutoCalc({
       if (Object.prototype.hasOwnProperty.call(next, key)) out[key] = next[key]
     }
     return out
-  }, [baseCurrencyCode, headerCurrCode, headerCurrRate, resolveLineCurrency])
+  }, [baseCurrencyCode, headerCurrCode, headerCurrRate, headerMetalRate, resolveLineCurrency])
 
   const applyProductTypeAutoFill = useCallback((line, productNameOverride) => {
     const productName = String(productNameOverride ?? (line.productType || '')).trim()
@@ -202,11 +207,8 @@ export function useVoucherLineAutoCalc({
     const resolvedRateType = normalizeRateType(storedPriceUnit || 'OZ')
     const storedCurrency = String(fullMeta.priceCurrency || product.currency || 'USD').toUpperCase()
     const productTaxType = String(fullMeta.taxType || 'VAT').trim()
-    const liveRate = resolveLiveVoucherMetalRate(symbol, mainStock, latestMetalRates, resolvedRateType)
-    const storedRate = (voucherType === 'sale' || voucherType === 'metal_payment')
-      ? Number(product.sellingPrice || 0)
-      : Number(product.unitCost || 0)
-    const defaultRate = liveRate > 0 ? liveRate : storedRate
+    const headerPrice = parseAmount(headerMetalRate) || 0
+    const defaultRate = headerPrice
 
     setLineForm((prev) => {
       const { vatType, vatPer } = resolveProductLineVatFields({
@@ -228,7 +230,7 @@ export function useVoucherLineAutoCalc({
         availStock: `${Number(product.quantity || 0).toLocaleString()} ${String(product.unit || '').trim()}`.trim(),
         // Purity is owned by Product Type autofill, not stock mapping fine purity.
         purity: '',
-        metalRate: defaultRate > 0 ? String(roundMoney(defaultRate, storedCurrency || resolveLineCurrency(prev))) : prev.metalRate,
+        metalRate: defaultRate > 0 ? String(roundMoney(defaultRate, storedCurrency || resolveLineCurrency(prev))) : '',
         rateType: resolvedRateType,
         currCode: storedCurrency,
         vatType,
@@ -237,7 +239,7 @@ export function useVoucherLineAutoCalc({
         productType: '',
       })
     })
-  }, [applyLineAutoCalc, inventoryProducts, latestMetalRates, resolveLineCurrency, setLineForm, voucherType])
+  }, [applyLineAutoCalc, headerMetalRate, inventoryProducts, resolveLineCurrency, setLineForm, voucherType])
 
   useEffect(() => {
     if (!canView) return
@@ -263,9 +265,11 @@ export function useVoucherLineAutoCalc({
   useEffect(() => {
     if (!showLineForm || !isMetalStockVoucherType(voucherType)) return
     setLineForm((prev) => {
-      // Preserve metalRate while typing so toFixed does not jump the cursor.
-      const calculated = applyLineAutoCalc(prev, { preserveKeys: ['metalRate', 'grossWeight', 'purity', 'premiumAmount', 'makingCharges', 'vatAmountLC'] })
-      const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'amountFC', 'currRate', 'vatAmountLC', 'vatAmountFC', 'amountWithVAT']
+      const headerPrice = parseAmount(headerMetalRate) || 0
+      const preserveKeys = ['grossWeight', 'purity', 'premiumValue', 'makingCharges', 'vatAmountLC']
+      if (!(headerPrice > 0)) preserveKeys.push('metalRate')
+      const calculated = applyLineAutoCalc(prev, { preserveKeys })
+      const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'premiumAmount', 'totalAmount', 'amountLC', 'amountFC', 'currRate', 'vatAmountLC', 'vatAmountFC', 'amountWithVAT', ...(headerPrice > 0 ? ['metalRate'] : [])]
       const hasChanges = keys.some((key) => String(prev[key] || '') !== String(calculated[key] || ''))
       return hasChanges ? calculated : prev
     })
@@ -276,11 +280,12 @@ export function useVoucherLineAutoCalc({
     lineFormPurity,
     lineFormMetalRate,
     lineFormRateType,
-    lineFormPremiumAmount,
+    lineFormPremiumValue,
     lineFormVatAmount,
     lineFormMakingCharges,
     headerCurrCode,
     headerCurrRate,
+    headerMetalRate,
     applyLineAutoCalc,
     setLineForm,
   ])
