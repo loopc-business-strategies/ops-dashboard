@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { trialBalanceRowsForView } from '../trialBalanceReportRows'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
 import {
@@ -5,6 +6,16 @@ import {
   expenseMonthDateRange,
   REPORT_MONTH_OPTIONS,
 } from '../expenseMonthFilterUtils'
+import {
+  convertReportUsd,
+  defaultReportDisplayOptions,
+  reportCurrencyChoices,
+  reportDisplayPerUsd,
+  reportMoneyColumns,
+  formatReportGrams,
+  trialMoneyHeaders,
+} from '../reportDisplayOptions'
+import { currenciesApi } from '../../../../api/erp-accounting/currencies'
 
 export default function ERPReportsTab({
   activeTab,
@@ -24,11 +35,11 @@ export default function ERPReportsTab({
   reportView,
   setReportView,
   getReportPeriodLabel,
-  formatDirectionalBalance,
+  formatDirectionalBalance: formatDirectionalBalanceBase,
   handleTrialAccountDrilldown,
-  formatMoney,
+  formatMoney: formatMoneyBase,
   handleReportAccountDrilldown,
-  formatMoneyAbs,
+  formatMoneyAbs: formatMoneyAbsBase,
   selectedReportAccountId,
   setSelectedReportAccountId,
   accounts,
@@ -44,7 +55,47 @@ export default function ERPReportsTab({
   handleOpenVoucherSource,
   handleJumpToTransaction,
   baseCurrencyCode = 'USD',
+  currencies = [],
 }) {
+  const [reportOptionsOpen, setReportOptionsOpen] = useState(false)
+  const [reportDisplay, setReportDisplay] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
+  const [reportDisplayDraft, setReportDisplayDraft] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
+  const [loadedCurrencies, setLoadedCurrencies] = useState(currencies)
+  useEffect(() => {
+    if (currencies?.length) {
+      setLoadedCurrencies(currencies)
+      return undefined
+    }
+    let cancelled = false
+    currenciesApi.getCurrencies().then((data) => {
+      if (cancelled) return
+      const list = data?.currencies || (Array.isArray(data) ? data : [])
+      if (list.length) setLoadedCurrencies(list)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [currencies])
+  const displayCurrency = String(reportDisplay.displayCurrency || baseCurrencyCode).toUpperCase()
+  const convertAmount = (value) => convertReportUsd(value, displayCurrency, loadedCurrencies, baseCurrencyCode)
+  const formatMoney = (value, currencyCode) => formatMoneyBase(convertAmount(value), currencyCode || displayCurrency)
+  const formatMoneyAbs = (value, currencyCode) => formatMoneyAbsBase(Math.abs(Number(convertAmount(value) || 0)), currencyCode || displayCurrency)
+  const formatDirectionalBalance = (value, options = {}) => formatDirectionalBalanceBase(convertAmount(value), {
+    ...options,
+    currencyCode: options.currencyCode || displayCurrency,
+  })
+  const moneyColumns = reportMoneyColumns(reportDisplay)
+  const perUsd = reportDisplayPerUsd(displayCurrency, loadedCurrencies, baseCurrencyCode)
+  const currencyChoices = reportCurrencyChoices(loadedCurrencies, baseCurrencyCode)
+  const reportExportDisplay = {
+    formatMoney,
+    formatMoneyAbs,
+    formatReportDirectionalBalance: (row, fallbackDirection = '') => formatDirectionalBalance(row?.balance, {
+      preferredDirection: row?.direction || fallbackDirection,
+    }),
+    columns: { ...moneyColumns, showMetal: reportDisplay.showMetal !== false },
+    convertAmount,
+    displayCurrency,
+    suppressSummary: reportDisplay.suppressSummary,
+  }
   const activeAccounts = filterActiveAccounts(accounts)
   const INCLUDE_ZERO_REPORT_VIEWS = new Set(['trial', 'pnl', 'balanceSheet'])
   const TRIAL_BALANCE_UI_ROW_CAP = 500
@@ -101,7 +152,12 @@ export default function ERPReportsTab({
       {/* REPORTS TAB */}
       {activeTab === 'reports' && (
         <div>
-          <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Reports (Advanced ERP)</h3>
+          <h3 style={{ marginBottom: '0.35rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Reports (Advanced ERP)</h3>
+          {displayCurrency !== String(baseCurrencyCode || 'USD').toUpperCase() && perUsd ? (
+            <p style={{ margin: '0 0 1rem', color: C.inkSoft, fontSize: '0.84rem', fontWeight: '600' }}>
+              Shown in {displayCurrency}. Books stay in {String(baseCurrencyCode || 'USD').toUpperCase()}. 1 {String(baseCurrencyCode || 'USD').toUpperCase()} = {Number(perUsd).toLocaleString(undefined, { maximumFractionDigits: 6 })} {displayCurrency}.
+            </p>
+          ) : <div style={{ marginBottom: '1rem' }} />}
 
           <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', marginBottom: '1rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
@@ -187,16 +243,27 @@ export default function ERPReportsTab({
                 </label>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button onClick={handleExportReportCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', fontWeight: '700', cursor: 'pointer' }}>Export CSV</button>
-                <button onClick={handleExportReportXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Export XLSX</button>
+                <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', fontWeight: '700', cursor: 'pointer' }}>Export CSV</button>
+                <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Export XLSX</button>
                 {reportPdfDownloadEnabled && (
-                  <button onClick={handleExportReportPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Download PDF</button>
+                  <button onClick={() => handleExportReportPdf(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Download PDF</button>
                 )}
-                <button onClick={handlePrintCurrentReport} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', fontWeight: '700', cursor: 'pointer' }}>Print</button>
+                <button onClick={() => handlePrintCurrentReport(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', fontWeight: '700', cursor: 'pointer' }}>Print</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportDisplayDraft(reportDisplay)
+                    setReportOptionsOpen(true)
+                  }}
+                  style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', color: C.ink, fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Report Options
+                </button>
               </div>
             </div>
           </div>
 
+          {!reportDisplay.suppressSummary && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.8rem', marginBottom: '1rem' }}>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, fontWeight: '700' }}>Trial Balance</p>
@@ -235,6 +302,7 @@ export default function ERPReportsTab({
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Impact: {formatMoney(reports.forex?.forexImpact || 0)}</p>
             </div>
           </div>
+          )}
 
           <div style={{ overflowX: 'auto', marginBottom: '1rem', WebkitOverflowScrolling: 'touch' }}>
             <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'nowrap', minWidth: 'min-content', paddingBottom: '2px' }}>
@@ -294,9 +362,15 @@ export default function ERPReportsTab({
                       <th>Code</th>
                       <th>Name</th>
                       <th>Type</th>
-                      <th className="num">Debit</th>
-                      <th className="num">Credit</th>
-                      <th className="num">Net</th>
+                      {trialMoneyHeaders(moneyColumns).map((label) => (
+                        <th key={label} className="num">{label}</th>
+                      ))}
+                      {reportDisplay.showMetal !== false && (
+                        <>
+                          <th className="num">Gold g</th>
+                          <th className="num">Silver g</th>
+                        </>
+                      )}
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -306,11 +380,19 @@ export default function ERPReportsTab({
                           <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
                           <td style={{ padding: '0.6rem' }}>{row.accountName}</td>
                           <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.debit || 0)}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.credit || 0)}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
-                            {formatDirectionalBalance(row.net)}
-                          </td>
+                          {moneyColumns.debit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.debit || 0)}</td>}
+                          {moneyColumns.credit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.credit || 0)}</td>}
+                          {moneyColumns.net && (
+                            <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
+                              {formatDirectionalBalance(row.net)}
+                            </td>
+                          )}
+                          {reportDisplay.showMetal !== false && (
+                            <>
+                              <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatReportGrams(row.goldNet)}</td>
+                              <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatReportGrams(row.silverNet)}</td>
+                            </>
+                          )}
                           <td style={{ padding: '0.6rem' }}>
                             <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
                               Ledger
@@ -690,7 +772,7 @@ export default function ERPReportsTab({
                       <>
                         <p style={{ margin: '0.35rem 0 0' }}>Status: {voucherSource.sourceTransaction.status}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Type: {voucherSource.sourceTransaction.type}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoney(voucherSource.sourceTransaction.amount)} {voucherSource.sourceTransaction.currency || baseCurrencyCode}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoneyBase(voucherSource.sourceTransaction.amount, voucherSource.sourceTransaction.currency || baseCurrencyCode)} {voucherSource.sourceTransaction.currency || baseCurrencyCode}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Customer: {voucherSource.sourceTransaction.customerId?.name || '-'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Vendor: {voucherSource.sourceTransaction.vendorId?.name || '-'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Inventory: {voucherSource.sourceTransaction.inventoryItemId?.sku || voucherSource.sourceTransaction.inventoryItemId?.name || '-'}</p>
@@ -717,6 +799,119 @@ export default function ERPReportsTab({
               </div>
             </div>
           )}
+        </div>
+      )}
+      {reportOptionsOpen && (
+        <div style={modalBackdropStyle} onClick={() => setReportOptionsOpen(false)}>
+          <div
+            style={{ ...modalCardStyle, width: 'min(420px, 100%)', background: '#F3F7F4' }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p style={{ margin: '0 0 0.8rem', fontWeight: '700', color: C.ink }}>Report Options</p>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Display In</label>
+            <select
+              aria-label="Display In"
+              value={reportDisplayDraft.displayCurrency}
+              onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, displayCurrency: event.target.value }))}
+              style={modalInputStyle}
+            >
+              {currencyChoices.map((code) => (
+                <option key={code} value={code}>{code}</option>
+              ))}
+            </select>
+            {reportDisplayDraft.displayCurrency !== String(baseCurrencyCode || 'USD').toUpperCase() && (
+              <p style={{ margin: '-0.2rem 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
+                {(() => {
+                  const rate = reportDisplayPerUsd(reportDisplayDraft.displayCurrency, loadedCurrencies, baseCurrencyCode)
+                  return rate
+                    ? `1 ${String(baseCurrencyCode || 'USD').toUpperCase()} = ${Number(rate).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${reportDisplayDraft.displayCurrency}. One rate for the whole report.`
+                    : 'Currency Master has no rate for this currency.'
+                })()}
+              </p>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0', fontWeight: '600' }}>
+              <input
+                type="checkbox"
+                checked={reportDisplayDraft.showNetOnly}
+                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, showNetOnly: event.target.checked }))}
+              />
+              Show Net Only
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0', fontWeight: '600' }}>
+              <input
+                type="checkbox"
+                checked={reportDisplayDraft.hideNet}
+                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, hideNet: event.target.checked }))}
+              />
+              Hide Net
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0', fontWeight: '600' }}>
+              <input
+                type="checkbox"
+                checked={reportDisplayDraft.suppressSummary}
+                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, suppressSummary: event.target.checked }))}
+              />
+              Suppress Summary
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
+              <input
+                type="checkbox"
+                checked={reportDisplayDraft.showMetal !== false}
+                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, showMetal: event.target.checked }))}
+              />
+              Show Metal
+            </label>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Report To</label>
+            <select
+              aria-label="Report To"
+              value={reportDisplayDraft.reportTo}
+              onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, reportTo: event.target.value }))}
+              style={modalInputStyle}
+            >
+              <option value="screen">Screen</option>
+              <option value="pdf">PDF</option>
+            </select>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setReportOptionsOpen(false)}
+                style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = reportDisplayDraft
+                  setReportDisplay(next)
+                  setReportOptionsOpen(false)
+                  if (next.reportTo !== 'pdf') return
+                  const columns = { ...reportMoneyColumns(next), showMetal: next.showMetal !== false }
+                  const convert = (value) => convertReportUsd(value, next.displayCurrency, loadedCurrencies, baseCurrencyCode)
+                  const money = (value, currencyCode) => formatMoneyBase(convert(value), currencyCode || next.displayCurrency)
+                  const moneyAbs = (value, currencyCode) => formatMoneyAbsBase(Math.abs(Number(convert(value) || 0)), currencyCode || next.displayCurrency)
+                  const directional = (value, options = {}) => formatDirectionalBalanceBase(convert(value), {
+                    ...options,
+                    currencyCode: next.displayCurrency,
+                  })
+                  handleExportReportPdf({
+                    formatMoney: money,
+                    formatMoneyAbs: moneyAbs,
+                    formatReportDirectionalBalance: (row, fallbackDirection = '') => directional(row?.balance, {
+                      preferredDirection: row?.direction || fallbackDirection,
+                    }),
+                    columns,
+                    convertAmount: convert,
+                    displayCurrency: next.displayCurrency,
+                    suppressSummary: next.suppressSummary,
+                  })
+                }}
+                style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: '#4B5563', color: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Go
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

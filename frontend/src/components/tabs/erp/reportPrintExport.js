@@ -15,6 +15,7 @@ import {
   REPORT_PDF_TOTAL_ROW_FILL,
 } from './reportExportHelpers'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
+import { DEFAULT_REPORT_MONEY_COLUMNS, trialMetalHeaders, trialMetalValues, trialMoneyHeaders, trialMoneyValues } from './reportDisplayOptions'
 import { loadPdfTools } from './lazyExportLibs'
 
 function buildReportPrintHead({ reportTitle, periodText, logoMarkup }) {
@@ -38,6 +39,7 @@ function renderReportPdfBody(autoTable, doc, {
   tableMarginLeft,
   tableMarginRight,
   margin,
+  columns,
 }) {
   autoTable(doc, {
     head,
@@ -53,7 +55,7 @@ function renderReportPdfBody(autoTable, doc, {
       halign: 'center',
     },
     alternateRowStyles: { fillColor: [249, 250, 251] },
-    columnStyles: buildReportPdfColumnStyles(reportView, tableWidth),
+    columnStyles: buildReportPdfColumnStyles(reportView, tableWidth, columns),
     margin: { left: tableMarginLeft, right: tableMarginRight, bottom: margin },
     didParseCell: (data) => {
       const rowLabel = String(data.row?.raw?.[0] || '')
@@ -98,6 +100,8 @@ export async function buildReportPrintHtml({
   buildBrandingLogoTag,
   ledgerReportRows = [],
   selectedReportAccountCode = '',
+  columns = DEFAULT_REPORT_MONEY_COLUMNS,
+  suppressSummary = false,
 }) {
   if (!isReportDataReady(reportView, reports, ledgerReportRows)) return null
   const { title, periodText } = buildReportPdfMeta({
@@ -105,6 +109,7 @@ export async function buildReportPrintHtml({
     reports,
     selectedReportAccountCode,
     formatMoney,
+    includeSummary: !suppressSummary,
   })
   const logoMarkup = await buildBrandingLogoTag(branding, 'margin-bottom:10px;')
   const head = buildReportPrintHead({ reportTitle: title, periodText, logoMarkup })
@@ -119,11 +124,11 @@ export async function buildReportPrintHtml({
   if (reportView === 'pnl') {
     return `
         ${head}
-        <div class="summary">
+        ${suppressSummary ? '' : `<div class="summary">
           <div class="card"><div class="card-label">Income</div><div class="card-value">${formatMoney(reports.profitLoss?.totalIncome)}</div></div>
           <div class="card"><div class="card-label">Expense</div><div class="card-value">${formatMoney(reports.profitLoss?.totalExpense)}</div></div>
           <div class="card"><div class="card-label">Net Profit</div><div class="card-value">${formatMoney(reports.profitLoss?.netProfit)}</div></div>
-        </div>
+        </div>`}
         <div class="section"><p class="section-title">Income Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.incomeBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
         <div class="section"><p class="section-title">Expense Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.expenseBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
         <div class="section"><p class="section-title">Purchases and sales</p><table><thead><tr><th>Type</th><th>Doc No</th><th>Date</th><th>Party</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.metalVouchers?.vouchers || []).map((row) => `<tr><td>${row.type === 'sale' ? 'Sale' : 'Purchase'}</td><td>${row.vocNo || ''}</td><td>${row.date ? String(row.date).slice(0, 10) : ''}</td><td>${[row.partyCode, row.partyName].filter(Boolean).join(' ')}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}<tr><td colspan="4">Total sales</td><td class="num">${formatMoney(reports.profitLoss?.metalVouchers?.totalSales)}</td></tr><tr><td colspan="4">Total purchases</td><td class="num">${formatMoney(reports.profitLoss?.metalVouchers?.totalPurchases)}</td></tr></tbody></table></div>
@@ -134,11 +139,11 @@ export async function buildReportPrintHtml({
     const section = (sectionTitle, rows, fallbackDirection) => `<div class="section"><p class="section-title">${sectionTitle}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}</td><td class="num">${formatReportDirectionalBalance(row, fallbackDirection)}</td></tr>`).join('')}</tbody></table></div>`
     return `
         ${head}
-        <div class="summary">
+        ${suppressSummary ? '' : `<div class="summary">
           <div class="card"><div class="card-label">Assets</div><div class="card-value">${formatMoneyAbs(reports.balanceSheet?.totalAssets)}</div></div>
           <div class="card"><div class="card-label">Liabilities + Equity</div><div class="card-value">${formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity)}</div></div>
           <div class="card"><div class="card-label">Working Capital</div><div class="card-value">${formatMoney(reports.balanceSheet?.workingCapital)}</div></div>
-        </div>
+        </div>`}
         ${section('Assets', reports.balanceSheet?.assets || [], 'Dr')}
         ${section('Liabilities', reports.balanceSheet?.liabilities || [], 'Cr')}
         ${section('Equity', reports.balanceSheet?.equity || [], 'Cr')}
@@ -147,12 +152,12 @@ export async function buildReportPrintHtml({
   }
   return `
         ${head}
-        <div class="summary">
+        ${suppressSummary ? '' : `<div class="summary">
           <div class="card"><div class="card-label">Trial Debit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalDebit)}</div></div>
           <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
           <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
-        </div>
-        <div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net</th></tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td><td class="num">${formatMoney(row.debit)}</td><td class="num">${formatMoney(row.credit)}</td><td class="num">${formatMoney(row.net)}</td></tr>`).join('')}</tbody></table></div>
+        </div>`}
+        <div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th>${trialMoneyHeaders(columns).map((label) => `<th class="num">${label}</th>`).join('')}${trialMetalHeaders(columns.showMetal).map((label) => `<th class="num">${label}</th>`).join('')}</tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td>${trialMoneyValues(row, columns, formatMoney).map((value) => `<td class="num">${value}</td>`).join('')}${trialMetalValues(row, columns.showMetal).map((value) => `<td class="num">${value}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
         ${signatureBlock}
       `
 }
@@ -167,6 +172,8 @@ export async function exportReportPdf({
   selectedReportAccountCode,
   formatMoney,
   formatReportDirectionalBalance,
+  columns = DEFAULT_REPORT_MONEY_COLUMNS,
+  suppressSummary = false,
 }) {
   const { jsPDF, autoTable } = await loadPdfTools()
   const margin = REPORT_PDF_MARGIN
@@ -176,6 +183,7 @@ export async function exportReportPdf({
     reports,
     selectedReportAccountCode,
     formatMoney,
+    includeSummary: !suppressSummary,
   })
   const { head, body } = buildReportPdfTable({
     reportView,
@@ -184,6 +192,7 @@ export async function exportReportPdf({
     formatMoney,
     formatReportDirectionalBalance,
     forPdf: true,
+    columns,
   })
 
   const headerOptions = { title, periodText, summaryLines, compact: true }
@@ -201,6 +210,7 @@ export async function exportReportPdf({
     tableMarginLeft: measureLayout.tableMarginLeft,
     tableMarginRight: measureTableMarginRight,
     margin,
+    columns,
   })
 
   const multiPage = measureDoc.internal.getNumberOfPages() > 1
@@ -229,6 +239,7 @@ export async function exportReportPdf({
     tableMarginLeft,
     tableMarginRight,
     margin,
+    columns,
   })
 
   doc.save(`${fileBase}.pdf`)

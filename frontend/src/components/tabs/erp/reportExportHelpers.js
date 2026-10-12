@@ -4,6 +4,13 @@
 
 import { formatAmount } from '../../../utils/money'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
+import {
+  DEFAULT_REPORT_MONEY_COLUMNS,
+  trialMetalHeaders,
+  trialMetalValues,
+  trialMoneyHeaders,
+  trialMoneyValues,
+} from './reportDisplayOptions'
 
 const REPORT_VIEW_LABELS = {
   summary: 'Summary',
@@ -119,9 +126,10 @@ export function renderReportPdfHeader(doc, { title, periodText, summaryLines, co
   return metaY + REPORT_PDF_HEADER_GAP
 }
 
-export function buildReportPdfColumnStyles(reportView, tableWidth) {
+export function buildReportPdfColumnStyles(reportView, tableWidth, columns = DEFAULT_REPORT_MONEY_COLUMNS) {
   const w = tableWidth
   if (reportView === 'trial' || reportView === 'summary') {
+    if (columns?.debit === false || columns?.credit === false || columns?.net === false || columns?.showMetal) return {}
     const fixed = 44 + 48 + 64 + 64 + 64
     return {
       0: { cellWidth: 44 },
@@ -229,6 +237,7 @@ export function buildReportPdfMeta({
   reports = {},
   selectedReportAccountCode = '',
   formatMoney = (value) => formatAmount(value),
+  includeSummary = true,
 } = {}) {
   const titleBase = REPORT_PDF_TITLES[reportView] || 'ERP Report'
   const title = reportView === 'ledger' && selectedReportAccountCode
@@ -237,7 +246,7 @@ export function buildReportPdfMeta({
   const periodText = formatReportPeriodText(reports, reportView)
   const summaryLines = []
 
-  if (reportView === 'trial' || reportView === 'summary') {
+  if (includeSummary && (reportView === 'trial' || reportView === 'summary')) {
     const tb = reports.trialBalance || {}
     summaryLines.push(
       `Total Debit: ${formatMoney(tb.totalDebit || 0)}`,
@@ -245,14 +254,14 @@ export function buildReportPdfMeta({
       `Difference: ${formatMoney(tb.difference || 0)}`,
       `Status: ${tb.balanced ? 'Balanced' : 'Out of balance'}`,
     )
-  } else if (reportView === 'pnl') {
+  } else if (includeSummary && reportView === 'pnl') {
     const pnl = reports.profitLoss || {}
     summaryLines.push(
       `Total Income: ${formatMoney(pnl.totalIncome || 0)}`,
       `Total Expense: ${formatMoney(pnl.totalExpense || 0)}`,
       `Net Profit: ${formatMoney(pnl.netProfit || 0)}`,
     )
-  } else if (reportView === 'balanceSheet') {
+  } else if (includeSummary && reportView === 'balanceSheet') {
     const bs = reports.balanceSheet || {}
     summaryLines.push(
       `Total Assets: ${formatMoney(bs.totalAssets || 0)}`,
@@ -274,17 +283,18 @@ export function buildReportPdfTable({
   formatMoney = (value) => String(value ?? ''),
   formatReportDirectionalBalance = (row, direction) => String(row?.balance ?? direction ?? ''),
   forPdf = false,
+  columns: columnsOption = DEFAULT_REPORT_MONEY_COLUMNS,
 } = {}) {
   if (reportView === 'trial' || reportView === 'summary') {
+    const columns = columnsOption || DEFAULT_REPORT_MONEY_COLUMNS
     return {
-      head: [['Code', 'Account', 'Type', 'Debit', 'Credit', 'Net']],
+      head: [['Code', 'Account', 'Type', ...trialMoneyHeaders(columns), ...trialMetalHeaders(columns.showMetal)]],
       body: trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => [
         row.accountCode,
         row.accountName,
         row.accountType,
-        formatMoney(row.debit),
-        formatMoney(row.credit),
-        formatMoney(row.net),
+        ...trialMoneyValues(row, columns, formatMoney),
+        ...trialMetalValues(row, columns.showMetal),
       ]),
     }
   }
@@ -382,6 +392,9 @@ export function buildReportExportPayload({
   branding = {},
   defaultBranding = {},
   ledgerReportRows = [],
+  columns = DEFAULT_REPORT_MONEY_COLUMNS,
+  convertAmount = (value) => value,
+  displayCurrency = '',
 } = {}) {
   if (!isReportDataReady(reportView, reports, ledgerReportRows)) return null
   const stamp = new Date().toISOString().slice(0, 10)
@@ -395,9 +408,15 @@ export function buildReportExportPayload({
   ]
   if (reportView === 'trial' || reportView === 'summary') {
     const trialRows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
-    const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', 'Debit', 'Credit', 'Net']]
+    const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', ...trialMoneyHeaders(columns), ...trialMetalHeaders(columns.showMetal)]]
     trialRows.forEach((row) => {
-      rows.push([row.accountCode, row.accountName, row.accountType, row.debit, row.credit, row.net])
+      rows.push([
+        row.accountCode,
+        row.accountName,
+        row.accountType,
+        ...trialMoneyValues(row, columns, convertAmount),
+        ...(columns.showMetal ? [row.goldNet || 0, row.silverNet || 0] : []),
+      ])
     })
     const isSummary = reportView === 'summary'
     return {
@@ -409,17 +428,17 @@ export function buildReportExportPayload({
   }
   if (reportView === 'pnl') {
     const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Amount']]
-    ;(reports.profitLoss?.incomeBreakdown || []).forEach((row) => rows.push(['Income', row.accountCode, row.accountName, row.amount]))
-    ;(reports.profitLoss?.expenseBreakdown || []).forEach((row) => rows.push(['Expense', row.accountCode, row.accountName, row.amount]))
-    ;(reports.profitLoss?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Net Profit', row.netProfit]))
+    ;(reports.profitLoss?.incomeBreakdown || []).forEach((row) => rows.push(['Income', row.accountCode, row.accountName, convertAmount(row.amount)]))
+    ;(reports.profitLoss?.expenseBreakdown || []).forEach((row) => rows.push(['Expense', row.accountCode, row.accountName, convertAmount(row.amount)]))
+    ;(reports.profitLoss?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Net Profit', convertAmount(row.netProfit)]))
     return { rows, fileBase: `profit-loss-${stamp}`, sheetName: 'Profit Loss', successLabel: 'Profit & loss' }
   }
   if (reportView === 'balanceSheet') {
     const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Balance', 'Direction', 'Reclassified']]
-    ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, row.balance, row.direction || 'Dr', row.isReclassified ? 'Yes' : 'No']))
-    ;(reports.balanceSheet?.liabilities || []).forEach((row) => rows.push(['Liability', row.accountCode, row.accountName, row.balance, row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
-    ;(reports.balanceSheet?.equity || []).forEach((row) => rows.push(['Equity', row.accountCode, row.accountName, row.balance, row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
-    ;(reports.balanceSheet?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Working Capital', row.workingCapital]))
+    ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, convertAmount(row.balance), row.direction || 'Dr', row.isReclassified ? 'Yes' : 'No']))
+    ;(reports.balanceSheet?.liabilities || []).forEach((row) => rows.push(['Liability', row.accountCode, row.accountName, convertAmount(row.balance), row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
+    ;(reports.balanceSheet?.equity || []).forEach((row) => rows.push(['Equity', row.accountCode, row.accountName, convertAmount(row.balance), row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
+    ;(reports.balanceSheet?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Working Capital', convertAmount(row.workingCapital)]))
     return { rows, fileBase: `balance-sheet-${stamp}`, sheetName: 'Balance Sheet', successLabel: 'Balance sheet' }
   }
   if (reportView === 'dayBook') {
@@ -431,8 +450,8 @@ export function buildReportExportPayload({
         row.description || '',
         row.debitAccountId?.accountCode || '',
         row.creditAccountId?.accountCode || '',
-        row.amount,
-        row.currency || 'USD',
+        convertAmount(row.amount),
+        displayCurrency || row.currency || 'USD',
       ])
     })
     return { rows, fileBase: `day-book-${stamp}`, sheetName: 'Day Book', successLabel: 'Day book' }
@@ -440,23 +459,23 @@ export function buildReportExportPayload({
   if (reportView === 'outstanding') {
     const rows = [...brandingRows, ['Category', 'Name', 'Ledger Code', 'Outstanding', '0-30', '31-60', '61-90', '90+', 'Limit Exceeded']]
     ;(reports.customerOutstanding?.rows || []).forEach((row) => {
-      rows.push(['Customer', row.customerName, row.ledgerAccount?.accountCode || '', row.outstanding, row.aging?.bucket0to30 || 0, row.aging?.bucket31to60 || 0, row.aging?.bucket61to90 || 0, row.aging?.bucket90Plus || 0, row.limitExceeded ? 'Yes' : 'No'])
+      rows.push(['Customer', row.customerName, row.ledgerAccount?.accountCode || '', convertAmount(row.outstanding), convertAmount(row.aging?.bucket0to30 || 0), convertAmount(row.aging?.bucket31to60 || 0), convertAmount(row.aging?.bucket61to90 || 0), convertAmount(row.aging?.bucket90Plus || 0), row.limitExceeded ? 'Yes' : 'No'])
     })
     ;(reports.vendorOutstanding?.rows || []).forEach((row) => {
-      rows.push(['Vendor', row.vendorName, row.ledgerAccount?.accountCode || '', row.outstanding, '', '', '', '', row.outstandingType || ''])
+      rows.push(['Vendor', row.vendorName, row.ledgerAccount?.accountCode || '', convertAmount(row.outstanding), '', '', '', '', row.outstandingType || ''])
     })
     return { rows, fileBase: `outstanding-${stamp}`, sheetName: 'Outstanding', successLabel: 'Outstanding' }
   }
   if (reportView === 'ledger') {
     const rows = [...brandingRows, ['Voucher', 'Date', 'Type', 'Description', 'Debit', 'Credit', 'Running Balance']]
     ledgerReportRows.forEach((row) => {
-      rows.push([String(row.entryId || '').slice(-6).toUpperCase(), new Date(row.date).toLocaleString(), row.referenceType, row.description || '', row.debit || 0, row.credit || 0, row.runningBalance || 0])
+      rows.push([String(row.entryId || '').slice(-6).toUpperCase(), new Date(row.date).toLocaleString(), row.referenceType, row.description || '', convertAmount(row.debit || 0), convertAmount(row.credit || 0), convertAmount(row.runningBalance || 0)])
     })
     return { rows, fileBase: `account-ledger-${stamp}`, sheetName: 'Ledger', successLabel: 'Ledger drilldown' }
   }
   if (reportView === 'forex') {
     const rows = [...brandingRows, ['Currency', 'Entries', 'Impact']]
-    Object.entries(reports.forex?.byCurrency || {}).forEach(([currency, row]) => rows.push([currency, row.count || 0, row.impact || 0]))
+    Object.entries(reports.forex?.byCurrency || {}).forEach(([currency, row]) => rows.push([currency, row.count || 0, convertAmount(row.impact || 0)]))
     return { rows, fileBase: `forex-impact-${stamp}`, sheetName: 'Forex', successLabel: 'Forex report' }
   }
   return null

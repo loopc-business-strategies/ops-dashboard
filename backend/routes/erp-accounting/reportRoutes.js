@@ -57,6 +57,11 @@ const {
 } = require('../../services/erpAccounting/metalMarginPolicy')
 const { createMetalPricingHelpers } = require('./reportRoutesMetalPricing')
 const { resolveRequestTenantKey } = require('../../config/tenants')
+const {
+  accumulateTrialMetalGrams,
+  presentMetalGrams,
+  hasMetalGrams,
+} = require('../../services/erpAccounting/trialBalanceMetalGrams')
 
 function reportTenantKey(req) {
   return resolveRequestTenantKey(req)
@@ -155,6 +160,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       sortBy,
       sortDir,
       minAbsolute,
+      'metal-grams',
     ])
     const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
@@ -225,6 +231,21 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       accountTotals.get(creditKey).credit += amount
     })
 
+    const metalTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      status: 'posted',
+      type: { $in: ['purchase', 'sale', 'metal_receipt', 'metal_payment'] },
+      ...(dateQuery?.$lte ? { date: { $lte: dateQuery.$lte } } : {}),
+    }).select('type date voucherMeta.partyAccountId voucherMeta.partyCode voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration').lean()
+    const accountsByCode = new Map(accountDocs.map((acc) => [String(acc.accountCode || '').trim(), String(acc._id)]))
+    const metalByAccount = accumulateTrialMetalGrams(metalTxs, {
+      accountsById: accountById,
+      accountsByCode,
+      startDate: dateQuery?.$gte || null,
+      endDate: dateQuery?.$lte || null,
+    })
+    const metalForAccount = (accountId) => presentMetalGrams(metalByAccount.get(String(accountId)) || {})
+
     // Totals use unrounded movements; summing cent-rounded rows drifts a cent and flags "unbalanced".
     const unroundedByCode = new Map(Array.from(accountTotals.values()).map((item) => [
       item.account.accountCode,
@@ -237,6 +258,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       debit: toMoney(item.debit),
       credit: toMoney(item.credit),
       net: toMoney(Number(item.openingNet || 0) + item.debit - item.credit),
+      ...metalForAccount(item.account._id),
     }))
 
     if (parseBool(includeZero, false)) {
@@ -254,6 +276,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
             debit: 0,
             credit: 0,
             net: toMoney(opening),
+            ...presentMetalGrams(),
           })
         }
       })
@@ -265,7 +288,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
     if (!parseBool(includeZero, false)) {
       trialBalance = trialBalance.filter((row) => {
         const n = Math.abs(Number(row.net ?? 0))
-        return n > TRIAL_BALANCE_NET_ZERO_EPS
+        return n > TRIAL_BALANCE_NET_ZERO_EPS || hasMetalGrams(row)
       })
     }
 

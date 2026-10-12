@@ -103,6 +103,7 @@ module.exports = {
   stockMovementReferenceType,
   buildStockMovementReason,
   stockMovementReasonPattern,
+  linePureWeight,
   sumVoucherLinePureWeight,
   resolveTransferSignedPureWeight,
 }

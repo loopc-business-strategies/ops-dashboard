@@ -164,13 +164,16 @@ export function useErpExportActions({
     showNotification('✅ Transactions PDF exported')
   }, [transactions, selectedTransactionIds, transactionTypeLabels, baseCurrencyCode, setError, showNotification])
 
-  const handleExportReportCsv = useCallback(() => {
+  const handleExportReportCsv = useCallback((display = {}) => {
     const payload = buildReportExportPayload({
       reportView,
       reports,
       branding,
       defaultBranding,
       ledgerReportRows,
+      columns: display.columns,
+      convertAmount: display.convertAmount,
+      displayCurrency: display.displayCurrency,
     })
     if (!payload) {
       setError(getReportNotReadyMessage(reportView, 'exporting'))
@@ -183,13 +186,16 @@ export function useErpExportActions({
     showNotification(`✅ ${payload.successLabel} CSV exported`)
   }, [reportView, reports, branding, defaultBranding, ledgerReportRows, setError, showNotification])
 
-  const handleExportReportXlsx = useCallback(async () => {
+  const handleExportReportXlsx = useCallback(async (display = {}) => {
     const payload = buildReportExportPayload({
       reportView,
       reports,
       branding,
       defaultBranding,
       ledgerReportRows,
+      columns: display.columns,
+      convertAmount: display.convertAmount,
+      displayCurrency: display.displayCurrency,
     })
     if (!payload) {
       setError(getReportNotReadyMessage(reportView, 'exporting'))
@@ -202,7 +208,7 @@ export function useErpExportActions({
     showNotification(`✅ ${payload.successLabel} XLSX exported`)
   }, [reportView, reports, branding, defaultBranding, ledgerReportRows, setError, showNotification])
 
-  const handlePrintCurrentReport = useCallback(async () => {
+  const handlePrintCurrentReport = useCallback(async (display = {}) => {
     if (!isReportDataReady(reportView, reports, ledgerReportRows)) {
       setError(getReportNotReadyMessage(reportView, 'printing'))
       return
@@ -213,12 +219,14 @@ export function useErpExportActions({
       branding,
       defaultBranding,
       user,
-      formatMoney,
-      formatMoneyAbs,
-      formatReportDirectionalBalance,
+      formatMoney: display.formatMoney || formatMoney,
+      formatMoneyAbs: display.formatMoneyAbs || formatMoneyAbs,
+      formatReportDirectionalBalance: display.formatReportDirectionalBalance || formatReportDirectionalBalance,
       buildBrandingLogoTag,
       ledgerReportRows,
       selectedReportAccountCode,
+      columns: display.columns,
+      suppressSummary: display.suppressSummary,
     })
     if (!body) {
       setError(getReportNotReadyMessage(reportView, 'printing'))
@@ -243,7 +251,7 @@ export function useErpExportActions({
     showNotification,
   ])
 
-  const handleExportReportPdf = useCallback(async () => {
+  const handleExportReportPdf = useCallback(async (display = {}) => {
     if (!isReportDataReady(reportView, reports, ledgerReportRows)) {
       setError(getReportNotReadyMessage(reportView, 'downloading'))
       return
@@ -256,8 +264,10 @@ export function useErpExportActions({
       user,
       ledgerReportRows,
       selectedReportAccountCode,
-      formatMoney,
-      formatReportDirectionalBalance,
+      formatMoney: display.formatMoney || formatMoney,
+      formatReportDirectionalBalance: display.formatReportDirectionalBalance || formatReportDirectionalBalance,
+      columns: display.columns,
+      suppressSummary: display.suppressSummary,
     })
     showNotification('✅ PDF downloaded')
   }, [
