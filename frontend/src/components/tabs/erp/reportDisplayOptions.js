@@ -10,6 +10,29 @@ export function defaultReportDisplayOptions(baseCurrencyCode = 'USD') {
     suppressSummary: false,
     reportTo: 'screen',
     showMetal: true,
+    calculateClosingStock: false,
+  }
+}
+
+export function buildClosingStockTrialRow(revaluation) {
+  if (!revaluation || revaluation.omitted) return null
+  const marketValue = Math.round(Number(revaluation.marketValue || 0) * 100) / 100
+  const gold = (revaluation.metals || []).find((row) => row.metal === 'gold')
+  const silver = (revaluation.metals || []).find((row) => row.metal === 'silver')
+  return {
+    accountCode: '',
+    accountName: 'Closing stock (open metal at live price)',
+    accountType: 'Asset',
+    debit: 0,
+    credit: 0,
+    net: marketValue,
+    goldDebit: 0,
+    goldCredit: 0,
+    goldNet: Number(gold?.netGrams || 0),
+    silverDebit: 0,
+    silverCredit: 0,
+    silverNet: Number(silver?.netGrams || 0),
+    unposted: true,
   }
 }
 
@@ -82,8 +105,8 @@ export function trialMetalValues(row, showMetal = false) {
 
 export function trialMoneyValues(row, columns = DEFAULT_REPORT_MONEY_COLUMNS, format = (value) => value) {
   const values = []
-  if (columns.debit !== false) values.push(format(row?.debit))
-  if (columns.credit !== false) values.push(format(row?.credit))
+  if (columns.debit !== false) values.push(row?.unposted ? '' : format(row?.debit))
+  if (columns.credit !== false) values.push(row?.unposted ? '' : format(row?.credit))
   if (columns.net !== false) values.push(format(row?.net))
   return values
 }

@@ -167,7 +167,7 @@ export function useErpExportActions({
   const handleExportReportCsv = useCallback((display = {}) => {
     const payload = buildReportExportPayload({
       reportView,
-      reports,
+      reports: display.reports || reports,
       branding,
       defaultBranding,
       ledgerReportRows,
@@ -189,7 +189,7 @@ export function useErpExportActions({
   const handleExportReportXlsx = useCallback(async (display = {}) => {
     const payload = buildReportExportPayload({
       reportView,
-      reports,
+      reports: display.reports || reports,
       branding,
       defaultBranding,
       ledgerReportRows,
@@ -209,13 +209,13 @@ export function useErpExportActions({
   }, [reportView, reports, branding, defaultBranding, ledgerReportRows, setError, showNotification])
 
   const handlePrintCurrentReport = useCallback(async (display = {}) => {
-    if (!isReportDataReady(reportView, reports, ledgerReportRows)) {
+    if (!isReportDataReady(reportView, display.reports || reports, ledgerReportRows)) {
       setError(getReportNotReadyMessage(reportView, 'printing'))
       return
     }
     const body = await buildReportPrintHtml({
       reportView,
-      reports,
+      reports: display.reports || reports,
       branding,
       defaultBranding,
       user,
@@ -252,13 +252,13 @@ export function useErpExportActions({
   ])
 
   const handleExportReportPdf = useCallback(async (display = {}) => {
-    if (!isReportDataReady(reportView, reports, ledgerReportRows)) {
+    if (!isReportDataReady(reportView, display.reports || reports, ledgerReportRows)) {
       setError(getReportNotReadyMessage(reportView, 'downloading'))
       return
     }
     await exportReportPdf({
       reportView,
-      reports,
+      reports: display.reports || reports,
       branding,
       defaultBranding,
       user,

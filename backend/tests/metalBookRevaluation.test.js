@@ -1,6 +1,7 @@
 const { describe, expect, test } = require('@jest/globals')
 const {
   accumulateMetalOwedToParties,
+  buildClosingStockTrialRow,
   computeMetalBookRevaluation,
   resolveInventoryItemPureStock,
 } = require('../services/erpAccounting/metalBookRevaluation')
@@ -58,6 +59,24 @@ describe('metal book revaluation', () => {
     })
 
     expect(owed).toEqual({ gold: 20, silver: 1000 })
+  })
+
+  test('builds one unposted trial row from the live market value', () => {
+    const result = computeMetalBookRevaluation({
+      inventoryItems: [goldBar(10)],
+      inventoryBookValue: 100,
+      rates: { goldPrice: 50, silverPrice: 1 },
+    })
+    expect(buildClosingStockTrialRow(result)).toMatchObject({
+      accountName: 'Closing stock (open metal at live price)',
+      accountType: 'Asset',
+      debit: 0,
+      credit: 0,
+      net: 500,
+      goldNet: 10,
+      unposted: true,
+    })
+    expect(buildClosingStockTrialRow(null)).toBeNull()
   })
 
   test('applies item purity and skips metals without a live price', () => {

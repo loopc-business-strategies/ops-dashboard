@@ -50,7 +50,7 @@ const {
   resolveDirectDealCompanyDirection,
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { summarizeVoucherFixingState } = require('../../services/erpAccounting/voucherFixingService')
-const { loadMetalBookRevaluation } = require('../../services/erpAccounting/metalBookRevaluation')
+const { buildClosingStockTrialRow, loadMetalBookRevaluation } = require('../../services/erpAccounting/metalBookRevaluation')
 const {
   computeMarginMetricsRaw,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
@@ -149,6 +149,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       sortBy = 'accountCode',
       sortDir = 'asc',
       minAbsolute = '0',
+      calculateClosingStock = 'false',
     } = req.query
     const cacheKey = reportCache.buildKey([
       reportTenantKey(req),
@@ -335,7 +336,34 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
     }
     return payload
     })
-    res.json(payload)
+
+    const response = {
+      ...payload,
+      trialBalance: Array.isArray(payload.trialBalance) ? [...payload.trialBalance] : [],
+    }
+    if (parseBool(calculateClosingStock, false)) {
+      const endOfPeriod = endDate ? new Date(endDate) : null
+      if (endOfPeriod) endOfPeriod.setHours(23, 59, 59, 999)
+      const valuesToday = !endOfPeriod || Number.isNaN(endOfPeriod.getTime()) || endOfPeriod >= new Date()
+      if (valuesToday) {
+        const metalPositionRevaluation = await loadMetalBookRevaluation({
+          InventoryItem,
+          Ledger,
+          ChartOfAccount,
+          Transaction,
+          DirectDeal,
+          getValuationMetalRate,
+          DEFAULT_METAL_RATES,
+        })
+        const closingRow = buildClosingStockTrialRow(metalPositionRevaluation)
+        if (closingRow) response.trialBalance.push(closingRow)
+        response.rowCount = response.trialBalance.length
+        response.closingStock = { ...metalPositionRevaluation, includedInTotals: false }
+      } else {
+        response.closingStock = { omitted: true, reason: 'past-period' }
+      }
+    }
+    res.json(response)
   } catch (err) {
     respondRouteError(res, err, { tag: 'erp-accounting/reportRoutes' })
   }

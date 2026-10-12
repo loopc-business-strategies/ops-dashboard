@@ -171,10 +171,34 @@ async function loadMetalBookRevaluation({
   })
 }
 
+/** One unposted trial row. Debit and credit stay empty so the posted totals do not move. */
+function buildClosingStockTrialRow(revaluation) {
+  if (!revaluation) return null
+  const marketValue = roundMoney(revaluation.marketValue)
+  const gold = (revaluation.metals || []).find((row) => row.metal === 'gold')
+  const silver = (revaluation.metals || []).find((row) => row.metal === 'silver')
+  return {
+    accountCode: '',
+    accountName: 'Closing stock (open metal at live price)',
+    accountType: 'Asset',
+    debit: 0,
+    credit: 0,
+    net: marketValue,
+    goldDebit: 0,
+    goldCredit: 0,
+    goldNet: roundGrams(gold?.netGrams),
+    silverDebit: 0,
+    silverCredit: 0,
+    silverNet: roundGrams(silver?.netGrams),
+    unposted: true,
+  }
+}
+
 module.exports = {
   parseItemCategory,
   resolveInventoryItemPureStock,
   accumulateMetalOwedToParties,
   computeMetalBookRevaluation,
   loadMetalBookRevaluation,
+  buildClosingStockTrialRow,
 }

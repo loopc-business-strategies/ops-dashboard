@@ -8,6 +8,7 @@ export function trialBalanceRowsForView(reportView, rows) {
   const list = rows || []
   if (reportView !== 'summary') return list
   return list.filter((row) => {
+    if (row?.unposted) return true
     const n = Math.abs(Number(row.net ?? 0))
     return n > TRIAL_BALANCE_AMOUNT_EPS
   })

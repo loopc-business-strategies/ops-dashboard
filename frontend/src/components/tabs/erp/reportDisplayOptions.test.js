@@ -4,6 +4,7 @@ import {
   reportCurrencyChoices,
   reportDisplayPerUsd,
   reportMoneyColumns,
+  buildClosingStockTrialRow,
   formatReportGrams,
   trialMoneyHeaders,
   trialMoneyValues,
@@ -37,6 +38,21 @@ describe('report display options', () => {
     })
     expect(trialMoneyHeaders(reportMoneyColumns({ showNetOnly: true }))).toEqual(['Net'])
     expect(trialMoneyValues({ debit: 10, credit: 4, net: 6 }, reportMoneyColumns({ hideNet: true }), (value) => value)).toEqual([10, 4])
+  })
+
+  it('builds one unposted closing-stock row from the live market value', () => {
+    expect(buildClosingStockTrialRow({
+      marketValue: 500.004,
+      metals: [{ metal: 'gold', netGrams: 10 }, { metal: 'silver', netGrams: -2 }],
+    })).toMatchObject({
+      accountName: 'Closing stock (open metal at live price)',
+      net: 500,
+      goldNet: 10,
+      silverNet: -2,
+      debit: 0,
+      unposted: true,
+    })
+    expect(buildClosingStockTrialRow({ omitted: true })).toBeNull()
   })
 
   it('prints gold and silver nets as grams with Dr or Cr', () => {

@@ -67,6 +67,7 @@ export function useErpReports({
           includeZero,
           sortBy: reportFilters.sortBy,
           sortDir: reportFilters.sortDir,
+          ...(reportFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
         })
       }
       if (targetView === 'pnl') {

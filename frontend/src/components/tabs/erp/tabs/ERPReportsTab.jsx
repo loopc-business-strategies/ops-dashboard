@@ -12,10 +12,13 @@ import {
   reportCurrencyChoices,
   reportDisplayPerUsd,
   reportMoneyColumns,
+  buildClosingStockTrialRow,
   formatReportGrams,
   trialMoneyHeaders,
 } from '../reportDisplayOptions'
 import { currenciesApi } from '../../../../api/erp-accounting/currencies'
+import { reportsApi } from '../../../../api/erp-accounting/reports'
+import { buildErpReportDateRange } from '../useErpReportsController'
 
 export default function ERPReportsTab({
   activeTab,
@@ -61,6 +64,7 @@ export default function ERPReportsTab({
   const [reportDisplay, setReportDisplay] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [reportDisplayDraft, setReportDisplayDraft] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [loadedCurrencies, setLoadedCurrencies] = useState(currencies)
+  const [closingStockFallback, setClosingStockFallback] = useState(null)
   useEffect(() => {
     if (currencies?.length) {
       setLoadedCurrencies(currencies)
@@ -74,6 +78,34 @@ export default function ERPReportsTab({
     }).catch(() => {})
     return () => { cancelled = true }
   }, [currencies])
+  useEffect(() => {
+    const apiRow = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
+    if (!reportDisplay.calculateClosingStock || apiRow) {
+      setClosingStockFallback(null)
+      return undefined
+    }
+    let cancelled = false
+    const { commonRange } = buildErpReportDateRange(reportFilters)
+    reportsApi.getProfitLossReport(null, {
+      ...commonRange,
+      includeZero: 'false',
+      comparePrevious: 'false',
+    }).then((data) => {
+      if (cancelled) return
+      setClosingStockFallback(data?.metalPositionRevaluation || { omitted: true, reason: data?.period ? 'past-period' : 'unavailable' })
+    }).catch(() => {
+      if (!cancelled) setClosingStockFallback({ omitted: true, reason: 'unavailable' })
+    })
+    return () => { cancelled = true }
+  }, [
+    reportDisplay.calculateClosingStock,
+    reports.trialBalance,
+    reportFilters.period,
+    reportFilters.startDate,
+    reportFilters.endDate,
+    reportFilters.reportYear,
+    reportFilters.reportMonth,
+  ])
   const displayCurrency = String(reportDisplay.displayCurrency || baseCurrencyCode).toUpperCase()
   const convertAmount = (value) => convertReportUsd(value, displayCurrency, loadedCurrencies, baseCurrencyCode)
   const formatMoney = (value, currencyCode) => formatMoneyBase(convertAmount(value), currencyCode || displayCurrency)
@@ -85,6 +117,26 @@ export default function ERPReportsTab({
   const moneyColumns = reportMoneyColumns(reportDisplay)
   const perUsd = reportDisplayPerUsd(displayCurrency, loadedCurrencies, baseCurrencyCode)
   const currencyChoices = reportCurrencyChoices(loadedCurrencies, baseCurrencyCode)
+  const apiHasClosingStock = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
+  const closingStockSource = apiHasClosingStock
+    ? reports.trialBalance?.closingStock
+    : closingStockFallback
+  const closingStockRow = reportDisplay.calculateClosingStock && !apiHasClosingStock
+    ? buildClosingStockTrialRow(closingStockSource)
+    : null
+  const trialSourceRows = closingStockRow
+    ? [...(reports.trialBalance?.trialBalance || []), closingStockRow]
+    : (reports.trialBalance?.trialBalance || [])
+  const reportsForExport = closingStockRow
+    ? {
+      ...reports,
+      trialBalance: {
+        ...reports.trialBalance,
+        trialBalance: trialSourceRows,
+        closingStock: closingStockSource,
+      },
+    }
+    : reports
   const reportExportDisplay = {
     formatMoney,
     formatMoneyAbs,
@@ -95,6 +147,7 @@ export default function ERPReportsTab({
     convertAmount,
     displayCurrency,
     suppressSummary: reportDisplay.suppressSummary,
+    reports: reportsForExport,
   }
   const activeAccounts = filterActiveAccounts(accounts)
   const INCLUDE_ZERO_REPORT_VIEWS = new Set(['trial', 'pnl', 'balanceSheet'])
@@ -109,7 +162,7 @@ export default function ERPReportsTab({
     return `Price: saved rate (${formatRateTime(rateUpdatedAt)})`
   }
 
-  const trialBalanceForView = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
+  const trialBalanceForView = trialBalanceRowsForView(reportView, trialSourceRows)
   const trialBalanceFiltered = trialBalanceForView.filter((row) => {
     const q = String(reportFilters.search || '').toLowerCase().trim()
     if (!q) return true
@@ -376,12 +429,12 @@ export default function ERPReportsTab({
                   </thead>
                   <tbody>
                     {trialBalanceShown.map((row) => (
-                        <tr key={`${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                        <tr key={row.unposted ? 'closing-stock' : `${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
                           <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
                           <td style={{ padding: '0.6rem' }}>{row.accountName}</td>
                           <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
-                          {moneyColumns.debit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.debit || 0)}</td>}
-                          {moneyColumns.credit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatMoney(row.credit || 0)}</td>}
+                          {moneyColumns.debit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.debit || 0)}</td>}
+                          {moneyColumns.credit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.credit || 0)}</td>}
                           {moneyColumns.net && (
                             <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
                               {formatDirectionalBalance(row.net)}
@@ -394,15 +447,27 @@ export default function ERPReportsTab({
                             </>
                           )}
                           <td style={{ padding: '0.6rem' }}>
-                            <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
-                              Ledger
-                            </button>
+                            {row.unposted ? (
+                              <span style={{ color: C.inkSoft, fontSize: '0.78rem' }}>Not posted</span>
+                            ) : (
+                              <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
+                                Ledger
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
                   </tbody>
                 </table>
               </div>
+              {reportDisplay.calculateClosingStock && (
+                <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
+                  {closingStockSource?.omitted
+                    ? 'Closing stock uses today\'s live price, so a period that has already ended stays on the posted books.'
+                    : `Closing stock is the open metal position at today's live price. Book value already in the trial: ${formatMoney(closingStockSource?.inventoryBookValue || 0)}. Revaluation ${formatMoney(closingStockSource?.adjustment || 0)} is not posted and is left out of the trial debit and credit totals.`}
+                  {closingStockSource && !closingStockSource.omitted ? ` ${formatValuationPriceSource(closingStockSource)}` : ''}
+                </p>
+              )}
             </div>
           )}
 
@@ -861,6 +926,14 @@ export default function ERPReportsTab({
               />
               Show Metal
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(reportDisplayDraft.calculateClosingStock)}
+                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, calculateClosingStock: event.target.checked }))}
+              />
+              Calculate Closing Stock
+            </label>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Report To</label>
             <select
               aria-label="Report To"
@@ -884,6 +957,7 @@ export default function ERPReportsTab({
                 onClick={() => {
                   const next = reportDisplayDraft
                   setReportDisplay(next)
+                  setReportFilters((prev) => ({ ...prev, calculateClosingStock: Boolean(next.calculateClosingStock) }))
                   setReportOptionsOpen(false)
                   if (next.reportTo !== 'pdf') return
                   const columns = { ...reportMoneyColumns(next), showMetal: next.showMetal !== false }
