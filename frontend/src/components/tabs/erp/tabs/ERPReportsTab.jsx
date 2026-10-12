@@ -13,6 +13,7 @@ import {
   reportDisplayPerUsd,
   reportMoneyColumns,
   buildClosingStockTrialRow,
+  filterTrialRowsByGroup,
   formatReportGrams,
   trialMoneyHeaders,
 } from '../reportDisplayOptions'
@@ -124,10 +125,13 @@ export default function ERPReportsTab({
   const closingStockRow = reportDisplay.calculateClosingStock && !apiHasClosingStock
     ? buildClosingStockTrialRow(closingStockSource)
     : null
-  const trialSourceRows = closingStockRow
-    ? [...(reports.trialBalance?.trialBalance || []), closingStockRow]
-    : (reports.trialBalance?.trialBalance || [])
-  const reportsForExport = closingStockRow
+  const trialSourceRows = filterTrialRowsByGroup(
+    closingStockRow
+      ? [...(reports.trialBalance?.trialBalance || []), closingStockRow]
+      : (reports.trialBalance?.trialBalance || []),
+    reportDisplay.selectedGroup,
+  )
+  const reportsForExport = (closingStockRow || reportDisplay.selectedGroup)
     ? {
       ...reports,
       trialBalance: {
@@ -400,6 +404,11 @@ export default function ERPReportsTab({
                       Accounts with a non-zero balance or movement in this period. Use Trial Balance for the full chart including zero-balance lines.
                     </p>
                   )}
+                  {reportDisplay.selectedGroup ? (
+                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: C.inkSoft }}>
+                      Showing {reportDisplay.selectedGroup} accounts only.
+                    </p>
+                  ) : null}
                 </div>
                 <input placeholder="Search account code/name" value={reportFilters.search} onChange={(e) => setReportFilters((prev) => ({ ...prev, search: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0, width: '260px' }} />
               </div>
@@ -934,6 +943,19 @@ export default function ERPReportsTab({
               />
               Calculate Closing Stock
             </label>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', margin: '0.45rem 0 0.3rem' }}>Show Selected Group</label>
+            <select
+              aria-label="Show Selected Group"
+              value={reportDisplayDraft.selectedGroup || ''}
+              onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, selectedGroup: event.target.value }))}
+              style={modalInputStyle}
+            >
+              <option value="">All</option>
+              <option value="debtor">Debtor</option>
+              <option value="creditor">Creditor</option>
+              <option value="cash">Cash</option>
+              <option value="bank">Bank</option>
+            </select>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Report To</label>
             <select
               aria-label="Report To"

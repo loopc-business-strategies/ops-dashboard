@@ -5,6 +5,7 @@ import {
   reportDisplayPerUsd,
   reportMoneyColumns,
   buildClosingStockTrialRow,
+  filterTrialRowsByGroup,
   formatReportGrams,
   trialMoneyHeaders,
   trialMoneyValues,
@@ -53,6 +54,22 @@ describe('report display options', () => {
       unposted: true,
     })
     expect(buildClosingStockTrialRow({ omitted: true })).toBeNull()
+  })
+
+  it('keeps one trial group from the account name', () => {
+    const rows = [
+      { accountName: 'test (Debtor)' },
+      { accountName: 'supplier (Creditor)' },
+      { accountName: 'Cash on Hand' },
+      { accountName: 'NATIONAL BANK OF UZBEKISTAN-USD', accountType: 'Asset' },
+      { accountName: 'Bank charges', accountType: 'Expense' },
+      { accountName: 'Exchange Gain', accountType: 'Income' },
+      { accountName: 'Closing stock (open metal at live price)', unposted: true },
+    ]
+    expect(filterTrialRowsByGroup(rows, 'debtor').map((row) => row.accountName)).toEqual(['test (Debtor)'])
+    expect(filterTrialRowsByGroup(rows, 'bank').map((row) => row.accountName)).toEqual(['NATIONAL BANK OF UZBEKISTAN-USD'])
+    expect(filterTrialRowsByGroup(rows, 'cash').map((row) => row.accountName)).toEqual(['Cash on Hand'])
+    expect(filterTrialRowsByGroup(rows, '')).toHaveLength(7)
   })
 
   it('prints gold and silver nets as grams with Dr or Cr', () => {

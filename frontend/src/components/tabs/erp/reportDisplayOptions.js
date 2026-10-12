@@ -11,6 +11,7 @@ export function defaultReportDisplayOptions(baseCurrencyCode = 'USD') {
     reportTo: 'screen',
     showMetal: true,
     calculateClosingStock: false,
+    selectedGroup: '',
   }
 }
 
@@ -34,6 +35,25 @@ export function buildClosingStockTrialRow(revaluation) {
     silverNet: Number(silver?.netGrams || 0),
     unposted: true,
   }
+}
+
+export function reportAccountGroup(row = {}) {
+  if (row?.unposted) return ''
+  const name = String(row?.accountName || '')
+  if (/\(debtor\)|\bdebtor\b/i.test(name)) return 'debtor'
+  if (/\(creditor\)|\bcreditor\b/i.test(name)) return 'creditor'
+  const type = String(row?.accountType || '').trim().toLowerCase()
+  if (type === 'income' || type === 'expense') return ''
+  const lower = name.toLowerCase()
+  if (lower.includes('bank')) return 'bank'
+  if (lower.includes('cash')) return 'cash'
+  return ''
+}
+
+export function filterTrialRowsByGroup(rows = [], group = '') {
+  const selected = String(group || '').trim().toLowerCase()
+  if (!selected) return rows
+  return rows.filter((row) => reportAccountGroup(row) === selected)
 }
 
 export function reportDisplayPerUsd(displayCurrency, currencies = [], baseCurrency = 'USD') {
