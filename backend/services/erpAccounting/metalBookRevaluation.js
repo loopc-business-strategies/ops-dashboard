@@ -43,9 +43,10 @@ function resolveInventoryItemPureStock(item = {}) {
 }
 
 /** Grams owed to parties (positive = in the party's favour), by metal. */
-function accumulateMetalOwedToParties({ unfixedVouchers = [], transfers = [], directDeals = [] } = {}) {
+function accumulateMetalOwedToParties({ unfixedVouchers = [], transfers = [], directDeals = [], excludeHedging = false } = {}) {
   const owed = createEmptyMetalPosition()
   for (const tx of unfixedVouchers) {
+    if (excludeHedging && tx?.voucherMeta?.hedge) continue
     addOpenUnfixedVoucherWeight(owed, tx, { valuation: true })
   }
   for (const tx of transfers) {
@@ -75,13 +76,14 @@ function computeMetalBookRevaluation({
   transfers = [],
   directDeals = [],
   rates = {},
+  excludeHedging = false,
 } = {}) {
   const stock = createEmptyMetalPosition()
   for (const item of inventoryItems) {
     const held = resolveInventoryItemPureStock(item)
     if (held) stock[held.metal] += held.grams
   }
-  const owed = accumulateMetalOwedToParties({ unfixedVouchers, transfers, directDeals })
+  const owed = accumulateMetalOwedToParties({ unfixedVouchers, transfers, directDeals, excludeHedging })
   const prices = { gold: Number(rates.goldPrice || 0), silver: Number(rates.silverPrice || 0) }
 
   const metals = VALUED_METALS.map((metal) => {
@@ -116,6 +118,7 @@ async function loadMetalBookRevaluation({
   DirectDeal,
   getValuationMetalRate,
   DEFAULT_METAL_RATES,
+  excludeHedging = false,
 }) {
   const [inventoryItems, unfixedVouchers, transfers, directDeals, latestRate] = await Promise.all([
     InventoryItem.find({ isDeleted: { $ne: true } }).select('category quantity ledgerAccountId').lean(),
@@ -127,7 +130,7 @@ async function loadMetalBookRevaluation({
         { metalFixStatus: { $in: UNFIXED_STATUSES } },
         { 'voucherMeta.fixingType': { $in: UNFIXED_STATUSES } },
       ],
-    }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean(),
+    }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.hedge voucherMeta.lineItems voucherMeta.fixings').lean(),
     Transaction.find({
       type: { $in: ['metal_receipt', 'metal_payment'] },
       status: 'posted',
@@ -168,6 +171,7 @@ async function loadMetalBookRevaluation({
     transfers,
     directDeals,
     rates: latestRate || DEFAULT_METAL_RATES || {},
+    excludeHedging,
   })
 }
 

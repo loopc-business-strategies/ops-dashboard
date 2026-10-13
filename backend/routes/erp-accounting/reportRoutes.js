@@ -364,6 +364,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
           DirectDeal,
           getValuationMetalRate,
           DEFAULT_METAL_RATES,
+          excludeHedging: skipHedgedGrams,
         })
         const closingRow = buildClosingStockTrialRow(metalPositionRevaluation)
         if (closingRow) response.trialBalance.push(closingRow)

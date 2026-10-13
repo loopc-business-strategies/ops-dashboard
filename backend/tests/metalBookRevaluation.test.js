@@ -61,6 +61,24 @@ describe('metal book revaluation', () => {
     expect(owed).toEqual({ gold: 20, silver: 1000 })
   })
 
+  test('leaves a hedged unfixed purchase out of the open metal when hedging is excluded', () => {
+    const hedged = {
+      type: 'purchase',
+      voucherMeta: { fixingType: 'unfixed', hedge: true, lineItems: [{ pureWeight: 10, stockCode: 'GOLD' }] },
+    }
+    const open = {
+      type: 'purchase',
+      voucherMeta: { fixingType: 'unfixed', lineItems: [{ pureWeight: 4, stockCode: 'GOLD' }] },
+    }
+    const rates = { goldPrice: 50, silverPrice: 0 }
+    const included = computeMetalBookRevaluation({ unfixedVouchers: [hedged, open], rates })
+    const excluded = computeMetalBookRevaluation({ unfixedVouchers: [hedged, open], rates, excludeHedging: true })
+    expect(included.metals.find((row) => row.metal === 'gold').owedGrams).toBe(14)
+    expect(excluded.metals.find((row) => row.metal === 'gold')).toMatchObject({ owedGrams: 4, netGrams: -4 })
+    expect(excluded.marketValue).toBe(-200)
+    expect(buildClosingStockTrialRow(excluded).goldNet).toBe(-4)
+  })
+
   test('builds one unposted trial row from the live market value', () => {
     const result = computeMetalBookRevaluation({
       inventoryItems: [goldBar(10)],
