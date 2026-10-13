@@ -226,8 +226,9 @@ export function statementExchangeSomGap(entry = {}, relatedEntries = [], { displ
 /**
  * Display-currency amounts for one statement row.
  * In a foreign currency, a voucher keeps the soms that were entered, and an
- * exchange gain or loss is the som gap beside that voucher (book-rate soms
- * minus the soms entered), in the debit or credit column.
+ * exchange gain or loss shows the som gap in the debit or credit column.
+ * That gap is already inside the receipt and payment soms, so the line does
+ * not move the foreign running balance. The dollar statement still does.
  */
 export function withStatementDisplayAmounts(entry = {}, { displayCurrency = '', baseCurrency = 'USD', convert = (value) => value, relatedEntries = [] } = {}) {
   const signedBase = Number(entry?.signedAmount || 0)
@@ -249,8 +250,8 @@ export function withStatementDisplayAmounts(entry = {}, { displayCurrency = '', 
       ...entry,
       displayDebitAmount: exchangeSigned > 0 ? magnitude : 0,
       displayCreditAmount: exchangeSigned < 0 ? magnitude : 0,
-      displaySignedAmount: exchangeSigned,
-      displayFxAdjustment: exchangeSigned - converted,
+      displaySignedAmount: 0,
+      displayFxAdjustment: -converted,
       displayExchangeDifference: isGain ? -magnitude : magnitude,
     }
   }

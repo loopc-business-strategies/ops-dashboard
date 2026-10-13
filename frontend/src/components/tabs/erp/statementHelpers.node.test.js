@@ -541,7 +541,7 @@ describe('statement display-currency amounts', () => {
     })
     expect(row.displayCreditAmount).toBe(1100000)
     expect(row.displayDebitAmount).toBe(0)
-    expect(row.displaySignedAmount).toBe(-1100000)
+    expect(row.displaySignedAmount).toBe(0)
     expect(row.suppressDisplayAmount).toBeUndefined()
     const receipt = withStatementDisplayAmounts(receiptSource, { displayCurrency: 'UZS', baseCurrency: 'USD', convert: toUzs })
     expect(receipt.displayDebitAmount).toBe(11000000)
@@ -551,8 +551,8 @@ describe('statement display-currency amounts', () => {
     ]
     const closing = toUzs(1000 - 90.91) + rows.reduce((sum, entry) => sum + entry.displayFxAdjustment, 0)
     stampStatementDisplayRunningBalances(rows, closing)
-    expect(closing).toBeCloseTo(11000000 - 1100000, 2)
-    expect(rows[0].displayRunningBalance).toBeCloseTo(closing, 2)
+    expect(closing).toBeCloseTo(11000000, 2)
+    expect(rows[0].displayRunningBalance).toBeCloseTo(11000000, 2)
     expect(rows[1].displayRunningBalance).toBeCloseTo(11000000, 2)
     const paymentFx = withStatementDisplayAmounts(
       {
@@ -576,6 +576,7 @@ describe('statement display-currency amounts', () => {
       },
     )
     expect(paymentFx.displayCreditAmount).toBe(9000)
+    expect(paymentFx.displaySignedAmount).toBe(0)
     const usdRow = withStatementDisplayAmounts(
       {
         _id: 'fx-usd',
