@@ -72,6 +72,7 @@ export function buildErpReportRequestKey({ targetView, commonRange, reportFilter
     referenceType: reportFilters.referenceType,
     minAmount: reportFilters.minAmount,
     calculateClosingStock: Boolean(reportFilters.calculateClosingStock),
+    showClosedAccounts: Boolean(reportFilters.showClosedAccounts),
   })
 }
 
@@ -130,6 +131,7 @@ export function useErpReportsController({
     referenceType: reportFilters.referenceType,
     minAmount: reportFilters.minAmount,
     calculateClosingStock: Boolean(reportFilters.calculateClosingStock),
+    showClosedAccounts: Boolean(reportFilters.showClosedAccounts),
   }), [
     reportFilters.accountType,
     reportFilters.comparePrevious,
@@ -144,6 +146,7 @@ export function useErpReportsController({
     reportFilters.sortDir,
     reportFilters.startDate,
     reportFilters.calculateClosingStock,
+    reportFilters.showClosedAccounts,
   ])
   const ledgerDateFilters = useMemo(() => ({
     period: reportFilters.period,
@@ -196,6 +199,7 @@ export function useErpReportsController({
             sortBy: reportQueryFilters.sortBy,
             sortDir: reportQueryFilters.sortDir,
             ...(reportQueryFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
+            ...(reportQueryFilters.showClosedAccounts ? { showClosedAccounts: 'true' } : {}),
           })
         }
         if (targetView === 'pnl') {

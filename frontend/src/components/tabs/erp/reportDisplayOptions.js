@@ -11,6 +11,7 @@ export function defaultReportDisplayOptions(baseCurrencyCode = 'USD') {
     reportTo: 'screen',
     showMetal: true,
     calculateClosingStock: false,
+    showClosedAccounts: false,
     selectedGroup: '',
   }
 }

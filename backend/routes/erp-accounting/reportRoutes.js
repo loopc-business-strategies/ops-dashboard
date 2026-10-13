@@ -150,7 +150,9 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       sortDir = 'asc',
       minAbsolute = '0',
       calculateClosingStock = 'false',
+      showClosedAccounts = 'false',
     } = req.query
+    const showClosed = parseBool(showClosedAccounts, false)
     const cacheKey = reportCache.buildKey([
       reportTenantKey(req),
       'trial-balance',
@@ -162,12 +164,14 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       sortDir,
       minAbsolute,
       'metal-grams',
+      showClosed ? 'closed' : 'active',
     ])
     const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
     const dateQuery = buildDateQuery(startDate, endDate)
-    const accountDocs = await ChartOfAccount.find({ isActive: true })
-      .select('accountCode accountName accountType openingBalance')
+    const accountQuery = showClosed ? {} : { isActive: true }
+    const accountDocs = await ChartOfAccount.find(accountQuery)
+      .select('accountCode accountName accountType openingBalance isActive')
       .lean()
     const accountById = new Map(accountDocs.map((acc) => [String(acc._id), acc]))
     const accountObjectIds = accountDocs.map((acc) => acc._id)
@@ -259,13 +263,14 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       debit: toMoney(item.debit),
       credit: toMoney(item.credit),
       net: toMoney(Number(item.openingNet || 0) + item.debit - item.credit),
+      isActive: item.account.isActive !== false,
       ...metalForAccount(item.account._id),
     }))
 
     if (parseBool(includeZero, false)) {
-      const allAccountsQuery = { isActive: true }
+      const allAccountsQuery = showClosed ? {} : { isActive: true }
       if (accountType) allAccountsQuery.accountType = accountType
-      const allAccounts = await ChartOfAccount.find(allAccountsQuery).select('accountCode accountName accountType openingBalance')
+      const allAccounts = await ChartOfAccount.find(allAccountsQuery).select('accountCode accountName accountType openingBalance isActive')
       const existingCodes = new Set(trialBalance.map((row) => row.accountCode))
       allAccounts.forEach((acc) => {
         if (!existingCodes.has(acc.accountCode)) {
@@ -277,6 +282,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
             debit: 0,
             credit: 0,
             net: toMoney(opening),
+            isActive: acc.isActive !== false,
             ...presentMetalGrams(),
           })
         }

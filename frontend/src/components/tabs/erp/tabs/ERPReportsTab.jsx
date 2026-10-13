@@ -440,7 +440,10 @@ export default function ERPReportsTab({
                     {trialBalanceShown.map((row) => (
                         <tr key={row.unposted ? 'closing-stock' : `${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
                           <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
-                          <td style={{ padding: '0.6rem' }}>{row.accountName}</td>
+                          <td style={{ padding: '0.6rem' }}>
+                            {row.accountName}
+                            {row.isActive === false ? <span style={{ marginLeft: '0.35rem', color: C.inkSoft, fontSize: '0.75rem' }}>Closed</span> : null}
+                          </td>
                           <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
                           {moneyColumns.debit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.debit || 0)}</td>}
                           {moneyColumns.credit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.credit || 0)}</td>}
@@ -943,6 +946,14 @@ export default function ERPReportsTab({
               />
               Calculate Closing Stock
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(reportDisplayDraft.showClosedAccounts)}
+                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, showClosedAccounts: event.target.checked }))}
+              />
+              Show Closed Accounts
+            </label>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', margin: '0.45rem 0 0.3rem' }}>Show Selected Group</label>
             <select
               aria-label="Show Selected Group"
@@ -979,7 +990,11 @@ export default function ERPReportsTab({
                 onClick={() => {
                   const next = reportDisplayDraft
                   setReportDisplay(next)
-                  setReportFilters((prev) => ({ ...prev, calculateClosingStock: Boolean(next.calculateClosingStock) }))
+                  setReportFilters((prev) => ({
+                    ...prev,
+                    calculateClosingStock: Boolean(next.calculateClosingStock),
+                    showClosedAccounts: Boolean(next.showClosedAccounts),
+                  }))
                   setReportOptionsOpen(false)
                   if (next.reportTo !== 'pdf') return
                   const columns = { ...reportMoneyColumns(next), showMetal: next.showMetal !== false }
