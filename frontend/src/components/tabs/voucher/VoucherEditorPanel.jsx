@@ -714,7 +714,6 @@ export default function VoucherEditorPanel({
                               onChange={(val) => handlePartySelect(val)}
                               onKeyDown={handleHeaderNavKeyDown}
                               placeholder="Type account name or code…"
-                              maxHeight={168}
                               style={formReadOnly ? classicReadInput : { ...classicInput, ...(compactHeader ? { minHeight: '1.55rem', borderRadius: '2px', background: '#FFFFFF' } : {}) }}
                               disabled={formReadOnly}
                             />
