@@ -82,7 +82,21 @@ export function sanitizeStatementNarrationText(value, docNo = '') {
   return text
 }
 
+export function statementExchangeLabel(entry = {}) {
+  const text = `${entry?.description || ''} ${entry?.lineNarration || ''}`
+  const loss = /exchange loss adjustment/i.test(text)
+  const gain = /exchange gain adjustment/i.test(text)
+  if (!loss && !gain) return ''
+  const label = loss ? 'Exchange Loss' : 'Exchange Gain'
+  const code = String(entry?.offsetAccountCode || '').trim()
+  const name = String(entry?.offsetAccountName || '')
+  const offsetIsExchange = code === '4190' || code === '5190' || /exchange (gain|loss)/i.test(name)
+  return offsetIsExchange && code ? `${code} - ${label}` : label
+}
+
 export function buildStatementNarration(entry) {
+  const exchangeLabel = statementExchangeLabel(entry)
+  if (exchangeLabel) return exchangeLabel
   const docNo = String(entry?.sourceTransactionNumber || extractStatementDocNo(entry?.description) || '').trim()
   const notes = String(entry?.notes || '').trim()
   const lineFromDescription = extractJvPostingLineDescription(entry?.description || '', notes)
@@ -92,11 +106,15 @@ export function buildStatementNarration(entry) {
     notes,
     entry?.description,
   ]
+  let narration = ''
   for (const candidate of candidates) {
     const cleaned = sanitizeStatementNarrationText(candidate, docNo)
-    if (cleaned) return cleaned
+    if (cleaned) {
+      narration = cleaned
+      break
+    }
   }
-  return ''
+  return narration
 }
 
 /**

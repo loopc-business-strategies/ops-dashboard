@@ -381,7 +381,9 @@ export function useAccountEnquiryStatement({
   const statementEntries = combineVoucherStatementRows(
     rawStatementEntries.map((entry) => withStatementDisplayAmounts(entry, {
       displayCurrency: statementDisplayCurrency,
+      baseCurrency: baseCurrencyCode,
       convert: convertStatementDisplayAmount,
+      relatedEntries: rawStatementEntries,
     })),
   ).sort(sortStatementNewestFirst)
   stampStatementRunningBalances(

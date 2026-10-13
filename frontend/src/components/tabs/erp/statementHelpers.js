@@ -195,21 +195,65 @@ export const STATEMENT_DISPLAY_AMOUNT_FIELDS = [
   'displayFxAdjustment',
 ]
 
+/** Posted exchange gain/loss line. The dollar amount stays on the USD statement. */
+export function isStatementExchangeAdjustment(entry = {}) {
+  const text = `${entry?.description || ''} ${entry?.lineNarration || ''}`
+  return /exchange (gain|loss) adjustment/i.test(text)
+}
+
+/** Som gap between the voucher's entered amount and the same dollars at the display rate. */
+export function statementExchangeSomGap(entry = {}, relatedEntries = [], { displayCurrency = '', convert = (value) => value } = {}) {
+  const describedId = String(`${entry?.description || ''} ${entry?.lineNarration || ''}`).match(/transaction\s+([a-f0-9]{24})/i)?.[1] || ''
+  const key = String(entry?.sourceTransactionId || '').trim() || describedId
+  if (!key) return null
+  const display = normalizeStatementCurrencyCode(displayCurrency)
+  const sibling = (relatedEntries || []).find((row) => {
+    if (!row || row === entry || isStatementExchangeAdjustment(row)) return false
+    const rowId = String(row?.sourceTransactionId || '').trim()
+    if (rowId !== key) return false
+    const originalCurrency = normalizeStatementCurrencyCode(row?.originalCurrency)
+    const originalAmount = Math.abs(Number(row?.originalAmount))
+    return originalCurrency === display && Number.isFinite(originalAmount) && originalAmount > 0 && Number(row?.signedAmount) !== 0
+  })
+  if (!sibling) return null
+  const bookAmount = Math.abs(Number(convert(Number(sibling.signedAmount) || 0)) || 0)
+  const enteredAmount = Math.abs(Number(sibling.originalAmount) || 0)
+  if (!(bookAmount > 0) || !(enteredAmount > 0)) return null
+  const gap = Math.abs(bookAmount - enteredAmount)
+  return gap > 0 ? gap : null
+}
+
 /**
- * Display-currency amounts for one API statement row (base-currency signedAmount).
- * A row entered in the display currency shows its original voucher amount; any
- * other row converts at today's rate. displayFxAdjustment is the difference.
+ * Display-currency amounts for one statement row.
+ * In a foreign currency, a voucher keeps the soms that were entered, and an
+ * exchange gain or loss is the som gap beside that voucher (book-rate soms
+ * minus the soms entered), in the debit or credit column.
  */
-export function withStatementDisplayAmounts(entry = {}, { displayCurrency = '', convert = (value) => value } = {}) {
+export function withStatementDisplayAmounts(entry = {}, { displayCurrency = '', baseCurrency = 'USD', convert = (value) => value, relatedEntries = [] } = {}) {
   const signedBase = Number(entry?.signedAmount || 0)
   const converted = Number(convert(signedBase)) || 0
   const originalCurrency = normalizeStatementCurrencyCode(entry?.originalCurrency)
   const originalAmount = Math.abs(Number(entry?.originalAmount))
-  const useOriginal = Boolean(originalCurrency)
+  const showingForeign = normalizeStatementCurrencyCode(displayCurrency) !== normalizeStatementCurrencyCode(baseCurrency)
+  const useOriginal = showingForeign
     && originalCurrency === normalizeStatementCurrencyCode(displayCurrency)
     && Number.isFinite(originalAmount)
     && signedBase !== 0
   const displaySigned = useOriginal ? Math.sign(signedBase) * originalAmount : converted
+  if (showingForeign && isStatementExchangeAdjustment(entry)) {
+    const somGap = statementExchangeSomGap(entry, relatedEntries, { displayCurrency, convert })
+    const magnitude = somGap == null ? Math.abs(converted) : somGap
+    const exchangeSigned = Math.sign(signedBase || 1) * magnitude
+    const isGain = /exchange gain adjustment/i.test(`${entry?.description || ''} ${entry?.lineNarration || ''}`)
+    return {
+      ...entry,
+      displayDebitAmount: exchangeSigned > 0 ? magnitude : 0,
+      displayCreditAmount: exchangeSigned < 0 ? magnitude : 0,
+      displaySignedAmount: exchangeSigned,
+      displayFxAdjustment: exchangeSigned - converted,
+      displayExchangeDifference: isGain ? -magnitude : magnitude,
+    }
+  }
   return {
     ...entry,
     displayDebitAmount: displaySigned > 0 ? displaySigned : 0,

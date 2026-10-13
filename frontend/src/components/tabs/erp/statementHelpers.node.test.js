@@ -20,6 +20,7 @@ import {
   stampStatementRunningBalances,
   sumStatementDisplayFxAdjustments,
   sumStatementSignedAmounts,
+  statementExchangeSomGap,
   withStatementDisplayAmounts,
   withSignedDirectionalPrefix,
   resolveUnfixedBookedExposureSign,
@@ -489,10 +490,10 @@ describe('statement display-currency amounts', () => {
   // Today's master rate: 12,100 UZS per USD; the voucher was entered at 11,000.
   const toUzs = (usd) => Math.round(usd * 12100 * 100) / 100
 
-  test('UZS voucher shows its original amount, not the today-rate conversion', () => {
+  test('a UZS voucher keeps the soms entered on that voucher', () => {
     const row = withStatementDisplayAmounts(
       { _id: 'pay', signedAmount: -13271.83, creditAmount: 13271.83, originalCurrency: 'UZS', originalAmount: 145990130 },
-      { displayCurrency: 'UZS', convert: toUzs },
+      { displayCurrency: 'UZS', baseCurrency: 'USD', convert: toUzs },
     )
     expect(row.displayCreditAmount).toBe(145990130)
     expect(row.displayDebitAmount).toBe(0)
@@ -507,6 +508,84 @@ describe('statement display-currency amounts', () => {
     )
     expect(row.displayDebitAmount).toBe(1210000)
     expect(row.displayFxAdjustment).toBe(0)
+  })
+
+  test('an exchange loss shows the som gap in the credit column', () => {
+    const txId = '6accdfb1bf1c39486081bbb3'
+    const receiptSource = {
+      _id: 'rec',
+      date: '2026-10-12',
+      signedAmount: 1000,
+      debitAmount: 1000,
+      originalCurrency: 'UZS',
+      originalAmount: 11000000,
+      sourceTransactionId: txId,
+    }
+    const fxSource = {
+      _id: 'fx',
+      signedAmount: -90.91,
+      creditAmount: 90.91,
+      description: `Exchange loss adjustment for transaction ${txId}`,
+      offsetAccountCode: '5190',
+      originalCurrency: 'USD',
+      originalAmount: 90.91,
+      sourceTransactionId: txId,
+    }
+    const relatedEntries = [receiptSource, fxSource]
+    expect(statementExchangeSomGap(fxSource, relatedEntries, { displayCurrency: 'UZS', convert: toUzs })).toBe(1100000)
+    const row = withStatementDisplayAmounts(fxSource, {
+      displayCurrency: 'UZS',
+      baseCurrency: 'USD',
+      convert: toUzs,
+      relatedEntries,
+    })
+    expect(row.displayCreditAmount).toBe(1100000)
+    expect(row.displayDebitAmount).toBe(0)
+    expect(row.displaySignedAmount).toBe(-1100000)
+    expect(row.suppressDisplayAmount).toBeUndefined()
+    const receipt = withStatementDisplayAmounts(receiptSource, { displayCurrency: 'UZS', baseCurrency: 'USD', convert: toUzs })
+    expect(receipt.displayDebitAmount).toBe(11000000)
+    const rows = [
+      { ...row, date: '2026-10-12T12:00:00' },
+      { ...receipt, date: '2026-10-12T11:00:00' },
+    ]
+    const closing = toUzs(1000 - 90.91) + rows.reduce((sum, entry) => sum + entry.displayFxAdjustment, 0)
+    stampStatementDisplayRunningBalances(rows, closing)
+    expect(closing).toBeCloseTo(11000000 - 1100000, 2)
+    expect(rows[0].displayRunningBalance).toBeCloseTo(closing, 2)
+    expect(rows[1].displayRunningBalance).toBeCloseTo(11000000, 2)
+    const paymentFx = withStatementDisplayAmounts(
+      {
+        _id: 'pay-fx',
+        signedAmount: -0.74,
+        description: 'Exchange loss adjustment for transaction paytx00000000000000000001',
+        sourceTransactionId: 'paytx00000000000000000001',
+        originalCurrency: 'USD',
+        originalAmount: 0.74,
+      },
+      {
+        displayCurrency: 'UZS',
+        baseCurrency: 'USD',
+        convert: toUzs,
+        relatedEntries: [{
+          sourceTransactionId: 'paytx00000000000000000001',
+          signedAmount: -10,
+          originalCurrency: 'UZS',
+          originalAmount: 130000,
+        }],
+      },
+    )
+    expect(paymentFx.displayCreditAmount).toBe(9000)
+    const usdRow = withStatementDisplayAmounts(
+      {
+        _id: 'fx-usd',
+        signedAmount: -90.91,
+        creditAmount: 90.91,
+        description: 'Exchange loss adjustment for transaction 6accdfb1bf1c39486081bbb3',
+      },
+      { displayCurrency: 'USD', baseCurrency: 'USD', convert: (value) => value },
+    )
+    expect(usdRow.displayCreditAmount).toBeCloseTo(90.91, 2)
   })
 
   test('rows without original currency (older API) convert at today\'s rate', () => {

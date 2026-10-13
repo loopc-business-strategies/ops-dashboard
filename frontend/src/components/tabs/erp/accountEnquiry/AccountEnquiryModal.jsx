@@ -757,8 +757,8 @@ export default function AccountEnquiryModal({
                                   <td style={{ padding: '0.6rem', color: '#374151', maxWidth: '18rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={narration}>
                                     {narration}
                                   </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementValue(debitDisplay, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(creditDisplay, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{entry.suppressDisplayAmount ? '-' : formatStatementValue(debitDisplay, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{entry.suppressDisplayAmount ? '-' : formatStatementValue(creditDisplay, 2)}</td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balanceDisplay), fontWeight: '700' }}>
                                     {formatDirectionalBalance(balanceDisplay, { currencyCode: statementDisplayCurrency })}
                                   </td>
