@@ -808,6 +808,18 @@ export default function VoucherEditorPanel({
                               <option value="fixing">Fixed</option>
                               <option value="non-fixing">UnFixed</option>
                             </select>
+                            {(voucherType === 'purchase' || voucherType === 'sale') ? (
+                              <label style={{ gridColumn: '2 / -1', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.74rem', color: '#1F2937', fontWeight: '600' }}>
+                                <input
+                                  aria-label="Hedge"
+                                  type="checkbox"
+                                  checked={Boolean(header.hedge)}
+                                  onChange={(event) => setHdr('hedge', event.target.checked)}
+                                  disabled={formReadOnly}
+                                />
+                                Hedge
+                              </label>
+                            ) : null}
                           </>
                         ) : null}
                         {!(isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher) ? (
@@ -920,6 +932,18 @@ export default function VoucherEditorPanel({
                               <option value="fixing">Fixed</option>
                               <option value="non-fixing">UnFixed</option>
                             </select>
+                            {(voucherType === 'purchase' || voucherType === 'sale') ? (
+                              <label style={{ ...classicLabel, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <input
+                                  aria-label="Hedge"
+                                  type="checkbox"
+                                  checked={Boolean(header.hedge)}
+                                  onChange={(event) => setHdr('hedge', event.target.checked)}
+                                  disabled={formReadOnly}
+                                />
+                                Hedge
+                              </label>
+                            ) : null}
                           </>
                         ) : !isMetalStockVoucherType(voucherType) ? (
                           <>

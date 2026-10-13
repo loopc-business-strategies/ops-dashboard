@@ -954,6 +954,14 @@ export default function ERPReportsTab({
               />
               Show Closed Accounts
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(reportDisplayDraft.excludeHedging)}
+                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, excludeHedging: event.target.checked }))}
+              />
+              Exclude Hedging
+            </label>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', margin: '0.45rem 0 0.3rem' }}>Show Selected Group</label>
             <select
               aria-label="Show Selected Group"
@@ -994,6 +1002,7 @@ export default function ERPReportsTab({
                     ...prev,
                     calculateClosingStock: Boolean(next.calculateClosingStock),
                     showClosedAccounts: Boolean(next.showClosedAccounts),
+                    excludeHedging: Boolean(next.excludeHedging),
                   }))
                   setReportOptionsOpen(false)
                   if (next.reportTo !== 'pdf') return

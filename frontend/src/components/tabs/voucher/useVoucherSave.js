@@ -217,6 +217,7 @@ export function useVoucherSave({
       ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave && !isProductTransferSave ? {
         fixingType: normalizeVoucherFixingType(header.fixingType),
         metalRate: Number(header.metalRate) || 0,
+        ...((voucherType === 'purchase' || voucherType === 'sale') ? { hedge: Boolean(header.hedge) } : {}),
       } : {}),
       lineItems: effectiveLineItems.map((l) => {
         const metalLine = isMetalStockVoucherType(voucherType) ? hydrateMetalLineWeights(l) : l

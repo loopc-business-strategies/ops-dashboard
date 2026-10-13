@@ -89,6 +89,7 @@ function accumulateTrialMetalGrams(transactions = [], {
   accountsByCode = new Map(),
   startDate = null,
   endDate = null,
+  excludeHedging = false,
 } = {}) {
   const totals = new Map()
   const startMs = startDate ? new Date(startDate).getTime() : null
@@ -96,6 +97,7 @@ function accumulateTrialMetalGrams(transactions = [], {
   for (const tx of transactions) {
     const type = String(tx?.type || '').trim().toLowerCase()
     if (!METAL_TRIAL_TYPES.includes(type)) continue
+    if (excludeHedging && tx?.voucherMeta?.hedge) continue
     const when = tx?.date ? new Date(tx.date).getTime() : null
     if (endMs != null && when != null && when > endMs) continue
     const accountId = resolvePartyAccountId(tx, accountsById, accountsByCode)

@@ -424,6 +424,7 @@ export default function VoucherTab({
       docDate: String(snapshotHeader?.docDate || ''),
       valueDate: String(snapshotHeader?.valueDate || ''),
       fixingType: String(snapshotHeader?.fixingType || ''),
+      hedge: Boolean(snapshotHeader?.hedge),
       metalRate: String(snapshotHeader?.metalRate || ''),
       narration: String(snapshotHeader?.narration || ''),
     },

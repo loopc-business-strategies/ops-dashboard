@@ -151,8 +151,10 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       minAbsolute = '0',
       calculateClosingStock = 'false',
       showClosedAccounts = 'false',
+      excludeHedging = 'false',
     } = req.query
     const showClosed = parseBool(showClosedAccounts, false)
+    const skipHedgedGrams = parseBool(excludeHedging, false)
     const cacheKey = reportCache.buildKey([
       reportTenantKey(req),
       'trial-balance',
@@ -165,6 +167,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       minAbsolute,
       'metal-grams',
       showClosed ? 'closed' : 'active',
+      skipHedgedGrams ? 'exclude-hedge' : 'include-hedge',
     ])
     const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
@@ -241,13 +244,14 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       status: 'posted',
       type: { $in: ['purchase', 'sale', 'metal_receipt', 'metal_payment'] },
       ...(dateQuery?.$lte ? { date: { $lte: dateQuery.$lte } } : {}),
-    }).select('type date voucherMeta.partyAccountId voucherMeta.partyCode voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration').lean()
+    }).select('type date voucherMeta.hedge voucherMeta.partyAccountId voucherMeta.partyCode voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration').lean()
     const accountsByCode = new Map(accountDocs.map((acc) => [String(acc.accountCode || '').trim(), String(acc._id)]))
     const metalByAccount = accumulateTrialMetalGrams(metalTxs, {
       accountsById: accountById,
       accountsByCode,
       startDate: dateQuery?.$gte || null,
       endDate: dateQuery?.$lte || null,
+      excludeHedging: skipHedgedGrams,
     })
     const metalForAccount = (accountId) => presentMetalGrams(metalByAccount.get(String(accountId)) || {})
 

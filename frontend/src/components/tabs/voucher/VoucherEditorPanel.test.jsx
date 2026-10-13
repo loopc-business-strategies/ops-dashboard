@@ -212,6 +212,10 @@ describe('VoucherEditorPanel party details', () => {
       if (extra.voucherType === 'purchase') {
         expect(screen.getByLabelText('Value')).toBeTruthy()
         expect(screen.getByLabelText('Price')).toBeTruthy()
+        expect(screen.getByLabelText('Hedge')).toBeTruthy()
+      }
+      if (extra.voucherType === 'payment') {
+        expect(screen.queryByLabelText('Hedge')).toBeNull()
       }
       unmount()
     }

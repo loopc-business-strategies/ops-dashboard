@@ -85,6 +85,7 @@ const transactionSchema = new mongoose.Schema(
       vocNo: { type: String, trim: true, default: '' },
       refNo: { type: String, trim: true, default: '' },
       fixingType: { type: String, enum: ['fixing', 'non-fixing', 'non_fixing'], default: 'fixing' },
+      hedge: { type: Boolean, default: false },
       metalRate: { type: Number, default: 0 },
       docDate: { type: Date, default: null },
       valueDate: { type: Date, default: null },

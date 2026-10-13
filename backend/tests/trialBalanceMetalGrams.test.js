@@ -70,4 +70,20 @@ describe('trial balance metal grams', () => {
     expect(party.goldCredit).toBe(0)
     expect(party.goldNet).toBeCloseTo(-9.99, 2)
   })
+
+  test('drops a hedged purchase from the gram columns when hedging is excluded', () => {
+    const txs = [{
+      type: 'purchase',
+      date: '2026-10-11T00:00:00.000Z',
+      voucherMeta: {
+        partyAccountId: 'party-1',
+        hedge: true,
+        lineItems: [{ stockCode: 'GOLD', pureWeight: 10 }],
+      },
+    }]
+    const kept = accumulateTrialMetalGrams(txs, { accountsById, accountsByCode })
+    const dropped = accumulateTrialMetalGrams(txs, { accountsById, accountsByCode, excludeHedging: true })
+    expect(presentMetalGrams(kept.get('party-1')).goldNet).toBe(-10)
+    expect(dropped.has('party-1')).toBe(false)
+  })
 })
