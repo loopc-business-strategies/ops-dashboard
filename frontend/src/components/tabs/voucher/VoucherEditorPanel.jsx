@@ -54,7 +54,6 @@ export default function VoucherEditorPanel({
   handleHeaderCurrencyChange,
   handleLineAcCodeChange,
   handleLineAmountEnter,
-  handleLineCurrencyChange,
   handleLineTypeChange,
   handleModalHeaderMouseDown,
   handlePartyCodeEnter,
