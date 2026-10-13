@@ -195,10 +195,15 @@ export const STATEMENT_DISPLAY_AMOUNT_FIELDS = [
   'displayFxAdjustment',
 ]
 
-/** Posted exchange gain/loss line. The dollar amount stays on the USD statement. */
+/** Posted exchange gain/loss line. It stays off the cash statement. */
 export function isStatementExchangeAdjustment(entry = {}) {
   const text = `${entry?.description || ''} ${entry?.lineNarration || ''}`
   return /exchange (gain|loss) adjustment/i.test(text)
+}
+
+/** Cash on hand lists the voucher lines. The exchange gain or loss posting is left off. */
+export function withoutStatementExchangeAdjustments(entries = []) {
+  return (entries || []).filter((entry) => !isStatementExchangeAdjustment(entry))
 }
 
 /** Som gap between the voucher's entered amount and the same dollars at the display rate. */

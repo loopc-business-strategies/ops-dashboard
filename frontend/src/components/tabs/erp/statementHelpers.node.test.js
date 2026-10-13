@@ -18,6 +18,7 @@ import {
   resolveVisibleStatementClosingBalance,
   stampStatementDisplayRunningBalances,
   stampStatementRunningBalances,
+  withoutStatementExchangeAdjustments,
   sumStatementDisplayFxAdjustments,
   sumStatementSignedAmounts,
   statementExchangeSomGap,
@@ -587,6 +588,8 @@ describe('statement display-currency amounts', () => {
       { displayCurrency: 'USD', baseCurrency: 'USD', convert: (value) => value },
     )
     expect(usdRow.displayCreditAmount).toBeCloseTo(90.91, 2)
+    const visible = withoutStatementExchangeAdjustments([receiptSource, fxSource])
+    expect(visible.map((entry) => entry._id)).toEqual(['rec'])
   })
 
   test('rows without original currency (older API) convert at today\'s rate', () => {

@@ -24,6 +24,7 @@ import {
   sumStatementDisplayFxAdjustments,
   sumStatementSignedAmounts,
   withStatementDisplayAmounts,
+  withoutStatementExchangeAdjustments,
 } from '../statementHelpers'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '../metalMarginPolicy'
 import {
@@ -485,7 +486,10 @@ export function useAccountEnquiryStatement({
   const statementReferenceTypes = Array.from(new Set(statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(statementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
 
-  const filteredStatementEntries = statementEntries.filter((entry) => {
+  const statementEntriesForView = isCashOnHandEnquiry
+    ? withoutStatementExchangeAdjustments(statementEntries)
+    : statementEntries
+  const filteredStatementEntries = statementEntriesForView.filter((entry) => {
     if (isCashOnHandEnquiry) {
       const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
       const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
