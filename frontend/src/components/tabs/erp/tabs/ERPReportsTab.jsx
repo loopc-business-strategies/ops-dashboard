@@ -66,6 +66,13 @@ export default function ERPReportsTab({
   const [reportDisplayDraft, setReportDisplayDraft] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [loadedCurrencies, setLoadedCurrencies] = useState(currencies)
   const [closingStockFallback, setClosingStockFallback] = useState(null)
+  const {
+    period: reportPeriod,
+    startDate: reportStartDate,
+    endDate: reportEndDate,
+    reportYear,
+    reportMonth,
+  } = reportFilters || {}
   useEffect(() => {
     if (currencies?.length) {
       setLoadedCurrencies(currencies)
@@ -86,7 +93,13 @@ export default function ERPReportsTab({
       return undefined
     }
     let cancelled = false
-    const { commonRange } = buildErpReportDateRange(reportFilters)
+    const { commonRange } = buildErpReportDateRange({
+      period: reportPeriod,
+      startDate: reportStartDate,
+      endDate: reportEndDate,
+      reportYear,
+      reportMonth,
+    })
     reportsApi.getProfitLossReport(null, {
       ...commonRange,
       includeZero: 'false',
@@ -101,11 +114,11 @@ export default function ERPReportsTab({
   }, [
     reportDisplay.calculateClosingStock,
     reports.trialBalance,
-    reportFilters.period,
-    reportFilters.startDate,
-    reportFilters.endDate,
-    reportFilters.reportYear,
-    reportFilters.reportMonth,
+    reportPeriod,
+    reportStartDate,
+    reportEndDate,
+    reportYear,
+    reportMonth,
   ])
   const displayCurrency = String(reportDisplay.displayCurrency || baseCurrencyCode).toUpperCase()
   const convertAmount = (value) => convertReportUsd(value, displayCurrency, loadedCurrencies, baseCurrencyCode)
