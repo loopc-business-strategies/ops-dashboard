@@ -2,6 +2,11 @@ const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
 const { sanitizeInventoryCategoryPurity } = require('../../utils/catalogProductPurity')
+const {
+  applyCatalogOnHandQuantities,
+  catalogOnHandFromMovements,
+  isCatalogInventoryProduct,
+} = require('../../utils/catalogOnHandQuantity')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -120,6 +125,7 @@ function registerInventoryRoutes(deps) {
           .lean(),
         InventoryItem.countDocuments(query),
       ])
+      await applyCatalogOnHandQuantities({ InventoryItem, StockMovement, products })
       res.json({ success: true, products, total, page, limit })
     } catch (err) {
       respondRouteError(res, err, { tag: 'erp-accounting/inventoryRoutes' })
@@ -168,7 +174,7 @@ function registerInventoryRoutes(deps) {
         minThreshold: Number(minThreshold || 0),
         unitCost: Number(unitCost || 0),
         sellingPrice: Number(sellingPrice || 0),
-        quantity: Number(quantity || 0),
+        quantity: isCatalogInventoryProduct(sanitizedCategory) ? 0 : Number(quantity || 0),
         supplierName: String(supplierName || '').trim(),
         weight: Number(weight || 0),
         wipStage: String(wipStage || '').trim(),
@@ -334,6 +340,9 @@ function registerInventoryRoutes(deps) {
       if (supplierName !== undefined) product.supplierName = String(supplierName || '').trim()
       if (weight !== undefined) product.weight = Number(weight || 0)
       if (wipStage !== undefined) product.wipStage = String(wipStage || '').trim()
+      if (isCatalogInventoryProduct(product.category)) {
+        product.quantity = await catalogOnHandFromMovements(StockMovement, product._id)
+      }
       product.updatedBy = req.user._id
       await product.save()
 

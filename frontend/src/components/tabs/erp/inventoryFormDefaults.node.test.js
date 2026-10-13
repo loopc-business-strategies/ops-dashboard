@@ -149,5 +149,7 @@ describe('buildCatalogProductPayload purity guard', () => {
       baseCurrencyCode: 'USD',
     })
     expect(payload.category).toMatch(/productPurity=0\.583333/)
+    expect(payload.quantity).toBe(0)
+    expect(payload.category).toMatch(/weight=10/)
   })
 })
