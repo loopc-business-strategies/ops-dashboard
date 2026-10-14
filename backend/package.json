@@ -35,7 +35,7 @@
     "migrate:apply": "node migrations/runner.js --apply"
   },
   "dependencies": {
-    "@sentry/node": "^10.58.0",
+    "@sentry/node": "^11.6.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.2",
