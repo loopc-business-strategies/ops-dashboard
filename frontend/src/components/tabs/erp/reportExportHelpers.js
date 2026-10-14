@@ -4,10 +4,12 @@
 
 import { formatAmount } from '../../../utils/money'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
+import { buildCurrencyBalanceSheetModel, buildCurrencyProfitLossModel, buildCurrencyTrialBalanceModel } from './currencyTrialBalanceExport'
 import {
   DEFAULT_REPORT_MONEY_COLUMNS,
   trialMetalHeaders,
   trialMetalValues,
+  reportMoneyHeaderLabels,
   trialMoneyHeaders,
   trialMoneyValues,
 } from './reportDisplayOptions'
@@ -284,11 +286,12 @@ export function buildReportPdfTable({
   formatReportDirectionalBalance = (row, direction) => String(row?.balance ?? direction ?? ''),
   forPdf = false,
   columns: columnsOption = DEFAULT_REPORT_MONEY_COLUMNS,
+  displayCurrency = '',
 } = {}) {
   if (reportView === 'trial' || reportView === 'summary') {
     const columns = columnsOption || DEFAULT_REPORT_MONEY_COLUMNS
     return {
-      head: [['Code', 'Account', 'Type', ...trialMoneyHeaders(columns), ...trialMetalHeaders(columns.showMetal)]],
+      head: [['Code', 'Account', 'Type', ...trialMoneyHeaders(columns, reportMoneyHeaderLabels(displayCurrency)), ...trialMetalHeaders(columns.showMetal)]],
       body: trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => [
         row.accountCode,
         row.accountName,
@@ -395,6 +398,7 @@ export function buildReportExportPayload({
   columns = DEFAULT_REPORT_MONEY_COLUMNS,
   convertAmount = (value) => value,
   displayCurrency = '',
+  baseCurrency = 'USD',
 } = {}) {
   if (!isReportDataReady(reportView, reports, ledgerReportRows)) return null
   const stamp = new Date().toISOString().slice(0, 10)
@@ -408,16 +412,13 @@ export function buildReportExportPayload({
   ]
   if (reportView === 'trial' || reportView === 'summary') {
     const trialRows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
-    const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', ...trialMoneyHeaders(columns), ...trialMetalHeaders(columns.showMetal)]]
-    trialRows.forEach((row) => {
-      rows.push([
-        row.accountCode,
-        row.accountName,
-        row.accountType,
-        ...trialMoneyValues(row, columns, convertAmount),
-        ...(columns.showMetal ? [row.goldNet || 0, row.silverNet || 0] : []),
-      ])
+    const model = buildCurrencyTrialBalanceModel({
+      rows: trialRows,
+      convert: convertAmount,
+      baseCurrency,
+      displayCurrency: displayCurrency || baseCurrency,
     })
+    const rows = [...brandingRows, ...model.head, ...model.body]
     const isSummary = reportView === 'summary'
     return {
       rows,
@@ -427,18 +428,27 @@ export function buildReportExportPayload({
     }
   }
   if (reportView === 'pnl') {
-    const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Amount']]
-    ;(reports.profitLoss?.incomeBreakdown || []).forEach((row) => rows.push(['Income', row.accountCode, row.accountName, convertAmount(row.amount)]))
-    ;(reports.profitLoss?.expenseBreakdown || []).forEach((row) => rows.push(['Expense', row.accountCode, row.accountName, convertAmount(row.amount)]))
-    ;(reports.profitLoss?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Net Profit', convertAmount(row.netProfit)]))
+    const model = buildCurrencyProfitLossModel({
+      income: reports.profitLoss?.incomeBreakdown || [],
+      expenses: reports.profitLoss?.expenseBreakdown || [],
+      convert: convertAmount,
+      baseCurrency,
+      displayCurrency: displayCurrency || baseCurrency,
+    })
+    const rows = [...brandingRows, ...model.head, ...model.body]
     return { rows, fileBase: `profit-loss-${stamp}`, sheetName: 'Profit Loss', successLabel: 'Profit & loss' }
   }
   if (reportView === 'balanceSheet') {
-    const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Balance', 'Direction', 'Reclassified']]
-    ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, convertAmount(row.balance), row.direction || 'Dr', row.isReclassified ? 'Yes' : 'No']))
-    ;(reports.balanceSheet?.liabilities || []).forEach((row) => rows.push(['Liability', row.accountCode, row.accountName, convertAmount(row.balance), row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
-    ;(reports.balanceSheet?.equity || []).forEach((row) => rows.push(['Equity', row.accountCode, row.accountName, convertAmount(row.balance), row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
-    ;(reports.balanceSheet?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Working Capital', convertAmount(row.workingCapital)]))
+    const sheet = reports.balanceSheet || {}
+    const model = buildCurrencyBalanceSheetModel({
+      assets: sheet.assets || [],
+      liabilities: sheet.liabilities || [],
+      equity: sheet.equity || [],
+      convert: convertAmount,
+      baseCurrency,
+      displayCurrency: displayCurrency || baseCurrency,
+    })
+    const rows = [...brandingRows, ...model.head, ...model.body]
     return { rows, fileBase: `balance-sheet-${stamp}`, sheetName: 'Balance Sheet', successLabel: 'Balance sheet' }
   }
   if (reportView === 'dayBook') {

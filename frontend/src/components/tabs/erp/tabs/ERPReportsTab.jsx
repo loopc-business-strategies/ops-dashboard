@@ -9,8 +9,9 @@ import {
 import {
   convertReportUsd,
   defaultReportDisplayOptions,
-  reportCurrencyChoices,
   reportDisplayPerUsd,
+  reportMoneyHeaderLabels,
+  reportSelectableCurrencies,
   reportMoneyColumns,
   buildClosingStockTrialRow,
   filterTrialRowsByGroup,
@@ -120,7 +121,9 @@ export default function ERPReportsTab({
     reportYear,
     reportMonth,
   ])
-  const displayCurrency = String(reportDisplay.displayCurrency || baseCurrencyCode).toUpperCase()
+  const requestedCurrency = String(reportDisplay.displayCurrency || baseCurrencyCode).toUpperCase()
+  const currencyChoices = reportSelectableCurrencies(loadedCurrencies, baseCurrencyCode)
+  const displayCurrency = currencyChoices.includes(requestedCurrency) ? requestedCurrency : (currencyChoices[0] || requestedCurrency)
   const convertAmount = (value) => convertReportUsd(value, displayCurrency, loadedCurrencies, baseCurrencyCode)
   const formatMoney = (value, currencyCode) => formatMoneyBase(convertAmount(value), currencyCode || displayCurrency)
   const formatMoneyAbs = (value, currencyCode) => formatMoneyAbsBase(Math.abs(Number(convertAmount(value) || 0)), currencyCode || displayCurrency)
@@ -130,7 +133,7 @@ export default function ERPReportsTab({
   })
   const moneyColumns = reportMoneyColumns(reportDisplay)
   const perUsd = reportDisplayPerUsd(displayCurrency, loadedCurrencies, baseCurrencyCode)
-  const currencyChoices = reportCurrencyChoices(loadedCurrencies, baseCurrencyCode)
+  const moneyHeaderLabels = reportMoneyHeaderLabels(displayCurrency)
   const apiHasClosingStock = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
   const closingStockSource = apiHasClosingStock
     ? reports.trialBalance?.closingStock
@@ -165,6 +168,13 @@ export default function ERPReportsTab({
     displayCurrency,
     suppressSummary: reportDisplay.suppressSummary,
     reports: reportsForExport,
+    period: buildErpReportDateRange({
+      period: reportPeriod,
+      startDate: reportStartDate,
+      endDate: reportEndDate,
+      reportYear,
+      reportMonth,
+    }),
   }
   const activeAccounts = filterActiveAccounts(accounts)
   const INCLUDE_ZERO_REPORT_VIEWS = new Set(['trial', 'pnl', 'balanceSheet'])
@@ -247,6 +257,20 @@ export default function ERPReportsTab({
                 <option value="month">Month</option>
                 <option value="ytd">Year To Date</option>
                 <option value="custom">Custom Range</option>
+              </select>
+              <select
+                aria-label="Report currency"
+                value={displayCurrency}
+                onChange={(event) => {
+                  const nextCurrency = event.target.value
+                  setReportDisplay((prev) => ({ ...prev, displayCurrency: nextCurrency }))
+                  setReportDisplayDraft((prev) => ({ ...prev, displayCurrency: nextCurrency }))
+                }}
+                style={modalInputStyle}
+              >
+                {currencyChoices.map((code) => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
               </select>
               {reportFilters.period === 'month' && (
                 <>
@@ -437,7 +461,7 @@ export default function ERPReportsTab({
                       <th>Code</th>
                       <th>Name</th>
                       <th>Type</th>
-                      {trialMoneyHeaders(moneyColumns).map((label) => (
+                      {trialMoneyHeaders(moneyColumns, moneyHeaderLabels).map((label) => (
                         <th key={label} className="num">{label}</th>
                       ))}
                       {reportDisplay.showMetal !== false && (
@@ -901,7 +925,7 @@ export default function ERPReportsTab({
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Display In</label>
             <select
               aria-label="Display In"
-              value={reportDisplayDraft.displayCurrency}
+              value={currencyChoices.includes(reportDisplayDraft.displayCurrency) ? reportDisplayDraft.displayCurrency : displayCurrency}
               onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, displayCurrency: event.target.value }))}
               style={modalInputStyle}
             >
@@ -1009,7 +1033,12 @@ export default function ERPReportsTab({
               <button
                 type="button"
                 onClick={() => {
-                  const next = reportDisplayDraft
+                  const next = {
+                    ...reportDisplayDraft,
+                    displayCurrency: currencyChoices.includes(reportDisplayDraft.displayCurrency)
+                      ? reportDisplayDraft.displayCurrency
+                      : displayCurrency,
+                  }
                   setReportDisplay(next)
                   setReportFilters((prev) => ({
                     ...prev,
@@ -1037,6 +1066,13 @@ export default function ERPReportsTab({
                     convertAmount: convert,
                     displayCurrency: next.displayCurrency,
                     suppressSummary: next.suppressSummary,
+                    period: buildErpReportDateRange({
+                      period: reportPeriod,
+                      startDate: reportStartDate,
+                      endDate: reportEndDate,
+                      reportYear,
+                      reportMonth,
+                    }),
                   })
                 }}
                 style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: '#4B5563', color: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}

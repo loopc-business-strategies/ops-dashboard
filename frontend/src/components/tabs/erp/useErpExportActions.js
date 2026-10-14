@@ -174,6 +174,7 @@ export function useErpExportActions({
       columns: display.columns,
       convertAmount: display.convertAmount,
       displayCurrency: display.displayCurrency,
+      baseCurrency: baseCurrencyCode,
     })
     if (!payload) {
       setError(getReportNotReadyMessage(reportView, 'exporting'))
@@ -184,7 +185,7 @@ export function useErpExportActions({
     }
     downloadCsv(payload.rows, `${payload.fileBase}.csv`)
     showNotification(`✅ ${payload.successLabel} CSV exported`)
-  }, [reportView, reports, branding, defaultBranding, ledgerReportRows, setError, showNotification])
+  }, [reportView, reports, branding, defaultBranding, ledgerReportRows, baseCurrencyCode, setError, showNotification])
 
   const handleExportReportXlsx = useCallback(async (display = {}) => {
     const payload = buildReportExportPayload({
@@ -196,6 +197,7 @@ export function useErpExportActions({
       columns: display.columns,
       convertAmount: display.convertAmount,
       displayCurrency: display.displayCurrency,
+      baseCurrency: baseCurrencyCode,
     })
     if (!payload) {
       setError(getReportNotReadyMessage(reportView, 'exporting'))
@@ -206,7 +208,7 @@ export function useErpExportActions({
     }
     await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
     showNotification(`✅ ${payload.successLabel} XLSX exported`)
-  }, [reportView, reports, branding, defaultBranding, ledgerReportRows, setError, showNotification])
+  }, [reportView, reports, branding, defaultBranding, ledgerReportRows, baseCurrencyCode, setError, showNotification])
 
   const handlePrintCurrentReport = useCallback(async (display = {}) => {
     if (!isReportDataReady(reportView, display.reports || reports, ledgerReportRows)) {
@@ -227,6 +229,7 @@ export function useErpExportActions({
       selectedReportAccountCode,
       columns: display.columns,
       suppressSummary: display.suppressSummary,
+      displayCurrency: display.displayCurrency,
     })
     if (!body) {
       setError(getReportNotReadyMessage(reportView, 'printing'))
@@ -268,6 +271,10 @@ export function useErpExportActions({
       formatReportDirectionalBalance: display.formatReportDirectionalBalance || formatReportDirectionalBalance,
       columns: display.columns,
       suppressSummary: display.suppressSummary,
+      displayCurrency: display.displayCurrency,
+      baseCurrency: baseCurrencyCode,
+      convertAmount: display.convertAmount,
+      period: display.period,
     })
     showNotification('✅ PDF downloaded')
   }, [
@@ -280,6 +287,7 @@ export function useErpExportActions({
     selectedReportAccountCode,
     formatMoney,
     formatReportDirectionalBalance,
+    baseCurrencyCode,
     setError,
     showNotification,
   ])

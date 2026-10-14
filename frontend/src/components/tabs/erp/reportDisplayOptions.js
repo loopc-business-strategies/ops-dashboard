@@ -91,6 +91,24 @@ export function reportCurrencyChoices(currencies = [], baseCurrency = 'USD') {
   return codes
 }
 
+export function reportSelectableCurrencies(currencies = [], baseCurrency = 'USD') {
+  const base = String(baseCurrency || 'USD').trim().toUpperCase() || 'USD'
+  const allowed = new Set(['USD', 'UZS'])
+  const picked = reportCurrencyChoices(currencies, base).filter((code) => allowed.has(code))
+  if (!picked.includes(base) && allowed.has(base)) picked.unshift(base)
+  return picked.length ? picked : [base]
+}
+
+export function reportMoneyHeaderLabels(currencyCode = '') {
+  const code = String(currencyCode || '').trim().toUpperCase()
+  const suffix = code ? ` (${code})` : ''
+  return {
+    debit: `Debit${suffix}`,
+    credit: `Credit${suffix}`,
+    net: `Net${suffix}`,
+  }
+}
+
 export function reportMoneyColumns({ showNetOnly = false, hideNet = false } = {}) {
   if (showNetOnly) return { debit: false, credit: false, net: true }
   return {

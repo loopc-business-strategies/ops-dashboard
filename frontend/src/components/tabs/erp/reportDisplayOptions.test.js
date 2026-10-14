@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   convertReportUsd,
   reportCurrencyChoices,
+  reportMoneyHeaderLabels,
+  reportSelectableCurrencies,
   reportDisplayPerUsd,
   reportMoneyColumns,
   buildClosingStockTrialRow,
@@ -29,6 +31,20 @@ describe('report display options', () => {
 
   it('keeps currencies that have a master rate', () => {
     expect(reportCurrencyChoices(currencies, 'USD')).toEqual(['USD', 'AED', 'UZS'])
+  })
+
+  it('offers USD or UZS for the report currency', () => {
+    expect(reportSelectableCurrencies(currencies, 'USD')).toEqual(['USD', 'UZS'])
+    expect(reportMoneyHeaderLabels('UZS')).toEqual({
+      debit: 'Debit (UZS)',
+      credit: 'Credit (UZS)',
+      net: 'Net (UZS)',
+    })
+    expect(trialMoneyHeaders(reportMoneyColumns(), reportMoneyHeaderLabels('USD'))).toEqual([
+      'Debit (USD)',
+      'Credit (USD)',
+      'Net (USD)',
+    ])
   })
 
   it('shows the net column when Show Net Only is on', () => {
