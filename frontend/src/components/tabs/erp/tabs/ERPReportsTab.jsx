@@ -266,18 +266,35 @@ export default function ERPReportsTab({
     minWidth: 0,
     maxWidth: 'none',
     marginBottom: 0,
-    padding: '0.12rem 0.35rem',
-    fontSize: '0.72rem',
-    flex: '0 1 auto',
+    boxSizing: 'border-box',
+    height: '30px',
+    padding: '0 6px',
+    fontSize: '12.5px',
+    lineHeight: '28px',
+    flex: '0 0 auto',
   }
-  const reportDateFieldStyle = { ...reportFilterFieldStyle, width: '6.55rem', flex: '0 0 auto' }
+  const reportDateFieldStyle = { ...reportFilterFieldStyle, width: '108px', padding: '0 4px', flex: '0 0 auto' }
   const reportActionButtonStyle = {
-    padding: '0.12rem 0.4rem',
-    borderRadius: '0.3rem',
-    fontSize: '0.72rem',
+    boxSizing: 'border-box',
+    height: '30px',
+    padding: '0 6px',
+    borderRadius: '6px',
+    fontSize: '12.5px',
     fontWeight: '700',
-    lineHeight: 1.2,
+    lineHeight: 1,
     cursor: 'pointer',
+  }
+  const reportFilterCheckStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    height: '30px',
+    margin: 0,
+    color: C.ink,
+    fontSize: '12.5px',
+    fontWeight: '600',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   }
 
   const renderActivePeriodBadge = (marginBottom = '0.7rem') => (
@@ -300,7 +317,7 @@ export default function ERPReportsTab({
           ) : null}
 
           <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.6rem', padding: '0.55rem 0.7rem', marginBottom: '0.7rem' }}>
-            <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.28rem', width: '100%' }}>
+            <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '4px', width: '100%' }}>
               <select
                 value={reportFilters.period}
                 onChange={(e) => {
@@ -387,16 +404,16 @@ export default function ERPReportsTab({
                 </>
               )}
               {INCLUDE_ZERO_REPORT_VIEWS.has(reportView) && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.22rem', color: C.ink, fontSize: '0.72rem', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <label style={reportFilterCheckStyle}>
                   <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
                   Zero balances
                 </label>
               )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.22rem', color: C.ink, fontSize: '0.72rem', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <label style={reportFilterCheckStyle}>
                 <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
                 Compare previous
               </label>
-              <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0, marginLeft: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: 'auto' }}>
                 <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46' }}>CSV</button>
                 <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B' }}>XLSX</button>
                 {reportPdfDownloadEnabled && (
