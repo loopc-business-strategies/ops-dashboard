@@ -6,26 +6,66 @@ import {
   ERPVouchersTabContainer,
 } from './ERPTabContainers'
 import { importVoucherTab, prefetchVoucherTabChunk } from './voucherTabChunk'
-const ERPDashboardTab = lazy(() => import('./tabs/ERPDashboardTab'))
-const ErpEditRecordModal = lazy(() => import('./ErpEditRecordModal'))
 
-const ChartOfAccountsTree = lazy(() => import('../ChartOfAccountsTree'))
-const DirectDealsTab = lazy(() => import('../DirectDealsTab'))
-const ERPInventoryTab = lazy(() => import('./tabs/ERPInventoryTab'))
-const ERPVendorsTab = lazy(() => import('./tabs/ERPVendorsTab'))
-const ERPLedgerTab = lazy(() => import('./tabs/ERPLedgerTab'))
-const ERPPeriodClosingTab = lazy(() => import('./tabs/ERPPeriodClosingTab'))
-const ERPTransactionsTab = lazy(() => import('./tabs/ERPTransactionsTab'))
-const ERPReportsTab = lazy(() => import('./tabs/ERPReportsTab'))
-const ERPFixingRegisterTab = lazy(() => import('./tabs/ERPFixingRegisterTab'))
-const ERPCustomersTab = lazy(() => import('./tabs/ERPCustomersTab'))
-const ERPCustomerMarginTab = lazy(() => import('./tabs/ERPCustomerMarginTab'))
-const ERPSupplierMarginTab = lazy(() => import('./tabs/ERPSupplierMarginTab'))
-const ERPMappingsTab = lazy(() => import('./tabs/ERPMappingsTab'))
-const ERPEnquiryTab = lazy(() => import('./tabs/ERPEnquiryTab'))
-const ERPSettingsTab = lazy(() => import('./tabs/ERPSettingsTab'))
-const ERPCurrenciesTab = lazy(() => import('./tabs/ERPCurrenciesTab'))
+const loadErpDashboardTab = () => import('./tabs/ERPDashboardTab')
+const loadErpEditRecordModal = () => import('./ErpEditRecordModal')
+const loadChartOfAccountsTree = () => import('../ChartOfAccountsTree')
+const loadDirectDealsTab = () => import('../DirectDealsTab')
+const loadErpInventoryTab = () => import('./tabs/ERPInventoryTab')
+const loadErpVendorsTab = () => import('./tabs/ERPVendorsTab')
+const loadErpLedgerTab = () => import('./tabs/ERPLedgerTab')
+const loadErpPeriodClosingTab = () => import('./tabs/ERPPeriodClosingTab')
+const loadErpTransactionsTab = () => import('./tabs/ERPTransactionsTab')
+const loadErpReportsTab = () => import('./tabs/ERPReportsTab')
+const loadErpFixingRegisterTab = () => import('./tabs/ERPFixingRegisterTab')
+const loadErpCustomersTab = () => import('./tabs/ERPCustomersTab')
+const loadErpCustomerMarginTab = () => import('./tabs/ERPCustomerMarginTab')
+const loadErpSupplierMarginTab = () => import('./tabs/ERPSupplierMarginTab')
+const loadErpMappingsTab = () => import('./tabs/ERPMappingsTab')
+const loadErpEnquiryTab = () => import('./tabs/ERPEnquiryTab')
+const loadErpSettingsTab = () => import('./tabs/ERPSettingsTab')
+const loadErpCurrenciesTab = () => import('./tabs/ERPCurrenciesTab')
+
+const ERPDashboardTab = lazy(loadErpDashboardTab)
+const ErpEditRecordModal = lazy(loadErpEditRecordModal)
+const ChartOfAccountsTree = lazy(loadChartOfAccountsTree)
+const DirectDealsTab = lazy(loadDirectDealsTab)
+const ERPInventoryTab = lazy(loadErpInventoryTab)
+const ERPVendorsTab = lazy(loadErpVendorsTab)
+const ERPLedgerTab = lazy(loadErpLedgerTab)
+const ERPPeriodClosingTab = lazy(loadErpPeriodClosingTab)
+const ERPTransactionsTab = lazy(loadErpTransactionsTab)
+const ERPReportsTab = lazy(loadErpReportsTab)
+const ERPFixingRegisterTab = lazy(loadErpFixingRegisterTab)
+const ERPCustomersTab = lazy(loadErpCustomersTab)
+const ERPCustomerMarginTab = lazy(loadErpCustomerMarginTab)
+const ERPSupplierMarginTab = lazy(loadErpSupplierMarginTab)
+const ERPMappingsTab = lazy(loadErpMappingsTab)
+const ERPEnquiryTab = lazy(loadErpEnquiryTab)
+const ERPSettingsTab = lazy(loadErpSettingsTab)
+const ERPCurrenciesTab = lazy(loadErpCurrenciesTab)
 const VoucherTab = lazy(() => importVoucherTab())
+
+const ERP_MENU_CHUNK_LOADERS = [
+  loadChartOfAccountsTree,
+  importVoucherTab,
+  loadErpLedgerTab,
+  loadErpReportsTab,
+  loadErpTransactionsTab,
+  loadErpCustomersTab,
+  loadErpVendorsTab,
+  loadErpMappingsTab,
+  loadErpEnquiryTab,
+  loadErpDashboardTab,
+  loadErpInventoryTab,
+  loadDirectDealsTab,
+  loadErpPeriodClosingTab,
+  loadErpFixingRegisterTab,
+  loadErpCustomerMarginTab,
+  loadErpSupplierMarginTab,
+  loadErpSettingsTab,
+  loadErpCurrenciesTab,
+]
 
 function ErpSubTabFallback() {
   return (
@@ -428,6 +468,17 @@ export default function ERPTabPanels({
       prefetchVoucherTabChunk()
     }
   }, [activeTab, jumpToVoucher])
+
+  useEffect(() => {
+    let cancelled = false
+    const timers = ERP_MENU_CHUNK_LOADERS.map((load, index) => window.setTimeout(() => {
+      if (!cancelled) load().catch(() => {})
+    }, 400 + index * 80))
+    return () => {
+      cancelled = true
+      timers.forEach((id) => window.clearTimeout(id))
+    }
+  }, [])
 
   return (
     <>
