@@ -22,8 +22,11 @@ export function useVoucherReferenceData({
   const refreshAccounts = useCallback(async () => {
     if (!token || !setLocalAccounts) return
     try {
-      const accounts = await fetchVoucherAccounts(token)
-      if (accounts.length > 0) setLocalAccounts(accounts)
+      await fetchVoucherAccounts(token, {
+        onPage: (accounts) => {
+          if (accounts.length > 0) setLocalAccounts(accounts)
+        },
+      })
     } catch {
       // props fallback still available
     }
@@ -32,9 +35,12 @@ export function useVoucherReferenceData({
   const refreshParties = useCallback(async () => {
     if (!token) return
     try {
-      const { customers, vendors } = await fetchVoucherParties(token)
-      setLocalCustomers(customers)
-      setLocalVendors(vendors)
+      await fetchVoucherParties(token, {
+        onPage: ({ customers, vendors }) => {
+          if (customers.length > 0) setLocalCustomers(customers)
+          if (vendors.length > 0) setLocalVendors(vendors)
+        },
+      })
     } catch {
       // props fallback still available
     }

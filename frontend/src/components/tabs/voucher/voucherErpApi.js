@@ -1,22 +1,59 @@
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { buildMetalRatesFromApiPayload, marketPricesToRates } from '../../../utils/liveMetalRates'
+import { forEachListPage } from '../../../utils/erpPagedRows'
 
 /** Voucher tab ERP API facade — routes all /api/erp-accounting calls through erpAccountingAPI. */
 
-export async function fetchVoucherParties(token) {
-  const [custRes, vendRes] = await Promise.all([
-    erpAccountingAPI.getCustomers(token, { limit: 500 }),
-    erpAccountingAPI.getVendors(token, { limit: 500 }),
-  ])
-  return {
-    customers: custRes.customers || [],
-    vendors: vendRes.vendors || [],
-  }
+async function fetchEveryPage(token, readPage, onPage) {
+  return forEachListPage({
+    pageSize: 200,
+    fetchPage: async ({ page, limit }) => {
+      const res = await readPage(token, { page, limit })
+      return { rows: res.rows || [], total: res.total }
+    },
+    onPage,
+  })
 }
 
-export async function fetchVoucherAccounts(token) {
-  const res = await erpAccountingAPI.getAccounts(token, { page: 1, limit: 500 })
-  return Array.isArray(res?.accounts) ? res.accounts : []
+export async function fetchVoucherParties(token, { onPage } = {}) {
+  let customers = []
+  let vendors = []
+  await Promise.all([
+    fetchEveryPage(
+      token,
+      async (authToken, params) => {
+        const res = await erpAccountingAPI.getCustomers(authToken, params)
+        return { rows: res.customers || [], total: res.total }
+      },
+      (rows) => {
+        customers = rows
+        onPage?.({ customers, vendors })
+      },
+    ),
+    fetchEveryPage(
+      token,
+      async (authToken, params) => {
+        const res = await erpAccountingAPI.getVendors(authToken, params)
+        return { rows: res.vendors || [], total: res.total }
+      },
+      (rows) => {
+        vendors = rows
+        onPage?.({ customers, vendors })
+      },
+    ),
+  ])
+  return { customers, vendors }
+}
+
+export async function fetchVoucherAccounts(token, { onPage } = {}) {
+  return fetchEveryPage(
+    token,
+    async (authToken, params) => {
+      const res = await erpAccountingAPI.getAccounts(authToken, params)
+      return { rows: Array.isArray(res?.accounts) ? res.accounts : [], total: res.total }
+    },
+    onPage,
+  )
 }
 
 export async function fetchVoucherCurrencies(token) {

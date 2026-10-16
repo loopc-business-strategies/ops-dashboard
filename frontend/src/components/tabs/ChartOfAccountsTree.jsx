@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
+import { forEachListPage } from '../../utils/erpPagedRows'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -177,41 +178,38 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     return accounts.filter((item) => item.accountType === form.accountType)
   }, [accounts, form.accountType])
 
-  const loadAllAccounts = useCallback(async () => {
-    const pageSize = 200
-    let page = 1
-    let total = 0
-    let collected = []
-
-    do {
-      const chunk = await erpAccountingAPI.getAccounts(token, { page, limit: pageSize })
-      const rows = Array.isArray(chunk?.accounts) ? chunk.accounts : []
-      total = Number(chunk?.total || rows.length)
-      collected = collected.concat(rows)
-      page += 1
-      if (rows.length === 0) break
-    } while (collected.length < total)
-
-    return collected
-  }, [token])
+  const loadSeqRef = useRef(0)
 
   // ── data loading ─────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current
     setLoading(true)
     setError('')
+    const currenciesPromise = erpAccountingAPI.getCurrencies(token).catch(() => [])
     try {
-      const [accountsData, currenciesData] = await Promise.all([
-        loadAllAccounts(),
-        erpAccountingAPI.getCurrencies(token).catch(() => []),
-      ])
-      setAccounts(Array.isArray(accountsData) ? accountsData : [])
+      await forEachListPage({
+        pageSize: 200,
+        shouldStop: () => seq !== loadSeqRef.current,
+        fetchPage: async ({ page, limit }) => {
+          const chunk = await erpAccountingAPI.getAccounts(token, { page, limit })
+          return { rows: Array.isArray(chunk?.accounts) ? chunk.accounts : [], total: chunk?.total }
+        },
+        onPage: (rows, { page }) => {
+          if (seq !== loadSeqRef.current) return
+          setAccounts(rows)
+          if (page === 1) setLoading(false)
+        },
+      })
+      const currenciesData = await currenciesPromise
+      if (seq !== loadSeqRef.current) return
       setCurrencies(currenciesData?.currencies || (Array.isArray(currenciesData) ? currenciesData : []))
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       setError(e?.response?.data?.message || t('failedToLoadAccounts'))
     } finally {
-      setLoading(false)
+      if (seq === loadSeqRef.current) setLoading(false)
     }
-  }, [loadAllAccounts, token, t])
+  }, [token, t])
 
   useEffect(() => { load() }, [load])
 

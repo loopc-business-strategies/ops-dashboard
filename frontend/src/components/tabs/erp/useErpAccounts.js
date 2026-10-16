@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../../utils/erpSummaryAccountsCache'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
+import { forEachListPage } from '../../../utils/erpPagedRows'
 import { filterActiveAccounts } from './accountDropdownHelpers'
 
 export function useErpAccounts({
@@ -70,21 +71,19 @@ export function useErpAccounts({
         setSummaryAccounts(next)
         writeSummaryAccountsCache(tenantKey, next)
       } else {
-        const pageSize = 500
-        let page = 1
-        let total = Number.POSITIVE_INFINITY
-        let collected = []
-        while (collected.length < total) {
-          if (seq !== loadSeqRef.current) return
-          const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
-          const rows = data.accounts || []
-          collected = collected.concat(rows)
-          total = Number(data.total || collected.length)
-          if (!rows.length) break
-          page += 1
-        }
-        if (seq !== loadSeqRef.current) return
-        setAccounts(filterActiveAccounts(collected))
+        await forEachListPage({
+          pageSize: 200,
+          shouldStop: () => seq !== loadSeqRef.current,
+          fetchPage: async ({ page, limit }) => {
+            const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit })
+            return { rows: data.accounts || [], total: data.total }
+          },
+          onPage: (rows) => {
+            if (seq !== loadSeqRef.current) return
+            setAccounts(filterActiveAccounts(rows))
+            setLoading(false)
+          },
+        })
       }
       if (seq !== loadSeqRef.current) return
       setError('')
