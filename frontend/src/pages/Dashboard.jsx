@@ -23,7 +23,7 @@ import { getNavItems } from '../components/layout/navConfig'
 import { applyItemOrder } from '../components/layout/navLayout'
 import { useNavLayout } from '../components/layout/useNavLayout'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
-import { holdLiveMetalRatesForDashboardReport, isLiveMetalRatesHeld, releaseLiveMetalRates, subscribeLiveMetalRatesReleased } from '../utils/liveMetalRates'
+import { holdLiveMetalRatesForDashboardReport, isLiveMetalRatesHeld, markDashboardConnectionIssued, markDashboardConnectionOpened, releaseLiveMetalRates, whenLiveMetalFetchSettled } from '../utils/liveMetalRates'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
 import {
   applyPresenceUpdate,
@@ -825,9 +825,11 @@ function Dashboard() {
     let stop = () => {}
     let unsubscribeRelease = () => {}
     const connect = () => {
+      markDashboardConnectionIssued('bell')
       stop = startUserNotifications({
         token,
         tenant,
+        onConnect: () => markDashboardConnectionOpened('bell'),
         onNotification: (payload) => {
           const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
           const chatTargetId = resolveChatTargetIdFromSocketPayload(payload)
@@ -858,7 +860,7 @@ function Dashboard() {
       }) || (() => {})
     }
     if (isLiveMetalRatesHeld()) {
-      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+      unsubscribeRelease = whenLiveMetalFetchSettled(connect)
     } else {
       connect()
     }
@@ -875,6 +877,7 @@ function Dashboard() {
     let stop = () => {}
     let unsubscribeRelease = () => {}
     const connect = () => {
+      markDashboardConnectionIssued('live')
       stop = startProjectsSse({
         tenant,
         onReminderDue: (data) => {
@@ -899,7 +902,7 @@ function Dashboard() {
       }) || (() => {})
     }
     if (isLiveMetalRatesHeld()) {
-      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+      unsubscribeRelease = whenLiveMetalFetchSettled(connect)
     } else {
       connect()
     }

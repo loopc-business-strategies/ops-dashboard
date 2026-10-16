@@ -1,4 +1,5 @@
 import { buildRealtimeEventsUrl } from './realtimeUrl'
+import { markDashboardConnectionFailed, markDashboardConnectionOpened } from './liveMetalRates'
 
 /**
  * Shared EventSource for /api/realtime/events — one connection per tenant.
@@ -21,10 +22,17 @@ function getOrCreateBus(tenant) {
       refCount: 0,
     }
     buses.set(tenantKey, bus)
+    markDashboardConnectionFailed('live')
     return bus
   }
 
   const source = new EventSource(url, { withCredentials: true })
+  source.onopen = () => {
+    markDashboardConnectionOpened('live')
+  }
+  source.onerror = () => {
+    markDashboardConnectionFailed('live')
+  }
   bus = {
     tenantKey,
     source,

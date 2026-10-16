@@ -12,12 +12,11 @@ import { loadSharedCustomers, loadSharedVendors } from '../../../utils/erpShared
 import { loadSharedVoucherList } from '../../../utils/erpSharedVoucherList'
 import { loadSharedSummaryReport } from './useErpReportsController'
 import { loadSharedLedgerPage } from '../../../utils/erpSharedLedger'
+import { resetDashboardConnectionsIssued, resetLiveMetalFetchStarted, whenDashboardConnectionsOpened, whenLiveMetalFetchSettled } from '../../../utils/liveMetalRates'
 import {
   hasExpenseRegisterFinished,
-  hasExpenseRegisterStarted,
   resetExpenseRegisterStarted,
-  subscribeExpenseRegisterFinished,
-  subscribeExpenseRegisterStarted,
+  whenExpenseRegisterSettled,
 } from './useExpenseRegister'
 
 const loadErpDashboardTab = () => import('./tabs/ERPDashboardTab')
@@ -500,57 +499,68 @@ export default function ERPTabPanels({
     seenTokenRef.current = token
     backgroundWarmRef.current = false
     resetExpenseRegisterStarted()
+    resetLiveMetalFetchStarted()
+    resetDashboardConnectionsIssued()
   }
 
   useEffect(() => {
     if (!token || backgroundWarmRef.current) return undefined
     let timer = 0
-    let unsubscribeStarted = () => {}
-    let unsubscribeFinished = () => {}
+    let capTimer = 0
+    let cancelled = false
+    let cancelWait = () => {}
     const run = () => {
       window.clearTimeout(timer)
-      unsubscribeStarted()
-      unsubscribeFinished()
+      cancelWait()
       if (backgroundWarmRef.current) return
       backgroundWarmRef.current = true
-      loadSharedAccountChart(token).catch(() => {})
-      loadSharedCustomers(token).catch(() => {})
-      loadSharedVendors(token).catch(() => {})
-      loadSharedCurrencies(token).catch(() => {})
-      loadSharedVoucherList(token, { type: 'payment', limit: 200 }).catch(() => {})
-      loadSharedSummaryReport(token).catch(() => {})
-      loadSharedLedgerPage(token).catch(() => {})
-    }
-    const waitForFinish = () => {
-      window.clearTimeout(timer)
-      if (hasExpenseRegisterFinished()) {
-        timer = window.setTimeout(run, 0)
-        return
+      const loads = [
+        () => loadSharedAccountChart(token),
+        () => loadSharedCustomers(token),
+        () => loadSharedVendors(token),
+        () => loadSharedCurrencies(token),
+        () => loadSharedVoucherList(token, { type: 'payment', limit: 200 }),
+        () => loadSharedSummaryReport(token),
+        () => loadSharedLedgerPage(token),
+      ]
+      let index = 0
+      const next = () => {
+        if (cancelled || index >= loads.length) return
+        const load = loads[index]
+        index += 1
+        let hopped = false
+        const hop = () => {
+          if (hopped || cancelled) return
+          hopped = true
+          window.clearTimeout(capTimer)
+          next()
+        }
+        capTimer = window.setTimeout(hop, 8000)
+        Promise.resolve().then(load).catch(() => {}).then(hop)
       }
-      timer = window.setTimeout(run, 8000)
-      unsubscribeFinished = subscribeExpenseRegisterFinished(() => {
-        window.clearTimeout(timer)
-        timer = window.setTimeout(run, 0)
-      })
+      next()
+    }
+    const afterConnectionsOpened = () => {
+      cancelWait = whenDashboardConnectionsOpened(run)
+    }
+    const afterPricesSettled = () => {
+      cancelWait = whenLiveMetalFetchSettled(afterConnectionsOpened)
     }
     const onDashboard = activeTab === 'dashboard'
-    if (!onDashboard || hasExpenseRegisterFinished()) {
+    if (!onDashboard) {
       timer = window.setTimeout(run, 0)
     } else if (!dashboardReportSettled) {
       timer = window.setTimeout(run, 8000)
-    } else if (hasExpenseRegisterStarted()) {
-      waitForFinish()
+    } else if (hasExpenseRegisterFinished()) {
+      afterPricesSettled()
     } else {
-      timer = window.setTimeout(run, 1000)
-      unsubscribeStarted = subscribeExpenseRegisterStarted(() => {
-        window.clearTimeout(timer)
-        waitForFinish()
-      })
+      cancelWait = whenExpenseRegisterSettled(afterPricesSettled)
     }
     return () => {
+      cancelled = true
       window.clearTimeout(timer)
-      unsubscribeStarted()
-      unsubscribeFinished()
+      window.clearTimeout(capTimer)
+      cancelWait()
     }
   }, [token, activeTab, dashboardReportSettled])
 

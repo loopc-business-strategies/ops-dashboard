@@ -49,6 +49,54 @@ export function resetExpenseRegisterStarted() {
   expenseRegisterFinished = false
 }
 
+/**
+ * Run `onSettled` after the expense-register request finishes.
+ * If that request never starts, run after 1 second. If it hangs, run after 8 seconds.
+ */
+export function whenExpenseRegisterSettled(onSettled) {
+  let settled = false
+  let timer = 0
+  let unsubStarted = () => {}
+  let unsubFinished = () => {}
+  const finish = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(timer)
+    unsubStarted()
+    unsubFinished()
+    onSettled()
+  }
+  const waitForFinish = () => {
+    clearTimeout(timer)
+    if (hasExpenseRegisterFinished()) {
+      timer = setTimeout(finish, 0)
+      return
+    }
+    timer = setTimeout(finish, 8000)
+    unsubFinished = subscribeExpenseRegisterFinished(() => {
+      clearTimeout(timer)
+      timer = setTimeout(finish, 0)
+    })
+  }
+  if (hasExpenseRegisterFinished()) {
+    timer = setTimeout(finish, 0)
+  } else if (hasExpenseRegisterStarted()) {
+    waitForFinish()
+  } else {
+    timer = setTimeout(finish, 1000)
+    unsubStarted = subscribeExpenseRegisterStarted(() => {
+      clearTimeout(timer)
+      waitForFinish()
+    })
+  }
+  return () => {
+    settled = true
+    clearTimeout(timer)
+    unsubStarted()
+    unsubFinished()
+  }
+}
+
 export function cleanExpenseRegisterParams(params = {}) {
   const out = {}
   Object.entries(params || {}).forEach(([key, value]) => {

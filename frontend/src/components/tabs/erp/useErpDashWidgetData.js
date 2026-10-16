@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import messagesAPI from '../../../api/messages'
 import { formatDateInputLocal } from './erpTabPresentation'
-import { holdLiveMetalRatesForDashboardReport, releaseLiveMetalRates } from '../../../utils/liveMetalRates'
+import { holdLiveMetalRatesForDashboardReport, keepLiveMetalRatesHeld, releaseLiveMetalRates } from '../../../utils/liveMetalRates'
+import { whenExpenseRegisterSettled } from './useExpenseRegister'
 
 const reportSoftCache = new Map()
 const REPORT_SOFT_TTL_MS = 90 * 1000
@@ -94,20 +95,27 @@ export function useErpDashWidgetData({
       if (seq === reportSeqRef.current) {
         setDashboardLoading(false)
         setDashboardReportSettled(true)
-        void loadDashChat()
+        keepLiveMetalRatesHeld(metalHold)
+        cancelAfterExpenseRef.current()
+        cancelAfterExpenseRef.current = whenExpenseRegisterSettled(() => {
+          releaseLiveMetalRates(metalHold)
+          void loadDashChat()
+        })
       }
-      releaseLiveMetalRates(metalHold)
     }
   }, [canLoadDashboard, token, dashDateFrom, dashDateTo, setError, tenantKey, loadDashChat])
 
-  /** Report finishes before chat so the cash figures are not waiting on messages. */
+  /** Chat and the price connections wait until the expense list has arrived. */
   const loadDashboard = useCallback(() => {
     void Promise.resolve(loadDashboardReport()).then(() => {
-      void loadDashChat({ force: true })
+      whenExpenseRegisterSettled(() => {
+        void loadDashChat({ force: true })
+      })
     })
   }, [loadDashboardReport, loadDashChat])
 
   const dashFetchedRef = useRef({ key: '', at: 0 })
+  const cancelAfterExpenseRef = useRef(() => {})
 
   useEffect(() => {
     if (activeTab !== 'dashboard' || !canLoadDashboard || !token) return

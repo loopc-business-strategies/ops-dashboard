@@ -21,7 +21,13 @@ import {
   normalizeMarketUnit,
   resolveLiveMetalPollIntervalMs,
   isLiveMetalRatesHeld,
+  markDashboardConnectionFailed,
+  markDashboardConnectionIssued,
+  markDashboardConnectionOpened,
+  markLiveMetalFetchFinished,
+  markLiveMetalFetchStarted,
   subscribeLiveMetalRatesReleased,
+  whenLiveMetalFetchSettled,
 } from '../utils/liveMetalRates'
 
 function normalizeInboundRates(rates) {
@@ -143,6 +149,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     if (typeof document !== 'undefined' && document.hidden) return
     if (isLiveMetalRatesHeld()) return
 
+    markLiveMetalFetchStarted()
     try {
       const live = await currenciesApi.getLiveMetalRates(token)
       const liveRates = live?.rates
@@ -173,6 +180,8 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
         pollPausedUntilRef.current = Date.now() + LIVE_METAL_RATE_LIMIT_BACKOFF_MS
       }
       setMetalRatesStoreState({ error: parsed })
+    } finally {
+      markLiveMetalFetchFinished()
     }
   }, [applyRates, enabled, token])
 
@@ -221,6 +230,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     let unsubscribeEvents = () => {}
     let unsubscribeRelease = () => {}
     const connect = () => {
+      markDashboardConnectionIssued('live')
       unsubscribeEvents = subscribeRealtimeEvents(tenant, 'metal-rates:update', (event) => {
         try {
           const data = parseRealtimeEventData(event, {})
@@ -232,7 +242,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       })
     }
     if (isLiveMetalRatesHeld()) {
-      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+      unsubscribeRelease = whenLiveMetalFetchSettled(connect)
     } else {
       connect()
     }
@@ -259,10 +269,14 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     let stop = () => {}
     let unsubscribeRelease = () => {}
     const connect = () => {
+      markDashboardConnectionIssued('socket')
       stop = startMetalRatesRealtime({
         token,
         tenant,
-        onConnect: () => void load(),
+        onConnect: () => {
+          markDashboardConnectionOpened('socket')
+          void load()
+        },
         onRatesUpdate: (payload) => {
           const raw = payload?.rates || payload?.data?.rates
           applyRates(normalizeInboundRates(raw))
@@ -270,7 +284,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       })
     }
     if (isLiveMetalRatesHeld()) {
-      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+      unsubscribeRelease = whenLiveMetalFetchSettled(connect)
     } else {
       connect()
     }
@@ -293,6 +307,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
 
     const openStream = () => {
       if (closed || source) return
+      markDashboardConnectionIssued('stream')
       source = new window.EventSource(
         reportsApi.getMarketPricesStreamUrl({
           ...TOPBAR_MARKET_PARAMS,
@@ -303,6 +318,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
 
       source.onopen = () => {
         if (closed) return
+        markDashboardConnectionOpened('stream')
         streamConnectedRef.current = true
         schedulePoll()
       }
@@ -319,6 +335,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       }
 
       source.onerror = () => {
+        markDashboardConnectionFailed('stream')
         if (streamConnectedRef.current) {
           streamConnectedRef.current = false
           schedulePoll()
@@ -336,7 +353,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     }
 
     if (isLiveMetalRatesHeld()) {
-      unsubscribeRelease = subscribeLiveMetalRatesReleased(openStream)
+      unsubscribeRelease = whenLiveMetalFetchSettled(openStream)
     } else {
       openStream()
     }

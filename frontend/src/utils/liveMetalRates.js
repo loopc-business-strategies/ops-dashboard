@@ -34,7 +34,7 @@ export function subscribeLiveMetalRatesReleased(listener) {
   return () => liveMetalRatesReleaseListeners.delete(listener)
 }
 
-/** Pause live price fetches until the dashboard report settles, or for 8 seconds. */
+/** Pause live price fetches until the expense list arrives, or for 8 seconds. */
 export function holdLiveMetalRatesForDashboardReport() {
   liveMetalRatesHoldGeneration += 1
   const generation = liveMetalRatesHoldGeneration
@@ -46,6 +46,14 @@ export function holdLiveMetalRatesForDashboardReport() {
   return generation
 }
 
+/** Keep the hold after the dashboard report, until the expense list settles. */
+export function keepLiveMetalRatesHeld(generation) {
+  if (generation != null && generation !== liveMetalRatesHoldGeneration) return
+  if (!liveMetalRatesHeld) return
+  clearTimeout(liveMetalRatesReleaseTimer)
+  liveMetalRatesReleaseTimer = 0
+}
+
 export function releaseLiveMetalRates(generation) {
   if (generation != null && generation !== liveMetalRatesHoldGeneration) return
   if (!liveMetalRatesHeld) return
@@ -53,6 +61,241 @@ export function releaseLiveMetalRates(generation) {
   clearTimeout(liveMetalRatesReleaseTimer)
   liveMetalRatesReleaseTimer = 0
   liveMetalRatesReleaseListeners.forEach((listener) => listener())
+}
+
+let liveMetalFetchStarted = false
+let liveMetalFetchFinished = false
+const liveMetalFetchStartListeners = new Set()
+const liveMetalFetchFinishListeners = new Set()
+
+/** True once the first live price request has been issued. */
+export function hasLiveMetalFetchStarted() {
+  return liveMetalFetchStarted
+}
+
+/** True once that first live price request has settled. */
+export function hasLiveMetalFetchFinished() {
+  return liveMetalFetchFinished
+}
+
+export function markLiveMetalFetchStarted() {
+  if (liveMetalFetchStarted) return
+  liveMetalFetchStarted = true
+  liveMetalFetchStartListeners.forEach((listener) => listener())
+}
+
+export function markLiveMetalFetchFinished() {
+  if (liveMetalFetchFinished) return
+  liveMetalFetchFinished = true
+  liveMetalFetchFinishListeners.forEach((listener) => listener())
+}
+
+export function subscribeLiveMetalFetchStarted(listener) {
+  liveMetalFetchStartListeners.add(listener)
+  return () => liveMetalFetchStartListeners.delete(listener)
+}
+
+export function subscribeLiveMetalFetchFinished(listener) {
+  liveMetalFetchFinishListeners.add(listener)
+  return () => liveMetalFetchFinishListeners.delete(listener)
+}
+
+export function resetLiveMetalFetchStarted() {
+  liveMetalFetchStarted = false
+  liveMetalFetchFinished = false
+}
+
+/**
+ * Run `onSettled` once the first live price response is back.
+ * If that request never starts, run after 1 second. If it never returns, run after 8 seconds.
+ */
+export function whenLiveMetalFetchSettled(onSettled) {
+  let settled = false
+  let timer = 0
+  let unsubStarted = () => {}
+  let unsubFinished = () => {}
+  let unsubReleased = () => {}
+  const finish = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(timer)
+    unsubStarted()
+    unsubFinished()
+    unsubReleased()
+    onSettled()
+  }
+  const waitForFinish = () => {
+    clearTimeout(timer)
+    unsubFinished()
+    if (hasLiveMetalFetchFinished()) {
+      timer = setTimeout(finish, 0)
+      return
+    }
+    timer = setTimeout(finish, 8000)
+    unsubFinished = subscribeLiveMetalFetchFinished(() => {
+      clearTimeout(timer)
+      timer = setTimeout(finish, 0)
+    })
+  }
+  const waitForStart = (capMs) => {
+    clearTimeout(timer)
+    unsubStarted()
+    if (hasLiveMetalFetchFinished()) {
+      timer = setTimeout(finish, 0)
+      return
+    }
+    if (hasLiveMetalFetchStarted()) {
+      waitForFinish()
+      return
+    }
+    timer = setTimeout(finish, capMs)
+    unsubStarted = subscribeLiveMetalFetchStarted(() => {
+      clearTimeout(timer)
+      waitForFinish()
+    })
+  }
+  if (hasLiveMetalFetchFinished()) {
+    timer = setTimeout(finish, 0)
+  } else if (hasLiveMetalFetchStarted()) {
+    waitForFinish()
+  } else if (isLiveMetalRatesHeld()) {
+    waitForStart(8000)
+    unsubReleased = subscribeLiveMetalRatesReleased(() => {
+      waitForStart(1000)
+    })
+  } else {
+    waitForStart(1000)
+  }
+  return () => {
+    settled = true
+    clearTimeout(timer)
+    unsubStarted()
+    unsubFinished()
+    unsubReleased()
+  }
+}
+
+const DASHBOARD_CONNECTION_KINDS = ['stream', 'socket', 'bell', 'live']
+const dashboardConnectionsIssued = new Set()
+const dashboardConnectionListeners = new Set()
+
+export function markDashboardConnectionIssued(kind) {
+  if (!DASHBOARD_CONNECTION_KINDS.includes(kind) || dashboardConnectionsIssued.has(kind)) return
+  dashboardConnectionsIssued.add(kind)
+  dashboardConnectionListeners.forEach((listener) => listener())
+}
+
+export function subscribeDashboardConnectionsIssued(listener) {
+  dashboardConnectionListeners.add(listener)
+  return () => dashboardConnectionListeners.delete(listener)
+}
+
+export function resetDashboardConnectionsIssued() {
+  dashboardConnectionsIssued.clear()
+  dashboardConnectionsOpened.clear()
+  dashboardConnectionFailed = false
+}
+
+const dashboardConnectionsOpened = new Set()
+const dashboardConnectionOpenListeners = new Set()
+
+/** True once the market stream, metal socket, bell, and live updates have all finished opening. */
+export function hasDashboardConnectionsOpened() {
+  return dashboardConnectionsOpened.size === DASHBOARD_CONNECTION_KINDS.length
+}
+
+export function markDashboardConnectionOpened(kind) {
+  if (!DASHBOARD_CONNECTION_KINDS.includes(kind) || dashboardConnectionsOpened.has(kind)) return
+  dashboardConnectionsOpened.add(kind)
+  dashboardConnectionOpenListeners.forEach((listener) => listener())
+}
+
+export function subscribeDashboardConnectionsOpened(listener) {
+  dashboardConnectionOpenListeners.add(listener)
+  return () => dashboardConnectionOpenListeners.delete(listener)
+}
+
+let dashboardConnectionFailed = false
+const dashboardConnectionFailListeners = new Set()
+
+/** True once any of those four connections has failed to open. */
+export function hasDashboardConnectionFailed() {
+  return dashboardConnectionFailed
+}
+
+export function markDashboardConnectionFailed(kind) {
+  if (!DASHBOARD_CONNECTION_KINDS.includes(kind) || dashboardConnectionsOpened.has(kind)) return
+  if (dashboardConnectionFailed) return
+  dashboardConnectionFailed = true
+  dashboardConnectionFailListeners.forEach((listener) => listener())
+}
+
+export function subscribeDashboardConnectionFailed(listener) {
+  dashboardConnectionFailListeners.add(listener)
+  return () => dashboardConnectionFailListeners.delete(listener)
+}
+
+/**
+ * Run `onOpened` once those four connections have finished opening.
+ * A failed open ends the wait. If none are started, run after 1 second.
+ * If one never finishes opening and none fail, run after 8 seconds.
+ */
+export function whenDashboardConnectionsOpened(onOpened) {
+  let settled = false
+  let timer = 0
+  let unsubIssued = () => {}
+  let unsubOpened = () => {}
+  let unsubFailed = () => {}
+  const finish = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(timer)
+    unsubIssued()
+    unsubOpened()
+    unsubFailed()
+    onOpened()
+  }
+  const waitForOpened = () => {
+    clearTimeout(timer)
+    unsubOpened()
+    unsubFailed()
+    if (hasDashboardConnectionsOpened() || hasDashboardConnectionFailed()) {
+      timer = setTimeout(finish, 0)
+      return
+    }
+    timer = setTimeout(finish, 8000)
+    unsubOpened = subscribeDashboardConnectionsOpened(() => {
+      if (!hasDashboardConnectionsOpened()) return
+      clearTimeout(timer)
+      timer = setTimeout(finish, 0)
+    })
+    unsubFailed = subscribeDashboardConnectionFailed(() => {
+      clearTimeout(timer)
+      timer = setTimeout(finish, 0)
+    })
+  }
+  if (hasDashboardConnectionsOpened() || hasDashboardConnectionFailed()) {
+    timer = setTimeout(finish, 0)
+  } else if (dashboardConnectionsIssued.size > 0) {
+    waitForOpened()
+  } else {
+    timer = setTimeout(finish, 1000)
+    unsubIssued = subscribeDashboardConnectionsIssued(() => {
+      clearTimeout(timer)
+      waitForOpened()
+    })
+    unsubFailed = subscribeDashboardConnectionFailed(() => {
+      clearTimeout(timer)
+      timer = setTimeout(finish, 0)
+    })
+  }
+  return () => {
+    settled = true
+    clearTimeout(timer)
+    unsubIssued()
+    unsubOpened()
+    unsubFailed()
+  }
 }
 
 export const GRAMS_PER_TOZ = 31.1034768

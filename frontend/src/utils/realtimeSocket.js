@@ -1,5 +1,6 @@
 import { subscribeRealtimeEvents, parseRealtimeEventData } from './realtimeEventsBus'
 import { buildRealtimeEventsUrl, buildRealtimeNamespaceUrl } from './realtimeUrl'
+import { markDashboardConnectionFailed } from './liveMetalRates'
 
 export { buildRealtimeEventsUrl }
 
@@ -12,12 +13,16 @@ const loadIo = () => {
   return ioModulePromise
 }
 
-const createSocket = async (namespace, token, tenant) => {
+/** Dashboard sockets report a failed open after a few seconds, before the menu wait gives up. */
+const DASHBOARD_SOCKET_TIMEOUT_MS = 4_000
+
+const createSocket = async (namespace, token, tenant, { timeout } = {}) => {
   const io = await loadIo()
   const tenantKey = String(tenant || '').trim()
   return io(buildRealtimeNamespaceUrl(namespace), {
     transports: ['websocket', 'polling'],
     withCredentials: true,
+    ...(timeout ? { timeout } : {}),
     extraHeaders: tenantKey ? { 'x-tenant': tenantKey, 'x-company': tenantKey } : undefined,
     auth: {
       token: token || 'browser-session',
@@ -110,14 +115,17 @@ export const startERPRealtimeFeeds = ({
 
 export const startMetalRatesRealtime = ({ token, tenant, onRatesUpdate, onConnect }) => {
   const tenantKey = String(tenant || '').trim()
-  if (!tenantKey || typeof onRatesUpdate !== 'function') return () => {}
+  if (!tenantKey || typeof onRatesUpdate !== 'function') {
+    markDashboardConnectionFailed('socket')
+    return () => {}
+  }
 
   let cancelled = false
   let socket = null
 
   ;(async () => {
     try {
-      socket = await createSocket('/metal-rates', token, tenantKey)
+      socket = await createSocket('/metal-rates', token, tenantKey, { timeout: DASHBOARD_SOCKET_TIMEOUT_MS })
       if (cancelled) {
         socket.disconnect()
         return
@@ -126,9 +134,12 @@ export const startMetalRatesRealtime = ({ token, tenant, onRatesUpdate, onConnec
         socket.emit('subscribe:tenant', tenantKey)
         if (typeof onConnect === 'function') onConnect()
       })
+      socket.on('connect_error', () => {
+        markDashboardConnectionFailed('socket')
+      })
       socket.on('metal-rates:update', onRatesUpdate)
     } catch {
-      /* ignore */
+      markDashboardConnectionFailed('socket')
     }
   })()
 
@@ -137,6 +148,7 @@ export const startMetalRatesRealtime = ({ token, tenant, onRatesUpdate, onConnec
     if (!socket) return
     socket.off('metal-rates:update', onRatesUpdate)
     socket.off('connect')
+    socket.off('connect_error')
     socket.disconnect()
   }
 }
@@ -155,8 +167,10 @@ export const startUserNotifications = ({
   onNotification,
   onPresenceSnapshot,
   onPresenceUpdate,
+  onConnect,
 }) => {
   if (typeof onNotification !== 'function' && typeof onPresenceSnapshot !== 'function' && typeof onPresenceUpdate !== 'function') {
+    markDashboardConnectionFailed('bell')
     return () => {}
   }
 
@@ -165,7 +179,7 @@ export const startUserNotifications = ({
 
   ;(async () => {
     try {
-      notificationSocket = await createSocket('/notifications', token, tenant)
+      notificationSocket = await createSocket('/notifications', token, tenant, { timeout: DASHBOARD_SOCKET_TIMEOUT_MS })
       if (cancelled) {
         notificationSocket.disconnect()
         return
@@ -174,6 +188,13 @@ export const startUserNotifications = ({
       if (typeof onNotification === 'function') {
         notificationSocket.on('notification', onNotification)
       }
+      notificationSocket.on('connect', () => {
+        if (typeof onConnect === 'function') onConnect()
+      })
+      notificationSocket.on('connect_error', () => {
+        markDashboardConnectionFailed('bell')
+      })
+      if (notificationSocket.connected && typeof onConnect === 'function') onConnect()
 
       if (typeof onPresenceSnapshot === 'function') {
         notificationSocket.on('presence:snapshot', (payload) => {
@@ -191,7 +212,7 @@ export const startUserNotifications = ({
         })
       }
     } catch {
-      /* ignore */
+      markDashboardConnectionFailed('bell')
     }
   })()
 
@@ -201,6 +222,8 @@ export const startUserNotifications = ({
     if (typeof onNotification === 'function') {
       notificationSocket.off('notification', onNotification)
     }
+    notificationSocket.off('connect')
+    notificationSocket.off('connect_error')
     if (typeof onPresenceSnapshot === 'function') {
       notificationSocket.off('presence:snapshot')
     }
