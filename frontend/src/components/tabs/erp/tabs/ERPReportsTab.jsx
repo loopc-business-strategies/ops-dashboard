@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import CurrencyStatementTable, { currencyRowMetaMap } from '../CurrencyStatementTable'
-import { buildCurrencyBalanceSheetModel, buildCurrencyProfitLossModel, buildCurrencyTrialBalanceModel } from '../currencyTrialBalanceExport'
 import { trialBalanceRowsForView } from '../trialBalanceReportRows'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
 import {
@@ -12,11 +10,13 @@ import {
   convertReportUsd,
   defaultReportDisplayOptions,
   reportDisplayPerUsd,
+  reportMoneyHeaderLabels,
   reportSelectableCurrencies,
   reportMoneyColumns,
   buildClosingStockTrialRow,
   filterTrialRowsByGroup,
   formatReportGrams,
+  trialMoneyHeaders,
 } from '../reportDisplayOptions'
 import { currenciesApi } from '../../../../api/erp-accounting/currencies'
 import { reportsApi } from '../../../../api/erp-accounting/reports'
@@ -133,6 +133,7 @@ export default function ERPReportsTab({
   })
   const moneyColumns = reportMoneyColumns(reportDisplay)
   const perUsd = reportDisplayPerUsd(displayCurrency, loadedCurrencies, baseCurrencyCode)
+  const moneyHeaderLabels = reportMoneyHeaderLabels(displayCurrency)
   const apiHasClosingStock = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
   const closingStockSource = apiHasClosingStock
     ? reports.trialBalance?.closingStock
@@ -195,37 +196,6 @@ export default function ERPReportsTab({
     return String(row.accountCode || '').toLowerCase().includes(q) || String(row.accountName || '').toLowerCase().includes(q)
   })
   const trialBalanceShown = trialBalanceFiltered.slice(0, TRIAL_BALANCE_UI_ROW_CAP)
-  const trialCurrencyModel = buildCurrencyTrialBalanceModel({
-    rows: trialBalanceShown,
-    convert: convertAmount,
-    baseCurrency: baseCurrencyCode,
-    displayCurrency,
-  })
-  const trialMetaByKey = currencyRowMetaMap(trialBalanceShown, formatReportGrams)
-  const profitLossCurrencyModel = buildCurrencyProfitLossModel({
-    income: reports.profitLoss?.incomeBreakdown || [],
-    expenses: reports.profitLoss?.expenseBreakdown || [],
-    convert: convertAmount,
-    baseCurrency: baseCurrencyCode,
-    displayCurrency,
-  })
-  const profitLossMetaByKey = currencyRowMetaMap([
-    ...(reports.profitLoss?.incomeBreakdown || []),
-    ...(reports.profitLoss?.expenseBreakdown || []),
-  ])
-  const balanceSheetCurrencyModel = buildCurrencyBalanceSheetModel({
-    assets: reports.balanceSheet?.assets || [],
-    liabilities: reports.balanceSheet?.liabilities || [],
-    equity: reports.balanceSheet?.equity || [],
-    convert: convertAmount,
-    baseCurrency: baseCurrencyCode,
-    displayCurrency,
-  })
-  const balanceSheetMetaByKey = currencyRowMetaMap([
-    ...(reports.balanceSheet?.assets || []),
-    ...(reports.balanceSheet?.liabilities || []),
-    ...(reports.balanceSheet?.equity || []),
-  ])
   const dayBookEntries = reports.dayBook?.entries || []
   const dayBookShown = dayBookEntries.slice(0, DAY_BOOK_UI_ROW_CAP)
   const reportYearOptions = buildReportYearOptions(reportFilters.reportYear)
@@ -485,13 +455,59 @@ export default function ERPReportsTab({
                 </p>
               )}
               <div className="erp-table-wrap" style={{ overflowX: 'auto', borderRadius: '0.45rem' }}>
-                <CurrencyStatementTable
-                  model={trialCurrencyModel}
-                  moneyColumns={moneyColumns}
-                  showMetal={reportDisplay.showMetal !== false}
-                  metaByKey={trialMetaByKey}
-                  onOpenAccount={(row) => handleTrialAccountDrilldown(row.accountCode)}
-                />
+                <table className="erp-table">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th>Type</th>
+                      {trialMoneyHeaders(moneyColumns, moneyHeaderLabels).map((label) => (
+                        <th key={label} className="num">{label}</th>
+                      ))}
+                      {reportDisplay.showMetal !== false && (
+                        <>
+                          <th className="num">Gold g</th>
+                          <th className="num">Silver g</th>
+                        </>
+                      )}
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trialBalanceShown.map((row) => (
+                        <tr key={row.unposted ? 'closing-stock' : `${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                          <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
+                          <td style={{ padding: '0.6rem' }}>
+                            {row.accountName}
+                            {row.isActive === false ? <span style={{ marginLeft: '0.35rem', color: C.inkSoft, fontSize: '0.75rem' }}>Closed</span> : null}
+                          </td>
+                          <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
+                          {moneyColumns.debit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.debit || 0)}</td>}
+                          {moneyColumns.credit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.credit || 0)}</td>}
+                          {moneyColumns.net && (
+                            <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
+                              {formatDirectionalBalance(row.net)}
+                            </td>
+                          )}
+                          {reportDisplay.showMetal !== false && (
+                            <>
+                              <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatReportGrams(row.goldNet)}</td>
+                              <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatReportGrams(row.silverNet)}</td>
+                            </>
+                          )}
+                          <td style={{ padding: '0.6rem' }}>
+                            {row.unposted ? (
+                              <span style={{ color: C.inkSoft, fontSize: '0.78rem' }}>Not posted</span>
+                            ) : (
+                              <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
+                                Ledger
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
               {reportDisplay.calculateClosingStock && (
                 <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
@@ -509,20 +525,37 @@ export default function ERPReportsTab({
               <div style={{ gridColumn: '1 / -1' }}>
                 {renderActivePeriodBadge('0')}
               </div>
-              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: '0 0 0.5rem', fontWeight: '700' }}>Profit & Loss</p>
+              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Income Breakdown</p>
                 <div style={{ overflowX: 'auto' }}>
-                  <CurrencyStatementTable
-                    model={profitLossCurrencyModel}
-                    moneyColumns={moneyColumns}
-                    metaByKey={profitLossMetaByKey}
-                    actionLabel="Vouchers"
-                    onOpenAccount={(row) => handleReportAccountDrilldown(row.accountId, row.accountCode)}
-                  />
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
+                    <tbody>
+                      {(reports.profitLoss?.incomeBreakdown || []).map((row) => (
+                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                {reports.profitLoss?.previousPeriod ? (
-                  <p style={{ margin: '0.75rem 0 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {formatMoney(reports.profitLoss?.varianceVsPrevious || 0)}</p>
-                ) : null}
+              </div>
+              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Expense Breakdown</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
+                    <tbody>
+                      {(reports.profitLoss?.expenseBreakdown || []).map((row) => (
+                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem' }}>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Income: {formatMoney(reports.profitLoss?.totalIncome || 0)}</p>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Expense: {formatMoney(reports.profitLoss?.totalExpense || 0)}</p>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net Profit: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
+                  {reports.profitLoss?.previousPeriod && <p style={{ margin: '0.2rem 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {formatMoney(reports.profitLoss?.varianceVsPrevious || 0)}</p>}
+                </div>
                 {reports.profitLoss?.metalPositionRevaluation && (
                   <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem', fontSize: '0.84rem' }}>
                     <p style={{ margin: '0 0 0.3rem', fontWeight: '700' }}>Open metal position at live price (not posted)</p>
@@ -606,17 +639,21 @@ export default function ERPReportsTab({
               <div style={{ gridColumn: '1 / -1' }}>
                 {renderActivePeriodBadge('0')}
               </div>
-              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <div style={{ overflowX: 'auto' }}>
-                  <CurrencyStatementTable
-                    model={balanceSheetCurrencyModel}
-                    moneyColumns={moneyColumns}
-                    metaByKey={balanceSheetMetaByKey}
-                    actionLabel="Vouchers"
-                    onOpenAccount={(row) => handleReportAccountDrilldown(row.accountId, row.accountCode)}
-                  />
+              {[['Assets', reports.balanceSheet?.assets || []], ['Liabilities', reports.balanceSheet?.liabilities || []], ['Equity', reports.balanceSheet?.equity || []]].map(([title, rows]) => (
+                <div key={title} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                  <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>{title}</p>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Name</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Balance</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Action</th></tr></thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}{row.isReclassified ? <span style={{ marginLeft: '0.4rem', color: '#64748B', fontSize: '0.72rem', fontWeight: '700' }}>reclassified</span> : null}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatDirectionalBalance(row.balance, { preferredDirection: row.direction || (title === 'Assets' ? 'debit' : 'credit') })}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              ))}
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {formatMoneyAbs(reports.balanceSheet?.totalAssets || 0)}</p>
                 <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity || 0)}</p>
