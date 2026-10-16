@@ -7,6 +7,29 @@ export function expenseRegisterYearStart() {
   return `${d.getFullYear()}-01-01`
 }
 
+let expenseRegisterStarted = false
+const expenseRegisterListeners = new Set()
+
+/** True once a dashboard expense-register request has been issued. */
+export function hasExpenseRegisterStarted() {
+  return expenseRegisterStarted
+}
+
+export function markExpenseRegisterStarted() {
+  if (expenseRegisterStarted) return
+  expenseRegisterStarted = true
+  expenseRegisterListeners.forEach((listener) => listener())
+}
+
+export function subscribeExpenseRegisterStarted(listener) {
+  expenseRegisterListeners.add(listener)
+  return () => expenseRegisterListeners.delete(listener)
+}
+
+export function resetExpenseRegisterStarted() {
+  expenseRegisterStarted = false
+}
+
 export function cleanExpenseRegisterParams(params = {}) {
   const out = {}
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -38,6 +61,7 @@ export function useExpenseRegister({
 
   const load = useCallback(async () => {
     if (!token || !enabled) return
+    markExpenseRegisterStarted()
     const seq = ++loadSeqRef.current
     setLoading(true)
     setError('')

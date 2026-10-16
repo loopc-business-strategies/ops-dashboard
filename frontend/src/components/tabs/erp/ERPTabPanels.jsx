@@ -12,6 +12,11 @@ import { loadSharedCustomers, loadSharedVendors } from '../../../utils/erpShared
 import { loadSharedVoucherList } from '../../../utils/erpSharedVoucherList'
 import { loadSharedSummaryReport } from './useErpReportsController'
 import { loadSharedLedgerPage } from '../../../utils/erpSharedLedger'
+import {
+  hasExpenseRegisterStarted,
+  resetExpenseRegisterStarted,
+  subscribeExpenseRegisterStarted,
+} from './useExpenseRegister'
 
 const loadErpDashboardTab = () => import('./tabs/ERPDashboardTab')
 const loadErpEditRecordModal = () => import('./ErpEditRecordModal')
@@ -488,16 +493,23 @@ export default function ERPTabPanels({
   }, [])
 
   const backgroundWarmRef = useRef(false)
-
-  useEffect(() => {
+  const seenTokenRef = useRef(token)
+  if (seenTokenRef.current !== token) {
+    seenTokenRef.current = token
     backgroundWarmRef.current = false
-  }, [token])
+    resetExpenseRegisterStarted()
+  }
 
   useEffect(() => {
     if (!token || backgroundWarmRef.current) return undefined
-    const waitingOnDashboard = activeTab === 'dashboard' && dashboard == null
-    const delay = waitingOnDashboard ? 8000 : 0
-    const timer = window.setTimeout(() => {
+    const onDashboard = activeTab === 'dashboard'
+    const expenseStarted = hasExpenseRegisterStarted()
+    const waitingForReport = onDashboard && !dashboardReportSettled && !expenseStarted
+    const waitingForExpense = onDashboard && Boolean(dashboardReportSettled) && !expenseStarted
+    const delay = waitingForReport ? 8000 : waitingForExpense ? 1000 : 0
+    let followUp = 0
+    const run = () => {
+      window.clearTimeout(followUp)
       if (backgroundWarmRef.current) return
       backgroundWarmRef.current = true
       loadSharedAccountChart(token).catch(() => {})
@@ -507,9 +519,20 @@ export default function ERPTabPanels({
       loadSharedVoucherList(token, { type: 'payment', limit: 200 }).catch(() => {})
       loadSharedSummaryReport(token).catch(() => {})
       loadSharedLedgerPage(token).catch(() => {})
-    }, delay)
-    return () => window.clearTimeout(timer)
-  }, [token, dashboard, activeTab])
+    }
+    const timer = window.setTimeout(run, delay)
+    const unsubscribe = waitingForExpense
+      ? subscribeExpenseRegisterStarted(() => {
+        window.clearTimeout(timer)
+        followUp = window.setTimeout(run, 0)
+      })
+      : () => {}
+    return () => {
+      window.clearTimeout(timer)
+      window.clearTimeout(followUp)
+      unsubscribe()
+    }
+  }, [token, activeTab, dashboardReportSettled])
 
   return (
     <>
