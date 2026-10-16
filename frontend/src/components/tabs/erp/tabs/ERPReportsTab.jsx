@@ -392,32 +392,36 @@ export default function ERPReportsTab({
               )}
               <input type="date" aria-label="From date" value={reportFilters.period === 'custom' ? reportFilters.startDate : (activeReportRange.startDate || '')} onChange={(e) => setReportFilters((prev) => ({ ...prev, startDate: e.target.value, period: 'custom' }))} style={reportDateFieldStyle} />
               <input type="date" aria-label="To date" value={reportFilters.period === 'custom' ? reportFilters.endDate : (activeReportRange.endDate || '')} onChange={(e) => setReportFilters((prev) => ({ ...prev, endDate: e.target.value, period: 'custom' }))} style={reportDateFieldStyle} />
-              <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={reportFilterFieldStyle}>
-                <option value="">All types</option>
-                {ACCOUNT_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-              <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={reportFilterFieldStyle}>
-                <option value="accountCode">Code</option>
-                <option value="accountName">Name</option>
-                <option value="debit">Debit</option>
-                <option value="credit">Credit</option>
-                <option value="net">Net</option>
-              </select>
-              <select value={reportFilters.sortDir} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortDir: e.target.value }))} style={reportFilterFieldStyle}>
-                <option value="asc">Asc</option>
-                <option value="desc">Desc</option>
-              </select>
+              {reportView !== 'dayBook' && (
+                <>
+                  <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={reportFilterFieldStyle}>
+                    <option value="">All types</option>
+                    {ACCOUNT_TYPES.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                  <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={reportFilterFieldStyle}>
+                    <option value="accountCode">Code</option>
+                    <option value="accountName">Name</option>
+                    <option value="debit">Debit</option>
+                    <option value="credit">Credit</option>
+                    <option value="net">Net</option>
+                  </select>
+                  <select value={reportFilters.sortDir} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortDir: e.target.value }))} style={reportFilterFieldStyle}>
+                    <option value="asc">Asc</option>
+                    <option value="desc">Desc</option>
+                  </select>
+                </>
+              )}
               {reportView === 'dayBook' && (
                 <>
-                  <select value={reportFilters.referenceType} onChange={(e) => setReportFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={reportFilterFieldStyle}>
-                    <option value="">All Day Book Types</option>
+                  <select aria-label="Day book type" value={reportFilters.referenceType} onChange={(e) => setReportFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={reportFilterFieldStyle}>
+                    <option value="">All types</option>
                     {LEDGER_REFERENCE_TYPES.map((type) => (
                       <option key={type} value={type}>{type}</option>
                     ))}
                   </select>
-                  <input type="number" placeholder="Day Book Min Amount" value={reportFilters.minAmount} onChange={(e) => setReportFilters((prev) => ({ ...prev, minAmount: e.target.value }))} style={reportFilterFieldStyle} />
+                  <input type="number" aria-label="Day book minimum amount" placeholder="Min" value={reportFilters.minAmount} onChange={(e) => setReportFilters((prev) => ({ ...prev, minAmount: e.target.value }))} style={{ ...reportFilterFieldStyle, width: '72px' }} />
                 </>
               )}
               {INCLUDE_ZERO_REPORT_VIEWS.has(reportView) && (
@@ -426,10 +430,12 @@ export default function ERPReportsTab({
                   Zeros
                 </label>
               )}
-              <label style={reportFilterCheckStyle}>
-                <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
-                Compare
-              </label>
+              {reportView !== 'dayBook' && (
+                <label style={reportFilterCheckStyle}>
+                  <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
+                  Compare
+                </label>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: 'auto' }}>
                 <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={reportBrandButtonStyle}>CSV</button>
                 <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={reportBrandButtonStyle}>XLSX</button>
