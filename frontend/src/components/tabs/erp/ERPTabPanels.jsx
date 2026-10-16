@@ -6,6 +6,7 @@ import {
   ERPVouchersTabContainer,
 } from './ERPTabContainers'
 import { importVoucherTab, prefetchVoucherTabChunk } from './voucherTabChunk'
+import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
 
 const loadErpDashboardTab = () => import('./tabs/ERPDashboardTab')
 const loadErpEditRecordModal = () => import('./ErpEditRecordModal')
@@ -479,6 +480,14 @@ export default function ERPTabPanels({
       timers.forEach((id) => window.clearTimeout(id))
     }
   }, [])
+
+  useEffect(() => {
+    if (!token) return undefined
+    const timer = window.setTimeout(() => {
+      loadSharedAccountChart(token).catch(() => {})
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [token])
 
   return (
     <>
