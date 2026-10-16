@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../../utils/erpSummaryAccountsCache'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
-import { loadSharedPagedList } from '../../../utils/erpPagedRows'
+import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
 import { filterActiveAccounts } from './accountDropdownHelpers'
 
 export function useErpAccounts({
@@ -71,15 +71,7 @@ export function useErpAccounts({
         setSummaryAccounts(next)
         writeSummaryAccountsCache(tenantKey, next)
       } else {
-        await loadSharedPagedList({
-          cacheKind: CATALOG_KINDS.accounts,
-          token,
-          params: { chart: 'full' },
-          pageSize: 200,
-          readPage: async ({ page, limit }) => {
-            const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit })
-            return { rows: data.accounts || [], total: data.total }
-          },
+        await loadSharedAccountChart(token, {
           onPage: (rows) => {
             if (seq !== loadSeqRef.current) return
             setAccounts(filterActiveAccounts(rows))

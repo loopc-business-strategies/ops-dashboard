@@ -2,6 +2,7 @@ import erpAccountingAPI from '../../../api/erp-accounting'
 import { buildMetalRatesFromApiPayload, marketPricesToRates } from '../../../utils/liveMetalRates'
 import { CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { loadSharedPagedList } from '../../../utils/erpPagedRows'
+import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
 
 /** Voucher tab ERP API facade — routes all /api/erp-accounting calls through erpAccountingAPI. */
 
@@ -43,17 +44,7 @@ export async function fetchVoucherParties(token, { onPage } = {}) {
 }
 
 export async function fetchVoucherAccounts(token, { onPage } = {}) {
-  return loadSharedPagedList({
-    cacheKind: CATALOG_KINDS.accounts,
-    token,
-    params: { chart: 'full' },
-    pageSize: 200,
-    readPage: async ({ page, limit }) => {
-      const res = await erpAccountingAPI.getAccounts(token, { page, limit })
-      return { rows: Array.isArray(res?.accounts) ? res.accounts : [], total: res.total }
-    },
-    onPage,
-  })
+  return loadSharedAccountChart(token, { onPage })
 }
 
 export async function fetchVoucherCurrencies(token) {

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
-import { CATALOG_KINDS } from '../../utils/erpCatalogCache'
-import { loadSharedPagedList } from '../../utils/erpPagedRows'
+import { loadSharedAccountChart } from '../../utils/erpSharedAccountChart'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -188,16 +187,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     setError('')
     const currenciesPromise = erpAccountingAPI.getCurrencies(token).catch(() => [])
     try {
-      await loadSharedPagedList({
-        cacheKind: CATALOG_KINDS.accounts,
-        token,
-        params: { chart: 'full' },
-        pageSize: 200,
+      await loadSharedAccountChart(token, {
         force,
-        readPage: async ({ page, limit }) => {
-          const chunk = await erpAccountingAPI.getAccounts(token, { page, limit })
-          return { rows: Array.isArray(chunk?.accounts) ? chunk.accounts : [], total: chunk?.total }
-        },
         onPage: (rows, { page }) => {
           if (seq !== loadSeqRef.current) return
           setAccounts(rows)
