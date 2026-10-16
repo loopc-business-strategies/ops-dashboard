@@ -1,6 +1,7 @@
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { buildMetalRatesFromApiPayload, marketPricesToRates } from '../../../utils/liveMetalRates'
 import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
+import { loadSharedCurrencies } from '../../../utils/erpSharedCurrencies'
 import { loadSharedCustomers, loadSharedVendors } from '../../../utils/erpSharedParties'
 
 /** Voucher tab ERP API facade — routes all /api/erp-accounting calls through erpAccountingAPI. */
@@ -31,7 +32,7 @@ export async function fetchVoucherAccounts(token, { onPage } = {}) {
 }
 
 export async function fetchVoucherCurrencies(token) {
-  const res = await erpAccountingAPI.getCurrencies(token)
+  const res = await loadSharedCurrencies(token)
   return Array.isArray(res?.currencies) ? res.currencies : []
 }
 

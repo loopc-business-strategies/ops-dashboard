@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
+import { loadSharedCurrencies } from '../../../utils/erpSharedCurrencies'
 import { fetchAllVendorsAggregated } from './useErpVendors'
 import { fetchAllCustomersAggregated } from './useErpCustomers'
 import { filterActiveAccounts } from './accountDropdownHelpers'
@@ -58,8 +59,7 @@ export function useErpTransactions({
           ? loadSharedAccountChart(token).then((rows) => ({ accounts: rows }))
           : Promise.resolve(null),
         canLoadReferenceData
-          ? fetchCatalogCached(CATALOG_KINDS.currencies, token, {}, () =>
-            erpAccountingAPI.getCurrencies(token))
+          ? loadSharedCurrencies(token)
           : Promise.resolve(null),
       ])
       if (customerData) setCustomers(customerData.customers || [])

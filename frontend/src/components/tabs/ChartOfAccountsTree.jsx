@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { loadSharedAccountChart } from '../../utils/erpSharedAccountChart'
+import { loadSharedCurrencies } from '../../utils/erpSharedCurrencies'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -185,7 +186,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     const seq = ++loadSeqRef.current
     setLoading(true)
     setError('')
-    const currenciesPromise = erpAccountingAPI.getCurrencies(token).catch(() => [])
+    const currenciesPromise = loadSharedCurrencies(token).catch(() => [])
     try {
       await loadSharedAccountChart(token, {
         force,

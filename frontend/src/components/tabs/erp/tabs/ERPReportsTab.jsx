@@ -20,12 +20,13 @@ import {
   formatReportGrams,
   trialMoneyHeaders,
 } from '../reportDisplayOptions'
-import { currenciesApi } from '../../../../api/erp-accounting/currencies'
 import { reportsApi } from '../../../../api/erp-accounting/reports'
+import { loadSharedCurrencies } from '../../../../utils/erpSharedCurrencies'
 import { buildErpReportDateRange } from '../useErpReportsController'
 
 export default function ERPReportsTab({
   activeTab,
+  token,
   C,
   modalInputStyle,
   reportFilters,
@@ -81,14 +82,15 @@ export default function ERPReportsTab({
       setLoadedCurrencies(currencies)
       return undefined
     }
+    if (!token) return undefined
     let cancelled = false
-    currenciesApi.getCurrencies().then((data) => {
+    loadSharedCurrencies(token).then((data) => {
       if (cancelled) return
       const list = data?.currencies || (Array.isArray(data) ? data : [])
       if (list.length) setLoadedCurrencies(list)
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [currencies])
+  }, [currencies, token])
   useEffect(() => {
     const apiRow = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
     if (!reportDisplay.calculateClosingStock || apiRow) {

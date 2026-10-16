@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
+import { loadSharedCurrencies } from '../../../utils/erpSharedCurrencies'
 import { filterActiveAccounts } from './accountDropdownHelpers'
 import { normalizeFilterMonths, normalizeFilterYear, toMonthCsv } from './erpListFilters'
 
@@ -49,8 +50,7 @@ export function useErpLedger({
           ? loadSharedAccountChart(token).then((rows) => ({ accounts: rows }))
           : Promise.resolve(null),
         needReference
-          ? fetchCatalogCached(CATALOG_KINDS.currencies, token, {}, () =>
-            erpAccountingAPI.getCurrencies(token))
+          ? loadSharedCurrencies(token)
           : Promise.resolve(null),
         needMappings
           ? fetchCatalogCached(CATALOG_KINDS.mappings, token, {}, () =>

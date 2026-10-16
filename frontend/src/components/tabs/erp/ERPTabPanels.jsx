@@ -7,6 +7,7 @@ import {
 } from './ERPTabContainers'
 import { importVoucherTab, prefetchVoucherTabChunk } from './voucherTabChunk'
 import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
+import { loadSharedCurrencies } from '../../../utils/erpSharedCurrencies'
 import { loadSharedCustomers, loadSharedVendors } from '../../../utils/erpSharedParties'
 
 const loadErpDashboardTab = () => import('./tabs/ERPDashboardTab')
@@ -488,6 +489,7 @@ export default function ERPTabPanels({
       loadSharedAccountChart(token).catch(() => {})
       loadSharedCustomers(token).catch(() => {})
       loadSharedVendors(token).catch(() => {})
+      loadSharedCurrencies(token).catch(() => {})
     }, 400)
     return () => window.clearTimeout(timer)
   }, [token])
@@ -853,6 +855,7 @@ export default function ERPTabPanels({
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPReportsTab
         activeTab={activeTab}
+        token={token}
         C={C}
         modalInputStyle={ERP_MODAL_INPUT_STYLE}
         reportFilters={reportFilters}
