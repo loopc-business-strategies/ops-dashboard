@@ -111,6 +111,7 @@ export function useErpReportsController({
   const [ledgerReportRows, setLedgerReportRows] = useState([])
 
   const reportRequestRef = useRef({ key: '', promise: null })
+  const reportResultCacheRef = useRef({ key: '', at: 0 })
   const ledgerRequestRef = useRef({ key: '', promise: null })
   const reportEffectTimerRef = useRef(null)
   const reportCooldownUntilRef = useRef(0)
@@ -185,8 +186,11 @@ export function useErpReportsController({
     if (reportRequestRef.current.key === requestKey && reportRequestRef.current.promise) {
       return reportRequestRef.current.promise
     }
-
-    setReportsLoading(true)
+    if (reportResultCacheRef.current.key === requestKey && Date.now() - reportResultCacheRef.current.at < 45_000) {
+      return null
+    }
+    const silentRefresh = reportResultCacheRef.current.key === requestKey
+    if (!silentRefresh) setReportsLoading(true)
     const seq = reportLoadSeqRef.current + 1
     reportLoadSeqRef.current = seq
     const promise = (async () => {
@@ -240,6 +244,7 @@ export function useErpReportsController({
 
         if (seq === reportLoadSeqRef.current) {
           setReports((prev) => ({ ...prev, ...updates }))
+          reportResultCacheRef.current = { key: requestKey, at: Date.now() }
           setError('')
         }
       } catch (e) {
@@ -278,8 +283,11 @@ export function useErpReportsController({
     if (ledgerRequestRef.current.key === requestKey && ledgerRequestRef.current.promise) {
       return ledgerRequestRef.current.promise
     }
-
-    setReportsLoading(true)
+    if (reportResultCacheRef.current.key === requestKey && Date.now() - reportResultCacheRef.current.at < 45_000) {
+      return null
+    }
+    const silentRefresh = reportResultCacheRef.current.key === requestKey
+    if (!silentRefresh) setReportsLoading(true)
     const seq = ledgerLoadSeqRef.current + 1
     ledgerLoadSeqRef.current = seq
     const promise = (async () => {
@@ -291,6 +299,7 @@ export function useErpReportsController({
         })
         if (seq === ledgerLoadSeqRef.current) {
           setLedgerReportRows(data.report || [])
+          reportResultCacheRef.current = { key: requestKey, at: Date.now() }
           setError('')
         }
       } catch (e) {

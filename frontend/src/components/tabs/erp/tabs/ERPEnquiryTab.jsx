@@ -22,9 +22,10 @@ export default function ERPEnquiryTab({
   safeSummaryAccounts,
   enquiryHistory,
   buildAccountEnquiryHref,
+  persistEnquiry = false,
 }) {
   return (
-    <ERPEnquiryTabContainer activeTab={activeTab}>
+    <ERPEnquiryTabContainer activeTab={activeTab} persist={persistEnquiry}>
       <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                 <div>

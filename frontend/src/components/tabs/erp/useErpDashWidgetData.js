@@ -90,8 +90,13 @@ export function useErpDashWidgetData({
     void loadDashChat()
   }, [loadDashboardReport, loadDashChat])
 
+  const dashFetchedRef = useRef({ key: '', at: 0 })
+
   useEffect(() => {
     if (activeTab !== 'dashboard' || !canLoadDashboard || !token) return
+    const key = `${dashDateFrom}|${dashDateTo}`
+    if (dashFetchedRef.current.key === key && Date.now() - dashFetchedRef.current.at < 45_000) return
+    dashFetchedRef.current = { key, at: Date.now() }
     void loadDashboardReport()
     void loadDashChat()
   }, [activeTab, dashDateFrom, dashDateTo, token, canLoadDashboard, loadDashboardReport, loadDashChat])

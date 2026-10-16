@@ -46,8 +46,6 @@ export function useErpTabRouter({
   loadMappings,
 }) {
   const subTabFetchedAtRef = useRef({})
-  /** One-shot per tab visit — avoids re-fetch storms when `.length` deps change mid-bootstrap. */
-  const erpTabBootstrapRef = useRef({ vouchers: false, 'direct-deals': false, 'fixing-register': false })
 
   const shouldRefreshSubTab = (key, { force = false } = {}) => {
     if (force) return true
@@ -151,7 +149,20 @@ export function useErpTabRouter({
 
   useEffect(() => {
     if (!canAccessERP || !token || activeTab !== 'ledger') return
+    const ledgerKey = [
+      ledgerFilters.startDate,
+      ledgerFilters.endDate,
+      ledgerFilters.department,
+      ledgerFilters.referenceType,
+      ledgerFilters.accountId,
+      ledgerFilters.year,
+      ledgerMonthsKey,
+      ledgerVoucherTab,
+    ].join('|')
+    const cached = subTabFetchedAtRef.current.ledgerView
+    if (cached?.key === ledgerKey && Date.now() - cached.at < ERP_SUBTAB_TTL_MS) return
     loadLedger()
+    subTabFetchedAtRef.current.ledgerView = { key: ledgerKey, at: Date.now() }
     markSubTabFetched('ledger')
     // Accounts for ledger filters come from loadLedger catalog cache (same key as page/limit 5000).
     // Do not also hit loadAccounts({ scope: 'summary' }) — that is a separate cache key / destination.
@@ -187,7 +198,11 @@ export function useErpTabRouter({
 
   useEffect(() => {
     if (!canAccessERP || !token || activeTab !== 'mappings') return
+    const mappingKey = String(mappingFilters.department || '')
+    const cached = subTabFetchedAtRef.current.mappingsView
+    if (cached?.key === mappingKey && Date.now() - cached.at < ERP_SUBTAB_TTL_MS) return
     loadMappings(mappingFilters)
+    subTabFetchedAtRef.current.mappingsView = { key: mappingKey, at: Date.now() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token, mappingFilters.department])
 
@@ -233,47 +248,37 @@ export function useErpTabRouter({
   }, [token, showEnquiryModal, currencies.length])
 
   useEffect(() => {
-    if (activeTab !== 'vouchers' && erpTabBootstrapRef.current.vouchers) {
-      erpTabBootstrapRef.current.vouchers = false
-    }
-    if (activeTab !== 'direct-deals' && erpTabBootstrapRef.current['direct-deals']) {
-      erpTabBootstrapRef.current['direct-deals'] = false
-    }
-    if (activeTab !== 'fixing-register' && erpTabBootstrapRef.current['fixing-register']) {
-      erpTabBootstrapRef.current['fixing-register'] = false
-    }
-  }, [activeTab])
-
-  useEffect(() => {
-    if (activeTab !== 'vouchers' || !token || erpTabBootstrapRef.current.vouchers) return
-    erpTabBootstrapRef.current.vouchers = true
-    // Warm the nested VoucherTab chunk before / while Suspense waits.
+    if (activeTab !== 'vouchers' || !token) return
     void import('./voucherTabChunk').then((m) => m.prefetchVoucherTabChunk()).catch(() => {})
+    if (!shouldRefreshSubTab('vouchers-bootstrap')) return
+    markSubTabFetched('vouchers-bootstrap')
     // Party Account combobox needs a fresh full CoA (not stale/summary); currencies for FX headers.
     const tasks = [loadAccounts()]
     if (!currencies.length) tasks.push(loadCurrencies())
     void Promise.all(tasks).catch(() => {})
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap per vouchers visit
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh accounts only after the sub-tab cache window
   }, [activeTab, token])
 
   useEffect(() => {
-    if (activeTab !== 'direct-deals' || !token || erpTabBootstrapRef.current['direct-deals']) return
-    erpTabBootstrapRef.current['direct-deals'] = true
+    if (activeTab !== 'direct-deals' || !token) return
+    if (!shouldRefreshSubTab('direct-deals-bootstrap')) return
+    markSubTabFetched('direct-deals-bootstrap')
     const tasks = []
     if (!customers.length) tasks.push(loadCustomers({ limit: 200 }))
     if (!currencies.length) tasks.push(loadCurrencies())
     if (tasks.length) void Promise.all(tasks).catch(() => {})
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap per direct-deals visit
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh party lists only after the sub-tab cache window
   }, [activeTab, token])
 
   useEffect(() => {
-    if (activeTab !== 'fixing-register' || !token || erpTabBootstrapRef.current['fixing-register']) return
-    erpTabBootstrapRef.current['fixing-register'] = true
+    if (activeTab !== 'fixing-register' || !token) return
+    if (!shouldRefreshSubTab('fixing-register-bootstrap')) return
+    markSubTabFetched('fixing-register-bootstrap')
     const tasks = []
     if (!customers.length) tasks.push(loadCustomers({ limit: 200 }))
     if (!inventoryProducts.length) tasks.push(loadInventory())
     if (tasks.length) void Promise.all(tasks).catch(() => {})
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap per fixing-register visit
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh fixing lists only after the sub-tab cache window
   }, [activeTab, token])
 
   useEffect(() => {

@@ -35,6 +35,7 @@ export default function ERPDashboardTab({
   setActiveTab,
   onNavigateMain,
   dashboardLiveRecalcEnabled = false,
+  persistDashboard = false,
   token,
   accounts = [],
   setLedgerFilters,
@@ -59,7 +60,7 @@ export default function ERPDashboardTab({
   return (
     <>
       {/* DASHBOARD TAB */}
-      <ERPDashboardTabContainer activeTab={activeTab}>
+      <ERPDashboardTabContainer activeTab={activeTab} persist={persistDashboard}>
         <div>
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>

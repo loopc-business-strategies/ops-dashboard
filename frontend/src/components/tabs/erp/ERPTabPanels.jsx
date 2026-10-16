@@ -409,6 +409,19 @@ export default function ERPTabPanels({
     String(user?.company || user?.tenant?.key || '').trim().toLowerCase(),
   )
   const [voucherChunkKey, setVoucherChunkKey] = useState(0)
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([activeTab]))
+
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev
+      const next = new Set(prev)
+      next.add(activeTab)
+      return next
+    })
+  }, [activeTab])
+
+  const keepTab = (id) => activeTab === id || visitedTabs.has(id)
+  const hiddenTabStyle = { display: 'none' }
 
   useEffect(() => {
     if (activeTab === 'vouchers' || jumpToVoucher) {
@@ -418,10 +431,12 @@ export default function ERPTabPanels({
 
   return (
     <>
-      {activeTab === 'dashboard' && (
+      {keepTab('dashboard') && (
+      <div style={activeTab === 'dashboard' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'dashboard'}>
       <Suspense fallback={<ErpSubTabFallback />}>
       <ERPDashboardTab
         activeTab={activeTab}
+        persistDashboard={visitedTabs.has('dashboard')}
         C={C}
         dashWidgets={dashWidgets}
         setDashWidgets={setDashWidgets}
@@ -450,10 +465,12 @@ export default function ERPTabPanels({
         baseCurrencyCode={baseCurrencyCode}
       />
       </Suspense>
+      </div>
       )}
       {/* CHART OF ACCOUNTS TAB */}
-      {activeTab === 'accounts' && (
-      <ERPAccountsTabContainer activeTab={activeTab}>
+      {keepTab('accounts') && (
+      <div style={activeTab === 'accounts' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'accounts'}>
+      <ERPAccountsTabContainer activeTab={activeTab} persist={visitedTabs.has('accounts')}>
         <div>
           <div style={{ marginBottom: '1.25rem' }}>
             <h3 style={{ color: C.ink, fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>Chart of Accounts</h3>
@@ -466,9 +483,11 @@ export default function ERPTabPanels({
           </Suspense>
         </div>
       </ERPAccountsTabContainer>
+      </div>
       )}
       {/* LEDGER TAB */}
-      {activeTab === 'customers' && (
+      {keepTab('customers') && (
+      <div style={activeTab === 'customers' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'customers'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPCustomersTab
             C={C}
@@ -485,9 +504,11 @@ export default function ERPTabPanels({
             baseCurrencyCode={baseCurrencyCode}
           />
         </Suspense>
+      </div>
       )}
       {/* CUSTOMER MARGIN TAB */}
-      {activeTab === 'customer-margin' && (
+      {keepTab('customer-margin') && (
+      <div style={activeTab === 'customer-margin' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'customer-margin'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPCustomerMarginTab
             C={C}
@@ -503,9 +524,11 @@ export default function ERPTabPanels({
             customerMarginContextMenu={customerMarginContextMenu}
           />
         </Suspense>
+      </div>
       )}
       {/* SUPPLIER MARGIN TAB */}
-      {activeTab === 'supplier-margin' && (
+      {keepTab('supplier-margin') && (
+      <div style={activeTab === 'supplier-margin' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'supplier-margin'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPSupplierMarginTab
             C={C}
@@ -521,8 +544,10 @@ export default function ERPTabPanels({
             supplierMarginContextMenu={supplierMarginContextMenu}
           />
         </Suspense>
+      </div>
       )}
-      {activeTab === 'fixing-register' && (
+      {keepTab('fixing-register') && (
+      <div style={activeTab === 'fixing-register' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'fixing-register'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPFixingRegisterTab
             activeTab={activeTab}
@@ -548,8 +573,10 @@ export default function ERPTabPanels({
             fixingRegFmtAmt={fixingRegFmtAmt}
           />
         </Suspense>
+      </div>
       )}
-      {(activeTab === 'ledger' || showLedgerForm) && (
+      {(keepTab('ledger') || showLedgerForm) && (
+      <div style={(activeTab === 'ledger' || showLedgerForm) ? undefined : hiddenTabStyle} aria-hidden={!(activeTab === 'ledger' || showLedgerForm)}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPLedgerTab
         activeTab={activeTab}
@@ -617,14 +644,18 @@ export default function ERPTabPanels({
         handleRepairJvFxApply={handleRepairJvFxApply}
           />
         </Suspense>
+      </div>
       )}
-      {activeTab === 'period-closing' && (
+      {keepTab('period-closing') && (
+      <div style={activeTab === 'period-closing' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'period-closing'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPPeriodClosingTab C={C} />
         </Suspense>
+      </div>
       )}
       {/* ACCOUNT MAPPINGS TAB */}
-      {activeTab === 'mappings' && (
+      {keepTab('mappings') && (
+      <div style={activeTab === 'mappings' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'mappings'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPMappingsTab
             C={C}
@@ -657,9 +688,11 @@ export default function ERPTabPanels({
             handleDeleteMapping={handleDeleteMapping}
           />
         </Suspense>
+      </div>
       )}
       {/* ACCOUNT SUMMARY TAB */}
-      {activeTab === 'enquiry' && (
+      {keepTab('enquiry') && (
+      <div style={activeTab === 'enquiry' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'enquiry'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPEnquiryTab
             activeTab={activeTab}
@@ -678,11 +711,14 @@ export default function ERPTabPanels({
             summaryAccountsLoading={summaryAccountsLoading}
             safeSummaryAccounts={safeSummaryAccounts}
             enquiryHistory={enquiryHistory}
+            persistEnquiry={visitedTabs.has('enquiry')}
             buildAccountEnquiryHref={buildAccountEnquiryHref}
           />
         </Suspense>
+      </div>
       )}
-      {(activeTab === 'transactions' || jumpToTransactionId) && (
+      {(keepTab('transactions') || jumpToTransactionId) && (
+      <div style={(activeTab === 'transactions' || jumpToTransactionId) ? undefined : hiddenTabStyle} aria-hidden={!(activeTab === 'transactions' || jumpToTransactionId)}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPTransactionsTab
         activeTab={activeTab}
@@ -747,8 +783,10 @@ export default function ERPTabPanels({
         loading={transactionsLoading}
           />
         </Suspense>
+      </div>
       )}
-      {activeTab === 'reports' && (
+      {keepTab('reports') && (
+      <div style={activeTab === 'reports' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'reports'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPReportsTab
         activeTab={activeTab}
@@ -791,9 +829,11 @@ export default function ERPTabPanels({
         currencies={currencies}
           />
         </Suspense>
+      </div>
       )}
       {/* VENDORS TAB */}
-      {activeTab === 'vendors' && (
+      {keepTab('vendors') && (
+      <div style={activeTab === 'vendors' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'vendors'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPVendorsTab
         activeTab={activeTab}
@@ -835,9 +875,11 @@ export default function ERPTabPanels({
         baseCurrencyCode={baseCurrencyCode}
           />
         </Suspense>
+      </div>
       )}
       {/* INVENTORY TAB */}
-      {activeTab === 'inventory' && (
+      {keepTab('inventory') && (
+      <div style={activeTab === 'inventory' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'inventory'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPInventoryTab
         activeTab={activeTab}
@@ -912,9 +954,11 @@ export default function ERPTabPanels({
         handleInventoryModalDragStart={handleInventoryModalDragStart}
           />
         </Suspense>
+      </div>
       )}
       {/* SETTINGS TAB */}
-      {activeTab === 'settings' && (
+      {keepTab('settings') && (
+      <div style={activeTab === 'settings' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'settings'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPSettingsTab
             C={C}
@@ -939,9 +983,11 @@ export default function ERPTabPanels({
             })}
           />
         </Suspense>
+      </div>
       )}
       {/* CURRENCIES TAB */}
-      {activeTab === 'currencies' && (
+      {keepTab('currencies') && (
+      <div style={activeTab === 'currencies' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'currencies'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPCurrenciesTab
             C={C}
@@ -964,6 +1010,7 @@ export default function ERPTabPanels({
             handleDeleteCurrency={handleDeleteCurrency}
           />
         </Suspense>
+      </div>
       )}
       <Suspense fallback={null}>
         <ErpEditRecordModal
@@ -979,8 +1026,9 @@ export default function ERPTabPanels({
         />
       </Suspense>
       {/* VOUCHERS TAB */}
-      {(activeTab === 'vouchers' || jumpToVoucher) && (
-      <ERPVouchersTabContainer activeTab={activeTab}>
+      {(keepTab('vouchers') || jumpToVoucher) && (
+      <div style={(activeTab === 'vouchers' || jumpToVoucher) ? undefined : hiddenTabStyle} aria-hidden={!(activeTab === 'vouchers' || jumpToVoucher)}>
+      <ERPVouchersTabContainer activeTab={activeTab} persist={visitedTabs.has('vouchers')}>
         <LazyChunkGate
           key={voucherChunkKey}
           resetKey={voucherChunkKey}
@@ -1004,9 +1052,11 @@ export default function ERPTabPanels({
           />
         </LazyChunkGate>
       </ERPVouchersTabContainer>
+      </div>
       )}
       {/* DIRECT DEALS TAB */}
-      {activeTab === 'direct-deals' && (
+      {keepTab('direct-deals') && (
+      <div style={activeTab === 'direct-deals' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'direct-deals'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <DirectDealsTab
             token={token}
@@ -1018,6 +1068,7 @@ export default function ERPTabPanels({
             reportBranding={reportBranding}
           />
         </Suspense>
+      </div>
       )}
     </>
   )
