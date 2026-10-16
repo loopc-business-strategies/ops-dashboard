@@ -263,51 +263,64 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     }
 
     let closed = false
-    const source = new window.EventSource(
-      reportsApi.getMarketPricesStreamUrl({
-        ...TOPBAR_MARKET_PARAMS,
-        ...(tenant ? { tenant, company: tenant } : {}),
-      }),
-      { withCredentials: true },
-    )
+    let source = null
+    let unsubscribeRelease = () => {}
 
-    source.onopen = () => {
-      if (closed) return
-      streamConnectedRef.current = true
-      schedulePoll()
-    }
+    const openStream = () => {
+      if (closed || source) return
+      source = new window.EventSource(
+        reportsApi.getMarketPricesStreamUrl({
+          ...TOPBAR_MARKET_PARAMS,
+          ...(tenant ? { tenant, company: tenant } : {}),
+        }),
+        { withCredentials: true },
+      )
 
-    source.onmessage = (event) => {
-      if (closed) return
-      streamConnectedRef.current = true
-      try {
-        const rates = marketPricesToRates(JSON.parse(event.data))
-        if (rates) applyRates(rates)
-      } catch {
-        // Ignore malformed stream ticks.
-      }
-    }
-
-    source.onerror = () => {
-      if (streamConnectedRef.current) {
-        streamConnectedRef.current = false
+      source.onopen = () => {
+        if (closed) return
+        streamConnectedRef.current = true
         schedulePoll()
       }
-      setMetalRatesStoreState({ streamWarning: { message: 'market stream offline' } })
-      const hasPrices = lastSnapshotRef.current
-        && (lastSnapshotRef.current.gold > 0 || lastSnapshotRef.current.silver > 0 || lastSnapshotRef.current.platinum > 0)
-      if (!hasPrices) {
-        const prev = getMetalRatesStoreState()
-        if (!prev.error) {
-          setMetalRatesStoreState({ error: { message: 'market stream offline' } })
+
+      source.onmessage = (event) => {
+        if (closed) return
+        streamConnectedRef.current = true
+        try {
+          const rates = marketPricesToRates(JSON.parse(event.data))
+          if (rates) applyRates(rates)
+        } catch {
+          // Ignore malformed stream ticks.
+        }
+      }
+
+      source.onerror = () => {
+        if (streamConnectedRef.current) {
+          streamConnectedRef.current = false
+          schedulePoll()
+        }
+        setMetalRatesStoreState({ streamWarning: { message: 'market stream offline' } })
+        const hasPrices = lastSnapshotRef.current
+          && (lastSnapshotRef.current.gold > 0 || lastSnapshotRef.current.silver > 0 || lastSnapshotRef.current.platinum > 0)
+        if (!hasPrices) {
+          const prev = getMetalRatesStoreState()
+          if (!prev.error) {
+            setMetalRatesStoreState({ error: { message: 'market stream offline' } })
+          }
         }
       }
     }
 
+    if (isLiveMetalRatesHeld()) {
+      unsubscribeRelease = subscribeLiveMetalRatesReleased(openStream)
+    } else {
+      openStream()
+    }
+
     return () => {
       closed = true
+      unsubscribeRelease()
       streamConnectedRef.current = false
-      source.close()
+      source?.close()
     }
   }, [applyRates, enabled, schedulePoll, tenant, token])
 
