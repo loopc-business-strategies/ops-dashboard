@@ -475,7 +475,7 @@ export async function exportReportPdf({
   convertAmount,
   period,
 }) {
-  if (reportView === 'trial' || reportView === 'summary') {
+  if (reportView === 'trial') {
     await exportCurrencyTrialBalancePdf({
       reports,
       branding,

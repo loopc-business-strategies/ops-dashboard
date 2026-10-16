@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import CurrencyStatementTable, { currencyRowMetaMap } from '../CurrencyStatementTable'
+import { buildCurrencyBalanceSheetModel, buildCurrencyProfitLossModel, buildCurrencyTrialBalanceModel } from '../currencyTrialBalanceExport'
 import { trialBalanceRowsForView } from '../trialBalanceReportRows'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
 import {
@@ -196,6 +198,37 @@ export default function ERPReportsTab({
     return String(row.accountCode || '').toLowerCase().includes(q) || String(row.accountName || '').toLowerCase().includes(q)
   })
   const trialBalanceShown = trialBalanceFiltered.slice(0, TRIAL_BALANCE_UI_ROW_CAP)
+  const trialCurrencyModel = buildCurrencyTrialBalanceModel({
+    rows: trialBalanceShown,
+    convert: convertAmount,
+    baseCurrency: baseCurrencyCode,
+    displayCurrency,
+  })
+  const trialMetaByKey = currencyRowMetaMap(trialBalanceShown, formatReportGrams)
+  const profitLossCurrencyModel = buildCurrencyProfitLossModel({
+    income: reports.profitLoss?.incomeBreakdown || [],
+    expenses: reports.profitLoss?.expenseBreakdown || [],
+    convert: convertAmount,
+    baseCurrency: baseCurrencyCode,
+    displayCurrency,
+  })
+  const profitLossMetaByKey = currencyRowMetaMap([
+    ...(reports.profitLoss?.incomeBreakdown || []),
+    ...(reports.profitLoss?.expenseBreakdown || []),
+  ])
+  const balanceSheetCurrencyModel = buildCurrencyBalanceSheetModel({
+    assets: reports.balanceSheet?.assets || [],
+    liabilities: reports.balanceSheet?.liabilities || [],
+    equity: reports.balanceSheet?.equity || [],
+    convert: convertAmount,
+    baseCurrency: baseCurrencyCode,
+    displayCurrency,
+  })
+  const balanceSheetMetaByKey = currencyRowMetaMap([
+    ...(reports.balanceSheet?.assets || []),
+    ...(reports.balanceSheet?.liabilities || []),
+    ...(reports.balanceSheet?.equity || []),
+  ])
   const dayBookEntries = reports.dayBook?.entries || []
   const dayBookShown = dayBookEntries.slice(0, DAY_BOOK_UI_ROW_CAP)
   const reportYearOptions = buildReportYearOptions(reportFilters.reportYear)
@@ -220,6 +253,33 @@ export default function ERPReportsTab({
     })
   }
 
+  const activeReportRange = buildErpReportDateRange({
+    period: reportPeriod,
+    startDate: reportStartDate,
+    endDate: reportEndDate,
+    reportYear,
+    reportMonth,
+  })
+  const reportFilterFieldStyle = {
+    ...modalInputStyle,
+    width: 'auto',
+    minWidth: 0,
+    maxWidth: 'none',
+    marginBottom: 0,
+    padding: '0.12rem 0.35rem',
+    fontSize: '0.72rem',
+    flex: '0 1 auto',
+  }
+  const reportDateFieldStyle = { ...reportFilterFieldStyle, width: '6.55rem', flex: '0 0 auto' }
+  const reportActionButtonStyle = {
+    padding: '0.12rem 0.4rem',
+    borderRadius: '0.3rem',
+    fontSize: '0.72rem',
+    fontWeight: '700',
+    lineHeight: 1.2,
+    cursor: 'pointer',
+  }
+
   const renderActivePeriodBadge = (marginBottom = '0.7rem') => (
     <div style={{ ...activePeriodBadgeStyle, marginBottom }}>
       <span>Active Period</span>
@@ -232,15 +292,15 @@ export default function ERPReportsTab({
       {/* REPORTS TAB */}
       {activeTab === 'reports' && (
         <div>
-          <h3 style={{ marginBottom: '0.35rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Reports (Advanced ERP)</h3>
+          <h3 style={{ margin: '0 0 0.45rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Reports (Advanced ERP)</h3>
           {displayCurrency !== String(baseCurrencyCode || 'USD').toUpperCase() && perUsd ? (
-            <p style={{ margin: '0 0 1rem', color: C.inkSoft, fontSize: '0.84rem', fontWeight: '600' }}>
+            <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem', fontWeight: '600' }}>
               Shown in {displayCurrency}. Books stay in {String(baseCurrencyCode || 'USD').toUpperCase()}. 1 {String(baseCurrencyCode || 'USD').toUpperCase()} = {Number(perUsd).toLocaleString(undefined, { maximumFractionDigits: 6 })} {displayCurrency}.
             </p>
-          ) : <div style={{ marginBottom: '1rem' }} />}
+          ) : null}
 
-          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.6rem', padding: '0.55rem 0.7rem', marginBottom: '0.7rem' }}>
+            <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.28rem', width: '100%' }}>
               <select
                 value={reportFilters.period}
                 onChange={(e) => {
@@ -251,7 +311,7 @@ export default function ERPReportsTab({
                     return { ...prev, period, startDate, endDate }
                   })
                 }}
-                style={modalInputStyle}
+                style={reportFilterFieldStyle}
               >
                 <option value="today">Today</option>
                 <option value="month">Month</option>
@@ -266,7 +326,7 @@ export default function ERPReportsTab({
                   setReportDisplay((prev) => ({ ...prev, displayCurrency: nextCurrency }))
                   setReportDisplayDraft((prev) => ({ ...prev, displayCurrency: nextCurrency }))
                 }}
-                style={modalInputStyle}
+                style={reportFilterFieldStyle}
               >
                 {currencyChoices.map((code) => (
                   <option key={code} value={code}>{code}</option>
@@ -277,7 +337,7 @@ export default function ERPReportsTab({
                   <select
                     value={reportFilters.reportYear}
                     onChange={(e) => applyReportMonthFilters({ reportYear: e.target.value })}
-                    style={modalInputStyle}
+                    style={reportFilterFieldStyle}
                     aria-label="Report year"
                   >
                     {reportYearOptions.map((year) => (
@@ -287,7 +347,7 @@ export default function ERPReportsTab({
                   <select
                     value={reportFilters.reportMonth}
                     onChange={(e) => applyReportMonthFilters({ reportMonth: e.target.value })}
-                    style={modalInputStyle}
+                    style={reportFilterFieldStyle}
                     aria-label="Report month"
                   >
                     {REPORT_MONTH_OPTIONS.map((option) => (
@@ -296,62 +356,62 @@ export default function ERPReportsTab({
                   </select>
                 </>
               )}
-              <input type="date" value={reportFilters.startDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, startDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
-              <input type="date" value={reportFilters.endDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, endDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
-              <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={modalInputStyle}>
-                <option value="">All Account Types</option>
+              <input type="date" aria-label="From date" value={reportFilters.period === 'custom' ? reportFilters.startDate : (activeReportRange.startDate || '')} onChange={(e) => setReportFilters((prev) => ({ ...prev, startDate: e.target.value, period: 'custom' }))} style={reportDateFieldStyle} />
+              <input type="date" aria-label="To date" value={reportFilters.period === 'custom' ? reportFilters.endDate : (activeReportRange.endDate || '')} onChange={(e) => setReportFilters((prev) => ({ ...prev, endDate: e.target.value, period: 'custom' }))} style={reportDateFieldStyle} />
+              <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={reportFilterFieldStyle}>
+                <option value="">All types</option>
                 {ACCOUNT_TYPES.map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
-              <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={modalInputStyle}>
-                <option value="accountCode">Sort: Account Code</option>
-                <option value="accountName">Sort: Account Name</option>
-                <option value="debit">Sort: Debit</option>
-                <option value="credit">Sort: Credit</option>
-                <option value="net">Sort: Net</option>
+              <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={reportFilterFieldStyle}>
+                <option value="accountCode">Code</option>
+                <option value="accountName">Name</option>
+                <option value="debit">Debit</option>
+                <option value="credit">Credit</option>
+                <option value="net">Net</option>
               </select>
-              <select value={reportFilters.sortDir} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortDir: e.target.value }))} style={modalInputStyle}>
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
+              <select value={reportFilters.sortDir} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortDir: e.target.value }))} style={reportFilterFieldStyle}>
+                <option value="asc">Asc</option>
+                <option value="desc">Desc</option>
               </select>
-              <select value={reportFilters.referenceType} onChange={(e) => setReportFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={modalInputStyle}>
-                <option value="">All Day Book Types</option>
-                {LEDGER_REFERENCE_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-              <input type="number" placeholder="Day Book Min Amount" value={reportFilters.minAmount} onChange={(e) => setReportFilters((prev) => ({ ...prev, minAmount: e.target.value }))} style={modalInputStyle} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                {INCLUDE_ZERO_REPORT_VIEWS.has(reportView) && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
-                    <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
-                    Include zero-balance accounts
-                  </label>
-                )}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
-                  <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
-                  Compare with previous period
+              {reportView === 'dayBook' && (
+                <>
+                  <select value={reportFilters.referenceType} onChange={(e) => setReportFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={reportFilterFieldStyle}>
+                    <option value="">All Day Book Types</option>
+                    {LEDGER_REFERENCE_TYPES.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                  <input type="number" placeholder="Day Book Min Amount" value={reportFilters.minAmount} onChange={(e) => setReportFilters((prev) => ({ ...prev, minAmount: e.target.value }))} style={reportFilterFieldStyle} />
+                </>
+              )}
+              {INCLUDE_ZERO_REPORT_VIEWS.has(reportView) && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.22rem', color: C.ink, fontSize: '0.72rem', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
+                  Zero balances
                 </label>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', fontWeight: '700', cursor: 'pointer' }}>Export CSV</button>
-                <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Export XLSX</button>
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.22rem', color: C.ink, fontSize: '0.72rem', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
+                Compare previous
+              </label>
+              <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0, marginLeft: 'auto' }}>
+                <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46' }}>CSV</button>
+                <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B' }}>XLSX</button>
                 {reportPdfDownloadEnabled && (
-                  <button onClick={() => handleExportReportPdf(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Download PDF</button>
+                  <button onClick={() => handleExportReportPdf(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B' }}>Download PDF</button>
                 )}
-                <button onClick={() => handlePrintCurrentReport(reportExportDisplay)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', fontWeight: '700', cursor: 'pointer' }}>Print</button>
+                <button onClick={() => handlePrintCurrentReport(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)' }}>Print</button>
                 <button
                   type="button"
                   onClick={() => {
                     setReportDisplayDraft(reportDisplay)
                     setReportOptionsOpen(true)
                   }}
-                  style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', color: C.ink, fontWeight: '700', cursor: 'pointer' }}
+                  style={{ ...reportActionButtonStyle, border: '1px solid #D1D5DB', background: '#FFFFFF', color: C.ink }}
                 >
-                  Report Options
+                  Options
                 </button>
               </div>
             </div>
@@ -455,6 +515,15 @@ export default function ERPReportsTab({
                 </p>
               )}
               <div className="erp-table-wrap" style={{ overflowX: 'auto', borderRadius: '0.45rem' }}>
+                {reportView === 'trial' ? (
+                  <CurrencyStatementTable
+                    model={trialCurrencyModel}
+                    moneyColumns={moneyColumns}
+                    showMetal={reportDisplay.showMetal !== false}
+                    metaByKey={trialMetaByKey}
+                    onOpenAccount={(row) => handleTrialAccountDrilldown(row.accountCode)}
+                  />
+                ) : (
                 <table className="erp-table">
                   <thead>
                     <tr>
@@ -508,6 +577,7 @@ export default function ERPReportsTab({
                       ))}
                   </tbody>
                 </table>
+                )}
               </div>
               {reportDisplay.calculateClosingStock && (
                 <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
@@ -525,37 +595,20 @@ export default function ERPReportsTab({
               <div style={{ gridColumn: '1 / -1' }}>
                 {renderActivePeriodBadge('0')}
               </div>
-              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Income Breakdown</p>
+              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: '0 0 0.5rem', fontWeight: '700' }}>Profit & Loss</p>
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
-                    <tbody>
-                      {(reports.profitLoss?.incomeBreakdown || []).map((row) => (
-                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <CurrencyStatementTable
+                    model={profitLossCurrencyModel}
+                    moneyColumns={moneyColumns}
+                    metaByKey={profitLossMetaByKey}
+                    actionLabel="Vouchers"
+                    onOpenAccount={(row) => handleReportAccountDrilldown(row.accountId, row.accountCode)}
+                  />
                 </div>
-              </div>
-              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Expense Breakdown</p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
-                    <tbody>
-                      {(reports.profitLoss?.expenseBreakdown || []).map((row) => (
-                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{formatMoney(row.amount || 0)}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem' }}>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Income: {formatMoney(reports.profitLoss?.totalIncome || 0)}</p>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Expense: {formatMoney(reports.profitLoss?.totalExpense || 0)}</p>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net Profit: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
-                  {reports.profitLoss?.previousPeriod && <p style={{ margin: '0.2rem 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {formatMoney(reports.profitLoss?.varianceVsPrevious || 0)}</p>}
-                </div>
+                {reports.profitLoss?.previousPeriod ? (
+                  <p style={{ margin: '0.75rem 0 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {formatMoney(reports.profitLoss?.varianceVsPrevious || 0)}</p>
+                ) : null}
                 {reports.profitLoss?.metalPositionRevaluation && (
                   <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem', fontSize: '0.84rem' }}>
                     <p style={{ margin: '0 0 0.3rem', fontWeight: '700' }}>Open metal position at live price (not posted)</p>
@@ -639,21 +692,17 @@ export default function ERPReportsTab({
               <div style={{ gridColumn: '1 / -1' }}>
                 {renderActivePeriodBadge('0')}
               </div>
-              {[['Assets', reports.balanceSheet?.assets || []], ['Liabilities', reports.balanceSheet?.liabilities || []], ['Equity', reports.balanceSheet?.equity || []]].map(([title, rows]) => (
-                <div key={title} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                  <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>{title}</p>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                      <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Name</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Balance</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Action</th></tr></thead>
-                      <tbody>
-                        {rows.map((row) => (
-                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}{row.isReclassified ? <span style={{ marginLeft: '0.4rem', color: '#64748B', fontSize: '0.72rem', fontWeight: '700' }}>reclassified</span> : null}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatDirectionalBalance(row.balance, { preferredDirection: row.direction || (title === 'Assets' ? 'debit' : 'credit') })}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', cursor: 'pointer' }}>Vouchers</button></td></tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <CurrencyStatementTable
+                    model={balanceSheetCurrencyModel}
+                    moneyColumns={moneyColumns}
+                    metaByKey={balanceSheetMetaByKey}
+                    actionLabel="Vouchers"
+                    onOpenAccount={(row) => handleReportAccountDrilldown(row.accountId, row.accountCode)}
+                  />
                 </div>
-              ))}
+              </div>
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {formatMoneyAbs(reports.balanceSheet?.totalAssets || 0)}</p>
                 <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity || 0)}</p>

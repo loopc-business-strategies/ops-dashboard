@@ -410,7 +410,21 @@ export function buildReportExportPayload({
     [branding.reportFooter || defaultBranding.reportFooter],
     [],
   ]
-  if (reportView === 'trial' || reportView === 'summary') {
+  if (reportView === 'summary') {
+    const trialRows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
+    const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', ...trialMoneyHeaders(columns), ...trialMetalHeaders(columns.showMetal)]]
+    trialRows.forEach((row) => {
+      rows.push([
+        row.accountCode,
+        row.accountName,
+        row.accountType,
+        ...trialMoneyValues(row, columns, convertAmount),
+        ...(columns.showMetal ? [row.goldNet || 0, row.silverNet || 0] : []),
+      ])
+    })
+    return { rows, fileBase: `summary-${stamp}`, sheetName: 'Summary', successLabel: 'Summary' }
+  }
+  if (reportView === 'trial') {
     const trialRows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
     const model = buildCurrencyTrialBalanceModel({
       rows: trialRows,
@@ -419,12 +433,11 @@ export function buildReportExportPayload({
       displayCurrency: displayCurrency || baseCurrency,
     })
     const rows = [...brandingRows, ...model.head, ...model.body]
-    const isSummary = reportView === 'summary'
     return {
       rows,
-      fileBase: isSummary ? `summary-${stamp}` : `trial-balance-${stamp}`,
-      sheetName: isSummary ? 'Summary' : 'Trial Balance',
-      successLabel: isSummary ? 'Summary' : 'Trial balance',
+      fileBase: `trial-balance-${stamp}`,
+      sheetName: 'Trial Balance',
+      successLabel: 'Trial balance',
     }
   }
   if (reportView === 'pnl') {
