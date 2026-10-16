@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
 import LazyChunkGate from '../../LazyChunkGate'
 import {
@@ -486,9 +486,19 @@ export default function ERPTabPanels({
     }
   }, [])
 
+  const backgroundWarmRef = useRef(false)
+
   useEffect(() => {
-    if (!token) return undefined
+    backgroundWarmRef.current = false
+  }, [token])
+
+  useEffect(() => {
+    if (!token || backgroundWarmRef.current) return undefined
+    const waitingOnDashboard = activeTab === 'dashboard' && dashboard == null
+    const delay = waitingOnDashboard ? 8000 : 0
     const timer = window.setTimeout(() => {
+      if (backgroundWarmRef.current) return
+      backgroundWarmRef.current = true
       loadSharedAccountChart(token).catch(() => {})
       loadSharedCustomers(token).catch(() => {})
       loadSharedVendors(token).catch(() => {})
@@ -496,9 +506,9 @@ export default function ERPTabPanels({
       loadSharedVoucherList(token, { type: 'payment', limit: 200 }).catch(() => {})
       loadSharedSummaryReport(token).catch(() => {})
       loadSharedLedgerPage(token).catch(() => {})
-    }, 400)
+    }, delay)
     return () => window.clearTimeout(timer)
-  }, [token])
+  }, [token, dashboard, activeTab])
 
   return (
     <>
