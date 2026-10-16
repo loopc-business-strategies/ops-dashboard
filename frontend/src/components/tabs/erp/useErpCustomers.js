@@ -1,21 +1,11 @@
 import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
-import { loadSharedPagedList } from '../../../utils/erpPagedRows'
+import { loadSharedCustomers } from '../../../utils/erpSharedParties'
 
 /** Paginate customers until all rows are merged (parity with vendors aggregator). */
 export async function fetchAllCustomersAggregated(token, baseFilters = {}, { onPage } = {}) {
-  const rows = await loadSharedPagedList({
-    cacheKind: CATALOG_KINDS.customers,
-    token,
-    params: { ...baseFilters, all: true, sharedPages: true },
-    pageSize: 100,
-    readPage: async ({ page, limit }) => {
-      const data = await erpAccountingAPI.getCustomers(token, { ...baseFilters, page, limit })
-      return { rows: data.customers || [], total: data.total }
-    },
-    onPage,
-  })
+  const rows = await loadSharedCustomers(token, { filters: baseFilters, onPage })
   return { customers: rows, total: rows.length }
 }
 

@@ -1,8 +1,7 @@
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { buildMetalRatesFromApiPayload, marketPricesToRates } from '../../../utils/liveMetalRates'
-import { CATALOG_KINDS } from '../../../utils/erpCatalogCache'
-import { loadSharedPagedList } from '../../../utils/erpPagedRows'
 import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
+import { loadSharedCustomers, loadSharedVendors } from '../../../utils/erpSharedParties'
 
 /** Voucher tab ERP API facade — routes all /api/erp-accounting calls through erpAccountingAPI. */
 
@@ -11,29 +10,13 @@ export async function fetchVoucherParties(token, { onPage } = {}) {
   let vendors = []
   const publish = () => onPage?.({ customers, vendors })
   await Promise.all([
-    loadSharedPagedList({
-      cacheKind: CATALOG_KINDS.customers,
-      token,
-      params: { all: true, sharedPages: true },
-      pageSize: 100,
-      readPage: async ({ page, limit }) => {
-        const res = await erpAccountingAPI.getCustomers(token, { page, limit })
-        return { rows: res.customers || [], total: res.total }
-      },
+    loadSharedCustomers(token, {
       onPage: (rows) => {
         customers = rows
         publish()
       },
     }),
-    loadSharedPagedList({
-      cacheKind: CATALOG_KINDS.vendors,
-      token,
-      params: { all: true, sharedPages: true },
-      pageSize: 100,
-      readPage: async ({ page, limit }) => {
-        const res = await erpAccountingAPI.getVendors(token, { page, limit })
-        return { rows: res.vendors || [], total: res.total }
-      },
+    loadSharedVendors(token, {
       onPage: (rows) => {
         vendors = rows
         publish()
