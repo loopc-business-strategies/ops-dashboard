@@ -19,6 +19,42 @@ export function resolveLiveMetalPollIntervalMs(isMarketStreamConnected, source =
   return MT4_LIVE_POLL_MS
 }
 
+let liveMetalRatesHeld = false
+let liveMetalRatesHoldGeneration = 0
+let liveMetalRatesReleaseTimer = 0
+const liveMetalRatesReleaseListeners = new Set()
+
+/** True while the ERP dashboard report should have the connection before the first price fetch. */
+export function isLiveMetalRatesHeld() {
+  return liveMetalRatesHeld
+}
+
+export function subscribeLiveMetalRatesReleased(listener) {
+  liveMetalRatesReleaseListeners.add(listener)
+  return () => liveMetalRatesReleaseListeners.delete(listener)
+}
+
+/** Pause live price fetches until the dashboard report settles, or for 8 seconds. */
+export function holdLiveMetalRatesForDashboardReport() {
+  liveMetalRatesHoldGeneration += 1
+  const generation = liveMetalRatesHoldGeneration
+  liveMetalRatesHeld = true
+  clearTimeout(liveMetalRatesReleaseTimer)
+  liveMetalRatesReleaseTimer = setTimeout(() => {
+    releaseLiveMetalRates(generation)
+  }, 8000)
+  return generation
+}
+
+export function releaseLiveMetalRates(generation) {
+  if (generation != null && generation !== liveMetalRatesHoldGeneration) return
+  if (!liveMetalRatesHeld) return
+  liveMetalRatesHeld = false
+  clearTimeout(liveMetalRatesReleaseTimer)
+  liveMetalRatesReleaseTimer = 0
+  liveMetalRatesReleaseListeners.forEach((listener) => listener())
+}
+
 export const GRAMS_PER_TOZ = 31.1034768
 export const GRAMS_PER_KG = 1000
 

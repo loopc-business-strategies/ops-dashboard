@@ -23,6 +23,7 @@ import { getNavItems } from '../components/layout/navConfig'
 import { applyItemOrder } from '../components/layout/navLayout'
 import { useNavLayout } from '../components/layout/useNavLayout'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
+import { holdLiveMetalRatesForDashboardReport, releaseLiveMetalRates } from '../utils/liveMetalRates'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
 import {
   applyPresenceUpdate,
@@ -444,6 +445,11 @@ function Dashboard() {
   const [erpOpen,      setErpOpen]      = useState(true)
   const [workspaceOpen, setWorkspaceOpen] = useState(true)
   const [erpSubTab,    setErpSubTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).erpSubTab)
+  const metalHoldArmedRef = useRef(false)
+  if (!metalHoldArmedRef.current && activeTab === 'erp' && erpSubTab === 'dashboard') {
+    metalHoldArmedRef.current = true
+    holdLiveMetalRatesForDashboardReport()
+  }
   /** Keep Overview/ERP mounted after first visit to avoid full remount/refetch on return. */
   const [visitedKeepAliveTabs, setVisitedKeepAliveTabs] = useState(() => {
     const initial = parseDashboardUrl(searchParams.toString(), null).activeTab
@@ -664,6 +670,12 @@ function Dashboard() {
       return next
     })
   }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'erp' && erpSubTab === 'dashboard') return undefined
+    releaseLiveMetalRates()
+    return undefined
+  }, [activeTab, erpSubTab])
 
   useEffect(() => {
     const firstAllowed = navItems[0]

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import messagesAPI from '../../../api/messages'
 import { formatDateInputLocal } from './erpTabPresentation'
+import { holdLiveMetalRatesForDashboardReport, releaseLiveMetalRates } from '../../../utils/liveMetalRates'
 
 const reportSoftCache = new Map()
 const REPORT_SOFT_TTL_MS = 90 * 1000
@@ -47,6 +48,7 @@ export function useErpDashWidgetData({
   const loadDashboardReport = useCallback(async () => {
     if (!canLoadDashboard || !token) return
     const seq = ++reportSeqRef.current
+    const metalHold = holdLiveMetalRatesForDashboardReport()
     const key = reportCacheKey(tenantKey, dashDateFrom, dashDateTo)
     const soft = readReportSoftCache(key)
     if (soft) {
@@ -72,6 +74,7 @@ export function useErpDashWidgetData({
         setDashboardLoading(false)
         setDashboardReportSettled(true)
       }
+      releaseLiveMetalRates(metalHold)
     }
   }, [canLoadDashboard, token, dashDateFrom, dashDateTo, setError, tenantKey])
 

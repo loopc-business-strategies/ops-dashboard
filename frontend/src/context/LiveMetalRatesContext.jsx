@@ -20,6 +20,8 @@ import {
   metalErrorFromException,
   normalizeMarketUnit,
   resolveLiveMetalPollIntervalMs,
+  isLiveMetalRatesHeld,
+  subscribeLiveMetalRatesReleased,
 } from '../utils/liveMetalRates'
 
 function normalizeInboundRates(rates) {
@@ -139,6 +141,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     if (!token || !enabled) return
     if (Date.now() < pollPausedUntilRef.current) return
     if (typeof document !== 'undefined' && document.hidden) return
+    if (isLiveMetalRatesHeld()) return
 
     try {
       const live = await currenciesApi.getLiveMetalRates(token)
@@ -174,6 +177,10 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
   }, [applyRates, enabled, token])
 
   loadRef.current = load
+
+  useEffect(() => subscribeLiveMetalRatesReleased(() => {
+    void loadRef.current()
+  }), [])
 
   const schedulePoll = useCallback(() => {
     const intervalMs = resolveLiveMetalPollIntervalMs(streamConnectedRef.current, sourceRef.current)
