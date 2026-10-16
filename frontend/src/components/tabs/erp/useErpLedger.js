@@ -3,8 +3,8 @@ import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
 import { loadSharedCurrencies } from '../../../utils/erpSharedCurrencies'
+import { isDefaultLedgerQuery, buildLedgerQuery, loadSharedLedgerPage, peekSharedLedgerPage } from '../../../utils/erpSharedLedger'
 import { filterActiveAccounts } from './accountDropdownHelpers'
-import { normalizeFilterMonths, normalizeFilterYear, toMonthCsv } from './erpListFilters'
 
 export function useErpLedger({
   token,
@@ -28,24 +28,20 @@ export function useErpLedger({
   const loadLedger = useCallback(async (options = {}) => {
     if (!canViewLedger) return
     const seq = ++loadSeqRef.current
-    setLoading(true)
+    const hasCursorOverride = Object.prototype.hasOwnProperty.call(options, 'cursor')
+    const cursor = hasCursorOverride ? options.cursor : null
+    const cursorHistory = Array.isArray(options.cursorHistory) ? options.cursorHistory : (cursor ? ledgerMeta.cursorHistory || [] : [])
+    const ledgerQuery = buildLedgerQuery(ledgerFilters, ledgerVoucherTab, cursor)
+    const useShared = !cursor && isDefaultLedgerQuery(ledgerQuery)
+    const cached = useShared && !hasCursorOverride ? peekSharedLedgerPage(ledgerQuery) : null
+    if (!cached) setLoading(true)
     try {
-      const hasCursorOverride = Object.prototype.hasOwnProperty.call(options, 'cursor')
-      const cursor = hasCursorOverride ? options.cursor : null
-      const cursorHistory = Array.isArray(options.cursorHistory) ? options.cursorHistory : (cursor ? ledgerMeta.cursorHistory || [] : [])
-      const ledgerQuery = {
-        limit: 100,
-        ...ledgerFilters,
-        referenceType: ledgerFilters.referenceType || ledgerVoucherTab,
-        ...(ledgerFilters.search ? { search: ledgerFilters.search } : {}),
-        ...(normalizeFilterYear(ledgerFilters.year) ? { year: normalizeFilterYear(ledgerFilters.year) } : {}),
-        ...(normalizeFilterMonths(ledgerFilters.months).length ? { months: toMonthCsv(ledgerFilters.months) } : {}),
-        ...(cursor ? { cursor } : {}),
-      }
       const needReference = canLoadReferenceData && !referenceLoadedRef.current
       const needMappings = canViewMappings && !referenceLoadedRef.current
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
-        erpAccountingAPI.getLedger(token, ledgerQuery),
+        useShared
+          ? loadSharedLedgerPage(token, ledgerQuery, { force: hasCursorOverride })
+          : erpAccountingAPI.getLedger(token, ledgerQuery),
         needReference
           ? loadSharedAccountChart(token).then((rows) => ({ accounts: rows }))
           : Promise.resolve(null),
