@@ -22,8 +22,8 @@ function readReportSoftCache(key) {
 }
 
 /**
- * Fetches ERP dashboard report payload and latest chat messages for dashboard widgets.
- * Report and chat load independently so neither waits on the other.
+ * Fetches the ERP dashboard report, then the latest chat messages.
+ * Chat waits so it does not share the connection with the cash figures.
  */
 export function useErpDashWidgetData({
   activeTab,
@@ -44,6 +44,27 @@ export function useErpDashWidgetData({
   const [dashboardReportSettled, setDashboardReportSettled] = useState(false)
   const reportSeqRef = useRef(0)
   const chatSeqRef = useRef(0)
+  const chatStartedRef = useRef(false)
+  const seenChatTokenRef = useRef(token)
+  if (seenChatTokenRef.current !== token) {
+    seenChatTokenRef.current = token
+    chatStartedRef.current = false
+  }
+
+  const loadDashChat = useCallback(async ({ force = false } = {}) => {
+    if (!canLoadDashboard || !token) return
+    if (!force && chatStartedRef.current) return
+    chatStartedRef.current = true
+    const seq = ++chatSeqRef.current
+    try {
+      const chatData = await messagesAPI.getLatestMessages(token, 'group', 10).catch(() => ({ messages: [] }))
+      if (seq !== chatSeqRef.current) return
+      setDashChatMessages(chatData?.messages || chatData || [])
+    } catch {
+      if (seq !== chatSeqRef.current) return
+      setDashChatMessages([])
+    }
+  }, [canLoadDashboard, token])
 
   const loadDashboardReport = useCallback(async () => {
     if (!canLoadDashboard || !token) return
@@ -73,28 +94,17 @@ export function useErpDashWidgetData({
       if (seq === reportSeqRef.current) {
         setDashboardLoading(false)
         setDashboardReportSettled(true)
+        void loadDashChat()
       }
       releaseLiveMetalRates(metalHold)
     }
-  }, [canLoadDashboard, token, dashDateFrom, dashDateTo, setError, tenantKey])
+  }, [canLoadDashboard, token, dashDateFrom, dashDateTo, setError, tenantKey, loadDashChat])
 
-  const loadDashChat = useCallback(async () => {
-    if (!canLoadDashboard || !token) return
-    const seq = ++chatSeqRef.current
-    try {
-      const chatData = await messagesAPI.getLatestMessages(token, 'group', 10).catch(() => ({ messages: [] }))
-      if (seq !== chatSeqRef.current) return
-      setDashChatMessages(chatData?.messages || chatData || [])
-    } catch {
-      if (seq !== chatSeqRef.current) return
-      setDashChatMessages([])
-    }
-  }, [canLoadDashboard, token])
-
-  /** Kick report + chat independently; do not await a joined Promise.all. */
+  /** Report finishes before chat so the cash figures are not waiting on messages. */
   const loadDashboard = useCallback(() => {
-    void loadDashboardReport()
-    void loadDashChat()
+    void Promise.resolve(loadDashboardReport()).then(() => {
+      void loadDashChat({ force: true })
+    })
   }, [loadDashboardReport, loadDashChat])
 
   const dashFetchedRef = useRef({ key: '', at: 0 })
@@ -105,25 +115,26 @@ export function useErpDashWidgetData({
     if (dashFetchedRef.current.key === key && Date.now() - dashFetchedRef.current.at < 45_000) return
     dashFetchedRef.current = { key, at: Date.now() }
     void loadDashboardReport()
-    void loadDashChat()
-  }, [activeTab, dashDateFrom, dashDateTo, token, canLoadDashboard, loadDashboardReport, loadDashChat])
+  }, [activeTab, dashDateFrom, dashDateTo, token, canLoadDashboard, loadDashboardReport])
 
   useEffect(() => {
     if (dashboardReportSettled || !token || !canLoadDashboard) return undefined
-    const timer = window.setTimeout(() => setDashboardReportSettled(true), 8000)
+    const timer = window.setTimeout(() => {
+      setDashboardReportSettled(true)
+      if (activeTab === 'dashboard') void loadDashChat()
+    }, 8000)
     return () => window.clearTimeout(timer)
-  }, [dashboardReportSettled, token, canLoadDashboard])
+  }, [dashboardReportSettled, token, canLoadDashboard, activeTab, loadDashChat])
 
   useEffect(() => {
     if (!dashAutoRefresh || activeTab !== 'dashboard') return undefined
     const interval = setInterval(() => {
       if (canLoadDashboard && token) {
-        void loadDashboardReport()
-        void loadDashChat()
+        void loadDashboard()
       }
     }, 30000)
     return () => clearInterval(interval)
-  }, [dashAutoRefresh, activeTab, canLoadDashboard, token, loadDashboardReport, loadDashChat])
+  }, [dashAutoRefresh, activeTab, canLoadDashboard, token, loadDashboard])
 
   return {
     dashboard,
