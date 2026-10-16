@@ -116,4 +116,5 @@ export const CATALOG_KINDS = {
   currencies: 'currencies',
   mappings: 'mappings',
   inventory: 'inventory',
+  transactions: 'transactions',
 }

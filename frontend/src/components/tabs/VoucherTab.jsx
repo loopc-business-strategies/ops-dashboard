@@ -13,6 +13,7 @@ import {
 } from './voucher/voucherPartyOptions'
 import VoucherToolbarIcon from './voucher/VoucherToolbarIcon'
 import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
+import { loadSharedVoucherList, peekSharedVoucherList } from '../../utils/erpSharedVoucherList'
 import { useVoucherLineAutoCalc } from './voucher/useVoucherLineAutoCalc'
 import { useVoucherLineForm } from './voucher/useVoucherLineForm'
 import { useVoucherOpenEdit } from './voucher/useVoucherOpenEdit'
@@ -499,18 +500,19 @@ export default function VoucherTab({
   )
 
   // ─── load vouchers ───────────────────────────────────────────────────────────
-  const loadVouchers = useCallback(async () => {
+  const loadVouchers = useCallback(async ({ force = true } = {}) => {
     if (!canView) return
-    setLoadingList(true)
+    const year = normalizeFilterYear(voucherFilterYear)
+    const months = normalizeFilterMonths(voucherFilterMonths)
+    const query = {
+      type: voucherType,
+      limit: 200,
+      ...(year ? { year } : {}),
+      ...(months.length ? { months: toMonthCsv(months) } : {}),
+    }
+    if (force || !peekSharedVoucherList(token, query)) setLoadingList(true)
     try {
-      const year = normalizeFilterYear(voucherFilterYear)
-      const months = normalizeFilterMonths(voucherFilterMonths)
-      const res = await voucherErpApi.getTransactions(token, {
-        type: voucherType,
-        limit: 200,
-        ...(year ? { year } : {}),
-        ...(months.length ? { months: toMonthCsv(months) } : {}),
-      })
+      const res = await loadSharedVoucherList(token, query, { force })
       const txs = sortVouchers(
         (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
@@ -521,9 +523,9 @@ export default function VoucherTab({
     } finally {
       setLoadingList(false)
     }
-  }, [voucherType, canView, sortVouchers, token, voucherErpApi, voucherFilterYear, voucherFilterMonths])
+  }, [voucherType, canView, sortVouchers, token, voucherFilterYear, voucherFilterMonths])
 
-  useEffect(() => { loadVouchers() }, [loadVouchers])
+  useEffect(() => { loadVouchers({ force: false }) }, [loadVouchers])
 
   useEffect(() => {
     if (enabledVoucherTypes.includes(voucherType)) return
