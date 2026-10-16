@@ -31,6 +31,7 @@ export default function ERPDashboardTab({
   dashDragSrc,
   ERP_DASH_ALL_WIDGETS,
   dashboard,
+  dashboardReportSettled = true,
   dashChatMessages,
   setActiveTab,
   onNavigateMain,
@@ -135,6 +136,7 @@ export default function ERPDashboardTab({
                 const widgetOptions = {
                   liveRecalcEnabled: dashboardLiveRecalcEnabled,
                   token,
+                  reportReady: dashboardReportSettled,
                   onOpenLedgerEntry: openLedgerFromExpense,
                   baseCurrencyCode,
                 }

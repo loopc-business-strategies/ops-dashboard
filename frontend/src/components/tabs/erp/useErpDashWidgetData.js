@@ -40,6 +40,7 @@ export function useErpDashWidgetData({
   const [dashboard, setDashboard] = useState(null)
   const [dashChatMessages, setDashChatMessages] = useState([])
   const [dashboardLoading, setDashboardLoading] = useState(false)
+  const [dashboardReportSettled, setDashboardReportSettled] = useState(false)
   const reportSeqRef = useRef(0)
   const chatSeqRef = useRef(0)
 
@@ -67,7 +68,10 @@ export function useErpDashWidgetData({
       if (seq !== reportSeqRef.current) return
       setError(e.response?.data?.message || 'Failed to load dashboard')
     } finally {
-      if (seq === reportSeqRef.current) setDashboardLoading(false)
+      if (seq === reportSeqRef.current) {
+        setDashboardLoading(false)
+        setDashboardReportSettled(true)
+      }
     }
   }, [canLoadDashboard, token, dashDateFrom, dashDateTo, setError, tenantKey])
 
@@ -102,6 +106,12 @@ export function useErpDashWidgetData({
   }, [activeTab, dashDateFrom, dashDateTo, token, canLoadDashboard, loadDashboardReport, loadDashChat])
 
   useEffect(() => {
+    if (dashboardReportSettled || !token || !canLoadDashboard) return undefined
+    const timer = window.setTimeout(() => setDashboardReportSettled(true), 8000)
+    return () => window.clearTimeout(timer)
+  }, [dashboardReportSettled, token, canLoadDashboard])
+
+  useEffect(() => {
     if (!dashAutoRefresh || activeTab !== 'dashboard') return undefined
     const interval = setInterval(() => {
       if (canLoadDashboard && token) {
@@ -116,6 +126,7 @@ export function useErpDashWidgetData({
     dashboard,
     dashChatMessages,
     dashboardLoading,
+    dashboardReportSettled,
     dashDateFrom,
     dashDateTo,
     dashAutoRefresh,

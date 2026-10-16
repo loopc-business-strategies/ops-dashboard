@@ -59,6 +59,7 @@ export function buildErpTabPanelProps(scope) {
     dashWidgetCols: scope.dashWidgetCols,
     dashWidgets: scope.dashWidgets,
     dashboard: scope.dashboard,
+    dashboardReportSettled: scope.dashboardReportSettled,
     decodeInventoryCategoryMeta: scope.decodeInventoryCategoryMeta,
     editState: scope.editState,
     editingInventoryProductId: scope.editingInventoryProductId,

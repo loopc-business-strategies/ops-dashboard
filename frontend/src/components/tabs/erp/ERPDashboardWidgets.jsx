@@ -325,7 +325,8 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
   )
 }
 
-function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD' }) {
+function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD', reportReady = true }) {
+  const expenseListReady = reportReady !== false
   const {
     year: yearFilter,
     startDate: registerStartDate,
@@ -338,7 +339,7 @@ function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD' }) {
     loading: registerLoading,
   } = useExpenseRegister({
     token,
-    enabled: Boolean(token),
+    enabled: Boolean(token) && expenseListReady,
     startDate: registerStartDate,
     endDate: registerEndDate,
     category: '',
@@ -358,7 +359,7 @@ function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD' }) {
   } = useExpenseChartData({
     dashboard,
     registerItems,
-    registerLoading,
+    registerLoading: registerLoading || !expenseListReady,
     token,
     yearFilter,
     monthFilter: '',
@@ -649,6 +650,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
         <ExpensesWidgetMemo
           dashboard={dashboard}
           token={options.token}
+          reportReady={options.reportReady}
           onOpenLedgerEntry={options.onOpenLedgerEntry}
           baseCurrencyCode={baseCurrencyCode}
         />

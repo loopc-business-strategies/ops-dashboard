@@ -141,6 +141,7 @@ export default function ERPTabPanels({
   dashWidgetCols,
   dashWidgets,
   dashboard,
+  dashboardReportSettled,
   decodeInventoryCategoryMeta,
   editState,
   editingInventoryProductId,
@@ -536,6 +537,7 @@ export default function ERPTabPanels({
         dashDragSrc={dashDragSrc}
         ERP_DASH_ALL_WIDGETS={ERP_DASH_ALL_WIDGETS}
         dashboard={dashboard}
+        dashboardReportSettled={dashboardReportSettled}
         dashChatMessages={dashChatMessages}
         setActiveTab={setActiveTabGuarded}
         onNavigateMain={onNavigateMain}

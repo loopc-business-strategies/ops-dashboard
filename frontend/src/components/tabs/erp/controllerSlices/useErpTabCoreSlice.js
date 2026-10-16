@@ -399,6 +399,7 @@ export function useErpTabCoreSlice(props) {
   const {
     dashboard,
     dashChatMessages,
+    dashboardReportSettled,
     loadDashboard,
   } = useErpDashWidgetData({
     activeTab,
@@ -550,6 +551,7 @@ export function useErpTabCoreSlice(props) {
     customerForm,
     customers,
     dashboard,
+    dashboardReportSettled,
     dashChatMessages,
     dashCustomizeOpen,
     dashDragSrc,
