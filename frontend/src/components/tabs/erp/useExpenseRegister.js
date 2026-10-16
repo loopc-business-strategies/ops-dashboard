@@ -8,26 +8,45 @@ export function expenseRegisterYearStart() {
 }
 
 let expenseRegisterStarted = false
-const expenseRegisterListeners = new Set()
+let expenseRegisterFinished = false
+const expenseRegisterStartListeners = new Set()
+const expenseRegisterFinishListeners = new Set()
 
 /** True once a dashboard expense-register request has been issued. */
 export function hasExpenseRegisterStarted() {
   return expenseRegisterStarted
 }
 
+/** True once that expense-register request has settled. */
+export function hasExpenseRegisterFinished() {
+  return expenseRegisterFinished
+}
+
 export function markExpenseRegisterStarted() {
   if (expenseRegisterStarted) return
   expenseRegisterStarted = true
-  expenseRegisterListeners.forEach((listener) => listener())
+  expenseRegisterStartListeners.forEach((listener) => listener())
+}
+
+export function markExpenseRegisterFinished() {
+  if (expenseRegisterFinished) return
+  expenseRegisterFinished = true
+  expenseRegisterFinishListeners.forEach((listener) => listener())
 }
 
 export function subscribeExpenseRegisterStarted(listener) {
-  expenseRegisterListeners.add(listener)
-  return () => expenseRegisterListeners.delete(listener)
+  expenseRegisterStartListeners.add(listener)
+  return () => expenseRegisterStartListeners.delete(listener)
+}
+
+export function subscribeExpenseRegisterFinished(listener) {
+  expenseRegisterFinishListeners.add(listener)
+  return () => expenseRegisterFinishListeners.delete(listener)
 }
 
 export function resetExpenseRegisterStarted() {
   expenseRegisterStarted = false
+  expenseRegisterFinished = false
 }
 
 export function cleanExpenseRegisterParams(params = {}) {
@@ -84,7 +103,10 @@ export function useExpenseRegister({
       setTotal(0)
       setCategories([])
     } finally {
-      if (seq === loadSeqRef.current) setLoading(false)
+      if (seq === loadSeqRef.current) {
+        setLoading(false)
+        markExpenseRegisterFinished()
+      }
     }
   }, [token, enabled, startDate, endDate, category, paymentSource, limit])
 

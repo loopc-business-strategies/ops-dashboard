@@ -13,8 +13,10 @@ import { loadSharedVoucherList } from '../../../utils/erpSharedVoucherList'
 import { loadSharedSummaryReport } from './useErpReportsController'
 import { loadSharedLedgerPage } from '../../../utils/erpSharedLedger'
 import {
+  hasExpenseRegisterFinished,
   hasExpenseRegisterStarted,
   resetExpenseRegisterStarted,
+  subscribeExpenseRegisterFinished,
   subscribeExpenseRegisterStarted,
 } from './useExpenseRegister'
 
@@ -502,14 +504,13 @@ export default function ERPTabPanels({
 
   useEffect(() => {
     if (!token || backgroundWarmRef.current) return undefined
-    const onDashboard = activeTab === 'dashboard'
-    const expenseStarted = hasExpenseRegisterStarted()
-    const waitingForReport = onDashboard && !dashboardReportSettled && !expenseStarted
-    const waitingForExpense = onDashboard && Boolean(dashboardReportSettled) && !expenseStarted
-    const delay = waitingForReport ? 8000 : waitingForExpense ? 1000 : 0
-    let followUp = 0
+    let timer = 0
+    let unsubscribeStarted = () => {}
+    let unsubscribeFinished = () => {}
     const run = () => {
-      window.clearTimeout(followUp)
+      window.clearTimeout(timer)
+      unsubscribeStarted()
+      unsubscribeFinished()
       if (backgroundWarmRef.current) return
       backgroundWarmRef.current = true
       loadSharedAccountChart(token).catch(() => {})
@@ -520,17 +521,36 @@ export default function ERPTabPanels({
       loadSharedSummaryReport(token).catch(() => {})
       loadSharedLedgerPage(token).catch(() => {})
     }
-    const timer = window.setTimeout(run, delay)
-    const unsubscribe = waitingForExpense
-      ? subscribeExpenseRegisterStarted(() => {
+    const waitForFinish = () => {
+      window.clearTimeout(timer)
+      if (hasExpenseRegisterFinished()) {
+        timer = window.setTimeout(run, 0)
+        return
+      }
+      timer = window.setTimeout(run, 8000)
+      unsubscribeFinished = subscribeExpenseRegisterFinished(() => {
         window.clearTimeout(timer)
-        followUp = window.setTimeout(run, 0)
+        timer = window.setTimeout(run, 0)
       })
-      : () => {}
+    }
+    const onDashboard = activeTab === 'dashboard'
+    if (!onDashboard || hasExpenseRegisterFinished()) {
+      timer = window.setTimeout(run, 0)
+    } else if (!dashboardReportSettled) {
+      timer = window.setTimeout(run, 8000)
+    } else if (hasExpenseRegisterStarted()) {
+      waitForFinish()
+    } else {
+      timer = window.setTimeout(run, 1000)
+      unsubscribeStarted = subscribeExpenseRegisterStarted(() => {
+        window.clearTimeout(timer)
+        waitForFinish()
+      })
+    }
     return () => {
       window.clearTimeout(timer)
-      window.clearTimeout(followUp)
-      unsubscribe()
+      unsubscribeStarted()
+      unsubscribeFinished()
     }
   }, [token, activeTab, dashboardReportSettled])
 
