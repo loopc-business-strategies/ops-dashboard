@@ -284,6 +284,14 @@ export default function ERPReportsTab({
     lineHeight: 1,
     cursor: 'pointer',
   }
+  const reportHeadlineCardStyle = {
+    ...emptyCardStyle,
+    borderStyle: 'solid',
+    padding: '8px 10px',
+    fontSize: '13px',
+    lineHeight: 1.25,
+  }
+  const reportHeadlineLineStyle = { margin: '2px 0 0', fontSize: '13px', lineHeight: 1.25 }
   const reportFilterCheckStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -435,42 +443,42 @@ export default function ERPReportsTab({
           </div>
 
           {!reportDisplay.suppressSummary && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.8rem', marginBottom: '1rem' }}>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Trial Balance</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Debit: {formatMoney(reports.trialBalance?.totalDebit || 0)}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Credit: {formatMoney(reports.trialBalance?.totalCredit || 0)}</p>
-              <p style={{ margin: '0.2rem 0 0', color: reports.trialBalance?.balanced ? C.s1 : C.danger, fontWeight: '700', fontSize: '0.82rem' }}>{reports.trialBalance?.balanced ? 'Balanced' : 'Difference Found'}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px', marginBottom: '8px' }}>
+            <div style={reportHeadlineCardStyle}>
+              <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', lineHeight: 1.25 }}>Trial Balance</p>
+              <p style={reportHeadlineLineStyle}>Debit: {formatMoney(reports.trialBalance?.totalDebit || 0)}</p>
+              <p style={reportHeadlineLineStyle}>Credit: {formatMoney(reports.trialBalance?.totalCredit || 0)}</p>
+              <p style={{ ...reportHeadlineLineStyle, color: reports.trialBalance?.balanced ? C.s1 : C.danger, fontWeight: '700' }}>{reports.trialBalance?.balanced ? 'Balanced' : 'Difference Found'}</p>
               {!reports.trialBalance?.balanced && reports.trialBalance?.difference != null && (
-                <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: C.danger, fontWeight: '600' }}>
+                <p style={{ ...reportHeadlineLineStyle, color: C.danger, fontWeight: '600' }}>
                   Difference: {formatMoney(reports.trialBalance.difference)}
                 </p>
               )}
               {String(reportFilters.search || '').trim() ? (
-                <p style={{ margin: '0.45rem 0 0', fontSize: '0.76rem', color: C.inkSoft, fontWeight: '600', lineHeight: 1.35 }}>
-                  Table below is filtered by search; debit/credit totals above are for the full report (same period and filters as the API).
+                <p style={{ ...reportHeadlineLineStyle, color: C.inkSoft, fontWeight: '600' }}>
+                  Totals are for the full report. Search filters the table only.
                 </p>
               ) : null}
             </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Profit & Loss</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Income: {formatMoney(reports.profitLoss?.totalIncome || 0)}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Expense: {formatMoney(reports.profitLoss?.totalExpense || 0)}</p>
-              <p style={{ margin: '0.2rem 0 0', fontWeight: '700', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger, fontSize: '0.82rem' }}>Net: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
+            <div style={reportHeadlineCardStyle}>
+              <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', lineHeight: 1.25 }}>Profit & Loss</p>
+              <p style={reportHeadlineLineStyle}>Income: {formatMoney(reports.profitLoss?.totalIncome || 0)}</p>
+              <p style={reportHeadlineLineStyle}>Expense: {formatMoney(reports.profitLoss?.totalExpense || 0)}</p>
+              <p style={{ ...reportHeadlineLineStyle, fontWeight: '700', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net: {formatMoney(reports.profitLoss?.netProfit || 0)}</p>
               {reports.profitLoss?.metalPositionRevaluation && (
-                <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.inkSoft }}>Incl. open metal at live price: {formatMoney(reports.profitLoss.netProfitWithMetalRevaluation)}</p>
+                <p style={{ ...reportHeadlineLineStyle, color: C.inkSoft }}>Open metal: {formatMoney(reports.profitLoss.netProfitWithMetalRevaluation)}</p>
               )}
             </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Balance Sheet</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Assets: {formatMoneyAbs(reports.balanceSheet?.totalAssets || 0)}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>L+E: {formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity || 0)}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
+            <div style={reportHeadlineCardStyle}>
+              <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', lineHeight: 1.25 }}>Balance Sheet</p>
+              <p style={reportHeadlineLineStyle}>Assets: {formatMoneyAbs(reports.balanceSheet?.totalAssets || 0)}</p>
+              <p style={reportHeadlineLineStyle}>L+E: {formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity || 0)}</p>
+              <p style={reportHeadlineLineStyle}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
             </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Forex Impact</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Entries: {Number(reports.forex?.entriesCount || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Impact: {formatMoney(reports.forex?.forexImpact || 0)}</p>
+            <div style={reportHeadlineCardStyle}>
+              <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', lineHeight: 1.25 }}>Forex Impact</p>
+              <p style={reportHeadlineLineStyle}>Entries: {Number(reports.forex?.entriesCount || 0).toLocaleString()}</p>
+              <p style={reportHeadlineLineStyle}>Impact: {formatMoney(reports.forex?.forexImpact || 0)}</p>
             </div>
           </div>
           )}
