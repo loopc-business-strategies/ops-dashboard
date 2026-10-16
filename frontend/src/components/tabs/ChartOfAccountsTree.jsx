@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
-import { forEachListPage } from '../../utils/erpPagedRows'
+import { CATALOG_KINDS } from '../../utils/erpCatalogCache'
+import { loadSharedPagedList } from '../../utils/erpPagedRows'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -181,16 +182,19 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const loadSeqRef = useRef(0)
 
   // ── data loading ─────────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ force = false } = {}) => {
     const seq = ++loadSeqRef.current
     setLoading(true)
     setError('')
     const currenciesPromise = erpAccountingAPI.getCurrencies(token).catch(() => [])
     try {
-      await forEachListPage({
+      await loadSharedPagedList({
+        cacheKind: CATALOG_KINDS.accounts,
+        token,
+        params: { chart: 'full' },
         pageSize: 200,
-        shouldStop: () => seq !== loadSeqRef.current,
-        fetchPage: async ({ page, limit }) => {
+        force,
+        readPage: async ({ page, limit }) => {
           const chunk = await erpAccountingAPI.getAccounts(token, { page, limit })
           return { rows: Array.isArray(chunk?.accounts) ? chunk.accounts : [], total: chunk?.total }
         },
@@ -361,7 +365,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       await erpAccountingAPI.deleteAccount(token, node._id)
       setSuccess(`"${node.accountName}" deleted`)
       if (selectedNode?._id === node._id) setSelectedNode(null)
-      load()
+      load({ force: true })
     } catch (e) {
       setError(e?.response?.data?.message || t('deleteFailed'))
     }
@@ -400,7 +404,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
           setSuccess('New customer and receivable account created')
           setModal(null)
-          await load()
+          await load({ force: true })
           return
         }
 
@@ -416,7 +420,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
           setSuccess('New supplier and payable account created')
           setModal(null)
-          await load()
+          await load({ force: true })
           return
         }
 
@@ -457,7 +461,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
         setSuccess('Account moved')
       }
       setModal(null)
-      load()
+      load({ force: true })
     } catch (err) {
       setError(err?.response?.data?.message || 'Save failed')
     } finally {
@@ -560,7 +564,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button
               title={t('refresh')}
-              onClick={() => { setError(''); setSuccess(''); load() }}
+              onClick={() => { setError(''); setSuccess(''); load({ force: true }) }}
               style={{ padding: '0.25rem 0.5rem', background: 'transparent', border: '1px solid #D1D5DB', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.75rem', color: '#374151' }}
             >⟳</button>
             {canManageAccounts && (
@@ -801,7 +805,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             { icon: '🗑️', label: 'Delete', danger: true, cb: () => handleDelete(ctxMenu.node) },
             null,
             { icon: '🔍', label: 'Find',                 cb: () => { setCtxMenu(null); searchRef.current?.focus() } },
-            { icon: '⟳',  label: 'Refresh',              cb: () => { setCtxMenu(null); load() } },
+            { icon: '⟳',  label: 'Refresh',              cb: () => { setCtxMenu(null); load({ force: true }) } },
             { icon: '↕️', label: 'Move',                 cb: () => openMove(ctxMenu.node) },
           ].map((item, i) =>
             item === null

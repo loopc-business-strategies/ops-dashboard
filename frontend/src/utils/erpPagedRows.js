@@ -1,5 +1,9 @@
+import { buildCatalogCacheKey, deleteCachedCatalog, getCachedCatalog, setCachedCatalog } from './erpCatalogCache'
+
 const MAX_PAGES = 200
 const PAGE_ATTEMPTS = 3
+const SHARED_LIST_TTL_MS = 45_000
+const sharedJobs = new Map()
 
 /**
  * Walk every page of a list. `onPage` receives the rows collected so far after
@@ -52,4 +56,62 @@ export async function forEachListPage({
   }
 
   return Array.from(seen.values())
+}
+
+/**
+ * One in-flight download for every caller of the same list. Later callers join
+ * the pages already loading, and a finished list is reused for 45 seconds.
+ */
+export async function loadSharedPagedList({
+  cacheKind,
+  token,
+  params = {},
+  pageSize,
+  readPage,
+  onPage,
+  ttlMs = SHARED_LIST_TTL_MS,
+  force = false,
+}) {
+  if (force) deleteCachedCatalog(cacheKind, token, params)
+  else {
+    const cached = getCachedCatalog(cacheKind, token, params)
+    if (Array.isArray(cached?.rows)) {
+      onPage?.(cached.rows, { page: 1, total: cached.rows.length, done: true })
+      return cached.rows
+    }
+  }
+
+  const key = buildCatalogCacheKey(cacheKind, token, params)
+  let job = sharedJobs.get(key)
+  if (!job) {
+    const listeners = new Set()
+    let latest = null
+    const promise = forEachListPage({
+      pageSize,
+      fetchPage: readPage,
+      onPage: (rows, meta) => {
+        latest = { rows, meta }
+        listeners.forEach((fn) => fn(rows, meta))
+        if (meta.done) setCachedCatalog(cacheKind, token, params, { rows }, ttlMs)
+      },
+    })
+    job = {
+      promise,
+      listeners,
+      latest: () => latest,
+    }
+    sharedJobs.set(key, job)
+    promise.finally(() => {
+      if (sharedJobs.get(key)?.promise === promise) sharedJobs.delete(key)
+    })
+  }
+
+  const latest = job.latest()
+  if (latest && onPage) onPage(latest.rows, latest.meta)
+  if (onPage) job.listeners.add(onPage)
+  try {
+    return await job.promise
+  } finally {
+    if (onPage) job.listeners.delete(onPage)
+  }
 }

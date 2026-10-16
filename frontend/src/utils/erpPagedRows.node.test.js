@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
-import { forEachListPage } from './erpPagedRows'
+import { invalidateCatalogCache } from './erpCatalogCache'
+import { forEachListPage, loadSharedPagedList } from './erpPagedRows'
 
 describe('forEachListPage', () => {
   test('publishes the first page and then the full list', async () => {
@@ -34,5 +35,33 @@ describe('forEachListPage', () => {
       fetchPage: async () => ({ rows: [{ _id: 'a' }], total: 5 }),
     })
     expect(rows).toEqual([{ _id: 'a' }])
+  })
+})
+
+describe('loadSharedPagedList', () => {
+  test('two callers share one download and a later caller reuses it', async () => {
+    invalidateCatalogCache()
+    const fetchPage = vi.fn(async () => ({ rows: [{ _id: 'a' }, { _id: 'b' }], total: 2 }))
+    const readPage = ({ page, limit }) => fetchPage({ page, limit })
+    const args = {
+      cacheKind: 'accounts',
+      token: 'token-a',
+      params: { chart: 'full' },
+      pageSize: 200,
+      readPage,
+    }
+    const [first, second] = await Promise.all([
+      loadSharedPagedList(args),
+      loadSharedPagedList(args),
+    ])
+    expect(first.map((row) => row._id)).toEqual(['a', 'b'])
+    expect(second).toEqual(first)
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+
+    await loadSharedPagedList(args)
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+
+    await loadSharedPagedList({ ...args, force: true })
+    expect(fetchPage).toHaveBeenCalledTimes(2)
   })
 })

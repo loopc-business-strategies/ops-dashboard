@@ -1,33 +1,22 @@
 import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
+import { loadSharedPagedList } from '../../../utils/erpPagedRows'
 
 /** Paginate customers until all rows are merged (parity with vendors aggregator). */
-export async function fetchAllCustomersAggregated(token, baseFilters = {}) {
-  return fetchCatalogCached(
-    CATALOG_KINDS.customers,
+export async function fetchAllCustomersAggregated(token, baseFilters = {}, { onPage } = {}) {
+  const rows = await loadSharedPagedList({
+    cacheKind: CATALOG_KINDS.customers,
     token,
-    { ...baseFilters, all: true },
-    async () => {
-      const pageSize = 100
-      let page = 1
-      let total = Number.POSITIVE_INFINITY
-      let merged = []
-      while (merged.length < total) {
-        const data = await erpAccountingAPI.getCustomers(token, { ...baseFilters, page, limit: pageSize })
-        const rows = data.customers || []
-        merged = merged.concat(rows)
-        total = Number(data.total || merged.length)
-        if (!rows.length) break
-        page += 1
-      }
-      const uniqueById = new Map()
-      merged.forEach((item) => {
-        if (item?._id) uniqueById.set(item._id, item)
-      })
-      return { customers: Array.from(uniqueById.values()), total: uniqueById.size }
+    params: { ...baseFilters, all: true, sharedPages: true },
+    pageSize: 100,
+    readPage: async ({ page, limit }) => {
+      const data = await erpAccountingAPI.getCustomers(token, { ...baseFilters, page, limit })
+      return { rows: data.customers || [], total: data.total }
     },
-  )
+    onPage,
+  })
+  return { customers: rows, total: rows.length }
 }
 
 function wantsSinglePage(params) {

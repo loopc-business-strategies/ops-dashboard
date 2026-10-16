@@ -52,6 +52,12 @@ export function setCachedCatalog(kind, token, params, data, ttlMs = DEFAULT_TTL_
   cache.set(key, { data, savedAt: Date.now(), ttlMs })
 }
 
+export function deleteCachedCatalog(kind, token, params = {}, tenant) {
+  const key = buildKey(kind, token, params, tenant)
+  cache.delete(key)
+  inflight.delete(key)
+}
+
 export function invalidateCatalogCache(kindPrefix = null) {
   if (!kindPrefix) {
     cache.clear()
