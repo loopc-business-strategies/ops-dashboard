@@ -11,9 +11,9 @@ function visibleMoneyIndexes(moneyColumns) {
 }
 
 function rowFill(kind) {
-  if (kind === 'total') return '#B6D7A8'
-  if (kind === 'subtotal' || kind === 'result') return '#D9EAD3'
-  if (kind === 'section' || kind === 'group') return '#E8F0E4'
+  if (kind === 'total') return 'rgba(var(--brand-rgb), 0.28)'
+  if (kind === 'subtotal' || kind === 'result') return 'rgba(var(--brand-rgb), 0.16)'
+  if (kind === 'section' || kind === 'group') return 'rgba(var(--brand-rgb), 0.08)'
   return 'transparent'
 }
 

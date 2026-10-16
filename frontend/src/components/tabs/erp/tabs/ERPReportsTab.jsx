@@ -284,14 +284,23 @@ export default function ERPReportsTab({
     lineHeight: 1,
     cursor: 'pointer',
   }
+  const reportBrandButtonStyle = {
+    ...reportActionButtonStyle,
+    border: '1px solid var(--brand-border)',
+    background: 'var(--brand-soft)',
+    color: 'var(--brand-on-soft)',
+  }
   const reportHeadlineCardStyle = {
     ...emptyCardStyle,
     borderStyle: 'solid',
     padding: '8px 10px',
     fontSize: '13px',
     lineHeight: 1.25,
+    width: 'max-content',
+    maxWidth: '100%',
+    whiteSpace: 'nowrap',
   }
-  const reportHeadlineLineStyle = { margin: '2px 0 0', fontSize: '13px', lineHeight: 1.25 }
+  const reportHeadlineLineStyle = { margin: '2px 0 0', fontSize: '13px', lineHeight: 1.25, whiteSpace: 'nowrap' }
   const reportFilterCheckStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -414,20 +423,20 @@ export default function ERPReportsTab({
               {INCLUDE_ZERO_REPORT_VIEWS.has(reportView) && (
                 <label style={reportFilterCheckStyle}>
                   <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
-                  Zero balances
+                  Zeros
                 </label>
               )}
               <label style={reportFilterCheckStyle}>
                 <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
-                Compare previous
+                Compare
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: 'auto' }}>
-                <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46' }}>CSV</button>
-                <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B' }}>XLSX</button>
+                <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={reportBrandButtonStyle}>CSV</button>
+                <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={reportBrandButtonStyle}>XLSX</button>
                 {reportPdfDownloadEnabled && (
-                  <button onClick={() => handleExportReportPdf(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B' }}>Download PDF</button>
+                  <button onClick={() => handleExportReportPdf(reportExportDisplay)} style={reportBrandButtonStyle}>Download PDF</button>
                 )}
-                <button onClick={() => handlePrintCurrentReport(reportExportDisplay)} style={{ ...reportActionButtonStyle, border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)' }}>Print</button>
+                <button onClick={() => handlePrintCurrentReport(reportExportDisplay)} style={reportBrandButtonStyle}>Print</button>
                 <button
                   type="button"
                   onClick={() => {
@@ -443,7 +452,7 @@ export default function ERPReportsTab({
           </div>
 
           {!reportDisplay.suppressSummary && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: '8px', marginBottom: '8px' }}>
             <div style={reportHeadlineCardStyle}>
               <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', lineHeight: 1.25 }}>Trial Balance</p>
               <p style={reportHeadlineLineStyle}>Debit: {formatMoney(reports.trialBalance?.totalDebit || 0)}</p>
