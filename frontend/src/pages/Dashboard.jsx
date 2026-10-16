@@ -872,28 +872,41 @@ function Dashboard() {
   useEffect(() => {
     if (!token || !user) return undefined
     const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
-    return startProjectsSse({
-      tenant,
-      onReminderDue: (data) => {
-        const title = data?.title || 'Task'
-        setNotifications((prev) => [
-          {
-            id: `rt-rem-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            title: t('opsProjectsReminderToastTitle'),
-            msg: `${t('opsProjectsReminderToastBody')} ${title}`,
-            time: 'Just now',
-            read: false,
-            dotColor: 'bg-amber-400',
-            chatTargetId: null,
-            erpTransactionId: null,
-            erpJumpSubTab: null,
-            erpTransactionType: null,
-            erpEnquiryAccountCode: null,
-          },
-          ...prev,
-        ])
-      },
-    })
+    let stop = () => {}
+    let unsubscribeRelease = () => {}
+    const connect = () => {
+      stop = startProjectsSse({
+        tenant,
+        onReminderDue: (data) => {
+          const title = data?.title || 'Task'
+          setNotifications((prev) => [
+            {
+              id: `rt-rem-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              title: t('opsProjectsReminderToastTitle'),
+              msg: `${t('opsProjectsReminderToastBody')} ${title}`,
+              time: 'Just now',
+              read: false,
+              dotColor: 'bg-amber-400',
+              chatTargetId: null,
+              erpTransactionId: null,
+              erpJumpSubTab: null,
+              erpTransactionType: null,
+              erpEnquiryAccountCode: null,
+            },
+            ...prev,
+          ])
+        },
+      }) || (() => {})
+    }
+    if (isLiveMetalRatesHeld()) {
+      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+    } else {
+      connect()
+    }
+    return () => {
+      unsubscribeRelease()
+      stop?.()
+    }
   }, [token, user, t])
 
   // Idle-time prefetch of likely next tabs (does not block first paint)

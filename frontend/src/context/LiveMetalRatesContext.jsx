@@ -218,16 +218,28 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     if (!enabled || !token) {
       return undefined
     }
-
-    return subscribeRealtimeEvents(tenant, 'metal-rates:update', (event) => {
-      try {
-        const data = parseRealtimeEventData(event, {})
-        const rates = data.rates || data
-        applyRates(normalizeInboundRates(rates))
-      } catch {
-        // Ignore malformed realtime events.
-      }
-    })
+    let unsubscribeEvents = () => {}
+    let unsubscribeRelease = () => {}
+    const connect = () => {
+      unsubscribeEvents = subscribeRealtimeEvents(tenant, 'metal-rates:update', (event) => {
+        try {
+          const data = parseRealtimeEventData(event, {})
+          const rates = data.rates || data
+          applyRates(normalizeInboundRates(rates))
+        } catch {
+          // Ignore malformed realtime events.
+        }
+      })
+    }
+    if (isLiveMetalRatesHeld()) {
+      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+    } else {
+      connect()
+    }
+    return () => {
+      unsubscribeRelease()
+      unsubscribeEvents()
+    }
   }, [applyRates, enabled, tenant, token])
 
   useEffect(() => {
