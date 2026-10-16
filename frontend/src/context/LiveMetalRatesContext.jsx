@@ -244,15 +244,28 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
 
   useEffect(() => {
     if (!enabled) return undefined
-    return startMetalRatesRealtime({
-      token,
-      tenant,
-      onConnect: () => void load(),
-      onRatesUpdate: (payload) => {
-        const raw = payload?.rates || payload?.data?.rates
-        applyRates(normalizeInboundRates(raw))
-      },
-    })
+    let stop = () => {}
+    let unsubscribeRelease = () => {}
+    const connect = () => {
+      stop = startMetalRatesRealtime({
+        token,
+        tenant,
+        onConnect: () => void load(),
+        onRatesUpdate: (payload) => {
+          const raw = payload?.rates || payload?.data?.rates
+          applyRates(normalizeInboundRates(raw))
+        },
+      })
+    }
+    if (isLiveMetalRatesHeld()) {
+      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+    } else {
+      connect()
+    }
+    return () => {
+      unsubscribeRelease()
+      stop()
+    }
   }, [applyRates, enabled, load, tenant, token])
 
   useEffect(() => {
