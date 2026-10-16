@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
+import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
 
 export function useErpMappings({
   token,
@@ -23,8 +24,7 @@ export function useErpMappings({
         fetchCatalogCached(CATALOG_KINDS.mappings, token, params || {}, () =>
           erpAccountingAPI.getMappings(token, params)),
         canLoadReferenceData
-          ? fetchCatalogCached(CATALOG_KINDS.accounts, token, { page: 1, limit: 5000 }, () =>
-            erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }))
+          ? loadSharedAccountChart(token).then((rows) => ({ accounts: rows }))
           : Promise.resolve(null),
       ])
       if (seq !== loadSeqRef.current) return
