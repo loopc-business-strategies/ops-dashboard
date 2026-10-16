@@ -23,7 +23,7 @@ import { getNavItems } from '../components/layout/navConfig'
 import { applyItemOrder } from '../components/layout/navLayout'
 import { useNavLayout } from '../components/layout/useNavLayout'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
-import { holdLiveMetalRatesForDashboardReport, releaseLiveMetalRates } from '../utils/liveMetalRates'
+import { holdLiveMetalRatesForDashboardReport, isLiveMetalRatesHeld, releaseLiveMetalRates, subscribeLiveMetalRatesReleased } from '../utils/liveMetalRates'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
 import {
   applyPresenceUpdate,
@@ -822,39 +822,48 @@ function Dashboard() {
   useEffect(() => {
     if (!user) return undefined
     const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
-
-    const stop = startUserNotifications({
-      token,
-      tenant,
-      onNotification: (payload) => {
-        const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
-        const chatTargetId = resolveChatTargetIdFromSocketPayload(payload)
-        const erp = resolveRealtimeBellErpFields(payload)
-        setNotifications((prev) => [
-          {
-            id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            title,
-            msg,
-            time: 'Just now',
-            read: false,
-            dotColor,
-            chatTargetId,
-            erpTransactionId: erp.erpTransactionId,
-            erpJumpSubTab: erp.erpJumpSubTab,
-            erpTransactionType: erp.erpTransactionType,
-            erpEnquiryAccountCode: erp.erpEnquiryAccountCode,
-          },
-          ...prev,
-        ])
-      },
-      onPresenceSnapshot: (ids) => {
-        setOnlineUserIds(ids)
-      },
-      onPresenceUpdate: ({ userId, online }) => {
-        applyPresenceUpdate({ userId, online })
-      },
-    })
+    let stop = () => {}
+    let unsubscribeRelease = () => {}
+    const connect = () => {
+      stop = startUserNotifications({
+        token,
+        tenant,
+        onNotification: (payload) => {
+          const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
+          const chatTargetId = resolveChatTargetIdFromSocketPayload(payload)
+          const erp = resolveRealtimeBellErpFields(payload)
+          setNotifications((prev) => [
+            {
+              id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              title,
+              msg,
+              time: 'Just now',
+              read: false,
+              dotColor,
+              chatTargetId,
+              erpTransactionId: erp.erpTransactionId,
+              erpJumpSubTab: erp.erpJumpSubTab,
+              erpTransactionType: erp.erpTransactionType,
+              erpEnquiryAccountCode: erp.erpEnquiryAccountCode,
+            },
+            ...prev,
+          ])
+        },
+        onPresenceSnapshot: (ids) => {
+          setOnlineUserIds(ids)
+        },
+        onPresenceUpdate: ({ userId, online }) => {
+          applyPresenceUpdate({ userId, online })
+        },
+      }) || (() => {})
+    }
+    if (isLiveMetalRatesHeld()) {
+      unsubscribeRelease = subscribeLiveMetalRatesReleased(connect)
+    } else {
+      connect()
+    }
     return () => {
+      unsubscribeRelease()
       stop?.()
       clearOnlineUserIds()
     }
