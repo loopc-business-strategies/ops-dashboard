@@ -77,6 +77,69 @@ export function buildErpReportRequestKey({ targetView, commonRange, reportFilter
   })
 }
 
+const SUMMARY_REPORT_TTL_MS = 45_000
+const summaryReportCache = { key: '', at: 0, trialBalance: null }
+let summaryReportInflight = null
+let summaryReportInflightKey = ''
+
+export function defaultSummaryReportFilters() {
+  return {
+    period: 'ytd',
+    reportYear: currentExpenseYear(),
+    reportMonth: currentExpenseMonthIndex(),
+    startDate: '',
+    endDate: '',
+    accountType: '',
+    includeZeroAccounts: false,
+    sortBy: 'accountCode',
+    sortDir: 'asc',
+    comparePrevious: true,
+    referenceType: '',
+    minAmount: '',
+    calculateClosingStock: false,
+    showClosedAccounts: false,
+    excludeHedging: false,
+  }
+}
+
+export function peekSharedSummaryReport(requestKey) {
+  if (
+    summaryReportCache.key === requestKey
+    && summaryReportCache.trialBalance
+    && Date.now() - summaryReportCache.at < SUMMARY_REPORT_TTL_MS
+  ) {
+    return summaryReportCache
+  }
+  return null
+}
+
+/** Year-to-date summary. Concurrent callers share one download for 45 seconds. */
+export function loadSharedSummaryReport(token) {
+  const filters = defaultSummaryReportFilters()
+  const { commonRange } = buildErpReportDateRange(filters)
+  const requestKey = buildErpReportRequestKey({ targetView: 'summary', commonRange, reportFilters: filters })
+  const cached = peekSharedSummaryReport(requestKey)
+  if (cached) return Promise.resolve(cached)
+  if (summaryReportInflight && summaryReportInflightKey === requestKey) return summaryReportInflight
+  summaryReportInflightKey = requestKey
+  summaryReportInflight = import('../../../api/erp-accounting/reports').then(({ reportsApi }) =>
+    reportsApi.getTrialBalance(token, {
+      ...commonRange,
+      includeZero: 'false',
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
+    })).then((trialBalance) => {
+    summaryReportCache.key = requestKey
+    summaryReportCache.at = Date.now()
+    summaryReportCache.trialBalance = trialBalance
+    return summaryReportCache
+  }).finally(() => {
+    summaryReportInflight = null
+    summaryReportInflightKey = ''
+  })
+  return summaryReportInflight
+}
+
 export function useErpReportsController({
   token,
   activeTab,
@@ -189,6 +252,15 @@ export function useErpReportsController({
     if (reportResultCacheRef.current.key === requestKey && Date.now() - reportResultCacheRef.current.at < 45_000) {
       return null
     }
+    if (targetView === 'summary') {
+      const sharedSummary = peekSharedSummaryReport(requestKey)
+      if (sharedSummary) {
+        setReports((prev) => ({ ...prev, trialBalance: sharedSummary.trialBalance }))
+        reportResultCacheRef.current = { key: requestKey, at: sharedSummary.at }
+        setError('')
+        return null
+      }
+    }
     const silentRefresh = reportResultCacheRef.current.key === requestKey
     if (!silentRefresh) setReportsLoading(true)
     const seq = reportLoadSeqRef.current + 1
@@ -198,17 +270,27 @@ export function useErpReportsController({
         const updates = {}
 
         if (targetView === 'summary' || targetView === 'trial') {
-          const includeZero = targetView === 'summary' ? 'false' : (reportQueryFilters.includeZeroAccounts ? 'true' : 'false')
-          updates.trialBalance = await api.getTrialBalance(token, {
-            ...commonRange,
-            ...(reportQueryFilters.accountType ? { accountType: reportQueryFilters.accountType } : {}),
-            includeZero,
-            sortBy: reportQueryFilters.sortBy,
-            sortDir: reportQueryFilters.sortDir,
-            ...(reportQueryFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
-            ...(reportQueryFilters.showClosedAccounts ? { showClosedAccounts: 'true' } : {}),
-            ...(reportQueryFilters.excludeHedging ? { excludeHedging: 'true' } : {}),
+          const defaultFilters = defaultSummaryReportFilters()
+          const defaultKey = buildErpReportRequestKey({
+            targetView: 'summary',
+            commonRange: buildErpReportDateRange(defaultFilters).commonRange,
+            reportFilters: defaultFilters,
           })
+          if (targetView === 'summary' && requestKey === defaultKey) {
+            updates.trialBalance = (await loadSharedSummaryReport(token)).trialBalance
+          } else {
+            const includeZero = targetView === 'summary' ? 'false' : (reportQueryFilters.includeZeroAccounts ? 'true' : 'false')
+            updates.trialBalance = await api.getTrialBalance(token, {
+              ...commonRange,
+              ...(reportQueryFilters.accountType ? { accountType: reportQueryFilters.accountType } : {}),
+              includeZero,
+              sortBy: reportQueryFilters.sortBy,
+              sortDir: reportQueryFilters.sortDir,
+              ...(reportQueryFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
+              ...(reportQueryFilters.showClosedAccounts ? { showClosedAccounts: 'true' } : {}),
+              ...(reportQueryFilters.excludeHedging ? { excludeHedging: 'true' } : {}),
+            })
+          }
         }
         if (targetView === 'pnl') {
           updates.profitLoss = await api.getProfitLossReport(token, {

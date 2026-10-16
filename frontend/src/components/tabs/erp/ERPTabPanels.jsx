@@ -10,6 +10,7 @@ import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
 import { loadSharedCurrencies } from '../../../utils/erpSharedCurrencies'
 import { loadSharedCustomers, loadSharedVendors } from '../../../utils/erpSharedParties'
 import { loadSharedVoucherList } from '../../../utils/erpSharedVoucherList'
+import { loadSharedSummaryReport } from './useErpReportsController'
 
 const loadErpDashboardTab = () => import('./tabs/ERPDashboardTab')
 const loadErpEditRecordModal = () => import('./ErpEditRecordModal')
@@ -492,6 +493,7 @@ export default function ERPTabPanels({
       loadSharedVendors(token).catch(() => {})
       loadSharedCurrencies(token).catch(() => {})
       loadSharedVoucherList(token, { type: 'payment', limit: 200 }).catch(() => {})
+      loadSharedSummaryReport(token).catch(() => {})
     }, 400)
     return () => window.clearTimeout(timer)
   }, [token])
