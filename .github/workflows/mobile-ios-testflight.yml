@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload to TestFlight
         if: ${{ inputs.upload_testflight }}
-        uses: apple-actions/upload-testflight-build@v4
+        uses: apple-actions/upload-testflight-build@v5
         with:
           app-path: mobile/build/export/Nexa.ipa
           issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
