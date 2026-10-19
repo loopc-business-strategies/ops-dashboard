@@ -99,6 +99,47 @@ function BatchProgressBar({ startedLabel, overLabel, percent }) {
   )
 }
 
+function formatStockQty(value) {
+  return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })
+}
+
+function VaultStock({ inventory }) {
+  if (!inventory || inventory.loading) {
+    return <p className="pd-vault-stock-note">Loading stock…</p>
+  }
+  if (inventory.error) {
+    return <p className="pd-vault-stock-note" role="alert">{inventory.error}</p>
+  }
+  if (!inventory.groups?.length) {
+    return <p className="pd-vault-stock-note">No stock on hand</p>
+  }
+  return (
+    <div className="pd-vault-stock">
+      {inventory.groups.map((group) => (
+        <section key={group.category}>
+          <h4 className="pd-vault-stock-cat">{group.category}</h4>
+          <div className="pd-vault-stock-head" aria-hidden>
+            <span>Item</span>
+            <span>Gross</span>
+            <span>Pure</span>
+            <span>Unit</span>
+          </div>
+          <div className="pd-vault-stock-list">
+            {group.items.map((item) => (
+              <div key={item.id} className="pd-vault-stock-row">
+                <span>{item.name}</span>
+                <span>{formatStockQty(item.grossQty)}</span>
+                <span>{formatStockQty(item.pureQty)}</span>
+                <span>{item.unit}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 function DeptCard({
   card,
   batchMonitorRows,
@@ -112,12 +153,14 @@ function DeptCard({
   breakdown = false,
   down = null,
   onMarkFixed,
+  vaultInventory = null,
 }) {
   const calling = !breakdown && callCount > 0
   const machineDown = !breakdown && !calling && Boolean(down)
   const downMinutes = down ? minutesDown(down) : null
   const downFor = downMinutes != null ? formatMinutes(downMinutes) : ''
   const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode, currentBatchTimes })
+  const isVault = ui.key === 'vault_room'
   const tone = statusClass(ui.status)
   const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
     ? `EMPLOYEES (${ui.employeeCount})`
@@ -125,7 +168,7 @@ function DeptCard({
 
   return (
     <article
-      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${selected ? ' pd-dept-card--selected' : ''}${calling ? ' pd-dept-card--calling' : ''}${breakdown ? ' pd-dept-card--breakdown' : ''}`}
+      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${isVault ? ' pd-dept-card--vault-stock' : ''}${selected ? ' pd-dept-card--selected' : ''}${calling ? ' pd-dept-card--calling' : ''}${breakdown ? ' pd-dept-card--breakdown' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect?.(card.key)}
@@ -211,6 +254,8 @@ function DeptCard({
         </div>
       </div>
 
+      {isVault ? <VaultStock inventory={vaultInventory} /> : (
+      <>
       <div className="pd-dept-metrics">
         <div className="pd-dept-metric pd-dept-metric--in">
           <div className="pd-dept-metric-head">
@@ -315,6 +360,8 @@ function DeptCard({
           )}
         </ul>
       </div>
+      </>
+      )}
 
       {card.longRunning ? (
         <p className="pd-dept-long-batch" role="status">
@@ -351,6 +398,7 @@ export default function DepartmentOverview({
   breakdownDepts = {},
   downDepts = {},
   onMarkFixed,
+  vaultInventory = null,
 }) {
   const list = cards || []
 
@@ -376,6 +424,7 @@ export default function DepartmentOverview({
                 breakdown={Boolean(breakdownDepts[card.key])}
                 down={downDepts[card.key] || null}
                 onMarkFixed={onMarkFixed}
+                vaultInventory={card.key === 'vault_room' ? vaultInventory : null}
               />
             ))}
           </div>

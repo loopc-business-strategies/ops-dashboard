@@ -73,6 +73,48 @@ describe('DepartmentOverview Breakdown', () => {
   })
 })
 
+describe('DepartmentOverview Vault Room stock', () => {
+  const vaultCards = [
+    { key: 'vault_room', name: 'Vault Room', status: 'Idle' },
+    { key: 'melting', name: 'Melting', status: 'Running' },
+  ]
+
+  test('hides production metrics on Vault Room only and keeps Batch Started', () => {
+    render(<DepartmentOverview cards={vaultCards} suppressDemo vaultInventory={{ loading: false, error: '', groups: [] }} />)
+    const vault = screen.getByRole('heading', { name: 'Vault Room' }).closest('article')
+    const melting = screen.getByRole('heading', { name: 'Melting' }).closest('article')
+
+    expect(vault.textContent).not.toContain('Metal IN')
+    expect(vault.textContent).not.toContain('Metal Loss')
+    expect(vault.textContent).toContain('Batch Started')
+    expect(vault.textContent).toContain('No stock on hand')
+    expect(melting.textContent).toContain('Metal IN')
+    expect(melting.textContent).toContain('Metal Loss')
+  })
+
+  test('lists live inventory by category', () => {
+    render(
+      <DepartmentOverview
+        cards={vaultCards}
+        suppressDemo
+        vaultInventory={{
+          loading: false,
+          error: '',
+          groups: [{
+            category: 'Gold',
+            items: [{ id: 'bar', name: 'Gold Bar', grossQty: 200, pureQty: 200, unit: 'grams' }],
+          }],
+        }}
+      />,
+    )
+    const vault = screen.getByRole('heading', { name: 'Vault Room' }).closest('article')
+    expect(vault.textContent).toContain('Gold')
+    expect(vault.textContent).toContain('Gold Bar')
+    expect(vault.textContent).toContain('200')
+    expect(vault.textContent).toContain('grams')
+  })
+})
+
 describe('DepartmentOverview loss limit', () => {
   test('a batch above the limit is red with its %, and the card says how many are over', () => {
     const lossCards = [
