@@ -1006,6 +1006,11 @@ export default function ERPReportsTab({
                 }}
               />
               Calculate Closing Stock
+              {reportDisplayDraft.calculateClosingStock && Number(reportDisplayDraft.closingStockPriceOz) > 0 ? (
+                <span style={{ fontWeight: '600', color: '#475569' }}>
+                  {Number(reportDisplayDraft.closingStockPriceOz).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/oz
+                </span>
+              ) : null}
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
               <input
