@@ -1,9 +1,9 @@
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { formatAmount } from '../../../../utils/money'
-import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { createInventoryProductForm } from '../erpTabUtils'
 import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
+import { groupInventoryTableRows, inventoryCategoryLabel } from '../inventoryCategoryGroups'
 
 export default function ERPInventoryTab({
   activeTab,
@@ -77,14 +77,7 @@ export default function ERPInventoryTab({
   handleCreateProduct,
   handleInventoryModalDragStart,
 }) {
-  const invColCount = 13
-  const {
-    scrollRef: invScrollRef,
-    enabled: invVirtEnabled,
-    virtualItems: invVirtualItems,
-    paddingTop: invPadTop,
-    paddingBottom: invPadBottom,
-  } = useVirtualTableRows(sortedInventoryTableRows.length, { estimateSize: 44 })
+  const inventoryGroups = groupInventoryTableRows(sortedInventoryTableRows)
 
   return (
   <>
@@ -299,75 +292,38 @@ export default function ERPInventoryTab({
                   <span style={{ padding: '0.3rem 0.6rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{sortedInventoryTableRows.length} items</span>
                 </div>
               </div>
-              <div ref={invScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: invVirtEnabled ? 520 : undefined, border: 'none', borderRadius: 0 }}>
-                <table className="erp-table">
-                  <thead>
-                    <tr>
-                      {['SKU', 'Name', 'Category', 'Tax Type', 'VAT %', 'Qty On Hand (Gross)', 'Pure Qty', 'Unit', 'Unit Cost', 'Selling Price', 'Total Value', 'Min Stock', 'Status'].map(col => {
-                        const isVatCol = col === 'VAT %'
-                        const vatSortIndicator = inventoryVatSortDir === 'none' ? '' : inventoryVatSortDir === 'asc' ? ' ▲' : ' ▼'
-                        const isNum = col === 'VAT %' || col === 'Qty On Hand (Gross)' || col === 'Pure Qty' || col === 'Unit Cost' || col === 'Selling Price' || col === 'Total Value'
-                        return (
-                          <th
-                            key={col}
-                            className={isNum ? 'num' : undefined}
-                            onClick={isVatCol ? () => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none')) : undefined}
-                            title={isVatCol ? 'Click to sort VAT %' : undefined}
-                            style={{
-                              cursor: isVatCol ? 'pointer' : 'default',
-                              userSelect: isVatCol ? 'none' : 'auto',
-                            }}
-                          >
-                            {isVatCol ? `${col}${vatSortIndicator}` : col}
-                          </th>
-                        )
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invVirtEnabled && invPadTop > 0 && (
-                      <tr><td colSpan={invColCount} style={{ height: invPadTop, padding: 0, border: 'none' }} /></tr>
-                    )}
-                    {(invVirtEnabled
-                      ? invVirtualItems.map((vi) => sortedInventoryTableRows[vi.index]).filter(Boolean)
-                      : sortedInventoryTableRows
-                    ).map(({ item, categoryMeta, productMeta, reportRow }) => {
-                      const displayQty = Math.max(0, Number(item.quantity || 0))
-                      const zeroStock = displayQty <= 0
-                      const lowStock = zeroStock || (Number(item.minThreshold || 0) > 0 && displayQty <= Number(item.minThreshold || 0))
-                      const unitCost = Number(reportRow?.unitCost ?? item.unitCost ?? 0)
-                      const totalValue = Number(reportRow?.stockValue ?? (displayQty * unitCost))
-                      const usesLivePrice = Boolean(reportRow?.usesLivePrice)
-                      return (
-                        <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined, contentVisibility: 'auto', containIntrinsicSize: 'auto 44px' }}>
-                          <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{item.name}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{item.category ? (categoryMeta.mainStock || item.category).slice(0, 30) : '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{productMeta.taxType || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft, fontSize: '0.78rem' }}>{formatVatPercent(productMeta.vatPercent)}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{displayQty.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(reportRow?.pureStockQty || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: usesLivePrice ? '#1D4ED8' : C.ink, fontWeight: usesLivePrice ? '700' : '400' }} title={usesLivePrice ? 'Live spot price' : undefined}>{unitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8' }}>{formatAmount(totalValue, { currencyCode: baseCurrencyCode })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(item.minThreshold || 0) || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem' }}>
-                            {zeroStock
-                              ? <span style={{ background: '#FEE2E2', color: '#B91C1C', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>Zero Stock</span>
-                              : lowStock
-                              ? <span style={{ background: '#FEF3C7', color: '#B45309', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>Low Stock</span>
-                              : <span style={{ background: '#DCFCE7', color: '#166534', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>OK</span>
-                            }
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {invVirtEnabled && invPadBottom > 0 && (
-                      <tr><td colSpan={invColCount} style={{ height: invPadBottom, padding: 0, border: 'none' }} /></tr>
-                    )}
-                  </tbody>
-                </table>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {inventoryGroups.map((group) => (
+                  <section key={group.category}>
+                    <h4 style={{ margin: '0 0 0.4rem', color: C.ink, fontSize: '0.92rem', fontWeight: '800' }}>{group.category}</h4>
+                    <div className="erp-table-wrap" style={{ overflow: 'auto', border: 'none', borderRadius: 0 }}>
+                      <table className="erp-table">
+                        <thead>
+                          <tr>
+                            {['Name', 'Category', 'Qty On Hand (Gross)', 'Pure Qty', 'Unit'].map((col) => (
+                              <th key={col} className={col === 'Qty On Hand (Gross)' || col === 'Pure Qty' ? 'num' : undefined}>{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.rows.map(({ item, categoryMeta, reportRow }) => {
+                            const displayQty = Math.max(0, Number(item.quantity || 0))
+                            const categoryLabel = inventoryCategoryLabel(item.category, categoryMeta)
+                            return (
+                              <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                                <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{item.name}</td>
+                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{categoryLabel}</td>
+                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: displayQty <= 0 ? '#B45309' : '#065F46' }}>{displayQty.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(reportRow?.pureStockQty || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'grams'}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                ))}
               </div>
             </div>
           )}

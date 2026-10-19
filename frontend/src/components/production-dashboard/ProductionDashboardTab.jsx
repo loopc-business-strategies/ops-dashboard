@@ -9,6 +9,7 @@ import KpiRow from './KpiRow'
 import DepartmentOverview from './DepartmentOverview'
 import ActionModal from './ActionModal'
 import { useProductionDashboard } from './useProductionDashboard'
+import { useVaultInventory } from './useVaultInventory'
 import { formatMinutes, minutesDown, useUnfixedBreakdowns } from './useUnfixedBreakdowns'
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
 import './ProductionDashboard.css'
@@ -67,6 +68,7 @@ export default function ProductionDashboardTab() {
     deptDetail,
     actions,
   } = useProductionDashboard()
+  const vaultInventory = useVaultInventory(lastUpdated)
 
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
@@ -259,6 +261,7 @@ export default function ProductionDashboardTab() {
             breakdownDepts={breakdownDepts}
             downDepts={downDepts}
             onMarkFixed={(b) => setFixing({ breakdown: b, note: '', busy: false, error: '' })}
+            vaultInventory={vaultInventory}
             onMetalInOut={() => openModal('metal-out', {
               batchId: selectedDept?.batchId || '',
               fromDepartment: selectedDept?.key || '',
