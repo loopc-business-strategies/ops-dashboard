@@ -202,7 +202,6 @@ export default function FixingRegisterPanel({
               <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {[
                   ['excludeOpeningBalance', 'Exclude Opening Balance'],
-                  ['excludeFutures', 'Exclude Futures'],
                 ].map(([field, lbl]) => (
                   <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
                     <input type="checkbox" checked={fixingRegFilter[field]}
