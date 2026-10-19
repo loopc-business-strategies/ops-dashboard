@@ -983,22 +983,6 @@ export default function ERPReportsTab({
               />
               Show Net Only
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0', fontWeight: '600' }}>
-              <input
-                type="checkbox"
-                checked={reportDisplayDraft.hideNet}
-                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, hideNet: event.target.checked }))}
-              />
-              Hide Net
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0', fontWeight: '600' }}>
-              <input
-                type="checkbox"
-                checked={reportDisplayDraft.suppressSummary}
-                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, suppressSummary: event.target.checked }))}
-              />
-              Suppress Summary
-            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
               <input
                 type="checkbox"
