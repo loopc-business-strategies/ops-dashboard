@@ -39,6 +39,33 @@ export function buildClosingStockTrialRow(revaluation) {
   }
 }
 
+const GRAMS_PER_TROY_OZ = 31.1034768
+
+/** Unposted gold closing-stock line at a typed USD price per troy ounce. Silver is left out. */
+export function buildManualGoldClosingStockRow(revaluation, pricePerOz) {
+  const price = Number(pricePerOz)
+  if (!revaluation || revaluation.omitted || !Number.isFinite(price) || price <= 0) return null
+  const gold = (revaluation.metals || []).find((row) => row.metal === 'gold')
+  const grams = Number(gold?.netGrams || 0)
+  const value = Math.round((grams / GRAMS_PER_TROY_OZ) * price * 100) / 100
+  return {
+    accountCode: '',
+    accountName: 'Closing stock (open gold at entered price)',
+    accountType: 'Asset',
+    debit: 0,
+    credit: 0,
+    net: value,
+    goldDebit: 0,
+    goldCredit: 0,
+    goldNet: grams,
+    silverDebit: 0,
+    silverCredit: 0,
+    silverNet: 0,
+    unposted: true,
+    manualPricePerOz: price,
+  }
+}
+
 export function reportAccountGroup(row = {}) {
   if (row?.unposted) return ''
   const name = String(row?.accountName || '')

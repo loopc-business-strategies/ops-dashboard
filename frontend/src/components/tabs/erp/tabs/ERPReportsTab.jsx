@@ -14,7 +14,7 @@ import {
   reportDisplayPerUsd,
   reportSelectableCurrencies,
   reportMoneyColumns,
-  buildClosingStockTrialRow,
+  buildManualGoldClosingStockRow,
   filterTrialRowsByGroup,
   formatReportGrams,
 } from '../reportDisplayOptions'
@@ -64,6 +64,8 @@ export default function ERPReportsTab({
   currencies = [],
 }) {
   const [reportOptionsOpen, setReportOptionsOpen] = useState(false)
+  const [closingPriceOpen, setClosingPriceOpen] = useState(false)
+  const [closingPriceInput, setClosingPriceInput] = useState('')
   const [reportDisplay, setReportDisplay] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [reportDisplayDraft, setReportDisplayDraft] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [loadedCurrencies, setLoadedCurrencies] = useState(currencies)
@@ -139,13 +141,12 @@ export default function ERPReportsTab({
   const closingStockSource = apiHasClosingStock
     ? reports.trialBalance?.closingStock
     : closingStockFallback
-  const closingStockRow = reportDisplay.calculateClosingStock && !apiHasClosingStock
-    ? buildClosingStockTrialRow(closingStockSource)
+  const postedTrialRows = (reports.trialBalance?.trialBalance || []).filter((row) => !row.unposted)
+  const closingStockRow = reportDisplay.calculateClosingStock
+    ? buildManualGoldClosingStockRow(closingStockSource, reportDisplay.closingStockPriceOz)
     : null
   const trialSourceRows = filterTrialRowsByGroup(
-    closingStockRow
-      ? [...(reports.trialBalance?.trialBalance || []), closingStockRow]
-      : (reports.trialBalance?.trialBalance || []),
+    closingStockRow ? [...postedTrialRows, closingStockRow] : (reportDisplay.calculateClosingStock ? postedTrialRows : (reports.trialBalance?.trialBalance || [])),
     reportDisplay.selectedGroup,
   )
   const reportsForExport = (closingStockRow || reportDisplay.selectedGroup)
@@ -565,9 +566,8 @@ export default function ERPReportsTab({
               {reportDisplay.calculateClosingStock && (
                 <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
                   {closingStockSource?.omitted
-                    ? 'Closing stock uses today\'s live price, so a period that has already ended stays on the posted books.'
-                    : `Closing stock is the open metal position at today's live price. Book value already in the trial: ${formatMoney(closingStockSource?.inventoryBookValue || 0)}. Revaluation ${formatMoney(closingStockSource?.adjustment || 0)} is not posted and is left out of the trial debit and credit totals.`}
-                  {closingStockSource && !closingStockSource.omitted ? ` ${formatValuationPriceSource(closingStockSource)}` : ''}
+                    ? 'A period that has already ended stays on the posted books, so closing stock is left off.'
+                    : `Closing stock is the open gold position at ${Number(reportDisplay.closingStockPriceOz || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD per troy oz. Silver is not included. This amount is not posted and is left out of the trial debit and credit totals.`}
                 </p>
               )}
             </div>
@@ -995,7 +995,15 @@ export default function ERPReportsTab({
               <input
                 type="checkbox"
                 checked={Boolean(reportDisplayDraft.calculateClosingStock)}
-                onChange={(event) => setReportDisplayDraft((prev) => ({ ...prev, calculateClosingStock: event.target.checked }))}
+                onChange={(event) => {
+                  if (!event.target.checked) {
+                    setClosingPriceOpen(false)
+                    setReportDisplayDraft((prev) => ({ ...prev, calculateClosingStock: false, closingStockPriceOz: null }))
+                    return
+                  }
+                  setClosingPriceInput(reportDisplayDraft.closingStockPriceOz ? String(reportDisplayDraft.closingStockPriceOz) : '')
+                  setClosingPriceOpen(true)
+                }}
               />
               Calculate Closing Stock
             </label>
@@ -1094,6 +1102,52 @@ export default function ERPReportsTab({
                 style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: '#4B5563', color: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
               >
                 Go
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {closingPriceOpen && (
+        <div style={{ ...modalBackdropStyle, zIndex: 80 }} onClick={() => { setClosingPriceOpen(false) }}>
+          <div
+            role="dialog"
+            aria-label="Closing stock price"
+            onClick={(event) => event.stopPropagation()}
+            style={{ background: '#F8FAFC', borderRadius: '0.6rem', padding: '1rem', width: 'min(320px, 92vw)', boxShadow: '0 12px 30px rgba(15, 23, 42, 0.2)' }}
+          >
+            <p style={{ margin: '0 0 0.35rem', fontWeight: '700', color: C.ink }}>Closing stock price</p>
+            <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
+              Enter the gold price in USD per troy ounce. The report uses this price for open gold only. Silver is not included, and nothing is posted.
+            </p>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Price (USD / oz)</label>
+            <input
+              aria-label="Gold price per troy ounce"
+              type="number"
+              min="0"
+              step="0.01"
+              value={closingPriceInput}
+              onChange={(event) => setClosingPriceInput(event.target.value)}
+              style={modalInputStyle}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setClosingPriceOpen(false)}
+                style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const price = Number(closingPriceInput)
+                  if (!Number.isFinite(price) || price <= 0) return
+                  setReportDisplayDraft((prev) => ({ ...prev, calculateClosingStock: true, closingStockPriceOz: price }))
+                  setClosingPriceOpen(false)
+                }}
+                style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: '#4B5563', color: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
+              >
+                OK
               </button>
             </div>
           </div>
