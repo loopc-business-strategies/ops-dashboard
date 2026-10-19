@@ -26,6 +26,7 @@ export function buildVaultStockGroups(products) {
     const pairs = decodeInventoryCategoryPairs(item.category)
     const meta = decodeInventoryCategoryMeta(item.category)
     const grossQty = Math.max(0, Number(item.quantity || 0))
+    if (!(grossQty > 0)) return
     const purity = pairs.productPurity || pairs.purity || meta.purity || ''
     const row = {
       id: item._id || item.id || `${category}-${item.name}`,

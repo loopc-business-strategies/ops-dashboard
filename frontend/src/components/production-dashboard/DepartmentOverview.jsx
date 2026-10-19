@@ -99,6 +99,19 @@ function BatchProgressBar({ startedLabel, overLabel, percent }) {
   )
 }
 
+function VaultBalanceStrip() {
+  return (
+    <div className="pd-vault-balance">
+      {['Metal Out', 'Metal Process', 'Balance'].map((label) => (
+        <div key={label} className="pd-vault-balance-item">
+          <span>{label}</span>
+          <strong>—</strong>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function formatStockQty(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })
 }
@@ -370,11 +383,13 @@ function DeptCard({
         </p>
       ) : null}
 
-      <BatchProgressBar
-        startedLabel={card.currentBatchCarriedOver && ui.batchStartedLabel ? `${ui.batchStartedLabel} (yesterday)` : ui.batchStartedLabel}
-        overLabel={ui.batchOverLabel}
-        percent={ui.progressPercent}
-      />
+      {isVault ? <VaultBalanceStrip /> : (
+        <BatchProgressBar
+          startedLabel={card.currentBatchCarriedOver && ui.batchStartedLabel ? `${ui.batchStartedLabel} (yesterday)` : ui.batchStartedLabel}
+          overLabel={ui.batchOverLabel}
+          percent={ui.progressPercent}
+        />
+      )}
     </article>
   )
 }
