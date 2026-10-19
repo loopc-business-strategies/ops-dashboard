@@ -964,6 +964,8 @@ export default function ERPTabPanels({
         handleJumpToTransaction={handleJumpToTransaction}
         baseCurrencyCode={baseCurrencyCode}
         currencies={currencies}
+        fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
+        loadInventory={loadInventory}
           />
         </Suspense>
       </div>

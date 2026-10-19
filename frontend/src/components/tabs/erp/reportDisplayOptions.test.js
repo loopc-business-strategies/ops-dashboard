@@ -7,6 +7,7 @@ import {
   reportDisplayPerUsd,
   reportMoneyColumns,
   buildClosingStockTrialRow,
+  buildManualClosingStockRow,
   buildManualGoldClosingStockRow,
   filterTrialRowsByGroup,
   formatReportGrams,
@@ -87,6 +88,27 @@ describe('report display options', () => {
     })
     expect(buildManualGoldClosingStockRow({ omitted: true }, 2000)).toBeNull()
     expect(buildManualGoldClosingStockRow({ metals: [] }, 0)).toBeNull()
+  })
+
+  it('prices the selected created stock and leaves the others out', () => {
+    const source = {
+      metals: [
+        { metal: 'gold', netGrams: 31.1034768 },
+        { metal: 'silver', netGrams: 100 },
+        { metal: 'alloy', netGrams: 31.1034768 },
+      ],
+    }
+    expect(buildManualClosingStockRow(source, {
+      metalCode: 'ALLOY',
+      price: 1500,
+      label: 'Alloy',
+    })).toMatchObject({
+      accountName: 'Closing stock (open alloy at entered price)',
+      net: 1500,
+      goldNet: 0,
+      silverNet: 0,
+      alloyNet: 31.1034768,
+    })
   })
 
   it('keeps one trial group from the account name', () => {

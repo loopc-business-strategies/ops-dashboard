@@ -13,8 +13,11 @@ const {
   createEmptyMetalPosition,
   addOpenUnfixedVoucherWeight,
   addSignedWeightToPosition,
+  isUnfixedFixingType,
+  listActiveVoucherFixings,
   resolveDirectDealLineSignedWeight,
   resolveDirectDealLineMetalCode,
+  resolveUnfixedVoucherValuationSign,
 } = require('./metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 
@@ -40,6 +43,75 @@ function resolveInventoryItemPureStock(item = {}) {
   const rawPurity = Number(meta.productPurity || 0)
   const purity = rawPurity > 1.2 ? rawPurity / 1000 : rawPurity > 0 ? rawPurity : 1
   return { metal, grams: Number(item.quantity || 0) * purity }
+}
+
+function isAlloyIdentity(stockCode = '', metalCode = '') {
+  const sc = String(stockCode || '').trim().toUpperCase()
+  const mc = String(metalCode || '').trim().toUpperCase()
+  return sc === 'ALLO' || sc === 'ALLOY' || mc === 'ALLOY' || mc === 'ALLO'
+}
+
+function isPlatinumIdentity(stockCode = '', metalCode = '') {
+  const sc = String(stockCode || '').trim().toUpperCase()
+  const mc = String(metalCode || '').trim().toUpperCase()
+  return sc === 'PLAT' || sc === 'PLATINUM' || sc === 'XPT' || mc === 'XPT' || mc === 'PLAT' || mc === 'PLATINUM'
+}
+
+const SEPARATE_CLOSING_METALS = [
+  { key: 'alloy', inventoryName: 'alloy', matches: isAlloyIdentity },
+  { key: 'platinum', inventoryName: 'platinum', matches: isPlatinumIdentity },
+]
+
+/** Inventory grams for a metal kept out of the gold/silver book value. */
+function resolveNamedInventoryGrams(item = {}, inventoryName = '') {
+  const meta = parseItemCategory(item.category)
+  const metal = String(meta.metalType || meta.mainStock || '').trim().toLowerCase()
+  if (metal !== inventoryName) return 0
+  const rawPurity = Number(meta.productPurity || 0)
+  const purity = rawPurity > 1.2 ? rawPurity / 1000 : rawPurity > 0 ? rawPurity : 1
+  return Number(item.quantity || 0) * purity
+}
+
+/**
+ * Grams owed to parties for one stock identity. The shared position puts these
+ * into gold, so the revaluation subtracts them back out before pricing gold.
+ */
+function accumulateMatchedOwedGrams({ unfixedVouchers = [], transfers = [], directDeals = [], excludeHedging = false } = {}, matches) {
+  let grams = 0
+  for (const tx of unfixedVouchers) {
+    if (excludeHedging && tx?.voucherMeta?.hedge) continue
+    const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
+    if (!isUnfixedFixingType(fixingType)) continue
+    const sign = resolveUnfixedVoucherValuationSign(tx.type)
+    if (!sign) continue
+    const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+    for (const line of lines) {
+      if (!matches(line?.stockCode, line?.metalCode)) continue
+      const pw = Number(line?.pureWeight || 0)
+      if (!Number.isFinite(pw) || pw === 0) continue
+      grams += sign * pw
+    }
+    for (const fixing of listActiveVoucherFixings(tx)) {
+      if (!matches('', fixing?.metalCode)) continue
+      grams += -sign * Number(fixing.pureWeight || 0)
+    }
+  }
+  for (const tx of transfers) {
+    const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+    for (const line of lines) {
+      if (!matches(line?.stockCode, line?.metalCode)) continue
+      grams += -resolveTransferSignedPureWeight(tx.type, [line])
+    }
+  }
+  for (const deal of directDeals) {
+    const lines = Array.isArray(deal?.lineItems) ? deal.lineItems : []
+    for (const line of lines) {
+      if (!line?.customerId) continue
+      if (!matches(line?.stockCode, resolveDirectDealLineMetalCode(line))) continue
+      grams += resolveDirectDealLineSignedWeight(line)
+    }
+  }
+  return grams
 }
 
 /** Grams owed to parties (positive = in the party's favour), by metal. */
@@ -84,6 +156,12 @@ function computeMetalBookRevaluation({
     if (held) stock[held.metal] += held.grams
   }
   const owed = accumulateMetalOwedToParties({ unfixedVouchers, transfers, directDeals, excludeHedging })
+  const separateMetals = SEPARATE_CLOSING_METALS.map((spec) => {
+    const stockGrams = inventoryItems.reduce((sum, item) => sum + resolveNamedInventoryGrams(item, spec.inventoryName), 0)
+    const owedGrams = accumulateMatchedOwedGrams({ unfixedVouchers, transfers, directDeals, excludeHedging }, spec.matches)
+    owed.gold -= owedGrams
+    return { ...spec, stockGrams, owedGrams }
+  })
   const prices = { gold: Number(rates.goldPrice || 0), silver: Number(rates.silverPrice || 0) }
 
   const metals = VALUED_METALS.map((metal) => {
@@ -96,6 +174,16 @@ function computeMetalBookRevaluation({
       pricePerGram: prices[metal],
       marketValue: roundMoney(netGrams * prices[metal]),
     }
+  })
+  separateMetals.forEach((spec) => {
+    metals.push({
+      metal: spec.key,
+      stockGrams: roundGrams(spec.stockGrams),
+      owedGrams: roundGrams(spec.owedGrams),
+      netGrams: roundGrams(spec.stockGrams - spec.owedGrams),
+      pricePerGram: 0,
+      marketValue: 0,
+    })
   })
   const marketValue = metals.reduce((sum, row) => sum + row.marketValue, 0)
   return {

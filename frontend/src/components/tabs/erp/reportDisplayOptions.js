@@ -41,29 +41,55 @@ export function buildClosingStockTrialRow(revaluation) {
 
 const GRAMS_PER_TROY_OZ = 31.1034768
 
-/** Unposted gold closing-stock line at a typed USD price per troy ounce. Silver is left out. */
-export function buildManualGoldClosingStockRow(revaluation, pricePerOz) {
-  const price = Number(pricePerOz)
-  if (!revaluation || revaluation.omitted || !Number.isFinite(price) || price <= 0) return null
-  const gold = (revaluation.metals || []).find((row) => row.metal === 'gold')
-  const grams = Number(gold?.netGrams || 0)
-  const value = Math.round((grams / GRAMS_PER_TROY_OZ) * price * 100) / 100
+const CLOSING_STOCK_GRAM_KEYS = {
+  XAU: 'gold',
+  GOLD: 'gold',
+  XAG: 'silver',
+  SILVER: 'silver',
+  XPT: 'platinum',
+  PLAT: 'platinum',
+  PLATINUM: 'platinum',
+  ALLOY: 'alloy',
+  ALLO: 'alloy',
+}
+
+function metalGrams(revaluation, metal) {
+  const row = (revaluation?.metals || []).find((item) => item.metal === metal)
+  return Number(row?.netGrams || 0)
+}
+
+/** Unposted closing-stock line for one created stock at a typed USD price per troy ounce. */
+export function buildManualClosingStockRow(revaluation, { metalCode = 'XAU', price, label = '' } = {}) {
+  const pricePerOz = Number(price)
+  if (!revaluation || revaluation.omitted || !Number.isFinite(pricePerOz) || pricePerOz <= 0) return null
+  const code = String(metalCode || '').trim().toUpperCase()
+  const key = CLOSING_STOCK_GRAM_KEYS[code] || String(metalCode || 'gold').trim().toLowerCase()
+  const grams = metalGrams(revaluation, key)
+  const stockName = String(label || key).trim().toLowerCase() || key
   return {
     accountCode: '',
-    accountName: 'Closing stock (open gold at entered price)',
+    accountName: `Closing stock (open ${stockName} at entered price)`,
     accountType: 'Asset',
     debit: 0,
     credit: 0,
-    net: value,
+    net: Math.round((grams / GRAMS_PER_TROY_OZ) * pricePerOz * 100) / 100,
     goldDebit: 0,
     goldCredit: 0,
-    goldNet: grams,
+    goldNet: key === 'gold' ? grams : 0,
     silverDebit: 0,
     silverCredit: 0,
-    silverNet: 0,
+    silverNet: key === 'silver' ? grams : 0,
+    alloyNet: key === 'alloy' ? grams : 0,
+    platinumNet: key === 'platinum' ? grams : 0,
     unposted: true,
-    manualPricePerOz: price,
+    closingStockMetalCode: code,
+    manualPricePerOz: pricePerOz,
   }
+}
+
+/** Unposted gold closing-stock line at a typed USD price per troy ounce. Silver is left out. */
+export function buildManualGoldClosingStockRow(revaluation, pricePerOz) {
+  return buildManualClosingStockRow(revaluation, { metalCode: 'XAU', price: pricePerOz, label: 'gold' })
 }
 
 export function reportAccountGroup(row = {}) {

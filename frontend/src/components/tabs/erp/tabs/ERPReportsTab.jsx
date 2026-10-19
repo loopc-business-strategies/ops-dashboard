@@ -14,13 +14,17 @@ import {
   reportDisplayPerUsd,
   reportSelectableCurrencies,
   reportMoneyColumns,
-  buildManualGoldClosingStockRow,
+  buildManualClosingStockRow,
   filterTrialRowsByGroup,
   formatReportGrams,
 } from '../reportDisplayOptions'
 import { reportsApi } from '../../../../api/erp-accounting/reports'
 import { loadSharedCurrencies } from '../../../../utils/erpSharedCurrencies'
 import { buildErpReportDateRange } from '../useErpReportsController'
+
+function formatClosingStockPrice(price) {
+  return Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 export default function ERPReportsTab({
   activeTab,
@@ -62,10 +66,18 @@ export default function ERPReportsTab({
   handleJumpToTransaction,
   baseCurrencyCode = 'USD',
   currencies = [],
+  fixingRegisterStockTypeOptions = [],
+  loadInventory,
 }) {
   const [reportOptionsOpen, setReportOptionsOpen] = useState(false)
   const [closingPriceOpen, setClosingPriceOpen] = useState(false)
+  const [closingStockInput, setClosingStockInput] = useState('')
   const [closingPriceInput, setClosingPriceInput] = useState('')
+  const [closingStocksLoading, setClosingStocksLoading] = useState(false)
+  const closingStockOptions = (fixingRegisterStockTypeOptions || []).filter((option) => (
+    option?.metalCode && !String(option.id || '').startsWith('metal-') && !String(option.value || '').startsWith('ALL::')
+  ))
+  const selectedClosingStock = closingStockOptions.find((option) => option.value === closingStockInput) || closingStockOptions[0] || null
   const [reportDisplay, setReportDisplay] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [reportDisplayDraft, setReportDisplayDraft] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [loadedCurrencies, setLoadedCurrencies] = useState(currencies)
@@ -143,7 +155,11 @@ export default function ERPReportsTab({
     : closingStockFallback
   const postedTrialRows = (reports.trialBalance?.trialBalance || []).filter((row) => !row.unposted)
   const closingStockRow = reportDisplay.calculateClosingStock
-    ? buildManualGoldClosingStockRow(closingStockSource, reportDisplay.closingStockPriceOz)
+    ? buildManualClosingStockRow(closingStockSource, {
+      metalCode: reportDisplay.closingStockMetalCode,
+      price: reportDisplay.closingStockPriceOz,
+      label: reportDisplay.closingStockLabel,
+    })
     : null
   const trialSourceRows = filterTrialRowsByGroup(
     closingStockRow ? [...postedTrialRows, closingStockRow] : (reportDisplay.calculateClosingStock ? postedTrialRows : (reports.trialBalance?.trialBalance || [])),
@@ -567,7 +583,7 @@ export default function ERPReportsTab({
                 <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
                   {closingStockSource?.omitted
                     ? 'A period that has already ended stays on the posted books, so closing stock is left off.'
-                    : `Closing stock is the open gold position at ${Number(reportDisplay.closingStockPriceOz || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD per troy oz. Silver is not included. This amount is not posted and is left out of the trial debit and credit totals.`}
+                    : `Closing stock is the open ${reportDisplay.closingStockLabel || 'stock'} position at ${formatClosingStockPrice(reportDisplay.closingStockPriceOz || 0)} USD per troy ounce. This amount is not posted and is left out of the trial debit and credit totals.`}
                 </p>
               )}
             </div>
@@ -998,17 +1014,30 @@ export default function ERPReportsTab({
                 onChange={(event) => {
                   if (!event.target.checked) {
                     setClosingPriceOpen(false)
-                    setReportDisplayDraft((prev) => ({ ...prev, calculateClosingStock: false, closingStockPriceOz: null }))
+                    setReportDisplayDraft((prev) => ({
+                      ...prev,
+                      calculateClosingStock: false,
+                      closingStockValue: '',
+                      closingStockMetalCode: '',
+                      closingStockLabel: '',
+                      closingStockPriceOz: null,
+                    }))
                     return
                   }
+                  const current = closingStockOptions.find((option) => option.value === reportDisplayDraft.closingStockValue) || closingStockOptions[0]
+                  setClosingStockInput(current?.value || '')
                   setClosingPriceInput(reportDisplayDraft.closingStockPriceOz ? String(reportDisplayDraft.closingStockPriceOz) : '')
                   setClosingPriceOpen(true)
+                  if (!closingStockOptions.length && typeof loadInventory === 'function') {
+                    setClosingStocksLoading(true)
+                    Promise.resolve(loadInventory()).finally(() => setClosingStocksLoading(false))
+                  }
                 }}
               />
               Calculate Closing Stock
-              {reportDisplayDraft.calculateClosingStock && Number(reportDisplayDraft.closingStockPriceOz) > 0 ? (
+              {reportDisplayDraft.calculateClosingStock && reportDisplayDraft.closingStockLabel && Number(reportDisplayDraft.closingStockPriceOz) > 0 ? (
                 <span style={{ fontWeight: '600', color: '#475569' }}>
-                  {Number(reportDisplayDraft.closingStockPriceOz).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/oz
+                  {reportDisplayDraft.closingStockLabel} {formatClosingStockPrice(reportDisplayDraft.closingStockPriceOz)} USD/oz
                 </span>
               ) : null}
             </label>
@@ -1118,15 +1147,33 @@ export default function ERPReportsTab({
             role="dialog"
             aria-label="Closing stock price"
             onClick={(event) => event.stopPropagation()}
-            style={{ background: '#F8FAFC', borderRadius: '0.6rem', padding: '1rem', width: 'min(320px, 92vw)', boxShadow: '0 12px 30px rgba(15, 23, 42, 0.2)' }}
+            style={{ background: '#F8FAFC', borderRadius: '0.6rem', padding: '1rem', width: 'min(360px, 92vw)', boxShadow: '0 12px 30px rgba(15, 23, 42, 0.2)' }}
           >
             <p style={{ margin: '0 0 0.35rem', fontWeight: '700', color: C.ink }}>Closing stock price</p>
             <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
-              Enter the gold price in USD per troy ounce. The report uses this price for open gold only. Silver is not included, and nothing is posted.
+              Choose a created stock and enter its price in USD per troy ounce. Nothing is posted.
             </p>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Price (USD / oz)</label>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Stock</label>
+            <select
+              aria-label="Closing stock metal"
+              value={selectedClosingStock?.value || ''}
+              onChange={(event) => setClosingStockInput(event.target.value)}
+              style={modalInputStyle}
+            >
+              {closingStockOptions.map((option) => (
+                <option key={option.id || option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            {!closingStockOptions.length ? (
+              <p style={{ margin: '-0.35rem 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
+                {closingStocksLoading ? 'Loading stock types…' : 'No stock types yet.'}
+              </p>
+            ) : null}
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+              {selectedClosingStock?.label || 'Stock'} price (USD / oz)
+            </label>
             <input
-              aria-label="Gold price per troy ounce"
+              aria-label={`${selectedClosingStock?.label || 'Stock'} price per troy ounce`}
               type="number"
               min="0"
               step="0.01"
@@ -1145,9 +1192,17 @@ export default function ERPReportsTab({
               <button
                 type="button"
                 onClick={() => {
+                  const option = closingStockOptions.find((item) => item.value === (selectedClosingStock?.value || ''))
                   const price = Number(closingPriceInput)
-                  if (!Number.isFinite(price) || price <= 0) return
-                  setReportDisplayDraft((prev) => ({ ...prev, calculateClosingStock: true, closingStockPriceOz: price }))
+                  if (!option || !Number.isFinite(price) || price <= 0) return
+                  setReportDisplayDraft((prev) => ({
+                    ...prev,
+                    calculateClosingStock: true,
+                    closingStockValue: option.value,
+                    closingStockMetalCode: option.metalCode,
+                    closingStockLabel: option.label,
+                    closingStockPriceOz: price,
+                  }))
                   setClosingPriceOpen(false)
                 }}
                 style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: '#4B5563', color: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}

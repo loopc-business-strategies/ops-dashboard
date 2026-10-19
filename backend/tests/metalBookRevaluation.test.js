@@ -97,6 +97,25 @@ describe('metal book revaluation', () => {
     expect(buildClosingStockTrialRow(null)).toBeNull()
   })
 
+  test('keeps alloy weight out of the gold book', () => {
+    const result = computeMetalBookRevaluation({
+      inventoryItems: [{ category: 'mainStock=alloy;metalType=alloy;productPurity=1', quantity: 10 }],
+      unfixedVouchers: [{
+        type: 'purchase',
+        voucherMeta: { fixingType: 'unfixed', lineItems: [{ pureWeight: 32.151, stockCode: 'ALLO' }] },
+      }],
+      rates: { goldPrice: 100, silverPrice: 2 },
+    })
+    expect(result.metals.find((row) => row.metal === 'gold').netGrams).toBe(0)
+    expect(result.metals.find((row) => row.metal === 'alloy')).toMatchObject({
+      stockGrams: 10,
+      owedGrams: 32.151,
+      netGrams: -22.151,
+      marketValue: 0,
+    })
+    expect(result.marketValue).toBe(0)
+  })
+
   test('applies item purity and skips metals without a live price', () => {
     expect(resolveInventoryItemPureStock({
       category: 'mainStock=gold;metalType=gold;productPurity=0.995',
