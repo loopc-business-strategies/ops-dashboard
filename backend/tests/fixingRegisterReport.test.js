@@ -117,6 +117,59 @@ describe('fixingRegisterReport', () => {
     expect(totals.value).toBeCloseTo(26541.18 - 26863.96, 2)
   })
 
+  test('an alloy purchase stays on the alloy statement and off the gold statement', () => {
+    const alloyPurchase = {
+      _id: 'p3',
+      type: 'purchase',
+      status: 'posted',
+      amount: 90.02,
+      voucherMeta: {
+        vocNo: 'Pur/2026/0003',
+        fixingType: 'fixing',
+        lineItems: [{
+          productType: '14k alloy',
+          narration: '14K alloy purchased',
+          pureWeight: 1000,
+          totalAmount: 90.02,
+        }],
+      },
+    }
+    const goldPurchase = {
+      _id: 'p2',
+      type: 'purchase',
+      status: 'posted',
+      amount: 1000,
+      voucherMeta: {
+        vocNo: 'Pur/2026/0001',
+        fixingType: 'fixing',
+        lineItems: [{ stockCode: 'GOLD', narration: '14 k chain bought from gold invest', pureWeight: 5.88, totalAmount: 1000 }],
+      },
+    }
+    const filter = { status: 'preview', partyFilter: 'all', groupBy: 'none', orderBy: 'voucherNo' }
+    const alloyMatch = buildMetalMatchers('ALLOY::stock-alloy')
+    const alloyRows = buildFixingRegisterRows({
+      txSales: [],
+      txPurchases: [alloyPurchase, goldPurchase],
+      directDeals: [],
+      fixingRegFilter: filter,
+      matchesSelectedMetal: alloyMatch.matchesSelectedMetal,
+      isAllMetalSelection: alloyMatch.isAllMetalSelection,
+    })
+    expect(alloyRows.map((row) => row.voucherNo)).toEqual(['Pur/2026/0003'])
+    expect(alloyRows[0].metal).toBe('ALLOY')
+
+    const goldMatch = buildMetalMatchers('XAU::stock-gold')
+    const goldRows = buildFixingRegisterRows({
+      txSales: [],
+      txPurchases: [alloyPurchase, goldPurchase],
+      directDeals: [],
+      fixingRegFilter: filter,
+      matchesSelectedMetal: goldMatch.matchesSelectedMetal,
+      isAllMetalSelection: goldMatch.isAllMetalSelection,
+    })
+    expect(goldRows.map((row) => row.voucherNo)).toEqual(['Pur/2026/0001'])
+  })
+
   test('a fixing of an unfixed purchase counts as an MG buy on the fixing date', () => {
     const { matchesSelectedMetal, isAllMetalSelection } = buildMetalMatchers('ALL')
     const tx = {

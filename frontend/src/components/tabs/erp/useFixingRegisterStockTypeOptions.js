@@ -34,12 +34,7 @@ export function useFixingRegisterStockTypeOptions({
         label: `${labelName}${puritySuffix}`,
       }
     }).filter((option) => Boolean(option.metalCode))
-    if (stockTypeOptions.length) {
-      return [
-        { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
-        ...stockTypeOptions,
-      ]
-    }
+    if (stockTypeOptions.length) return stockTypeOptions
     const legacyProductOptions = inventoryCatalogProducts.map((item) => {
       const meta = decodeInventoryCategoryPairs(item.category)
       const source = meta.metalType || meta.mainStock || item.name
@@ -53,14 +48,8 @@ export function useFixingRegisterStockTypeOptions({
         label: `${productLabel}${puritySuffix}`,
       }
     }).filter((option) => Boolean(option.metalCode))
-    if (legacyProductOptions.length) {
-      return [
-        { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
-        ...legacyProductOptions,
-      ]
-    }
+    if (legacyProductOptions.length) return legacyProductOptions
     return [
-      { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
       { id: 'metal-gold', value: 'XAU::fallback-gold', metalCode: 'XAU', label: 'Gold (XAU)' },
       { id: 'metal-silver', value: 'XAG::fallback-silver', metalCode: 'XAG', label: 'Silver (XAG)' },
       { id: 'metal-platinum', value: 'XPT::fallback-platinum', metalCode: 'XPT', label: 'Platinum (XPT)' },

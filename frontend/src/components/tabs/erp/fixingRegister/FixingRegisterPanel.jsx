@@ -118,12 +118,12 @@ export default function FixingRegisterPanel({
                 ].map(({ label, field, opts }) => {
                   const resolvedOpts = field === 'metalType' && !opts.length
                     ? [
-                      ['ALL::all', 'All Metals'],
                       ['XAU::fallback-gold', 'Gold (XAU)'],
                       ['XAG::fallback-silver', 'Silver (XAG)'],
-                      ['OTHER::fallback-other', 'Other Metals'],
+                      ['XPT::fallback-platinum', 'Platinum (XPT)'],
+                      ['ALLOY::fallback-alloy', 'Alloy'],
                     ]
-                    : opts
+                    : opts.filter(([value]) => !String(value).startsWith('ALL::'))
                   return (
                   <div key={field}>
                     <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>

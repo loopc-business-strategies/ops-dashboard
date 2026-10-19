@@ -31,6 +31,7 @@ function resolveVoucherLineMetalCode(line = {}) {
   if (raw.includes('XAG') || raw.includes('SILVER')) return 'XAG'
   if (raw.includes('XPT') || raw.includes('PLATINUM')) return 'XPT'
   if (raw.includes('XPD') || raw.includes('PALLADIUM')) return 'XPD'
+  if (raw.includes('ALLOY')) return 'ALLOY'
   return ''
 }
 
@@ -41,6 +42,7 @@ function resolveDirectDealMetalCode(value) {
   if (raw === 'XAG' || raw.includes('SILV')) return 'XAG'
   if (raw === 'XPT' || raw.includes('PLAT')) return 'XPT'
   if (raw === 'XPD' || raw.includes('PALL')) return 'XPD'
+  if (raw.includes('ALLOY')) return 'ALLOY'
   return raw
 }
 
