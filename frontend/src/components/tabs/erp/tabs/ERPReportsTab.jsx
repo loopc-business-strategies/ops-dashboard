@@ -12,13 +12,11 @@ import {
   convertReportUsd,
   defaultReportDisplayOptions,
   reportDisplayPerUsd,
-  reportMoneyHeaderLabels,
   reportSelectableCurrencies,
   reportMoneyColumns,
   buildClosingStockTrialRow,
   filterTrialRowsByGroup,
   formatReportGrams,
-  trialMoneyHeaders,
 } from '../reportDisplayOptions'
 import { reportsApi } from '../../../../api/erp-accounting/reports'
 import { loadSharedCurrencies } from '../../../../utils/erpSharedCurrencies'
@@ -137,7 +135,6 @@ export default function ERPReportsTab({
   })
   const moneyColumns = reportMoneyColumns(reportDisplay)
   const perUsd = reportDisplayPerUsd(displayCurrency, loadedCurrencies, baseCurrencyCode)
-  const moneyHeaderLabels = reportMoneyHeaderLabels(displayCurrency)
   const apiHasClosingStock = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
   const closingStockSource = apiHasClosingStock
     ? reports.trialBalance?.closingStock
@@ -557,69 +554,13 @@ export default function ERPReportsTab({
                 </p>
               )}
               <div className="erp-table-wrap" style={{ overflowX: 'auto', borderRadius: '0.45rem' }}>
-                {reportView === 'trial' ? (
-                  <CurrencyStatementTable
-                    model={trialCurrencyModel}
-                    moneyColumns={moneyColumns}
-                    showMetal={reportDisplay.showMetal !== false}
-                    metaByKey={trialMetaByKey}
-                    onOpenAccount={(row) => handleTrialAccountDrilldown(row.accountCode)}
-                  />
-                ) : (
-                <table className="erp-table">
-                  <thead>
-                    <tr>
-                      <th>Code</th>
-                      <th>Name</th>
-                      <th>Type</th>
-                      {trialMoneyHeaders(moneyColumns, moneyHeaderLabels).map((label) => (
-                        <th key={label} className="num">{label}</th>
-                      ))}
-                      {reportDisplay.showMetal !== false && (
-                        <>
-                          <th className="num">Gold g</th>
-                          <th className="num">Silver g</th>
-                        </>
-                      )}
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trialBalanceShown.map((row) => (
-                        <tr key={row.unposted ? 'closing-stock' : `${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                          <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
-                          <td style={{ padding: '0.6rem' }}>
-                            {row.accountName}
-                            {row.isActive === false ? <span style={{ marginLeft: '0.35rem', color: C.inkSoft, fontSize: '0.75rem' }}>Closed</span> : null}
-                          </td>
-                          <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
-                          {moneyColumns.debit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.debit || 0)}</td>}
-                          {moneyColumns.credit && <td style={{ padding: '0.6rem', textAlign: 'right' }}>{row.unposted ? '' : formatMoney(row.credit || 0)}</td>}
-                          {moneyColumns.net && (
-                            <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
-                              {formatDirectionalBalance(row.net)}
-                            </td>
-                          )}
-                          {reportDisplay.showMetal !== false && (
-                            <>
-                              <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatReportGrams(row.goldNet)}</td>
-                              <td style={{ padding: '0.6rem', textAlign: 'right' }}>{formatReportGrams(row.silverNet)}</td>
-                            </>
-                          )}
-                          <td style={{ padding: '0.6rem' }}>
-                            {row.unposted ? (
-                              <span style={{ color: C.inkSoft, fontSize: '0.78rem' }}>Not posted</span>
-                            ) : (
-                              <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
-                                Ledger
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-                )}
+                <CurrencyStatementTable
+                  model={trialCurrencyModel}
+                  moneyColumns={moneyColumns}
+                  showMetal={reportDisplay.showMetal !== false}
+                  metaByKey={trialMetaByKey}
+                  onOpenAccount={(row) => handleTrialAccountDrilldown(row.accountCode)}
+                />
               </div>
               {reportDisplay.calculateClosingStock && (
                 <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>

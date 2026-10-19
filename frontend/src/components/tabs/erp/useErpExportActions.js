@@ -230,6 +230,8 @@ export function useErpExportActions({
       columns: display.columns,
       suppressSummary: display.suppressSummary,
       displayCurrency: display.displayCurrency,
+      convertAmount: display.convertAmount,
+      baseCurrency: baseCurrencyCode,
     })
     if (!body) {
       setError(getReportNotReadyMessage(reportView, 'printing'))
@@ -249,6 +251,7 @@ export function useErpExportActions({
     buildBrandingLogoTag,
     ledgerReportRows,
     selectedReportAccountCode,
+    baseCurrencyCode,
     openPrintWindow,
     setError,
     showNotification,

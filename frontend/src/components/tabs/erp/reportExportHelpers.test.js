@@ -356,4 +356,29 @@ describe('buildReportExportPayload', () => {
     expect(payload).not.toBeNull()
     expect(payload.successLabel).toBe('Profit & loss')
   })
+
+  it('groups the summary spreadsheet and leaves out zero balances', () => {
+    const payload = buildReportExportPayload({
+      reportView: 'summary',
+      reports: {
+        trialBalance: {
+          trialBalance: [
+            { accountCode: '1000', accountName: 'Cash on Hand', accountType: 'Asset', debit: 10, credit: 0, net: 10 },
+            { accountCode: '2000', accountName: 'Zero Account', accountType: 'Asset', debit: 0, credit: 0, net: 0 },
+          ],
+        },
+      },
+      branding: {},
+      defaultBranding: {},
+      baseCurrency: 'USD',
+      displayCurrency: 'USD',
+    })
+    const cells = payload.rows.flat().map((cell) => String(cell ?? ''))
+    expect(cells).toContain('ASSETS')
+    expect(cells).toContain('Cash on Hand')
+    expect(cells).toContain('Gross Total')
+    expect(cells).not.toContain('Zero Account')
+    expect(cells).not.toContain('Type')
+    expect(payload.fileBase).toMatch(/^summary-/)
+  })
 })

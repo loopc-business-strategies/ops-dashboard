@@ -105,6 +105,8 @@ export async function buildReportPrintHtml({
   columns = DEFAULT_REPORT_MONEY_COLUMNS,
   suppressSummary = false,
   displayCurrency = '',
+  convertAmount,
+  baseCurrency = 'USD',
 }) {
   if (!isReportDataReady(reportView, reports, ledgerReportRows)) return null
   const { title, periodText } = buildReportPdfMeta({
@@ -153,6 +155,30 @@ export async function buildReportPrintHtml({
         ${signatureBlock}
       `
   }
+  if (reportView === 'summary') {
+    const rows = trialBalanceRowsForView('summary', reports.trialBalance?.trialBalance || [])
+    const model = buildCurrencyTrialBalanceModel({
+      rows,
+      convert: convertAmount || ((value) => Number(value || 0)),
+      baseCurrency,
+      displayCurrency: displayCurrency || baseCurrency,
+    })
+    const headers = model.head[0] || []
+    return `
+        ${head}
+        ${suppressSummary ? '' : `<div class="summary">
+          <div class="card"><div class="card-label">Trial Debit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalDebit)}</div></div>
+          <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
+          <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
+        </div>`}
+        <div class="section"><p class="section-title">${title}</p><table><thead><tr>${headers.map((label, index) => `<th${index >= 3 ? ' class="num"' : ''}>${escapePrintCell(label)}</th>`).join('')}</tr></thead><tbody>${model.body.map((row, rowIndex) => {
+          const kind = model.kinds[rowIndex]
+          const strong = kind && kind !== 'account'
+          return `<tr>${row.map((cell, col) => `<td${strong ? ' style="font-weight:700;"' : ''}${col >= 3 ? ' class="num"' : ''}>${escapePrintCell(cell)}</td>`).join('')}</tr>`
+        }).join('')}</tbody></table></div>
+        ${signatureBlock}
+      `
+  }
   return `
         ${head}
         ${suppressSummary ? '' : `<div class="summary">
@@ -163,6 +189,13 @@ export async function buildReportPrintHtml({
         <div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th>${trialMoneyHeaders(columns, reportMoneyHeaderLabels(displayCurrency)).map((label) => `<th class="num">${label}</th>`).join('')}${trialMetalHeaders(columns.showMetal).map((label) => `<th class="num">${label}</th>`).join('')}</tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td>${trialMoneyValues(row, columns, formatMoney).map((value) => `<td class="num">${value}</td>`).join('')}${trialMetalValues(row, columns.showMetal).map((value) => `<td class="num">${value}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
         ${signatureBlock}
       `
+}
+
+function escapePrintCell(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 function trialCompanyBlock(branding = {}, defaultBranding = {}, user = {}) {
@@ -234,9 +267,12 @@ async function exportCurrencyTrialBalancePdf({
   displayCurrency,
   baseCurrency,
   convertAmount,
+  rowView = 'trial',
+  title,
+  fileBase = 'currency-trial-balance',
 }) {
   const { jsPDF, autoTable } = await loadPdfTools()
-  const rows = trialBalanceRowsForView('trial', reports.trialBalance?.trialBalance || [])
+  const rows = trialBalanceRowsForView(rowView, reports.trialBalance?.trialBalance || [])
   const model = buildCurrencyTrialBalanceModel({
     rows,
     convert: convertAmount || ((value) => Number(value || 0)),
@@ -284,7 +320,7 @@ async function exportCurrencyTrialBalancePdf({
       }
     },
     didDrawPage: () => {
-      drawCurrencyTrialHeader(doc, { title: model.title, ...company, periodLabel, accountTypeLabel, logoAsset: logo })
+      drawCurrencyTrialHeader(doc, { title: title || model.title, ...company, periodLabel, accountTypeLabel, logoAsset: logo })
     },
   })
   const pageCount = doc.internal.getNumberOfPages()
@@ -300,7 +336,7 @@ async function exportCurrencyTrialBalancePdf({
     doc.text(`Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 16, { align: 'right' })
   }
   const stamp = new Date().toISOString().slice(0, 10)
-  doc.save(`currency-trial-balance-${stamp}.pdf`)
+  doc.save(`${fileBase}-${stamp}.pdf`)
 }
 
 async function exportCurrencyProfitLossPdf({
@@ -475,7 +511,7 @@ export async function exportReportPdf({
   convertAmount,
   period,
 }) {
-  if (reportView === 'trial') {
+  if (reportView === 'trial' || reportView === 'summary') {
     await exportCurrencyTrialBalancePdf({
       reports,
       branding,
@@ -484,6 +520,9 @@ export async function exportReportPdf({
       displayCurrency,
       baseCurrency,
       convertAmount,
+      rowView: reportView,
+      title: reportView === 'summary' ? 'SUMMARY' : undefined,
+      fileBase: reportView === 'summary' ? 'summary' : 'currency-trial-balance',
     })
     return
   }
