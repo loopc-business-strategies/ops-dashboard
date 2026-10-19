@@ -25,7 +25,10 @@ function fixingRegConvertToOz(qty, unit) {
 }
 
 function resolveVoucherLineMetalCode(line = {}) {
-  const raw = String(line.stockCode || line.productType || line.narration || '').trim().toUpperCase()
+  const raw = [line.stockCode, line.productType, line.narration]
+    .map((part) => String(part || '').trim().toUpperCase())
+    .filter(Boolean)
+    .join(' ')
   if (!raw) return ''
   if (raw.includes('XAU') || raw.includes('GOLD')) return 'XAU'
   if (raw.includes('XAG') || raw.includes('SILVER')) return 'XAG'
@@ -65,13 +68,17 @@ function resolveUnfixAmount(line = {}) {
 }
 
 function buildMetalMatchers(metalType) {
-  const selectedMetalCode = String(metalType || '').split('::')[0].toUpperCase()
+  const [metalCodePart, , stockSkuPart] = String(metalType || '').split('::')
+  const selectedMetalCode = String(metalCodePart || '').toUpperCase()
+  const selectedStockSku = String(stockSkuPart || '').trim().toUpperCase()
   const primaryMetalCodes = new Set(['XAU', 'XAG', 'XPT', 'XPD'])
   const isAllMetalSelection = !selectedMetalCode || selectedMetalCode === 'ALL'
   const isOtherMetalSelection = selectedMetalCode === 'OTHER'
-  const matchesSelectedMetal = (metalCodeRaw) => {
+  const matchesSelectedMetal = (metalCodeRaw, lineStockCode = '') => {
     const metalCode = String(metalCodeRaw || '').toUpperCase()
+    const stockCode = String(lineStockCode || '').trim().toUpperCase()
     if (isAllMetalSelection) return true
+    if (selectedStockSku && stockCode === selectedStockSku) return true
     if (isOtherMetalSelection) return metalCode && !primaryMetalCodes.has(metalCode)
     return metalCode === selectedMetalCode
   }
@@ -130,7 +137,7 @@ function buildFixingRegisterRows({
     }
     lines.forEach((line, idx) => {
       const lineMetal = resolveVoucherLineMetalCode(line)
-      if (!matchesSelectedMetal(lineMetal)) return
+      if (!matchesSelectedMetal(lineMetal, line.stockCode)) return
       const narration = String(line.narration || tx?.description || '')
       const pureWeightGram = Number(line.pureWeight || line.grossWeight || 0)
       const qtyOz = pureWeightGram > 0 ? (pureWeightGram / 31.1034768) : 0

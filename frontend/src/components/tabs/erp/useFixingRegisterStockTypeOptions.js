@@ -29,7 +29,7 @@ export function useFixingRegisterStockTypeOptions({
       const puritySuffix = meta.purity ? ` (${meta.purity})` : ''
       return {
         id: item._id,
-        value: `${metalCode}::${item._id}`,
+        value: item.sku ? `${metalCode}::${item._id}::${item.sku}` : `${metalCode}::${item._id}`,
         metalCode,
         label: `${labelName}${puritySuffix}`,
       }

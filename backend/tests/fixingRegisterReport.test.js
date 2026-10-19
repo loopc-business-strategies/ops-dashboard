@@ -127,7 +127,8 @@ describe('fixingRegisterReport', () => {
         vocNo: 'Pur/2026/0003',
         fixingType: 'fixing',
         lineItems: [{
-          productType: '14k alloy',
+          stockCode: 'ALLO',
+          productType: '14K alloy',
           narration: '14K alloy purchased',
           pureWeight: 1000,
           totalAmount: 90.02,
@@ -145,18 +146,40 @@ describe('fixingRegisterReport', () => {
         lineItems: [{ stockCode: 'GOLD', narration: '14 k chain bought from gold invest', pureWeight: 5.88, totalAmount: 1000 }],
       },
     }
+    const skuOnlyPurchase = {
+      _id: 'p4',
+      type: 'purchase',
+      status: 'posted',
+      amount: 10,
+      voucherMeta: {
+        vocNo: 'Pur/2026/0004',
+        fixingType: 'fixing',
+        lineItems: [{ stockCode: 'ALLO', productType: '14K', narration: 'purchased', pureWeight: 10, totalAmount: 10 }],
+      },
+    }
     const filter = { status: 'preview', partyFilter: 'all', groupBy: 'none', orderBy: 'voucherNo' }
-    const alloyMatch = buildMetalMatchers('ALLOY::stock-alloy')
-    const alloyRows = buildFixingRegisterRows({
+    const alloyWordMatch = buildMetalMatchers('ALLOY::stock-alloy')
+    const wordRows = buildFixingRegisterRows({
       txSales: [],
       txPurchases: [alloyPurchase, goldPurchase],
       directDeals: [],
       fixingRegFilter: filter,
-      matchesSelectedMetal: alloyMatch.matchesSelectedMetal,
-      isAllMetalSelection: alloyMatch.isAllMetalSelection,
+      matchesSelectedMetal: alloyWordMatch.matchesSelectedMetal,
+      isAllMetalSelection: alloyWordMatch.isAllMetalSelection,
     })
-    expect(alloyRows.map((row) => row.voucherNo)).toEqual(['Pur/2026/0003'])
-    expect(alloyRows[0].metal).toBe('ALLOY')
+    expect(wordRows.map((row) => row.voucherNo)).toEqual(['Pur/2026/0003'])
+    expect(wordRows[0].metal).toBe('ALLOY')
+
+    const alloySkuMatch = buildMetalMatchers('ALLOY::stock-alloy::ALLO')
+    const skuRows = buildFixingRegisterRows({
+      txSales: [],
+      txPurchases: [skuOnlyPurchase, goldPurchase],
+      directDeals: [],
+      fixingRegFilter: filter,
+      matchesSelectedMetal: alloySkuMatch.matchesSelectedMetal,
+      isAllMetalSelection: alloySkuMatch.isAllMetalSelection,
+    })
+    expect(skuRows.map((row) => row.voucherNo)).toEqual(['Pur/2026/0004'])
 
     const goldMatch = buildMetalMatchers('XAU::stock-gold')
     const goldRows = buildFixingRegisterRows({
