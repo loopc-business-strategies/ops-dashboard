@@ -202,7 +202,7 @@
   "timezone": "Timezone",
   "sessionTimeout": "Session Timeout (min)",
   "webIdleTimeout": "Web Idle Timeout (min)",
-  "webIdleTimeoutHelp": "Web only: sign out after inactivity. Use 0 to disable. Use 5–1440 minutes. Mobile app is not affected.",
+  "webIdleTimeoutHelp": "Web only: sign out after inactivity. The prompt appears after this many minutes, then sign-out follows 30 minutes later. Use 0 to disable. Use 5–1440 minutes. Mobile app is not affected.",
   "loginIdleMessage": "You were signed out due to inactivity. Please sign in again.",
   "idleWarningTitle": "Still there?",
   "idleWarningBody": "You will be signed out in {minutes} minutes due to inactivity.",

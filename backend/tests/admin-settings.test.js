@@ -36,9 +36,17 @@ describe('admin settings helpers', () => {
     expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '2' })).toBe(30)
     expect(resolveIdleTimeoutMs({ idleTimeoutMinutes: '0' })).toBeNull()
     expect(resolveIdleTimeoutMs({ idleTimeoutMinutes: '30' })).toBe(30 * 60 * 1000)
-    expect(buildWebSessionPolicy({ idleTimeoutMinutes: '60' })).toEqual({
+    expect(buildWebSessionPolicy({ idleTimeoutMinutes: '0' })).toEqual({
+      idleTimeoutMinutes: 0,
+      idleWarningMinutes: 0,
+    })
+    expect(buildWebSessionPolicy({ idleTimeoutMinutes: '30' })).toEqual({
       idleTimeoutMinutes: 60,
-      idleWarningMinutes: 5,
+      idleWarningMinutes: 30,
+    })
+    expect(buildWebSessionPolicy({ idleTimeoutMinutes: '60' })).toEqual({
+      idleTimeoutMinutes: 90,
+      idleWarningMinutes: 30,
     })
   })
 })

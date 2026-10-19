@@ -8,8 +8,12 @@ export default function WebIdleSessionGuard() {
   const { t } = useLanguage()
   const [showWarning, setShowWarning] = useState(false)
 
-  const idleTimeoutMinutes = Number(sessionPolicy?.idleTimeoutMinutes || 0)
-  const idleWarningMinutes = Number(sessionPolicy?.idleWarningMinutes || 5)
+  const reportedTimeoutMinutes = Number(sessionPolicy?.idleTimeoutMinutes || 0)
+  const reportedWarningMinutes = Number(sessionPolicy?.idleWarningMinutes || 0)
+  const idleWarningMinutes = reportedTimeoutMinutes > 0 ? Math.max(reportedWarningMinutes, 30) : 0
+  const idleTimeoutMinutes = reportedTimeoutMinutes > 0 && reportedWarningMinutes < 30
+    ? reportedTimeoutMinutes + 30
+    : reportedTimeoutMinutes
   const enabled = idleTimeoutMinutes > 0
 
   const idleTimeoutMs = useMemo(

@@ -202,7 +202,7 @@
   "timezone": "Vaqt mintaqasi",
   "sessionTimeout": "Sessiya muddati (daqiqa)",
   "webIdleTimeout": "Veb faolsizlik vaqti (daqiqa)",
-  "webIdleTimeoutHelp": "Faqat veb: faolsizlikdan keyin chiqish. O‘chirish uchun 0. 5–1440 daqiqa. Mobil ilova ta’sir qilmaydi.",
+  "webIdleTimeoutHelp": "Faqat veb: faolsizlikdan keyin chiqish. Ogohlantirish shu daqiqadan keyin, chiqish undan 30 daqiqa keyin. O‘chirish uchun 0. 5–1440 daqiqa. Mobil ilova ta’sir qilmaydi.",
   "loginIdleMessage": "Faolsizlik sababli tizimdan chiqdingiz. Qayta kiring.",
   "idleWarningTitle": "Hali shu yerdamisiz?",
   "idleWarningBody": "Faolsizlik sababli {minutes} daqiqadan keyin tizimdan chiqasiz.",

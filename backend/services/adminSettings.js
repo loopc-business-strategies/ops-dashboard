@@ -83,7 +83,7 @@ function resolveJwtExpiresIn(maxAgeMs) {
 }
 
 const DEFAULT_IDLE_TIMEOUT_MINUTES = 30
-const IDLE_WARNING_MINUTES = 5
+const IDLE_WARNING_MINUTES = 30
 
 function resolveIdleTimeoutMinutes(settings = DEFAULT_ADMIN_SETTINGS) {
   const minutes = Number.parseInt(String(settings?.idleTimeoutMinutes ?? ''), 10)
@@ -99,8 +99,12 @@ function resolveIdleTimeoutMs(settings = DEFAULT_ADMIN_SETTINGS) {
 }
 
 function buildWebSessionPolicy(settings = DEFAULT_ADMIN_SETTINGS) {
+  const quietMinutes = resolveIdleTimeoutMinutes(settings)
+  if (!quietMinutes) {
+    return { idleTimeoutMinutes: 0, idleWarningMinutes: 0 }
+  }
   return {
-    idleTimeoutMinutes: resolveIdleTimeoutMinutes(settings),
+    idleTimeoutMinutes: quietMinutes + IDLE_WARNING_MINUTES,
     idleWarningMinutes: IDLE_WARNING_MINUTES,
   }
 }
