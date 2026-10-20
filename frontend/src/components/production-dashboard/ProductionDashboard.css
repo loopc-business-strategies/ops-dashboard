@@ -1710,21 +1710,34 @@
   white-space: nowrap;
 }
 
+.pd-dept-card--vault-stock .pd-dept-name {
+  font-size: 1.05rem;
+}
+
+.pd-dept-card--vault-stock .pd-dept-subtitle {
+  font-size: 12px;
+}
+
+.pd-dept-card--vault-stock .pd-dept-people-label,
+.pd-dept-card--vault-stock .pd-dept-people-manager {
+  font-size: 11.5px;
+}
+
 .pd-dept-card--vault-stock .pd-vault-stock {
-  max-height: 220px;
+  max-height: 280px;
   overflow: auto;
   margin-top: 0.35rem;
 }
 
 .pd-vault-stock-note {
   margin: 0.45rem 0 0.15rem;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--pd-text-soft, #64748b);
 }
 
 .pd-vault-stock-cat {
   margin: 0.45rem 0 0.15rem;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1742,23 +1755,23 @@
   flex-direction: column;
   gap: 0.1rem;
   min-width: 0;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--pd-text-soft, #64748b);
 }
 
 .pd-vault-balance-item strong {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--pd-text);
 }
 
 .pd-vault-stock-head,
 .pd-vault-stock-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 4.5rem 4.5rem 3.2rem;
+  grid-template-columns: minmax(0, 1fr) 5rem 5rem 3.6rem;
   gap: 0.35rem;
   align-items: baseline;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .pd-vault-stock-head span:not(:first-child),
@@ -1767,7 +1780,7 @@
 }
 
 .pd-vault-stock-head {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--pd-text-soft, #64748b);
 }
