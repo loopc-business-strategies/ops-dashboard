@@ -77,4 +77,18 @@ describe('useVoucherLineAutoCalc', () => {
     expect(line.premiumAmount).toBe('321.51')
     expect(line.totalAmount).toBe('13503.32')
   })
+
+  test('negative premium per ounce is treated as a discount', () => {
+    const { applyLineAutoCalc } = renderAutoCalc()
+    const line = applyLineAutoCalc({
+      grossWeight: '100',
+      purity: '1',
+      metalRate: '4100',
+      rateType: 'OZ',
+      premiumValue: '-100',
+    })
+    expect(line.weightInOz).toBe('3.215')
+    expect(line.premiumAmount).toBe('-321.51')
+    expect(line.totalAmount).toBe('12860.3')
+  })
 })

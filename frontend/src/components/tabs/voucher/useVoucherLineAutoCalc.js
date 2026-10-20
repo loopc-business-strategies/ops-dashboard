@@ -84,8 +84,9 @@ export function useVoucherLineAutoCalc({
 
     const hasPremiumRate = String(next.premiumValue ?? '').trim() !== ''
     const premiumPerOz = hasPremiumRate ? (parseAmount(next.premiumValue) || 0) : 0
+    // Allow negative premium (discount per oz); zero rate clears computed amount.
     const premiumAmount = hasPremiumRate
-      ? (weightInOz > 0 && premiumPerOz > 0 ? roundMoney(weightInOz * premiumPerOz, moneyCur) : 0)
+      ? (weightInOz > 0 && premiumPerOz !== 0 ? roundMoney(weightInOz * premiumPerOz, moneyCur) : 0)
       : (parseAmount(next.premiumAmount) || 0)
     const makingChargesAmt = parseAmount(next.makingCharges) || 0
 
@@ -108,14 +109,16 @@ export function useVoucherLineAutoCalc({
       weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
       metalRate: effectiveMetalRate > 0 ? String(roundMoney(effectiveMetalRate, moneyCur)) : (next.metalRate || ''),
       metalAmount: effectiveMetalAmount > 0 ? String(roundMoney(effectiveMetalAmount, moneyCur)) : '',
-      premiumAmount: premiumAmount > 0 ? String(roundMoney(premiumAmount, moneyCur)) : (hasPremiumRate ? '' : (next.premiumAmount || '')),
-      totalAmount: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
-      amountLC: baseTotal > 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
-      amountFC: useHeaderFx && amountWithVAT > 0 ? String(foreignAmount) : (next.amountFC || ''),
+      premiumAmount: premiumAmount !== 0
+        ? String(roundMoney(premiumAmount, moneyCur))
+        : (hasPremiumRate ? '' : (next.premiumAmount || '')),
+      totalAmount: baseTotal !== 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
+      amountLC: baseTotal !== 0 ? String(roundMoney(baseTotal, moneyCur)) : '',
+      amountFC: useHeaderFx && amountWithVAT !== 0 ? String(foreignAmount) : (next.amountFC || ''),
       currRate: useHeaderFx ? String(fxRate) : (next.currRate || ''),
       vatAmountLC: next.vatAmountLC || '',
       vatAmountFC: next.vatAmountLC || '',
-      amountWithVAT: (baseTotal > 0 || vatAmount > 0) ? String(roundMoney(amountWithVAT, moneyCur)) : '',
+      amountWithVAT: (baseTotal !== 0 || vatAmount !== 0) ? String(roundMoney(amountWithVAT, moneyCur)) : '',
     }
 
     // Keep the field the user is actively editing as raw typed text (no toFixed rewrite).
