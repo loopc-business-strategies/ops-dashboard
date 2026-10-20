@@ -45,6 +45,7 @@ describe('getNavItems — Operations visibility', () => {
       'production-new',
     ]))
     expect(items.find((item) => item.id === 'chat')?.badge).toBeNull()
+    expect(items.find((item) => item.id === 'production-new')?.openInNewTab).toBe(false)
     expect(ids(items)).not.toContain('hr')
   })
 })

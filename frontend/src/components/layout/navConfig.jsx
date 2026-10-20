@@ -86,6 +86,8 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
       id: 'production-new',
       label: 'Production Dashboard',
       group: 'departments',
+      // VB Coming Soon: stay in-dashboard. MG/others: open fullscreen production app.
+      openInNewTab: !departmentsComingSoon,
       show: departmentsComingSoon || (!departmentsComingSoon && perms.canViewModule('production')),
     },
     { id: 'finance', label: t('finance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('finance') },

@@ -544,8 +544,10 @@ function Dashboard() {
     setSearchParams(params, { replace })
   }, [activeTab, erpSubTab, searchParams, tenantForHref, includeCompany, setSearchParams])
 
+  const departmentsComingSoon = Boolean(branding?.featureFlags?.departmentsComingSoon)
+
   const buildNavHref = useCallback((item) => {
-    if (item.id === 'production-new') {
+    if (item.id === 'production-new' && !departmentsComingSoon) {
       return '/production-dashboard'
     }
     if (item.external && item.href) {
@@ -569,7 +571,7 @@ function Dashboard() {
       company: tenantForHref,
       includeCompany,
     })
-  }, [tenantForHref, includeCompany, searchParams])
+  }, [tenantForHref, includeCompany, searchParams, departmentsComingSoon])
 
   const openProductionDashboard = useCallback(() => {
     const raw = `${window.location.pathname}${window.location.search}` || '/dashboard'
@@ -587,7 +589,7 @@ function Dashboard() {
   }, [])
 
   const navigateToTab = useCallback((tabId, options = {}) => {
-    if (tabId === 'production-new' || tabId === 'production') {
+    if ((tabId === 'production-new' || tabId === 'production') && !departmentsComingSoon) {
       openProductionDashboard()
       return
     }
@@ -604,7 +606,7 @@ function Dashboard() {
       sub: sub === undefined ? (nextActive === 'erp' ? null : searchParams.get('sub')) : sub,
       replace,
     })
-  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionDashboard])
+  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionDashboard, departmentsComingSoon])
   const handleErpSubTabChange = useCallback((subTab) => {
     setActiveTab('erp')
     setErpSubTab(subTab)
@@ -635,7 +637,6 @@ function Dashboard() {
     () => getNavItems(perms, t, chatUnread, branding),
     [perms, t, chatUnread, branding],
   )
-  const departmentsComingSoon = Boolean(branding?.featureFlags?.departmentsComingSoon)
   const tabRenderOptions = useMemo(
     () => ({
       departmentsComingSoon,

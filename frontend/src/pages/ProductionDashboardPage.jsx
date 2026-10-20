@@ -23,6 +23,13 @@ export default function ProductionDashboardPage() {
 
   useEffect(() => applyTenantTheme(branding.colors), [branding])
 
+  // Venus Bullions (and any tenant with departmentsComingSoon): no live production app yet.
+  useEffect(() => {
+    if (!branding?.featureFlags?.departmentsComingSoon) return undefined
+    navigate('/dashboard?tab=production-new', { replace: true })
+    return undefined
+  }, [branding?.featureFlags?.departmentsComingSoon, navigate])
+
   const returnTo = useMemo(() => {
     const fromState = location.state?.returnTo
     if (fromState) return fromState
@@ -40,6 +47,10 @@ export default function ProductionDashboardPage() {
       /* ignore */
     }
     navigate(returnTo || '/dashboard?tab=overview')
+  }
+
+  if (branding?.featureFlags?.departmentsComingSoon) {
+    return null
   }
 
   return (

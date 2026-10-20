@@ -221,7 +221,9 @@ export default function AppSidebar({
         {...item}
         href={buildNavHref(item)}
         active={activeTab === item.id}
-        openInNewTab={sectionKey === 'departments' && item.id === 'production-new'}
+        openInNewTab={item.openInNewTab != null
+          ? Boolean(item.openInNewTab)
+          : (sectionKey === 'departments' && item.id === 'production-new')}
         onSameTabNavigate={() => onModuleNavigate?.(item.id)}
         onAfterClick={sidebarLinkAfterClick}
         onPrefetch={() => prefetchTabChunk(item.id)}
@@ -335,7 +337,9 @@ export default function AppSidebar({
                 {...item}
                 href={buildNavHref(item)}
                 active={activeTab === item.id}
-                openInNewTab={item.id === 'production-new'}
+                openInNewTab={item.openInNewTab != null
+                  ? Boolean(item.openInNewTab)
+                  : item.id === 'production-new'}
                 onSameTabNavigate={() => onModuleNavigate?.(item.id)}
                 onAfterClick={sidebarLinkAfterClick}
                 onPrefetch={() => prefetchTabChunk(item.id)}
