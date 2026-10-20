@@ -153,7 +153,7 @@ router.get('/accounts', protect, async (req, res) => {
       }
     }
     const accountQuery = ChartOfAccount.find(query)
-      .select('accountCode accountName accountType openingBalance currency isActive')
+      .select('accountCode accountName accountType openingBalance currency isActive description address department marginPercent')
       .sort({ accountCode: 1 })
       .skip(skip)
       .limit(limit)
@@ -209,6 +209,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         tenantKey,
         req.user?._id || req.user?.id || 'user',
         'account-enquiry',
+        'v2-marginPct',
         accountCode,
         includeStatement ? 'stmt' : 'summary',
         statementLimit,
@@ -239,7 +240,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     }
 
     const accountMatches = await ChartOfAccount.find(accountQuery)
-      .select('accountCode accountName accountType openingBalance currency isActive createdAt')
+      .select('accountCode accountName accountType openingBalance currency isActive createdAt description department marginPercent')
       .sort({ isActive: -1, createdAt: 1, _id: 1 })
       .lean()
 
