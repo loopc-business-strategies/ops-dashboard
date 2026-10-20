@@ -878,15 +878,17 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
       {/* ── MODAL ────────────────────────────────────────────────────────────── */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '0.75rem' }}>
           <div
             style={{
               background: '#FFFFFF',
               borderRadius: '0.75rem',
-              width: '500px',
-              maxWidth: '95vw',
-              maxHeight: '92vh',
-              overflowY: 'auto',
+              width: modal.mode === 'move' ? '460px' : '780px',
+              maxWidth: '96vw',
+              maxHeight: '94vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
               boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
               transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)`,
             }}
@@ -896,17 +898,18 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             <div
               onMouseDown={beginModalDrag}
               style={{
-                padding: '1.1rem 1.5rem',
+                padding: '0.75rem 1.1rem',
                 borderBottom: '1px solid #F3F4F6',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 cursor: modalDrag.active ? 'grabbing' : 'grab',
                 userSelect: 'none',
+                flexShrink: 0,
               }}
               title="Drag to move"
             >
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#111827' }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#111827' }}>
                 {modal.mode === 'edit' ? `Edit: ${modal.node.accountName}`
                   : modal.mode === 'move' ? `Move: ${modal.node.accountName}`
                   : ACTION_PRESETS[modal.action]?.label || 'Add Account'}
@@ -920,9 +923,10 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ padding: '1.25rem 1.5rem' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div style={{ padding: '0.85rem 1.1rem', overflow: 'visible' }}>
               {error && (
-                <div style={{ background: '#FEE2E2', color: '#B91C1C', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
+                <div style={{ background: '#FEE2E2', color: '#B91C1C', padding: '0.4rem 0.65rem', borderRadius: '0.375rem', marginBottom: '0.65rem', fontSize: '0.78rem' }}>
                   {error}
                 </div>
               )}
@@ -942,30 +946,10 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
               {/* ── ADD / EDIT mode ── */}
               {modal.mode !== 'move' && (
                 <>
-                  {modal.mode === 'add' && !modal.lockCreateAs && (
-                    <Field label="Create As">
-                      <select
-                        value={form.createAs}
-                        onChange={(e) => {
-                          const nextMode = e.target.value
-                          setForm((prev) => ({
-                            ...prev,
-                            createAs: nextMode,
-                          }))
-                        }}
-                        style={inputStyle}
-                      >
-                        <option value="standard">Standard Account</option>
-                        <option value="customer">Customer Account</option>
-                        <option value="supplier">Supplier Account</option>
-                      </select>
-                    </Field>
-                  )}
-
                   {modal.mode === 'add' && isCustomerCreateMode && (
                     <Field label="New Customer *">
-                      <div style={{ marginTop: '0.1rem', padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: '0.45rem', background: '#F9FAFB' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                      <div style={{ marginTop: '0.1rem', padding: '0.5rem', border: '1px solid #D1D5DB', borderRadius: '0.45rem', background: '#F9FAFB' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
                           <input
                             placeholder="Customer / Account Name *"
                             value={newCustomerDraft.name}
@@ -1002,16 +986,13 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                           />
                         </div>
                       </div>
-                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
-                        One name is used for both customer and account creation.
-                      </p>
                     </Field>
                   )}
 
                   {modal.mode === 'add' && isSupplierCreateMode && (
                     <Field label="New Supplier *">
-                      <div style={{ marginTop: '0.1rem', padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: '0.45rem', background: '#F9FAFB' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                      <div style={{ marginTop: '0.1rem', padding: '0.5rem', border: '1px solid #D1D5DB', borderRadius: '0.45rem', background: '#F9FAFB' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
                           <input
                             placeholder="Supplier / Account Name *"
                             value={newSupplierDraft.name}
@@ -1048,73 +1029,89 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                           />
                         </div>
                       </div>
-                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
-                        One name is used for both supplier and account creation.
-                      </p>
                     </Field>
                   )}
 
-                  {!isCustomerCreateMode && !isSupplierCreateMode && (
-                    <Field label="Account Name *">
-                      <input required value={form.accountName} onChange={e => setForm({ ...form, accountName: e.target.value })} style={inputStyle} />
-                    </Field>
-                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem 0.85rem' }}>
+                    {modal.mode === 'add' && !modal.lockCreateAs && (
+                      <Field label="Create As">
+                        <select
+                          value={form.createAs}
+                          onChange={(e) => {
+                            const nextMode = e.target.value
+                            setForm((prev) => ({
+                              ...prev,
+                              createAs: nextMode,
+                            }))
+                          }}
+                          style={inputStyle}
+                        >
+                          <option value="standard">Standard Account</option>
+                          <option value="customer">Customer Account</option>
+                          <option value="supplier">Supplier Account</option>
+                        </select>
+                      </Field>
+                    )}
 
-                  {modal.mode === 'add' && (
-                    <Field label="Account Code *">
-                      <input
-                        required
-                        value={form.accountCode}
-                        onChange={e => {
-                          setAccountCodeTouched(true)
-                          setForm({ ...form, accountCode: e.target.value })
-                        }}
-                        style={inputStyle}
-                        placeholder={t('exampleAccountCode')}
-                      />
-                      {form.parentAccountId && (
-                        <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
-                          Suggested from selected parent account. You can still edit manually.
-                        </p>
-                      )}
-                    </Field>
-                  )}
+                    {modal.mode === 'add' && (
+                      <Field label="Account Type *">
+                        <select
+                          required
+                          value={form.accountType}
+                          onChange={e => {
+                            const nextType = e.target.value
+                            setForm((prev) => ({
+                              ...prev,
+                              accountType: nextType,
+                              // Always reset parent on type switch; user can pick a valid one from filtered list.
+                              parentAccountId: '',
+                            }))
+                          }}
+                          style={inputStyle}
+                        >
+                          <option value="">{t('selectType')}</option>
+                          {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </Field>
+                    )}
 
-                  {modal.mode === 'add' && (
-                    <Field label="Account Type *">
-                      <select
-                        required
-                        value={form.accountType}
-                        onChange={e => {
-                          const nextType = e.target.value
-                          setForm((prev) => ({
-                            ...prev,
-                            accountType: nextType,
-                            // Always reset parent on type switch; user can pick a valid one from filtered list.
-                            parentAccountId: '',
-                          }))
-                        }}
-                        style={inputStyle}
+                    {!isCustomerCreateMode && !isSupplierCreateMode && (
+                      <Field label="Account Name *">
+                        <input required value={form.accountName} onChange={e => setForm({ ...form, accountName: e.target.value })} style={inputStyle} />
+                      </Field>
+                    )}
+
+                    {modal.mode === 'add' && (
+                      <Field
+                        label="Account Code *"
+                        hint={form.parentAccountId ? 'Suggested from parent — editable.' : undefined}
                       >
-                        <option value="">{t('selectType')}</option>
-                        {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </Field>
-                  )}
+                        <input
+                          required
+                          value={form.accountCode}
+                          onChange={e => {
+                            setAccountCodeTouched(true)
+                            setForm({ ...form, accountCode: e.target.value })
+                          }}
+                          style={inputStyle}
+                          placeholder={t('exampleAccountCode')}
+                        />
+                      </Field>
+                    )}
 
-                  {modal.mode === 'add' && (
-                    <Field label="Sub Account Under">
-                      <select value={form.parentAccountId} onChange={e => setForm({ ...form, parentAccountId: e.target.value })} style={inputStyle}>
-                        <option value="">— Top Level (No Parent) —</option>
-                        {subAccountParentOptions.map(a => <option key={a._id} value={a._id}>{a.accountCode} — {a.accountName}</option>)}
-                      </select>
-                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
-                        Parent list is filtered by selected account type to keep hierarchy valid.
-                      </p>
-                    </Field>
-                  )}
+                    {modal.mode === 'add' && (
+                      <Field
+                        label="Sub Account Under"
+                        hint="Filtered by account type."
+                        style={{ gridColumn: '1 / -1' }}
+                      >
+                        <select value={form.parentAccountId} onChange={e => setForm({ ...form, parentAccountId: e.target.value })} style={inputStyle}>
+                          <option value="">— Top Level (No Parent) —</option>
+                          {subAccountParentOptions.map(a => <option key={a._id} value={a._id}>{a.accountCode} — {a.accountName}</option>)}
+                        </select>
+                      </Field>
+                    )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <Field label="Currency">
                       <select
                         value={form.currency}
@@ -1132,144 +1129,142 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                     <Field label="Department">
                       <input value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} style={inputStyle} />
                     </Field>
-                  </div>
 
-                  {modal.mode === 'add' && (
-                    <Field label="Opening Balance">
-                      <input type="number" step="0.01" value={form.openingBalance} onChange={e => setForm({ ...form, openingBalance: e.target.value })} style={inputStyle} placeholder="0.00" />
-                    </Field>
-                  )}
+                    {modal.mode === 'add' && (
+                      <Field label="Opening Balance">
+                        <input type="number" step="0.01" value={form.openingBalance} onChange={e => setForm({ ...form, openingBalance: e.target.value })} style={inputStyle} placeholder="0.00" />
+                      </Field>
+                    )}
 
-                  {(modal.mode === 'add' || modal.mode === 'edit') && (
-                    <Field label="Margin %">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={form.marginPercent}
-                        onChange={e => setForm({ ...form, marginPercent: e.target.value })}
-                        style={inputStyle}
-                        placeholder="0"
-                        aria-label="Margin percent"
-                      />
-                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
-                        Rate used for Account Summary Margin Amt and Margin %. Starts at 0 — enter the % you want. Margin Amt = |Current Value| × this %.
-                      </p>
-                    </Field>
-                  )}
-
-                  <Field label="TRN">
-                    <input
-                      value={form.trn}
-                      onChange={e => setForm({ ...form, trn: e.target.value })}
-                      style={inputStyle}
-                      placeholder="Tax registration number"
-                      aria-label="TRN"
-                    />
-                  </Field>
-
-                  <Field label="Authorized Person">
-                    <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'stretch' }}>
-                      <input
-                        value={form.authorizedPersonDraft}
-                        onChange={e => setForm({ ...form, authorizedPersonDraft: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Enter') return
-                          e.preventDefault()
-                          const next = addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft)
-                          if (next.length === form.authorizedPersons.length) return
-                          setForm({ ...form, authorizedPersons: next, authorizedPersonDraft: '' })
-                        }}
-                        style={{ ...inputStyle, flex: 1 }}
-                        placeholder="Authorized person name"
-                        aria-label="Authorized Person"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft)
-                          if (next.length === form.authorizedPersons.length) return
-                          setForm({ ...form, authorizedPersons: next, authorizedPersonDraft: '' })
-                        }}
-                        style={{
-                          padding: '0.45rem 0.85rem',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '0.375rem',
-                          background: '#F9FAFB',
-                          color: '#111827',
-                          fontWeight: 700,
-                          fontSize: '0.82rem',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                        }}
-                        aria-label="Add authorized person"
+                    {(modal.mode === 'add' || modal.mode === 'edit') && (
+                      <Field
+                        label="Margin %"
+                        hint="Margin Amt = |Current Value| × this %."
                       >
-                        Add
-                      </button>
-                    </div>
-                    {form.authorizedPersons.length > 0 ? (
-                      <ul style={{ listStyle: 'none', margin: '0.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {form.authorizedPersons.map((name, index) => (
-                          <li
-                            key={`${name}-${index}`}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: '0.5rem',
-                              padding: '0.35rem 0.55rem',
-                              border: '1px solid #E5E7EB',
-                              borderRadius: '0.375rem',
-                              background: '#F9FAFB',
-                              fontSize: '0.85rem',
-                              color: '#111827',
-                            }}
-                          >
-                            <span>{name}</span>
-                            <button
-                              type="button"
-                              onClick={() => setForm({
-                                ...form,
-                                authorizedPersons: removeAuthorizedPersonAt(form.authorizedPersons, index),
-                              })}
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={form.marginPercent}
+                          onChange={e => setForm({ ...form, marginPercent: e.target.value })}
+                          style={inputStyle}
+                          placeholder="0"
+                          aria-label="Margin percent"
+                        />
+                      </Field>
+                    )}
+
+                    <Field label="TRN">
+                      <input
+                        value={form.trn}
+                        onChange={e => setForm({ ...form, trn: e.target.value })}
+                        style={inputStyle}
+                        placeholder="Tax registration number"
+                        aria-label="TRN"
+                      />
+                    </Field>
+
+                    <Field label="Authorized Person" hint="Enter + Add for multiple names.">
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'stretch' }}>
+                        <input
+                          value={form.authorizedPersonDraft}
+                          onChange={e => setForm({ ...form, authorizedPersonDraft: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Enter') return
+                            e.preventDefault()
+                            const next = addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft)
+                            if (next.length === form.authorizedPersons.length) return
+                            setForm({ ...form, authorizedPersons: next, authorizedPersonDraft: '' })
+                          }}
+                          style={{ ...inputStyle, flex: 1 }}
+                          placeholder="Authorized person name"
+                          aria-label="Authorized Person"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft)
+                            if (next.length === form.authorizedPersons.length) return
+                            setForm({ ...form, authorizedPersons: next, authorizedPersonDraft: '' })
+                          }}
+                          style={{
+                            padding: '0.35rem 0.7rem',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.375rem',
+                            background: '#F9FAFB',
+                            color: '#111827',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                          aria-label="Add authorized person"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      {form.authorizedPersons.length > 0 ? (
+                        <ul style={{ listStyle: 'none', margin: '0.35rem 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                          {form.authorizedPersons.map((name, index) => (
+                            <li
+                              key={`${name}-${index}`}
                               style={{
-                                border: 'none',
-                                background: 'transparent',
-                                color: '#B91C1C',
-                                cursor: 'pointer',
-                                fontWeight: 700,
-                                fontSize: '0.78rem',
-                                padding: '0.1rem 0.25rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                padding: '0.2rem 0.45rem',
+                                border: '1px solid #E5E7EB',
+                                borderRadius: '999px',
+                                background: '#F9FAFB',
+                                fontSize: '0.75rem',
+                                color: '#111827',
                               }}
-                              aria-label={`Remove authorized person ${name}`}
                             >
-                              Remove
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
-                      Add one name at a time when more than one authorized person is needed.
-                    </p>
-                  </Field>
+                              <span>{name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setForm({
+                                  ...form,
+                                  authorizedPersons: removeAuthorizedPersonAt(form.authorizedPersons, index),
+                                })}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: '#B91C1C',
+                                  cursor: 'pointer',
+                                  fontWeight: 700,
+                                  fontSize: '0.72rem',
+                                  padding: 0,
+                                  lineHeight: 1,
+                                }}
+                                aria-label={`Remove authorized person ${name}`}
+                              >
+                                ×
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </Field>
 
-                  <Field label="Address">
-                    <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} style={inputStyle} />
-                  </Field>
+                    <Field label="Address">
+                      <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} style={inputStyle} />
+                    </Field>
 
-                  <Field label="Description">
-                    <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ ...inputStyle, resize: 'vertical' }} />
-                  </Field>
+                    <Field label="Description">
+                      <textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ ...inputStyle, resize: 'vertical', minHeight: '2.4rem' }} />
+                    </Field>
+                  </div>
                 </>
               )}
+              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setModal(null)} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.65rem 1.1rem', borderTop: '1px solid #F3F4F6', flexShrink: 0, background: '#FAFAFA' }}>
+                <button type="button" onClick={() => setModal(null)} style={{ padding: '0.45rem 0.9rem', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.82rem' }}>
                   {t('cancel')}
                 </button>
-                <button type="submit" disabled={saving || creatingCustomer || creatingSupplier} style={{ padding: '0.5rem 1.25rem', background: 'var(--purple)', color: 'var(--brand-on-primary)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.875rem', opacity: (saving || creatingCustomer || creatingSupplier) ? 0.7 : 1 }}>
+                <button type="submit" disabled={saving || creatingCustomer || creatingSupplier} style={{ padding: '0.45rem 1.1rem', background: 'var(--purple)', color: 'var(--brand-on-primary)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem', opacity: (saving || creatingCustomer || creatingSupplier) ? 0.7 : 1 }}>
                   {(saving || creatingCustomer || creatingSupplier) ? t('saving') : modal.mode === 'edit' ? t('update') : modal.mode === 'move' ? t('move') : t('create')}
                 </button>
               </div>
@@ -1283,21 +1278,24 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
 // ─── tiny helpers ──────────────────────────────────────────────────────────────
 
-function Field({ label, children }) {
+function Field({ label, children, hint, style }) {
   return (
-    <div style={{ marginBottom: '0.75rem' }}>
-      <label style={{ display: 'block', fontSize: '0.78rem', color: '#374151', fontWeight: '600', marginBottom: '0.3rem' }}>{label}</label>
+    <div style={{ marginBottom: 0, minWidth: 0, ...style }}>
+      <label style={{ display: 'block', fontSize: '0.72rem', color: '#374151', fontWeight: '600', marginBottom: '0.2rem' }}>{label}</label>
       {children}
+      {hint ? (
+        <p style={{ margin: '0.2rem 0 0', fontSize: '0.68rem', color: '#6B7280', lineHeight: 1.3 }}>{hint}</p>
+      ) : null}
     </div>
   )
 }
 
 const inputStyle = {
   width: '100%',
-  padding: '0.45rem 0.6rem',
+  padding: '0.35rem 0.5rem',
   border: '1px solid #D1D5DB',
   borderRadius: '0.375rem',
-  fontSize: '0.875rem',
+  fontSize: '0.82rem',
   color: '#111827',
   background: '#FFFFFF',
   boxSizing: 'border-box',
