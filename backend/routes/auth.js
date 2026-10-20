@@ -9,7 +9,7 @@
 //   POST /api/auth/login            ← login with name + password
 //   GET  /api/auth/me               ← get my own profile
 //   PUT  /api/auth/change-password  ← change own password (any logged-in user)
-//   GET/PUT /api/auth/me/nav-layout ← MG sidebar order (own account)
+//   GET/PUT /api/auth/me/nav-layout ← MG/VB sidebar order (own account)
 //   POST /api/auth/me/push-token    ← register Expo push token (mobile)
 //   DELETE /api/auth/me/push-token  ← remove Expo push token
 //   POST /api/auth/me/web-push-subscription   ← register Web Push (browser)
@@ -518,9 +518,10 @@ router.put('/me/notification-preferences', protect, async (req, res) => {
 })
 
 // ==========================================
-// GET/PUT /api/auth/me/nav-layout — MG sidebar section + item order (ids only)
+// GET/PUT /api/auth/me/nav-layout — MG/VB sidebar section + item order (ids only)
 // ==========================================
 const NAV_SECTIONS = ['workspace', 'departments', 'erp', 'admin']
+const NAV_LAYOUT_TENANTS = new Set(['mg', 'vb'])
 const navIdList = Joi.array().items(Joi.string().trim().max(60).pattern(/^[A-Za-z0-9_-]+$/)).max(60).unique()
 const navLayoutSchema = Joi.object({
   sections: Joi.array().items(Joi.string().valid(...NAV_SECTIONS)).max(NAV_SECTIONS.length).unique().default([]),
@@ -532,18 +533,18 @@ const navLayoutSchema = Joi.object({
   }).default({}),
 })
 
-const requireMgNavLayout = (req, res, next) => {
-  if (req.tenant !== 'mg') {
-    return res.status(403).json({ success: false, message: 'Sidebar customization is only available for MG.' })
+const requireNavLayoutTenant = (req, res, next) => {
+  if (!NAV_LAYOUT_TENANTS.has(req.tenant)) {
+    return res.status(403).json({ success: false, message: 'Sidebar customization is not available for this tenant.' })
   }
   return next()
 }
 
-router.get('/me/nav-layout', protect, requireMgNavLayout, (req, res) => {
+router.get('/me/nav-layout', protect, requireNavLayoutTenant, (req, res) => {
   res.json({ success: true, navLayout: req.user.navLayout || {} })
 })
 
-router.put('/me/nav-layout', protect, requireMgNavLayout, validateBody(navLayoutSchema), async (req, res) => {
+router.put('/me/nav-layout', protect, requireNavLayoutTenant, validateBody(navLayoutSchema), async (req, res) => {
   try {
     const navLayout = { sections: req.body.sections || [], items: req.body.items || {} }
     const TenantUser = await User.getTenantModel(req.tenant)

@@ -3,7 +3,7 @@ import authAPI from '../../api/auth'
 import { EMPTY_NAV_LAYOUT, moveInList, normalizeNavLayout, reorderList } from './navLayout'
 
 /**
- * Per-user sidebar order saved on the account (MG only). While customizing, moves go to a draft
+ * Per-user sidebar order saved on the account (MG + VB). While customizing, moves go to a draft
  * that is shown live and only sent to the server on save().
  */
 export function useNavLayout(enabled) {

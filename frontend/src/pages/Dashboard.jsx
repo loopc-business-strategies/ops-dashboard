@@ -515,7 +515,8 @@ function Dashboard() {
   // Desktop: hamburger pin + edge hover open / mouseleave auto-hide when unpinned.
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
-  const navCustomizable = branding.key === 'mg'
+  // Per-user sidebar rearrange (MG + VB); other tenants keep fixed order.
+  const navCustomizable = branding.key === 'mg' || branding.key === 'vb'
   const navLayout = useNavLayout(navCustomizable)
   const includeCompany = useMemo(
     () => typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname),

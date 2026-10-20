@@ -232,7 +232,7 @@ const userSchema = new mongoose.Schema(
       default: {},
     },
 
-    // MG sidebar arrangement: { sections: [...], items: { main, departments, erp, admin } } — ids only
+    // Sidebar arrangement (MG/VB): { sections: [...], items: { main, departments, erp, admin } } — ids only
     navLayout: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
