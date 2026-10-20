@@ -8,6 +8,14 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
+function WrenchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  )
+}
+
 function PlaceholderTab({ title, icon, description, subTabs = [] }) {
   const { t } = useLanguage()
   return (
@@ -15,17 +23,54 @@ function PlaceholderTab({ title, icon, description, subTabs = [] }) {
       <ModulePageHeading
         title={title}
         subtitle={description}
-        right={icon ? <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-xl shadow-sm">{icon}</div> : null}
+        right={icon ? (
+          <div
+            style={{
+              display: 'flex',
+              height: 40,
+              width: 40,
+              flexShrink: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 'var(--radius-md, 8px)',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-card, #fff)',
+              fontSize: 20,
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            {icon}
+          </div>
+        ) : null}
       />
 
       {subTabs.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{t('plannedSections')}</p>
-          <div className="flex flex-wrap gap-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {t('plannedSections')}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {subTabs.map((st, i) => (
               <span
                 key={i}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800"
+                style={{
+                  borderRadius: 'var(--radius-md, 8px)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card, #fff)',
+                  padding: '8px 16px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
               >
                 {st}
               </span>
@@ -34,23 +79,108 @@ function PlaceholderTab({ title, icon, description, subTabs = [] }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: 16,
+        }}
+      >
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+            style={{
+              position: 'relative',
+              overflow: 'hidden',
+              borderRadius: 'var(--radius-lg, 12px)',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-card, #fff)',
+              padding: 20,
+              boxShadow: 'var(--shadow-sm)',
+            }}
           >
-            <div aria-hidden className="absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r from-violet-500 via-purple-500 to-emerald-500" />
-            <div className="mb-3 h-8 w-8 animate-pulse rounded-lg bg-gray-100" />
-            <div className="mb-2 h-3 w-3/4 animate-pulse rounded bg-gray-100" />
-            <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100/80" />
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: 0,
+                height: 2,
+                background:
+                  'linear-gradient(90deg, var(--brand-accent), var(--brand-light), var(--brand-dark))',
+              }}
+            />
+            <div
+              className="animate-pulse"
+              style={{
+                marginBottom: 12,
+                height: 32,
+                width: 32,
+                borderRadius: 'var(--radius-md, 8px)',
+                background: 'var(--brand-soft)',
+              }}
+            />
+            <div
+              className="animate-pulse"
+              style={{
+                marginBottom: 8,
+                height: 12,
+                width: '75%',
+                borderRadius: 6,
+                background: 'var(--brand-soft)',
+              }}
+            />
+            <div
+              className="animate-pulse"
+              style={{
+                height: 12,
+                width: '50%',
+                borderRadius: 6,
+                background: 'var(--brand-soft)',
+                opacity: 0.85,
+              }}
+            />
           </div>
         ))}
       </div>
 
-      <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-6 text-center shadow-sm">
-        <p className="text-sm font-medium leading-tight text-violet-900">🔧 {t('moduleUnderConstruction')}</p>
-        <p className="mt-1 text-xs leading-relaxed text-gray-600">{t('builtAsRequired')}</p>
+      <div
+        style={{
+          borderRadius: 'var(--radius-lg, 12px)',
+          border: '1px solid var(--brand-border)',
+          background: 'var(--brand-soft)',
+          padding: '1.5rem',
+          textAlign: 'center',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            lineHeight: 1.25,
+            color: 'var(--brand-on-soft)',
+          }}
+        >
+          <WrenchIcon />
+          {t('moduleUnderConstruction')}
+        </p>
+        <p
+          style={{
+            margin: '6px 0 0',
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {t('builtAsRequired')}
+        </p>
       </div>
     </ModuleTabColumn>
   )
