@@ -251,6 +251,22 @@ html, body, #root {
   font-size: 14px; flex-shrink: 0;
   color: inherit;
 }
+.sidebar-item-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  color: inherit;
+  opacity: 0.72;
+}
+.sidebar-item--coming-soon .sidebar-item-label { opacity: 0.88; }
+.sidebar-item.active .sidebar-item-lock {
+  opacity: 0.9;
+  color: var(--sidebar-active-fg);
+}
 .sidebar-item-label { font-size: 13px; font-weight: 500; color: inherit; flex: 1; opacity: 0.95; }
 .sidebar-item.active .sidebar-item-label {
   color: var(--sidebar-active-fg);

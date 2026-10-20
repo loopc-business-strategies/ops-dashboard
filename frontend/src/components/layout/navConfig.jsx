@@ -1,5 +1,14 @@
 import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
 
+function ComingSoonLockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
+    </svg>
+  )
+}
+
 /**
  * Sidebar nav item — presentation only; navigation rules live in getNavItems.
  */
@@ -9,16 +18,22 @@ export function NavItem({
   href,
   onAfterClick,
   badge,
+  comingSoon = false,
   openInNewTab = false,
   onSameTabNavigate,
   onPrefetch,
 }) {
-  const className = `sidebar-item w-full${active ? ' active' : ''}`
+  const className = `sidebar-item w-full${active ? ' active' : ''}${comingSoon ? ' sidebar-item--coming-soon' : ''}`
   const style = { textDecoration: 'none', display: 'flex', alignItems: 'center' }
   const prefetchHandlers = {
     onMouseEnter: () => onPrefetch?.(),
     onFocus: () => onPrefetch?.(),
   }
+  const lock = comingSoon ? (
+    <span className="sidebar-item-lock" title="Coming soon" aria-label="Coming soon">
+      <ComingSoonLockIcon />
+    </span>
+  ) : null
 
   if (openInNewTab) {
     return (
@@ -32,6 +47,7 @@ export function NavItem({
         {...prefetchHandlers}
       >
         <span className="sidebar-item-label truncate">{label}</span>
+        {lock}
         {badge != null && badge !== '' && badge !== 0 && (
           <span className="sidebar-badge">{badge}</span>
         )}
@@ -53,6 +69,7 @@ export function NavItem({
       {...prefetchHandlers}
     >
       <span className="sidebar-item-label truncate">{label}</span>
+      {lock}
       {badge != null && badge !== '' && badge !== 0 && (
         <span className="sidebar-badge">{badge}</span>
       )}
@@ -74,11 +91,18 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
       id: 'chat',
       label: t('chat'),
       group: 'main',
+      comingSoon: departmentsComingSoon,
       show: departmentsComingSoon || perms.canViewModule('chat'),
       badge: departmentsComingSoon ? null : (chatUnread || null),
     },
     { id: 'master-settings', label: 'Master Settings', group: 'main', show: true },
-    { id: 'departments', label: t('departments'), group: 'main', show: departmentsComingSoon },
+    {
+      id: 'departments',
+      label: t('departments'),
+      group: 'main',
+      comingSoon: departmentsComingSoon,
+      show: departmentsComingSoon,
+    },
     { id: 'admin', label: t('admin'), group: 'admin', show: perms.canViewAdmin },
     { id: 'hr', label: t('hr'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('hr') },
     { id: 'compliance', label: t('compliance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('government') },
@@ -86,6 +110,7 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
       id: 'production-new',
       label: 'Production Dashboard',
       group: 'departments',
+      comingSoon: departmentsComingSoon,
       // VB Coming Soon: stay in-dashboard. MG/others: open fullscreen production app.
       openInNewTab: !departmentsComingSoon,
       show: departmentsComingSoon || (!departmentsComingSoon && perms.canViewModule('production')),
@@ -96,6 +121,7 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
       id: 'operations',
       label: t('operations'),
       group: 'departments',
+      comingSoon: departmentsComingSoon,
       show: departmentsComingSoon || (
         !departmentsComingSoon && (perms.canViewModule('operations') || Boolean(perms.canApproveMgFloor))
       ),
