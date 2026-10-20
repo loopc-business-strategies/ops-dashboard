@@ -13,6 +13,8 @@ const chartOfAccountSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     address: { type: String, trim: true, default: '' },
     openingBalance: { type: Number, default: 0 },
+    /** Required margin rate as a percent (2 = 2%). Drives Margin Amt on Account Summary. */
+    marginPercent: { type: Number, default: 2, min: 0, max: 100 },
     department: { type: String, default: '' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     usedInTransactions: { type: Boolean, default: false },

@@ -13,6 +13,7 @@ export function buildAccountEnquiryLiveMetrics({
   suppressMetalSpotMtm = false,
   bookedRevaluation = null,
   liveRecalcEnabled = false,
+  marginRatePercent,
 } = {}) {
   if (!liveRecalcEnabled) return null
 
@@ -30,6 +31,7 @@ export function buildAccountEnquiryLiveMetrics({
     suppressMetalSpotMtm: hasBookedOverride,
     revaluationOverride: hasBookedOverride ? bookedTotal : null,
     fundsMode: 'asIs',
+    marginRatePercent,
   })
 }
 

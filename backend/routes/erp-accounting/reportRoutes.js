@@ -1393,8 +1393,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       purchaseMappings,
     ] = await Promise.all([
       loadAccountMetaMap(ChartOfAccount),
-      Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName accountType openingBalance').lean(),
-      Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName').lean(),
+      Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName accountType openingBalance marginPercent').lean(),
+      Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName marginPercent').lean(),
       ChartOfAccount.find({
         isActive: true,
         accountType: 'Asset',
@@ -1660,6 +1660,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         goldPrice: marginRates.goldPrice,
         silverPrice: marginRates.silverPrice,
         suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForCustomerDashboard(customer.ledgerAccountId?.accountType),
+        marginRatePercent: customer.ledgerAccountId?.marginPercent,
       })
 
       if (!ledgerId) {
@@ -1768,6 +1769,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         silverPrice: marginRates.silverPrice,
         suppressMetalSpotMtm: true,
         revaluationOverride: supplierUnfixedRevaluationMap.get(String(vendor._id || '')) || 0,
+        marginRatePercent: vendor.ledgerAccountId?.marginPercent,
       })
       return {
         id: vendor._id,

@@ -17,6 +17,9 @@ const accountCreateSchema = Joi.object({
   currency:        Joi.string().trim().allow('').max(10).optional(),
   description:     Joi.string().trim().allow('').max(500).optional(),
   address:         Joi.string().trim().allow('').max(300).optional(),
+  openingBalance:  Joi.number().optional(),
+  department:      Joi.string().trim().allow('').max(80).optional(),
+  marginPercent:   Joi.number().min(0).max(100).optional(),
 })
 
 const accountPatchSchema = Joi.object({
@@ -27,6 +30,8 @@ const accountPatchSchema = Joi.object({
   currency:        Joi.string().trim().allow('').max(10).optional(),
   description:     Joi.string().trim().allow('').max(500).optional(),
   address:         Joi.string().trim().allow('').max(300).optional(),
+  department:      Joi.string().trim().allow('').max(80).optional(),
+  marginPercent:   Joi.number().min(0).max(100).optional(),
   isActive:        Joi.boolean().optional(),
 }).min(1)
 

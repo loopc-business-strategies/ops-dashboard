@@ -93,6 +93,7 @@ export function useErpCustomerMargin({
             suppressMetalSpotMtm,
             revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
             fundsMode: 'asIs',
+            marginRatePercent: customer?.ledgerAccountId?.marginPercent ?? customer?.marginRatePercent,
           })
           const excess = metrics.excess
           const equity = metrics.equity
@@ -120,7 +121,9 @@ export function useErpCustomerMargin({
         const fallbackRevaluation = isLiabilityCustomerLedger
           ? 0
           : (goldValuationPosition * goldPrice) + (silverValuationPosition * silverPrice)
-        const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
+        const fallbackRate = Number(customer?.ledgerAccountId?.marginPercent ?? customer?.marginRatePercent)
+        const fallbackRatePercent = Number.isFinite(fallbackRate) && fallbackRate >= 0 ? fallbackRate : 2
+        const fallbackMargin = Math.abs(fallbackRevaluation) * (fallbackRatePercent / 100)
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: customerFunds,
           revaluation: fallbackRevaluation,
@@ -207,6 +210,7 @@ export function useErpSupplierMargin({
             suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForSupplierDashboard(),
             revaluationOverride: frozenReval,
             fundsMode: 'asIs',
+            marginRatePercent: vendor?.ledgerAccountId?.marginPercent ?? vendor?.marginRatePercent,
           })
           // Keep signed payable equity (do not apply customer favorableCredit abs).
           const excess = metrics.excess
@@ -234,7 +238,9 @@ export function useErpSupplierMargin({
         const fallbackRevaluation = preferLiveFallback
           ? Number(vendor?.marginRevaluation ?? 0)
           : ((goldPosition * goldPrice) + (silverPosition * silverPrice))
-        const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
+        const fallbackRate = Number(vendor?.ledgerAccountId?.marginPercent ?? vendor?.marginRatePercent)
+        const fallbackRatePercent = Number.isFinite(fallbackRate) && fallbackRate >= 0 ? fallbackRate : 2
+        const fallbackMargin = Math.abs(fallbackRevaluation) * (fallbackRatePercent / 100)
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: outstanding,
           revaluation: fallbackRevaluation,

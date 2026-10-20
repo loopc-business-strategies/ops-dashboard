@@ -26,7 +26,10 @@ import {
   withStatementDisplayAmounts,
   withoutStatementExchangeAdjustments,
 } from '../statementHelpers'
-import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '../metalMarginPolicy'
+import {
+  resolveMarginRatePercent,
+  shouldSuppressSpotMetalMtmForAccountEnquiry,
+} from '../metalMarginPolicy'
 import {
   buildAccountEnquiryLiveMetrics,
   hasAccountEnquiryMetalExposure,
@@ -447,7 +450,8 @@ export function useAccountEnquiryStatement({
       : (xauCurrentValue + xagCurrentValue)
   }
 
-  const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
+  const accountMarginRatePercent = resolveMarginRatePercent(accountEnquiryData?.account?.marginPercent)
+  const modalMarginAmt = Math.abs(modalRevaluation) * (accountMarginRatePercent / 100)
 
   const displayBreakEven = (valuationGrams) => {
     const price = resolveBreakEvenPricePerGram(totalFunds, valuationGrams)
@@ -559,6 +563,7 @@ export function useAccountEnquiryStatement({
     suppressMetalSpotMtm: enquirySuppressMetalSpotMtm,
     bookedRevaluation: bookedRevaluationTotal,
     liveRecalcEnabled: enquiryUseLiveSpotMtm,
+    marginRatePercent: accountMarginRatePercent,
   })
 
   const rawRevaluationDisplay = enquiryLiveMetrics
@@ -663,6 +668,7 @@ export function useAccountEnquiryStatement({
     modalMarginAmtDisplay,
     modalExcessDisplay,
     modalMarginPctDisplay,
+    accountMarginRatePercent,
     enquirySuppressMetalSpotMtm,
     enquiryLiveRecalcEnabled,
     hasMetalExposure,

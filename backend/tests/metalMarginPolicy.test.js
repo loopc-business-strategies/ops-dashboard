@@ -53,6 +53,32 @@ describe('metalMarginPolicy', () => {
     expect(raw.equity).toBe(200)
   })
 
+  test('account margin % rate drives Margin Amt and coverage Margin %', () => {
+    const atTwo = computeMarginMetricsRaw({
+      totalFunds: 100,
+      goldPosition: 10,
+      silverPosition: 0,
+      goldPrice: 100,
+      silverPrice: 1,
+      marginRatePercent: 2,
+    })
+    const atFive = computeMarginMetricsRaw({
+      totalFunds: 100,
+      goldPosition: 10,
+      silverPosition: 0,
+      goldPrice: 100,
+      silverPrice: 1,
+      marginRatePercent: 5,
+    })
+    expect(atTwo.revaluation).toBe(1000)
+    expect(atTwo.margin).toBe(20)
+    expect(atTwo.marginPercent).toBeCloseTo(5500, 1)
+    expect(atFive.margin).toBe(50)
+    expect(atFive.marginPercent).toBeCloseTo(2200, 1)
+    expect(atFive.margin).toBeGreaterThan(atTwo.margin)
+    expect(atFive.marginPercent).toBeLessThan(atTwo.marginPercent)
+  })
+
   test('customerAbsIfNegative uses abs(funds) when totalFunds negative', () => {
     const raw = computeMarginMetricsRaw({
       totalFunds: -80,

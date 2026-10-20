@@ -19,6 +19,7 @@ function createMetalPricingHelpers(partialDeps, computeMarginMetricsRaw) {
     silverPrice,
     suppressMetalSpotMtm = false,
     revaluationOverride = null,
+    marginRatePercent,
   }) => {
     const raw = computeMarginMetricsRaw({
       totalFunds,
@@ -29,6 +30,7 @@ function createMetalPricingHelpers(partialDeps, computeMarginMetricsRaw) {
       suppressMetalSpotMtm,
       revaluationOverride,
       fundsMode: 'asIs',
+      marginRatePercent,
     })
     return {
       totalFunds: toMoney(raw.funds),
@@ -37,6 +39,7 @@ function createMetalPricingHelpers(partialDeps, computeMarginMetricsRaw) {
       equity: toMoney(raw.equity),
       excess: toMoney(raw.excess),
       marginPercent: toMoney(raw.marginPercent),
+      marginRatePercent: raw.marginRatePercent,
       status: raw.status,
     }
   }

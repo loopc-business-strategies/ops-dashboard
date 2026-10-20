@@ -41,6 +41,7 @@ export default function ERPTabModals({
   modalMarginAmtDisplay,
   modalExcessDisplay,
   modalMarginPctDisplay,
+  accountMarginRatePercent,
   enquirySuppressMetalSpotMtm,
   enquiryLiveRecalcEnabled,
   hasMetalExposure,
@@ -126,6 +127,7 @@ export default function ERPTabModals({
         modalMarginAmtDisplay={modalMarginAmtDisplay}
         modalExcessDisplay={modalExcessDisplay}
         modalMarginPctDisplay={modalMarginPctDisplay}
+        accountMarginRatePercent={accountMarginRatePercent}
         enquirySuppressMetalSpotMtm={enquirySuppressMetalSpotMtm}
         enquiryLiveRecalcEnabled={enquiryLiveRecalcEnabled}
         hasMetalExposure={hasMetalExposure}

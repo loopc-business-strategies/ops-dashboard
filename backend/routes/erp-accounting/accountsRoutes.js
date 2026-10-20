@@ -1175,6 +1175,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         isActive: account.isActive,
         description: account.description || '',
         openingBalance: Number(account.openingBalance || 0),
+        marginPercent: Number.isFinite(Number(account.marginPercent))
+          ? Number(account.marginPercent)
+          : 2,
       },
       balances: {
         debitTotal,
@@ -1249,13 +1252,36 @@ router.get('/accounts/:id', protect, async (req, res) => {
 router.post('/accounts', protect, validateBody(accountCreateSchema), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { accountName, accountCode, accountType, parentAccountId, currency, description, address } = req.body
+    const {
+      accountName,
+      accountCode,
+      accountType,
+      parentAccountId,
+      currency,
+      description,
+      address,
+      openingBalance,
+      department,
+      marginPercent,
+    } = req.body
     if (!accountName || !accountCode || !accountType) return res.status(400).json({ success: false, message: 'Required fields missing' })
     if (parentAccountId) {
       await validateAccountParentAssignment({ parentAccountId, accountType })
     }
     const account = await ChartOfAccount.create({
-      accountName, accountCode, accountType, parentAccountId, currency, description, address, createdBy: req.user._id,
+      accountName,
+      accountCode,
+      accountType,
+      parentAccountId,
+      currency,
+      description,
+      address,
+      openingBalance: openingBalance != null ? Number(openingBalance) : 0,
+      department: department || '',
+      marginPercent: marginPercent != null && Number.isFinite(Number(marginPercent))
+        ? Number(marginPercent)
+        : 2,
+      createdBy: req.user._id,
     })
     res.status(201).json({ success: true, account })
   } catch (e) {
@@ -1309,7 +1335,7 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
     if (!existingAccount) return res.status(404).json({ success: false, message: 'Account not found' })
 
     const updates = {}
-    const allowedFields = ['accountName', 'description', 'address', 'isActive', 'currency', 'department', 'parentAccountId']
+    const allowedFields = ['accountName', 'description', 'address', 'isActive', 'currency', 'department', 'parentAccountId', 'marginPercent']
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })

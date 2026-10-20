@@ -40,6 +40,7 @@ export function computeMarginMetricsRaw({
   suppressMetalSpotMtm = false,
   revaluationOverride = null as number | string | null,
   fundsMode = 'asIs' as 'asIs' | 'customerAbsIfNegative',
+  marginRatePercent = 2 as number | string,
 }: {
   totalFunds?: number | string
   goldPosition?: number | string
@@ -49,6 +50,7 @@ export function computeMarginMetricsRaw({
   suppressMetalSpotMtm?: boolean
   revaluationOverride?: number | string | null
   fundsMode?: 'asIs' | 'customerAbsIfNegative'
+  marginRatePercent?: number | string
 }) {
   const rawFunds = Number(totalFunds || 0)
   const funds = fundsMode === 'customerAbsIfNegative' && rawFunds < 0 ? Math.abs(rawFunds) : rawFunds
@@ -63,7 +65,9 @@ export function computeMarginMetricsRaw({
       Number(goldPosition || 0) * Number(goldPrice || 0) + Number(silverPosition || 0) * Number(silverPrice || 0)
   }
 
-  const margin = Math.abs(revaluation) * 0.02
+  const rate = Number(marginRatePercent)
+  const ratePercent = Number.isFinite(rate) && rate >= 0 ? rate : 2
+  const margin = Math.abs(revaluation) * (ratePercent / 100)
   const equity = funds + revaluation
   const excess = equity - margin
   const marginPercent = margin > 0 ? (equity / margin) * 100 : 0
@@ -76,6 +80,7 @@ export function computeMarginMetricsRaw({
     equity,
     excess,
     marginPercent,
+    marginRatePercent: ratePercent,
     status,
   }
 }

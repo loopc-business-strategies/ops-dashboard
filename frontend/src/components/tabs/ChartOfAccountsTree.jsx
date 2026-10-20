@@ -79,6 +79,7 @@ const emptyForm = (baseCurrencyCode = 'USD') => ({
   description: '',
   address: '',
   openingBalance: '',
+  marginPercent: '2',
   department: '',
   createAs: 'standard',
 })
@@ -337,6 +338,9 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       description:     node.description || '',
       address:         node.address || '',
       openingBalance:  node.openingBalance ?? '',
+      marginPercent:   node.marginPercent != null && node.marginPercent !== ''
+        ? String(node.marginPercent)
+        : '2',
       department:      node.department || '',
     })
     setModal({ mode: 'edit', node })
@@ -423,6 +427,15 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           return
         }
 
+        const marginPercentValue = form.marginPercent === '' || form.marginPercent == null
+          ? 2
+          : Number(form.marginPercent)
+        if (!Number.isFinite(marginPercentValue) || marginPercentValue < 0 || marginPercentValue > 100) {
+          setError('Margin % must be a number from 0 to 100')
+          setSaving(false)
+          return
+        }
+
         await erpAccountingAPI.createAccount(token, {
           accountName:     form.accountName.trim(),
           accountCode:     form.accountCode.trim(),
@@ -433,16 +446,27 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           address:         form.address,
           openingBalance:  form.openingBalance ? Number(form.openingBalance) : 0,
           department:      form.department,
+          marginPercent:   marginPercentValue,
         })
 
         setSuccess('Account created')
       } else if (modal.mode === 'edit') {
+        const marginPercentValue = form.marginPercent === '' || form.marginPercent == null
+          ? 2
+          : Number(form.marginPercent)
+        if (!Number.isFinite(marginPercentValue) || marginPercentValue < 0 || marginPercentValue > 100) {
+          setError('Margin % must be a number from 0 to 100')
+          setSaving(false)
+          return
+        }
+
         await erpAccountingAPI.updateAccount(token, modal.node._id, {
           accountName:  form.accountName.trim(),
           description:  form.description,
           address:      form.address,
           currency:     form.currency || baseCurrencyCode,
           department:   form.department,
+          marginPercent: marginPercentValue,
           isActive:     true,
         })
         setSuccess('Account updated')
@@ -691,6 +715,14 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                 { label: 'Currency',        value: selectedNode.currency || baseCurrencyCode },
                 { label: 'Department',      value: selectedNode.department || '—' },
                 { label: 'Opening Balance', value: Number(selectedNode.openingBalance || 0).toLocaleString() },
+                {
+                  label: 'Margin %',
+                  value: `${Number(
+                    selectedNode.marginPercent != null && selectedNode.marginPercent !== ''
+                      ? selectedNode.marginPercent
+                      : 2,
+                  ).toFixed(1)}%`,
+                },
                 { label: 'Parent Account',  value: selectedNode.parentAccountId?.accountName || 'Root Account' },
               ].map(({ label, value }) => (
                 <div key={label} style={{ background: '#F9FAFB', padding: '0.6rem 0.75rem', borderRadius: '0.375rem' }}>
@@ -1085,6 +1117,25 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                   {modal.mode === 'add' && (
                     <Field label="Opening Balance">
                       <input type="number" step="0.01" value={form.openingBalance} onChange={e => setForm({ ...form, openingBalance: e.target.value })} style={inputStyle} placeholder="0.00" />
+                    </Field>
+                  )}
+
+                  {(modal.mode === 'add' || modal.mode === 'edit') && (
+                    <Field label="Margin %">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={form.marginPercent}
+                        onChange={e => setForm({ ...form, marginPercent: e.target.value })}
+                        style={inputStyle}
+                        placeholder="2"
+                        aria-label="Margin percent"
+                      />
+                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
+                        Required margin rate for Account Summary. Margin Amt = |Current Value| × this %. Default 2.
+                      </p>
                     </Field>
                   )}
 

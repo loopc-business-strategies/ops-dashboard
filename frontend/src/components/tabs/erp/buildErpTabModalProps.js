@@ -37,6 +37,7 @@ export function buildErpTabModalProps(scope) {
     modalMarginAmtDisplay: scope.modalMarginAmtDisplay,
     modalExcessDisplay: scope.modalExcessDisplay,
     modalMarginPctDisplay: scope.modalMarginPctDisplay,
+    accountMarginRatePercent: scope.accountMarginRatePercent,
     enquirySuppressMetalSpotMtm: scope.enquirySuppressMetalSpotMtm,
     enquiryLiveRecalcEnabled: scope.enquiryLiveRecalcEnabled,
     hasMetalExposure: scope.hasMetalExposure,

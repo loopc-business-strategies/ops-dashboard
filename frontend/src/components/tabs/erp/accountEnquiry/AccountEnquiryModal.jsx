@@ -45,6 +45,7 @@ export default function AccountEnquiryModal({
   modalMarginAmtDisplay,
   modalExcessDisplay,
   modalMarginPctDisplay,
+  accountMarginRatePercent = 2,
   enquirySuppressMetalSpotMtm,
   enquiryLiveRecalcEnabled = false,
   hasMetalExposure = false,
@@ -414,9 +415,11 @@ export default function AccountEnquiryModal({
                           )}
                         </span>
                       </div>
-                      {/* Margin Amt @ 2% */}
+                      {/* Margin Amt @ account margin % */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>
+                          {`Margin Amt @ ${Number(accountMarginRatePercent).toFixed(1)}%`}
+                        </span>
                         <span style={{ color: getSignedColor(modalMarginAmtDisplay), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmtDisplay, 2)}</span>
                       </div>
                       {/* Excess */}
