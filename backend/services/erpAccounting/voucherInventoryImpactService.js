@@ -23,9 +23,14 @@ const {
   createLotsFromPurchasePlans,
   assertAndConsumeVaultLotsForStockOut,
 } = require('./voucherProductionStockBridge')
+const {
+  resolveVoucherMetalCode,
+  ensureMetalFixingPlAccount,
+} = require('./metalFixingPlAccounts')
 
 function createVoucherInventoryImpactService({
   ensureAccountByCode,
+  ensureChildAccountByName,
   InventoryItem,
   StockMovement,
   Ledger,
@@ -139,16 +144,31 @@ function createVoucherInventoryImpactService({
       currency: tx.currency || BASE_CURRENCY_CODE,
       session,
     })
-    const cogsAccount = isMetalStockOutType(transactionType) && !isMetalTransferType(transactionType)
-      ? await ensureAccountByCode({
-        user,
-        code: '5101',
-        name: 'Cost Of Goods Sold',
-        accountType: 'Expense',
-        currency: tx.currency || BASE_CURRENCY_CODE,
-        session,
-      })
-      : null
+    let cogsAccount = null
+    if (isMetalStockOutType(transactionType) && !isMetalTransferType(transactionType)) {
+      const metalCode = resolveVoucherMetalCode(tx)
+      if (metalCode && typeof ensureChildAccountByName === 'function') {
+        cogsAccount = await ensureMetalFixingPlAccount({
+          user,
+          kind: 'purchase',
+          metalCode,
+          currency: tx.currency || BASE_CURRENCY_CODE,
+          ensureAccountByCode,
+          ensureChildAccountByName,
+          session,
+        })
+      }
+      if (!cogsAccount) {
+        cogsAccount = await ensureAccountByCode({
+          user,
+          code: '5101',
+          name: 'Cost Of Goods Sold',
+          accountType: 'Expense',
+          currency: tx.currency || BASE_CURRENCY_CODE,
+          session,
+        })
+      }
+    }
 
     // Unfixed purchases only book their premium to inventory; the metal value arrives with each fixing.
     const isUnfixedPurchase = transactionType === 'purchase'

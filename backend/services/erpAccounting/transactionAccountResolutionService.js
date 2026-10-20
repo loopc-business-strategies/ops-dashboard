@@ -6,6 +6,10 @@
 const { applyPartyAccountPriority } = require('../../utils/transactionPartyAccounts')
 const { isMetalTransferType, isMetalProductTransferType, isMetalStockType } = require('../../utils/metalStockVoucherTypes')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
+const {
+  resolveVoucherMetalCode,
+  ensureMetalFixingPlAccount,
+} = require('./metalFixingPlAccounts')
 
 function createTransactionAccountResolutionService({
   ChartOfAccount,
@@ -20,6 +24,7 @@ function createTransactionAccountResolutionService({
   normalizeMoneyValue,
   toMoney,
   ensureAccountByCode,
+  ensureChildAccountByName,
   resolveVoucherNetLineAmount,
   resolveVoucherVatAmount,
   resolveReferenceExchangeRate,
@@ -299,6 +304,27 @@ function createTransactionAccountResolutionService({
 
     if (mappingOverride?.debitAccountId) debitAccountId = mappingOverride.debitAccountId
     if (mappingOverride?.creditAccountId) creditAccountId = mappingOverride.creditAccountId
+
+    // Metal stock sales: credit {Metal} Sales Fixing (91xxxx under 4000), same as direct-deal buys.
+    if (
+      transactionType === 'sale'
+      && !mappingOverride?.creditAccountId
+      && typeof ensureChildAccountByName === 'function'
+    ) {
+      const metalCode = resolveVoucherMetalCode(tx)
+      if (metalCode) {
+        const salesFixing = await ensureMetalFixingPlAccount({
+          user,
+          kind: 'sales',
+          metalCode,
+          currency: tx.currency || BASE_CURRENCY_CODE,
+          ensureAccountByCode,
+          ensureChildAccountByName,
+          session,
+        })
+        if (salesFixing?._id) creditAccountId = salesFixing._id
+      }
+    }
 
     if (!debitAccountId || !creditAccountId) {
       const ensureAccount = async ({ name, code, type }) => {

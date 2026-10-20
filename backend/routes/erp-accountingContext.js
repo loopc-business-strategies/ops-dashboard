@@ -242,6 +242,7 @@ const {
 
 const voucherInventoryService = createVoucherInventoryImpactService({
   ensureAccountByCode,
+  ensureChildAccountByName,
   InventoryItem,
   StockMovement,
   Ledger,
@@ -324,6 +325,7 @@ const transactionAccountResolutionService = createTransactionAccountResolutionSe
   normalizeMoneyValue,
   toMoney,
   ensureAccountByCode,
+  ensureChildAccountByName,
   resolveVoucherNetLineAmount,
   resolveVoucherVatAmount,
   resolveReferenceExchangeRate,
