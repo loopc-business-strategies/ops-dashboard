@@ -168,7 +168,10 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
       { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } },
     )
 
+    // Draft / reopened: no active ledger. Non-fixing ORD is position/register only — no P&L.
     if (String(deal.status || '') !== 'confirmed') return
+    const entryType = String(deal.entryType || 'fixing').trim().toLowerCase()
+    if (entryType !== 'fixing') return
 
     const salesRevenueParent = await ensureAccountByCode({
       user,

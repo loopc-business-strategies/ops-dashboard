@@ -286,4 +286,53 @@ describe('confirmed direct deal lock', () => {
     expect(stored.history.at(-1)).toMatchObject({ action: 'deleted', reason: 'Duplicate of another deal' })
     expect(await activeLedgerRows(deal._id)).toHaveLength(0)
   })
+
+  test('confirmed non_fixing deals do not post Sales/Purchase Fixing ledger rows', async () => {
+    const admin = await createUser({ role: 'super_admin' })
+    const customer = await createCustomer(admin)
+
+    const created = await request(app)
+      .post('/api/erp-accounting/direct-deals')
+      .set(authHeader(admin))
+      .send({
+        entryType: 'non_fixing',
+        currency: 'USD',
+        status: 'confirmed',
+        lineItems: [{
+          customerId: customer._id,
+          customerName: customer.name,
+          direction: 'buy',
+          metal: 'XAU',
+          qty: 1,
+          price: 2300,
+          stockCode: 'OZ',
+        }],
+      })
+    expect(created.status).toBe(201)
+    expect(created.body.deal.entryType).toBe('non_fixing')
+    expect(created.body.deal.status).toBe('confirmed')
+    expect(await activeLedgerRows(created.body.deal._id)).toHaveLength(0)
+  })
+
+  test('reopening a fixing deal and confirming as non_fixing clears P&L ledger rows', async () => {
+    const admin = await createUser({ role: 'super_admin' })
+    const customer = await createCustomer(admin)
+    const deal = await createConfirmedDeal(admin, customer)
+    expect(await activeLedgerRows(deal._id)).toHaveLength(1)
+
+    const reopen = await request(app)
+      .put(`/api/erp-accounting/direct-deals/${deal._id}`)
+      .set(authHeader(admin))
+      .send({ status: 'draft', reason: 'Should be non-fixing position only' })
+    expect(reopen.status).toBe(200)
+    expect(await activeLedgerRows(deal._id)).toHaveLength(0)
+
+    const confirm = await request(app)
+      .put(`/api/erp-accounting/direct-deals/${deal._id}`)
+      .set(authHeader(admin))
+      .send({ status: 'confirmed', entryType: 'non_fixing' })
+    expect(confirm.status).toBe(200)
+    expect(confirm.body.deal.entryType).toBe('non_fixing')
+    expect(await activeLedgerRows(deal._id)).toHaveLength(0)
+  })
 })

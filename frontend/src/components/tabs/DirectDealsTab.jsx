@@ -828,6 +828,7 @@ export default function DirectDealsTab({
 
     const instructionsRows = [
       { Rule: 'Direction', Value: 'Buy or Sell, from the customer\'s side: Buy = customer buys (MG sale), Sell = customer sells (MG purchase)' },
+      { Rule: 'Entry Type', Value: 'Fixing posts P&L (Sales/Purchase Fixing). Non-Fixing is position/register only — no Sales/Purchase Fixing ledger on confirm' },
       { Rule: 'Metal', Value: 'Use XAU, XAG, XPT, XPD (or your configured symbol)' },
       { Rule: 'Qty', Value: 'Must be greater than zero, in the unit given by StockCode' },
       { Rule: 'StockCode', Value: 'OZ, GRAM or KG' },
