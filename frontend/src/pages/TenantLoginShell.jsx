@@ -76,7 +76,10 @@ export default function TenantLoginShell({
       <div className="mg-login__frame">
         <div className="mg-login__panel mg-login__panel--brand" style={{ background: primary }}>
           <div className="mg-login__brand-inner">
-            <div className="mg-login__logo-plate" style={{ background: '#FFFFFF' }}>
+            <div
+              className="mg-login__logo-plate"
+              style={{ background: branding.colors?.sidebarLogoPlate || '#FFFFFF' }}
+            >
               {branding.logoImage ? (
                 <img src={branding.logoImage} alt={`${branding.displayName} logo`} />
               ) : (

@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest'
 import {
+  resolveDocumentBranding,
   resolveStatementPrintSettings,
   resolveVoucherPrintSettings,
 } from './documentBranding'
+import { getTenantBranding } from '../../../config/tenantBranding'
 
 describe('documentBranding resolvers', () => {
   const baseBranding = {
@@ -61,5 +63,26 @@ describe('documentBranding resolvers', () => {
     expect(result.statementPrint.title).toBe('Customer Statement')
     expect(result.statementPrint.subtitle).toBe('Confidential')
     expect(result.companyName).toBe('LoopC Metals')
+  })
+
+  test('resolveDocumentBranding falls back to VB tenant logo for vouchers and statements', () => {
+    const vb = getTenantBranding('vb')
+    const result = resolveDocumentBranding({
+      reportBranding: { companyName: 'Venus Bullions', logoUrl: '' },
+      user: { company: 'vb' },
+      tenantBranding: vb,
+    })
+    expect(result.logoUrl).toContain('/logos/vb-logo.png')
+    expect(result.companyName).toBe('Venus Bullions')
+  })
+
+  test('resolveDocumentBranding keeps an uploaded logo over the tenant default', () => {
+    const uploaded = 'data:image/png;base64,uploaded-vb'
+    const result = resolveDocumentBranding({
+      reportBranding: { logoUrl: uploaded },
+      user: { company: 'vb' },
+      tenantBranding: getTenantBranding('vb'),
+    })
+    expect(result.logoUrl).toBe(uploaded)
   })
 })
