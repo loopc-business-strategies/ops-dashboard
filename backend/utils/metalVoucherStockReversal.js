@@ -13,8 +13,10 @@ const {
 const { withSession, writeOpts } = require('./mongoTransaction')
 const {
   cancelLotsForVoidedPurchase,
+  restoreLotsForVoidedMetalStockOut,
   restoreLotsForVoidedProductTransferOut,
 } = require('../services/erpAccounting/voucherProductionStockBridge')
+const { isMetalStockOutType } = require('./metalStockVoucherTypes')
 
 const toMoney = (n) => Math.round(Number(n || 0) * 100) / 100
 
@@ -115,6 +117,31 @@ async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, Invent
       '[metalVoucherStockReversal] production lot void bridge failed:',
       err?.message || err,
     )
+  }
+
+  // Sale / metal_payment: recreate vault lots for OUT qty restored to inventory.
+  // Without this, edit-post→draft leaves inventory full but vault still consumed.
+  if (isMetalStockOutType(type) && !isMetalProductTransferType(type) && outMovements.length) {
+    try {
+      const restoreResult = await restoreLotsForVoidedMetalStockOut({
+        user,
+        tx,
+        outMovements,
+        session,
+        deleteReason: reasonText,
+      })
+      if (restoreResult?.warnings?.length) {
+        console.warn(
+          '[metalVoucherStockReversal] sale/payment vault restore warnings:',
+          restoreResult.warnings.join('; '),
+        )
+      }
+    } catch (err) {
+      console.warn(
+        '[metalVoucherStockReversal] sale/payment vault restore failed:',
+        err?.message || err,
+      )
+    }
   }
 
   // Metal Transfer: recreate From vault lot for OUT qty restored to inventory.

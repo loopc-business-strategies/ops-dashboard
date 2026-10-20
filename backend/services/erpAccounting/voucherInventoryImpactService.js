@@ -275,6 +275,14 @@ function createVoucherInventoryImpactService({
     const beforeQty = Number(item.quantity || 0)
     const movementQty = Number(plan.quantity || 0)
 
+    // Check inventory before touching vault lots so a failed stock-out cannot
+    // leave production lots consumed while the voucher stays unposted.
+    if (beforeQty + 1e-9 < movementQty) {
+      const shown = Math.round(beforeQty * 1000) / 1000
+      const need = Math.round(movementQty * 1000) / 1000
+      throw new Error(`Insufficient vault stock. Available: ${shown} g, requested: ${need} g.`)
+    }
+
     await assertAndConsumeVaultLotsForStockOut({
       user,
       item,
@@ -284,12 +292,6 @@ function createVoucherInventoryImpactService({
         ? `Metal transfer OUT ${tx.voucherMeta?.vocNo || tx._id}`
         : `Customer metal OUT ${tx.voucherMeta?.vocNo || tx._id}`,
     })
-
-    if (beforeQty + 1e-9 < movementQty) {
-      const shown = Math.round(beforeQty * 1000) / 1000
-      const need = Math.round(movementQty * 1000) / 1000
-      throw new Error(`Insufficient vault stock. Available: ${shown} g, requested: ${need} g.`)
-    }
 
     const nextQty = toQty(beforeQty - movementQty)
     item.quantity = nextQty

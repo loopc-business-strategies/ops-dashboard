@@ -7,7 +7,11 @@ const ProductionStockLot = require('../../models/ProductionStockLot')
 const ProductionStockStatusEvent = require('../../models/ProductionStockStatusEvent')
 const { nextStockCode } = require('../productionControl/numbering')
 const { METAL_TYPES } = require('../productionControl/constants')
-const { isMetalLotBridgeInType, isMetalProductTransferType } = require('../../utils/metalStockVoucherTypes')
+const {
+  isMetalLotBridgeInType,
+  isMetalProductTransferType,
+  isMetalStockOutType,
+} = require('../../utils/metalStockVoucherTypes')
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
 function sanitizeStockToken(value) {
@@ -291,6 +295,142 @@ async function cancelLotsForVoidedPurchase({ user, tx, session = null, deleteRea
 }
 
 /**
+ * After voiding/editing a metal sale (or metal_payment): recreate NEW_STOCK lots for OUT qty
+ * restored to inventory. Partial consumes on original lots are not surgically undone.
+ */
+async function restoreLotsForVoidedMetalStockOut({
+  user,
+  tx,
+  outMovements = [],
+  session = null,
+  deleteReason = '',
+} = {}) {
+  const transactionType = String(tx?.type || '').toLowerCase()
+  if (!isMetalStockOutType(transactionType) || isMetalProductTransferType(transactionType) || !tx?._id) {
+    return { created: [], reused: [], warnings: [] }
+  }
+
+  const list = Array.isArray(outMovements) ? outMovements : []
+  if (!list.length) return { created: [], reused: [], warnings: [] }
+
+  const created = []
+  const reused = []
+  const warnings = []
+  const actorId = user?._id || null
+  const actorName = user?.name || 'system'
+  const purchaseRef = purchaseRefForTx(tx)
+  const purchaseDate = tx?.date || tx?.voucherMeta?.valueDate || new Date()
+  const vocToken = sanitizeStockToken(purchaseRef) || 'TX'
+  const remarkExtra = deleteReason ? `: ${String(deleteReason).slice(0, 80)}` : ''
+  const kind = transactionType === 'metal_payment' ? 'metal payment' : 'sale'
+
+  for (let i = 0; i < list.length; i += 1) {
+    const mov = list[i]
+    const qty = Math.abs(Number(mov?.change || 0))
+    const itemId = mov?.itemId
+    if (!(qty > 0) || !itemId) continue
+
+    const key = `voucher-stock-restore-out:${String(tx._id)}:${String(itemId)}`
+    try {
+      const existing = await withSession(
+        ProductionStockLot.findOne({ idempotencyKey: key }),
+        session,
+      )
+      if (existing) {
+        reused.push(existing)
+        continue
+      }
+
+      const line = Array.isArray(tx?.voucherMeta?.lineItems)
+        ? tx.voucherMeta.lineItems.find((l) => String(l?.inventoryItemId || l?.itemId || '') === String(itemId))
+          || tx.voucherMeta.lineItems[0]
+        : null
+      const purity = derivePurity(line || {}, {})
+      const metalType = deriveMetalType(line || {}, { name: mov.itemName })
+      const product = String(mov.itemName || metalType).trim()
+      const pureRatio = (() => {
+        const p = Number(line?.purity || 0)
+        if (!(p > 0)) return 1
+        return p > 1.2 ? (p / 1000) : p
+      })()
+      const grossWeight = qty
+      const netWeight = Math.max(0, qty * pureRatio)
+
+      let stockCode = `SAL-R-${vocToken}-${String(i).padStart(2, '0')}`
+      const clash = await withSession(
+        ProductionStockLot.findOne({ stockCode }).select('_id').lean(),
+        session,
+      )
+      if (clash) {
+        stockCode = await nextStockCode(ProductionStockLot, session)
+      }
+
+      const [lot] = await ProductionStockLot.create(
+        [
+          {
+            stockCode,
+            purchaseRef,
+            supplier: '',
+            purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
+            product,
+            productCode: '',
+            category: '',
+            quantity: grossWeight,
+            grossWeight,
+            netWeight,
+            metalType: METAL_TYPES.includes(metalType) ? metalType : 'Gold',
+            purity,
+            remarks: `Restored by ${kind} void/edit ${purchaseRef || tx._id}${remarkExtra}`,
+            receivedById: actorId,
+            receivedByName: actorName,
+            status: 'NEW_STOCK',
+            inventoryItemId: itemId,
+            createdById: actorId,
+            createdByName: actorName,
+            version: 0,
+            idempotencyKey: key,
+          },
+        ],
+        writeOpts(session),
+      )
+
+      await ProductionStockStatusEvent.create(
+        [
+          {
+            stockLotId: lot._id,
+            stockCode: lot.stockCode,
+            fromStatus: '',
+            toStatus: 'NEW_STOCK',
+            reason: `${kind} void/edit vault restore ${purchaseRef || tx._id}`,
+            actorId,
+            actorName,
+          },
+        ],
+        writeOpts(session),
+      )
+
+      created.push(lot)
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        const existing = await withSession(
+          ProductionStockLot.findOne({ idempotencyKey: key }),
+          session,
+        )
+        if (existing) {
+          reused.push(existing)
+          continue
+        }
+      }
+      const msg = err?.message || String(err)
+      console.warn('[voucherProductionStockBridge] sale/payment vault restore failed:', msg)
+      warnings.push(`Restore ${itemId}: ${msg}`)
+    }
+  }
+
+  return { created, reused, warnings }
+}
+
+/**
  * After voiding a Metal Transfer: recreate NEW_STOCK lots for From-side qty restored to inventory.
  * Consumed From lots are not surgically un-done; a restore lot replaces the voided OUT weight.
  */
@@ -530,6 +670,7 @@ async function assertAndConsumeVaultLotsForStockOut({
 module.exports = {
   createLotsFromPurchasePlans,
   cancelLotsForVoidedPurchase,
+  restoreLotsForVoidedMetalStockOut,
   restoreLotsForVoidedProductTransferOut,
   assertAndConsumeVaultLotsForStockOut,
   idempotencyKeyForLine,

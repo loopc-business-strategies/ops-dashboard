@@ -7,6 +7,7 @@ const {
 const { reverseMetalVoucherStockForVoid } = require('../utils/metalVoucherStockReversal')
 const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
+const ProductionStockLot = require('../models/ProductionStockLot')
 const User = require('../models/User')
 
 let mongo
@@ -28,6 +29,7 @@ afterEach(async () => {
   await Promise.all([
     InventoryItem.deleteMany({}),
     StockMovement.deleteMany({}),
+    ProductionStockLot.deleteMany({}),
     User.deleteMany({}),
   ])
 })
@@ -179,5 +181,77 @@ describe('reverseMetalVoucherStockForVoid', () => {
     const after = await InventoryItem.findById(item._id)
     expect(Number(after.quantity)).toBe(100)
     expect(Number(after.unitCost)).toBe(20)
+  })
+
+  test('voiding a sale restores inventory and recreates a vault lot for OUT qty', async () => {
+    const user = await User.create({
+      name: 'void-sale-vault-user',
+      email: 'void-sale-vault@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: 'Gold Bar',
+      sku: 'GOLD-SALE-VOID',
+      category: 'recordType=product;mainStock=gold',
+      quantity: 900,
+      unit: 'grams',
+      unitCost: 100,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    const originalLot = await ProductionStockLot.create({
+      stockCode: 'PUR-SALE-VOID-00',
+      product: 'Gold Bar',
+      status: 'AVAILABLE',
+      inventoryItemId: item._id,
+      grossWeight: 900,
+      netWeight: 900,
+      quantity: 900,
+      metalType: 'Gold',
+      remarks: 'Customer metal OUT Sal/2026/sale-void (−100g)',
+      createdById: user._id,
+      createdByName: user.name,
+    })
+    await StockMovement.create({
+      itemId: item._id,
+      itemName: item.name,
+      change: -100,
+      quantityBefore: 1000,
+      quantityAfter: 900,
+      reason: 'Voucher sale (FIXED) #Sal/2026/sale-void',
+      actorId: user._id,
+      actorName: user.name,
+    })
+
+    const tx = {
+      _id: new mongoose.Types.ObjectId(),
+      type: 'sale',
+      date: new Date('2026-10-20'),
+      voucherMeta: {
+        vocNo: 'Sal/2026/sale-void',
+        lineItems: [{ inventoryItemId: item._id, stockCode: 'GOLD', grossWeight: 100, pureWeight: 100 }],
+      },
+    }
+
+    await reverseMetalVoucherStockForVoid({
+      tx,
+      user,
+      StockMovement,
+      InventoryItem,
+      toQty,
+      deleteReason: 'Posted transaction edited — inventory reversal',
+    })
+
+    const afterItem = await InventoryItem.findById(item._id)
+    expect(Number(afterItem.quantity)).toBe(1000)
+
+    const restoreLot = await ProductionStockLot.findOne({
+      idempotencyKey: `voucher-stock-restore-out:${String(tx._id)}:${String(item._id)}`,
+    })
+    expect(restoreLot).toBeTruthy()
+    expect(restoreLot.status).toBe('NEW_STOCK')
+    expect(Number(restoreLot.grossWeight)).toBe(100)
+    expect(Number(originalLot.grossWeight)).toBe(900)
   })
 })
