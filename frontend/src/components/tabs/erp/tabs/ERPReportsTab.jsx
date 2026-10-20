@@ -439,7 +439,7 @@ export default function ERPReportsTab({
                   {(reportView === 'summary' || reportView === 'trial') && reportDisplay.showMetal !== false && (
                     <select
                       aria-label="Created Metal"
-                      title="Filters gold/silver grams only"
+                      title="Filters gold, silver, platinum, and alloy grams"
                       value={sanitizeTrialMetalType(reportFilters.metalType, closingStockOptions)}
                       onChange={(e) => {
                         const metalType = sanitizeTrialMetalType(e.target.value, closingStockOptions)
@@ -1061,7 +1061,7 @@ export default function ERPReportsTab({
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', margin: '0.45rem 0 0.3rem' }}>Created Metal</label>
                 <select
                   aria-label="Created Metal"
-                  title="Filters gold/silver grams only"
+                  title="Filters gold, silver, platinum, and alloy grams"
                   value={sanitizeTrialMetalType(reportDisplayDraft.metalType, closingStockOptions)}
                   onChange={(event) => {
                     const metalType = sanitizeTrialMetalType(event.target.value, closingStockOptions)
@@ -1078,11 +1078,11 @@ export default function ERPReportsTab({
                   ))}
                 </select>
                 <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
-                  Filters gold/silver grams only (Trial Balance / Summary columns).
+                  Filters Trial Balance / Summary gram columns (gold, silver, platinum, alloy).
                 </p>
                 {!trialMetalFilterOptions.length ? (
                   <p style={{ margin: '-0.55rem 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
-                    {closingStocksLoading ? 'Loading stock types…' : 'No gold/silver stock types yet — add them under Inventory → Stock Type Creation.'}
+                    {closingStocksLoading ? 'Loading stock types…' : 'No created stock types yet — add them under Inventory → Stock Type Creation.'}
                   </p>
                 ) : null}
               </>

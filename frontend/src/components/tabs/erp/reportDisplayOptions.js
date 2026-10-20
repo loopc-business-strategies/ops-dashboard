@@ -37,6 +37,12 @@ export function buildClosingStockTrialRow(revaluation) {
     silverDebit: 0,
     silverCredit: 0,
     silverNet: Number(silver?.netGrams || 0),
+    platinumDebit: 0,
+    platinumCredit: 0,
+    platinumNet: 0,
+    alloyDebit: 0,
+    alloyCredit: 0,
+    alloyNet: 0,
     unposted: true,
   }
 }
@@ -189,8 +195,8 @@ export function formatReportGrams(net) {
   return `${abs} ${value < 0 ? 'Cr' : 'Dr'}`
 }
 
-/** Trial Balance / Summary only show gold + silver gram columns. */
-const TRIAL_METAL_GRAM_CODES = new Set(['XAU', 'XAG'])
+/** Metal codes that Trial Balance / Summary expose as gram columns. */
+const TRIAL_METAL_GRAM_CODES = new Set(['XAU', 'XAG', 'XPT', 'ALLOY'])
 
 /** Stock-type options that can affect Trial/Summary metal gram columns. */
 export function filterTrialMetalGramOptions(stockTypeOptions = []) {
@@ -199,7 +205,7 @@ export function filterTrialMetalGramOptions(stockTypeOptions = []) {
   ))
 }
 
-/** Clear metalType when it is not gold/silver (e.g. leftover Alloy/Platinum). */
+/** Clear metalType when it is not a supported trial gram metal. */
 export function sanitizeTrialMetalType(metalType, stockTypeOptions = []) {
   const value = String(metalType || '').trim()
   if (!value) return ''
@@ -208,12 +214,17 @@ export function sanitizeTrialMetalType(metalType, stockTypeOptions = []) {
 }
 
 export function trialMetalHeaders(showMetal = false) {
-  return showMetal ? ['Gold g', 'Silver g'] : []
+  return showMetal ? ['Gold g', 'Silver g', 'Platinum g', 'Alloy g'] : []
 }
 
 export function trialMetalValues(row, showMetal = false) {
   if (!showMetal) return []
-  return [formatReportGrams(row?.goldNet), formatReportGrams(row?.silverNet)]
+  return [
+    formatReportGrams(row?.goldNet),
+    formatReportGrams(row?.silverNet),
+    formatReportGrams(row?.platinumNet),
+    formatReportGrams(row?.alloyNet),
+  ]
 }
 
 export function trialMoneyValues(row, columns = DEFAULT_REPORT_MONEY_COLUMNS, format = (value) => value) {

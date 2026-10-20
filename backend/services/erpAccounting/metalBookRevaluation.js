@@ -282,6 +282,12 @@ function buildClosingStockTrialRow(revaluation) {
     silverDebit: 0,
     silverCredit: 0,
     silverNet: roundGrams(silver?.netGrams),
+    platinumDebit: 0,
+    platinumCredit: 0,
+    platinumNet: 0,
+    alloyDebit: 0,
+    alloyCredit: 0,
+    alloyNet: 0,
     unposted: true,
   }
 }

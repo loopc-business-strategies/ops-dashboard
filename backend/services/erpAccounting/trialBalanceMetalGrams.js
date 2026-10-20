@@ -4,9 +4,14 @@ const { buildMetalMatchers } = require('./fixingRegisterReport')
 const METAL_TRIAL_TYPES = ['purchase', 'sale', 'metal_receipt', 'metal_payment']
 const GRAM_EPS = 0.0005
 
+/** Kinds that Trial Balance / Summary expose as gram columns. */
+const METAL_KINDS = ['gold', 'silver', 'platinum', 'alloy']
+
 const KIND_TO_METAL_CODE = {
   gold: 'XAU',
   silver: 'XAG',
+  platinum: 'XPT',
+  alloy: 'ALLOY',
 }
 
 const emptyMetalGrams = () => ({
@@ -16,6 +21,12 @@ const emptyMetalGrams = () => ({
   silverDebit: 0,
   silverCredit: 0,
   silverOpening: 0,
+  platinumDebit: 0,
+  platinumCredit: 0,
+  platinumOpening: 0,
+  alloyDebit: 0,
+  alloyCredit: 0,
+  alloyOpening: 0,
 })
 
 const roundGrams = (value) => Number(Number(value || 0).toFixed(3))
@@ -24,6 +35,8 @@ function lineMetalKind(line = {}) {
   const stock = String(line?.stockCode || '').trim().toUpperCase()
   const product = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
   if (stock === 'XAG' || stock.includes('SILV') || product.includes('silver') || product.includes('xag')) return 'silver'
+  if (stock === 'XPT' || stock.includes('PLAT') || product.includes('platinum') || product.includes('xpt')) return 'platinum'
+  if (stock === 'ALLOY' || stock.includes('ALLO') || product.includes('alloy')) return 'alloy'
   if (stock === 'XAU' || stock.includes('GOLD') || product.includes('gold') || product.includes('xau')) return 'gold'
   return ''
 }
@@ -50,15 +63,15 @@ function resolvePartyAccountId(tx, accountsById, accountsByCode) {
 }
 
 function addSignedGrams(bucket, kind, signed, { opening = false } = {}) {
-  if (!signed || (kind !== 'gold' && kind !== 'silver')) return
+  if (!signed || !METAL_KINDS.includes(kind)) return
   if (opening) {
-    bucket[kind === 'gold' ? 'goldOpening' : 'silverOpening'] += signed
+    bucket[`${kind}Opening`] += signed
     return
   }
   if (signed > 0) {
-    bucket[kind === 'gold' ? 'goldDebit' : 'silverDebit'] += signed
+    bucket[`${kind}Debit`] += signed
   } else {
-    bucket[kind === 'gold' ? 'goldCredit' : 'silverCredit'] += Math.abs(signed)
+    bucket[`${kind}Credit`] += Math.abs(signed)
   }
 }
 
@@ -67,23 +80,22 @@ function metalNet(opening, debit, credit) {
 }
 
 function presentMetalGrams(bucket = emptyMetalGrams()) {
-  return {
-    goldDebit: roundGrams(bucket.goldDebit),
-    goldCredit: roundGrams(bucket.goldCredit),
-    goldNet: metalNet(bucket.goldOpening, bucket.goldDebit, bucket.goldCredit),
-    silverDebit: roundGrams(bucket.silverDebit),
-    silverCredit: roundGrams(bucket.silverCredit),
-    silverNet: metalNet(bucket.silverOpening, bucket.silverDebit, bucket.silverCredit),
+  const source = bucket || emptyMetalGrams()
+  const out = {}
+  for (const kind of METAL_KINDS) {
+    out[`${kind}Debit`] = roundGrams(source[`${kind}Debit`])
+    out[`${kind}Credit`] = roundGrams(source[`${kind}Credit`])
+    out[`${kind}Net`] = metalNet(source[`${kind}Opening`], source[`${kind}Debit`], source[`${kind}Credit`])
   }
+  return out
 }
 
 function hasMetalGrams(row = {}) {
-  return Math.abs(Number(row.goldNet || 0)) > GRAM_EPS
-    || Math.abs(Number(row.silverNet || 0)) > GRAM_EPS
-    || Math.abs(Number(row.goldDebit || 0)) > GRAM_EPS
-    || Math.abs(Number(row.goldCredit || 0)) > GRAM_EPS
-    || Math.abs(Number(row.silverDebit || 0)) > GRAM_EPS
-    || Math.abs(Number(row.silverCredit || 0)) > GRAM_EPS
+  return METAL_KINDS.some((kind) => (
+    Math.abs(Number(row[`${kind}Net`] || 0)) > GRAM_EPS
+    || Math.abs(Number(row[`${kind}Debit`] || 0)) > GRAM_EPS
+    || Math.abs(Number(row[`${kind}Credit`] || 0)) > GRAM_EPS
+  ))
 }
 
 /**
@@ -130,6 +142,8 @@ function accumulateTrialMetalGrams(transactions = [], {
 
 module.exports = {
   METAL_TRIAL_TYPES,
+  METAL_KINDS,
+  KIND_TO_METAL_CODE,
   emptyMetalGrams,
   presentMetalGrams,
   hasMetalGrams,

@@ -26,6 +26,8 @@ export function currencyRowMetaMap(rows = [], formatGrams) {
       ...row,
       goldText: formatGrams ? formatGrams(row.goldNet) : '',
       silverText: formatGrams ? formatGrams(row.silverNet) : '',
+      platinumText: formatGrams ? formatGrams(row.platinumNet) : '',
+      alloyText: formatGrams ? formatGrams(row.alloyNet) : '',
     })
   })
   return map
@@ -59,6 +61,8 @@ export default function CurrencyStatementTable({
           ))}
           {showMetal && <th rowSpan={2} className="num">Gold g</th>}
           {showMetal && <th rowSpan={2} className="num">Silver g</th>}
+          {showMetal && <th rowSpan={2} className="num">Platinum g</th>}
+          {showMetal && <th rowSpan={2} className="num">Alloy g</th>}
           {onOpenAccount && <th rowSpan={2}>Action</th>}
         </tr>
         <tr>
@@ -86,6 +90,8 @@ export default function CurrencyStatementTable({
               )))}
               {showMetal && <td style={{ textAlign: 'right' }}>{meta?.goldText || ''}</td>}
               {showMetal && <td style={{ textAlign: 'right' }}>{meta?.silverText || ''}</td>}
+              {showMetal && <td style={{ textAlign: 'right' }}>{meta?.platinumText || ''}</td>}
+              {showMetal && <td style={{ textAlign: 'right' }}>{meta?.alloyText || ''}</td>}
               {onOpenAccount && (
                 <td>
                   {kind === 'account' && meta?.unposted ? (

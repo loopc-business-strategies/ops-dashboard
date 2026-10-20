@@ -135,15 +135,22 @@ describe('report display options', () => {
     expect(formatReportGrams(0)).toBe('')
   })
 
-  it('limits Created Metal filter options to gold and silver', () => {
+  it('keeps Created Metal filter options for gold, silver, platinum, and alloy', () => {
     const options = [
       { value: 'XAU::1::GOLD', metalCode: 'XAU', label: 'Gold' },
       { value: 'XAG::2::SILV', metalCode: 'XAG', label: 'Silver' },
       { value: 'XPT::3::PLAT', metalCode: 'XPT', label: 'Platinum' },
       { value: 'ALLOY::4::ALLO', metalCode: 'ALLOY', label: 'Alloy' },
+      { value: 'OTHER::5', metalCode: 'OTHER', label: 'Other' },
     ]
-    expect(filterTrialMetalGramOptions(options).map((row) => row.label)).toEqual(['Gold', 'Silver'])
-    expect(sanitizeTrialMetalType('XPT::3::PLAT', options)).toBe('')
+    expect(filterTrialMetalGramOptions(options).map((row) => row.label)).toEqual([
+      'Gold',
+      'Silver',
+      'Platinum',
+      'Alloy',
+    ])
+    expect(sanitizeTrialMetalType('XPT::3::PLAT', options)).toBe('XPT::3::PLAT')
+    expect(sanitizeTrialMetalType('OTHER::5', options)).toBe('')
     expect(sanitizeTrialMetalType('XAU::1::GOLD', options)).toBe('XAU::1::GOLD')
   })
 })

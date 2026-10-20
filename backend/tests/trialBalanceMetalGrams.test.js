@@ -111,4 +111,36 @@ describe('trial balance metal grams', () => {
     expect(party.silverDebit).toBe(0)
     expect(party.silverNet).toBe(0)
   })
+
+  test('tracks platinum and alloy grams and filters them', () => {
+    const txs = [
+      {
+        type: 'sale',
+        date: '2026-10-11T00:00:00.000Z',
+        voucherMeta: {
+          partyAccountId: 'party-1',
+          lineItems: [
+            { stockCode: 'PLAT', pureWeight: 3 },
+            { stockCode: 'ALLO', pureWeight: 7 },
+            { stockCode: 'GOLD', pureWeight: 2 },
+          ],
+        },
+      },
+    ]
+    const all = presentMetalGrams(accumulateTrialMetalGrams(txs, { accountsById, accountsByCode }).get('party-1'))
+    expect(all.platinumDebit).toBe(3)
+    expect(all.platinumNet).toBe(3)
+    expect(all.alloyDebit).toBe(7)
+    expect(all.alloyNet).toBe(7)
+    expect(all.goldDebit).toBe(2)
+
+    const platOnly = presentMetalGrams(accumulateTrialMetalGrams(txs, {
+      accountsById,
+      accountsByCode,
+      metalType: 'XPT::id::PLAT',
+    }).get('party-1'))
+    expect(platOnly.platinumNet).toBe(3)
+    expect(platOnly.alloyNet).toBe(0)
+    expect(platOnly.goldNet).toBe(0)
+  })
 })
