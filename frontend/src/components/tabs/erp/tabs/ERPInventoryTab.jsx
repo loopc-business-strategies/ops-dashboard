@@ -99,13 +99,13 @@ export default function ERPInventoryTab({
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', alignItems: 'start' }}>
-            <div style={{ background: '#FCFFFC', border: '1px solid #CDE7D4', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(5, 150, 105, 0.06)' }}>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.75rem', padding: '1rem', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
                 <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: '#14532D', fontSize: '1rem' }}>Stock Type Creation</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#3F5F48', fontSize: '0.8rem', lineHeight: 1.5 }}>Create the master stock types that define metal, material type, purity, and stock-code mapping.</p>
+                  <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Stock Type Creation</p>
+                  <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.8rem', lineHeight: 1.5 }}>Create the master stock types that define metal, material type, purity, and stock-code mapping.</p>
                 </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DCFCE7', color: '#166534', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryMappingProducts.length}</span>
+                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: C.softBg, color: C.link, fontWeight: '800', fontSize: '0.74rem' }}>{inventoryMappingProducts.length}</span>
               </div>
               <button
                 type="button"
@@ -125,7 +125,7 @@ export default function ERPInventoryTab({
                   const meta = decodeInventoryCategoryMeta(item.category)
                   const liveMetalKey = resolveLiveMetalKey(meta.mainStock || meta.metalType || item.name)
                   return (
-                    <div key={item._id} style={{ border: '1px solid #DCFCE7', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                    <div key={item._id} style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.6rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
                         <span style={{ fontWeight: '700', color: C.ink }}>{titleCaseWords(meta.mainStock || meta.metalType || item.name)}</span>
                         {liveMetalKey ? (
@@ -136,7 +136,7 @@ export default function ERPInventoryTab({
                           />
                         ) : (
                           Number(item.unitCost || 0) > 0 && (
-                            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#166534', background: '#DCFCE7', padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: C.link, background: C.softBg, padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>
                               {formatAmount(item.unitCost, { currencyCode: item.currency || baseCurrencyCode })}
                               {' '}
                               {item.currency || baseCurrencyCode}
@@ -545,14 +545,13 @@ export default function ERPInventoryTab({
               <form
                 onSubmit={handleCreateProduct}
                 style={{
-                  width: 'min(980px, 98vw)',
+                  width: 'min(720px, 96vw)',
                   maxHeight: '88vh',
                   overflowY: 'auto',
-                  background: '#E3DEDE',
-                  border: '1px solid #987973',
-                  borderRadius: '0.62rem',
-                  padding: '0.38rem',
-                  boxShadow: '0 14px 26px rgba(0, 0, 0, 0.22)',
+                  background: C.p1,
+                  border: `1px solid ${C.p2}`,
+                  borderRadius: '0.75rem',
+                  boxShadow: '0 18px 50px rgba(15, 23, 42, 0.2)',
                   transform: `translate(${inventoryModalOffset.x}px, ${inventoryModalOffset.y}px)`,
                   userSelect: inventoryModalDragging ? 'none' : 'auto',
                 }}
@@ -563,127 +562,226 @@ export default function ERPInventoryTab({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     gap: '0.75rem',
-                    marginBottom: '0.35rem',
-                    padding: '0.3rem 0.55rem',
-                    borderRadius: '0.34rem 0.34rem 0 0',
-                    border: '1px solid #A5857F',
-                    background: '#B69A95',
+                    padding: '1rem 1.25rem',
+                    borderBottom: `1px solid ${C.p2}`,
                     cursor: inventoryModalDragging ? 'grabbing' : 'grab',
                   }}
                   onMouseDown={handleInventoryModalDragStart}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                    <p style={{ margin: 0, fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.01em', fontSize: '0.97rem' }}>{editingProductId ? 'Stock Type Creation' : 'Stock Type Creation'}</p>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: '700', color: C.ink, fontSize: '1.05rem' }}>
+                      {editingProductId ? 'Edit Stock Type' : 'Stock Type Creation'}
+                    </p>
+                    <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
+                      Define metal type, pricing, and stock-code mapping.
+                    </p>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.38rem' }}>
-                    <button type="button" onClick={resetInventoryMappingForm} style={{ width: '1.08rem', height: '1.08rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.14)', color: '#fff', cursor: 'pointer', fontSize: '0.65rem', lineHeight: 1 }}>x</button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={resetInventoryMappingForm}
+                    aria-label="Close"
+                    style={{
+                      width: '2rem',
+                      height: '2rem',
+                      borderRadius: '0.5rem',
+                      border: `1px solid ${C.p2}`,
+                      background: C.p2,
+                      color: C.inkSoft,
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
 
-                <div style={{ border: '1px solid #A5857F', borderRadius: '0 0 0.36rem 0.36rem', background: '#F3F0F0', padding: '0.45rem' }}>
-                  <div style={{ border: '1px solid #B39792', borderRadius: '0.2rem', background: '#F0ECEC', padding: '0.34rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.22rem', marginBottom: '0.3rem' }}>
-                      {[['details','Details'],['pricing','Pricing'],['stockenquiry','Stock Enquiry']].map(([key, label]) => (
-                        <span key={key} onClick={() => setStockTypeModalTab(key)} style={{ fontSize: '0.68rem', fontWeight: '700', cursor: 'pointer', color: stockTypeModalTab === key ? '#724B46' : '#9B817C', padding: '0.14rem 0.34rem', border: `1px solid ${stockTypeModalTab === key ? '#B99E98' : '#CDB9B5'}`, borderBottom: stockTypeModalTab === key ? 'none' : '1px solid #B99E98', borderRadius: '0.22rem 0.22rem 0 0', background: stockTypeModalTab === key ? '#F8F5F4' : '#EEE8E7', userSelect: 'none' }}>{label}</span>
-                      ))}
-                    </div>
+                <div style={{ padding: '1rem 1.25rem' }}>
+                  <div
+                    role="tablist"
+                    style={{
+                      display: 'flex',
+                      gap: '0.35rem',
+                      marginBottom: '1rem',
+                      padding: '0.25rem',
+                      background: C.p2,
+                      borderRadius: '0.6rem',
+                    }}
+                  >
+                    {[['details', 'Details'], ['pricing', 'Pricing'], ['stockenquiry', 'Stock Enquiry']].map(([key, label]) => {
+                      const active = stockTypeModalTab === key
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setStockTypeModalTab(key)}
+                          style={{
+                            flex: 1,
+                            padding: '0.55rem 0.75rem',
+                            border: 'none',
+                            borderRadius: '0.45rem',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            color: active ? '#fff' : C.inkSoft,
+                            background: active ? C.s1 : 'transparent',
+                            boxShadow: active ? '0 4px 12px rgba(15, 23, 42, 0.12)' : 'none',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
 
-                    <div style={{ border: '1px solid #B99E98', background: '#FCFBFB', padding: '0.48rem' }}>
-                      {stockTypeModalTab === 'pricing' && (
-                        <div style={{ border: '1px solid #C7AEAA', background: '#F5F1F1', padding: '0.42rem', maxWidth: '360px' }}>
-                            <p style={{ margin: '0 0 0.35rem', fontSize: '0.72rem', color: '#6F4B45', fontWeight: '700' }}>Current Price</p>
-                            {resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType) && (
-                              <div style={{ marginBottom: '0.45rem', display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
-                                <StockTypeLivePrice
-                                  metalKey={resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)}
-                                  snapshot={liveMetalSnapshot}
-                                  error={liveMetalError}
-                                  align="left"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const metalKey = resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)
-                                    const livePrice = resolveLiveInventoryUnitCost(
-                                      inventoryMappingForm.mainStock || inventoryMappingForm.metalType,
-                                      liveMetalSnapshot,
-                                      inventoryMappingForm.priceUnit || 'OZ',
-                                    )
-                                    if (!metalKey || !livePrice) return
-                                    setInventoryMappingForm((prev) => ({
-                                      ...prev,
-                                      currentPrice: livePrice.toFixed(4),
-                                      priceCurrency: liveMetalSnapshot?.currency || prev.priceCurrency || 'USD',
-                                    }))
-                                  }}
-                                  style={{ padding: '0.28rem 0.55rem', background: '#DCFCE7', border: '1px solid #86EFAC', borderRadius: '0.3rem', color: '#166534', cursor: 'pointer', fontSize: '0.68rem', fontWeight: '700', whiteSpace: 'nowrap' }}
-                                >
-                                  Use live price
-                                </button>
-                              </div>
-                            )}
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center', marginBottom: '0.28rem' }}>
-                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Price :</label>
-                              <input
-                                type="number" step="0.01"
-                                placeholder="Enter price"
-                                value={inventoryMappingForm.currentPrice}
-                                onChange={e => setInventoryMappingForm(prev => ({ ...prev, currentPrice: e.target.value }))}
-                                style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center', marginBottom: '0.28rem' }}>
-                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Unit :</label>
-                              <select value={inventoryMappingForm.priceUnit} onChange={e => setInventoryMappingForm(prev => ({ ...prev, priceUnit: e.target.value }))} style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}>
-                                <option value="OZ">Per OZ (Troy)</option>
-                                <option value="GRAM">Per Gram</option>
-                                <option value="KG">Per KG</option>
-                              </select>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center' }}>
-                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Currency :</label>
-                              <select value={inventoryMappingForm.priceCurrency} onChange={e => setInventoryMappingForm(prev => ({ ...prev, priceCurrency: e.target.value }))} style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}>
-                                <option value="USD">USD</option>
-                                <option value="AED">AED</option>
-                                <option value="EUR">EUR</option>
-                                <option value="GBP">GBP</option>
-                              </select>
-                            </div>
+                  {stockTypeModalTab === 'pricing' && (
+                    <div style={{ background: C.p2, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem', maxWidth: '420px' }}>
+                      <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: C.ink, fontWeight: 700 }}>Current Price</p>
+                      {resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType) && (
+                        <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
+                          <StockTypeLivePrice
+                            metalKey={resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)}
+                            snapshot={liveMetalSnapshot}
+                            error={liveMetalError}
+                            align="left"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const metalKey = resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)
+                              const livePrice = resolveLiveInventoryUnitCost(
+                                inventoryMappingForm.mainStock || inventoryMappingForm.metalType,
+                                liveMetalSnapshot,
+                                inventoryMappingForm.priceUnit || 'OZ',
+                              )
+                              if (!metalKey || !livePrice) return
+                              setInventoryMappingForm((prev) => ({
+                                ...prev,
+                                currentPrice: livePrice.toFixed(4),
+                                priceCurrency: liveMetalSnapshot?.currency || prev.priceCurrency || 'USD',
+                              }))
+                            }}
+                            style={{
+                              padding: '0.4rem 0.7rem',
+                              background: C.softBg,
+                              border: '1px solid var(--brand-border, #D1D5DB)',
+                              borderRadius: '0.45rem',
+                              color: C.link,
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Use live price
+                          </button>
                         </div>
                       )}
-                      {stockTypeModalTab !== 'pricing' && <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(250px, 0.9fr)', gap: '0.45rem' }}>
-                      <div style={{ border: '1px solid #C7AEAA', background: '#F5F1F1', padding: '0.42rem' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '86px 1fr', gap: '0.28rem', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Mtl Type :</label>
-                          <input
-                            placeholder="e.g. Gold, Silver, Platinum"
-                            value={inventoryMappingForm.mainStock}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setInventoryMappingForm((prev) => ({ ...prev, mainStock: val, metalType: val.trim().toLowerCase() }))
-                            }}
-                            style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}
-                          />
-                        </div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Enter price"
+                        value={inventoryMappingForm.currentPrice}
+                        onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, currentPrice: e.target.value }))}
+                        style={{ ...modalInputStyle, marginBottom: '0.75rem' }}
+                      />
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Unit</label>
+                      <select
+                        value={inventoryMappingForm.priceUnit}
+                        onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, priceUnit: e.target.value }))}
+                        style={{ ...modalInputStyle, marginBottom: '0.75rem' }}
+                      >
+                        <option value="OZ">Per OZ (Troy)</option>
+                        <option value="GRAM">Per Gram</option>
+                        <option value="KG">Per KG</option>
+                      </select>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Currency</label>
+                      <select
+                        value={inventoryMappingForm.priceCurrency}
+                        onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, priceCurrency: e.target.value }))}
+                        style={{ ...modalInputStyle, marginBottom: 0 }}
+                      >
+                        <option value="USD">USD</option>
+                        <option value="AED">AED</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {stockTypeModalTab !== 'pricing' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.85rem' }}>
+                      <div style={{ background: C.p2, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Metal type</label>
+                        <input
+                          placeholder="e.g. Gold, Silver, Platinum"
+                          value={inventoryMappingForm.mainStock}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setInventoryMappingForm((prev) => ({ ...prev, mainStock: val, metalType: val.trim().toLowerCase() }))
+                          }}
+                          style={{ ...modalInputStyle, marginBottom: 0 }}
+                        />
                       </div>
 
-                      <div style={{ border: '1px solid #C7AEAA', background: '#F8F4F4', padding: '0.42rem' }}>
-                        <p style={{ margin: 0, fontSize: '0.72rem', color: '#6F4B45', fontWeight: '700' }}>Stock Information</p>
-                        <div style={{ marginTop: '0.35rem', display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.24rem', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', color: '#7A5A53', fontWeight: '700' }}>Description :</span>
-                          <span style={{ fontSize: '0.7rem', color: '#2F2624', border: '1px solid #C9B2AE', background: '#FFFFFF', padding: '0.2rem 0.34rem' }}>{titleCaseWords(resolveMainStockValueFromForm(inventoryMappingForm) || '-')}</span>
-                          <span style={{ fontSize: '0.7rem', color: '#7A5A53', fontWeight: '700' }}>Details :</span>
-                          <span style={{ fontSize: '0.7rem', color: '#2F2624', border: '1px solid #C9B2AE', background: '#FFFFFF', padding: '0.2rem 0.34rem' }}>{`mainStock=${resolveMainStockValueFromForm(inventoryMappingForm) || '-'};metalType=${inventoryMappingForm.metalType || '-'}`}</span>
+                      <div style={{ background: C.p2, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem' }}>
+                        <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: C.ink, fontWeight: 700 }}>Stock information</p>
+                        <div style={{ display: 'grid', gap: '0.55rem' }}>
+                          <div>
+                            <div style={{ fontSize: '0.72rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.25rem' }}>Description</div>
+                            <div style={{ ...modalInputStyle, marginBottom: 0, background: C.p1 }}>
+                              {titleCaseWords(resolveMainStockValueFromForm(inventoryMappingForm) || '-')}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.72rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.25rem' }}>Details</div>
+                            <div style={{ ...modalInputStyle, marginBottom: 0, background: C.p1, fontFamily: 'Consolas, "Courier New", monospace', fontSize: '0.74rem' }}>
+                              {`mainStock=${resolveMainStockValueFromForm(inventoryMappingForm) || '-'};metalType=${inventoryMappingForm.metalType || '-'}`}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>}
                     </div>
-                  </div>
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.46rem', justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={resetInventoryMappingForm} style={{ padding: '0.38rem 0.8rem', background: '#ECE7E6', color: '#473A37', border: '1px solid #B99E98', borderRadius: '0.2rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.74rem' }}>Cancel</button>
-                  <button type="submit" disabled={saving} style={{ padding: '0.38rem 0.8rem', background: '#8A5C54', color: '#fff', border: '1px solid #744742', borderRadius: '0.2rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.74rem' }}>{saving ? 'Saving...' : editingProductId ? 'Save Stock Type' : 'Create Stock Type'}</button>
+                <div style={{ display: 'flex', gap: '0.55rem', justifyContent: 'flex-end', padding: '0 1.25rem 1.15rem' }}>
+                  <button
+                    type="button"
+                    onClick={resetInventoryMappingForm}
+                    style={{
+                      padding: '0.6rem 1rem',
+                      background: C.p2,
+                      color: C.ink,
+                      border: `1px solid ${C.p2}`,
+                      borderRadius: '0.5rem',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.84rem',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    style={{
+                      padding: '0.6rem 1.05rem',
+                      background: C.s1,
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      cursor: saving ? 'wait' : 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.84rem',
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {saving ? 'Saving…' : editingProductId ? 'Save Stock Type' : 'Create Stock Type'}
+                  </button>
                 </div>
               </form>
             </div>
