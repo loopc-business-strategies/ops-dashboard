@@ -15,8 +15,10 @@ import {
   reportSelectableCurrencies,
   reportMoneyColumns,
   buildManualClosingStockRow,
+  filterTrialMetalGramOptions,
   filterTrialRowsByGroup,
   formatReportGrams,
+  sanitizeTrialMetalType,
 } from '../reportDisplayOptions'
 import { reportsApi } from '../../../../api/erp-accounting/reports'
 import { loadSharedCurrencies } from '../../../../utils/erpSharedCurrencies'
@@ -77,6 +79,7 @@ export default function ERPReportsTab({
   const closingStockOptions = (fixingRegisterStockTypeOptions || []).filter((option) => (
     option?.metalCode && !String(option.id || '').startsWith('metal-') && !String(option.value || '').startsWith('ALL::')
   ))
+  const trialMetalFilterOptions = filterTrialMetalGramOptions(closingStockOptions)
   const selectedClosingStock = closingStockOptions.find((option) => option.value === closingStockInput) || closingStockOptions[0] || null
   const [reportDisplay, setReportDisplay] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [reportDisplayDraft, setReportDisplayDraft] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
@@ -112,6 +115,14 @@ export default function ERPReportsTab({
     })
     return () => { cancelled = true }
   }, [closingStockOptions.length, loadInventory])
+  useEffect(() => {
+    const nextMetalType = sanitizeTrialMetalType(reportFilters.metalType, closingStockOptions)
+    if (nextMetalType === String(reportFilters.metalType || '').trim()) return undefined
+    setReportFilters((prev) => ({ ...prev, metalType: nextMetalType }))
+    setReportDisplay((prev) => ({ ...prev, metalType: nextMetalType }))
+    setReportDisplayDraft((prev) => ({ ...prev, metalType: nextMetalType }))
+    return undefined
+  }, [closingStockOptions, reportFilters.metalType, setReportFilters])
   useEffect(() => {
     const apiRow = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
     if (!reportDisplay.calculateClosingStock || apiRow) {
@@ -428,9 +439,10 @@ export default function ERPReportsTab({
                   {(reportView === 'summary' || reportView === 'trial') && reportDisplay.showMetal !== false && (
                     <select
                       aria-label="Created Metal"
-                      value={reportFilters.metalType || ''}
+                      title="Filters gold/silver grams only"
+                      value={sanitizeTrialMetalType(reportFilters.metalType, closingStockOptions)}
                       onChange={(e) => {
-                        const metalType = e.target.value
+                        const metalType = sanitizeTrialMetalType(e.target.value, closingStockOptions)
                         setReportFilters((prev) => ({ ...prev, metalType }))
                         setReportDisplay((prev) => ({ ...prev, metalType }))
                         setReportDisplayDraft((prev) => ({ ...prev, metalType }))
@@ -441,7 +453,7 @@ export default function ERPReportsTab({
                       style={reportFilterFieldStyle}
                     >
                       <option value="">All metals</option>
-                      {closingStockOptions.map((option) => (
+                      {trialMetalFilterOptions.map((option) => (
                         <option key={option.id || option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
@@ -1049,24 +1061,28 @@ export default function ERPReportsTab({
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', margin: '0.45rem 0 0.3rem' }}>Created Metal</label>
                 <select
                   aria-label="Created Metal"
-                  value={reportDisplayDraft.metalType || ''}
+                  title="Filters gold/silver grams only"
+                  value={sanitizeTrialMetalType(reportDisplayDraft.metalType, closingStockOptions)}
                   onChange={(event) => {
-                    const metalType = event.target.value
+                    const metalType = sanitizeTrialMetalType(event.target.value, closingStockOptions)
                     setReportDisplayDraft((prev) => ({ ...prev, metalType }))
                     if (!closingStockOptions.length && typeof loadInventory === 'function') {
                       Promise.resolve(loadInventory())
                     }
                   }}
-                  style={{ ...modalInputStyle, marginBottom: '0.8rem' }}
+                  style={{ ...modalInputStyle, marginBottom: '0.35rem' }}
                 >
                   <option value="">All metals</option>
-                  {closingStockOptions.map((option) => (
+                  {trialMetalFilterOptions.map((option) => (
                     <option key={option.id || option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
-                {!closingStockOptions.length ? (
+                <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
+                  Filters gold/silver grams only (Trial Balance / Summary columns).
+                </p>
+                {!trialMetalFilterOptions.length ? (
                   <p style={{ margin: '-0.55rem 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
-                    {closingStocksLoading ? 'Loading stock types…' : 'No created stock types yet — add them under Inventory → Stock Type Creation.'}
+                    {closingStocksLoading ? 'Loading stock types…' : 'No gold/silver stock types yet — add them under Inventory → Stock Type Creation.'}
                   </p>
                 ) : null}
               </>
@@ -1161,7 +1177,9 @@ export default function ERPReportsTab({
                       ? reportDisplayDraft.displayCurrency
                       : displayCurrency,
                   }
-                  const metalType = next.showMetal === false ? '' : String(next.metalType || '').trim()
+                  const metalType = next.showMetal === false
+                    ? ''
+                    : sanitizeTrialMetalType(next.metalType, closingStockOptions)
                   const applied = { ...next, metalType }
                   setReportDisplay(applied)
                   setReportFilters((prev) => ({

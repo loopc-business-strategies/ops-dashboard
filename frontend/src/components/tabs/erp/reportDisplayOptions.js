@@ -189,6 +189,24 @@ export function formatReportGrams(net) {
   return `${abs} ${value < 0 ? 'Cr' : 'Dr'}`
 }
 
+/** Trial Balance / Summary only show gold + silver gram columns. */
+const TRIAL_METAL_GRAM_CODES = new Set(['XAU', 'XAG'])
+
+/** Stock-type options that can affect Trial/Summary metal gram columns. */
+export function filterTrialMetalGramOptions(stockTypeOptions = []) {
+  return (Array.isArray(stockTypeOptions) ? stockTypeOptions : []).filter((option) => (
+    TRIAL_METAL_GRAM_CODES.has(String(option?.metalCode || '').trim().toUpperCase())
+  ))
+}
+
+/** Clear metalType when it is not gold/silver (e.g. leftover Alloy/Platinum). */
+export function sanitizeTrialMetalType(metalType, stockTypeOptions = []) {
+  const value = String(metalType || '').trim()
+  if (!value) return ''
+  const allowed = filterTrialMetalGramOptions(stockTypeOptions)
+  return allowed.some((option) => option.value === value) ? value : ''
+}
+
 export function trialMetalHeaders(showMetal = false) {
   return showMetal ? ['Gold g', 'Silver g'] : []
 }
