@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import tenantRoutingCases from '../../../shared/tenant-routing-cases.json'
 import {
+  applyTenantDocumentMeta,
   getTenantBranding,
   isAccountingPeriodClosingEnabled,
   isDepartmentsComingSoonEnabled,
@@ -36,6 +37,7 @@ describe('tenant branding integration', () => {
     expect(cg.displayName).toBe('CG')
     expect(vb.displayName).toBe('Venus Bullion')
     expect(vb.controlSystem).toBe('Business Control System')
+    expect(vb.favicon).toBe('/logos/vb-logo.png')
     expect(mg.companyName).toBe('MODERN GOLD JEWELRY MANUFACTURING')
     expect(vb.companyName).toBe('Venus Bullion Gold Trading L.L.C')
     expect(vb.address).toMatch(/Al Dhagaya Gold Souq/)
@@ -59,6 +61,29 @@ describe('tenant branding integration', () => {
     expect(isDepartmentsComingSoonEnabled('mg')).toBe(false)
     expect(mg.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
     expect(vb.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
+  })
+
+  test('applyTenantDocumentMeta sets Venus Bullion title and favicon', () => {
+    document.title = 'Ops Dashboard'
+    let icon = document.querySelector("link[rel='icon']")
+    if (!icon) {
+      icon = document.createElement('link')
+      icon.setAttribute('rel', 'icon')
+      icon.setAttribute('href', '/favicon.svg')
+      icon.setAttribute('type', 'image/svg+xml')
+      document.head.appendChild(icon)
+    } else {
+      icon.setAttribute('href', '/favicon.svg')
+      icon.setAttribute('type', 'image/svg+xml')
+    }
+
+    const restore = applyTenantDocumentMeta(getTenantBranding('vb'))
+    expect(document.title).toBe('Venus Bullion')
+    const next = document.querySelector("link[rel='icon']")
+    expect(next?.getAttribute('href')).toBe('/logos/vb-logo.png')
+    expect(next?.getAttribute('type')).toBe('image/png')
+    restore()
+    expect(document.title).toBe('Ops Dashboard')
   })
 
   test('applies MG orange, CG green, LoopC blue, and VB black/gold tenant palettes', () => {

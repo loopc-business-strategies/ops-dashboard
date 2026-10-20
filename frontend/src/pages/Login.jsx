@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { applyTenantTheme, getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
+import { applyTenantDocumentMeta, applyTenantTheme, getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 import TenantLoginShell from './TenantLoginShell'
 import authAPI from '../api/auth'
 
@@ -43,7 +43,12 @@ function Login() {
   }, [company])
 
   useEffect(() => {
-    return applyTenantTheme(branding.colors)
+    const restoreTheme = applyTenantTheme(branding.colors)
+    const restoreMeta = applyTenantDocumentMeta(branding)
+    return () => {
+      restoreTheme?.()
+      restoreMeta?.()
+    }
   }, [branding])
 
   useEffect(() => {

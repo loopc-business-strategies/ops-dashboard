@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
-import { applyTenantTheme, getTenantBranding, isLocalTenantHost, TENANT_KEYS } from '../config/tenantBranding'
+import { applyTenantDocumentMeta, applyTenantTheme, getTenantBranding, isLocalTenantHost, TENANT_KEYS } from '../config/tenantBranding'
 import {
   buildDashboardHref,
   buildDashboardTabParam,
@@ -741,7 +741,12 @@ function Dashboard() {
   }, [activeTab, erpSubTab, navItems, departmentsComingSoon])
 
   useEffect(() => {
-    return applyTenantTheme(branding.colors)
+    const restoreTheme = applyTenantTheme(branding.colors)
+    const restoreMeta = applyTenantDocumentMeta(branding)
+    return () => {
+      restoreTheme?.()
+      restoreMeta?.()
+    }
   }, [branding])
 
   const clearSidebarHideTimer = useCallback(() => {

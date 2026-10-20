@@ -8,11 +8,27 @@ import * as Sentry from '@sentry/react'
 import axios from './api/client'
 import App from './App'
 import {
+  applyTenantDocumentMeta,
+  getTenantBranding,
+  resolveTenantFromHostname,
+  resolveTenantFromSearch,
+} from './config/tenantBranding'
+import {
   installStaleChunkReloadHandlers,
   isStaleChunkError,
   reloadOnceForStaleChunk,
 } from './utils/staleChunkReload'
 import './index.css'
+
+// Tab title + favicon before first paint (hostname → tenant branding).
+{
+  const stored = typeof localStorage !== 'undefined'
+    ? (localStorage.getItem('tenantCompany') || 'loopc')
+    : 'loopc'
+  const hostTenant = resolveTenantFromHostname(window.location.hostname, stored)
+  const tenant = resolveTenantFromSearch(window.location.search, hostTenant)
+  applyTenantDocumentMeta(getTenantBranding(tenant))
+}
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN
 if (sentryDsn) {

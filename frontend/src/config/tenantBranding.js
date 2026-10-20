@@ -167,6 +167,57 @@ export function applyTenantTheme(colors = {}) {
   }
 }
 
+function faviconMimeType(href) {
+  const path = String(href || '').split('?')[0].toLowerCase()
+  if (path.endsWith('.svg')) return 'image/svg+xml'
+  if (path.endsWith('.png')) return 'image/png'
+  if (path.endsWith('.ico')) return 'image/x-icon'
+  if (path.endsWith('.webp')) return 'image/webp'
+  return ''
+}
+
+/**
+ * Set browser tab title + favicon from tenant branding.
+ * Returns a restore function for previous document meta.
+ */
+export function applyTenantDocumentMeta(branding = {}) {
+  if (typeof document === 'undefined') return () => {}
+
+  const title = String(branding.displayName || '').trim() || 'Ops Dashboard'
+  const faviconHref = String(
+    branding.favicon || branding.logoImage || branding.logoUrl || '/favicon.svg',
+  ).trim() || '/favicon.svg'
+
+  const prevTitle = document.title
+  document.title = title
+
+  let link = document.querySelector("link[rel='icon']")
+  const created = !link
+  if (!link) {
+    link = document.createElement('link')
+    link.setAttribute('rel', 'icon')
+    document.head.appendChild(link)
+  }
+  const prevHref = link.getAttribute('href')
+  const prevType = link.getAttribute('type')
+  const mime = faviconMimeType(faviconHref)
+  if (mime) link.setAttribute('type', mime)
+  else link.removeAttribute('type')
+  link.setAttribute('href', faviconHref)
+
+  return () => {
+    document.title = prevTitle
+    if (created) {
+      link.remove()
+      return
+    }
+    if (prevHref != null) link.setAttribute('href', prevHref)
+    else link.removeAttribute('href')
+    if (prevType) link.setAttribute('type', prevType)
+    else link.removeAttribute('type')
+  }
+}
+
 /**
  * Build tenant color map.
  * Identity primaries stay as specified; CTA fills use darker AA-safe shades for white text.
@@ -349,6 +400,7 @@ const tenantBranding = {
     logoText: 'VB',
     logoImage: '/logos/vb-logo.png',
     logoUrl: '/logos/vb-logo.png',
+    favicon: '/logos/vb-logo.png',
     tagline: 'Business Control System',
     controlSystem: 'Business Control System',
     phone: '+971 4 286 8222',

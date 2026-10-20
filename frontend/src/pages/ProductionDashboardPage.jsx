@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { applyTenantTheme, getTenantBranding } from '../config/tenantBranding'
+import { applyTenantDocumentMeta, applyTenantTheme, getTenantBranding } from '../config/tenantBranding'
 import ProductionDashboardTab from '../components/production-dashboard/ProductionDashboardTab'
 import '../components/production-dashboard/ProductionDashboard.css'
 
@@ -21,7 +21,14 @@ export default function ProductionDashboardPage() {
     [company, user?.company],
   )
 
-  useEffect(() => applyTenantTheme(branding.colors), [branding])
+  useEffect(() => {
+    const restoreTheme = applyTenantTheme(branding.colors)
+    const restoreMeta = applyTenantDocumentMeta(branding)
+    return () => {
+      restoreTheme?.()
+      restoreMeta?.()
+    }
+  }, [branding])
 
   // Venus Bullions (and any tenant with departmentsComingSoon): no live production app yet.
   useEffect(() => {
