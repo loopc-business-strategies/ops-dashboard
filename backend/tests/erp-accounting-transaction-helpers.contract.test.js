@@ -32,6 +32,7 @@ const {
   sanitizeOptionalRef,
   normalizeMetalFixStatus,
   normalizeMoneyValue,
+  normalizeTransactionAmount,
   normalizeExchangeRateValue,
   getRoleTransactionTypes,
   validateTransactionPayload,
@@ -115,6 +116,25 @@ describe('transactionHelpers – normalization', () => {
     expect(() => normalizeMoneyValue(MAX_TRANSACTION_AMOUNT + 1)).toThrow('exceeds allowed maximum')
   })
 
+  test('normalizeTransactionAmount allows signed sale/purchase nets', () => {
+    expect(normalizeTransactionAmount(-3.22, 'purchase')).toBe(-3.22)
+    expect(normalizeTransactionAmount(-10, 'sale')).toBe(-10)
+    expect(normalizeTransactionAmount(100, 'purchase')).toBe(100)
+  })
+
+  test('normalizeTransactionAmount keeps receipt/payment strictly positive', () => {
+    expect(() => normalizeTransactionAmount(-5, 'receipt')).toThrow('Invalid amount')
+    expect(() => normalizeTransactionAmount(0, 'purchase')).toThrow('Invalid amount')
+  })
+
+  test('validateTransactionPayload allows negative purchase amount', () => {
+    expect(validateTransactionPayload({
+      type: 'purchase',
+      amount: -3.22,
+      voucherMeta: { partyCode: '1319' },
+    })).toBe('')
+  })
+
   test('normalizeExchangeRateValue accepts valid rates', () => {
     expect(normalizeExchangeRateValue(1.08)).toBe(1.08)
     expect(normalizeExchangeRateValue('3.67')).toBe(3.67)
@@ -162,7 +182,7 @@ describe('transactionHelpers – validateTransactionPayload', () => {
   })
 
   test('returns error for zero or negative amount', () => {
-    expect(validateTransactionPayload({ type: 'expense', amount: 0 })).toMatch(/greater than zero/)
+    expect(validateTransactionPayload({ type: 'expense', amount: 0 })).toMatch(/non-zero/)
     expect(validateTransactionPayload({ type: 'expense', amount: -5 })).toMatch(/greater than zero/)
   })
 

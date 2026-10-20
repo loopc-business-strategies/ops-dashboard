@@ -72,6 +72,20 @@ const normalizeMoneyValue = (value, field = 'amount') => {
   return num
 }
 
+/** Sale/purchase may be signed (unfixed premium discount can net below zero). */
+const SIGNED_AMOUNT_TRANSACTION_TYPES = new Set(['sale', 'purchase'])
+
+const normalizeTransactionAmount = (value, type, field = 'amount') => {
+  if (!SIGNED_AMOUNT_TRANSACTION_TYPES.has(String(type || '').toLowerCase())) {
+    return normalizeMoneyValue(value, field)
+  }
+  const coerced = typeof value === 'number' ? value : (parseAmount(value) ?? Number(value))
+  const num = coerced
+  if (!Number.isFinite(num) || num === 0) throw new Error(`Invalid ${field}`)
+  if (Math.abs(num) > MAX_TRANSACTION_AMOUNT) throw new Error(`${field} exceeds allowed maximum`)
+  return num
+}
+
 const normalizeExchangeRateValue = (value, field = 'exchange rate') => {
   const num = Number(value)
   if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}`)
@@ -110,7 +124,11 @@ const validateTransactionPayload = (payload) => {
   }
 
   const amount = Number(payload.amount)
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const typeKey = String(payload.type || '').toLowerCase()
+  if (!Number.isFinite(amount) || amount === 0) {
+    return 'Amount must be a non-zero number'
+  }
+  if (!SIGNED_AMOUNT_TRANSACTION_TYPES.has(typeKey) && amount <= 0) {
     return 'Amount must be greater than zero'
   }
 
@@ -155,6 +173,8 @@ module.exports = {
   sanitizeOptionalRef,
   normalizeMetalFixStatus,
   normalizeMoneyValue,
+  normalizeTransactionAmount,
+  SIGNED_AMOUNT_TRANSACTION_TYPES,
   normalizeExchangeRateValue,
   getRoleTransactionTypes,
   getDisabledVoucherTypeMessage,

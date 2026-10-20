@@ -8,7 +8,8 @@ const transactionSchema = new mongoose.Schema(
       enum: ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment', 'metal_transfer'],
       required: true,
     },
-    amount: { type: Number, required: true, min: 0 },
+    // Sale/purchase may store a signed net (e.g. unfixed premium-only discount).
+    amount: { type: Number, required: true },
     date: { type: Date, default: Date.now },
     description: { type: String, trim: true, default: '' },
     currency: { type: String, trim: true, default: 'USD' },
