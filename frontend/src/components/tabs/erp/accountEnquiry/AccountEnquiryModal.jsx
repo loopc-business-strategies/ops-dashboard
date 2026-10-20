@@ -832,7 +832,7 @@ export default function AccountEnquiryModal({
                     style={{
                       ...linkButtonStyle,
                       padding: '0.6rem 1.2rem',
-                      background: '#3B82F6',
+                      background: 'var(--brand-button-bg, var(--brand-primary))',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '0.5rem',

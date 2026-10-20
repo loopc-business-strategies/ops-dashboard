@@ -86,7 +86,13 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
   )
   const departmentsComingSoon = Boolean(branding?.featureFlags?.departmentsComingSoon)
   const rawItems = [
-    { id: 'overview', label: t('overview'), group: 'main', show: perms.canViewModule('overview') },
+    {
+      id: 'overview',
+      label: t('overview'),
+      group: 'main',
+      comingSoon: departmentsComingSoon,
+      show: departmentsComingSoon || perms.canViewModule('overview'),
+    },
     {
       id: 'chat',
       label: t('chat'),
@@ -95,7 +101,13 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
       show: departmentsComingSoon || perms.canViewModule('chat'),
       badge: departmentsComingSoon ? null : (chatUnread || null),
     },
-    { id: 'master-settings', label: 'Master Settings', group: 'main', show: true },
+    {
+      id: 'master-settings',
+      label: 'Master Settings',
+      group: 'main',
+      comingSoon: departmentsComingSoon,
+      show: true,
+    },
     {
       id: 'departments',
       label: t('departments'),

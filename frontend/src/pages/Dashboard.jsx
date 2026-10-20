@@ -304,8 +304,16 @@ function renderTab(
   erpTabProps = {},
   { departmentsComingSoon = false, overviewIsActive = true, onBindOverviewSearch } = {},
 ) {
+  if (departmentsComingSoon && tabId === 'overview') {
+    return <ModuleComingSoonTab titleKey="overview" />
+  }
+
   if (departmentsComingSoon && tabId === 'chat') {
     return <ModuleComingSoonTab titleKey="chat" />
+  }
+
+  if (departmentsComingSoon && tabId === 'master-settings') {
+    return <ModuleComingSoonTab title="Master Settings" />
   }
 
   if (departmentsComingSoon && tabId === 'operations') {

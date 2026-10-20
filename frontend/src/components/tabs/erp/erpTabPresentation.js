@@ -27,6 +27,10 @@ export const ERP_TAB_COLORS = {
   t2: '#374151',
   t3: '#334155',
   danger: '#DC2626',
+  /** Text links / positive figures — follows tenant theme (VB gold, MG blue). */
+  link: 'var(--brand-dark, var(--brand-primary))',
+  positive: 'var(--brand-dark, var(--brand-primary))',
+  softBg: 'var(--brand-soft)',
 }
 
 /** Shared register table cell styles (pair with `.erp-table` when possible). */

@@ -182,7 +182,7 @@ export default function FixingRegisterPanel({
                     <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#374151', fontSize: '0.83rem', cursor: 'pointer' }}>
                       <input type="radio" name="fixingPartyFilter" value={v} checked={fixingRegFilter.partyFilter === v}
                         onChange={() => setFixingRegFilter(f => ({ ...f, partyFilter: v }))}
-                        style={{ accentColor: '#2563EB' }}
+                        style={{ accentColor: 'var(--brand-primary)' }}
                       />
                       {lbl}
                     </label>
@@ -206,7 +206,7 @@ export default function FixingRegisterPanel({
                   <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
                     <input type="checkbox" checked={fixingRegFilter[field]}
                       onChange={(e) => setFixingRegFilter(f => ({ ...f, [field]: e.target.checked }))}
-                      style={{ width: '1rem', height: '1rem', accentColor: '#2563EB' }}
+                      style={{ width: '1rem', height: '1rem', accentColor: 'var(--brand-primary)' }}
                     />
                     {lbl}
                   </label>

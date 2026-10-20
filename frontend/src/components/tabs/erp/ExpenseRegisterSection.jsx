@@ -256,7 +256,7 @@ export default function ExpenseRegisterSection({
                       {row.paymentMethod || 'Other'}
                     </span>
                   </td>
-                  <td style={{ padding: '0.65rem 0.85rem', color: '#2563EB', minWidth: 200, maxWidth: 280 }}>
+                  <td style={{ padding: '0.65rem 0.85rem', color: 'var(--brand-dark, var(--brand-primary))', minWidth: 200, maxWidth: 280 }}>
                     <div style={{ fontSize: '0.74rem', lineHeight: 1.35 }}>{row.paymentRoute || `${row.fundingAccount || '—'} → ${row.expenseAccount || '—'}`}</div>
                   </td>
                   <td style={{ padding: '0.65rem 0.85rem', color: '#374151', whiteSpace: 'nowrap' }}>

@@ -9,6 +9,10 @@ import { useExpenseChartData } from './useExpenseChartData'
 import { useExpenseFooterStats } from './useExpenseFooterStats'
 
 import { formatAmount, formatMoney } from '../../../utils/money'
+import { ERP_TAB_COLORS } from './erpTabPresentation'
+
+const ERP_LINK = ERP_TAB_COLORS.link
+const ERP_POSITIVE = ERP_TAB_COLORS.positive
 
 function fmtMoney(val, currency = '') {
   if (currency) return formatMoney(val, currency)
@@ -113,10 +117,10 @@ function MarginsWidget({
                   {activeRows.map((c, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
                       <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.name}</td>
-                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: Number(c.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.goldPosition)}</td>
-                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: Number(c.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.silverPosition)}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: Number(c.goldPosition || 0) < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.goldPosition)}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: Number(c.silverPosition || 0) < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.silverPosition)}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink }}>{c.equityFmt}</td>
-                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{c.marginFmt}</td>
                     </tr>
                   ))}
@@ -138,7 +142,7 @@ function MarginsWidget({
               }
               setShowModal(true); setModalSearch(''); setModalSort('margin-desc'); setDragPos({ x: 0, y: 0 })
             }}
-            style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+            style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
           >↗ View Full Report</button>
         </div>
       </div>
@@ -217,14 +221,14 @@ function MarginsWidget({
                     <tbody>
                       {modalRows.map((c, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #EEF2F7', background: i % 2 === 0 ? '#FFFFFF' : '#FCFDFF' }}>
-                          <td style={{ padding: '0.42rem 0.9rem', fontWeight: '600', color: c.equity < 0 ? '#DC2626' : '#1D4ED8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px' }}>{c.name}</td>
-                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: Number(c.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.goldPosition)}</td>
-                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: Number(c.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.silverPosition)}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', fontWeight: '600', color: c.equity < 0 ? '#DC2626' : ERP_POSITIVE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px' }}>{c.name}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: Number(c.goldPosition || 0) < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.goldPosition)}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: Number(c.silverPosition || 0) < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.silverPosition)}</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.equityFmt}</td>
-                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
-                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.excess < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.excessFmt}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.excess < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.excessFmt}</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'center', fontWeight: '700', fontSize: '0.75rem', color: statusColor(c.status) }}>{c.status}</td>
-                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginFmt}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginFmt}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -316,7 +320,7 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
           <div style={{ marginTop: '0.6rem', textAlign: 'right', flexShrink: 0 }}>
             <button
               onClick={() => onNavigate('apar')}
-              style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+              style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
             >↗ View Full Details</button>
           </div>
         )}
@@ -474,7 +478,7 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
       </div>
       {onNavigate && (
         <div style={{ marginTop: '0.55rem', textAlign: 'right', flexShrink: 0 }}>
-          <button type="button" onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}>
+          <button type="button" onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}>
             View full statement
           </button>
         </div>
@@ -547,7 +551,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
               <button
                 onClick={() => onNavigate('bank')}
-                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+                style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
               >↗ View Full Details</button>
             </div>
           )}
@@ -769,7 +773,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
               <button
                 onClick={() => onNavigate('notif')}
-                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+                style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
               >↗ View All Alerts</button>
             </div>
           )}

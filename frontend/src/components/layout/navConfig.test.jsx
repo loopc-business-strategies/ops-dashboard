@@ -31,7 +31,7 @@ describe('getNavItems — Operations visibility', () => {
     expect(ids(items)).not.toContain('operations')
   })
 
-  test('VB coming-soon mode shows Chat, Departments, Operations, and Production', () => {
+  test('VB coming-soon mode locks Overview, Chat, Master Settings, Departments, Operations, and Production', () => {
     const branding = {
       enabledTabs: ['overview', 'chat', 'master-settings', 'departments', 'operations', 'production-new', 'erp'],
       enabledErpSubTabs: [],
@@ -39,13 +39,17 @@ describe('getNavItems — Operations visibility', () => {
     }
     const items = getNavItems(perms({ modules: ['overview'] }), t, 3, branding)
     expect(ids(items)).toEqual(expect.arrayContaining([
+      'overview',
       'chat',
+      'master-settings',
       'departments',
       'operations',
       'production-new',
     ]))
     expect(items.find((item) => item.id === 'chat')?.badge).toBeNull()
+    expect(items.find((item) => item.id === 'overview')?.comingSoon).toBe(true)
     expect(items.find((item) => item.id === 'chat')?.comingSoon).toBe(true)
+    expect(items.find((item) => item.id === 'master-settings')?.comingSoon).toBe(true)
     expect(items.find((item) => item.id === 'departments')?.comingSoon).toBe(true)
     expect(items.find((item) => item.id === 'operations')?.comingSoon).toBe(true)
     expect(items.find((item) => item.id === 'production-new')?.comingSoon).toBe(true)

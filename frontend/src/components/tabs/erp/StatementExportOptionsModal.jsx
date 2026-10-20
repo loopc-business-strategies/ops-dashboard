@@ -24,9 +24,9 @@ export default function StatementExportOptionsModal({ open, onClose, onPrint, on
           <button
             type="button"
             onClick={onPrint}
-            style={{ ...primaryBtn, background: '#3B82F6' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#2563EB' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = '#3B82F6' }}
+            style={{ ...primaryBtn, background: 'var(--brand-button-bg, var(--brand-primary))' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--brand-button-hover, var(--brand-hover))' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--brand-button-bg, var(--brand-primary))' }}
           >
             🖨 Print
           </button>
