@@ -263,6 +263,39 @@ describe('Dashboard navigation behavior', () => {
     expect(await screen.findByText('placeholder-tab:Departments:Coming Soon')).toBeTruthy()
   })
 
+  it('VB shows Chat, Operations, and Production as Coming Soon', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'vb', _id: '507f1f77bcf86cd799439011' },
+      company: 'vb',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard()
+
+    expect(await screen.findByRole('link', { name: 'Chat' })).toBeTruthy()
+    expect(await screen.findByRole('link', { name: 'Operations' })).toBeTruthy()
+    expect(await screen.findByRole('link', { name: 'Production Dashboard' })).toBeTruthy()
+
+    const chatLink = screen.getByRole('link', { name: 'Chat' })
+    fireEvent.click(chatLink)
+    expect(await screen.findByText('placeholder-tab:Chat:Coming Soon')).toBeTruthy()
+
+    const operationsLink = screen.getByRole('link', { name: 'Operations' })
+    fireEvent.click(operationsLink)
+    expect(await screen.findByText('placeholder-tab:Operations:Coming Soon')).toBeTruthy()
+  })
+
+  it('VB Production Dashboard deep link is Coming Soon', async () => {
+    useAuthMock.mockReturnValue({
+      user: { name: 'Nan', role: 'super_admin', company: 'vb', _id: '507f1f77bcf86cd799439011' },
+      company: 'vb',
+      token: 'test-token',
+      logout: vi.fn(),
+    })
+    renderDashboard('/dashboard?tab=production-new')
+    expect(await screen.findByText('placeholder-tab:Production Dashboard:Coming Soon')).toBeTruthy()
+  })
+
   it('VB redirects HR deep link away from real department modules', async () => {
     useAuthMock.mockReturnValue({
       user: { name: 'Nan', role: 'super_admin', company: 'vb', _id: '507f1f77bcf86cd799439011' },

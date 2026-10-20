@@ -359,7 +359,8 @@ const tenantBranding = {
       // Gold-on-black mark — plate matches logo background.
       sidebarLogoPlate: '#000000',
     },
-    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'departments', 'erp'],
+    // Chat / departments / operations / production: nav visible but Coming Soon (see departmentsComingSoon).
+    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'departments', 'operations', 'production-new', 'erp'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       departmentsComingSoon: true,

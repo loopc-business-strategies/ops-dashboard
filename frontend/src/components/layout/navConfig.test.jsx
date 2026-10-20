@@ -30,4 +30,21 @@ describe('getNavItems — Operations visibility', () => {
     const items = getNavItems(perms({ modules: ['production'], canApproveMgFloor: true }), t, 0, branding)
     expect(ids(items)).not.toContain('operations')
   })
+
+  test('VB coming-soon mode shows Chat, Departments, Operations, and Production', () => {
+    const branding = {
+      enabledTabs: ['overview', 'chat', 'master-settings', 'departments', 'operations', 'production-new', 'erp'],
+      enabledErpSubTabs: [],
+      featureFlags: { departmentsComingSoon: true },
+    }
+    const items = getNavItems(perms({ modules: ['overview'] }), t, 3, branding)
+    expect(ids(items)).toEqual(expect.arrayContaining([
+      'chat',
+      'departments',
+      'operations',
+      'production-new',
+    ]))
+    expect(items.find((item) => item.id === 'chat')?.badge).toBeNull()
+    expect(ids(items)).not.toContain('hr')
+  })
 })

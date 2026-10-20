@@ -70,16 +70,34 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
   const departmentsComingSoon = Boolean(branding?.featureFlags?.departmentsComingSoon)
   const rawItems = [
     { id: 'overview', label: t('overview'), group: 'main', show: perms.canViewModule('overview') },
-    { id: 'chat', label: t('chat'), group: 'main', show: perms.canViewModule('chat'), badge: chatUnread || null },
+    {
+      id: 'chat',
+      label: t('chat'),
+      group: 'main',
+      show: departmentsComingSoon || perms.canViewModule('chat'),
+      badge: departmentsComingSoon ? null : (chatUnread || null),
+    },
     { id: 'master-settings', label: 'Master Settings', group: 'main', show: true },
     { id: 'departments', label: t('departments'), group: 'main', show: departmentsComingSoon },
     { id: 'admin', label: t('admin'), group: 'admin', show: perms.canViewAdmin },
     { id: 'hr', label: t('hr'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('hr') },
     { id: 'compliance', label: t('compliance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('government') },
-    { id: 'production-new', label: 'Production Dashboard', group: 'departments', show: !departmentsComingSoon && perms.canViewModule('production') },
+    {
+      id: 'production-new',
+      label: 'Production Dashboard',
+      group: 'departments',
+      show: departmentsComingSoon || (!departmentsComingSoon && perms.canViewModule('production')),
+    },
     { id: 'finance', label: t('finance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('finance') },
     { id: 'sales', label: t('sales'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('sales') },
-    { id: 'operations', label: t('operations'), group: 'departments', show: !departmentsComingSoon && (perms.canViewModule('operations') || Boolean(perms.canApproveMgFloor)) },
+    {
+      id: 'operations',
+      label: t('operations'),
+      group: 'departments',
+      show: departmentsComingSoon || (
+        !departmentsComingSoon && (perms.canViewModule('operations') || Boolean(perms.canApproveMgFloor))
+      ),
+    },
     { id: 'training', label: t('training'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('training') },
     { id: 'erp-dashboard', label: 'Dashboard', group: 'erp', erpSub: 'dashboard', show: canShowErpSubTab('dashboard') },
     { id: 'erp-accounts', label: 'Accounts', group: 'erp', erpSub: 'accounts', show: canShowErpSubTab('accounts') },

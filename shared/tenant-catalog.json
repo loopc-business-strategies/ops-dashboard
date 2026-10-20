@@ -42,7 +42,7 @@
       "envVar": "MONGO_URI_VB",
       "brandPrimary": "#0E0E0E",
       "sharedInboxEmail": "",
-      "enabledTabs": ["overview", "chat", "master-settings", "admin", "departments", "erp"]
+      "enabledTabs": ["overview", "chat", "master-settings", "admin", "departments", "operations", "production-new", "erp"]
     }
   },
   "customDomains": {

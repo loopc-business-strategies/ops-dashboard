@@ -157,6 +157,11 @@ function DepartmentsComingSoonTab() {
   )
 }
 
+function ModuleComingSoonTab({ title, titleKey }) {
+  const { t } = useLanguage()
+  return <PlaceholderTab title={titleKey ? t(titleKey) : title} description={t('comingSoon')} />
+}
+
 /** Maps Socket.IO `/notifications` payload to bell UI (see backend `sendUserNotification` types). */
 function mapRealtimeNotificationPayload(payload) {
   const type = String(payload?.type || '')
@@ -299,6 +304,18 @@ function renderTab(
   erpTabProps = {},
   { departmentsComingSoon = false, overviewIsActive = true, onBindOverviewSearch } = {},
 ) {
+  if (departmentsComingSoon && tabId === 'chat') {
+    return <ModuleComingSoonTab titleKey="chat" />
+  }
+
+  if (departmentsComingSoon && tabId === 'operations') {
+    return <ModuleComingSoonTab titleKey="operations" />
+  }
+
+  if (departmentsComingSoon && tabId === 'production-new') {
+    return <ModuleComingSoonTab title="Production Dashboard" />
+  }
+
   if (departmentsComingSoon && (tabId === 'departments' || DEPARTMENT_MODULE_TAB_IDS.has(tabId))) {
     return <DepartmentsComingSoonTab />
   }
@@ -700,6 +717,8 @@ function Dashboard() {
     if (currentItem) return
 
     if (departmentsComingSoon && DEPARTMENT_MODULE_TAB_IDS.has(activeTab)) {
+      // Keep dedicated Coming Soon nav entries (operations / production) on their own tabs.
+      if (navItems.some((item) => item.id === activeTab)) return
       const departmentsItem = navItems.find((item) => item.id === 'departments')
       if (departmentsItem) {
         setActiveTab('departments')
