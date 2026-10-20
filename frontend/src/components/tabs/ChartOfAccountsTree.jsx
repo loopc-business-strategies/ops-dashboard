@@ -79,7 +79,7 @@ const emptyForm = (baseCurrencyCode = 'USD') => ({
   description: '',
   address: '',
   openingBalance: '',
-  marginPercent: '2',
+  marginPercent: '0',
   department: '',
   createAs: 'standard',
 })
@@ -340,7 +340,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       openingBalance:  node.openingBalance ?? '',
       marginPercent:   node.marginPercent != null && node.marginPercent !== ''
         ? String(node.marginPercent)
-        : '2',
+        : '0',
       department:      node.department || '',
     })
     setModal({ mode: 'edit', node })
@@ -428,7 +428,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
         }
 
         const marginPercentValue = form.marginPercent === '' || form.marginPercent == null
-          ? 2
+          ? 0
           : Number(form.marginPercent)
         if (!Number.isFinite(marginPercentValue) || marginPercentValue < 0 || marginPercentValue > 100) {
           setError('Margin % must be a number from 0 to 100')
@@ -452,7 +452,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
         setSuccess('Account created')
       } else if (modal.mode === 'edit') {
         const marginPercentValue = form.marginPercent === '' || form.marginPercent == null
-          ? 2
+          ? 0
           : Number(form.marginPercent)
         if (!Number.isFinite(marginPercentValue) || marginPercentValue < 0 || marginPercentValue > 100) {
           setError('Margin % must be a number from 0 to 100')
@@ -720,7 +720,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                   value: `${Number(
                     selectedNode.marginPercent != null && selectedNode.marginPercent !== ''
                       ? selectedNode.marginPercent
-                      : 2,
+                      : 0,
                   ).toFixed(1)}%`,
                 },
                 { label: 'Parent Account',  value: selectedNode.parentAccountId?.accountName || 'Root Account' },
@@ -1130,11 +1130,11 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                         value={form.marginPercent}
                         onChange={e => setForm({ ...form, marginPercent: e.target.value })}
                         style={inputStyle}
-                        placeholder="2"
+                        placeholder="0"
                         aria-label="Margin percent"
                       />
                       <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
-                        Required margin rate for Account Summary. Margin Amt = |Current Value| × this %. Default 2.
+                        Rate used for Account Summary Margin Amt and Margin %. Starts at 0 — enter the % you want. Margin Amt = |Current Value| × this %.
                       </p>
                     </Field>
                   )}

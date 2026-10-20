@@ -34,6 +34,17 @@ export function buildAccountEnquiryLiveMetrics({
   suppressMetalSpotMtm = false,
   bookedRevaluation = null as number | null,
   liveRecalcEnabled = false,
+  marginRatePercent,
+}: {
+  totalFunds?: number
+  goldPosition?: number
+  silverPosition?: number
+  goldPriceUSD?: number
+  silverPriceUSD?: number
+  suppressMetalSpotMtm?: boolean
+  bookedRevaluation?: number | null
+  liveRecalcEnabled?: boolean
+  marginRatePercent?: number | string
 } = {}) {
   if (!liveRecalcEnabled) return null
 
@@ -51,6 +62,7 @@ export function buildAccountEnquiryLiveMetrics({
     suppressMetalSpotMtm: hasBookedOverride,
     revaluationOverride: hasBookedOverride ? bookedTotal : null,
     fundsMode: 'asIs',
+    marginRatePercent,
   })
 }
 

@@ -64,6 +64,9 @@ export function AccountEnquirySummaryCard({
     const bookedRevaluation = resolveAccountEnquiryBookedRevaluation(metals, undefined)
     const hasMetalExposure = hasAccountEnquiryMetalExposure(xauValuationBalance, xagValuationBalance)
 
+    const marginRateRaw = Number(account.marginPercent)
+    const marginRatePercent = Number.isFinite(marginRateRaw) && marginRateRaw >= 0 ? marginRateRaw : 0
+
     const liveMetrics = buildAccountEnquiryLiveMetrics({
       totalFunds: marginEquityFunds,
       goldPosition: xauValuationBalance,
@@ -73,10 +76,13 @@ export function AccountEnquirySummaryCard({
       suppressMetalSpotMtm: enquirySuppressMetalSpotMtm,
       bookedRevaluation,
       liveRecalcEnabled,
+      marginRatePercent,
     })
 
     const revaluation = liveMetrics ? liveMetrics.revaluation : 0
-    const marginAmount = liveMetrics ? liveMetrics.margin : 0
+    const marginAmount = liveMetrics
+      ? liveMetrics.margin
+      : Math.abs(revaluation) * (marginRatePercent / 100)
     const displayMetrics = calculateAccountSummaryMetrics({
       totalFunds: marginEquityFunds,
       revaluation,
@@ -93,6 +99,7 @@ export function AccountEnquirySummaryCard({
       netDirection: balances.netDirection,
       revaluation,
       netEquity: displayMetrics.netEquity,
+      marginRatePercent,
       marginAmount,
       excess: displayMetrics.excess,
       marginPercent: displayMetrics.marginPercent,
@@ -134,6 +141,7 @@ export function AccountEnquirySummaryCard({
     netDirection,
     revaluation,
     netEquity,
+    marginRatePercent,
     marginAmount,
     excess,
     marginPercent,
@@ -177,7 +185,10 @@ export function AccountEnquirySummaryCard({
       <SummaryRow label="Total Funds" value={fmtSigned(totalFunds, moneyCurrency)} direction={netDirection} />
       <SummaryRow label="Revaluation" value={formatAmount(revaluation, { currencyCode: moneyCurrency })} />
       <SummaryRow label="Net Equity" value={fmtSigned(netEquity, moneyCurrency)} />
-      <SummaryRow label="Margin Amt" value={formatAmount(marginAmount, { currencyCode: moneyCurrency })} />
+      <SummaryRow
+        label={`Margin Amt @ ${Number(marginRatePercent).toFixed(1)}%`}
+        value={formatAmount(marginAmount, { currencyCode: moneyCurrency })}
+      />
       <SummaryRow label="Excess" value={fmtSigned(excess, moneyCurrency)} />
       <SummaryRow
         label="Margin %"

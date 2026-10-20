@@ -120,6 +120,7 @@ export type AccountEnquiryPayload = {
     accountType?: string
     currency?: string
     description?: string
+    marginPercent?: number
   }
   balances?: AccountEnquiryBalances
   metals?: AccountEnquiryMetals

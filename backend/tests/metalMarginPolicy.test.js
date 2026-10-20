@@ -47,10 +47,25 @@ describe('metalMarginPolicy', () => {
       silverPrice: 1,
       suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForCustomerDashboard('Asset'),
       fundsMode: 'customerAbsIfNegative',
+      marginRatePercent: 2,
     })
     expect(raw.revaluation).toBe(100)
     expect(raw.margin).toBe(2)
     expect(raw.equity).toBe(200)
+  })
+
+  test('default margin rate is 0 until the account sets one', () => {
+    const raw = computeMarginMetricsRaw({
+      totalFunds: 100,
+      goldPosition: 2,
+      silverPosition: 0,
+      goldPrice: 50,
+      silverPrice: 1,
+    })
+    expect(raw.revaluation).toBe(100)
+    expect(raw.margin).toBe(0)
+    expect(raw.marginRatePercent).toBe(0)
+    expect(raw.marginPercent).toBe(0)
   })
 
   test('account margin % rate drives Margin Amt and coverage Margin %', () => {
@@ -103,6 +118,7 @@ describe('metalMarginPolicy', () => {
       suppressMetalSpotMtm: true,
       revaluationOverride: -12.5,
       fundsMode: 'asIs',
+      marginRatePercent: 2,
     })
     expect(raw.revaluation).toBe(-12.5)
     expect(raw.equity).toBe(-212.5)

@@ -77,7 +77,7 @@ describe('erpTabScopeStatics (node)', () => {
       modalMarginAmtDisplay: 0,
       modalExcessDisplay: 0,
       modalMarginPctDisplay: 0,
-      accountMarginRatePercent: 2,
+      accountMarginRatePercent: 0,
       enquirySuppressMetalSpotMtm: false,
       enquiryLiveRecalcEnabled: false,
       hasMetalExposure: false,

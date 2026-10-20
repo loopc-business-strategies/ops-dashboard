@@ -122,7 +122,7 @@ export function useErpCustomerMargin({
           ? 0
           : (goldValuationPosition * goldPrice) + (silverValuationPosition * silverPrice)
         const fallbackRate = Number(customer?.ledgerAccountId?.marginPercent ?? customer?.marginRatePercent)
-        const fallbackRatePercent = Number.isFinite(fallbackRate) && fallbackRate >= 0 ? fallbackRate : 2
+        const fallbackRatePercent = Number.isFinite(fallbackRate) && fallbackRate >= 0 ? fallbackRate : 0
         const fallbackMargin = Math.abs(fallbackRevaluation) * (fallbackRatePercent / 100)
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: customerFunds,
@@ -239,7 +239,7 @@ export function useErpSupplierMargin({
           ? Number(vendor?.marginRevaluation ?? 0)
           : ((goldPosition * goldPrice) + (silverPosition * silverPrice))
         const fallbackRate = Number(vendor?.ledgerAccountId?.marginPercent ?? vendor?.marginRatePercent)
-        const fallbackRatePercent = Number.isFinite(fallbackRate) && fallbackRate >= 0 ? fallbackRate : 2
+        const fallbackRatePercent = Number.isFinite(fallbackRate) && fallbackRate >= 0 ? fallbackRate : 0
         const fallbackMargin = Math.abs(fallbackRevaluation) * (fallbackRatePercent / 100)
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: outstanding,

@@ -48,6 +48,7 @@ describe('frontend metal margin policy', () => {
       silverPrice: 1,
       suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForCustomerDashboard('Asset'),
       fundsMode: 'customerAbsIfNegative',
+      marginRatePercent: 2,
     })
     expect(raw.revaluation).toBe(100)
     expect(raw.margin).toBe(2)

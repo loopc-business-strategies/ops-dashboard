@@ -1177,7 +1177,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         openingBalance: Number(account.openingBalance || 0),
         marginPercent: Number.isFinite(Number(account.marginPercent))
           ? Number(account.marginPercent)
-          : 2,
+          : 0,
       },
       balances: {
         debitTotal,
@@ -1280,7 +1280,7 @@ router.post('/accounts', protect, validateBody(accountCreateSchema), async (req,
       department: department || '',
       marginPercent: marginPercent != null && Number.isFinite(Number(marginPercent))
         ? Number(marginPercent)
-        : 2,
+        : 0,
       createdBy: req.user._id,
     })
     res.status(201).json({ success: true, account })

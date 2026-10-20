@@ -24,6 +24,7 @@ describe('metalMarginPolicy', () => {
       goldPrice: 50,
       silverPrice: 1,
       fundsMode: 'customerAbsIfNegative',
+      marginRatePercent: 2,
     })
     expect(raw.revaluation).toBe(100)
     expect(raw.margin).toBe(2)

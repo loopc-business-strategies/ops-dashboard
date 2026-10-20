@@ -45,7 +45,7 @@ export default function AccountEnquiryModal({
   modalMarginAmtDisplay,
   modalExcessDisplay,
   modalMarginPctDisplay,
-  accountMarginRatePercent = 2,
+  accountMarginRatePercent = 0,
   enquirySuppressMetalSpotMtm,
   enquiryLiveRecalcEnabled = false,
   hasMetalExposure = false,
@@ -415,7 +415,7 @@ export default function AccountEnquiryModal({
                           )}
                         </span>
                       </div>
-                      {/* Margin Amt @ account margin % */}
+                      {/* Margin Amt uses the Margin % entered on the account */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>
                           {`Margin Amt @ ${Number(accountMarginRatePercent).toFixed(1)}%`}
@@ -434,7 +434,7 @@ export default function AccountEnquiryModal({
                           })}
                         </span>
                       </div>
-                      {/* Margin % */}
+                      {/* Margin % = Net Equity ÷ Margin Amt (uses the account rate via Margin Amt) */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
                         {isMarginPercentDisplayable(modalMarginPctDisplay) ? (

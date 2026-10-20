@@ -57,8 +57,8 @@ function shouldUseCustomerMarginFundsSignForAccountEnquiry(account) {
   )
 }
 
-/** Default required margin rate on Chart of Accounts (2 = 2%). */
-const DEFAULT_MARGIN_RATE_PERCENT = 2
+/** Default required margin rate on Chart of Accounts (0 until the user sets one). */
+const DEFAULT_MARGIN_RATE_PERCENT = 0
 
 /**
  * Resolve the account's required margin rate percent (2 → 2%).
