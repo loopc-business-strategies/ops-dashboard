@@ -62,7 +62,7 @@ export default function ERPCustomersTab({
             style={{
               padding: '0.5rem 1rem',
               background: C.s1,
-              color: C.t1,
+              color: '#FFFFFF',
               border: 'none',
               borderRadius: '0.375rem',
               cursor: 'pointer',

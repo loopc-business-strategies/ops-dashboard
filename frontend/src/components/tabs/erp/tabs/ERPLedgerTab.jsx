@@ -218,7 +218,8 @@ export default function ERPLedgerTab({
                 style={{
                   padding: '0.5rem 1rem',
                   background: showLedgerForm ? '#9CA3AF' : C.s1,
-                  color: C.t1,
+                  // C.s1 is brand primary (VB: near-black) — always use light label text.
+                  color: '#FFFFFF',
                   border: 'none',
                   borderRadius: '0.375rem',
                   cursor: showLedgerForm ? 'not-allowed' : 'pointer',
