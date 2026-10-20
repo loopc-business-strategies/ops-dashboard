@@ -5,6 +5,7 @@ import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES, resolveExposureDirection } from '
 import { buildStatementNarration } from '../statementExportModel'
 import { isMarginPercentDisplayable, MARGIN_PERCENT_HIDDEN_TITLE } from '../marginFormatters'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
+import { parseAuthorizedPersons, serializeAuthorizedPersons } from '../authorizedPersons'
 
 const linkButtonStyle = {
   textDecoration: 'none',
@@ -274,12 +275,20 @@ export default function AccountEnquiryModal({
                                   {accountEnquiryData.account.trn}
                                 </p>
                               ) : null}
-                              {accountEnquiryData.account.authorizedPerson ? (
-                                <p style={{ margin: 0, color: '#374151', fontSize: '0.85rem' }}>
-                                  <span style={{ color: '#6B7280', fontWeight: 600 }}>Authorized Person: </span>
-                                  {accountEnquiryData.account.authorizedPerson}
-                                </p>
-                              ) : null}
+                              {(() => {
+                                const authorizedPersons = parseAuthorizedPersons(
+                                  accountEnquiryData.account.authorizedPerson,
+                                )
+                                if (authorizedPersons.length === 0) return null
+                                return (
+                                  <p style={{ margin: 0, color: '#374151', fontSize: '0.85rem' }}>
+                                    <span style={{ color: '#6B7280', fontWeight: 600 }}>
+                                      {authorizedPersons.length > 1 ? 'Authorized Persons: ' : 'Authorized Person: '}
+                                    </span>
+                                    {serializeAuthorizedPersons(authorizedPersons)}
+                                  </p>
+                                )
+                              })()}
                               {accountEnquiryData.account.address ? (
                                 <p style={{ margin: 0, color: '#374151', fontSize: '0.85rem' }}>
                                   <span style={{ color: '#6B7280', fontWeight: 600 }}>Address: </span>

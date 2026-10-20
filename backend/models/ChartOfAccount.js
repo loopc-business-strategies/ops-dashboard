@@ -14,7 +14,7 @@ const chartOfAccountSchema = new mongoose.Schema(
     address: { type: String, trim: true, default: '' },
     /** Tax Registration Number for the account party (shown on Account Summary). */
     trn: { type: String, trim: true, default: '' },
-    /** Contact / authorized person for the account (shown on Account Summary). */
+    /** Contact / authorized persons for the account (comma-separated; shown on Account Summary). */
     authorizedPerson: { type: String, trim: true, default: '' },
     openingBalance: { type: Number, default: 0 },
     /** Required margin rate as a percent (5 = 5%). Drives Margin Amt on Account Summary. Default 0 until set. */

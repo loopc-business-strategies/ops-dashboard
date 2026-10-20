@@ -4,6 +4,12 @@ import { loadSharedAccountChart } from '../../utils/erpSharedAccountChart'
 import { loadSharedCurrencies } from '../../utils/erpSharedCurrencies'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
+import {
+  addAuthorizedPerson,
+  parseAuthorizedPersons,
+  removeAuthorizedPersonAt,
+  serializeAuthorizedPersons,
+} from './erp/authorizedPersons'
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
 const TYPE_CONFIG = {
@@ -79,7 +85,8 @@ const emptyForm = (baseCurrencyCode = 'USD') => ({
   description: '',
   address: '',
   trn: '',
-  authorizedPerson: '',
+  authorizedPersons: [],
+  authorizedPersonDraft: '',
   openingBalance: '',
   marginPercent: '0',
   department: '',
@@ -340,7 +347,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       description:     node.description || '',
       address:         node.address || '',
       trn:            node.trn || '',
-      authorizedPerson: node.authorizedPerson || '',
+      authorizedPersons: parseAuthorizedPersons(node.authorizedPerson),
+      authorizedPersonDraft: '',
       openingBalance:  node.openingBalance ?? '',
       marginPercent:   node.marginPercent != null && node.marginPercent !== ''
         ? String(node.marginPercent)
@@ -449,7 +457,9 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           description:     form.description,
           address:         form.address,
           trn:             form.trn,
-          authorizedPerson: form.authorizedPerson,
+          authorizedPerson: serializeAuthorizedPersons(
+            addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft),
+          ),
           openingBalance:  form.openingBalance ? Number(form.openingBalance) : 0,
           department:      form.department,
           marginPercent:   marginPercentValue,
@@ -471,7 +481,9 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           description:  form.description,
           address:      form.address,
           trn:          form.trn,
-          authorizedPerson: form.authorizedPerson,
+          authorizedPerson: serializeAuthorizedPersons(
+            addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft),
+          ),
           currency:     form.currency || baseCurrencyCode,
           department:   form.department,
           marginPercent: marginPercentValue,
@@ -1158,13 +1170,89 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                   </Field>
 
                   <Field label="Authorized Person">
-                    <input
-                      value={form.authorizedPerson}
-                      onChange={e => setForm({ ...form, authorizedPerson: e.target.value })}
-                      style={inputStyle}
-                      placeholder="Authorized person name"
-                      aria-label="Authorized Person"
-                    />
+                    <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'stretch' }}>
+                      <input
+                        value={form.authorizedPersonDraft}
+                        onChange={e => setForm({ ...form, authorizedPersonDraft: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter') return
+                          e.preventDefault()
+                          const next = addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft)
+                          if (next.length === form.authorizedPersons.length) return
+                          setForm({ ...form, authorizedPersons: next, authorizedPersonDraft: '' })
+                        }}
+                        style={{ ...inputStyle, flex: 1 }}
+                        placeholder="Authorized person name"
+                        aria-label="Authorized Person"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = addAuthorizedPerson(form.authorizedPersons, form.authorizedPersonDraft)
+                          if (next.length === form.authorizedPersons.length) return
+                          setForm({ ...form, authorizedPersons: next, authorizedPersonDraft: '' })
+                        }}
+                        style={{
+                          padding: '0.45rem 0.85rem',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '0.375rem',
+                          background: '#F9FAFB',
+                          color: '#111827',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                        aria-label="Add authorized person"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {form.authorizedPersons.length > 0 ? (
+                      <ul style={{ listStyle: 'none', margin: '0.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {form.authorizedPersons.map((name, index) => (
+                          <li
+                            key={`${name}-${index}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.5rem',
+                              padding: '0.35rem 0.55rem',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: '0.375rem',
+                              background: '#F9FAFB',
+                              fontSize: '0.85rem',
+                              color: '#111827',
+                            }}
+                          >
+                            <span>{name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setForm({
+                                ...form,
+                                authorizedPersons: removeAuthorizedPersonAt(form.authorizedPersons, index),
+                              })}
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#B91C1C',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.78rem',
+                                padding: '0.1rem 0.25rem',
+                              }}
+                              aria-label={`Remove authorized person ${name}`}
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
+                      Add one name at a time when more than one authorized person is needed.
+                    </p>
                   </Field>
 
                   <Field label="Address">
