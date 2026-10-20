@@ -49,10 +49,6 @@ const {
   listActiveVoucherFixings,
   resolveDirectDealCompanyDirection,
 } = require('../../services/erpAccounting/metalPositionPolicy')
-const {
-  summarizeVoucherFixingState,
-  calculateUnfixedPremiumAmount,
-} = require('../../services/erpAccounting/voucherFixingService')
 const { buildClosingStockTrialRow, loadMetalBookRevaluation } = require('../../services/erpAccounting/metalBookRevaluation')
 const {
   computeMarginMetricsRaw,
@@ -1618,7 +1614,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
               { metalFixStatus: { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
               { 'voucherMeta.fixingType': { $in: ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'] } },
             ],
-          }).select('vendorId type amount exchangeRate metalFixStatus voucherMeta.grandTotal voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
+          }).select('vendorId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems voucherMeta.fixings').lean()
         : Promise.resolve([]),
       customerIdsForMargin.length && DirectDeal
         ? DirectDeal.find({
@@ -1718,8 +1714,9 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       }
     })
 
+    // Supplier metal positions for display only. Equity matches /vendors Supplier Margin
+    // (suppress spot MTM; no unpriced-premium revaluationOverride — that caused $1 drift).
     const supplierMetalPositionMap = new Map()
-    const supplierUnfixedRevaluationMap = new Map()
     ;(supplierMetalTxs || []).forEach((tx) => {
       const vendorId = String(tx.vendorId || '')
       if (!vendorId) return
@@ -1729,20 +1726,6 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       position.goldPosition += openWeight.gold
       position.silverPosition += openWeight.silver
       supplierMetalPositionMap.set(vendorId, position)
-      const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-      const voucherAmount = Math.abs(Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1))
-      // Keep premium signed so discounts increase the unpriced metal base (amount − negative premium).
-      const premiumAmount = calculateUnfixedPremiumAmount(lines) * Number(tx.exchangeRate || 1)
-      const fixingState = summarizeVoucherFixingState(tx)
-      const openShare = fixingState.totalWeight > 0 ? fixingState.openWeight / fixingState.totalWeight : 1
-      const unpricedAmount = toMoney(Math.max(voucherAmount - premiumAmount, 0) * openShare)
-      if (unpricedAmount > 0) {
-        const signedRevaluation = tx.type === 'purchase' ? -unpricedAmount : unpricedAmount
-        supplierUnfixedRevaluationMap.set(
-          vendorId,
-          toMoney((supplierUnfixedRevaluationMap.get(vendorId) || 0) + signedRevaluation)
-        )
-      }
     })
 
     const supplierMarginRows = vendors.map((vendor) => {
@@ -1761,7 +1744,6 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         goldPrice: marginRates.goldPrice,
         silverPrice: marginRates.silverPrice,
         suppressMetalSpotMtm: true,
-        revaluationOverride: supplierUnfixedRevaluationMap.get(String(vendor._id || '')) || 0,
         marginRatePercent: vendor.ledgerAccountId?.marginPercent,
       })
       return {
