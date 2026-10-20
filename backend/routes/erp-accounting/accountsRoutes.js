@@ -1347,6 +1347,20 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })
+    if (req.body.accountCode !== undefined) {
+      const nextCode = String(req.body.accountCode || '').trim()
+      if (!nextCode) {
+        return res.status(400).json({ success: false, message: 'accountCode cannot be empty' })
+      }
+      const codeClash = await ChartOfAccount.findOne({
+        accountCode: nextCode,
+        _id: { $ne: req.params.id },
+      }).select('_id accountCode').lean()
+      if (codeClash) {
+        return res.status(409).json({ success: false, message: 'Account code already exists' })
+      }
+      updates.accountCode = nextCode
+    }
     // Allow explicitly clearing the parent (move to root)
     if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId === null) {
       updates.parentAccountId = null
@@ -1360,6 +1374,9 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
   } catch (e) {
     if (/Circular account hierarchy|Parent account not found|Account hierarchy depth/i.test(e?.message || '')) {
       return res.status(400).json({ success: false, message: e.message })
+    }
+    if (e?.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Account code already exists' })
     }
     console.error('Update account error:', e)
     res.status(500).json({ success: false, message: 'Server error' })
