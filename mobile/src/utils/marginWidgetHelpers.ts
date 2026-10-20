@@ -27,6 +27,7 @@ export function mapMarginRow(
     silverPriceUSD?: number
     liveRecalcEnabled?: boolean
     suppressMetalSpotMtm?: boolean
+    marginRatePercent?: number | string
   } = {},
 ): MappedMarginRow {
   const goldPosition = Number(row?.goldPosition || 0)
@@ -56,6 +57,7 @@ export function mapMarginRow(
       suppressMetalSpotMtm,
       revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
       fundsMode: 'asIs',
+      marginRatePercent: options.marginRatePercent ?? row?.marginRatePercent,
     })
     rawNet = metrics.equity
     marginAmount = metrics.margin

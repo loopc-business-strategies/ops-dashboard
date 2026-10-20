@@ -29,8 +29,9 @@ export function NavItem({
     onMouseEnter: () => onPrefetch?.(),
     onFocus: () => onPrefetch?.(),
   }
+  // Keep lock out of the accessible name so getByRole('link', { name }) matches the label.
   const lock = comingSoon ? (
-    <span className="sidebar-item-lock" title="Coming soon" aria-label="Coming soon">
+    <span className="sidebar-item-lock" title="Coming soon" aria-hidden="true">
       <ComingSoonLockIcon />
     </span>
   ) : null

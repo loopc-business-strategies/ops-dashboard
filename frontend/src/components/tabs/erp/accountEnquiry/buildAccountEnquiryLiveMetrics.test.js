@@ -28,6 +28,7 @@ describe('buildAccountEnquiryLiveMetrics', () => {
       goldPosition: 50,
       silverPosition: 0,
       liveRecalcEnabled: true,
+      marginRatePercent: 2,
     }
     const low = buildAccountEnquiryLiveMetrics({ ...base, goldPriceUSD: 128.4, silverPriceUSD: 1.85 })
     const high = buildAccountEnquiryLiveMetrics({ ...base, goldPriceUSD: 129.2, silverPriceUSD: 1.85 })

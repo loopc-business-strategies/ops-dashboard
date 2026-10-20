@@ -51,6 +51,7 @@ export function mapErpLiveMarginRow(row, nameKey, options = {}) {
       suppressMetalSpotMtm,
       revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
       fundsMode: 'asIs',
+      marginRatePercent: options.marginRatePercent ?? row?.marginRatePercent,
     })
     rawNet = metrics.equity
     marginAmount = metrics.margin

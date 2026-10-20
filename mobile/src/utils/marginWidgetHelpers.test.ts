@@ -27,16 +27,19 @@ describe('mapMarginRow live recalc', () => {
       liveRecalcEnabled: true,
       goldPriceUSD: 20,
       silverPriceUSD: 1,
+      marginRatePercent: 2,
     })
 
     const repriced = mapMarginRow(baseRow, 'customerName', {
       liveRecalcEnabled: true,
       goldPriceUSD: 25,
       silverPriceUSD: 1,
+      marginRatePercent: 2,
     })
 
     expect(unchanged.equity).toBe(1200)
     expect(repriced.equity).toBe(1250)
+    // rate 2% × reval 250 ⇒ margin 5 ⇒ equity/margin × 100 = 25000
     expect(repriced.marginPercent).toBeCloseTo(25000, 1)
   })
 

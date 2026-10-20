@@ -10,6 +10,8 @@ export type MarginRow = {
   marginAmount?: number
   marginExcess?: number
   marginPercent?: number
+  /** Account/customer margin rate (%) used for live MTM margin amount. */
+  marginRatePercent?: number
   status?: string
   goldPosition?: number
   silverPosition?: number

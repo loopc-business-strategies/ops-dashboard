@@ -395,7 +395,7 @@ export function buildReportExportPayload({
   branding = {},
   defaultBranding = {},
   ledgerReportRows = [],
-  columns = DEFAULT_REPORT_MONEY_COLUMNS,
+  columns: _columns = DEFAULT_REPORT_MONEY_COLUMNS,
   convertAmount = (value) => value,
   displayCurrency = '',
   baseCurrency = 'USD',
