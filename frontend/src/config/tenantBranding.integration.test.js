@@ -53,7 +53,7 @@ describe('tenant branding integration', () => {
     expect(vb.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
   })
 
-  test('applies MG orange, CG green, LoopC blue, and VB amber tenant palettes', () => {
+  test('applies MG orange, CG green, LoopC blue, and VB black/gold tenant palettes', () => {
     expect(getTenantBranding('mg').colors.brandPrimary).toBe('#EA580C')
     expect(getTenantBranding('mg').colors.bgTopbar).toBe('#431407')
     expect(getTenantBranding('mg').colors.brandButtonBg).toBe('#9A3412')
@@ -66,10 +66,13 @@ describe('tenant branding integration', () => {
     expect(getTenantBranding('loopc').colors.bgTopbar).toBe('#172554')
     expect(getTenantBranding('loopc').colors.brandButtonBg).toBe('#1E3A8A')
     expect(getTenantBranding('loopc').colors.brandButtonHover).toBe('#172554')
-    expect(getTenantBranding('vb').colors.brandPrimary).toBe('#B45309')
-    expect(getTenantBranding('vb').colors.bgTopbar).toBe('#1C1917')
-    expect(getTenantBranding('vb').colors.brandButtonBg).toBe('#78350F')
-    expect(getTenantBranding('vb').colors.brandButtonHover).toBe('#451A03')
+    // Venus Bullion site tokens: --black2 / --gold-dk / --gold / --black
+    expect(getTenantBranding('vb').colors.brandPrimary).toBe('#0E0E0E')
+    expect(getTenantBranding('vb').colors.brandAccent).toBe('#D8A84F')
+    expect(getTenantBranding('vb').colors.brandSoftBg).toBe('#FBF8F1')
+    expect(getTenantBranding('vb').colors.bgTopbar).toBe('#070707')
+    expect(getTenantBranding('vb').colors.brandButtonBg).toBe('#9B6B1F')
+    expect(getTenantBranding('vb').colors.brandButtonHover).toBe('#7A5418')
   })
 
   test('enables advanced ERP list filters for LOOPC, MG, CG, and VB', () => {

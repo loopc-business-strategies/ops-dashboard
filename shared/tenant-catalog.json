@@ -40,7 +40,7 @@
       "tagline": "Venus Bullions Operations",
       "portalHost": "vb.loopcstrategies.com",
       "envVar": "MONGO_URI_VB",
-      "brandPrimary": "#B45309",
+      "brandPrimary": "#0E0E0E",
       "sharedInboxEmail": "",
       "enabledTabs": ["overview", "chat", "master-settings", "admin", "departments", "erp"]
     }
