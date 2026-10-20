@@ -70,6 +70,7 @@ export function useErpReports({
           ...(reportFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
           ...(reportFilters.showClosedAccounts ? { showClosedAccounts: 'true' } : {}),
           ...(reportFilters.excludeHedging ? { excludeHedging: 'true' } : {}),
+          ...(reportFilters.metalType ? { metalType: reportFilters.metalType } : {}),
         })
       }
       if (targetView === 'pnl') {

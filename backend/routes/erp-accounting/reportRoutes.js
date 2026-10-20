@@ -152,9 +152,11 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       calculateClosingStock = 'false',
       showClosedAccounts = 'false',
       excludeHedging = 'false',
+      metalType = '',
     } = req.query
     const showClosed = parseBool(showClosedAccounts, false)
     const skipHedgedGrams = parseBool(excludeHedging, false)
+    const selectedMetalType = String(metalType || '').trim()
     const cacheKey = reportCache.buildKey([
       reportTenantKey(req),
       'trial-balance',
@@ -168,6 +170,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       'metal-grams',
       showClosed ? 'closed' : 'active',
       skipHedgedGrams ? 'exclude-hedge' : 'include-hedge',
+      selectedMetalType || 'ALL',
     ])
     const { payload } = await reportCache.getOrCompute(cacheKey, async () => {
 
@@ -252,6 +255,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       startDate: dateQuery?.$gte || null,
       endDate: dateQuery?.$lte || null,
       excludeHedging: skipHedgedGrams,
+      metalType: selectedMetalType,
     })
     const metalForAccount = (accountId) => presentMetalGrams(metalByAccount.get(String(accountId)) || {})
 

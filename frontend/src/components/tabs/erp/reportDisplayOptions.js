@@ -10,6 +10,8 @@ export function defaultReportDisplayOptions(baseCurrencyCode = 'USD') {
     suppressSummary: false,
     reportTo: 'screen',
     showMetal: true,
+    /** Created stock type value (`XAU::<id>::sku`) — scopes Trial Balance metal grams. Empty = all. */
+    metalType: '',
     calculateClosingStock: false,
     showClosedAccounts: false,
     excludeHedging: false,

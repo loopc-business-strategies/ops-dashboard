@@ -86,4 +86,29 @@ describe('trial balance metal grams', () => {
     expect(presentMetalGrams(kept.get('party-1')).goldNet).toBe(-10)
     expect(dropped.has('party-1')).toBe(false)
   })
+
+  test('created-metal filter keeps only matching metal grams', () => {
+    const txs = [
+      {
+        type: 'sale',
+        date: '2026-10-11T00:00:00.000Z',
+        voucherMeta: {
+          partyAccountId: 'party-1',
+          lineItems: [
+            { stockCode: 'GOLD', pureWeight: 10 },
+            { stockCode: 'SILVER BAR', pureWeight: 4 },
+          ],
+        },
+      },
+    ]
+    const goldOnly = accumulateTrialMetalGrams(txs, {
+      accountsById,
+      accountsByCode,
+      metalType: 'XAU::stock-gold',
+    })
+    const party = presentMetalGrams(goldOnly.get('party-1'))
+    expect(party.goldDebit).toBe(10)
+    expect(party.silverDebit).toBe(0)
+    expect(party.silverNet).toBe(0)
+  })
 })

@@ -104,6 +104,15 @@ export default function ERPReportsTab({
     return () => { cancelled = true }
   }, [currencies, token])
   useEffect(() => {
+    if (closingStockOptions.length || typeof loadInventory !== 'function') return undefined
+    let cancelled = false
+    setClosingStocksLoading(true)
+    Promise.resolve(loadInventory()).finally(() => {
+      if (!cancelled) setClosingStocksLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [closingStockOptions.length, loadInventory])
+  useEffect(() => {
     const apiRow = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
     if (!reportDisplay.calculateClosingStock || apiRow) {
       setClosingStockFallback(null)
@@ -416,6 +425,27 @@ export default function ERPReportsTab({
                       <option key={type} value={type}>{type}</option>
                     ))}
                   </select>
+                  {(reportView === 'summary' || reportView === 'trial') && (
+                    <select
+                      aria-label="Created Metal"
+                      value={reportFilters.metalType || ''}
+                      onChange={(e) => {
+                        const metalType = e.target.value
+                        setReportFilters((prev) => ({ ...prev, metalType }))
+                        setReportDisplay((prev) => ({ ...prev, metalType }))
+                        setReportDisplayDraft((prev) => ({ ...prev, metalType }))
+                        if (!closingStockOptions.length && typeof loadInventory === 'function') {
+                          Promise.resolve(loadInventory())
+                        }
+                      }}
+                      style={reportFilterFieldStyle}
+                    >
+                      <option value="">All metals</option>
+                      {closingStockOptions.map((option) => (
+                        <option key={option.id || option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  )}
                   <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={reportFilterFieldStyle}>
                     <option value="accountCode">Code</option>
                     <option value="accountName">Name</option>
@@ -1007,6 +1037,29 @@ export default function ERPReportsTab({
               />
               Show Metal
             </label>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', margin: '0.45rem 0 0.3rem' }}>Created Metal</label>
+            <select
+              aria-label="Created Metal"
+              value={reportDisplayDraft.metalType || ''}
+              onChange={(event) => {
+                const metalType = event.target.value
+                setReportDisplayDraft((prev) => ({ ...prev, metalType }))
+                if (!closingStockOptions.length && typeof loadInventory === 'function') {
+                  Promise.resolve(loadInventory())
+                }
+              }}
+              style={{ ...modalInputStyle, marginBottom: '0.8rem' }}
+            >
+              <option value="">All metals</option>
+              {closingStockOptions.map((option) => (
+                <option key={option.id || option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            {!closingStockOptions.length ? (
+              <p style={{ margin: '-0.55rem 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
+                {closingStocksLoading ? 'Loading stock types…' : 'No created stock types yet — add them under Inventory → Stock Type Creation.'}
+              </p>
+            ) : null}
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
               <input
                 type="checkbox"
@@ -1103,6 +1156,7 @@ export default function ERPReportsTab({
                     calculateClosingStock: Boolean(next.calculateClosingStock),
                     showClosedAccounts: Boolean(next.showClosedAccounts),
                     excludeHedging: Boolean(next.excludeHedging),
+                    metalType: String(next.metalType || '').trim(),
                   }))
                   setReportOptionsOpen(false)
                   if (next.reportTo !== 'pdf') return

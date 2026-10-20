@@ -1,7 +1,13 @@
 const { linePureWeight } = require('../../utils/metalStockVoucherTypes')
+const { buildMetalMatchers } = require('./fixingRegisterReport')
 
 const METAL_TRIAL_TYPES = ['purchase', 'sale', 'metal_receipt', 'metal_payment']
 const GRAM_EPS = 0.0005
+
+const KIND_TO_METAL_CODE = {
+  gold: 'XAU',
+  silver: 'XAG',
+}
 
 const emptyMetalGrams = () => ({
   goldDebit: 0,
@@ -90,10 +96,12 @@ function accumulateTrialMetalGrams(transactions = [], {
   startDate = null,
   endDate = null,
   excludeHedging = false,
+  metalType = '',
 } = {}) {
   const totals = new Map()
   const startMs = startDate ? new Date(startDate).getTime() : null
   const endMs = endDate ? new Date(endDate).getTime() : null
+  const { matchesSelectedMetal, isAllMetalSelection } = buildMetalMatchers(metalType || 'ALL')
   for (const tx of transactions) {
     const type = String(tx?.type || '').trim().toLowerCase()
     if (!METAL_TRIAL_TYPES.includes(type)) continue
@@ -108,6 +116,10 @@ function accumulateTrialMetalGrams(transactions = [], {
       const kind = lineMetalKind(line)
       const signed = signedPartyGrams(type, linePureWeight(line))
       if (!signed || !kind) continue
+      if (!isAllMetalSelection) {
+        const metalCode = KIND_TO_METAL_CODE[kind] || ''
+        if (!matchesSelectedMetal(metalCode, line?.stockCode)) continue
+      }
       const bucket = totals.get(accountId) || emptyMetalGrams()
       addSignedGrams(bucket, kind, signed, { opening })
       totals.set(accountId, bucket)

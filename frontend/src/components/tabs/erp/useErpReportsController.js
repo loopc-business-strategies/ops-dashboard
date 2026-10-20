@@ -74,6 +74,7 @@ export function buildErpReportRequestKey({ targetView, commonRange, reportFilter
     calculateClosingStock: Boolean(reportFilters.calculateClosingStock),
     showClosedAccounts: Boolean(reportFilters.showClosedAccounts),
     excludeHedging: Boolean(reportFilters.excludeHedging),
+    metalType: String(reportFilters.metalType || '').trim(),
   })
 }
 
@@ -99,6 +100,7 @@ export function defaultSummaryReportFilters() {
     calculateClosingStock: false,
     showClosedAccounts: false,
     excludeHedging: false,
+    metalType: '',
   }
 }
 
@@ -198,6 +200,7 @@ export function useErpReportsController({
     calculateClosingStock: Boolean(reportFilters.calculateClosingStock),
     showClosedAccounts: Boolean(reportFilters.showClosedAccounts),
     excludeHedging: Boolean(reportFilters.excludeHedging),
+    metalType: String(reportFilters.metalType || '').trim(),
   }), [
     reportFilters.accountType,
     reportFilters.comparePrevious,
@@ -214,6 +217,7 @@ export function useErpReportsController({
     reportFilters.calculateClosingStock,
     reportFilters.showClosedAccounts,
     reportFilters.excludeHedging,
+    reportFilters.metalType,
   ])
   const ledgerDateFilters = useMemo(() => ({
     period: reportFilters.period,
@@ -289,6 +293,7 @@ export function useErpReportsController({
               ...(reportQueryFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
               ...(reportQueryFilters.showClosedAccounts ? { showClosedAccounts: 'true' } : {}),
               ...(reportQueryFilters.excludeHedging ? { excludeHedging: 'true' } : {}),
+              ...(reportQueryFilters.metalType ? { metalType: reportQueryFilters.metalType } : {}),
             })
           }
         }
