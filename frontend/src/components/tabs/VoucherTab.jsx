@@ -3,7 +3,8 @@ import { useLanguage } from '../../context/LanguageContext'
 import { isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
 import { liveRatesToMetalRatesState } from '../../utils/liveMetalRates'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
-import { fmt, S, btn, emptyLine, emptyHeader, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, normalizeRateType, getInventoryStockMappingOptions, isMetalStockVoucherType, isMetalTransferVoucherType, isMetalProductTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { fmt, S, btn, emptyLine, emptyHeader, normalizeLineType, normalizeRateType, getInventoryStockMappingOptions, isMetalStockVoucherType, isMetalTransferVoucherType, isMetalProductTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { resolvePaymentRateFromMaster } from './erp/resolvePaymentRate'
 import {
   buildLineAccountComboGroups,
   buildVoucherPartyOptions,
@@ -255,18 +256,12 @@ export default function VoucherTab({
   const [lineForm, setLineForm] = useState(emptyLine())
   const setLF = (k, v) => setLineForm(prev => ({ ...prev, [k]: k === 'rateType' ? normalizeRateType(v) : v }))
 
-  const resolvePaymentRate = useCallback((currencyCode) => {
-    const normalized = String(currencyCode || 'USD').trim().toUpperCase()
-    if (normalized === 'USD') {
-      return { rate: 1, source: 'base_currency' }
-    }
-    if (normalized === 'AED') {
-      return { rate: FIXED_AED_RATE, source: 'fixed_aed' }
-    }
-    const fallbackRate = getCurrencyRateByCode(normalized)
-    const displayRate = backendRateToDisplayRate(fallbackRate, normalized, true)
-    return { rate: displayRate, source: 'currency_table' }
-  }, [getCurrencyRateByCode])
+  const resolvePaymentRate = useCallback((currencyCode) => (
+    resolvePaymentRateFromMaster(currencyCode, {
+      currencyOptions,
+      getBackendRate: getCurrencyRateByCode,
+    })
+  ), [currencyOptions, getCurrencyRateByCode])
 
   const buildFormSnapshot = useCallback((snapshotHeader, snapshotLineItems, snapshotPartyId) => JSON.stringify({
     header: {

@@ -245,7 +245,10 @@ export const coerceVoucherDocNo = (voucherType, docNo, docDate) => {
 
 export const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
 export const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
-/** AED UI/fallback quote (1 USD ≈ 3.674 AED). Not a universal FX table — only AED display/invert helpers. */
+/**
+ * Last-resort AED display quote (1 USD = 3.674 AED) only when Currency Master has no AED row.
+ * Receipt/payment settle rates must come from Currency Master, not this constant.
+ */
 export const FIXED_AED_RATE = 3.674
 export const toFinitePositive = (value, fallback = 1) => {
   const parsed = Number.parseFloat(value)

@@ -62,7 +62,6 @@ export function useVoucherOpenEdit({
   const m = v.voucherMeta || {}
   const resolvedParty = resolveVoucherParty(m.partyCode || '')
   const voucherCurrency = String(v.currency || baseCurrencyCode || 'USD').trim().toUpperCase()
-  const isAedVoucher = voucherCurrency === 'AED'
   const voucherKind = String(v?.type || voucherType || '').trim().toLowerCase()
   const isReceiptPaymentVoucher = voucherKind === 'receipt' || voucherKind === 'payment'
   const headerRateSource = m.currRateSource || m.rateMeta?.headerRateSource || 'manual'
@@ -81,7 +80,7 @@ export function useVoucherOpenEdit({
     partyName: m.partyName || '',
     currCode: voucherCurrency,
     currRate: normalizedHeaderRate.toFixed(6),
-    currRateSource: isAedVoucher ? 'fixed_aed' : headerRateSource,
+    currRateSource: headerRateSource === 'fixed_aed' ? 'currency_table' : headerRateSource,
     vocDate: v.date ? v.date.slice(0, 10) : today(),
     vocNo: coerceVoucherDocNo(voucherKind, m.vocNo, m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today())),
     salesman: m.salesman || '',
@@ -112,7 +111,7 @@ export function useVoucherOpenEdit({
       type: normalizeLineType(line.type),
       currCode: lineCurrency,
       currRate: normalizedLineRate.toFixed(6),
-      currRateSource: (lineCurrency === 'AED' && isReceiptPaymentVoucher) ? 'fixed_aed' : lineRateSource,
+      currRateSource: lineRateSource === 'fixed_aed' ? 'currency_table' : lineRateSource,
     }
     // Restore purity/pureWeight for metal lines saved with amount but blank purity columns.
     return hydrateMetalLineWeights(normalized)
