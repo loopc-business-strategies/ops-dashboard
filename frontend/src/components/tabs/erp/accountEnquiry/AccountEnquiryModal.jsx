@@ -264,6 +264,30 @@ export default function AccountEnquiryModal({
                           {accountEnquiryData.account.description && (
                             <p style={{ margin: '0.4rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>Code: {accountEnquiryData.account.accountCode}</p>
                           )}
+                          {(accountEnquiryData.account.trn
+                            || accountEnquiryData.account.authorizedPerson
+                            || accountEnquiryData.account.address) && (
+                            <div style={{ marginTop: '0.55rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              {accountEnquiryData.account.trn ? (
+                                <p style={{ margin: 0, color: '#374151', fontSize: '0.85rem' }}>
+                                  <span style={{ color: '#6B7280', fontWeight: 600 }}>TRN: </span>
+                                  {accountEnquiryData.account.trn}
+                                </p>
+                              ) : null}
+                              {accountEnquiryData.account.authorizedPerson ? (
+                                <p style={{ margin: 0, color: '#374151', fontSize: '0.85rem' }}>
+                                  <span style={{ color: '#6B7280', fontWeight: 600 }}>Authorized Person: </span>
+                                  {accountEnquiryData.account.authorizedPerson}
+                                </p>
+                              ) : null}
+                              {accountEnquiryData.account.address ? (
+                                <p style={{ margin: 0, color: '#374151', fontSize: '0.85rem' }}>
+                                  <span style={{ color: '#6B7280', fontWeight: 600 }}>Address: </span>
+                                  {accountEnquiryData.account.address}
+                                </p>
+                              ) : null}
+                            </div>
+                          )}
                           {isCashOnHandEnquiry && (
                             <p style={{ margin: '0.75rem 0 0', color: '#111827', fontWeight: '800', fontSize: '1.05rem' }}>
                               {formatDirectionalBalance(

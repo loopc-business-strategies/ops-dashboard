@@ -78,6 +78,8 @@ const emptyForm = (baseCurrencyCode = 'USD') => ({
   currency: String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD',
   description: '',
   address: '',
+  trn: '',
+  authorizedPerson: '',
   openingBalance: '',
   marginPercent: '0',
   department: '',
@@ -337,6 +339,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       currency:        node.currency || baseCurrencyCode,
       description:     node.description || '',
       address:         node.address || '',
+      trn:            node.trn || '',
+      authorizedPerson: node.authorizedPerson || '',
       openingBalance:  node.openingBalance ?? '',
       marginPercent:   node.marginPercent != null && node.marginPercent !== ''
         ? String(node.marginPercent)
@@ -444,6 +448,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           currency:        form.currency || baseCurrencyCode,
           description:     form.description,
           address:         form.address,
+          trn:             form.trn,
+          authorizedPerson: form.authorizedPerson,
           openingBalance:  form.openingBalance ? Number(form.openingBalance) : 0,
           department:      form.department,
           marginPercent:   marginPercentValue,
@@ -464,6 +470,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           accountName:  form.accountName.trim(),
           description:  form.description,
           address:      form.address,
+          trn:          form.trn,
+          authorizedPerson: form.authorizedPerson,
           currency:     form.currency || baseCurrencyCode,
           department:   form.department,
           marginPercent: marginPercentValue,
@@ -1138,6 +1146,26 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                       </p>
                     </Field>
                   )}
+
+                  <Field label="TRN">
+                    <input
+                      value={form.trn}
+                      onChange={e => setForm({ ...form, trn: e.target.value })}
+                      style={inputStyle}
+                      placeholder="Tax registration number"
+                      aria-label="TRN"
+                    />
+                  </Field>
+
+                  <Field label="Authorized Person">
+                    <input
+                      value={form.authorizedPerson}
+                      onChange={e => setForm({ ...form, authorizedPerson: e.target.value })}
+                      style={inputStyle}
+                      placeholder="Authorized person name"
+                      aria-label="Authorized Person"
+                    />
+                  </Field>
 
                   <Field label="Address">
                     <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} style={inputStyle} />

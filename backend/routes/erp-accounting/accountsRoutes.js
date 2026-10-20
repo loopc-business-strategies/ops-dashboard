@@ -153,7 +153,7 @@ router.get('/accounts', protect, async (req, res) => {
       }
     }
     const accountQuery = ChartOfAccount.find(query)
-      .select('accountCode accountName accountType openingBalance currency isActive description address department marginPercent')
+      .select('accountCode accountName accountType openingBalance currency isActive description address trn authorizedPerson department marginPercent')
       .sort({ accountCode: 1 })
       .skip(skip)
       .limit(limit)
@@ -209,7 +209,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         tenantKey,
         req.user?._id || req.user?.id || 'user',
         'account-enquiry',
-        'v2-marginPct',
+        'v3-partyFields',
         accountCode,
         includeStatement ? 'stmt' : 'summary',
         statementLimit,
@@ -240,7 +240,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     }
 
     const accountMatches = await ChartOfAccount.find(accountQuery)
-      .select('accountCode accountName accountType openingBalance currency isActive createdAt description department marginPercent')
+      .select('accountCode accountName accountType openingBalance currency isActive createdAt description address department trn authorizedPerson marginPercent')
       .sort({ isActive: -1, createdAt: 1, _id: 1 })
       .lean()
 
@@ -1175,6 +1175,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         department: account.department || '',
         isActive: account.isActive,
         description: account.description || '',
+        address: account.address || '',
+        trn: account.trn || '',
+        authorizedPerson: account.authorizedPerson || '',
         openingBalance: Number(account.openingBalance || 0),
         marginPercent: Number.isFinite(Number(account.marginPercent))
           ? Number(account.marginPercent)
@@ -1261,6 +1264,8 @@ router.post('/accounts', protect, validateBody(accountCreateSchema), async (req,
       currency,
       description,
       address,
+      trn,
+      authorizedPerson,
       openingBalance,
       department,
       marginPercent,
@@ -1277,6 +1282,8 @@ router.post('/accounts', protect, validateBody(accountCreateSchema), async (req,
       currency,
       description,
       address,
+      trn: trn || '',
+      authorizedPerson: authorizedPerson || '',
       openingBalance: openingBalance != null ? Number(openingBalance) : 0,
       department: department || '',
       marginPercent: marginPercent != null && Number.isFinite(Number(marginPercent))
@@ -1336,7 +1343,7 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
     if (!existingAccount) return res.status(404).json({ success: false, message: 'Account not found' })
 
     const updates = {}
-    const allowedFields = ['accountName', 'description', 'address', 'isActive', 'currency', 'department', 'parentAccountId', 'marginPercent']
+    const allowedFields = ['accountName', 'description', 'address', 'trn', 'authorizedPerson', 'isActive', 'currency', 'department', 'parentAccountId', 'marginPercent']
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })
