@@ -550,7 +550,8 @@ async function cancelStockLot(req, lotId, { reason = 'Cancelled leftover WIP', e
     const lot = await withSession(ProductionStockLot.findById(lotId), session)
     if (!lot) throw new ProductionError('Stock lot not found', 404)
     if (lot.status === 'CANCELLED') return lot
-    if (['FINISHED', 'DISPATCHED', 'NEW_STOCK', 'AVAILABLE'].includes(lot.status)) {
+    // Vault lots (NEW_STOCK / AVAILABLE) may soft-cancel; finished/dispatched stay locked.
+    if (['FINISHED', 'DISPATCHED'].includes(lot.status)) {
       throw new ProductionError(`Cannot cancel stock in status ${lot.status}`)
     }
     if (expectedVersion != null && lot.version !== Number(expectedVersion)) {

@@ -51,6 +51,25 @@ function isMongooseConnected(mongoose) {
 }
 
 /**
+ * Connect mongoose for Jest. Passes `runtimeAdapters.os` so mongodb@7.6+ does not
+ * drop client metadata under Jest (Missing required sub-document 'driver').
+ * Prefer with `overrides.mongodb: 7.5.0`; this is belt-and-suspenders.
+ *
+ * @param {import('mongoose').Mongoose} mongoose
+ * @param {string} uri
+ * @param {import('mongoose').ConnectOptions} [options]
+ */
+async function connectMongooseForTests(mongoose, uri, options = {}) {
+  return mongoose.connect(uri, {
+    ...options,
+    runtimeAdapters: {
+      os: require('os'),
+      ...(options.runtimeAdapters || {}),
+    },
+  })
+}
+
+/**
  * Disconnect only when connected (avoids errors after a failed `beforeAll`).
  * @param {import('mongoose').Mongoose} mongoose
  */
@@ -62,6 +81,7 @@ async function disconnectMongooseIfConnected(mongoose) {
 
 module.exports = {
   startMongoMemoryServer,
+  connectMongooseForTests,
   isMongooseConnected,
   disconnectMongooseIfConnected,
 }

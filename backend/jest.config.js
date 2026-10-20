@@ -1,6 +1,7 @@
 module.exports = {
   testEnvironment: 'node',
   testTimeout: 120000,
+  setupFilesAfterEnv: ['<rootDir>/tests/jestMongoConnectSetup.js'],
   /** Package id (not an absolute path) — avoids Windows `testRunner` resolution failures on some Jest versions. */
   testRunner: 'jest-circus/runner',
   collectCoverageFrom: [
