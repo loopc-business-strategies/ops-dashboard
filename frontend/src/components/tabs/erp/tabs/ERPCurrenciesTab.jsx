@@ -1,5 +1,6 @@
 import { ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
 import { exchangeRateFromUnitsPerBase } from '../erpCurrencyRowHelpers'
+import { currencyMasterSyncLabel } from '../currencyMasterSyncLabel'
 
 export default function ERPCurrenciesTab({
   C,
@@ -9,6 +10,7 @@ export default function ERPCurrenciesTab({
   setShowCurrencyForm,
   handleSyncCurrencyMaster,
   saving,
+  tenantKey = '',
   setActiveTabGuarded,
   usdConversion,
   setUsdConversion,
@@ -45,7 +47,7 @@ export default function ERPCurrenciesTab({
                       disabled={saving}
                       style={{ padding: '0.5rem 1rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
                     >
-                      {saving ? 'Syncing...' : 'Sync USD/EUR/AED/UZS'}
+                      {saving ? 'Syncing...' : currencyMasterSyncLabel(tenantKey)}
                     </button>
                   )}
                   <button

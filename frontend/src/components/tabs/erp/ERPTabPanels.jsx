@@ -1136,6 +1136,7 @@ export default function ERPTabPanels({
             setShowCurrencyForm={setShowCurrencyForm}
             handleSyncCurrencyMaster={handleSyncCurrencyMaster}
             saving={saving}
+            tenantKey={inventoryTenantKey}
             setActiveTabGuarded={setActiveTabGuarded}
             usdConversion={usdConversion}
             setUsdConversion={setUsdConversion}
