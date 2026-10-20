@@ -111,8 +111,13 @@ export function resolveConvertibleStatementDisplayCurrency({
   return convertible ? requested : ledger
 }
 
-export const DEFAULT_STATEMENT_DISPLAY_CURRENCIES = ['USD', 'EUR', 'AED', 'UZS']
+/** @deprecated Prefer tenant Currency Master; kept as last-resort base-only fallback. */
+export const DEFAULT_STATEMENT_DISPLAY_CURRENCIES = ['USD']
 
+/**
+ * Statement / enquiry currency picks: active Currency Master rows for this tenant.
+ * When master is empty, only base (and account/modal) codes — never a global EUR/UZS list.
+ */
 export function buildStatementCurrencyOptions({
   currencies = [],
   accountCurrency = '',
@@ -127,7 +132,7 @@ export function buildStatementCurrencyOptions({
 
   const configuredCodes = activeCurrencyCodes.length
     ? activeCurrencyCodes
-    : DEFAULT_STATEMENT_DISPLAY_CURRENCIES
+    : [baseCurrency || modalCurrency || 'USD']
 
   const values = [
     includeAll ? 'ALL' : '',

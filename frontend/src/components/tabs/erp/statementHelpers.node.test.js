@@ -48,7 +48,7 @@ describe('statement helpers', () => {
     expect(options).toEqual(['ALL', 'USD', 'AED', 'EUR', 'UZS'])
   })
 
-  test('display options without ALL include default currencies when master is empty', () => {
+  test('when master is empty, only base/account codes (no global EUR/UZS list)', () => {
     const options = buildStatementCurrencyOptions({
       includeAll: false,
       accountCurrency: 'USD',
@@ -57,7 +57,22 @@ describe('statement helpers', () => {
       currencies: [],
     })
 
-    expect(options).toEqual(['USD', 'AED', 'EUR', 'UZS'])
+    expect(options).toEqual(['USD'])
+  })
+
+  test('VB-style master offers only created USD and AED', () => {
+    const options = buildStatementCurrencyOptions({
+      includeAll: false,
+      baseCurrency: 'USD',
+      currencies: [
+        { code: 'USD', isActive: true },
+        { code: 'AED', isActive: true },
+      ],
+    })
+
+    expect(options).toEqual(['USD', 'AED'])
+    expect(options).not.toContain('EUR')
+    expect(options).not.toContain('UZS')
   })
 
   test('excludes inactive currencies from statement options', () => {

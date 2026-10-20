@@ -33,6 +33,7 @@ export default function ERPInventoryTab({
   stockMovements,
   stockMovementsLoading,
   baseCurrencyCode = 'USD',
+  currencies = [],
   stockMovementsFilter,
   showInventoryProductModal,
   showInventoryMappingModal,
@@ -85,6 +86,19 @@ export default function ERPInventoryTab({
     paddingTop: invPadTop,
     paddingBottom: invPadBottom,
   } = useVirtualTableRows(sortedInventoryTableRows.length, { estimateSize: 44 })
+
+  const inventoryCurrencyCodes = (() => {
+    const rows = Array.isArray(currencies) && currencies.length
+      ? currencies.filter((c) => c?.isActive !== false)
+      : [{ code: baseCurrencyCode || 'USD' }]
+    return [...new Set(rows.map((c) => String(c?.code || '').trim().toUpperCase()).filter(Boolean))]
+  })()
+  const inventoryPriceCurrency = (() => {
+    const current = String(inventoryMappingForm?.priceCurrency || '').trim().toUpperCase()
+    return inventoryCurrencyCodes.includes(current)
+      ? current
+      : (inventoryCurrencyCodes[0] || baseCurrencyCode || 'USD')
+  })()
 
   return (
   <>
@@ -700,14 +714,13 @@ export default function ERPInventoryTab({
                       </select>
                       <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Currency</label>
                       <select
-                        value={inventoryMappingForm.priceCurrency}
+                        value={inventoryPriceCurrency}
                         onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, priceCurrency: e.target.value }))}
                         style={{ ...modalInputStyle, marginBottom: 0 }}
                       >
-                        <option value="USD">USD</option>
-                        <option value="AED">AED</option>
-                        <option value="EUR">EUR</option>
-                        <option value="GBP">GBP</option>
+                        {inventoryCurrencyCodes.map((code) => (
+                          <option key={code} value={code}>{code}</option>
+                        ))}
                       </select>
                     </div>
                   )}

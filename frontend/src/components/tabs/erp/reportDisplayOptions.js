@@ -152,11 +152,14 @@ export function reportCurrencyChoices(currencies = [], baseCurrency = 'USD') {
   return codes
 }
 
+/**
+ * Currencies offered in Reports (and Report Options) display filters.
+ * Base + every active Currency Master row that has a usable rate
+ * (VB: USD/AED; MG/CG/LoopC: USD/AED/UZS/EUR when rates exist).
+ */
 export function reportSelectableCurrencies(currencies = [], baseCurrency = 'USD') {
   const base = String(baseCurrency || 'USD').trim().toUpperCase() || 'USD'
-  const allowed = new Set(['USD', 'UZS'])
-  const picked = reportCurrencyChoices(currencies, base).filter((code) => allowed.has(code))
-  if (!picked.includes(base) && allowed.has(base)) picked.unshift(base)
+  const picked = reportCurrencyChoices(currencies, base)
   return picked.length ? picked : [base]
 }
 

@@ -40,8 +40,12 @@ describe('report display options', () => {
     expect(reportCurrencyChoices(currencies, 'USD')).toEqual(['USD', 'AED', 'UZS'])
   })
 
-  it('offers USD or UZS for the report currency', () => {
-    expect(reportSelectableCurrencies(currencies, 'USD')).toEqual(['USD', 'UZS'])
+  it('offers every master currency with a rate (USD, AED, UZS; skips EUR with rate 0)', () => {
+    expect(reportSelectableCurrencies(currencies, 'USD')).toEqual(['USD', 'AED', 'UZS'])
+    expect(reportSelectableCurrencies([
+      { code: 'USD', exchangeRate: 1, baseCurrency: true, isActive: true },
+      { code: 'AED', exchangeRate: 0.2723, isActive: true },
+    ], 'USD')).toEqual(['USD', 'AED'])
     expect(reportMoneyHeaderLabels('UZS')).toEqual({
       debit: 'Debit (UZS)',
       credit: 'Credit (UZS)',

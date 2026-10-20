@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
-import { DEFAULT_STATEMENT_DISPLAY_CURRENCIES, resolveExposureDirection } from '../statementHelpers'
+import { resolveExposureDirection } from '../statementHelpers'
 import { buildStatementNarration } from '../statementExportModel'
 import { isMarginPercentDisplayable, MARGIN_PERCENT_HIDDEN_TITLE } from '../marginFormatters'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
@@ -487,7 +487,7 @@ export default function AccountEnquiryModal({
                         >
                           {(statementDisplayCurrencyOptions.length
                             ? statementDisplayCurrencyOptions
-                            : DEFAULT_STATEMENT_DISPLAY_CURRENCIES).map((currencyCode) => (
+                            : [baseCurrencyCode || 'USD']).map((currencyCode) => (
                             <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
                           ))}
                         </select>
@@ -699,7 +699,7 @@ export default function AccountEnquiryModal({
                           >
                             {(statementDisplayCurrencyOptions.length
                               ? statementDisplayCurrencyOptions
-                              : DEFAULT_STATEMENT_DISPLAY_CURRENCIES).map((currencyCode) => (
+                              : [baseCurrencyCode || 'USD']).map((currencyCode) => (
                               <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
                             ))}
                           </select>
