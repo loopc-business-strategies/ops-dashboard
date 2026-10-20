@@ -86,7 +86,7 @@ function fetchYesterdayOpsEntries(signal) {
 /**
  * Progressive Production Dashboard loader + floor actions.
  */
-export function useProductionDashboard({ refreshMs = 45000 } = {}) {
+export function useProductionDashboard({ refreshMs = 15000 } = {}) {
   const { company, user } = useAuth()
   const tenantKey = String(
     getTenantBranding(user?.company || company)?.key
@@ -345,6 +345,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         productionControlApi.getLiveFloorBoard({ signal: ac.signal }).catch(() => null),
         productionControlApi.getLiveFloorWidgets({ signal: ac.signal }).catch(() => null),
         productionControlApi.getCurrentShift({ signal: ac.signal }).catch(() => null),
+        productionControlApi.getStockOverview({ signal: ac.signal }).catch(() => null),
       ]
       if (usesWorkbook) {
         tasks.push(
@@ -356,8 +357,10 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
       }
       if (isLoopc) tasks.push(fetchPriorOpsEntries(ac.signal))
       else if (isMg) tasks.push(fetchYesterdayOpsEntries(ac.signal))
-      const [summaryRes, boardRes, widgetsRes, shiftRes, opsEntriesRes, opsEntriesAllRes] = await Promise.all(tasks)
-      if (!isLoopc && !summaryRes && !boardRes && !widgetsRes && !opsEntriesRes) return
+      const results = await Promise.all(tasks)
+      const [summaryRes, boardRes, widgetsRes, shiftRes, stockOverview, ...rest] = results
+      const opsEntriesRes = usesWorkbook ? rest[0] : null
+      const opsEntriesAllRes = usesWorkbook ? rest[1] : rest[0]
       const opsEntries = opsEntriesRes?.entries || opsEntriesRes?.items || []
       const opsEntriesAll = opsEntriesAllRes?.entries || opsEntriesAllRes?.items || []
       publish({
@@ -365,6 +368,7 @@ export function useProductionDashboard({ refreshMs = 45000 } = {}) {
         boardRes,
         widgetsRes,
         shiftRes,
+        stockOverview,
         ...(usesWorkbook ? {
           opsEntries: Array.isArray(opsEntries) ? opsEntries : [],
           opsEntriesAll: Array.isArray(opsEntriesAll) ? opsEntriesAll : [],
