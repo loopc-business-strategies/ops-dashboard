@@ -291,13 +291,13 @@ export function buildReportPdfTable({
   if (reportView === 'trial' || reportView === 'summary') {
     const columns = columnsOption || DEFAULT_REPORT_MONEY_COLUMNS
     return {
-      head: [['Code', 'Account', 'Type', ...trialMoneyHeaders(columns, reportMoneyHeaderLabels(displayCurrency)), ...trialMetalHeaders(columns.showMetal)]],
+      head: [['Code', 'Account', 'Type', ...trialMoneyHeaders(columns, reportMoneyHeaderLabels(displayCurrency)), ...trialMetalHeaders(columns.showMetal, columns.metalType)]],
       body: trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => [
         row.accountCode,
         row.accountName,
         row.accountType,
         ...trialMoneyValues(row, columns, formatMoney),
-        ...trialMetalValues(row, columns.showMetal),
+        ...trialMetalValues(row, columns.showMetal, columns.metalType),
       ]),
     }
   }

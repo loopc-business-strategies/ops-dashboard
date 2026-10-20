@@ -1,3 +1,5 @@
+import { resolveVisibleTrialMetalKinds, TRIAL_METAL_KIND_DEFS } from './reportDisplayOptions'
+
 const PAIR_DEFS = [
   { titleIndex: 3, indexes: [3, 4] },
   { titleIndex: 4, indexes: [5, 6] },
@@ -15,6 +17,13 @@ function rowFill(kind) {
   if (kind === 'subtotal' || kind === 'result') return 'rgba(var(--brand-rgb), 0.16)'
   if (kind === 'section' || kind === 'group') return 'rgba(var(--brand-rgb), 0.08)'
   return 'transparent'
+}
+
+const METAL_TEXT_KEY = {
+  gold: 'goldText',
+  silver: 'silverText',
+  platinum: 'platinumText',
+  alloy: 'alloyText',
 }
 
 export function currencyRowMetaMap(rows = [], formatGrams) {
@@ -37,12 +46,15 @@ export default function CurrencyStatementTable({
   model,
   moneyColumns,
   showMetal = false,
+  metalType = '',
   metaByKey,
   onOpenAccount,
   actionLabel = 'Ledger',
 }) {
   if (!model?.body?.length) return null
   const visible = new Set(visibleMoneyIndexes(moneyColumns))
+  const metalKinds = showMetal ? resolveVisibleTrialMetalKinds(metalType) : []
+  const metalDefs = TRIAL_METAL_KIND_DEFS.filter((def) => metalKinds.includes(def.kind))
   const pairs = PAIR_DEFS
     .map((pair) => ({
       title: model.pdfHead[0][pair.titleIndex]?.content || '',
@@ -59,10 +71,9 @@ export default function CurrencyStatementTable({
           {pairs.map((pair) => (
             <th key={pair.title} colSpan={pair.indexes.length} style={{ textAlign: 'center' }}>{pair.title}</th>
           ))}
-          {showMetal && <th rowSpan={2} className="num">Gold g</th>}
-          {showMetal && <th rowSpan={2} className="num">Silver g</th>}
-          {showMetal && <th rowSpan={2} className="num">Platinum g</th>}
-          {showMetal && <th rowSpan={2} className="num">Alloy g</th>}
+          {metalDefs.map((def) => (
+            <th key={def.kind} rowSpan={2} className="num">{def.header}</th>
+          ))}
           {onOpenAccount && <th rowSpan={2}>Action</th>}
         </tr>
         <tr>
@@ -88,10 +99,9 @@ export default function CurrencyStatementTable({
               {pairs.flatMap((pair) => pair.indexes.map((index) => (
                 <td key={index} style={{ textAlign: 'right' }}>{cells[index]}</td>
               )))}
-              {showMetal && <td style={{ textAlign: 'right' }}>{meta?.goldText || ''}</td>}
-              {showMetal && <td style={{ textAlign: 'right' }}>{meta?.silverText || ''}</td>}
-              {showMetal && <td style={{ textAlign: 'right' }}>{meta?.platinumText || ''}</td>}
-              {showMetal && <td style={{ textAlign: 'right' }}>{meta?.alloyText || ''}</td>}
+              {metalDefs.map((def) => (
+                <td key={def.kind} style={{ textAlign: 'right' }}>{meta?.[METAL_TEXT_KEY[def.kind]] || ''}</td>
+              ))}
               {onOpenAccount && (
                 <td>
                   {kind === 'account' && meta?.unposted ? (

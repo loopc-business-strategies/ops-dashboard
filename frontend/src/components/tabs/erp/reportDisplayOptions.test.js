@@ -12,7 +12,10 @@ import {
   filterTrialMetalGramOptions,
   filterTrialRowsByGroup,
   formatReportGrams,
+  resolveVisibleTrialMetalKinds,
   sanitizeTrialMetalType,
+  trialMetalHeaders,
+  trialMetalValues,
   trialMoneyHeaders,
   trialMoneyValues,
 } from './reportDisplayOptions'
@@ -152,5 +155,14 @@ describe('report display options', () => {
     expect(sanitizeTrialMetalType('XPT::3::PLAT', options)).toBe('XPT::3::PLAT')
     expect(sanitizeTrialMetalType('OTHER::5', options)).toBe('')
     expect(sanitizeTrialMetalType('XAU::1::GOLD', options)).toBe('XAU::1::GOLD')
+  })
+
+  it('shows only the selected metal gram column', () => {
+    expect(resolveVisibleTrialMetalKinds('')).toEqual(['gold', 'silver', 'platinum', 'alloy'])
+    expect(resolveVisibleTrialMetalKinds('XAU::1::GOLD')).toEqual(['gold'])
+    expect(trialMetalHeaders(true, 'XAG::2::SILV')).toEqual(['Silver g'])
+    expect(trialMetalValues({ goldNet: 10, silverNet: -4, platinumNet: 1, alloyNet: 2 }, true, 'XAU::1::GOLD'))
+      .toEqual([expect.stringMatching(/10\.000 Dr/)])
+    expect(trialMetalHeaders(true, '')).toEqual(['Gold g', 'Silver g', 'Platinum g', 'Alloy g'])
   })
 })

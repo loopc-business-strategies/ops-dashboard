@@ -201,7 +201,11 @@ export default function ERPReportsTab({
     formatReportDirectionalBalance: (row, fallbackDirection = '') => formatDirectionalBalance(row?.balance, {
       preferredDirection: row?.direction || fallbackDirection,
     }),
-    columns: { ...moneyColumns, showMetal: reportDisplay.showMetal !== false },
+    columns: {
+      ...moneyColumns,
+      showMetal: reportDisplay.showMetal !== false,
+      metalType: reportFilters.metalType || reportDisplay.metalType || '',
+    },
     convertAmount,
     displayCurrency,
     suppressSummary: reportDisplay.suppressSummary,
@@ -617,6 +621,7 @@ export default function ERPReportsTab({
                   model={trialCurrencyModel}
                   moneyColumns={moneyColumns}
                   showMetal={reportDisplay.showMetal !== false}
+                  metalType={reportFilters.metalType || reportDisplay.metalType || ''}
                   metaByKey={trialMetaByKey}
                   onOpenAccount={(row) => handleTrialAccountDrilldown(row.accountCode)}
                 />
@@ -1191,7 +1196,11 @@ export default function ERPReportsTab({
                   }))
                   setReportOptionsOpen(false)
                   if (next.reportTo !== 'pdf') return
-                  const columns = { ...reportMoneyColumns(next), showMetal: next.showMetal !== false }
+                  const columns = {
+                    ...reportMoneyColumns(next),
+                    showMetal: next.showMetal !== false,
+                    metalType: metalType || '',
+                  }
                   const convert = (value) => convertReportUsd(value, next.displayCurrency, loadedCurrencies, baseCurrencyCode)
                   const money = (value, currencyCode) => formatMoneyBase(convert(value), currencyCode || next.displayCurrency)
                   const moneyAbs = (value, currencyCode) => formatMoneyAbsBase(Math.abs(Number(convert(value) || 0)), currencyCode || next.displayCurrency)

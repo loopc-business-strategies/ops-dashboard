@@ -198,6 +198,13 @@ export function formatReportGrams(net) {
 /** Metal codes that Trial Balance / Summary expose as gram columns. */
 const TRIAL_METAL_GRAM_CODES = new Set(['XAU', 'XAG', 'XPT', 'ALLOY'])
 
+export const TRIAL_METAL_KIND_DEFS = [
+  { kind: 'gold', code: 'XAU', header: 'Gold g', netKey: 'goldNet' },
+  { kind: 'silver', code: 'XAG', header: 'Silver g', netKey: 'silverNet' },
+  { kind: 'platinum', code: 'XPT', header: 'Platinum g', netKey: 'platinumNet' },
+  { kind: 'alloy', code: 'ALLOY', header: 'Alloy g', netKey: 'alloyNet' },
+]
+
 /** Stock-type options that can affect Trial/Summary metal gram columns. */
 export function filterTrialMetalGramOptions(stockTypeOptions = []) {
   return (Array.isArray(stockTypeOptions) ? stockTypeOptions : []).filter((option) => (
@@ -213,18 +220,26 @@ export function sanitizeTrialMetalType(metalType, stockTypeOptions = []) {
   return allowed.some((option) => option.value === value) ? value : ''
 }
 
-export function trialMetalHeaders(showMetal = false) {
-  return showMetal ? ['Gold g', 'Silver g', 'Platinum g', 'Alloy g'] : []
+/** Which gram columns to show: all when empty, else only the selected metal. */
+export function resolveVisibleTrialMetalKinds(metalType = '') {
+  const code = String(metalType || '').split('::')[0].trim().toUpperCase()
+  if (!code || code === 'ALL') return TRIAL_METAL_KIND_DEFS.map((def) => def.kind)
+  const match = TRIAL_METAL_KIND_DEFS.find((def) => def.code === code)
+  return match ? [match.kind] : TRIAL_METAL_KIND_DEFS.map((def) => def.kind)
 }
 
-export function trialMetalValues(row, showMetal = false) {
+export function trialMetalHeaders(showMetal = false, metalType = '') {
   if (!showMetal) return []
-  return [
-    formatReportGrams(row?.goldNet),
-    formatReportGrams(row?.silverNet),
-    formatReportGrams(row?.platinumNet),
-    formatReportGrams(row?.alloyNet),
-  ]
+  const visible = new Set(resolveVisibleTrialMetalKinds(metalType))
+  return TRIAL_METAL_KIND_DEFS.filter((def) => visible.has(def.kind)).map((def) => def.header)
+}
+
+export function trialMetalValues(row, showMetal = false, metalType = '') {
+  if (!showMetal) return []
+  const visible = new Set(resolveVisibleTrialMetalKinds(metalType))
+  return TRIAL_METAL_KIND_DEFS
+    .filter((def) => visible.has(def.kind))
+    .map((def) => formatReportGrams(row?.[def.netKey]))
 }
 
 export function trialMoneyValues(row, columns = DEFAULT_REPORT_MONEY_COLUMNS, format = (value) => value) {
