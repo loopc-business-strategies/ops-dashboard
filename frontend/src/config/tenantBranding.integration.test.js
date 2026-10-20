@@ -45,7 +45,7 @@ describe('tenant branding integration', () => {
     expect(getTenantBranding('loopc').logoImage).toBe('/logos/loopc-logo.svg')
     expect(vb.logoImage).toBe('/logos/vb-logo.png')
     expect(vb.logoUrl).toBe('/logos/vb-logo.png')
-    expect(vb.colors.sidebarLogoPlate).toBe('#000000')
+    expect(vb.colors.sidebarLogoPlate).toBe('transparent')
     expect(mg.enabledTabs).toContain('erp')
     expect(vb.enabledTabs).toContain('erp')
     expect(vb.enabledTabs).toContain('departments')

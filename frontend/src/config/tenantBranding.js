@@ -62,6 +62,8 @@ export function applyTenantTheme(colors = {}) {
   const sidebarActiveFg = c.sidebarActiveFg || dark
   const sidebarBorder = c.sidebarBorder || 'rgba(255, 255, 255, 0.18)'
   const sidebarLogoPlate = c.sidebarLogoPlate || '#FFFFFF'
+  const transparentLogoPlate = String(sidebarLogoPlate).toLowerCase() === 'transparent'
+    || String(sidebarLogoPlate).toLowerCase() === 'none'
   const rgb = hexToRgb(primary)
   const buttonRgb = hexToRgb(buttonBg)
   const darkRgb = hexToRgb(dark)
@@ -98,6 +100,8 @@ export function applyTenantTheme(colors = {}) {
     '--sidebar-active-fg',
     '--sidebar-border',
     '--sidebar-logo-plate',
+    '--sidebar-logo-plate-shadow',
+    '--sidebar-logo-plate-pad',
     '--sidebar-dark-rgb',
     '--grad-brand',
     '--grad-bar',
@@ -135,6 +139,11 @@ export function applyTenantTheme(colors = {}) {
   root.style.setProperty('--sidebar-active-fg', sidebarActiveFg)
   root.style.setProperty('--sidebar-border', sidebarBorder)
   root.style.setProperty('--sidebar-logo-plate', sidebarLogoPlate)
+  root.style.setProperty(
+    '--sidebar-logo-plate-shadow',
+    transparentLogoPlate ? 'none' : '0 2px 8px rgba(0, 0, 0, 0.12)',
+  )
+  root.style.setProperty('--sidebar-logo-plate-pad', transparentLogoPlate ? '0px' : '6px')
   root.style.setProperty('--sidebar-dark-rgb', darkRgb)
 
   // Legacy aliases — keep existing consumers working
@@ -356,8 +365,8 @@ const tenantBranding = {
         bgTopbar: '#070707',
         brandButtonHover: '#7A5418',
       }),
-      // Gold-on-black mark — plate matches logo background.
-      sidebarLogoPlate: '#000000',
+      // PNG is already transparent gold-on-clear — no solid plate behind it.
+      sidebarLogoPlate: 'transparent',
     },
     // Overview / chat / master-settings / departments / operations / production: Coming Soon (see departmentsComingSoon).
     enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'departments', 'operations', 'production-new', 'erp'],

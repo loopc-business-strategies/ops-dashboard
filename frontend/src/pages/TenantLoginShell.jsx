@@ -78,7 +78,12 @@ export default function TenantLoginShell({
           <div className="mg-login__brand-inner">
             <div
               className="mg-login__logo-plate"
-              style={{ background: branding.colors?.sidebarLogoPlate || '#FFFFFF' }}
+              style={{
+                background: branding.colors?.sidebarLogoPlate || '#FFFFFF',
+                ...(String(branding.colors?.sidebarLogoPlate || '').toLowerCase() === 'transparent'
+                  ? { boxShadow: 'none', padding: 0 }
+                  : null),
+              }}
             >
               {branding.logoImage ? (
                 <img src={branding.logoImage} alt={`${branding.displayName} logo`} />
