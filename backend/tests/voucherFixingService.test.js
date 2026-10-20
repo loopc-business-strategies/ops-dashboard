@@ -1,6 +1,7 @@
 const {
   computeVoucherFixingAmount,
   summarizeVoucherFixingState,
+  calculateUnfixedPremiumAmount,
   resolveOpenUnfixedVoucherAmount,
   assertVoucherFixable,
   createVoucherFixingService,
@@ -57,6 +58,22 @@ describe('voucherFixingService helpers', () => {
     expect(resolveOpenUnfixedVoucherAmount({ voucherAmount: 1100, premiumAmount: 100, totalWeight: 200, openWeight: 200 })).toBe(1100)
     expect(resolveOpenUnfixedVoucherAmount({ voucherAmount: 1100, premiumAmount: 100, totalWeight: 200, openWeight: 50 })).toBe(350)
     expect(resolveOpenUnfixedVoucherAmount({ voucherAmount: 1100, premiumAmount: 100, totalWeight: 200, openWeight: 0 })).toBe(0)
+  })
+
+  test('open unfixed amount keeps negative premium as a discount', () => {
+    // Metal 1000 + premium -100 = voucher 900; half-open (50/200) → -100 + 1000*0.25 = 150
+    expect(resolveOpenUnfixedVoucherAmount({ voucherAmount: 900, premiumAmount: -100, totalWeight: 200, openWeight: 200 })).toBe(900)
+    expect(resolveOpenUnfixedVoucherAmount({ voucherAmount: 900, premiumAmount: -100, totalWeight: 200, openWeight: 50 })).toBe(150)
+    expect(resolveOpenUnfixedVoucherAmount({ voucherAmount: 900, premiumAmount: -100, totalWeight: 200, openWeight: 0 })).toBe(0)
+  })
+
+  test('unfixed premium amount is signed from premium per oz', () => {
+    expect(calculateUnfixedPremiumAmount([
+      { pureWeight: OZ, rateType: 'OZ', premiumValue: 100 },
+    ])).toBeCloseTo(100, 6)
+    expect(calculateUnfixedPremiumAmount([
+      { pureWeight: OZ, rateType: 'OZ', premiumValue: -100 },
+    ])).toBeCloseTo(-100, 6)
   })
 
   test('rejects fixed, unposted and fully fixed vouchers', () => {

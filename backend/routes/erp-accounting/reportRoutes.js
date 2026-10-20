@@ -49,7 +49,10 @@ const {
   listActiveVoucherFixings,
   resolveDirectDealCompanyDirection,
 } = require('../../services/erpAccounting/metalPositionPolicy')
-const { summarizeVoucherFixingState } = require('../../services/erpAccounting/voucherFixingService')
+const {
+  summarizeVoucherFixingState,
+  calculateUnfixedPremiumAmount,
+} = require('../../services/erpAccounting/voucherFixingService')
 const { buildClosingStockTrialRow, loadMetalBookRevaluation } = require('../../services/erpAccounting/metalBookRevaluation')
 const {
   computeMarginMetricsRaw,
@@ -1717,21 +1720,6 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
 
     const supplierMetalPositionMap = new Map()
     const supplierUnfixedRevaluationMap = new Map()
-    const calculateUnfixedPremiumAmount = (lines = []) => (Array.isArray(lines) ? lines : []).reduce((sum, line) => {
-      const premiumVal = Number(line?.premiumValue || 0)
-      if (!premiumVal) return sum
-      const purity = Number(line?.purity || 0)
-      const purityRatio = purity > 1.2 ? purity / 1000 : purity
-      const grossWeight = Number(line?.grossWeight || 0)
-      const storedPureWeight = Number(line?.pureWeight || 0)
-      const ozOnly = Number(line?.weightInOz || 0)
-      const pureFromOz = ozOnly > 0 ? ozOnly * 31.1034768 : 0
-      const pureWeight = storedPureWeight > 0 ? storedPureWeight : (pureFromOz > 0 ? pureFromOz : (grossWeight * purityRatio))
-      const rateType = String(line?.rateType || 'OZ').trim().toUpperCase()
-      const weightInOz = pureWeight / 31.1034768
-      const rateQty = rateType === 'GRAM' ? pureWeight : rateType === 'KG' ? pureWeight / 1000 : weightInOz
-      return sum + (premiumVal * rateQty)
-    }, 0)
     ;(supplierMetalTxs || []).forEach((tx) => {
       const vendorId = String(tx.vendorId || '')
       if (!vendorId) return
@@ -1743,7 +1731,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       supplierMetalPositionMap.set(vendorId, position)
       const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
       const voucherAmount = Math.abs(Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1))
-      const premiumAmount = Math.abs(calculateUnfixedPremiumAmount(lines) * Number(tx.exchangeRate || 1))
+      // Keep premium signed so discounts increase the unpriced metal base (amount − negative premium).
+      const premiumAmount = calculateUnfixedPremiumAmount(lines) * Number(tx.exchangeRate || 1)
       const fixingState = summarizeVoucherFixingState(tx)
       const openShare = fixingState.totalWeight > 0 ? fixingState.openWeight / fixingState.totalWeight : 1
       const unpricedAmount = toMoney(Math.max(voucherAmount - premiumAmount, 0) * openShare)

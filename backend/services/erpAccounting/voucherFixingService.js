@@ -102,8 +102,9 @@ function calculateUnfixedPremiumAmount(lines = []) {
 }
 
 /**
- * Voucher amount still waiting for a price: premium stays booked, the metal
- * part shrinks with the open share of the grams (0 when fully fixed).
+ * Voucher amount still waiting for a price: premium stays booked (signed —
+ * negative = discount), the metal part shrinks with the open share of grams
+ * (0 when fully fixed).
  */
 function resolveOpenUnfixedVoucherAmount({ voucherAmount, premiumAmount = 0, totalWeight, openWeight }) {
   const amount = Number(voucherAmount || 0)
@@ -112,8 +113,9 @@ function resolveOpenUnfixedVoucherAmount({ voucherAmount, premiumAmount = 0, tot
   const ratio = Math.min(Math.max(Number(openWeight || 0) / total, 0), 1)
   if (ratio <= 0) return 0
   if (ratio >= 1) return amount
-  const premium = Math.abs(Number(premiumAmount || 0))
-  return premium + (Math.max(amount - premium, 0) * ratio)
+  const premium = Number(premiumAmount || 0)
+  const metalPart = amount - premium
+  return premium + (Math.max(metalPart, 0) * ratio)
 }
 
 function assertVoucherFixable(tx, state) {
