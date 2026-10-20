@@ -41,7 +41,7 @@ const accounts = [
   { accountCode: '4200', accountName: 'Service Revenue', accountType: 'Income', description: 'Service delivery income', department: 'sales' },
   { accountCode: '4300', accountName: 'Other Income', accountType: 'Income', description: 'Interest, royalties, miscellaneous', department: 'finance' },
   // EXPENSES
-  { accountCode: '5000', accountName: 'Cost of Goods Sold', accountType: 'Expense', description: 'Direct inventory cost', department: 'production' },
+  { accountCode: '5101', accountName: 'Cost Of Goods Sold', accountType: 'Expense', description: 'Direct inventory cost (parent for metal Purchase Fixing 92xxxx)', department: 'production' },
   { accountCode: '5100', accountName: 'Raw Materials Used', accountType: 'Expense', description: 'Raw material consumption', department: 'production' },
   { accountCode: '5200', accountName: 'Direct Labor', accountType: 'Expense', description: 'Production worker wages', department: 'production' },
   { accountCode: '6000', accountName: 'Rent Expense', accountType: 'Expense', description: 'Office and facility rent', department: 'operations' },
@@ -72,7 +72,7 @@ const mappings = [
   // PURCHASES & INVENTORY
   { mappingType: 'inventory_purchase', debit: '1200', credit: '2000', description: 'Record inventory purchase from suppliers', department: 'production' },
   { mappingType: 'raw_material_usage', debit: '5100', credit: '1200', description: 'Raw materials consumed in production', department: 'production' },
-  { mappingType: 'cogs_recognition', debit: '5000', credit: '1210', description: 'Recognize COGS from finished goods', department: 'production' },
+  { mappingType: 'cogs_recognition', debit: '5101', credit: '1210', description: 'Recognize COGS from finished goods', department: 'production' },
   // PAYMENTS
   { mappingType: 'vendor_payment', debit: '2000', credit: '1010', description: 'Pay supplier invoices', department: 'finance' },
   { mappingType: 'customer_payment', debit: '1010', credit: '1100', description: 'Customer payment received', department: 'sales' },
@@ -99,7 +99,7 @@ const ledgerSeed = [
   { description: 'Initial capital funding', debit: '1010', credit: '3000', amount: 250000, referenceType: 'journal', department: 'finance', daysAgo: 21 },
   { description: 'Production raw material purchase', debit: '1200', credit: '2000', amount: 42000, referenceType: 'purchase', department: 'production', daysAgo: 18 },
   { description: 'Sales invoice settlement - Gulf Retail', debit: '1010', credit: '4000', amount: 88500, referenceType: 'invoice', department: 'sales', daysAgo: 14 },
-  { description: 'Recognize cost of goods sold - April lot', debit: '5000', credit: '1200', amount: 21500, referenceType: 'inventory', department: 'production', daysAgo: 13 },
+  { description: 'Recognize cost of goods sold - April lot', debit: '5101', credit: '1200', amount: 21500, referenceType: 'inventory', department: 'production', daysAgo: 13 },
   { description: 'Monthly payroll accrual - HQ', debit: '6200', credit: '2100', amount: 18000, referenceType: 'payroll', department: 'hr', daysAgo: 11 },
   { description: 'Operations fleet and dispatch expense', debit: '6100', credit: '1010', amount: 9600, referenceType: 'expense', department: 'operations', daysAgo: 9 },
   { description: 'Vendor payment for bullion supplier', debit: '2000', credit: '1010', amount: 25000, referenceType: 'vendor_payment', department: 'finance', daysAgo: 7 },

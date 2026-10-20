@@ -82,7 +82,7 @@ const OPERATIONAL_MAPPINGS = [
   { mappingType: 'sales_service',       debitCode: '1010', creditCode: '4200', department: 'sales',      description: 'Service revenue' },
   { mappingType: 'inventory_purchase',  debitCode: '1200', creditCode: '2000', department: 'production', description: 'Inventory raw material purchase' },
   { mappingType: 'raw_material_usage',  debitCode: '5100', creditCode: '1200', department: 'production', description: 'Raw material consumed in production' },
-  { mappingType: 'cogs_recognition',    debitCode: '5000', creditCode: '1210', department: 'production', description: 'Cost of goods sold recognition' },
+  { mappingType: 'cogs_recognition',    debitCode: '5101', creditCode: '1210', department: 'production', description: 'Cost of goods sold recognition (align with Purchase Fixing parent)' },
   { mappingType: 'vendor_payment',      debitCode: '2000', creditCode: '1010', department: 'finance',    description: 'Payment to vendor / accounts payable' },
   { mappingType: 'customer_payment',    debitCode: '1010', creditCode: '1100', department: 'sales',      description: 'Receipt from customer / accounts receivable' },
   { mappingType: 'payroll_accrual',     debitCode: '6200', creditCode: '2100', department: 'hr',         description: 'Accrue payroll expense' },

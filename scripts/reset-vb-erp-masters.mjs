@@ -78,7 +78,7 @@ const STARTER_COA = [
   { accountCode: '4000', accountName: 'Sales Revenue', accountType: 'Income', description: 'Trading and sales income' },
   { accountCode: '4100', accountName: 'Other Income', accountType: 'Income', description: 'Non-trading income' },
   { accountCode: '4190', accountName: 'Exchange Gain', accountType: 'Income', description: 'Foreign exchange gain on settlements', department: 'finance' },
-  { accountCode: '5000', accountName: 'Cost of Goods Sold', accountType: 'Expense', description: 'Direct cost of sales' },
+  { accountCode: '5101', accountName: 'Cost Of Goods Sold', accountType: 'Expense', description: 'Direct cost of sales (parent for metal Purchase Fixing 92xxxx)' },
   { accountCode: '6100', accountName: 'Operating Expenses', accountType: 'Expense', description: 'General operating expenses' },
   { accountCode: '5190', accountName: 'Exchange Loss', accountType: 'Expense', description: 'Foreign exchange loss on settlements', parentCode: '6100', department: 'finance' },
   { accountCode: '6200', accountName: 'Payroll Expense', accountType: 'Expense', description: 'Salaries and wages expense' },
