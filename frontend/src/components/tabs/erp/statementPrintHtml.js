@@ -64,7 +64,7 @@ export async function generateStatementHtml(ctx) {
   const brandCopyClass = useMasterStatementLayout ? 'brand-copy-loopc' : 'brand-copy'
   const companyBlock = `
               <div class="${brandCopyClass}">
-                <div class="company" style="font-size:${companyNameFontSize}px">${escapeHtml(companyName)}</div>
+                ${companyName ? `<div class="company" style="font-size:${companyNameFontSize}px">${escapeHtml(companyName)}</div>` : ''}
                 ${companyAddress ? `<div class="muted" style="font-size:${addressFontSize}px">${escapeHtml(companyAddress).replace(/\n/g, '<br />')}</div>` : ''}
                 ${companyPhone ? `<div class="muted" style="font-size:${addressFontSize}px">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted" style="font-size:${addressFontSize}px">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
               </div>`

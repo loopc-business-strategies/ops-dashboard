@@ -6,6 +6,8 @@ import {
   STATEMENT_COMPANY_NAME_FONT_MIN,
   clampBrandingDimension,
   clampStatementFontSize,
+  isPlaceholderCompanyName,
+  nonPlaceholderCompanyName,
 } from './ERPBrandingUtils'
 import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
 import {
@@ -305,9 +307,9 @@ export function buildStatementExportModel(ctx) {
   )
   const brandingProfile = {
     ...branding,
-    companyName: !useMasterStatementLayout && isModernGoldStatement && (!branding.companyName || branding.companyName === DEFAULT_BRANDING.companyName)
+    companyName: !useMasterStatementLayout && isModernGoldStatement && isPlaceholderCompanyName(branding.companyName)
       ? 'MODERN GOLD JEWELRY MANUFACTURING'
-      : branding.companyName,
+      : nonPlaceholderCompanyName(branding.companyName),
   }
   const companyAddress = String(brandingProfile.address || '').trim()
   const companyPhone = String(brandingProfile.phone || '').trim()

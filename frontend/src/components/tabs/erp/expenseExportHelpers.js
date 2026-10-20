@@ -32,7 +32,7 @@ export function buildExpenseMonthExportPayload({
   const stamp = new Date().toISOString().slice(0, 10)
   const monthLabel = expenseMonthLabel(monthIndex).replace(/\s+/g, '-').toLowerCase()
   const rows = [
-    ['Ops Dashboard — Expense Register'],
+    ['Expense Register'],
     ['Generated', new Date().toLocaleString()],
     ['Year', String(year || '')],
     ['Month', expenseMonthLabel(monthIndex)],
@@ -65,7 +65,7 @@ export function buildExpenseMonthExportPayload({
 export function buildExpenseMomExportPayload({ year, monthRows = [], filters = {} } = {}) {
   const stamp = new Date().toISOString().slice(0, 10)
   const rows = [
-    ['Ops Dashboard — Expense Month-on-Month Summary'],
+    ['Expense Month-on-Month Summary'],
     ['Generated', new Date().toLocaleString()],
     ['Year', String(year || '')],
     ['Payment filter', paymentFilterLabel(filters.paymentSource)],

@@ -68,12 +68,14 @@ describe('documentBranding resolvers', () => {
   test('resolveDocumentBranding falls back to VB tenant logo for vouchers and statements', () => {
     const vb = getTenantBranding('vb')
     const result = resolveDocumentBranding({
-      reportBranding: { companyName: 'Venus Bullions', logoUrl: '' },
+      reportBranding: { companyName: '', logoUrl: '' },
       user: { company: 'vb' },
       tenantBranding: vb,
     })
     expect(result.logoUrl).toContain('/logos/vb-logo.png')
-    expect(result.companyName).toBe('Venus Bullions')
+    expect(result.companyName).toBe('Venus Bullion Gold Trading L.L.C')
+    expect(result.address).toMatch(/Al Dhagaya Gold Souq/)
+    expect(result.phone).toBe('+971 4 286 8222')
   })
 
   test('resolveDocumentBranding keeps an uploaded logo over the tenant default', () => {
@@ -84,5 +86,16 @@ describe('documentBranding resolvers', () => {
       tenantBranding: getTenantBranding('vb'),
     })
     expect(result.logoUrl).toBe(uploaded)
+  })
+
+  test('resolveDocumentBranding skips Ops Dashboard ERP placeholder company name', () => {
+    const vb = getTenantBranding('vb')
+    const result = resolveDocumentBranding({
+      reportBranding: { companyName: 'Ops Dashboard ERP', logoUrl: '' },
+      user: { company: 'vb' },
+      tenantBranding: vb,
+    })
+    expect(result.companyName).toBe(vb.companyName || vb.displayName)
+    expect(result.companyName).not.toBe('Ops Dashboard ERP')
   })
 })

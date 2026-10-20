@@ -4,6 +4,7 @@ import {
   DEFAULT_STATEMENT_PRINT,
   DEFAULT_VOUCHER_PRINT,
   clampBrandingDimension,
+  nonPlaceholderCompanyName,
   normalizeStatementPrint,
   normalizeVoucherPrint,
 } from './ERPBrandingUtils'
@@ -42,12 +43,11 @@ export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenant
     ...DEFAULT_BRANDING,
     ...(reportBranding || {}),
     companyName: pick(
-      reportBranding?.companyName,
+      nonPlaceholderCompanyName(reportBranding?.companyName),
       user?.branding?.displayName,
       tenant?.name,
       fallbackTenantBranding?.companyName,
       fallbackTenantBranding?.displayName,
-      DEFAULT_BRANDING.companyName,
     ),
     legalName: pick(reportBranding?.legalName, fallbackTenantBranding?.legalName, DEFAULT_BRANDING.legalName),
     entityName: pick(reportBranding?.entityName, fallbackTenantBranding?.displayName, DEFAULT_BRANDING.entityName),

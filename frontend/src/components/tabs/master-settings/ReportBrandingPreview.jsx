@@ -20,7 +20,7 @@ export default function ReportBrandingPreview({ branding = {} }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, borderBottom: '2px solid #111827', paddingBottom: 14, marginBottom: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 260, flex: '1 1 320px' }}>
           <p style={{ margin: '0 0 6px', color: 'var(--purple)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
-            {preview.companyName || DEFAULT_BRANDING.companyName}
+            {preview.companyName || 'Company'}
           </p>
           <p style={{ margin: '0 0 6px', color: '#111827', fontSize: 21, fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700 }}>
             ERP Financial Statement
@@ -73,7 +73,7 @@ export default function ReportBrandingPreview({ branding = {} }) {
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: '#334155', fontSize: 12, flexWrap: 'wrap' }}>
-        <span>{preview.companyName || DEFAULT_BRANDING.companyName} Reporting Suite</span>
+        <span>{preview.companyName ? `${preview.companyName} Reporting Suite` : 'Reporting Suite'}</span>
         <span>{preview.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
       </div>
     </div>

@@ -16,7 +16,7 @@ export function buildTransactionExportPayload({
   if (!scope.length) return null
   const stamp = new Date().toISOString().slice(0, 10)
   const rows = [
-    ['Ops Dashboard ERP Transactions'],
+    ['ERP Transactions'],
     ['Generated', new Date().toLocaleString()],
     ['Scope', selectedTransactionIds.length ? 'Selected transactions' : 'Current visible transactions'],
     [],

@@ -61,7 +61,7 @@ const reportBrandingSchema = new mongoose.Schema(
     entityName: { type: String, trim: true, default: 'Main Entity' },
     branchName: { type: String, trim: true, default: '' },
     isDefault: { type: Boolean, default: false },
-    companyName: { type: String, trim: true, default: 'Ops Dashboard ERP' },
+    companyName: { type: String, trim: true, default: '' },
     legalName: { type: String, trim: true, default: '' },
     address: { type: String, trim: true, default: '' },
     phone: { type: String, trim: true, default: '' },

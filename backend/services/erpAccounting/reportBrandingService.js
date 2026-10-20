@@ -93,7 +93,7 @@ const DEFAULT_REPORT_BRANDING = {
   entityName: 'Main Entity',
   branchName: '',
   isDefault: true,
-  companyName: 'Ops Dashboard ERP',
+  companyName: '',
   legalName: '',
   address: '',
   phone: '',

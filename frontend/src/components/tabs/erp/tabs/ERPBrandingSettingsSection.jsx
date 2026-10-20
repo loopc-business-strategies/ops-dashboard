@@ -128,7 +128,7 @@ export default function ERPBrandingSettingsSection({
             <div style={{ height: '10px', background: 'var(--grad-brand)', borderRadius: '999px', marginBottom: '14px' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '2px solid #111827', paddingBottom: '0.9rem', marginBottom: '0.9rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div style={{ minWidth: '260px', flex: '1 1 320px' }}>
-                <p style={{ margin: '0 0 0.35rem', color: '#065F46', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>{brandingPreview.companyName || DEFAULT_BRANDING.companyName}</p>
+                <p style={{ margin: '0 0 0.35rem', color: '#065F46', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>{brandingPreview.companyName || 'Company'}</p>
                 <p style={{ margin: '0 0 0.35rem', color: '#111827', fontSize: '1.3rem', fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700 }}>ERP Financial Statement</p>
                 <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.entityName || DEFAULT_BRANDING.entityName}{brandingPreview.branchName ? ` / ${brandingPreview.branchName}` : ''}</p>
                 {brandingPreview.legalName ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.legalName}</p> : null}
@@ -149,7 +149,7 @@ export default function ERPBrandingSettingsSection({
               <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #475569', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.approvedByTitle || DEFAULT_BRANDING.approvedByTitle}<br />{brandingPreview.approvedByName || DEFAULT_BRANDING.approvedByName}</div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', color: '#334155', fontSize: '0.74rem', flexWrap: 'wrap' }}>
-              <span>{brandingPreview.companyName || DEFAULT_BRANDING.companyName} Reporting Suite</span>
+              <span>{brandingPreview.companyName ? `${brandingPreview.companyName} Reporting Suite` : 'Reporting Suite'}</span>
               <span>{brandingPreview.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
             </div>
           </div>

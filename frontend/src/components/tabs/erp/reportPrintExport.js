@@ -1,4 +1,4 @@
-import { clampBrandingDimension, createLogoRenderAsset } from './ERPBrandingUtils'
+import { clampBrandingDimension, createLogoRenderAsset, isPlaceholderCompanyName } from './ERPBrandingUtils'
 import {
   buildReportPdfColumnStyles,
   buildReportPdfMeta,
@@ -203,8 +203,8 @@ function trialCompanyBlock(branding = {}, defaultBranding = {}, user = {}) {
   const tenant = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name || hostTenant)
   const savedName = String(branding.companyName || '').trim()
   const fallbackName = String(defaultBranding.companyName || '').trim()
-  const companyName = !savedName || savedName === fallbackName
-    ? (tenant.companyName || tenant.displayName || savedName || fallbackName)
+  const companyName = isPlaceholderCompanyName(savedName) || savedName === fallbackName
+    ? (tenant.companyName || tenant.displayName || '')
     : savedName
   const address = String(branding.address || tenant.address || '').trim()
   const phone = String(branding.phone || tenant.phone || '').trim()

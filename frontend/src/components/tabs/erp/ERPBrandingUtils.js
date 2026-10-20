@@ -91,12 +91,15 @@ export const DEFAULT_STATEMENT_PRINT = {
   addressFontSize: 10,
 }
 
+/** Legacy default once shown on statements/prints — treat as unset. */
+export const LEGACY_PLACEHOLDER_COMPANY_NAME = 'Ops Dashboard ERP'
+
 export const DEFAULT_BRANDING = {
   key: 'default',
   entityName: 'Main Entity',
   branchName: '',
   isDefault: true,
-  companyName: 'Ops Dashboard ERP',
+  companyName: '',
   legalName: '',
   address: '',
   phone: '',
@@ -117,6 +120,19 @@ export const DEFAULT_BRANDING = {
   statementPrint: DEFAULT_STATEMENT_PRINT,
 }
 
+/** True for empty or legacy product placeholder company names (never print these). */
+export function isPlaceholderCompanyName(value) {
+  const name = String(value || '').trim()
+  if (!name) return true
+  return name === LEGACY_PLACEHOLDER_COMPANY_NAME
+}
+
+/** Returns trimmed company name, or '' when empty/placeholder. */
+export function nonPlaceholderCompanyName(value) {
+  const name = String(value || '').trim()
+  return isPlaceholderCompanyName(name) ? '' : name
+}
+
 export const DEFAULT_BRANDING_PROFILES = [{
   key: DEFAULT_BRANDING.key,
   entityName: DEFAULT_BRANDING.entityName,
@@ -130,7 +146,7 @@ export function isLikelyUnloadedReportBranding(reportBranding) {
   if (!reportBranding || typeof reportBranding !== 'object') return true
   const companyName = String(reportBranding.companyName || '').trim()
   const logoUrl = String(reportBranding.logoUrl || '').trim()
-  return (!companyName || companyName === DEFAULT_BRANDING.companyName) && !logoUrl
+  return isPlaceholderCompanyName(companyName) && !logoUrl
 }
 
 export const LOGO_UPLOAD_ACCEPT = 'image/png,image/svg+xml,image/jpeg,image/webp,.png,.svg,.jpg,.jpeg,.webp'

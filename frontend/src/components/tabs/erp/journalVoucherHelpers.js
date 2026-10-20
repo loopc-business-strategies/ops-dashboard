@@ -882,7 +882,7 @@ const buildJvPrintHtml = ({
   jvHeader = {},
   modeMeta = resolveJvModeMeta(),
   branding = {},
-  defaultCompanyName = 'Ops Dashboard ERP',
+  defaultCompanyName = '',
   baseCurrencyCode = 'USD',
   preparedBy = '',
   logoMarkup = '',
@@ -912,7 +912,7 @@ const buildJvPrintHtml = ({
   return `
       <div class="doc-head">
         <div>
-          <div class="company">${escapeHtml(branding.companyName || defaultCompanyName)}</div>
+          ${branding.companyName || defaultCompanyName ? `<div class="company">${escapeHtml(branding.companyName || defaultCompanyName)}</div>` : ''}
           ${branding.address ? `<div class="meta">${escapeHtml(branding.address).replace(/\n/g, '<br />')}</div>` : ''}
           ${branding.phone ? `<div class="meta">Telephone: ${escapeHtml(branding.phone)}</div>` : ''}
           ${branding.trn ? `<div class="meta">TRN: ${escapeHtml(branding.trn)}</div>` : ''}
