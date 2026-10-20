@@ -242,12 +242,14 @@ describe('statement helpers', () => {
       goldPosition: goldGrams,
       goldPrice: 128.4,
       fundsMode: 'asIs',
+      marginRatePercent: 2,
     })
     const high = computeMarginMetricsRaw({
       totalFunds: funds,
       goldPosition: goldGrams,
       goldPrice: 129.2,
       fundsMode: 'asIs',
+      marginRatePercent: 2,
     })
     expect(high.revaluation).toBeGreaterThan(low.revaluation)
     const lowSummary = calculateAccountSummaryMetrics({

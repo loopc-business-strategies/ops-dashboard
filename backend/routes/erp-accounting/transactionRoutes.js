@@ -36,7 +36,6 @@ function registerTransactionRoutes(deps) {
     Vendor,
     populateTransactionListQuery,
     populateTransactionQuery,
-    normalizeMoneyValue,
     normalizeTransactionAmount,
     normalizeExchangeRateValue,
     validateTransactionPayload,

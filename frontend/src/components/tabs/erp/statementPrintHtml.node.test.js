@@ -15,6 +15,7 @@ vi.mock('./ERPBrandingUtils', () => ({
     if (!Number.isFinite(parsed)) return fallback
     return Math.min(Math.max(parsed, min), max)
   },
+  nonPlaceholderCompanyName: (value) => String(value || '').trim(),
   createLogoRenderAsset: (...args) => createLogoRenderAsset(...args),
 }))
 
