@@ -34,7 +34,8 @@ describe('tenant branding integration', () => {
 
     expect(mg.displayName).toBe('MG')
     expect(cg.displayName).toBe('CG')
-    expect(vb.displayName).toBe('Venus Bullions')
+    expect(vb.displayName).toBe('Venus Bullion')
+    expect(vb.controlSystem).toBe('Business Control System')
     expect(mg.companyName).toBe('MODERN GOLD JEWELRY MANUFACTURING')
     expect(vb.companyName).toBe('Venus Bullion Gold Trading L.L.C')
     expect(vb.address).toMatch(/Al Dhagaya Gold Souq/)

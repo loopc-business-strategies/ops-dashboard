@@ -95,9 +95,9 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
   vb: {
     key: 'vb',
     appName: APP_NAME,
-    displayName: 'Venus Bullions',
+    displayName: 'Venus Bullion',
     companyName: 'Venus Bullion Gold Trading L.L.C',
-    tagline: 'Venus Bullions Operations',
+    tagline: 'Business Control System',
     logoText: 'VB',
     portalHost: 'vb.loopcstrategies.com',
     colors: {

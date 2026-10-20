@@ -17,7 +17,7 @@ const COMPANY_BRANDING = {
   mg: { displayName: 'MG', logoText: 'MG', color: 'blue' },
   cg: { displayName: 'CG', logoText: 'CG', color: 'orange' },
   loopc: { displayName: 'LoopC', logoText: 'LC', color: 'green' },
-  vb: { displayName: 'Venus Bullions', logoText: 'VB', color: 'amber' },
+  vb: { displayName: 'Venus Bullion', logoText: 'VB', color: 'amber' },
 };
 
 function trimProbe(s) {

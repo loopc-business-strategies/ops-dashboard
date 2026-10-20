@@ -343,13 +343,14 @@ const tenantBranding = {
   },
   vb: {
     key: 'vb',
-    displayName: 'Venus Bullions',
+    displayName: 'Venus Bullion',
     companyName: 'Venus Bullion Gold Trading L.L.C',
     address: 'No. 203, Al Ghanim Building, Al Dhagaya Gold Souq, Deira, Dubai, U.A.E.',
     logoText: 'VB',
     logoImage: '/logos/vb-logo.png',
     logoUrl: '/logos/vb-logo.png',
-    tagline: 'Venus Bullions Operations',
+    tagline: 'Business Control System',
+    controlSystem: 'Business Control System',
     phone: '+971 4 286 8222',
     trn: '',
     // Palette aligned to venusbullion.com CSS tokens (--black/--gold/--paper).

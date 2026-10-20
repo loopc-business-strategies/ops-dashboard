@@ -35,9 +35,9 @@
     },
     "vb": {
       "key": "vb",
-      "displayName": "Venus Bullions",
+      "displayName": "Venus Bullion",
       "companyName": "Venus Bullion Gold Trading L.L.C",
-      "tagline": "Venus Bullions Operations",
+      "tagline": "Business Control System",
       "portalHost": "vb.loopcstrategies.com",
       "envVar": "MONGO_URI_VB",
       "brandPrimary": "#0E0E0E",

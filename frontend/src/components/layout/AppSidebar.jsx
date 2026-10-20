@@ -294,7 +294,7 @@ export default function AppSidebar({
         </div>
         <div className="sidebar-logo-text min-w-0">
           <p className="sidebar-logo-title truncate">{branding.displayName}</p>
-          <p className="sidebar-logo-sub truncate">{t('controlSystem')}</p>
+          <p className="sidebar-logo-sub truncate">{branding.controlSystem || t('controlSystem')}</p>
         </div>
       </div>
 
