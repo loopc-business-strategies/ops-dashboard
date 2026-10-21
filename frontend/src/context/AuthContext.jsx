@@ -27,7 +27,7 @@ function clearTenantClientCaches({ includeDashLayouts = false } = {}) {
 const AuthContext = createContext(null)
 
 const DEFAULT_SESSION_POLICY = {
-  idleTimeoutMinutes: 60,
+  idleTimeoutMinutes: 120,
   idleWarningMinutes: 30,
 }
 

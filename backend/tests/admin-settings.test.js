@@ -33,15 +33,15 @@ describe('admin settings helpers', () => {
   test('web idle timeout resolves from admin settings within bounds', () => {
     expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '0' })).toBe(0)
     expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '45' })).toBe(45)
-    expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '2' })).toBe(30)
+    expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '2' })).toBe(90)
     expect(resolveIdleTimeoutMs({ idleTimeoutMinutes: '0' })).toBeNull()
-    expect(resolveIdleTimeoutMs({ idleTimeoutMinutes: '30' })).toBe(30 * 60 * 1000)
+    expect(resolveIdleTimeoutMs({ idleTimeoutMinutes: '90' })).toBe(90 * 60 * 1000)
     expect(buildWebSessionPolicy({ idleTimeoutMinutes: '0' })).toEqual({
       idleTimeoutMinutes: 0,
       idleWarningMinutes: 0,
     })
-    expect(buildWebSessionPolicy({ idleTimeoutMinutes: '30' })).toEqual({
-      idleTimeoutMinutes: 60,
+    expect(buildWebSessionPolicy({ idleTimeoutMinutes: '90' })).toEqual({
+      idleTimeoutMinutes: 120,
       idleWarningMinutes: 30,
     })
     expect(buildWebSessionPolicy({ idleTimeoutMinutes: '60' })).toEqual({

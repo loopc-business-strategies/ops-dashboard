@@ -124,7 +124,7 @@ const DEFAULT_SETTINGS = {
   timezone: '(UTC+05:30) Asia/Kolkata',
   passwordPolicy: 'strong',
   sessionTimeoutMinutes: '0',
-  idleTimeoutMinutes: '30',
+  idleTimeoutMinutes: '90',
   maxLoginAttempts: '5',
   twoFactorAuth: true,
   smtpHost: 'smtp.company.com',
@@ -1095,7 +1095,7 @@ function SettingsTab() {
             </div>
             <div>
               <FieldLabel>{t('webIdleTimeout')}</FieldLabel>
-              <AdminInput value={settings.idleTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, idleTimeoutMinutes: e.target.value }))} placeholder="30" />
+              <AdminInput value={settings.idleTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, idleTimeoutMinutes: e.target.value }))} placeholder="90" />
               <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.25rem' }}>
                 {t('webIdleTimeoutHelp')}
               </div>
