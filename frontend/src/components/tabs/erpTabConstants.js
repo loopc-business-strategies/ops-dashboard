@@ -17,6 +17,8 @@ export const METAL_UNIT_FACTORS = {
 
 /**
  * ERP home dashboard uses a 6-column CSS grid; each widget spans 2 columns (3 widgets per row).
+ * Narrow / phone layouts collapse via `.erp-dash-widget-grid` in design-system.css
+ * (incl. max-device-width for desktop-site-on-mobile).
  * Reference layout: row1 margins+fixing+bank; row2 cashflow+expenses+volume; row3 apar+chat+notif.
  */
 export const ERP_DASH_GRID_COLUMNS = 6

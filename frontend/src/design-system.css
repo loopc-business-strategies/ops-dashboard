@@ -1163,6 +1163,105 @@ textarea       { resize: vertical; min-height: 70px; }
   .section-title { font-size: 13px !important; }
 }
 
+/* ─── ERP My Dashboard widget grid ─────────────────────
+   Desktop: 6-col / widgets span 2 (3 across).
+   Tablet + phone: collapse columns and drop fixed card heights.
+   max-device-width catches “Request Desktop Site” on phones (~980px layout viewport). */
+.erp-dash-widget-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: var(--erp-dash-card-min-height, 440px);
+  align-items: stretch;
+  gap: 0.875rem;
+}
+.erp-dash-widget {
+  min-width: 0;
+}
+.erp-dash-widget-body {
+  flex: 1;
+  min-height: var(--erp-dash-widget-body-height, 380px);
+  max-height: var(--erp-dash-widget-body-height, 380px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1024px) {
+  .erp-dash-widget-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(300px, auto);
+  }
+  .erp-dash-widget-grid > .erp-dash-widget {
+    grid-column: span 1 !important;
+  }
+  .erp-dash-widget-body {
+    min-height: 260px;
+    max-height: none;
+    overflow: auto;
+  }
+}
+
+@media (max-width: 640px), (max-device-width: 640px) {
+  .erp-dash-widget-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    gap: 0.75rem;
+  }
+  .erp-dash-widget-grid > .erp-dash-widget {
+    grid-column: 1 / -1 !important;
+  }
+  .erp-dash-widget-body {
+    min-height: 220px;
+    max-height: none;
+    overflow: auto;
+  }
+}
+
+/* Topbar metal pills: compact on phones even when desktop site spoofs width */
+.topbar-metal-tickers {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.topbar-metal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  min-width: 8.75rem;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+@media (max-width: 640px), (max-device-width: 640px) {
+  .topbar-metal-tickers {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .topbar-metal-pill {
+    min-width: 0;
+    flex: 1 1 calc(33.33% - 0.35rem);
+    padding: 0.3rem 0.45rem;
+    gap: 0.3rem;
+  }
+  .topbar-metal-pill .topbar-metal-label {
+    display: none;
+  }
+  .topbar-metal-pill .topbar-metal-price {
+    font-size: 0.82rem !important;
+    text-align: left !important;
+  }
+}
+
 /* ─── Enterprise utilities ───────────────────────────── */
 .page-header { margin-bottom: 8px; }
 .empty-state {
