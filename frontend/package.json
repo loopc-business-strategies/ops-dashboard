@@ -24,6 +24,7 @@
     "docx-preview": "^0.4.1",
     "dompurify": "^3.4.16",
     "exceljs": "^4.4.0",
+    "follow-redirects": "1.16.1",
     "html2pdf.js": "^0.14.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
