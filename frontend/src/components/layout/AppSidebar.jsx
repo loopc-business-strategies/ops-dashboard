@@ -335,9 +335,7 @@ export default function AppSidebar({
                 {...item}
                 href={buildNavHref(item)}
                 active={activeTab === item.id}
-                openInNewTab={item.openInNewTab != null
-                  ? Boolean(item.openInNewTab)
-                  : item.id === 'production-new'}
+                openInNewTab={Boolean(item.openInNewTab)}
                 onSameTabNavigate={() => onModuleNavigate?.(item.id)}
                 onAfterClick={sidebarLinkAfterClick}
                 onPrefetch={() => prefetchTabChunk(item.id)}
