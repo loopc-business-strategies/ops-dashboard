@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { computeViewportBoardFit } from './useViewportBoardFit.js'
+import { computeViewportBoardFit, shouldEnableBoardFit } from './useViewportBoardFit.js'
 
 describe('computeViewportBoardFit fill mode', () => {
   test('exact 1920×1080 is identity fill', () => {
@@ -38,5 +38,20 @@ describe('computeViewportBoardFit contain mode', () => {
     expect(fit.layoutWidth * fit.scaleX).toBeCloseTo(1920, 4)
     expect(fit.offsetLeft).toBeCloseTo((2000 - 1920) / 2, 4)
     expect(fit.offsetTop).toBe(0)
+  })
+})
+
+describe('shouldEnableBoardFit', () => {
+  test('enables for wide landscape windows', () => {
+    expect(shouldEnableBoardFit(1280, 720, { width: 0, height: 0 })).toBe(true)
+    expect(shouldEnableBoardFit(960, 540, { width: 0, height: 0 })).toBe(true)
+  })
+
+  test('disables for narrow portrait phones', () => {
+    expect(shouldEnableBoardFit(390, 844, { width: 0, height: 0 })).toBe(false)
+  })
+
+  test('enables when physical screen is TV-sized even if CSS viewport is small', () => {
+    expect(shouldEnableBoardFit(800, 600, { width: 1920, height: 1080 })).toBe(true)
   })
 })
