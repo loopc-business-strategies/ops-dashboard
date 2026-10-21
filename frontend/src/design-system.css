@@ -160,59 +160,7 @@ html, body, #root {
 * { scrollbar-width: thin; scrollbar-color: rgba(var(--purple-rgb), 0.3) transparent; }
 
 /* ─── App Shell ──────────────────────────────────────── */
-.app-shell-viewport {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  width: 100vw;
-  width: 100dvw;
-  height: 100%;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  background: var(--bg-base);
-}
-.app-shell {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-height: 100%;
-  overflow: hidden;
-  background: var(--bg-base);
-  box-sizing: border-box;
-}
-
-/* Board-fit active: force desktop shell geometry (TV browsers under-report width). */
-html[data-tv-board-fit],
-html[data-tv-board-fit] body,
-html[data-tv-board-fit] #root {
-  width: 100% !important;
-  height: 100% !important;
-  overflow: hidden !important;
-  margin: 0;
-}
-html[data-tv-board-fit] .app-shell-viewport {
-  overflow: hidden;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-html[data-tv-board-fit] .app-shell[data-viewport-fit],
-html[data-tv-board-fit] .app-shell[data-viewport-fit='stretch'] {
-  box-sizing: border-box;
-}
-/* Ops ERP main column must consume the full board width (no right empty band). */
-html[data-tv-board-fit] .app-main {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
-  max-width: none;
-}
-html[data-tv-board-fit] .app-main > * {
-  max-width: none;
-  width: 100%;
-  box-sizing: border-box;
-}
+.app-shell { display: flex; height: 100vh; overflow: hidden; background: var(--bg-base); }
 .app-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
 /* ─── Sidebar (full tenant-branded) ──────────────────── */

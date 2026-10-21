@@ -1410,13 +1410,9 @@ function Dashboard() {
           </div>
         </header>
 
-        {/* Page content — ERP dashboard locks to viewport (no page scroll); chat full-bleed */}
+        {/* Page content — 1.5rem inset matches ERP module padding; chat stays full-bleed inside scroll area */}
         <main
-          className={`flex-1 flex flex-col min-h-0 ${
-            activeTab === 'chat' || (activeTab === 'erp' && erpSubTab === 'dashboard')
-              ? 'overflow-hidden'
-              : 'overflow-y-auto'
-          }`}
+          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
         >
           {visitedKeepAliveTabs.has('overview') && (
@@ -1439,9 +1435,8 @@ function Dashboard() {
               style={{
                 display: activeTab === 'erp' ? 'flex' : 'none',
                 flexDirection: 'column',
-                padding: erpSubTab === 'dashboard' ? '0.65rem 0.85rem' : '1.5rem',
+                padding: '1.5rem',
                 boxSizing: 'border-box',
-                overflow: erpSubTab === 'dashboard' ? 'hidden' : undefined,
               }}
               aria-hidden={activeTab !== 'erp'}
             >

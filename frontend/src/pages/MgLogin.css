@@ -1,17 +1,5 @@
 /* Modern Gold — real HTML login (MG tenant only) */
 
-/* Outer shell = real TV/PC viewport; .mg-login is scaled by useViewportBoardFit */
-.mg-login-shell {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  width: 100dvw;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  background: #ffffff;
-}
-
 .mg-login {
   --mg-orange: var(--brand-primary, #EA580C);
   --mg-orange-2: var(--brand-light, #FB923C);
@@ -23,21 +11,14 @@
   --mg-warm: var(--brand-soft, #FFF7ED);
   --mg-white: #ffffff;
 
-  position: relative;
-  inset: auto;
-  width: 100%;
-  height: 100%;
-  min-height: 100%;
-  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
   background: var(--mg-white);
   color: var(--mg-text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  box-sizing: border-box;
-}
-
-.mg-login[data-viewport-fit] {
-  max-width: none;
-  max-height: none;
   box-sizing: border-box;
 }
 
@@ -560,38 +541,10 @@
 }
 
 /* Unified enterprise login (all tenants) */
-/* Desktop/TV first: 2-column. Portrait phones stack (see max-width rule below). */
 .enterprise-login .mg-login__frame {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   min-height: 100%;
-  height: 100%;
-}
-.enterprise-login .mg-login__panel--brand,
-.enterprise-login .mg-login__panel--form {
-  min-height: 100%;
-  height: 100%;
-  overflow: auto;
-}
-.enterprise-login .mg-login__panel--form {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.enterprise-login .mg-login__card {
-  width: min(100%, 420px);
-}
-@media (max-width: 767px) and (orientation: portrait) {
-  .enterprise-login .mg-login__frame {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: 100%;
-  }
-  .enterprise-login .mg-login__panel--brand,
-  .enterprise-login .mg-login__panel--form {
-    height: auto;
-    min-height: 0;
-  }
 }
 .enterprise-login .mg-login__panel--brand {
   color: #fff;
@@ -867,62 +820,12 @@
   color: var(--text-muted);
 }
 @media (min-width: 1024px) {
-  .enterprise-login {
-    overflow: hidden;
-  }
-
   .enterprise-login .mg-login__frame {
     grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    min-height: 100%;
-    height: 100%;
+    min-height: 100vh;
   }
-
   .enterprise-login .mg-login__panel--brand,
   .enterprise-login .mg-login__panel--form {
-    min-height: 100%;
-    height: 100%;
-    overflow: auto;
+    min-height: 100vh;
   }
-
-  .enterprise-login .mg-login__panel--form {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .enterprise-login .mg-login__card {
-    width: min(100%, 420px);
-  }
-}
-
-/*
- * TV board-fit: force desktop 2-column login even when the browser under-reports
- * CSS width (<1024). Without this, login stays a narrow phone card in the middle.
- */
-html[data-tv-board-fit] .mg-login-shell {
-  overflow: hidden;
-  background: #ffffff;
-}
-html[data-tv-board-fit] .enterprise-login {
-  overflow: hidden;
-}
-html[data-tv-board-fit] .enterprise-login .mg-login__frame {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  min-height: 100%;
-  height: 100%;
-}
-html[data-tv-board-fit] .enterprise-login .mg-login__panel--brand,
-html[data-tv-board-fit] .enterprise-login .mg-login__panel--form {
-  min-height: 100%;
-  height: 100%;
-  overflow: auto;
-}
-html[data-tv-board-fit] .enterprise-login .mg-login__panel--form {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-html[data-tv-board-fit] .enterprise-login .mg-login__card {
-  width: min(100%, 420px);
 }

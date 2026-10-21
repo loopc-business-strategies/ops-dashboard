@@ -1231,18 +1231,6 @@
   color: var(--pd-primary);
 }
 
-/* Outer shell fills the real TV/PC viewport; inner page is scaled by useViewportBoardFit */
-.pd-fullscreen-shell {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  width: 100dvw;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  background: #f0f4f8;
-}
-
 .pd-fullscreen-page {
   height: 100vh;
   height: 100dvh;
@@ -1252,18 +1240,6 @@
   flex-direction: column;
   background: #f0f4f8;
   position: relative;
-  box-sizing: border-box;
-}
-
-.pd-fullscreen-page[data-viewport-fit] {
-  /* size + transform set inline by useViewportBoardFit */
-  max-width: none;
-  max-height: none;
-  box-sizing: border-box;
-}
-
-html[data-tv-board-fit] .pd-fullscreen-shell {
-  overflow: hidden;
 }
 
 .pd-fullscreen-nav {
@@ -2606,9 +2582,9 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/* Unlock scroll below desktop locked density (skip when TV board-fit is active) */
+/* Unlock scroll below desktop locked density */
 @media (max-width: 1439px) {
-  .pd-fullscreen-page:has(.pd-layout--control-center):not([data-viewport-fit]) {
+  .pd-fullscreen-page:has(.pd-layout--control-center) {
     height: auto;
     min-height: 100vh;
     min-height: 100dvh;
@@ -2616,7 +2592,7 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
     overflow-y: auto;
   }
 
-  .pd-fullscreen-page:has(.pd-layout--control-center):not([data-viewport-fit]) .pd-fullscreen-body {
+  .pd-fullscreen-page:has(.pd-layout--control-center) .pd-fullscreen-body {
     overflow: visible;
     min-height: 100dvh;
   }
@@ -2644,22 +2620,22 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/* Tablet landscape / smart display: 1200–1439 (skip when board-fit locks 1920 artboard) */
+/* Tablet landscape / smart display: 1200ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ1439 */
 @media (min-width: 1200px) and (max-width: 1439px) {
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-kpi-strip {
+  .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-dept-grid {
+  .pd-layout--control-center .pd-dept-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-header--control {
+  .pd-header--control {
     flex-wrap: wrap;
     row-gap: 0.45rem;
   }
 
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-header-center {
+  .pd-header-center {
     flex: 1 1 100%;
     order: 3;
     justify-content: flex-start;
@@ -2683,14 +2659,14 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/* Tablet portrait: 900–1199 (skip when board-fit locks 1920 artboard) */
+/* Tablet portrait: 900ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ1199 */
 @media (min-width: 900px) and (max-width: 1199px) {
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-kpi-strip {
+  .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-dept-grid,
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-dept-grid {
+  .pd-layout--control-center .pd-dept-grid,
+  .pd-dept-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2716,15 +2692,15 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/* Phone landscape / small fold: 600–899 (skip when board-fit locks 1920 artboard) */
+/* Phone landscape / small fold: 600ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ899 */
 @media (min-width: 600px) and (max-width: 899px) {
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-kpi-strip,
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-kpi-strip {
+  .pd-layout--control-center .pd-kpi-strip,
+  .pd-kpi-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-dept-grid,
-  .pd-fullscreen-page:not([data-viewport-fit]) .pd-dept-grid {
+  .pd-layout--control-center .pd-dept-grid,
+  .pd-dept-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -4269,103 +4245,37 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/*
- * Big-screen scale is handled by useViewportBoardFit (JS) so width AND height
- * stay matched. Stepped CSS zoom (height-only) was removed — it left side gaps
- * or clipped edges on 4K / ultrawide TVs.
- */
-
-/* FHD TV with browser chrome / overscan: densify so the 4×2 board still fits */
-@media (min-width: 1920px) and (max-height: 1000px) {
-  .pd-layout--control-center {
-    gap: 0.22rem;
-    padding-top: 0.15rem;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact {
-    padding: 0.22rem 0.28rem;
-  }
-
-  .pd-layout--control-center .pd-kpi-compact-value {
-    font-size: 0.95rem;
-  }
-
-  .pd-layout--control-center .pd-dept-grid {
-    gap: 0.25rem;
-  }
-
-  .pd-layout--control-center .pd-dept-card {
-    padding: 0.3rem 0.35rem;
-    gap: 0.12rem;
-  }
-
-  .pd-layout--control-center .pd-dept-card-head {
-    margin: -0.3rem -0.35rem 0;
-    padding: 0.3rem 0.35rem 0.35rem;
-  }
-
-  .pd-layout--control-center .pd-batch-progress-track {
-    height: 0.32rem;
+/* Big screens: scale the whole 1920×1080 layout up instead of leaving empty
+   space. Height is divided by the zoom so the page still fits one screen.
+   Height guards keep ultra-wide (e.g. 3440×1440) on the normal layout. */
+@media (min-width: 2400px) and (min-height: 1300px) {
+  .pd-fullscreen-page {
+    zoom: 1.3333;
+    height: calc(100vh / 1.3333);
+    height: calc(100dvh / 1.3333);
   }
 }
 
-/*
- * Board-fit locks a 1920×1080 artboard via transform. CSS media queries still
- * see the *real* viewport (often 1200–1536 on PCs, or under-reported on TVs)
- * and were switching the dept grid to 2–3 columns — uneven gaps / cramped KPI
- * strip while the board was still Full HD. Force the TV/desktop 4×2 board.
- */
-html[data-tv-board-fit] .pd-fullscreen-page,
-.pd-fullscreen-page[data-viewport-fit] {
-  overflow: hidden;
+@media (min-width: 3200px) and (min-height: 1700px) {
+  .pd-fullscreen-page {
+    zoom: 1.6667;
+    height: calc(100vh / 1.6667);
+    height: calc(100dvh / 1.6667);
+  }
 }
 
-html[data-tv-board-fit] .pd-layout--control-center,
-.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center {
-  gap: 0.4rem;
-  padding-top: 0.35rem;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
+@media (min-width: 3800px) and (min-height: 2100px) {
+  .pd-fullscreen-page {
+    zoom: 2;
+    height: calc(100vh / 2);
+    height: calc(100dvh / 2);
+  }
 }
 
-html[data-tv-board-fit] .pd-layout--control-center .pd-kpi-strip,
-.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-kpi-strip {
-  grid-template-columns: repeat(8, minmax(0, 1fr)) !important;
-  gap: 0.4rem;
-  width: 100%;
-  box-sizing: border-box;
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
-}
-
-html[data-tv-board-fit] .pd-layout--control-center .pd-dept-grid,
-.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-dept-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  gap: 0.5rem !important;
-  flex: 1;
-  min-height: 0;
-  align-content: stretch;
-  align-items: stretch;
-  width: 100%;
-  box-sizing: border-box;
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
-}
-
-html[data-tv-board-fit] .pd-layout--control-center .pd-dept-card,
-.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-dept-card {
-  min-width: 0;
-  height: 100%;
-}
-
-html[data-tv-board-fit] .pd-layout--control-center .pd-dept-metrics,
-.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-dept-metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-width: 0;
-}
-
-html[data-tv-board-fit] .pd-fullscreen-shell {
-  background: #0f172a;
+@media (min-width: 5000px) and (min-height: 2800px) {
+  .pd-fullscreen-page {
+    zoom: 2.6667;
+    height: calc(100vh / 2.6667);
+    height: calc(100dvh / 2.6667);
+  }
 }
