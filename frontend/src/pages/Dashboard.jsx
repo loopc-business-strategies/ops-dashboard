@@ -1039,10 +1039,6 @@ function Dashboard() {
 
   const handleLogout = () => { logout(); navigate('/login') }
   const languageCode = (langMeta?.code || 'en').toUpperCase()
-  const tenantShortCode = (branding.displayName || user?.company || company || 'NA')
-    .replace(/[^A-Za-z]/g, '')
-    .slice(0, 2)
-    .toUpperCase() || 'NA'
   const accountRoleLabel = user?.role === 'super_admin'
     ? t('superAdmin')
     : (user?.role || 'user').replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
