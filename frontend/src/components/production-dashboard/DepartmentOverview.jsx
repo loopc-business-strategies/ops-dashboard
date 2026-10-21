@@ -251,8 +251,6 @@ function DeptCard({
         </div>
       ) : null}
 
-      {/* Scrollable mid section — keeps footer (batch / vault balance) from being clipped */}
-      <div className="pd-dept-card-body">
       <div className="pd-dept-people">
         <div className="pd-dept-people-side">
           <span className="pd-dept-people-ico" aria-hidden>
@@ -384,7 +382,6 @@ function DeptCard({
           {' '}(usual {formatMinutes(card.longRunning.usualMin)})
         </p>
       ) : null}
-      </div>
 
       {isVault ? <VaultBalanceStrip /> : (
         <BatchProgressBar

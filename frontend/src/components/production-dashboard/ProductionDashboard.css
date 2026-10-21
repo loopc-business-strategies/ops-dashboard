@@ -1324,30 +1324,10 @@
   padding: 0.35rem 0.4rem 0.4rem;
 }
 
-.pd-fullscreen-page .pd-layout--control-center .pd-dept-subtitle {
-  display: none; /* reclaim height so metrics/footer are not clipped */
-}
-
-.pd-fullscreen-page .pd-layout--control-center .pd-dept-card-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
 .pd-fullscreen-page .pd-layout--control-center .pd-vault-stock {
-  flex: 1 1 auto;
+  flex: 1;
   min-height: 0;
-}
-
-.pd-fullscreen-page .pd-layout--control-center .pd-batch-progress {
-  margin-top: 0;
-  padding-top: 0.3rem;
-}
-
-.pd-fullscreen-page .pd-layout--control-center .pd-vault-balance {
-  margin-top: 0;
-  padding-top: 0.25rem;
-  flex-shrink: 0;
+  overflow: auto;
 }
 
 /* When light TV fit is active, keep Full HD 4×2 (ignore tablet media). */
@@ -1498,24 +1478,6 @@ html[data-tv-surface] .pd-layout--control-center .pd-dept-grid {
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   cursor: pointer;
   overflow: hidden;
-}
-
-/* Mid content scrolls; head + footer (progress / vault balance) stay visible. */
-.pd-dept-card-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.pd-dept-card > .pd-dept-card-head,
-.pd-dept-card > .pd-dept-down,
-.pd-dept-card > .pd-batch-progress,
-.pd-dept-card > .pd-vault-balance {
-  flex-shrink: 0;
 }
 
 .pd-dept-card:hover {
