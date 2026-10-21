@@ -4,12 +4,17 @@ import { generateStatementHtml } from './statementPrintHtml'
 const createLogoRenderAsset = vi.fn(async () => 'data:image/png;base64,rasterized')
 
 vi.mock('./ERPBrandingUtils', () => ({
+  DEFAULT_BRANDING: { companyName: 'LoopC', logoWidth: 180, logoHeight: 56 },
   DEFAULT_STATEMENT_PRINT: { companyNameFontSize: 15, addressFontSize: 10 },
   STATEMENT_COMPANY_NAME_FONT_MIN: 10,
   STATEMENT_COMPANY_NAME_FONT_MAX: 28,
   STATEMENT_ADDRESS_FONT_MIN: 8,
   STATEMENT_ADDRESS_FONT_MAX: 16,
-  clampBrandingDimension: (_value, fallback) => fallback ?? 120,
+  clampBrandingDimension: (value, fallback, min = 80, max = 260) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback ?? 120
+    return Math.min(Math.max(parsed, min), max)
+  },
   clampStatementFontSize: (value, fallback, min, max) => {
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) return fallback
@@ -176,8 +181,8 @@ describe('statementPrintHtml', () => {
     })
     expect(createLogoRenderAsset).toHaveBeenCalledWith(
       'data:image/png;base64,sharp-logo',
-      120,
-      90,
+      180,
+      56,
       'contain',
       { renderScale: 2 },
     )

@@ -13,7 +13,11 @@ vi.mock('./ERPBrandingUtils', () => ({
   STATEMENT_COMPANY_NAME_FONT_MAX: 28,
   STATEMENT_ADDRESS_FONT_MIN: 8,
   STATEMENT_ADDRESS_FONT_MAX: 16,
-  clampBrandingDimension: (_value, fallback) => fallback ?? 120,
+  clampBrandingDimension: (value, fallback, min = 80, max = 260) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback ?? 120
+    return Math.min(Math.max(parsed, min), max)
+  },
   clampStatementFontSize: (value, fallback, min, max) => {
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) return fallback
