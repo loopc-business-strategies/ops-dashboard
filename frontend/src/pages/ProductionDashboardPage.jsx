@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { applyTenantDocumentMeta, applyTenantTheme, getTenantBranding } from '../config/tenantBranding'
@@ -7,9 +7,36 @@ import '../components/production-dashboard/ProductionDashboard.css'
 
 const RETURN_KEY = 'pd_returnTo'
 
+/** Keep CSS height on the *visible* viewport (browser chrome shrinks 100vh and clipped the bottom row). */
+function useProductionViewportVars() {
+  useLayoutEffect(() => {
+    const sync = () => {
+      const vv = window.visualViewport
+      const h = Math.max(1, Math.round(vv?.height || window.innerHeight || 0))
+      const w = Math.max(1, Math.round(vv?.width || window.innerWidth || 0))
+      document.documentElement.style.setProperty('--pd-vvh', `${h}px`)
+      document.documentElement.style.setProperty('--pd-vvw', `${w}px`)
+    }
+    sync()
+    window.addEventListener('resize', sync)
+    window.addEventListener('orientationchange', sync)
+    window.visualViewport?.addEventListener?.('resize', sync)
+    window.visualViewport?.addEventListener?.('scroll', sync)
+    return () => {
+      window.removeEventListener('resize', sync)
+      window.removeEventListener('orientationchange', sync)
+      window.visualViewport?.removeEventListener?.('resize', sync)
+      window.visualViewport?.removeEventListener?.('scroll', sync)
+      document.documentElement.style.removeProperty('--pd-vvh')
+      document.documentElement.style.removeProperty('--pd-vvw')
+    }
+  }, [])
+}
+
 /**
  * Fullscreen Production Dashboard — no ops sidebar / topbar shell.
  * Applies tenant brand theme so header/accents match the logged-in company.
+ * Fluid viewport fit only (no AppShell zoom / board scale).
  */
 export default function ProductionDashboardPage() {
   const navigate = useNavigate()
@@ -20,6 +47,8 @@ export default function ProductionDashboardPage() {
     () => getTenantBranding(user?.company || company),
     [company, user?.company],
   )
+
+  useProductionViewportVars()
 
   useEffect(() => {
     const restoreTheme = applyTenantTheme(branding.colors)
