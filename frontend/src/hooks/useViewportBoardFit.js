@@ -1,10 +1,14 @@
 import { useLayoutEffect } from 'react'
 
 /**
- * Uniform scale so a design board (default 1920×1080) fills the real viewport.
- * Uses CSS zoom when available (Chromium / TV browsers) with matching width/height
- * compensation so both axes fill — fixing the old height-only zoom that left
- * side gaps or clipped edges on 4K / ultrawide TVs.
+ * Scale a fixed 1920×1080 board to the real viewport.
+ *
+ * Always uses transform: scale() (not CSS zoom). Smart-TV / TCL browsers often
+ * report CSS.supports('zoom') but do not apply zoom — that left the UI stuck
+ * top-left with a large empty band on the right.
+ *
+ * mode "fill" (default): stretch both axes so the board covers the TV exactly.
+ * mode "contain": uniform scale, letterboxed inside the shell.
  */
 
 export function computeViewportBoardFit({
@@ -12,38 +16,52 @@ export function computeViewportBoardFit({
   viewportHeight,
   designWidth = 1920,
   designHeight = 1080,
-  minScale = 0.35,
-  maxScale = 4,
+  mode = 'fill',
+  minScale = 0.25,
+  maxScale = 6,
 } = {}) {
   const vw = Math.max(1, Number(viewportWidth) || 1)
   const vh = Math.max(1, Number(viewportHeight) || 1)
   const dw = Math.max(1, Number(designWidth) || 1920)
   const dh = Math.max(1, Number(designHeight) || 1080)
-  const raw = Math.min(vw / dw, vh / dh)
-  const scale = Math.min(maxScale, Math.max(minScale, raw))
+  const clamp = (n) => Math.min(maxScale, Math.max(minScale, n))
+
+  if (mode === 'contain') {
+    const scale = clamp(Math.min(vw / dw, vh / dh))
+    return {
+      mode: 'contain',
+      scaleX: scale,
+      scaleY: scale,
+      layoutWidth: dw,
+      layoutHeight: dh,
+      offsetLeft: (vw - dw * scale) / 2,
+      offsetTop: (vh - dh * scale) / 2,
+    }
+  }
+
   return {
-    scale,
-    layoutWidth: vw / scale,
-    layoutHeight: vh / scale,
+    mode: 'fill',
+    scaleX: clamp(vw / dw),
+    scaleY: clamp(vh / dh),
+    layoutWidth: dw,
+    layoutHeight: dh,
+    offsetLeft: 0,
+    offsetTop: 0,
   }
 }
 
 function readViewportSize() {
   const vv = window.visualViewport
-  if (vv && vv.width > 0 && vv.height > 0) {
-    return { width: vv.width, height: vv.height }
-  }
+  const innerW = window.innerWidth || document.documentElement.clientWidth || 0
+  const innerH = window.innerHeight || document.documentElement.clientHeight || 0
+  const vvW = vv && vv.width > 0 ? vv.width : 0
+  const vvH = vv && vv.height > 0 ? vv.height : 0
+  // Prefer the larger measurement — some TV browsers under-report innerWidth.
+  const screenW = Number(window.screen?.availWidth || window.screen?.width || 0)
+  const screenH = Number(window.screen?.availHeight || window.screen?.height || 0)
   return {
-    width: window.innerWidth || document.documentElement.clientWidth || 1920,
-    height: window.innerHeight || document.documentElement.clientHeight || 1080,
-  }
-}
-
-function supportsCssZoom() {
-  try {
-    return typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('zoom', '1')
-  } catch {
-    return false
+    width: Math.max(innerW, vvW, screenW > innerW * 1.2 ? screenW : 0, 1),
+    height: Math.max(innerH, vvH, screenH > innerH * 1.2 ? screenH : 0, 1),
   }
 }
 
@@ -56,19 +74,30 @@ function clearFitStyles(el) {
   el.style.position = ''
   el.style.left = ''
   el.style.top = ''
+  el.style.right = ''
+  el.style.bottom = ''
+  el.style.maxWidth = ''
+  el.style.maxHeight = ''
 }
 
 /**
  * @param {React.RefObject<HTMLElement|null>} ref
- * @param {{ designWidth?: number, designHeight?: number, enabled?: boolean, minViewportWidth?: number }} [options]
+ * @param {{
+ *   designWidth?: number,
+ *   designHeight?: number,
+ *   enabled?: boolean,
+ *   minViewportWidth?: number,
+ *   mode?: 'fill' | 'contain',
+ * }} [options]
  */
 export function useViewportBoardFit(ref, options = {}) {
   const {
     designWidth = 1920,
     designHeight = 1080,
     enabled = true,
-    /** Below this CSS px width, skip scaling (phones / small tablets keep native layout). */
-    minViewportWidth = 1024,
+    /** TV browsers sometimes report ~960 CSS px; keep threshold low. */
+    minViewportWidth = 800,
+    mode = 'fill',
   } = options
 
   useLayoutEffect(() => {
@@ -78,48 +107,45 @@ export function useViewportBoardFit(ref, options = {}) {
         clearFitStyles(el)
         el.removeAttribute('data-viewport-fit')
       }
+      document.documentElement.removeAttribute('data-tv-board-fit')
       return undefined
     }
 
-    const useZoom = supportsCssZoom()
     let raf = 0
 
     const apply = () => {
       const { width: vw, height: vh } = readViewportSize()
 
-      // Phones / narrow windows: native responsive CSS, no board scale.
       if (vw < minViewportWidth) {
         clearFitStyles(el)
         el.removeAttribute('data-viewport-fit')
+        document.documentElement.removeAttribute('data-tv-board-fit')
         return
       }
 
-      const { scale, layoutWidth, layoutHeight } = computeViewportBoardFit({
+      const fit = computeViewportBoardFit({
         viewportWidth: vw,
         viewportHeight: vh,
         designWidth,
         designHeight,
+        mode,
       })
 
-      el.setAttribute('data-viewport-fit', useZoom ? 'zoom' : 'transform')
-      el.style.width = `${layoutWidth}px`
-      el.style.height = `${layoutHeight}px`
+      el.setAttribute('data-viewport-fit', fit.mode)
+      document.documentElement.setAttribute('data-tv-board-fit', fit.mode)
 
-      if (useZoom) {
-        el.style.zoom = String(scale)
-        el.style.transform = ''
-        el.style.transformOrigin = ''
-        el.style.position = ''
-        el.style.left = ''
-        el.style.top = ''
-      } else {
-        el.style.zoom = ''
-        el.style.position = 'absolute'
-        el.style.left = '0'
-        el.style.top = '0'
-        el.style.transformOrigin = 'top left'
-        el.style.transform = `scale(${scale})`
-      }
+      el.style.zoom = ''
+      el.style.position = 'absolute'
+      el.style.left = `${fit.offsetLeft}px`
+      el.style.top = `${fit.offsetTop}px`
+      el.style.right = 'auto'
+      el.style.bottom = 'auto'
+      el.style.width = `${fit.layoutWidth}px`
+      el.style.height = `${fit.layoutHeight}px`
+      el.style.maxWidth = 'none'
+      el.style.maxHeight = 'none'
+      el.style.transformOrigin = 'top left'
+      el.style.transform = `scale(${fit.scaleX}, ${fit.scaleY})`
     }
 
     const schedule = () => {
@@ -150,8 +176,9 @@ export function useViewportBoardFit(ref, options = {}) {
       vv?.removeEventListener?.('scroll', schedule)
       clearFitStyles(el)
       el.removeAttribute('data-viewport-fit')
+      document.documentElement.removeAttribute('data-tv-board-fit')
       document.documentElement.style.overflow = prevHtmlOverflow
       document.body.style.overflow = prevBodyOverflow
     }
-  }, [ref, designWidth, designHeight, enabled, minViewportWidth])
+  }, [ref, designWidth, designHeight, enabled, minViewportWidth, mode])
 }

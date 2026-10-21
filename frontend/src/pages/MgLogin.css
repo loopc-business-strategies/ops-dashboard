@@ -38,6 +38,7 @@
 .mg-login[data-viewport-fit] {
   max-width: none;
   max-height: none;
+  box-sizing: border-box;
 }
 
 .mg-login *,
@@ -864,4 +865,36 @@
   .enterprise-login .mg-login__card {
     width: min(100%, 420px);
   }
+}
+
+/*
+ * TV board-fit: force desktop 2-column login even when the browser under-reports
+ * CSS width (<1024). Without this, login stays a narrow phone card in the middle.
+ */
+html[data-tv-board-fit] .mg-login-shell {
+  overflow: hidden;
+  background: #ffffff;
+}
+html[data-tv-board-fit] .enterprise-login {
+  overflow: hidden;
+}
+html[data-tv-board-fit] .enterprise-login .mg-login__frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  min-height: 100%;
+  height: 100%;
+}
+html[data-tv-board-fit] .enterprise-login .mg-login__panel--brand,
+html[data-tv-board-fit] .enterprise-login .mg-login__panel--form {
+  min-height: 100%;
+  height: 100%;
+  overflow: auto;
+}
+html[data-tv-board-fit] .enterprise-login .mg-login__panel--form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+html[data-tv-board-fit] .enterprise-login .mg-login__card {
+  width: min(100%, 420px);
 }

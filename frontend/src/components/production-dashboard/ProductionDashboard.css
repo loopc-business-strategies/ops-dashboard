@@ -1256,9 +1256,14 @@
 }
 
 .pd-fullscreen-page[data-viewport-fit] {
-  /* size + zoom/transform set inline by useViewportBoardFit */
+  /* size + transform set inline by useViewportBoardFit */
   max-width: none;
   max-height: none;
+  box-sizing: border-box;
+}
+
+html[data-tv-board-fit] .pd-fullscreen-shell {
+  overflow: hidden;
 }
 
 .pd-fullscreen-nav {
