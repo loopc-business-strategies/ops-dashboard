@@ -26,15 +26,15 @@ export const ERP_DASH_WIDGET_BODY_HEIGHT = '380px'
 export const ERP_DASH_CARD_MIN_HEIGHT = '440px'
 
 export const ERP_DASH_ALL_WIDGETS = [
-  { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊', color: '#ffedd5', desc: 'Equity and margin by customer/supplier', cols: 2 },
-  { id: 'fixing', label: 'Net Position', icon: '📌', color: '#fdf2f8', desc: 'Metal position by type (XAU–XPD)', cols: 2, viewTab: 'fixing-register' },
-  { id: 'bank', label: 'Bank & Cash Balances', icon: '🏦', color: '#ede9fe', desc: 'All account balances overview', cols: 2, viewTab: 'bank' },
-  { id: 'cashflow', label: 'Cash Flow', icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart', cols: 2 },
-  { id: 'expenses', label: 'Expenses', icon: '📋', color: '#fef9c3', desc: 'Expense breakdown and monthly trend', cols: 2, expandable: true },
-  { id: 'volume', label: 'Total Volume Traded', icon: '📦', color: '#ffedd5', desc: 'Trade volume by metal type', cols: 2 },
-  { id: 'apar', label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown', cols: 2, viewTab: 'apar' },
-  { id: 'chat', label: 'Chat', icon: '💬', color: '#eff6ff', desc: 'Recent team messages', cols: 2, viewTab: 'chat' },
-  { id: 'notif', label: 'Notifications & Alerts', icon: '🔔', color: '#e0f2fe', desc: 'System alerts and reminders', cols: 2, viewTab: 'notif' },
+  { id: 'margins', labelKey: 'widgetMargins', label: 'Customer & Supplier Margins', icon: '📊', color: '#ffedd5', desc: 'Equity and margin by customer/supplier', cols: 2 },
+  { id: 'fixing', labelKey: 'erpNetPosition', label: 'Net Position', icon: '📌', color: '#fdf2f8', desc: 'Metal position by type (XAU–XPD)', cols: 2, viewTab: 'fixing-register' },
+  { id: 'bank', labelKey: 'widgetBankCash', label: 'Bank & Cash Balances', icon: '🏦', color: '#ede9fe', desc: 'All account balances overview', cols: 2, viewTab: 'bank' },
+  { id: 'cashflow', labelKey: 'cashFlow', label: 'Cash Flow', icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart', cols: 2 },
+  { id: 'expenses', labelKey: 'expenses', label: 'Expenses', icon: '📋', color: '#fef9c3', desc: 'Expense breakdown and monthly trend', cols: 2, expandable: true },
+  { id: 'volume', labelKey: 'widgetVolume', label: 'Total Volume Traded', icon: '📦', color: '#ffedd5', desc: 'Trade volume by metal type', cols: 2 },
+  { id: 'apar', labelKey: 'widgetApar', label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown', cols: 2, viewTab: 'apar' },
+  { id: 'chat', labelKey: 'chat', label: 'Chat', icon: '💬', color: '#eff6ff', desc: 'Recent team messages', cols: 2, viewTab: 'chat' },
+  { id: 'notif', labelKey: 'widgetNotif', label: 'Notifications & Alerts', icon: '🔔', color: '#e0f2fe', desc: 'System alerts and reminders', cols: 2, viewTab: 'notif' },
 ]
 
 export const ERP_DASH_DEFAULT = ['margins', 'fixing', 'bank', 'cashflow', 'expenses', 'volume', 'apar', 'chat', 'notif']

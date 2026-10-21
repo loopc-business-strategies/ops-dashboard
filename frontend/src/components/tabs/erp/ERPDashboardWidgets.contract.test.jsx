@@ -1,9 +1,14 @@
 import React from 'react'
 import { describe, expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { LanguageProvider } from '../../../context/LanguageContext'
 import { ERP_DASH_ALL_WIDGETS } from '../erpTabConstants'
 import ExpenseDashboardModal from './ExpenseDashboardModal'
 import { renderERP_DashWidget } from './ERPDashboardWidgets'
+
+function renderWithLang(ui) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>)
+}
 
 vi.mock('./useExpenseRegister', () => ({
   expenseRegisterYearStart: () => '2026-01-01',
@@ -38,17 +43,17 @@ describe('ERPDashboardWidgets contract', () => {
   })
 
   test('renders fallback content for unknown widget id', () => {
-    render(<div>{renderERP_DashWidget('unknown-widget', {}, [])}</div>)
+    renderWithLang(<div>{renderERP_DashWidget('unknown-widget', {}, [])}</div>)
     expect(screen.getByText('Widget content')).toBeTruthy()
   })
 
   test('renders expenses empty-state contract', () => {
-    render(<div>{renderERP_DashWidget('expenses', { expenses: { total: 0, breakdown: [], ytdTotal: 0, monthlyTrend: [] } }, [])}</div>)
+    renderWithLang(<div>{renderERP_DashWidget('expenses', { expenses: { total: 0, breakdown: [], ytdTotal: 0, monthlyTrend: [] } }, [])}</div>)
     expect(screen.getByText('Sign in to load expenses.')).toBeTruthy()
   })
 
   test('expenses card shows charts only without register or filters', () => {
-    render(
+    renderWithLang(
       <div>
         {renderERP_DashWidget(
           'expenses',
@@ -88,7 +93,7 @@ describe('ERPDashboardWidgets contract', () => {
   })
 
   test('expense dashboard modal shows charts register and close', () => {
-    render(
+    renderWithLang(
       <ExpenseDashboardModal
         dashboard={{
           expenses: {
@@ -118,7 +123,7 @@ describe('ERPDashboardWidgets contract', () => {
   })
 
   test('renders notifications contract with action link', () => {
-    render(
+    renderWithLang(
       <div>
         {renderERP_DashWidget(
           'notif',
@@ -138,7 +143,7 @@ describe('ERPDashboardWidgets contract', () => {
   })
 
   test('renders AP/AR empty state and deficit styling', () => {
-    render(
+    renderWithLang(
       <div>
         {renderERP_DashWidget(
           'apar',

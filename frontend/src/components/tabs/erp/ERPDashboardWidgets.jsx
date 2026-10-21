@@ -7,12 +7,19 @@ import ExpenseStatsFooter from './ExpenseStatsFooter'
 import { useExpensePeriodFilter } from './useExpensePeriodFilter'
 import { useExpenseChartData } from './useExpenseChartData'
 import { useExpenseFooterStats } from './useExpenseFooterStats'
+import { useLanguage } from '../../../context/LanguageContext'
 
 import { formatAmount, formatMoney } from '../../../utils/money'
 import { ERP_TAB_COLORS } from './erpTabPresentation'
 
 const ERP_LINK = ERP_TAB_COLORS.link
 const ERP_POSITIVE = ERP_TAB_COLORS.positive
+
+function fillTemplate(template, vars) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (
+    vars[key] == null ? '' : String(vars[key])
+  ))
+}
 
 function fmtMoney(val, currency = '') {
   if (currency) return formatMoney(val, currency)
@@ -29,6 +36,7 @@ function MarginsWidget({
   liveRecalcEnabled = false,
   baseCurrencyCode = 'USD',
 }) {
+  const { t } = useLanguage()
   const liveSpot = useErpLiveMetalSpotPrices()
   const goldPriceUSD = liveSpot.goldPriceUSD
   const silverPriceUSD = liveSpot.silverPriceUSD
@@ -57,8 +65,7 @@ function MarginsWidget({
   const customers = rawCustomers.map((row) => mapRow(row, 'customerName'))
   const suppliers = rawSuppliers.map((row) => mapRow(row, 'supplierName', { suppressMetalSpotMtm: true }))
   const activeRows = tab === 'suppliers' ? suppliers : customers
-  const activeLabel = tab === 'suppliers' ? 'supplier' : 'customer'
-  const activeTitle = tab === 'suppliers' ? 'Supplier Margin' : 'Customer Margin'
+  const activeTitle = tab === 'suppliers' ? t('erpSupplierMargin') : t('erpCustomerMargin')
 
   const modalRows = (() => {
     const q = modalSearch.trim().toLowerCase()
@@ -97,21 +104,21 @@ function MarginsWidget({
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', flexShrink: 0 }}>
-        <div style={tabSt(tab === 'customers')} onClick={() => setTab('customers')}>Customer Margins</div>
-        <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>Supplier Margins</div>
+        <div style={tabSt(tab === 'customers')} onClick={() => setTab('customers')}>{t('customerMargins')}</div>
+        <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>{t('supplierMargins')}</div>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '0.75rem 0.8125rem' }}>
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {activeRows.length === 0
-            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No {activeLabel} data available.</p>
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>{tab === 'suppliers' ? t('noSupplierData') : t('noCustomerData')}</p>
             : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left',   fontSize: '0.65rem', fontWeight: '700', color: muted }}>{tab === 'suppliers' ? 'Supplier' : 'Customer'}</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Gold Position</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Silver Position</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Equity</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin %</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left',   fontSize: '0.65rem', fontWeight: '700', color: muted }}>{tab === 'suppliers' ? t('supplier') : t('customer')}</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('goldPosition')}</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('silverPosition')}</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('equity')}</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('margin')}</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('marginPct')}</th>
                 </tr></thead>
                 <tbody>
                   {activeRows.map((c, i) => (
@@ -129,9 +136,7 @@ function MarginsWidget({
         }
         </div>
         <p style={{ margin: '0.45rem 0 0', color: muted, fontSize: '0.68rem', lineHeight: 1.4, flexShrink: 0 }}>
-          {tab === 'suppliers'
-            ? 'Supplier payables show as negative Equity (signed ledger).'
-            : 'Customer Equity reflects the signed customer exposure based on the account\'s underlying accounting direction.'}
+          {tab === 'suppliers' ? t('supplierEquityNote') : t('customerEquityNote')}
         </p>
         <div style={{ marginTop: '0.45rem', textAlign: 'right', flexShrink: 0 }}>
           <button
@@ -143,7 +148,7 @@ function MarginsWidget({
               setShowModal(true); setModalSearch(''); setModalSort('margin-desc'); setDragPos({ x: 0, y: 0 })
             }}
             style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-          >↗ View Full Report</button>
+          >{t('viewFullReport')}</button>
         </div>
       </div>
 
@@ -176,9 +181,9 @@ function MarginsWidget({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span style={{ fontSize: '1.1rem' }}>📊</span>
-                <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '1rem', letterSpacing: '0.02em' }}>{activeTitle} — Full Report</span>
-                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.7rem', fontWeight: '700', borderRadius: '999px', padding: '0.1rem 0.55rem' }}>{modalRows.length} {activeLabel}s</span>
-                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.68rem', marginLeft: '0.3rem' }}>⠿ drag</span>
+                <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '1rem', letterSpacing: '0.02em' }}>{fillTemplate(t('titleFullReport'), { title: activeTitle })}</span>
+                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.7rem', fontWeight: '700', borderRadius: '999px', padding: '0.1rem 0.55rem' }}>{fillTemplate(tab === 'suppliers' ? t('supplierCount') : t('customerCount'), { n: modalRows.length })}</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.68rem', marginLeft: '0.3rem' }}>{t('dragHint')}</span>
               </div>
               <button
                 onClick={() => setShowModal(false)}
@@ -187,7 +192,7 @@ function MarginsWidget({
             </div>
             <div style={{ padding: '0.65rem 1rem', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', background: '#F8FAFC', flexShrink: 0 }}>
               <input
-                placeholder={`Search ${activeLabel}...`}
+                placeholder={tab === 'suppliers' ? t('searchSupplier') : t('searchCustomer')}
                 value={modalSearch}
                 onChange={(e) => setModalSearch(e.target.value)}
                 style={{ flex: 1, minWidth: '160px', padding: '0.42rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.82rem', color: ink, background: '#FFFFFF' }}
@@ -197,25 +202,25 @@ function MarginsWidget({
                 onChange={(e) => setModalSort(e.target.value)}
                 style={{ padding: '0.42rem 0.6rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', background: '#FFFFFF', color: ink, fontSize: '0.82rem' }}
               >
-                <option value="margin-desc">Sort: Margin % ↓</option>
-                <option value="margin-asc">Sort: Margin % ↑</option>
-                <option value="name-asc">Sort: Name A–Z</option>
+                <option value="margin-desc">{t('sortMarginDesc')}</option>
+                <option value="margin-asc">{t('sortMarginAsc')}</option>
+                <option value="name-asc">{t('sortNameAsc')}</option>
               </select>
             </div>
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {modalRows.length === 0
-                ? <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem', fontSize: '0.85rem' }}>No {activeLabel}s found.</p>
+                ? <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem', fontSize: '0.85rem' }}>{tab === 'suppliers' ? t('noSuppliersFound') : t('noCustomersFound')}</p>
                 : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ background: 'var(--brand-soft)', borderBottom: '1px solid var(--brand-border)', position: 'sticky', top: 0, zIndex: 1 }}>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem' }}>{tab === 'suppliers' ? 'Supplier Name' : 'Customer Name'}</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Gold Position</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Silver Position</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Equity</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Excess</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'center', fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem' }}>Status</th>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin %</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem' }}>{tab === 'suppliers' ? t('supplierName') : t('customerName')}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>{t('goldPosition')}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>{t('silverPosition')}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>{t('equity')}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>{t('margin')}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>{t('excess')}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'center', fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem' }}>{t('status')}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: 'var(--brand-on-soft)', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>{t('marginPct')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -227,7 +232,12 @@ function MarginsWidget({
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.equityFmt}</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.excess < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.excessFmt}</td>
-                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'center', fontWeight: '700', fontSize: '0.75rem', color: statusColor(c.status) }}>{c.status}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'center', fontWeight: '700', fontSize: '0.75rem', color: statusColor(c.status) }}>{
+                            c.status === 'POSITIVE' ? t('statusPositive')
+                              : c.status === 'NEGATIVE' ? t('statusNegative')
+                                : c.status === 'NEUTRAL' ? t('statusNeutral')
+                                  : c.status
+                          }</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity < 0 ? '#DC2626' : ERP_POSITIVE, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginFmt}</td>
                         </tr>
                       ))}
@@ -236,7 +246,7 @@ function MarginsWidget({
               }
             </div>
             <div style={{ padding: '0.55rem 1rem', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.72rem', color: muted, flexShrink: 0 }}>
-              Equity shows signed net cash flow. Positive values are favorable, negative values are payable.
+              {t('equitySignedNote')}
             </div>
           </div>
         </div>
@@ -247,6 +257,7 @@ function MarginsWidget({
 
 // ── AP/AR Widget — AR / AP tabs, full 3-col width ─────────────
 function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
+  const { t } = useLanguage()
   const [tab, setTab] = useState('ar')
   const muted = '#6B7280'; const ink = '#111827'
   const ap = dashboard?.apAr
@@ -260,17 +271,20 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
     borderBottom: `2px solid ${active ? 'var(--purple)' : 'transparent'}`,
     background: active ? '#fff' : 'transparent', userSelect: 'none',
   })
+  const headers = tab === 'ar'
+    ? [t('customer'), t('outstanding'), t('count')]
+    : [t('supplier'), t('outstanding'), t('count')]
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ padding: '0.75rem 0.8125rem 0', flexShrink: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
           {[
-            { label: 'RECEIVABLE (AR)', val: ap?.totalAR, sub: `${ap?.arCount || 0} open`, vc: '#16A34A', bg: '#DCFCE7' },
-            { label: 'PAYABLE (AP)', val: ap?.totalAP, sub: `${ap?.apCount || 0} pending`, vc: '#DC2626', bg: '#FEE2E2' },
+            { label: t('receivableAR'), val: ap?.totalAR, sub: fillTemplate(t('openCount'), { n: ap?.arCount || 0 }), vc: '#16A34A', bg: '#DCFCE7' },
+            { label: t('payableAP'), val: ap?.totalAP, sub: fillTemplate(t('pendingCount'), { n: ap?.apCount || 0 }), vc: '#DC2626', bg: '#FEE2E2' },
             {
-              label: 'NET POSITION',
+              label: t('erpNetPosition').toUpperCase(),
               val: ap?.netPosition,
-              sub: netFavorable ? '▲ Favorable' : '▼ Deficit',
+              sub: netFavorable ? t('favorable') : t('deficit'),
               vc: netFavorable ? '#059669' : '#DC2626',
               bg: netFavorable ? '#E8F5EF' : '#FEE2E2',
             },
@@ -284,20 +298,20 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
         </div>
       </div>
       <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', flexShrink: 0 }}>
-        <div style={tabSt(tab === 'ar')} onClick={() => setTab('ar')}>Receivable (AR)</div>
-        <div style={tabSt(tab === 'ap')} onClick={() => setTab('ap')}>Payable (AP)</div>
+        <div style={tabSt(tab === 'ar')} onClick={() => setTab('ar')}>{t('receivableARTab')}</div>
+        <div style={tabSt(tab === 'ap')} onClick={() => setTab('ap')}>{t('payableAPTab')}</div>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '0 0.8125rem 0.75rem' }}>
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
           <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
-            {(tab === 'ar' ? ['Customer', 'Outstanding', 'Count'] : ['Supplier', 'Outstanding', 'Count']).map(h => (
-              <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' || h === 'Supplier' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
+            {headers.map((h, hi) => (
+              <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: hi === 0 ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
             {(tab === 'ar' ? arRows : apRows).length === 0
-              ? <tr><td colSpan={3} style={{ padding: '0.75rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem' }}>No outstanding balances.</td></tr>
+              ? <tr><td colSpan={3} style={{ padding: '0.75rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem' }}>{t('noOutstanding')}</td></tr>
               : (tab === 'ar' ? arRows : apRows).slice(0, 6).map((r, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
                   <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{r.customerName || r.supplierName}</td>
@@ -309,7 +323,7 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
           </tbody>
           {(tab === 'ar' ? arRows : apRows).length > 0 && (
             <tfoot><tr style={{ borderTop: '2px solid #E8F5EF', background: '#F9FAFB' }}>
-              <td style={{ padding: '0.35rem 0.4rem', fontWeight: '700' }}>Total {tab === 'ar' ? 'AR' : 'AP'}</td>
+              <td style={{ padding: '0.35rem 0.4rem', fontWeight: '700' }}>{tab === 'ar' ? t('totalAR') : t('totalAP')}</td>
               <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '700', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(tab === 'ar' ? ap?.totalAR : ap?.totalAP, baseCurrencyCode)}</td>
               <td />
             </tr></tfoot>
@@ -321,7 +335,7 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
             <button
               onClick={() => onNavigate('apar')}
               style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-            >↗ View Full Details</button>
+            >{t('viewFullDetails')}</button>
           </div>
         )}
       </div>
@@ -330,6 +344,7 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
 }
 
 function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD', reportReady = true }) {
+  const { t } = useLanguage()
   const expenseListReady = reportReady !== false
   const {
     year: yearFilter,
@@ -382,7 +397,7 @@ function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD', reportRead
   if (!token) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>Sign in to load expenses.</p>
+        <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>{t('signInToLoadExpenses')}</p>
       </div>
     )
   }
@@ -398,7 +413,7 @@ function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD', reportRead
         maxTrend={maxTrend}
         peakMonthIndex={peakMonthIndex}
         selectedMonthIndex={selectedMonthIndex}
-        trendRangeLabel="Monthly Expenses"
+        trendRangeLabel={t('monthlyExpenses')}
         baseCurrencyCode={baseCurrencyCode}
         style={{ flex: 1, minHeight: 0 }}
       />
@@ -409,6 +424,7 @@ function ExpensesWidget({ dashboard, token, baseCurrencyCode = 'USD', reportRead
 
 
 function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
+  const { t } = useLanguage()
   const positions = Array.isArray(dashboard?.fixingPositions) ? dashboard.fixingPositions : []
   const normaliseMetalCode = (position = {}) => {
     const raw = String(position.code || position.metal || '').trim().toUpperCase()
@@ -424,10 +440,10 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
       .filter(([code]) => ['XAU', 'XAG', 'XPT', 'XPD'].includes(code))
   )
   const rows = [
-    { code: 'XAU', title: 'Gold', subtitle: 'XAU' },
-    { code: 'XAG', title: 'Silver', subtitle: 'XAG' },
-    { code: 'XPT', title: 'Platinum', subtitle: 'XPT' },
-    { code: 'XPD', title: 'Palladium', subtitle: 'XPD' },
+    { code: 'XAU', title: t('metalGold'), subtitle: 'XAU' },
+    { code: 'XAG', title: t('metalSilver'), subtitle: 'XAG' },
+    { code: 'XPT', title: t('metalPlatinum'), subtitle: 'XPT' },
+    { code: 'XPD', title: t('metalPalladium'), subtitle: 'XPD' },
   ].map((row) => {
     const p = byMetal.get(row.code) || {}
     const net = Number(p.netPosition ?? p.qty ?? 0)
@@ -471,7 +487,7 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
               }}>
                 {fmt(r.net, r.unit)}
               </div>
-              <div style={{ color: '#94A3B8', fontSize: '0.6rem', fontWeight: '800', marginTop: '0.08rem', textTransform: 'uppercase' }}>Net position</div>
+              <div style={{ color: '#94A3B8', fontSize: '0.6rem', fontWeight: '800', marginTop: '0.08rem', textTransform: 'uppercase' }}>{t('netPositionShort')}</div>
             </div>
           </div>
         ))}
@@ -479,7 +495,7 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
       {onNavigate && (
         <div style={{ marginTop: '0.55rem', textAlign: 'right', flexShrink: 0 }}>
           <button type="button" onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}>
-            View full statement
+            {t('viewFullStatement')}
           </button>
         </div>
       )}
@@ -493,7 +509,8 @@ const APARWidgetMemo = React.memo(APARWidget)
 const ExpensesWidgetMemo = React.memo(ExpensesWidget)
 const FixingPositionSummaryWidgetMemo = React.memo(FixingPositionSummaryWidget)
 
-function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {}) {
+function ERPDashWidgetBody({ id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {} }) {
+  const { t } = useLanguage()
   const { liveRecalcEnabled = false } = options
   const baseCurrencyCode = options.baseCurrencyCode || 'USD'
   const bdr = '1px solid #F0FDF4'
@@ -532,7 +549,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
         <div style={widgetContainerStyle}>
           <div style={widgetScrollStyle}>
           {allRows.length === 0
-            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', padding: '0.75rem' }}>No accounts found.</p>
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', padding: '0.75rem' }}>{t('noAccountsFound')}</p>
             : allRows.map((a, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderBottom: '1px solid #F9FAFB' }}>
                 <div>
@@ -544,7 +561,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderTop: '2px solid #E8F5EF', fontSize: '0.82rem', flexShrink: 0 }}>
-            <span style={{ fontWeight: '700', color: ink }}>Total</span>
+            <span style={{ fontWeight: '700', color: ink }}>{t('total')}</span>
             <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total, baseCurrencyCode)}</span>
           </div>
           {onNavigate && (
@@ -552,7 +569,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               <button
                 onClick={() => onNavigate('bank')}
                 style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-              >↗ View Full Details</button>
+              >{t('viewFullDetails')}</button>
             </div>
           )}
         </div>
@@ -575,14 +592,14 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const quality = cf?.quality || {}
       const activity = cf?.activity || {}
       const summaryItems = [
-        { label: 'Inflow',  val: cf?.inflow,  bg: '#DCFCE7', vc: '#059669' },
-        { label: 'Outflow', val: cf?.outflow, bg: '#FEE2E2', vc: '#DC2626' },
-        { label: 'Net',     val: cf?.net,     bg: '#E8F5EF', vc: Number(cf?.net || 0) >= 0 ? '#059669' : '#DC2626' },
+        { label: t('inflow'),  val: cf?.inflow,  bg: '#DCFCE7', vc: '#059669' },
+        { label: t('outflow'), val: cf?.outflow, bg: '#FEE2E2', vc: '#DC2626' },
+        { label: t('net'),     val: cf?.net,     bg: '#E8F5EF', vc: Number(cf?.net || 0) >= 0 ? '#059669' : '#DC2626' },
       ]
       const activityItems = [
-        { key: 'operating', label: 'Operating', val: Number(activity?.operating?.net || 0) },
-        { key: 'investing', label: 'Investing', val: Number(activity?.investing?.net || 0) },
-        { key: 'financing', label: 'Financing', val: Number(activity?.financing?.net || 0) },
+        { key: 'operating', label: t('operating'), val: Number(activity?.operating?.net || 0) },
+        { key: 'investing', label: t('investing'), val: Number(activity?.investing?.net || 0) },
+        { key: 'financing', label: t('financing'), val: Number(activity?.financing?.net || 0) },
       ]
       return (
         <div style={widgetContainerStyle}>
@@ -590,7 +607,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           {monthly.length > 0 && (
             <>
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.4rem' }}>
-                {[['#22C97E', 'Inflow'], ['#FCA5A5', 'Outflow'], ['var(--purple)', 'Net']].map(([c, l]) => (
+                {[['#22C97E', t('inflow')], ['#FCA5A5', t('outflow')], ['var(--purple)', t('net')]].map(([c, l]) => (
                   <div key={l} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: muted }}>
                     <span style={{ width: 8, height: 8, borderRadius: '2px', background: c, display: 'inline-block' }} />{l}
                   </div>
@@ -625,7 +642,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           </div>
           {hasTrendDelta && (
             <p style={{ margin: '0.55rem 0 0', fontSize: '0.72rem', color: trendColor, fontWeight: '600', textAlign: 'right' }}>
-              {trendArrow} Cashflow trend delta: {fmtMoney(netDelta, baseCurrencyCode)} (vs prev month)
+              {fillTemplate(t('cashflowTrendDelta'), { arrow: trendArrow, amount: fmtMoney(netDelta, baseCurrencyCode) })}
             </p>
           )}
           <div style={{ marginTop: '0.45rem', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.4rem' }}>
@@ -642,7 +659,10 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             })}
           </div>
           <p style={{ margin: '0.45rem 0 0', fontSize: '0.7rem', color: muted, textAlign: 'right' }}>
-            Runway: {quality?.runwayMonths == null ? '—' : `${Number(quality.runwayMonths).toFixed(1)} mo`} | Coverage: {quality?.operatingCoverage == null ? '—' : `${Number(quality.operatingCoverage).toFixed(2)}x`}
+            {fillTemplate(t('runwayCoverage'), {
+              runway: quality?.runwayMonths == null ? '—' : `${Number(quality.runwayMonths).toFixed(1)} mo`,
+              coverage: quality?.operatingCoverage == null ? '—' : `${Number(quality.operatingCoverage).toFixed(2)}x`,
+            })}
           </p>
           </div>
         </div>
@@ -680,7 +700,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           )}
           <div style={{ ...widgetScrollStyle, padding: '0 0.75rem' }}>
           {vols.length === 0
-            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No volume data in period.</p>
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>{t('noVolumeData')}</p>
             : vols.map((v, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #F9FAFB', fontSize: '0.8rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -695,7 +715,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           </div>
           {vols.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', fontSize: '0.82rem', fontWeight: '600', borderTop: '1px solid #E8F5EF', flexShrink: 0 }}>
-              <span>Total</span><span style={{ color: '#059669' }}>{totalQty.toLocaleString()} oz</span>
+              <span>{t('total')}</span><span style={{ color: '#059669' }}>{totalQty.toLocaleString()} oz</span>
             </div>
           )}
         </div>
@@ -710,9 +730,9 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
 
     case 'chat': {
       const FALLBACK_MSGS = [
-        { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: 'Gold fixing confirmed at $2,341.50/oz', time: '10:30 AM' },
-        { mine: true,  av: 'N', bg: 'var(--brand-soft)', tc: 'var(--purple)', text: 'Proceed with ABC Trading allocation', time: '10:32 AM' },
-        { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: 'Done. Invoice #1042 sent to PlatGroup', time: '11:15 AM' },
+        { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: t('chatDemoMsg1'), time: '10:30 AM' },
+        { mine: true,  av: 'N', bg: 'var(--brand-soft)', tc: 'var(--purple)', text: t('chatDemoMsg2'), time: '10:32 AM' },
+        { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: t('chatDemoMsg3'), time: '11:15 AM' },
       ]
       const hasMsgs = chatMessages.length > 0
       return (
@@ -743,7 +763,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           </div>
           {onNavigateMain && (
             <div style={{ textAlign: 'center', padding: '0.35rem 0.75rem 0.6rem', background: 'var(--brand-soft)', borderRadius: '6px', fontSize: '0.72rem', color: 'var(--purple)', fontWeight: '500', cursor: 'pointer', flexShrink: 0, margin: '0 0.75rem 0.6rem' }} onClick={() => onNavigateMain('chat')}>
-              💬 Open full chat →
+              {t('openFullChat')}
             </div>
           )}
         </div>
@@ -755,10 +775,31 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
         <div style={widgetContainerStyle}>
           <div style={{ ...widgetScrollStyle, padding: '0.75rem' }}>
           {[
-            { icon: '⚠️', iconBg: '#FEE2E2', text: `${Number(dashboard?.vendorComplianceRisk?.nonCompliant || 0)} vendor(s) at risk · Avg score ${Number(dashboard?.vendorComplianceRisk?.averageScore || 0)}%`, time: 'Today' },
-            { icon: '📄', iconBg: '#FEF9C3', text: `Doc expiry: ${Number(dashboard?.vendorDocumentExpiry?.warning30 || 0)} in 30d · ${Number(dashboard?.vendorDocumentExpiry?.warning60 || 0)} in 60d`, time: 'Today' },
-            ...(dashboard?.lowStockAlerts?.length ? [{ icon: '📦', iconBg: '#DBEAFE', text: `${dashboard.lowStockAlerts.length} item(s) below minimum stock`, time: 'Now' }] : []),
-            { icon: '✅', iconBg: '#DCFCE7', text: 'Dashboard refreshed successfully', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+            {
+              icon: '⚠️',
+              iconBg: '#FEE2E2',
+              text: fillTemplate(t('vendorsAtRisk'), {
+                n: Number(dashboard?.vendorComplianceRisk?.nonCompliant || 0),
+                score: Number(dashboard?.vendorComplianceRisk?.averageScore || 0),
+              }),
+              time: t('today'),
+            },
+            {
+              icon: '📄',
+              iconBg: '#FEF9C3',
+              text: fillTemplate(t('docExpiryAlert'), {
+                n30: Number(dashboard?.vendorDocumentExpiry?.warning30 || 0),
+                n60: Number(dashboard?.vendorDocumentExpiry?.warning60 || 0),
+              }),
+              time: t('today'),
+            },
+            ...(dashboard?.lowStockAlerts?.length ? [{
+              icon: '📦',
+              iconBg: '#DBEAFE',
+              text: fillTemplate(t('lowStockAlerts'), { n: dashboard.lowStockAlerts.length }),
+              time: t('now'),
+            }] : []),
+            { icon: '✅', iconBg: '#DCFCE7', text: t('dashboardRefreshed'), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
           ].map((n, i, arr) => (
             <div key={i} style={{ display: 'flex', gap: '0.625rem', padding: '0.45rem 0', borderBottom: i < arr.length - 1 ? bdr : 'none', alignItems: 'flex-start' }}>
               <div style={{ width: 28, height: 28, borderRadius: '7px', background: n.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0 }}>{n.icon}</div>
@@ -774,16 +815,28 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               <button
                 onClick={() => onNavigate('notif')}
                 style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-              >↗ View All Alerts</button>
+              >{t('viewAllAlerts')}</button>
             </div>
           )}
         </div>
       )
     }
-    
 
-    default: return <p style={{ fontSize: '0.82rem', color: '#9CA3AF', textAlign: 'center', padding: '1.5rem 0' }}>Widget content</p>
+    default: return <p style={{ fontSize: '0.82rem', color: '#9CA3AF', textAlign: 'center', padding: '1.5rem 0' }}>{t('widgetContent')}</p>
   }
+}
+
+function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {}) {
+  return (
+    <ERPDashWidgetBody
+      id={id}
+      dashboard={dashboard}
+      chatMessages={chatMessages}
+      onNavigate={onNavigate}
+      onNavigateMain={onNavigateMain}
+      options={options}
+    />
+  )
 }
 
 export { fmtMoney, MarginsWidget, APARWidget, renderERP_DashWidget }

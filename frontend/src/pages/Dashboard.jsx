@@ -1047,9 +1047,10 @@ function Dashboard() {
     ? t('superAdmin')
     : (user?.role || 'user').replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
 
-  // Find current tab label
-  const currentTab = navItems.find(n => n.id === activeTab)
-
+  // Find current tab label (ERP uses sub-tab ids in the sidebar)
+  const currentTab = activeTab === 'erp'
+    ? navItems.find((n) => n.group === 'erp' && n.erpSub === erpSubTab)
+    : navItems.find((n) => n.id === activeTab)
 
   return (
     <LiveMetalRatesProvider token={token} tenant={branding.key} enabled={metalRatesEnabled}>
@@ -1132,8 +1133,8 @@ function Dashboard() {
                 type="button"
                 onClick={toggleSidebar}
                 className="topbar-icon-btn"
-                aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-                title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+                aria-label={sidebarOpen ? t('hideSidebar') : t('showSidebar')}
+                title={sidebarOpen ? t('hideSidebar') : t('showSidebar')}
                 style={{ color: 'var(--text-secondary)' }}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1147,7 +1148,10 @@ function Dashboard() {
                   {currentTab?.label || t('dashboard')}
                 </h1>
                 <p className="topbar-subtitle hidden sm:block">
-                  {branding.displayName} | {new Date().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}
+                  {branding.displayName} | {new Date().toLocaleDateString(
+                    ({ en: 'en-GB', ar: 'ar', uz: 'uz-UZ', ru: 'ru-RU' })[langMeta?.code] || 'en-GB',
+                    { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+                  )}
                 </p>
               </div>
             </div>
@@ -1165,7 +1169,7 @@ function Dashboard() {
                 <button
                   type="button"
                   className="topbar-icon-btn"
-                  aria-label="Search workspace"
+                  aria-label={t('searchWorkspace')}
                   onClick={() => overviewSearchOpenerRef.current?.()}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1186,7 +1190,7 @@ function Dashboard() {
               <div className="relative" ref={notifMenuRef}>
                 <button
                   type="button"
-                  aria-label="Notifications"
+                  aria-label={t('notifications')}
                   aria-expanded={notifOpen}
                   onClick={() => setNotifOpen(v => !v)}
                   className="topbar-icon-btn relative"
@@ -1218,7 +1222,7 @@ function Dashboard() {
                       className="flex items-center justify-between gap-2 px-3 py-2.5"
                       style={{ borderBottom: '1px solid var(--border)' }}
                     >
-                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Notifications</span>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('notifications')}</span>
                       {notifUnreadCount > 0 && (
                         <button
                           type="button"
@@ -1226,13 +1230,13 @@ function Dashboard() {
                           className="text-[11px] font-semibold"
                           style={{ color: 'var(--brand-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
                         >
-                          Mark all read
+                          {t('markAllRead')}
                         </button>
                       )}
                     </div>
                     {notifications.length === 0 ? (
                       <div className="px-3 py-3.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        No notifications yet.
+                        {t('noNotificationsYet')}
                       </div>
                     ) : notifications.map((n) => {
                       const actionable = Boolean(n.chatTargetId || n.erpTransactionId || n.erpEnquiryAccountCode)

@@ -2,6 +2,7 @@ import { ERPDashboardTabContainer } from '../ERPTabContainers'
 import { renderERP_DashWidget } from '../ERPDashboardWidgets'
 import ExpenseDashboardModal from '../ExpenseDashboardModal'
 import { formatDateInputLocal } from '../erpTabPresentation'
+import { useLanguage } from '../../../../context/LanguageContext'
 import {
   ERP_DASH_CARD_MIN_HEIGHT,
   ERP_DASH_DEFAULT,
@@ -10,6 +11,14 @@ import {
   ERP_DASH_WIDGET_COUNT,
   ensureMarginsThenFixingOrder,
 } from '../../erpTabConstants'
+
+const DATE_LOCALES = { en: 'en-GB', ar: 'ar', uz: 'uz-UZ', ru: 'ru-RU' }
+
+function fillTemplate(template, vars) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (
+    vars[key] == null ? '' : String(vars[key])
+  ))
+}
 
 export default function ERPDashboardTab({
   activeTab,
@@ -42,6 +51,8 @@ export default function ERPDashboardTab({
   setLedgerFilters,
   baseCurrencyCode = 'USD',
 }) {
+  const { t, langCode } = useLanguage()
+  const widgetLabel = (meta) => (meta?.labelKey ? t(meta.labelKey) : meta?.label) || ''
   const openLedgerFromExpense = setLedgerFilters ? (entry) => {
     const entryDate = entry?.date ? formatDateInputLocal(new Date(entry.date)) : ''
     const fundingCode = String(entry?.creditAccount?.code || '').trim()
@@ -66,13 +77,13 @@ export default function ERPDashboardTab({
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>📊 My Dashboard</h3>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>📊 {t('myDashboard')}</h3>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>
-                {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {new Date().toLocaleDateString(DATE_LOCALES[langCode] || 'en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 {' · '}
                 {dashWidgets.length === ERP_DASH_WIDGET_COUNT
-                  ? `${ERP_DASH_WIDGET_COUNT} widgets`
-                  : `${dashWidgets.length} of ${ERP_DASH_WIDGET_COUNT} widgets`}
+                  ? fillTemplate(t('erpDashWidgetsAll'), { n: ERP_DASH_WIDGET_COUNT })
+                  : fillTemplate(t('erpDashWidgetsPartial'), { n: dashWidgets.length, total: ERP_DASH_WIDGET_COUNT })}
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -86,13 +97,13 @@ export default function ERPDashboardTab({
                 }}
                 style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
               >
-                ⠿ {dashEditMode ? 'Done' : 'Arrange'}
+                ⠿ {dashEditMode ? t('done') : t('arrange')}
               </button>
               <button
                 onClick={() => { setDashPickSelected([...dashWidgets]); setDashCustomizeOpen(true) }}
                 style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: 'none', borderRadius: '0.375rem', background: C.s1, color: '#fff', cursor: 'pointer' }}
               >
-                + Customize
+                + {t('customize')}
               </button>
             </div>
           </div>
@@ -101,7 +112,7 @@ export default function ERPDashboardTab({
           {dashEditMode && (
             <div style={{ background: '#F0FDF4', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.6rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: C.s2 }}>
               <span style={{ fontSize: '1rem' }}>↕</span>
-              <span>Drag widgets to rearrange. Margins and fixing are pinned to the front when you click <strong>Done</strong> or <strong>Customize → Apply</strong>. Click <strong>✕</strong> to remove a widget.</span>
+              <span>{t('dashArrangeHelp')}</span>
             </div>
           )}
 
@@ -109,12 +120,12 @@ export default function ERPDashboardTab({
           {dashWidgets.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem 1rem', background: C.p2, borderRadius: '0.75rem' }}>
               <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</p>
-              <p style={{ color: C.inkSoft, fontSize: '0.9rem', marginBottom: '1rem' }}>No widgets on your dashboard yet.</p>
+              <p style={{ color: C.inkSoft, fontSize: '0.9rem', marginBottom: '1rem' }}>{t('noWidgetsYet')}</p>
               <button
                 onClick={() => { setDashPickSelected([...dashWidgets]); setDashCustomizeOpen(true) }}
                 style={{ padding: '0.5rem 1.25rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
               >
-                + Add Widgets
+                + {t('addWidgets')}
               </button>
             </div>
           ) : (
@@ -206,7 +217,7 @@ export default function ERPDashboardTab({
                         <div style={{ width: 28, height: 28, borderRadius: '6px', background: meta.color || '#E8F5EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }}>
                           {meta.icon}
                         </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: C.ink }}>{widgetLabel(meta)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         {meta.expandable && (
@@ -215,8 +226,8 @@ export default function ERPDashboardTab({
                             draggable={false}
                             onDragStart={(ev) => ev.stopPropagation()}
                             onClick={() => setDashExpandedWidget(wid)}
-                            aria-label="Expand"
-                            title="Expand"
+                            aria-label={t('expand')}
+                            title={t('expand')}
                             style={{ padding: '2px 6px', border: '1px solid #E5E7EB', borderRadius: '5px', background: '#F9FAFB', cursor: 'pointer', fontSize: '0.75rem', color: C.inkSoft, lineHeight: 1 }}
                           >⛶</button>
                         )}
@@ -228,7 +239,7 @@ export default function ERPDashboardTab({
                             onDragStart={(ev) => ev.stopPropagation()}
                             onClick={() => setActiveTab(meta.viewTab)}
                             style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.68rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
-                          >→ View</button>
+                          >{t('viewArrow')}</button>
                         )}
                         <button
                           type="button"
@@ -239,7 +250,7 @@ export default function ERPDashboardTab({
                             const next = cur >= ERP_DASH_GRID_COLUMNS ? 1 : Number(cur) + 1
                             setDashWidgetCols(prev => ({ ...prev, [wid]: next }))
                           }}
-                          title="Resize widget (column span)"
+                          title={t('resizeWidget')}
                           style={{ padding: '2px 6px', border: '1px solid #E5E7EB', borderRadius: '5px', background: '#F9FAFB', cursor: 'pointer', fontSize: '0.75rem', color: C.inkSoft, lineHeight: 1 }}
                         >⤢</button>
                         <button
@@ -278,8 +289,10 @@ export default function ERPDashboardTab({
               <div style={{ background: '#fff', borderRadius: '0.75rem', width: '560px', maxWidth: '95vw', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1rem', fontWeight: '700' }}>Customize Dashboard</h4>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.inkSoft }}>{dashPickSelected.length} widget{dashPickSelected.length !== 1 ? 's' : ''} selected</p>
+                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1rem', fontWeight: '700' }}>{t('customizeDashboard')}</h4>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.inkSoft }}>
+                      {fillTemplate(t('erpDashWidgetsSelected'), { n: dashPickSelected.length })}
+                    </p>
                   </div>
                   <button onClick={() => setDashCustomizeOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.1rem', color: C.inkSoft, cursor: 'pointer' }}>✕</button>
                 </div>
@@ -295,7 +308,7 @@ export default function ERPDashboardTab({
                         >
                           <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{w.icon}</span>
                           <div>
-                            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '600', color: C.ink }}>{w.label}</p>
+                            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '600', color: C.ink }}>{widgetLabel(w)}</p>
                             <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: C.inkSoft }}>{w.desc}</p>
                           </div>
                           {on && <span style={{ marginLeft: 'auto', color: C.s1, fontSize: '0.9rem', flexShrink: 0 }}>✓</span>}
@@ -305,7 +318,7 @@ export default function ERPDashboardTab({
                   </div>
                 </div>
                 <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                  <button onClick={() => setDashCustomizeOpen(false)} style={{ padding: '0.5rem 1rem', background: C.p2, color: C.inkSoft, border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Cancel</button>
+                  <button onClick={() => setDashCustomizeOpen(false)} style={{ padding: '0.5rem 1rem', background: C.p2, color: C.inkSoft, border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>{t('cancel')}</button>
                   <button
                     onClick={() => {
                       const orderIx = (id) => {
@@ -318,7 +331,7 @@ export default function ERPDashboardTab({
                     }}
                     style={{ padding: '0.5rem 1.25rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
                   >
-                    Apply
+                    {t('apply')}
                   </button>
                 </div>
               </div>

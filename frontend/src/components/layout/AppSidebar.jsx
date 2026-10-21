@@ -231,9 +231,9 @@ export default function AppSidebar({
 
   const renderCustomSections = () => {
     const config = {
-      workspace: { title: 'Workspace', items: mainItems, open: workspaceOpen, setOpen: setWorkspaceOpen },
+      workspace: { title: t('workspace'), items: mainItems, open: workspaceOpen, setOpen: setWorkspaceOpen },
       departments: { title: t('departments'), items: deptItems, open: deptOpen, setOpen: setDeptOpen },
-      erp: { title: 'ERP', items: erpItems, open: erpOpen, setOpen: setErpOpen },
+      erp: { title: t('erp'), items: erpItems, open: erpOpen, setOpen: setErpOpen },
       admin: { title: t('adminSection'), items: adminItems, open: adminOpen, setOpen: setAdminOpen },
     }
     const available = NAV_SECTIONS.map((s) => s.key).filter((key) => config[key].items.length > 0)
@@ -296,11 +296,11 @@ export default function AppSidebar({
         </div>
       </div>
 
-      <nav className="sidebar-nav flex-1 overflow-y-auto" aria-label="Modules">
+      <nav className="sidebar-nav flex-1 overflow-y-auto" aria-label={t('modules')}>
         {customizable ? renderCustomSections() : (
         <>
         {mainItems.length > 0 ? (
-          <p className="sidebar-section-label" id="sidebar-workspace-label">Workspace</p>
+          <p className="sidebar-section-label" id="sidebar-workspace-label">{t('workspace')}</p>
         ) : null}
         <div role="group" aria-labelledby={mainItems.length ? 'sidebar-workspace-label' : undefined}>
           {mainItems.map((item) => (
@@ -354,7 +354,7 @@ export default function AppSidebar({
               onClick={() => setErpOpen((v) => !v)}
               aria-expanded={erpOpen}
             >
-              <span>ERP</span>
+              <span>{t('erp')}</span>
               <span className="section-chevron" aria-hidden="true">{erpOpen ? '▴' : '▾'}</span>
             </button>
             {erpOpen && erpItems.map((item) => (
@@ -411,7 +411,7 @@ export default function AppSidebar({
           {editing ? (
             <div className="sidebar-customize-row">
               <button type="button" className="sidebar-customize-btn" onClick={navLayout.reset} disabled={navLayout.saving}>
-                Reset to default
+                {t('resetToDefault')}
               </button>
               <button
                 type="button"
@@ -419,12 +419,12 @@ export default function AppSidebar({
                 onClick={navLayout.save}
                 disabled={navLayout.saving}
               >
-                {navLayout.saving ? 'Saving…' : 'Done'}
+                {navLayout.saving ? t('saving') : t('done')}
               </button>
             </div>
           ) : (
             <button type="button" className="sidebar-customize-btn" onClick={navLayout.startEdit}>
-              Customize sidebar
+              {t('customizeSidebar')}
             </button>
           )}
         </div>
