@@ -1335,73 +1335,66 @@ function Dashboard() {
               {/* Account dropdown */}
               <div className="relative shrink-0 overflow-visible" ref={accountMenuRef}>
                 <button
-                  onClick={() => setAccountMenuOpen(v => !v)}
-                  className="topbar-pill gap-2 px-2.5 overflow-hidden">
-                  <span
-                    className="hidden lg:inline-flex shrink-0 items-center justify-center rounded px-2"
-                    style={{
-                      height: 16,
-                      background: 'var(--brand-soft)',
-                      border: '1px solid var(--brand-border)',
-                      color: 'var(--brand-on-soft, var(--brand-dark))',
-                      fontSize: 9,
-                      fontWeight: 700,
-                      letterSpacing: 0.2,
-                    }}>
-                    {tenantShortCode}
-                  </span>
-                  <div className="w-[22px] h-[22px] shrink-0 rounded-md flex items-center justify-center font-bold text-white text-[11px]"
-                    style={{ background: 'var(--grad-brand)' }}>
+                  type="button"
+                  onClick={() => setAccountMenuOpen((v) => !v)}
+                  aria-expanded={accountMenuOpen}
+                  aria-haspopup="menu"
+                  className={`topbar-pill topbar-account-pill${accountMenuOpen ? ' is-open' : ''}`}
+                >
+                  <span className="topbar-account-avatar" aria-hidden>
                     {user?.name?.[0]?.toUpperCase() || 'U'}
-                  </div>
-                  <span className="hidden sm:inline shrink min-w-0 max-w-[5rem] truncate text-xs" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{user?.name}</span>
-                  <span
-                    className="hidden xl:inline-flex shrink-0 items-center rounded px-2"
-                    style={{
-                      height: 16,
-                      background: 'var(--brand-soft)',
-                      border: '1px solid var(--brand-border)',
-                      color: 'var(--brand-on-soft, var(--brand-dark))',
-                      fontSize: 9,
-                      fontWeight: 700,
-                    }}>
-                    {accountRoleLabel}
                   </span>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="shrink-0" style={{ opacity: 0.7 }}>
-                    <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  <span className="topbar-account-meta">
+                    <span className="topbar-account-name">{user?.name || 'Account'}</span>
+                    <span className="topbar-account-role">{accountRoleLabel}</span>
+                  </span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="topbar-account-chevron" aria-hidden>
+                    <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
 
                 {accountMenuOpen && (
-                  <div
-                    className="topbar-dropdown absolute mt-1 rounded-xl shadow-2xl"
-                    style={{
-                      right: 0,
-                      top: '100%',
-                      minWidth: 220,
-                      zIndex: 9999,
-                      background: '#ffffff',
-                      border: '1px solid #E5E7EB',
-                      boxShadow: '0 12px 28px rgba(15,23,42,0.2)',
-                      whiteSpace: 'nowrap',
-                    }}>
-                    <div className="px-3 py-2.5" style={{ borderBottom: '1px solid #E5E7EB' }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111827' }}>{user?.name}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{branding.displayName} · {accountRoleLabel}</p>
+                  <div className="topbar-dropdown topbar-account-menu absolute" role="menu">
+                    <div className="topbar-account-menu__head">
+                      <span className="topbar-account-menu__avatar" aria-hidden>
+                        {user?.name?.[0]?.toUpperCase() || 'U'}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <p className="topbar-account-menu__title">{user?.name}</p>
+                        <p className="topbar-account-menu__sub">{branding.displayName}</p>
+                        <span className="topbar-account-menu__badge">{accountRoleLabel}</span>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => { setAccountMenuOpen(false); setChangePasswordOpen(true) }}
-                      className="topbar-dropdown-item w-full box-border text-sm text-left"
-                      style={{ color: '#111827', fontWeight: 600 }}>
-                      Change password
-                    </button>
-                    <button
-                      onClick={() => { setAccountMenuOpen(false); handleLogout() }}
-                      className="topbar-dropdown-item w-full box-border text-sm text-left"
-                      style={{ color: '#b91c1c', fontWeight: 600 }}>
-                      {t('signOut')}
-                    </button>
+                    <div className="topbar-account-menu__actions">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setAccountMenuOpen(false); setChangePasswordOpen(true) }}
+                        className="topbar-account-menu__item"
+                      >
+                        <span className="topbar-account-menu__item-ico" aria-hidden>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                            <rect x="5" y="11" width="14" height="10" rx="2" />
+                            <path d="M8 11V8a4 4 0 018 0v3" strokeLinecap="round" />
+                          </svg>
+                        </span>
+                        Change password
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setAccountMenuOpen(false); handleLogout() }}
+                        className="topbar-account-menu__item topbar-account-menu__item--danger"
+                      >
+                        <span className="topbar-account-menu__item-ico" aria-hidden>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" strokeLinecap="round" />
+                            <path d="M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                        {t('signOut')}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
