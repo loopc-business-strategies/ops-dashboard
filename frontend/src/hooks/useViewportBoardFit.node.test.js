@@ -29,6 +29,19 @@ describe('computeViewportBoardFit fill mode', () => {
     expect(fit.offsetLeft).toBe(0)
     expect(fit.offsetTop).toBe(0)
   })
+
+  test('safeInset shrinks and centers to avoid TV overscan crop', () => {
+    const fit = computeViewportBoardFit({
+      viewportWidth: 1920,
+      viewportHeight: 1080,
+      mode: 'fill',
+      safeInset: 0.05,
+    })
+    expect(fit.layoutWidth * fit.scaleX).toBeCloseTo(1920 * 0.95, 4)
+    expect(fit.layoutHeight * fit.scaleY).toBeCloseTo(1080 * 0.95, 4)
+    expect(fit.offsetLeft).toBeCloseTo((1920 - 1920 * 0.95) / 2, 4)
+    expect(fit.offsetTop).toBeCloseTo((1080 - 1080 * 0.95) / 2, 4)
+  })
 })
 
 describe('computeViewportBoardFit contain mode', () => {

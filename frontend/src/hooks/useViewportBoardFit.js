@@ -7,8 +7,11 @@ import { useLayoutEffect } from 'react'
  * report CSS.supports('zoom') but do not apply zoom — that left the UI stuck
  * top-left with a large empty band on the right.
  *
- * mode "fill" (default): stretch both axes so the board covers the TV exactly.
+ * mode "fill" (default): stretch both axes so the board covers the TV.
  * mode "contain": uniform scale, letterboxed inside the shell.
+ *
+ * safeInset (0–0.12): shrink + center the scaled board so TV overscan does not
+ * clip the header/edges (typical wall TVs crop ~2–4%).
  *
  * After apply, verifies getBoundingClientRect(); if transform did not fill the
  * host, falls back to absolute stretch (width/height 100%).
@@ -22,15 +25,19 @@ export function computeViewportBoardFit({
   mode = 'fill',
   minScale = 0.25,
   maxScale = 6,
+  safeInset = 0,
 } = {}) {
   const vw = Math.max(1, Number(viewportWidth) || 1)
   const vh = Math.max(1, Number(viewportHeight) || 1)
   const dw = Math.max(1, Number(designWidth) || 1920)
   const dh = Math.max(1, Number(designHeight) || 1080)
+  const inset = Math.min(0.12, Math.max(0, Number(safeInset) || 0))
+  const usableW = vw * (1 - inset)
+  const usableH = vh * (1 - inset)
   const clamp = (n) => Math.min(maxScale, Math.max(minScale, n))
 
   if (mode === 'contain') {
-    const scale = clamp(Math.min(vw / dw, vh / dh))
+    const scale = clamp(Math.min(usableW / dw, usableH / dh))
     return {
       mode: 'contain',
       scaleX: scale,
@@ -42,14 +49,16 @@ export function computeViewportBoardFit({
     }
   }
 
+  const scaleX = clamp(usableW / dw)
+  const scaleY = clamp(usableH / dh)
   return {
     mode: 'fill',
-    scaleX: clamp(vw / dw),
-    scaleY: clamp(vh / dh),
+    scaleX,
+    scaleY,
     layoutWidth: dw,
     layoutHeight: dh,
-    offsetLeft: 0,
-    offsetTop: 0,
+    offsetLeft: (vw - dw * scaleX) / 2,
+    offsetTop: (vh - dh * scaleY) / 2,
   }
 }
 
@@ -137,17 +146,20 @@ function clearFitStyles(el) {
   el.style.minHeight = ''
 }
 
-function applyStretchFallback(el) {
+function applyStretchFallback(el, safeInset = 0) {
+  const inset = Math.min(0.12, Math.max(0, Number(safeInset) || 0))
+  const padX = `${(inset / 2) * 100}%`
+  const padY = `${(inset / 2) * 100}%`
   el.style.zoom = ''
   el.style.position = 'absolute'
-  el.style.left = '0'
-  el.style.top = '0'
-  el.style.right = '0'
-  el.style.bottom = '0'
-  el.style.width = '100%'
-  el.style.height = '100%'
-  el.style.minWidth = '100%'
-  el.style.minHeight = '100%'
+  el.style.left = padX
+  el.style.top = padY
+  el.style.right = padX
+  el.style.bottom = padY
+  el.style.width = 'auto'
+  el.style.height = 'auto'
+  el.style.minWidth = '0'
+  el.style.minHeight = '0'
   el.style.maxWidth = 'none'
   el.style.maxHeight = 'none'
   el.style.transform = 'none'
@@ -180,10 +192,13 @@ function applyTransformFit(el, fit) {
   document.documentElement.setAttribute('data-tv-board-fit', fit.mode)
 }
 
-function fillsHost(el, hostW, hostH) {
+function fillsHost(el, hostW, hostH, safeInset = 0) {
   try {
     const rect = el.getBoundingClientRect()
-    return rect.width >= hostW * 0.92 && rect.height >= hostH * 0.92
+    const inset = Math.min(0.12, Math.max(0, Number(safeInset) || 0))
+    const targetW = hostW * (1 - inset)
+    const targetH = hostH * (1 - inset)
+    return rect.width >= targetW * 0.92 && rect.height >= targetH * 0.92
   } catch {
     return false
   }
@@ -207,6 +222,8 @@ export function useViewportBoardFit(ref, options = {}) {
     /** @deprecated kept for call-site compat; screen-size heuristics decide enablement. */
     minViewportWidth = 600,
     mode = 'fill',
+    /** TV overscan safe margin (0–0.12). Default keeps edges inside the bezel. */
+    safeInset = 0.025,
   } = options
 
   useLayoutEffect(() => {
@@ -238,13 +255,14 @@ export function useViewportBoardFit(ref, options = {}) {
         designWidth,
         designHeight,
         mode,
+        safeInset,
       })
 
       applyTransformFit(el, fit)
 
       // If transform is ignored (common on some TV WebViews), stretch to host.
-      if (!fillsHost(el, vw, vh)) {
-        applyStretchFallback(el)
+      if (!fillsHost(el, vw, vh, safeInset)) {
+        applyStretchFallback(el, safeInset)
       }
     }
 
@@ -306,5 +324,5 @@ export function useViewportBoardFit(ref, options = {}) {
         root.style.overflow = prevRoot.o
       }
     }
-  }, [ref, designWidth, designHeight, enabled, minViewportWidth, mode])
+  }, [ref, designWidth, designHeight, enabled, minViewportWidth, mode, safeInset])
 }

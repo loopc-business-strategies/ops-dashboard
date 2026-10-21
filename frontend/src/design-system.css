@@ -202,6 +202,18 @@ html[data-tv-board-fit] .app-shell[data-viewport-fit],
 html[data-tv-board-fit] .app-shell[data-viewport-fit='stretch'] {
   box-sizing: border-box;
 }
+/* Ops ERP main column must consume the full board width (no right empty band). */
+html[data-tv-board-fit] .app-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+}
+html[data-tv-board-fit] .app-main > * {
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
+}
 .app-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
 /* ─── Sidebar (full tenant-branded) ──────────────────── */

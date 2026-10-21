@@ -2644,22 +2644,22 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/* Tablet landscape / smart display: 1200ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ1439 */
+/* Tablet landscape / smart display: 1200–1439 (skip when board-fit locks 1920 artboard) */
 @media (min-width: 1200px) and (max-width: 1439px) {
-  .pd-layout--control-center .pd-kpi-strip {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .pd-layout--control-center .pd-dept-grid {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-dept-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .pd-header--control {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-header--control {
     flex-wrap: wrap;
     row-gap: 0.45rem;
   }
 
-  .pd-header-center {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-header-center {
     flex: 1 1 100%;
     order: 3;
     justify-content: flex-start;
@@ -2683,14 +2683,14 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/* Tablet portrait: 900ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ1199 */
+/* Tablet portrait: 900–1199 (skip when board-fit locks 1920 artboard) */
 @media (min-width: 900px) and (max-width: 1199px) {
-  .pd-layout--control-center .pd-kpi-strip {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-kpi-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .pd-layout--control-center .pd-dept-grid,
-  .pd-dept-grid {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-dept-grid,
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-dept-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2716,15 +2716,15 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   }
 }
 
-/* Phone landscape / small fold: 600ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ899 */
+/* Phone landscape / small fold: 600–899 (skip when board-fit locks 1920 artboard) */
 @media (min-width: 600px) and (max-width: 899px) {
-  .pd-layout--control-center .pd-kpi-strip,
-  .pd-kpi-strip {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-kpi-strip,
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-kpi-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .pd-layout--control-center .pd-dept-grid,
-  .pd-dept-grid {
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-layout--control-center .pd-dept-grid,
+  .pd-fullscreen-page:not([data-viewport-fit]) .pd-dept-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -4307,4 +4307,65 @@ html[data-tv-board-fit] .pd-fullscreen-shell {
   .pd-layout--control-center .pd-batch-progress-track {
     height: 0.32rem;
   }
+}
+
+/*
+ * Board-fit locks a 1920×1080 artboard via transform. CSS media queries still
+ * see the *real* viewport (often 1200–1536 on PCs, or under-reported on TVs)
+ * and were switching the dept grid to 2–3 columns — uneven gaps / cramped KPI
+ * strip while the board was still Full HD. Force the TV/desktop 4×2 board.
+ */
+html[data-tv-board-fit] .pd-fullscreen-page,
+.pd-fullscreen-page[data-viewport-fit] {
+  overflow: hidden;
+}
+
+html[data-tv-board-fit] .pd-layout--control-center,
+.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center {
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+html[data-tv-board-fit] .pd-layout--control-center .pd-kpi-strip,
+.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-kpi-strip {
+  grid-template-columns: repeat(8, minmax(0, 1fr)) !important;
+  gap: 0.4rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+html[data-tv-board-fit] .pd-layout--control-center .pd-dept-grid,
+.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-dept-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0.5rem !important;
+  flex: 1;
+  min-height: 0;
+  align-content: stretch;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+html[data-tv-board-fit] .pd-layout--control-center .pd-dept-card,
+.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-dept-card {
+  min-width: 0;
+  height: 100%;
+}
+
+html[data-tv-board-fit] .pd-layout--control-center .pd-dept-metrics,
+.pd-fullscreen-page[data-viewport-fit] .pd-layout--control-center .pd-dept-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+}
+
+html[data-tv-board-fit] .pd-fullscreen-shell {
+  background: #0f172a;
 }
