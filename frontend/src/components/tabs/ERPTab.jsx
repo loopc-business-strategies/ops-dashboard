@@ -38,24 +38,11 @@ function ERPTab(props) {
       </div>
     )
   }
-  const isDash = panelProps?.activeTab === 'dashboard'
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: isDash ? '0.4rem' : '1.25rem',
-        flex: 1,
-        minHeight: 0,
-        height: isDash ? '100%' : undefined,
-        overflow: isDash ? 'hidden' : undefined,
-      }}
-    >
-      {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', flexShrink: 0 }}>{error}</div>}
-      {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', flexShrink: 0 }}>{success}</div>}
-      <div style={isDash ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' } : undefined}>
-        <ERPTabPanels {...panelProps} />
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>}
+      {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{success}</div>}
+      <ERPTabPanels {...panelProps} />
       <Suspense fallback={null}>
         <ERPTabModals {...modalProps} />
       </Suspense>
