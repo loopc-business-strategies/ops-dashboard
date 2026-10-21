@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import BuildInfoBadge from '../components/BuildInfoBadge'
+import { useViewportBoardFit } from '../hooks/useViewportBoardFit'
 import './MgLogin.css'
 
 const rememberKeyFor = (tenant) => {
@@ -30,6 +31,8 @@ export default function TenantLoginShell({
   const [remember, setRemember] = useState(false)
   const [forgotNotice, setForgotNotice] = useState('')
   const rememberKey = rememberKeyFor(branding?.key)
+  const loginRef = useRef(null)
+  useViewportBoardFit(loginRef, { designWidth: 1920, designHeight: 1080 })
 
   useEffect(() => {
     try {
@@ -72,7 +75,8 @@ export default function TenantLoginShell({
   const primary = branding.colors?.brandPrimary || 'var(--brand-primary)'
 
   return (
-    <div className="mg-login enterprise-login" data-tenant={branding.key}>
+    <div className="mg-login-shell">
+    <div ref={loginRef} className="mg-login enterprise-login" data-tenant={branding.key}>
       <div className="mg-login__frame">
         <div className="mg-login__panel mg-login__panel--brand" style={{ background: primary }}>
           <div className="mg-login__brand-inner">
@@ -174,6 +178,7 @@ export default function TenantLoginShell({
           </form>
         </div>
       </div>
+    </div>
     </div>
   )
 }
