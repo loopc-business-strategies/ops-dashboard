@@ -150,7 +150,7 @@ describe('statementPreviewSamples', () => {
       user: { company: 'loopc', name: 'Tester' },
     })
     expect(result.html).not.toContain('min-width: 1050px')
-    expect(result.html).toContain('font-size: 11px; margin-top: 0; table-layout: fixed')
+    expect(result.html).toContain('font-size: 10.5px; margin-top: 0; table-layout: fixed')
     expect(result.html).toContain('<col style="width:13%;" />')
     expect(result.html).toContain('<col style="width:11%;" />')
     expect(result.html).toContain('overflow-wrap: anywhere')

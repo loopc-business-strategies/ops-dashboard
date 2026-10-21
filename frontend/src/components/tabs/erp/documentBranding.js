@@ -2,12 +2,27 @@ import { getTenantBranding, isMasterDocumentSettingsEnabled } from '../../../con
 import {
   DEFAULT_BRANDING,
   DEFAULT_STATEMENT_PRINT,
+  DEFAULT_TITLE_ACCENT_COLOR,
   DEFAULT_VOUCHER_PRINT,
   clampBrandingDimension,
   nonPlaceholderCompanyName,
   normalizeStatementPrint,
   normalizeVoucherPrint,
 } from './ERPBrandingUtils'
+
+/** Venus brand gold — matches voucher title bar swatch / tenant brandDark. */
+const VB_VOUCHER_TITLE_ACCENT = '#9B6B1F'
+
+const applyTenantVoucherTitleAccent = (tenantKey, voucherPrint, tenantBranding) => {
+  const accent = String(voucherPrint?.titleAccentColor || '').trim().toUpperCase()
+  const isDefaultMaroon = !accent || accent === DEFAULT_TITLE_ACCENT_COLOR.toUpperCase()
+  if (String(tenantKey || '').toLowerCase() !== 'vb' || !isDefaultMaroon) return voucherPrint
+  const gold = String(tenantBranding?.colors?.brandDark || VB_VOUCHER_TITLE_ACCENT).trim() || VB_VOUCHER_TITLE_ACCENT
+  return {
+    ...voucherPrint,
+    titleAccentColor: gold,
+  }
+}
 import { sanitizeLogoUrl } from '../../../utils/safeHtml'
 
 const hasValue = (value) => String(value || '').trim().length > 0
@@ -57,7 +72,7 @@ export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenant
     trn: pick(reportBranding?.trn, user?.branding?.trn, tenant?.trn, fallbackTenantBranding?.trn, DEFAULT_BRANDING.trn),
     logoUrl: resolvedLogo,
     logoWidth: clampBrandingDimension(reportBranding?.logoWidth || 160, DEFAULT_BRANDING.logoWidth, 80, 260),
-    logoHeight: clampBrandingDimension(reportBranding?.logoHeight || 56, DEFAULT_BRANDING.logoHeight, 32, 120),
+    logoHeight: clampBrandingDimension(reportBranding?.logoHeight || 56, DEFAULT_BRANDING.logoHeight, 32, 140),
     logoFit: ['contain', 'cover', 'fill'].includes(reportBranding?.logoFit) ? reportBranding.logoFit : DEFAULT_BRANDING.logoFit,
     primaryColor: pick(
       user?.branding?.colors?.brandPrimary,
@@ -73,13 +88,18 @@ export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenant
 export const resolveVoucherPrintSettings = ({ reportBranding = {}, user = {}, tenantBranding } = {}) => {
   const tenantKey = resolveTenantKey({ user, tenantBranding })
   const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
-  const voucherPrint = normalizeVoucherPrint(reportBranding?.voucherPrint)
+  const fallbackTenantBranding = tenantBranding || getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
+  const voucherPrint = applyTenantVoucherTitleAccent(
+    tenantKey,
+    normalizeVoucherPrint(reportBranding?.voucherPrint),
+    fallbackTenantBranding,
+  )
 
   if (!isMasterDocumentSettingsEnabled(tenantKey)) {
     return {
       ...branding,
       enabled: false,
-      voucherPrint: DEFAULT_VOUCHER_PRINT,
+      voucherPrint: applyTenantVoucherTitleAccent(tenantKey, DEFAULT_VOUCHER_PRINT, fallbackTenantBranding),
     }
   }
 

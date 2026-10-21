@@ -5,26 +5,27 @@ export function ProfessionalGoldTitleBar({
 }) {
   const commonOuter =
     variant === 'metal'
-      ? { height: '28px', marginBottom: '7px' }
-      : { height: '31px', margin: '2px 0 10px' }
+      ? { height: '30px', marginBottom: '7px' }
+      : { height: '34px', margin: '2px 0 10px' }
 
-  const goldLineTop = variant === 'metal' ? '13px' : '12px'
-  const titleTop = variant === 'metal' ? '13px' : '12px'
+  const goldLineTop = variant === 'metal' ? '14px' : '13px'
+  const titleTop = variant === 'metal' ? '14px' : '13px'
 
   const boxStyle =
     variant === 'metal'
       ? {
           borderTop: `2px solid ${goldColor}`,
           borderBottom: `2px solid ${goldColor}`,
-          minHeight: '27px',
-          fontSize: '16px',
+          minHeight: '28px',
+          fontSize: '15px',
           width: 'min(318px, 100%)',
         }
       : {
           border: `1.2px solid ${goldColor}`,
-          minHeight: '29px',
-          fontSize: '16px',
-          width: 'min(320px, 78%)',
+          minHeight: '28px',
+          fontSize: '15px',
+          width: 'min(300px, 84%)',
+          maxWidth: '92%',
         }
 
   return (
@@ -51,10 +52,14 @@ export function ProfessionalGoldTitleBar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontWeight: '900',
-          letterSpacing: 0,
+          fontWeight: '800',
+          letterSpacing: '0.01em',
+          lineHeight: 1.15,
           whiteSpace: 'nowrap',
-          padding: '0 8px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          padding: '3px 12px',
+          boxSizing: 'border-box',
           ...boxStyle,
         }}
       >

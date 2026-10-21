@@ -6,10 +6,10 @@ export default function VoucherPrintNetAmounts({ rows = [], fmt, border = '1px s
       <tbody>
         <tr>
           {rows.map((row) => (
-            <td key={row.code} style={{ border, padding: '5px 8px', fontWeight: '900', whiteSpace: 'nowrap' }}>
+            <td key={row.code} style={{ border, padding: '5px 8px', fontWeight: '700', whiteSpace: 'nowrap', overflowWrap: 'anywhere' }}>
               {`Net Amt (${row.code}) : `}
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(row.amount, row.code)}</span>
-              {row.rateNote ? <span style={{ fontWeight: '400', fontSize: '0.85em', marginLeft: '6px' }}>{row.rateNote}</span> : null}
+              {row.rateNote ? <span style={{ fontWeight: '500', fontSize: '0.85em', marginLeft: '6px' }}>{row.rateNote}</span> : null}
             </td>
           ))}
         </tr>

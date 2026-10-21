@@ -38,7 +38,7 @@ export default function ERPBrandingSettingsSection({
             ))}
           </select>
           <input type="number" min="80" max="260" placeholder="Width" value={brandingForm.logoWidth} onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoWidth: e.target.value }))} style={ERP_MODAL_INPUT_STYLE} />
-          <input type="number" min="32" max="120" placeholder="Height" value={brandingForm.logoHeight} onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))} style={ERP_MODAL_INPUT_STYLE} />
+          <input type="number" min="32" max="140" placeholder="Height" value={brandingForm.logoHeight} onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))} style={ERP_MODAL_INPUT_STYLE} />
           <select value={brandingForm.logoFit} onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoFit: e.target.value }))} style={ERP_MODAL_INPUT_STYLE}>
             <option value="contain">Contain</option>
             <option value="cover">Cover</option>

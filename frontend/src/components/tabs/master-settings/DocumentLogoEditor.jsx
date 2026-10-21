@@ -145,7 +145,7 @@ export default function DocumentLogoEditor({
           <input
             type="number"
             min="32"
-            max="120"
+            max="140"
             value={branding.logoHeight}
             onChange={(e) => onChange({
               logoHeight: clampBrandingDimension(e.target.value, branding.logoHeight, 32, 120),

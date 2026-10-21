@@ -71,7 +71,7 @@ export function useErpBranding({
         ...brandingForm,
         key: normalizeBrandingKey(brandingForm.key || selectedBrandingKey || DEFAULT_BRANDING.key),
         logoWidth: clampBrandingDimension(brandingForm.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260),
-        logoHeight: clampBrandingDimension(brandingForm.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120),
+        logoHeight: clampBrandingDimension(brandingForm.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 140),
       }
       const data = await erpAccountingAPI.updateReportBranding(token, payload)
       const nextBranding = { ...DEFAULT_BRANDING, ...(data.branding || {}) }

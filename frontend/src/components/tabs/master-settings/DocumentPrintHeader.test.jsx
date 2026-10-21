@@ -127,7 +127,7 @@ describe('DocumentPrintHeader logo sizing', () => {
     expect(logoFrame.style.minHeight).toBe('56px')
     const title = screen.getByText('Payment Voucher')
     expect(title.style.whiteSpace).toBe('nowrap')
-    expect(title.style.flexShrink).toBe('0')
+    expect(title.style.flexShrink).toBe('1')
   })
 
   it('passes screenPreview flag to useDocumentPrintLogo', () => {

@@ -3,6 +3,7 @@ import {
   applyDocumentLogoPatch,
   computeVoucherLogoDimensions,
   logoSizePercentFromDimensions,
+  resolveVoucherPrintLogoSize,
   scaleDocumentLogoSize,
 } from './documentLogoChange'
 
@@ -12,11 +13,11 @@ describe('computeVoucherLogoDimensions', () => {
   })
 
   test('fills square logos to frame height', () => {
-    expect(computeVoucherLogoDimensions(500, 500)).toEqual({ logoWidth: 120, logoHeight: 120 })
+    expect(computeVoucherLogoDimensions(500, 500)).toEqual({ logoWidth: 140, logoHeight: 140 })
   })
 
   test('fills tall logos to frame height', () => {
-    expect(computeVoucherLogoDimensions(200, 800)).toEqual({ logoWidth: 80, logoHeight: 120 })
+    expect(computeVoucherLogoDimensions(200, 800)).toEqual({ logoWidth: 80, logoHeight: 140 })
   })
 
   test('falls back to baseline for invalid dimensions', () => {
@@ -94,6 +95,22 @@ describe('scaleDocumentLogoSize', () => {
   })
 })
 
+describe('resolveVoucherPrintLogoSize', () => {
+  test('boosts branding dims a little for voucher print', () => {
+    expect(resolveVoucherPrintLogoSize({ logoWidth: 180, logoHeight: 120 })).toEqual({
+      logoWidth: 189,
+      logoHeight: 126,
+    })
+  })
+
+  test('lifts short report baseline into the voucher logo frame', () => {
+    expect(resolveVoucherPrintLogoSize({ logoWidth: 180, logoHeight: 56 })).toEqual({
+      logoWidth: 190,
+      logoHeight: 126,
+    })
+  })
+})
+
 describe('logoSizePercentFromDimensions', () => {
   test('returns average percent against default baseline', () => {
     expect(logoSizePercentFromDimensions(180, 56)).toBe(100)
@@ -101,7 +118,7 @@ describe('logoSizePercentFromDimensions', () => {
   })
 
   test('clamps percent to slider range', () => {
-    expect(logoSizePercentFromDimensions(260, 120)).toBe(179)
+    expect(logoSizePercentFromDimensions(260, 140)).toBe(197)
     expect(logoSizePercentFromDimensions(80, 32)).toBe(51)
   })
 })

@@ -55,16 +55,32 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
       <div data-testid="header-divider" style={{
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: '18px',
+        alignItems: 'center',
+        gap: '16px',
         borderBottom: `2px solid ${headerDividerColor}`,
         paddingBottom: '10px',
         marginBottom: '10px',
+        overflow: 'visible',
       }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          {companyName ? <div style={{ fontWeight: '700', fontSize: `${companyNameFontSize}px`, color: '#111827' }}>{companyName}</div> : null}
+        <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+          {companyName ? (
+            <div style={{ fontWeight: '700', fontSize: `${companyNameFontSize}px`, color: '#111827', lineHeight: 1.2, overflowWrap: 'anywhere' }}>
+              {companyName}
+            </div>
+          ) : null}
           {details.map((line, index) => (
-            <div key={`${line}-${index}`} style={{ fontSize: `${addressFontSize}px`, color: '#555555', marginTop: index === 0 ? '3px' : '2px', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+            <div
+              key={`${line}-${index}`}
+              style={{
+                fontSize: `${addressFontSize}px`,
+                color: '#4B5563',
+                marginTop: index === 0 ? '4px' : '2px',
+                lineHeight: '1.45',
+                fontWeight: '600',
+                whiteSpace: 'pre-line',
+                overflowWrap: 'anywhere',
+              }}
+            >
               {line}
             </div>
           ))}
@@ -97,7 +113,7 @@ export default function DocumentPrintHeader({ branding, title, meta = [], layout
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
         <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
-        <div style={{ fontWeight: '700', fontSize: '16px', letterSpacing: '0.02em', textAlign: 'center', textTransform: 'uppercase', flexShrink: 0, whiteSpace: 'nowrap' }}>{title}</div>
+        <div style={{ fontWeight: '800', fontSize: '15px', letterSpacing: '0.02em', textAlign: 'center', textTransform: 'uppercase', flexShrink: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>{title}</div>
         <div data-testid="title-accent-line" style={{ flex: 1, borderTop: `3px solid ${titleAccentColor}` }} />
       </div>
       {meta.length ? (
