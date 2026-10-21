@@ -48,8 +48,8 @@ describe('DocumentLogoEditor upload sizing', () => {
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith({
         logoUrl: 'data:image/png;base64,uploaded',
-        logoWidth: 120,
-        logoHeight: 120,
+        logoWidth: 140,
+        logoHeight: 140,
         logoFit: 'contain',
       })
     })

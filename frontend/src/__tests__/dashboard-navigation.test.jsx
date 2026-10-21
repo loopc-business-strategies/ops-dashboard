@@ -165,6 +165,8 @@ describe('Dashboard navigation behavior', () => {
           settings: 'Settings',
           saving: 'Saving...',
           done: 'Done',
+          notifications: 'Notifications',
+          noNotificationsYet: 'No notifications yet.',
           erpDashboard: 'Dashboard',
           erpAccounts: 'Accounts',
           erpMappings: 'Mappings',

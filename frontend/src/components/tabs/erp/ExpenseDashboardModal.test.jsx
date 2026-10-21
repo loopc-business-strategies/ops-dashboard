@@ -1,6 +1,7 @@
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import { LanguageProvider } from '../../../context/LanguageContext'
 import ExpenseDashboardModal from './ExpenseDashboardModal'
 
 vi.mock('./useExpenseRegisterExports', () => ({
@@ -40,19 +41,21 @@ vi.mock('./useExpenseRegister', () => ({
 describe('ExpenseDashboardModal chart filters', () => {
   it('shows category breakdown from register when all months selected', () => {
     render(
-      <ExpenseDashboardModal
-        dashboard={{
-          expenses: {
-            total: 0,
-            breakdown: [],
-            ytdTotal: 303972,
-            monthlyTrend: [{ label: 'Jun 2026', month: 'Jun', year: '2026', monthIndex: 5, amount: 303972 }],
-          },
-        }}
-        token="test-token"
-        onClose={() => {}}
-        onOpenLedgerEntry={() => {}}
-      />,
+      <LanguageProvider>
+        <ExpenseDashboardModal
+          dashboard={{
+            expenses: {
+              total: 0,
+              breakdown: [],
+              ytdTotal: 303972,
+              monthlyTrend: [{ label: 'Jun 2026', month: 'Jun', year: '2026', monthIndex: 5, amount: 303972 }],
+            },
+          }}
+          token="test-token"
+          onClose={() => {}}
+          onOpenLedgerEntry={() => {}}
+        />
+      </LanguageProvider>,
     )
 
     const breakdownSection = screen.getByText('Expense Breakdown').closest('section')
