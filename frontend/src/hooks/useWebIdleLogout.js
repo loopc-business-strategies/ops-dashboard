@@ -45,7 +45,7 @@ function resolveActivityAt(stored, idleTimeoutMs) {
  */
 export function useWebIdleLogout({
   enabled = false,
-  idleTimeoutMs = 30 * 60 * 1000,
+  idleTimeoutMs = 120 * 60 * 1000,
   warningMs = 5 * 60 * 1000,
   onIdle,
   onWarn,

@@ -17,7 +17,7 @@ const PERSISTENT_SESSION_MAX_AGE_MS = resolvePersistentSessionMaxAgeMs()
 const DEFAULT_ADMIN_SETTINGS = {
   passwordPolicy: 'strong',
   sessionTimeoutMinutes: '0',
-  idleTimeoutMinutes: '30',
+  idleTimeoutMinutes: '90',
 }
 
 async function loadAdminSettings(tenant) {
@@ -82,7 +82,7 @@ function resolveJwtExpiresIn(maxAgeMs) {
   return `${seconds}s`
 }
 
-const DEFAULT_IDLE_TIMEOUT_MINUTES = 30
+const DEFAULT_IDLE_TIMEOUT_MINUTES = 90
 const IDLE_WARNING_MINUTES = 30
 
 function resolveIdleTimeoutMinutes(settings = DEFAULT_ADMIN_SETTINGS) {
