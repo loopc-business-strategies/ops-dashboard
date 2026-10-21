@@ -594,7 +594,9 @@ function Dashboard() {
     } catch {
       /* ignore */
     }
-    window.open('/production-dashboard', '_blank', 'noopener,noreferrer')
+    // Same-window navigation — window.open is often blocked on TVs / strict browsers
+    // so the Production tab looked like it "did nothing".
+    window.location.assign('/production-dashboard')
   }, [])
 
   const navigateToTab = useCallback((tabId, options = {}) => {
