@@ -5,29 +5,43 @@ import {
   metalStatusSubline,
 } from '../utils/liveMetalRates'
 import useLiveMetalRates from '../hooks/useLiveMetalRates'
+import { useLanguage } from '../context/LanguageContext'
 
 const METALS = [
-  { key: 'gold', label: 'Gold', swatch: '#FACC15', sym: 'Au', labelColor: '#92400E' },
-  { key: 'silver', label: 'Silver', swatch: '#CBD5E1', sym: 'Ag', labelColor: '#475569' },
-  { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#6B21A8' },
+  { key: 'gold', labelKey: 'metalGold', swatch: '#FACC15', sym: 'Au', labelColor: '#92400E' },
+  { key: 'silver', labelKey: 'metalSilver', swatch: '#CBD5E1', sym: 'Ag', labelColor: '#475569' },
+  { key: 'platinum', labelKey: 'metalPlatinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#6B21A8' },
 ]
+
+const DATE_LOCALES = { en: 'en-GB', ar: 'ar', uz: 'uz-UZ', ru: 'ru-RU' }
+
+function fillTemplate(template, vars) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (
+    vars[key] == null ? '' : String(vars[key])
+  ))
+}
 
 /**
  * Tenant top bar: live Gold / Silver / Platinum spot from ERP metal-rates API.
  * Second row shows movement since the previous live snapshot once one exists.
  */
 export default function TopbarMetalTickers() {
+  const { t, langCode } = useLanguage()
   const { snapshot, error } = useLiveMetalRates()
   const fallbackNote = liveMetalFallbackNote(snapshot.source)
 
   return (
     <div className="topbar-metal-tickers">
-      {METALS.map(({ key, label, swatch, sym, labelColor }) => {
+      {METALS.map(({ key, labelKey, swatch, sym, labelColor }) => {
+        const label = t(labelKey)
         const price = snapshot[key]
         const move = !fallbackNote && snapshot.deltas && snapshot.prevSnapshot
           ? fmtMoveRow(snapshot.deltas[key], snapshot.prevSnapshot[key])
           : null
-        const updatedLabel = snapshot.updatedAt ? `Updated ${new Date(snapshot.updatedAt).toLocaleString('en-GB')}` : ''
+        const when = snapshot.updatedAt
+          ? new Date(snapshot.updatedAt).toLocaleString(DATE_LOCALES[langCode] || 'en-GB')
+          : ''
+        const updatedLabel = when ? fillTemplate(t('updatedAt'), { when }) : ''
 
         return (
           <div

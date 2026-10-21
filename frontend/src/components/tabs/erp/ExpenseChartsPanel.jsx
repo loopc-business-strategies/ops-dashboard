@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useLanguage } from '../../../context/LanguageContext'
 import { formatCurrency, formatAmount } from '../../../utils/money'
 
 export function fmtDollar(val, currencyCode = 'USD') {
@@ -70,6 +71,7 @@ export default function ExpenseChartsPanel({
   style = {},
   baseCurrencyCode = 'USD',
 }) {
+  const { t } = useLanguage()
   const donutSize = compact ? 108 : 158
   const donutStroke = compact ? 24 : 34
   const trendHeight = compact ? 110 : 190
@@ -92,7 +94,7 @@ export default function ExpenseChartsPanel({
       }}
     >
       <section style={{ border: compact ? 'none' : '1px solid #E5E7EB', borderRadius: '0.65rem', padding: sectionPadding, background: '#FFFFFF', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <h4 style={{ margin: '0 0 0.55rem', color: '#111827', fontSize: titleSize, fontWeight: '900' }}>Expense Breakdown</h4>
+        <h4 style={{ margin: '0 0 0.55rem', color: '#111827', fontSize: titleSize, fontWeight: '900' }}>{t('expenseBreakdown')}</h4>
         <div style={{ display: 'grid', gridTemplateColumns: breakdownGrid, gap: compact ? '0.45rem' : '1rem', alignItems: 'center', flex: 1, minHeight: 0 }}>
           <ExpenseDonut
             segments={segments}
@@ -100,11 +102,11 @@ export default function ExpenseChartsPanel({
             size={donutSize}
             stroke={donutStroke}
             label={fmtDollar(displayTotal, baseCurrencyCode)}
-            subLabel={subLabel}
+            subLabel={subLabel === 'Total' ? t('total') : subLabel}
           />
           <div style={{ display: 'grid', gap: compact ? '0.4rem' : '0.62rem', minWidth: 0, overflow: 'hidden' }}>
             {segments.length === 0
-              ? <p style={{ margin: 0, fontSize: legendSize, color: '#9CA3AF' }}>No breakdown data for this period.</p>
+              ? <p style={{ margin: 0, fontSize: legendSize, color: '#9CA3AF' }}>{t('noBreakdownData')}</p>
               : segments.map((seg) => (
                 <div key={seg.label} style={{ display: 'grid', gridTemplateColumns: legendCols, alignItems: 'center', gap: '0.5rem', fontSize: legendSize, color: '#374151' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
@@ -120,12 +122,12 @@ export default function ExpenseChartsPanel({
       </section>
       <section style={{ border: compact ? 'none' : '1px solid #E5E7EB', borderRadius: '0.65rem', padding: sectionPadding, background: '#FFFFFF', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: compact ? '0.45rem' : '0.85rem' }}>
-          <h4 style={{ margin: 0, color: '#111827', fontSize: titleSize, fontWeight: '900' }}>Monthly Trend</h4>
-          {!compact && <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: '700' }}>{trendRangeLabel}</span>}
+          <h4 style={{ margin: 0, color: '#111827', fontSize: titleSize, fontWeight: '900' }}>{t('monthlyTrend')}</h4>
+          {!compact && <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: '700' }}>{trendRangeLabel === 'Monthly Expenses' ? t('monthlyExpenses') : trendRangeLabel}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: compact ? '0.35rem' : '0.8rem', height: trendHeight, padding: '0.15rem 0.2rem 0.3rem', borderBottom: compact ? 'none' : '1px solid #E5E7EB', flex: 1, minHeight: 0 }}>
           {filteredTrend.length === 0
-            ? <p style={{ margin: 0, fontSize: legendSize, color: '#9CA3AF' }}>No trend data for selected year.</p>
+            ? <p style={{ margin: 0, fontSize: legendSize, color: '#9CA3AF' }}>{t('noTrendData')}</p>
             : filteredTrend.map((row, index) => {
               const amount = Number(row.amount || 0)
               const height = Math.max((amount / maxTrend) * barMaxHeight, amount > 0 ? 8 : 3)

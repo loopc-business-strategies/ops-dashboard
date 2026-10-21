@@ -1,5 +1,12 @@
 import React from 'react'
 import { fmtDollar } from './ExpenseChartsPanel'
+import { useLanguage } from '../../../context/LanguageContext'
+
+function fillTemplate(template, vars) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (
+    vars[key] == null ? '' : String(vars[key])
+  ))
+}
 
 export default function ExpenseStatsFooter({
   periodTotal = 0,
@@ -13,6 +20,7 @@ export default function ExpenseStatsFooter({
   style = {},
   baseCurrencyCode = 'USD',
 }) {
+  const { t } = useLanguage()
   const padding = compact ? '0.45rem 0.5rem' : '0.95rem 1rem'
   const labelSize = compact ? '0.62rem' : '0.73rem'
   const valueSize = compact ? '0.78rem' : '1rem'
@@ -20,10 +28,10 @@ export default function ExpenseStatsFooter({
   const showDelta = !compact && deltaSubtext
 
   const cells = [
-    ['Total Expenses', fmtDollar(periodTotal, baseCurrencyCode), showDelta ? deltaSubtext : (compact ? 'Filtered period' : deltaSubtext), deltaColor],
-    ['Last Month', fmtDollar(lastMonthAmount, baseCurrencyCode), 'Previous period', '#111827'],
-    ['This Year (YTD)', fmtDollar(ytdTotal, baseCurrencyCode), 'Year filter total', '#059669'],
-    ['Total Transactions', txCount > 0 ? txCount.toLocaleString() : '0', `Avg ${fmtDollar(avgExpense, baseCurrencyCode)}`, '#111827'],
+    [t('totalExpenses'), fmtDollar(periodTotal, baseCurrencyCode), showDelta ? deltaSubtext : (compact ? t('filteredPeriod') : deltaSubtext), deltaColor],
+    [t('lastMonth'), fmtDollar(lastMonthAmount, baseCurrencyCode), t('previousPeriod'), '#111827'],
+    [t('thisYearYtd'), fmtDollar(ytdTotal, baseCurrencyCode), t('yearFilterTotal'), '#059669'],
+    [t('totalTransactions'), txCount > 0 ? txCount.toLocaleString() : '0', fillTemplate(t('avgAmount'), { amount: fmtDollar(avgExpense, baseCurrencyCode) }), '#111827'],
   ]
 
   return (

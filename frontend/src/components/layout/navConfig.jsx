@@ -1,4 +1,5 @@
 import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
+import { useLanguage } from '../../context/LanguageContext'
 
 function ComingSoonLockIcon() {
   return (
@@ -23,6 +24,7 @@ export function NavItem({
   onSameTabNavigate,
   onPrefetch,
 }) {
+  const { t } = useLanguage()
   const className = `sidebar-item w-full${active ? ' active' : ''}${comingSoon ? ' sidebar-item--coming-soon' : ''}`
   const style = { textDecoration: 'none', display: 'flex', alignItems: 'center' }
   const prefetchHandlers = {
@@ -31,7 +33,7 @@ export function NavItem({
   }
   // Keep lock out of the accessible name so getByRole('link', { name }) matches the label.
   const lock = comingSoon ? (
-    <span className="sidebar-item-lock" title="Coming soon" aria-hidden="true">
+    <span className="sidebar-item-lock" title={t('comingSoon')} aria-hidden="true">
       <ComingSoonLockIcon />
     </span>
   ) : null
@@ -104,7 +106,7 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
     },
     {
       id: 'master-settings',
-      label: 'Master Settings',
+      label: t('masterSettings'),
       group: 'main',
       comingSoon: departmentsComingSoon,
       show: true,
@@ -121,7 +123,7 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'compliance', label: t('compliance'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('government') },
     {
       id: 'production-new',
-      label: 'Production Dashboard',
+      label: t('productionDashboard'),
       group: 'departments',
       comingSoon: departmentsComingSoon,
       // MG/others: native <a target="_blank"> to fullscreen board (not window.open).
@@ -141,25 +143,25 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
       ),
     },
     { id: 'training', label: t('training'), group: 'departments', show: !departmentsComingSoon && perms.canViewModule('training') },
-    { id: 'erp-dashboard', label: 'Dashboard', group: 'erp', erpSub: 'dashboard', show: canShowErpSubTab('dashboard') },
-    { id: 'erp-accounts', label: 'Accounts', group: 'erp', erpSub: 'accounts', show: canShowErpSubTab('accounts') },
-    { id: 'erp-mappings', label: 'Mappings', group: 'erp', erpSub: 'mappings', show: canShowErpSubTab('mappings') },
-    { id: 'erp-settings', label: 'Settings', group: 'erp', erpSub: 'settings', show: canShowErpSubTab('settings') },
-    { id: 'erp-currencies', label: 'Currency Master', group: 'erp', erpSub: 'currencies', show: canShowErpSubTab('currencies') },
-    { id: 'erp-enquiry', label: 'Account Summary', group: 'erp', erpSub: 'enquiry', show: canShowErpSubTab('enquiry') },
-    { id: 'erp-customers', label: 'Customers', group: 'erp', erpSub: 'customers', show: canShowErpSubTab('customers') },
-    { id: 'erp-customer-margin', label: 'Customer Margin', group: 'erp', erpSub: 'customer-margin', show: canShowErpSubTab('customer-margin') },
-    { id: 'erp-supplier-margin', label: 'Supplier Margin', group: 'erp', erpSub: 'supplier-margin', show: canShowErpSubTab('supplier-margin') },
-    { id: 'erp-ledger', label: 'Ledger', group: 'erp', erpSub: 'ledger', show: canShowErpSubTab('ledger') },
-    { id: 'erp-period-closing', label: 'Period Closing', group: 'erp', erpSub: 'period-closing', show: Boolean(branding?.featureFlags?.accountingPeriodClosing) && canShowErpSubTab('period-closing') },
-    { id: 'erp-transactions', label: 'Transactions', group: 'erp', erpSub: 'transactions', show: canShowErpSubTab('transactions') },
-    { id: 'erp-reports', label: 'Reports', group: 'erp', erpSub: 'reports', show: canShowErpSubTab('reports') },
-    { id: 'erp-vendors', label: 'Vendors', group: 'erp', erpSub: 'vendors', show: canShowErpSubTab('vendors') },
-    { id: 'erp-inventory', label: 'Inventory', group: 'erp', erpSub: 'inventory', show: canShowErpSubTab('inventory') },
-    { id: 'erp-vouchers', label: 'Vouchers', group: 'erp', erpSub: 'vouchers', show: canShowErpSubTab('vouchers') },
-    { id: 'erp-direct-deals', label: 'Fixing Deals', group: 'erp', erpSub: 'direct-deals', show: canShowErpSubTab('direct-deals') },
-    { id: 'erp-fixing-register', label: 'Net Position', group: 'erp', erpSub: 'fixing-register', show: canShowErpSubTab('fixing-register') },
-    { id: 'procurement-plus', label: 'Procurement Plus', group: 'departments', show: !departmentsComingSoon && Boolean(branding?.featureFlags?.procurementPlus) && perms.canViewModule('procurement-plus') },
+    { id: 'erp-dashboard', label: t('erpDashboard'), group: 'erp', erpSub: 'dashboard', show: canShowErpSubTab('dashboard') },
+    { id: 'erp-accounts', label: t('erpAccounts'), group: 'erp', erpSub: 'accounts', show: canShowErpSubTab('accounts') },
+    { id: 'erp-mappings', label: t('erpMappings'), group: 'erp', erpSub: 'mappings', show: canShowErpSubTab('mappings') },
+    { id: 'erp-settings', label: t('settings'), group: 'erp', erpSub: 'settings', show: canShowErpSubTab('settings') },
+    { id: 'erp-currencies', label: t('erpCurrencyMaster'), group: 'erp', erpSub: 'currencies', show: canShowErpSubTab('currencies') },
+    { id: 'erp-enquiry', label: t('erpAccountSummary'), group: 'erp', erpSub: 'enquiry', show: canShowErpSubTab('enquiry') },
+    { id: 'erp-customers', label: t('erpCustomers'), group: 'erp', erpSub: 'customers', show: canShowErpSubTab('customers') },
+    { id: 'erp-customer-margin', label: t('erpCustomerMargin'), group: 'erp', erpSub: 'customer-margin', show: canShowErpSubTab('customer-margin') },
+    { id: 'erp-supplier-margin', label: t('erpSupplierMargin'), group: 'erp', erpSub: 'supplier-margin', show: canShowErpSubTab('supplier-margin') },
+    { id: 'erp-ledger', label: t('erpLedger'), group: 'erp', erpSub: 'ledger', show: canShowErpSubTab('ledger') },
+    { id: 'erp-period-closing', label: t('erpPeriodClosing'), group: 'erp', erpSub: 'period-closing', show: Boolean(branding?.featureFlags?.accountingPeriodClosing) && canShowErpSubTab('period-closing') },
+    { id: 'erp-transactions', label: t('erpTransactions'), group: 'erp', erpSub: 'transactions', show: canShowErpSubTab('transactions') },
+    { id: 'erp-reports', label: t('erpReports'), group: 'erp', erpSub: 'reports', show: canShowErpSubTab('reports') },
+    { id: 'erp-vendors', label: t('erpVendors'), group: 'erp', erpSub: 'vendors', show: canShowErpSubTab('vendors') },
+    { id: 'erp-inventory', label: t('erpInventory'), group: 'erp', erpSub: 'inventory', show: canShowErpSubTab('inventory') },
+    { id: 'erp-vouchers', label: t('erpVouchers'), group: 'erp', erpSub: 'vouchers', show: canShowErpSubTab('vouchers') },
+    { id: 'erp-direct-deals', label: t('erpDirectDeals'), group: 'erp', erpSub: 'direct-deals', show: canShowErpSubTab('direct-deals') },
+    { id: 'erp-fixing-register', label: t('erpNetPosition'), group: 'erp', erpSub: 'fixing-register', show: canShowErpSubTab('fixing-register') },
+    { id: 'procurement-plus', label: t('procurementPlus'), group: 'departments', show: !departmentsComingSoon && Boolean(branding?.featureFlags?.procurementPlus) && perms.canViewModule('procurement-plus') },
   ]
 
   return rawItems
