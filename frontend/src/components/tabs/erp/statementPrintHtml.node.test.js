@@ -4,12 +4,17 @@ import { generateStatementHtml } from './statementPrintHtml'
 const createLogoRenderAsset = vi.fn(async () => 'data:image/png;base64,rasterized')
 
 vi.mock('./ERPBrandingUtils', () => ({
+  DEFAULT_BRANDING: { companyName: 'LoopC', logoWidth: 180, logoHeight: 56 },
   DEFAULT_STATEMENT_PRINT: { companyNameFontSize: 15, addressFontSize: 10 },
   STATEMENT_COMPANY_NAME_FONT_MIN: 10,
   STATEMENT_COMPANY_NAME_FONT_MAX: 28,
   STATEMENT_ADDRESS_FONT_MIN: 8,
   STATEMENT_ADDRESS_FONT_MAX: 16,
-  clampBrandingDimension: (_value, fallback) => fallback ?? 120,
+  clampBrandingDimension: (value, fallback, min = 80, max = 260) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback ?? 120
+    return Math.min(Math.max(parsed, min), max)
+  },
   clampStatementFontSize: (value, fallback, min, max) => {
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) return fallback
@@ -176,8 +181,8 @@ describe('statementPrintHtml', () => {
     })
     expect(createLogoRenderAsset).toHaveBeenCalledWith(
       'data:image/png;base64,sharp-logo',
-      120,
-      90,
+      180,
+      56,
       'contain',
       { renderScale: 2 },
     )
@@ -200,7 +205,7 @@ describe('statementPrintHtml', () => {
     const result = await generateStatementHtml(baseCtx)
     expect(result?.html).toContain('.sheet { width: 100%; max-width: 100%')
     expect(result?.html).not.toContain('min-width: 1050px')
-    expect(result?.html).toContain('font-size: 11px; margin-top: 0; table-layout: fixed')
+    expect(result?.html).toContain('font-size: 10.5px; margin-top: 0; table-layout: fixed')
     expect(result?.html).toContain('border: 1px solid var(--soa-border); padding: 4px 5px')
     expect(result?.html).toContain('<col style="width:13%;" />')
     expect(result?.html).toContain('<col style="width:11%;" />')

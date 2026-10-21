@@ -292,4 +292,25 @@ describe('buildStatementExportModel', () => {
     const entry = model.tableRows.find((row) => row.kind === 'entry')
     expect(entry.cells[2]).toBe('Bank charges')
   })
+
+  test('boosts VB statement logo size for print and PDF export', () => {
+    const model = buildStatementExportModel({
+      ...baseCtx,
+      tenantBranding: { key: 'vb', displayName: 'Venus Bullion' },
+      user: { name: 'Nan', company: 'vb' },
+      branding: {
+        companyName: 'Venus Bullion Gold Trading L.L.C',
+        address: 'Dubai',
+        logoUrl: '/logos/vb-logo.png',
+        logoWidth: 180,
+        logoHeight: 56,
+      },
+    })
+    expect(model.isVenusBullionStatement).toBe(true)
+    expect(model.logoWidth).toBeGreaterThanOrEqual(180)
+    expect(model.logoHeight).toBeGreaterThan(56)
+    expect(model.logoPdfScale).toBeGreaterThan(0.65)
+    expect(model.logoPdfMaxWidth).toBeGreaterThan(110)
+    expect(model.logoPdfMaxHeight).toBeGreaterThan(72)
+  })
 })

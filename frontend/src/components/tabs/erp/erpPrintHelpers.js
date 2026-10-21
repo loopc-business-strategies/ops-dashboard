@@ -15,7 +15,7 @@ export async function buildBrandingLogoTag(brandingConfig, extraStyle = '') {
   )
   if (!logoAsset) return ''
   const width = clampBrandingDimension(brandingConfig.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
-  const height = clampBrandingDimension(brandingConfig.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
+  const height = clampBrandingDimension(brandingConfig.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 140)
   return `<img src="${logoAsset}" alt="Company Logo" style="width:${width}px;height:${height}px;object-fit:contain;display:block;${extraStyle}" />`
 }
 
@@ -30,32 +30,36 @@ export function openPrintWindow(title, bodyHtml, setError) {
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
-          body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px 32px 24px; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-          .sheet { max-width: 980px; min-width: 1050px; margin: 0 auto; }
-          .brandbar { height: 10px; background: var(--grad-brand); border-radius: 999px; margin-bottom: 14px; }
-          .head { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 20px; }
-          .doc-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 14px; }
-          .company { font-size: 18px; font-weight: 800; margin-bottom: 5px; }
-          h1 { font-size: 22px; text-align: center; text-transform: uppercase; letter-spacing: 0.04em; margin: 12px 0; }
-          .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; font-size: 12px; }
-          .note { border: 1px solid #D1D5DB; min-height: 34px; padding: 8px; margin-top: 12px; font-size: 12px; }
-          .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
-          .subtitle { color: #065F46; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin: 0 0 8px; }
-          .meta { color: #4B5563; font-size: 12px; margin: 2px 0; }
-          .section { margin-bottom: 20px; }
-          .section-title { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
-          table { width: 100%; border-collapse: collapse; font-size: 14px; }
-          th, td { border: 1px solid #D1D5DB; padding: 8px 10px; text-align: left; }
-          th { background: #F3F4F6; }
-          .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 10px; }
-          .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-          .card { border: 1px solid #D1D5DB; padding: 10px; }
-          .card-label { color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-          .card-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
-          .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 36px; }
-          .sign-box { padding-top: 18px; border-top: 1px solid #475569; font-size: 12px; color: #374151; }
-          .footer { margin-top: 18px; font-size: 11px; color: #334155; display: flex; justify-content: space-between; }
-          @media print { body { padding: 0; } .sheet { max-width: none; } }
+          body { font-family: Arial, Helvetica, sans-serif; color: #111827; margin: 0; padding: 20px 18px 16px; font-weight: 500; line-height: 1.35; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+          .sheet { max-width: 980px; width: 100%; margin: 0 auto; box-sizing: border-box; overflow: visible; }
+          .brandbar { height: 8px; background: var(--grad-brand); border-radius: 999px; margin-bottom: 12px; }
+          .head { border-bottom: 2px solid #111827; padding-bottom: 10px; margin-bottom: 16px; }
+          .doc-head { display: flex; justify-content: space-between; gap: 16px; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 10px; margin-bottom: 12px; }
+          .company { font-size: 16px; font-weight: 700; margin-bottom: 4px; line-height: 1.2; overflow-wrap: anywhere; }
+          h1 { font-size: 18px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 0.03em; margin: 10px 0; line-height: 1.2; }
+          .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; font-size: 11px; font-weight: 500; }
+          .note { border: 1px solid #D1D5DB; min-height: 32px; padding: 8px; margin-top: 10px; font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
+          .title { font-size: 18px; font-weight: 700; margin: 0 0 4px; line-height: 1.25; overflow-wrap: anywhere; }
+          .subtitle { color: #065F46; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin: 0 0 6px; }
+          .meta { color: #4B5563; font-size: 11px; margin: 2px 0; font-weight: 500; overflow-wrap: anywhere; }
+          .section { margin-bottom: 16px; }
+          .section-title { font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+          th, td { border: 1px solid #D1D5DB; padding: 6px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+          th { background: #F3F4F6; font-weight: 700; }
+          .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 8px; }
+          .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+          .card { border: 1px solid #D1D5DB; padding: 8px 10px; overflow: visible; }
+          .card-label { color: #334155; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+          .card-value { font-size: 15px; font-weight: 700; margin-top: 4px; overflow-wrap: anywhere; }
+          .signatures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+          .sign-box { padding-top: 14px; border-top: 1px solid #475569; font-size: 11px; color: #374151; font-weight: 600; overflow-wrap: anywhere; }
+          .footer { margin-top: 14px; font-size: 10px; color: #334155; display: flex; justify-content: space-between; gap: 12px; font-weight: 500; }
+          @media print {
+            @page { size: A4 portrait; margin: 8mm; }
+            body { padding: 0; }
+            .sheet { max-width: none; width: 100%; }
+          }
         </style>
       </head>
       <body>

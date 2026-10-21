@@ -4,6 +4,7 @@ import MGMetalInvoicePrintLayout from '../erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from '../erp/MGVoucherPrintLayout'
 import ProfessionalCurrencyVoucherPrintLayout from '../erp/ProfessionalCurrencyVoucherPrintLayout'
 import ProfessionalMetalInvoicePrintLayout from '../erp/ProfessionalMetalInvoicePrintLayout'
+import { resolveVoucherPrintLogoSize } from '../master-settings/documentLogoChange'
 import { useDocumentPrintLogo } from './useDocumentPrintLogo'
 import VoucherPrintNetAmounts from './VoucherPrintNetAmounts'
 import {
@@ -111,8 +112,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
     ...((isMgLayout || isProfessionalLayout) ? { minWidth: undefined, padding: '0 10px' } : {}),
   }
 
-  const logoWidth = Number(documentBranding?.logoWidth || 136)
-  const logoHeight = Number(documentBranding?.logoHeight || 136)
+  const { logoWidth, logoHeight } = resolveVoucherPrintLogoSize(documentBranding)
   const proLogoSrc = useDocumentPrintLogo(
     proLogoImage || mgLogoImage,
     logoWidth,
@@ -139,7 +139,7 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
         `Total Party Value (${currencyLabel || baseCurrencyCode || 'USD'})`,
       ].map((label) => (
         <tr key={label}>
-          <td colSpan={4} style={tdStyle({ textAlign: 'right', fontWeight: '700' })}>{label}</td>
+          <td colSpan={4} style={tdStyle({ textAlign: 'right', fontWeight: '700', overflowWrap: 'anywhere' })}>{label}</td>
           <td style={{ ...numTdStyle, fontWeight: '700' }}>{fmt(totals.grandTotal || 0, totalCode)}</td>
         </tr>
       ))}
@@ -270,23 +270,27 @@ export default function VoucherPrintPanel({ printModel, renderMode = 'print' }) 
       ) : (
       <>
       <DocumentPrintHeader
-        branding={documentBranding}
+        branding={{
+          ...documentBranding,
+          logoWidth,
+          logoHeight,
+        }}
         title={printTitle}
         meta={printMeta}
         layoutSettings={useCustomVoucherLayout ? voucherPrint : null}
         screenPreview={isPreview}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr minmax(180px, 240px)', gap: '12px', marginBottom: '10px', alignItems: 'start' }}>
-        <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
-          {voucher?.partyName ? <div style={{ fontWeight: '600' }}>{voucher.partyName}</div> : null}
-          <div>{voucher?.partyAccount || ''}</div>
-          {trnValue ? <div style={{ marginTop: '4px', textAlign: 'center' }}>{`TRN - ${trnValue}`}</div> : null}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(180px, 240px)', gap: '12px', marginBottom: '10px', alignItems: 'stretch' }}>
+        <div style={{ border: '1px dashed #6B7280', padding: '8px', overflowWrap: 'anywhere', fontSize: '10.5px', lineHeight: 1.35 }}>
+          {voucher?.partyName ? <div style={{ fontWeight: '700' }}>{voucher.partyName}</div> : null}
+          <div style={{ fontWeight: '500' }}>{voucher?.partyAccount || ''}</div>
+          {trnValue ? <div style={{ marginTop: '4px', textAlign: 'center', fontWeight: '600' }}>{`TRN - ${trnValue}`}</div> : null}
         </div>
-        <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
-          <div><strong>PAY NO</strong> : {payNoValue || ''}</div>
-          <div><strong>Date</strong> : {payDateValue || ''}</div>
-          <div><strong>Prepared By</strong> : {preparedByValue || ''}</div>
+        <div style={{ border: '1px dashed #6B7280', padding: '8px', fontSize: '10.5px', lineHeight: 1.4, overflowWrap: 'anywhere' }}>
+          <div><span style={{ fontWeight: '700' }}>PAY NO</span> : {payNoValue || ''}</div>
+          <div><span style={{ fontWeight: '700' }}>Date</span> : {payDateValue || ''}</div>
+          <div><span style={{ fontWeight: '700' }}>Prepared By</span> : {preparedByValue || ''}</div>
         </div>
       </div>
 

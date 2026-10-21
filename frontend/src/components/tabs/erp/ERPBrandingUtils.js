@@ -411,7 +411,7 @@ export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'conta
   const renderScale = Math.min(Math.max(Number(options?.renderScale) || 1, 1), 3)
 
   const boxWidth = clampBrandingDimension(width, DEFAULT_BRANDING.logoWidth, 80, 260)
-  const boxHeight = clampBrandingDimension(height, DEFAULT_BRANDING.logoHeight, 32, 120)
+  const boxHeight = clampBrandingDimension(height, DEFAULT_BRANDING.logoHeight, 32, 140)
   const canvasWidth = Math.round(boxWidth * renderScale)
   const canvasHeight = Math.round(boxHeight * renderScale)
 

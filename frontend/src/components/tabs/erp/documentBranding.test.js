@@ -78,6 +78,17 @@ describe('documentBranding resolvers', () => {
     expect(result.phone).toBe('+971 4 286 8222')
   })
 
+  test('resolveVoucherPrintSettings uses Venus gold for VB title accent instead of default maroon', () => {
+    const vb = getTenantBranding('vb')
+    const result = resolveVoucherPrintSettings({
+      reportBranding: { ...baseBranding, voucherPrint: { titleAccentColor: '#7F1D1D' } },
+      user: { company: 'vb' },
+      tenantBranding: vb,
+    })
+    expect(result.enabled).toBe(true)
+    expect(result.voucherPrint.titleAccentColor.toUpperCase()).toBe('#9B6B1F')
+  })
+
   test('resolveDocumentBranding keeps an uploaded logo over the tenant default', () => {
     const uploaded = 'data:image/png;base64,uploaded-vb'
     const result = resolveDocumentBranding({

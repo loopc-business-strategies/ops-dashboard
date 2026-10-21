@@ -10,6 +10,7 @@ import {
   nonPlaceholderCompanyName,
 } from './ERPBrandingUtils'
 import { isMasterDocumentSettingsEnabled } from '../../../config/tenantBranding'
+import { resolveVoucherPrintLogoSize } from '../master-settings/documentLogoChange'
 import {
   computeStatementExportOpeningBalances,
   matchesStatementMetal,
@@ -19,6 +20,14 @@ import {
 } from './statementHelpers'
 import { formatAmount } from '../../../utils/money'
 import { extractJvPostingLineDescription } from './journalVoucherHelpers'
+
+/** PDF pt scale/caps for VB statement download (slightly larger than default). */
+const VB_STATEMENT_PDF_LOGO_SCALE = 0.78
+const VB_STATEMENT_PDF_LOGO_MAX_WIDTH = 132
+const VB_STATEMENT_PDF_LOGO_MAX_HEIGHT = 88
+const DEFAULT_STATEMENT_PDF_LOGO_SCALE = 0.65
+const DEFAULT_STATEMENT_PDF_LOGO_MAX_WIDTH = 110
+const DEFAULT_STATEMENT_PDF_LOGO_MAX_HEIGHT = 72
 
 export function formatStatementDocDate(value) {
   if (!value) return ''
@@ -282,6 +291,7 @@ export function buildStatementExportModel(ctx) {
   ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
   const isModernGoldStatement = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
   const tenantKey = String(tenantBranding?.key || user?.company || user?.tenant?.key || '').trim().toLowerCase()
+  const isVenusBullionStatement = tenantKey === 'vb' || tenantIdentity.includes('venus bullion')
   const useMasterStatementLayout = isMasterDocumentSettingsEnabled(tenantKey)
   const statementPrint = branding?.statementPrint || {}
   const statementTitle = String(statementPrint.title || 'Statement of Account').trim() || 'Statement of Account'
@@ -317,12 +327,25 @@ export function buildStatementExportModel(ctx) {
   const accountAddress = String(accountEnquiryData?.account?.address || accountEnquiryData?.account?.description || '').trim()
   const headerStartDate = statementFilters?.startDate || exportEntries[0]?.date || ''
   const headerEndDate = statementFilters?.endDate || exportEntries[exportEntries.length - 1]?.date || ''
-  const statementLogoWidth = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
+  let statementLogoWidth = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
     ? Math.max(110, clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260))
     : clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
-  const statementLogoHeight = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
-    ? Math.max(90, clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120))
-    : clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
+  let statementLogoHeight = !useMasterStatementLayout && isModernGoldStatement && brandingProfile.logoUrl
+    ? Math.max(90, clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 140))
+    : clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 140)
+  let statementLogoPdfScale = DEFAULT_STATEMENT_PDF_LOGO_SCALE
+  let statementLogoPdfMaxWidth = DEFAULT_STATEMENT_PDF_LOGO_MAX_WIDTH
+  let statementLogoPdfMaxHeight = DEFAULT_STATEMENT_PDF_LOGO_MAX_HEIGHT
+
+  // VB: short report baselines squash the wing mark — use voucher-style box for print/PDF.
+  if (isVenusBullionStatement && brandingProfile.logoUrl) {
+    const resolved = resolveVoucherPrintLogoSize(brandingProfile)
+    statementLogoWidth = resolved.logoWidth
+    statementLogoHeight = resolved.logoHeight
+    statementLogoPdfScale = VB_STATEMENT_PDF_LOGO_SCALE
+    statementLogoPdfMaxWidth = VB_STATEMENT_PDF_LOGO_MAX_WIDTH
+    statementLogoPdfMaxHeight = VB_STATEMENT_PDF_LOGO_MAX_HEIGHT
+  }
 
   return {
     accountCode: accountEnquiryData.account.accountCode,
@@ -345,6 +368,9 @@ export function buildStatementExportModel(ctx) {
     logoFit: brandingProfile.logoFit || 'contain',
     logoWidth: statementLogoWidth,
     logoHeight: statementLogoHeight,
+    logoPdfScale: statementLogoPdfScale,
+    logoPdfMaxWidth: statementLogoPdfMaxWidth,
+    logoPdfMaxHeight: statementLogoPdfMaxHeight,
     logoOffsetX,
     logoOffsetY,
     logoTransparent,
@@ -352,6 +378,7 @@ export function buildStatementExportModel(ctx) {
     addressFontSize,
     useMasterStatementLayout,
     isModernGoldStatement,
+    isVenusBullionStatement,
     signatories: visibleStatementSignatories,
     defaultCompanyName: DEFAULT_BRANDING.companyName,
     head,

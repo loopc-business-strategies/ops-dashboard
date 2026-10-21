@@ -2,6 +2,7 @@
 
 import { describe, expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { LanguageProvider } from '../context/LanguageContext'
 import TopbarMetalTickers from './TopbarMetalTickers'
 
 vi.mock('../hooks/useLiveMetalRates', () => ({
@@ -9,6 +10,10 @@ vi.mock('../hooks/useLiveMetalRates', () => ({
 }))
 
 import useLiveMetalRates from '../hooks/useLiveMetalRates'
+
+function renderTickers(ui) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>)
+}
 
 describe('TopbarMetalTickers', () => {
   test('shows movement row when snapshot has deltas', () => {
@@ -28,7 +33,7 @@ describe('TopbarMetalTickers', () => {
       streamWarning: { message: 'market stream offline' },
     })
 
-    render(<TopbarMetalTickers />)
+    renderTickers(<TopbarMetalTickers />)
     expect(screen.getByText(/1\.25 \(\+0\.04%\)/)).toBeTruthy()
   })
 
@@ -49,7 +54,7 @@ describe('TopbarMetalTickers', () => {
       streamWarning: null,
     })
 
-    render(<TopbarMetalTickers />)
+    renderTickers(<TopbarMetalTickers />)
     expect(screen.getAllByText(/USD\/OZ · MT4/).length).toBe(3)
   })
 
@@ -70,7 +75,7 @@ describe('TopbarMetalTickers', () => {
       streamWarning: null,
     })
 
-    render(<TopbarMetalTickers />)
+    renderTickers(<TopbarMetalTickers />)
     expect(screen.getAllByText('Market price · MT4 offline').length).toBe(3)
     expect(screen.queryByText(/\+0\.00/)).toBeNull()
   })

@@ -13,7 +13,11 @@ vi.mock('./ERPBrandingUtils', () => ({
   STATEMENT_COMPANY_NAME_FONT_MAX: 28,
   STATEMENT_ADDRESS_FONT_MIN: 8,
   STATEMENT_ADDRESS_FONT_MAX: 16,
-  clampBrandingDimension: (_value, fallback) => fallback ?? 120,
+  clampBrandingDimension: (value, fallback, min = 80, max = 260) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback ?? 120
+    return Math.min(Math.max(parsed, min), max)
+  },
   clampStatementFontSize: (value, fallback, min, max) => {
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) return fallback
@@ -150,7 +154,7 @@ describe('statementPreviewSamples', () => {
       user: { company: 'loopc', name: 'Tester' },
     })
     expect(result.html).not.toContain('min-width: 1050px')
-    expect(result.html).toContain('font-size: 11px; margin-top: 0; table-layout: fixed')
+    expect(result.html).toContain('font-size: 10.5px; margin-top: 0; table-layout: fixed')
     expect(result.html).toContain('<col style="width:13%;" />')
     expect(result.html).toContain('<col style="width:11%;" />')
     expect(result.html).toContain('overflow-wrap: anywhere')

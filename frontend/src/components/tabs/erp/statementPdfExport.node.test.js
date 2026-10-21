@@ -44,12 +44,17 @@ const {
 })
 
 vi.mock('./ERPBrandingUtils', () => ({
+  DEFAULT_BRANDING: { companyName: 'LoopC', logoWidth: 180, logoHeight: 56 },
   DEFAULT_STATEMENT_PRINT: { companyNameFontSize: 15, addressFontSize: 10 },
   STATEMENT_COMPANY_NAME_FONT_MIN: 10,
   STATEMENT_COMPANY_NAME_FONT_MAX: 28,
   STATEMENT_ADDRESS_FONT_MIN: 8,
   STATEMENT_ADDRESS_FONT_MAX: 16,
-  clampBrandingDimension: (_value, fallback) => fallback ?? 120,
+  clampBrandingDimension: (value, fallback, min = 80, max = 260) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback ?? 120
+    return Math.min(Math.max(parsed, min), max)
+  },
   clampStatementFontSize: (value, fallback, min, max) => {
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) return fallback
@@ -153,5 +158,28 @@ describe('exportStatementPdf', () => {
   test('rejects when account enquiry data is missing', async () => {
     await expect(exportStatementPdf({ ...baseCtx, accountEnquiryData: null }, 'x.pdf'))
       .rejects.toThrow('Statement data not ready')
+  })
+
+  test('draws a larger VB statement logo in PDF download', async () => {
+    docApi.addImage.mockClear()
+    await exportStatementPdf({
+      ...baseCtx,
+      tenantBranding: { key: 'vb', displayName: 'Venus Bullion' },
+      user: { name: 'Nan', company: 'vb' },
+      branding: {
+        companyName: 'Venus Bullion Gold Trading L.L.C',
+        address: 'Dubai',
+        phone: '+971 4 286 8222',
+        logoUrl: '/logos/vb-logo.png',
+        logoWidth: 180,
+        logoHeight: 56,
+        logoFit: 'contain',
+      },
+    }, 'Statement-VB.pdf')
+
+    expect(docApi.addImage).toHaveBeenCalled()
+    const [, , , , width, height] = docApi.addImage.mock.calls[0]
+    expect(width).toBeGreaterThan(110)
+    expect(height).toBeGreaterThan(72)
   })
 })

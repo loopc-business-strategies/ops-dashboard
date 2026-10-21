@@ -32,8 +32,11 @@ export async function exportStatementPdf(ctx, fileName) {
   const contentWidth = pageWidth - MARGIN * 2
 
   let cursorY = MARGIN
-  const logoPdfWidth = Math.min(model.logoWidth * 0.65, 110)
-  const logoPdfHeight = Math.min(model.logoHeight * 0.65, 72)
+  const logoPdfScale = Number(model.logoPdfScale) > 0 ? Number(model.logoPdfScale) : 0.65
+  const logoPdfMaxWidth = Number(model.logoPdfMaxWidth) > 0 ? Number(model.logoPdfMaxWidth) : 110
+  const logoPdfMaxHeight = Number(model.logoPdfMaxHeight) > 0 ? Number(model.logoPdfMaxHeight) : 72
+  const logoPdfWidth = Math.min(model.logoWidth * logoPdfScale, logoPdfMaxWidth)
+  const logoPdfHeight = Math.min(model.logoHeight * logoPdfScale, logoPdfMaxHeight)
   const logoAsset = await createLogoRenderAsset(
     model.logoUrl,
     model.logoWidth,
