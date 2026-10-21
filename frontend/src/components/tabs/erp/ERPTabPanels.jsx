@@ -567,7 +567,12 @@ export default function ERPTabPanels({
   return (
     <>
       {keepTab('dashboard') && (
-      <div style={activeTab === 'dashboard' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'dashboard'}>
+      <div
+        style={activeTab === 'dashboard'
+          ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+          : hiddenTabStyle}
+        aria-hidden={activeTab !== 'dashboard'}
+      >
       <Suspense fallback={<ErpSubTabFallback />}>
       <ERPDashboardTab
         activeTab={activeTab}

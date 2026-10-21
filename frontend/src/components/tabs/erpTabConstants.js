@@ -18,10 +18,13 @@ export const METAL_UNIT_FACTORS = {
 /**
  * ERP home dashboard uses a 6-column CSS grid; each widget spans 2 columns (3 widgets per row).
  * Reference layout: row1 margins+fixing+bank; row2 cashflow+expenses+volume; row3 apar+chat+notif.
+ * Card heights are viewport-driven (see ERPDashboardTab) so all rows fit one screen without page scroll.
  */
 export const ERP_DASH_GRID_COLUMNS = 6
-export const ERP_DASH_WIDGET_BODY_HEIGHT = '380px'
-export const ERP_DASH_CARD_MIN_HEIGHT = '440px'
+/** @deprecated Prefer flex fill in ERPDashboardTab; kept for older callers. */
+export const ERP_DASH_WIDGET_BODY_HEIGHT = '100%'
+/** @deprecated Prefer grid 1fr rows in ERPDashboardTab; kept for older callers. */
+export const ERP_DASH_CARD_MIN_HEIGHT = '0'
 
 export const ERP_DASH_ALL_WIDGETS = [
   { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊', color: '#ffedd5', desc: 'Equity and margin by customer/supplier', cols: 2 },
@@ -39,6 +42,31 @@ export const ERP_DASH_DEFAULT = ['margins', 'fixing', 'bank', 'cashflow', 'expen
 
 /** Canonical number of widgets in the default ERP home layout (must match `ERP_DASH_ALL_WIDGETS`). */
 export const ERP_DASH_WIDGET_COUNT = ERP_DASH_ALL_WIDGETS.length
+
+/** How many grid rows the current widget list occupies (for viewport-fit row tracks). */
+export function countErpDashGridRows(widgetIds, colsById = {}, catalog = ERP_DASH_ALL_WIDGETS) {
+  const list = Array.isArray(widgetIds) ? widgetIds : []
+  const byId = new Map((catalog || []).map((w) => [w.id, w]))
+  let cursor = 0
+  let rows = 0
+  list.forEach((id) => {
+    const meta = byId.get(id)
+    if (!meta) return
+    const span = Math.min(
+      Math.max(Number(colsById?.[id] ?? meta.cols) || 1, 1),
+      ERP_DASH_GRID_COLUMNS,
+    )
+    if (cursor === 0) rows += 1
+    if (cursor + span > ERP_DASH_GRID_COLUMNS) {
+      rows += 1
+      cursor = span
+    } else {
+      cursor += span
+    }
+    if (cursor >= ERP_DASH_GRID_COLUMNS) cursor = 0
+  })
+  return Math.max(1, rows)
+}
 
 /** Fallback metal rates when API sync has not loaded yet (ERPTab shell). */
 export const DEFAULT_METAL_RATES = Object.freeze({

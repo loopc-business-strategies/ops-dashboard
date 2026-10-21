@@ -3,11 +3,10 @@ import { renderERP_DashWidget } from '../ERPDashboardWidgets'
 import ExpenseDashboardModal from '../ExpenseDashboardModal'
 import { formatDateInputLocal } from '../erpTabPresentation'
 import {
-  ERP_DASH_CARD_MIN_HEIGHT,
   ERP_DASH_DEFAULT,
   ERP_DASH_GRID_COLUMNS,
-  ERP_DASH_WIDGET_BODY_HEIGHT,
   ERP_DASH_WIDGET_COUNT,
+  countErpDashGridRows,
   ensureMarginsThenFixingOrder,
 } from '../../erpTabConstants'
 
@@ -58,16 +57,29 @@ export default function ERPDashboardTab({
     })
   } : null
 
+  const rowCount = countErpDashGridRows(dashWidgets, dashWidgetCols, ERP_DASH_ALL_WIDGETS)
+
   return (
     <>
-      {/* DASHBOARD TAB */}
+      {/* DASHBOARD TAB — fill remaining viewport; equal row tracks; no page scroll */}
       <ERPDashboardTabContainer activeTab={activeTab} persist={persistDashboard}>
-        <div>
+        <div
+          className="erp-dash-fit"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden',
+            gap: '0.45rem',
+          }}
+        >
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', flexShrink: 0 }}>
             <div>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>📊 My Dashboard</h3>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.05rem', fontWeight: '700' }}>📊 My Dashboard</h3>
+              <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: C.inkSoft }}>
                 {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 {' · '}
                 {dashWidgets.length === ERP_DASH_WIDGET_COUNT
@@ -84,13 +96,13 @@ export default function ERPDashboardTab({
                   }
                   setDashEditMode((v) => !v)
                 }}
-                style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
               >
                 ⠿ {dashEditMode ? 'Done' : 'Arrange'}
               </button>
               <button
                 onClick={() => { setDashPickSelected([...dashWidgets]); setDashCustomizeOpen(true) }}
-                style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: 'none', borderRadius: '0.375rem', background: C.s1, color: '#fff', cursor: 'pointer' }}
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', fontWeight: '600', border: 'none', borderRadius: '0.375rem', background: C.s1, color: '#fff', cursor: 'pointer' }}
               >
                 + Customize
               </button>
@@ -99,7 +111,7 @@ export default function ERPDashboardTab({
 
           {/* Edit mode banner */}
           {dashEditMode && (
-            <div style={{ background: '#F0FDF4', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.6rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: C.s2 }}>
+            <div style={{ background: '#F0FDF4', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.45rem 0.75rem', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: C.s2 }}>
               <span style={{ fontSize: '1rem' }}>↕</span>
               <span>Drag widgets to rearrange. Margins and fixing are pinned to the front when you click <strong>Done</strong> or <strong>Customize → Apply</strong>. Click <strong>✕</strong> to remove a widget.</span>
             </div>
@@ -107,7 +119,7 @@ export default function ERPDashboardTab({
 
           {/* Widget grid */}
           {dashWidgets.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem', background: C.p2, borderRadius: '0.75rem' }}>
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', background: C.p2, borderRadius: '0.75rem', flex: 1 }}>
               <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</p>
               <p style={{ color: C.inkSoft, fontSize: '0.9rem', marginBottom: '1rem' }}>No widgets on your dashboard yet.</p>
               <button
@@ -122,9 +134,12 @@ export default function ERPDashboardTab({
               style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${ERP_DASH_GRID_COLUMNS}, minmax(0, 1fr))`,
-                gridAutoRows: ERP_DASH_CARD_MIN_HEIGHT,
+                gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))`,
                 alignItems: 'stretch',
-                gap: '0.875rem',
+                gap: '0.55rem',
+                flex: 1,
+                minHeight: 0,
+                overflow: 'hidden',
               }}
             >
               {dashWidgets.map((wid, idx) => {
@@ -202,12 +217,12 @@ export default function ERPDashboardTab({
                       <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: '1.75rem', color: 'rgba(0,0,0,0.18)', pointerEvents: 'none', userSelect: 'none', zIndex: 2 }}>⠿</div>
                     )}
                     {/* Widget header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 13px', borderBottom: '1px solid #E5E7EB' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '6px', background: meta.color || '#E8F5EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <div style={{ width: 24, height: 24, borderRadius: '6px', background: meta.color || '#E8F5EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', flexShrink: 0 }}>
                           {meta.icon}
                         </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '600', color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.label}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         {meta.expandable && (
@@ -253,12 +268,11 @@ export default function ERPDashboardTab({
                         </div>
                       </div>
                     </div>
-                    {/* Widget body */}
+                    {/* Widget body — fills card; scrolls inside if content is tall */}
                     <div style={{
                       flex: 1,
-                      minHeight: ERP_DASH_WIDGET_BODY_HEIGHT,
-                      maxHeight: ERP_DASH_WIDGET_BODY_HEIGHT,
-                      overflow: 'hidden',
+                      minHeight: 0,
+                      overflow: 'auto',
                       display: 'flex',
                       flexDirection: 'column',
                       fontSize: '0.82rem',
