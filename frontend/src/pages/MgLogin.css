@@ -13,13 +13,22 @@
 
   position: fixed;
   inset: 0;
+  width: 100%;
   width: 100vw;
+  width: 100dvw;
+  height: 100%;
   height: 100vh;
+  height: 100dvh;
   overflow: auto;
   background: var(--mg-white);
   color: var(--mg-text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   box-sizing: border-box;
+}
+
+/* Enterprise login: lock to visible viewport on landscape TVs/PCs (no AppShell zoom). */
+.mg-login.enterprise-login {
+  overflow: hidden;
 }
 
 .mg-login *,
@@ -541,10 +550,37 @@
 }
 
 /* Unified enterprise login (all tenants) */
+/*
+ * Desktop/TV first (2-column). Portrait phones stack.
+ * Avoids TCL under-reported width keeping a single centered card on wall TVs —
+ * without scaling/zooming the whole ops app.
+ */
 .enterprise-login .mg-login__frame {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   min-height: 100%;
+  height: 100%;
+}
+.enterprise-login .mg-login__panel--brand,
+.enterprise-login .mg-login__panel--form {
+  min-height: 100%;
+  height: 100%;
+  overflow: auto;
+}
+@media (max-width: 767px) and (orientation: portrait) {
+  .mg-login.enterprise-login {
+    overflow: auto;
+  }
+  .enterprise-login .mg-login__frame {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100%;
+  }
+  .enterprise-login .mg-login__panel--brand,
+  .enterprise-login .mg-login__panel--form {
+    height: auto;
+    min-height: 0;
+  }
 }
 .enterprise-login .mg-login__panel--brand {
   color: #fff;
@@ -819,13 +855,127 @@
   font-size: 12px;
   color: var(--text-muted);
 }
-@media (min-width: 1024px) {
-  .enterprise-login .mg-login__frame {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    min-height: 100vh;
+
+/* Short landscape (laptops / TV with chrome): densify so brand + form fit one screen */
+@media (orientation: landscape) and (max-height: 900px) {
+  .enterprise-login .mg-login__panel--brand {
+    padding: 28px 22px;
   }
-  .enterprise-login .mg-login__panel--brand,
   .enterprise-login .mg-login__panel--form {
-    min-height: 100vh;
+    padding: 20px 16px;
+  }
+  .enterprise-login .mg-login__logo-plate {
+    width: 72px;
+    height: 72px;
+    padding: 8px;
+    margin-bottom: 12px;
+    border-radius: 14px;
+  }
+  .enterprise-login .mg-login__logo-plate img {
+    max-height: 56px;
+  }
+  .enterprise-login .mg-login__hero-title {
+    font-size: clamp(26px, 4.2vw, 36px);
+    margin: 0 0 8px;
+  }
+  .enterprise-login .mg-login__hero-copy {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .enterprise-login .mg-login__chips {
+    margin: 14px 0 0;
+    gap: 6px;
+  }
+  .enterprise-login .mg-login__chips li {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+  .enterprise-login .mg-login__form-logo {
+    width: 48px;
+    height: 48px;
+    margin: 0 0 10px;
+    padding: 6px;
+  }
+  .enterprise-login .mg-login__form-logo img {
+    max-width: 36px;
+    max-height: 36px;
+  }
+  .enterprise-login .mg-login__form-title {
+    font-size: 22px;
+  }
+  .enterprise-login .mg-login__form-sub {
+    margin: 0 0 12px;
+    font-size: 12px;
+  }
+  .enterprise-login .mg-login__label {
+    margin: 8px 0 4px;
+  }
+  .enterprise-login .mg-login__field input {
+    height: 44px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .enterprise-login .mg-login__row {
+    margin: 10px 0 12px;
+  }
+  .enterprise-login .mg-login__submit {
+    height: 44px;
+    margin-top: 4px;
+  }
+  .enterprise-login .mg-login__footnote {
+    margin: 10px 0 0;
+    font-size: 11px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 720px) {
+  .enterprise-login .mg-login__panel--brand {
+    padding: 18px 16px;
+  }
+  .enterprise-login .mg-login__panel--form {
+    padding: 12px 14px;
+  }
+  .enterprise-login .mg-login__logo-plate {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 8px;
+  }
+  .enterprise-login .mg-login__logo-plate img {
+    max-height: 42px;
+  }
+  .enterprise-login .mg-login__eyebrow {
+    font-size: 10px;
+    margin: 0 0 4px;
+  }
+  .enterprise-login .mg-login__hero-title {
+    font-size: clamp(22px, 3.6vw, 28px);
+    margin: 0 0 6px;
+  }
+  .enterprise-login .mg-login__hero-copy {
+    font-size: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .enterprise-login .mg-login__chips {
+    margin: 10px 0 0;
+  }
+  .enterprise-login .mg-login__form-logo {
+    width: 40px;
+    height: 40px;
+    margin: 0 0 6px;
+  }
+  .enterprise-login .mg-login__form-title {
+    font-size: 18px;
+  }
+  .enterprise-login .mg-login__form-sub {
+    margin: 0 0 8px;
+  }
+  .enterprise-login .mg-login__field input {
+    height: 40px;
+  }
+  .enterprise-login .mg-login__submit {
+    height: 40px;
   }
 }
