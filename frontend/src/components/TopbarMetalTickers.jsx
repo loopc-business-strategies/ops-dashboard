@@ -20,22 +20,8 @@ export default function TopbarMetalTickers() {
   const { snapshot, error } = useLiveMetalRates()
   const fallbackNote = liveMetalFallbackNote(snapshot.source)
 
-  const pillBase = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.45rem',
-    padding: '0.4rem 0.75rem',
-    borderRadius: '999px',
-    background: '#fff',
-    border: '1px solid var(--border)',
-    minWidth: '8.75rem',
-    flexShrink: 0,
-    boxSizing: 'border-box',
-    boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
-  }
-
   return (
-    <div className="flex items-center justify-end gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
+    <div className="topbar-metal-tickers">
       {METALS.map(({ key, label, swatch, sym, labelColor }) => {
         const price = snapshot[key]
         const move = !fallbackNote && snapshot.deltas && snapshot.prevSnapshot
@@ -46,7 +32,7 @@ export default function TopbarMetalTickers() {
         return (
           <div
             key={key}
-            style={pillBase}
+            className="topbar-metal-pill"
             title={[fallbackNote, updatedLabel].filter(Boolean).join(' · ') || undefined}
           >
             <span
@@ -71,8 +57,18 @@ export default function TopbarMetalTickers() {
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1, overflow: 'hidden', paddingRight: '0.1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(3.75rem, 1fr)', alignItems: 'baseline', gap: '0.35rem', width: '100%', lineHeight: 1.15 }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'var(--text-muted)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{label}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmtSpot(price)}</span>
+                <span
+                  className="topbar-metal-label"
+                  style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'var(--text-muted)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}
+                >
+                  {label}
+                </span>
+                <span
+                  className="topbar-metal-price"
+                  style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                >
+                  {fmtSpot(price)}
+                </span>
               </div>
               <div
                 style={{

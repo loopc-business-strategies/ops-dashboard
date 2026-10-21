@@ -119,12 +119,10 @@ export default function ERPDashboardTab({
             </div>
           ) : (
             <div
+              className="erp-dash-widget-grid"
               style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${ERP_DASH_GRID_COLUMNS}, minmax(0, 1fr))`,
-                gridAutoRows: ERP_DASH_CARD_MIN_HEIGHT,
-                alignItems: 'stretch',
-                gap: '0.875rem',
+                '--erp-dash-card-min-height': ERP_DASH_CARD_MIN_HEIGHT,
+                '--erp-dash-widget-body-height': ERP_DASH_WIDGET_BODY_HEIGHT,
               }}
             >
               {dashWidgets.map((wid, idx) => {
@@ -143,6 +141,7 @@ export default function ERPDashboardTab({
                 return (
                   <div
                     key={wid}
+                    className="erp-dash-widget"
                     draggable={dashEditMode}
                     onDragStart={(e) => {
                       dashDragSrc.current = idx
@@ -254,16 +253,7 @@ export default function ERPDashboardTab({
                       </div>
                     </div>
                     {/* Widget body */}
-                    <div style={{
-                      flex: 1,
-                      minHeight: ERP_DASH_WIDGET_BODY_HEIGHT,
-                      maxHeight: ERP_DASH_WIDGET_BODY_HEIGHT,
-                      overflow: 'hidden',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      fontSize: '0.82rem',
-                      color: C.inkSoft,
-                    }}>
+                    <div className="erp-dash-widget-body" style={{ color: C.inkSoft }}>
                       {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
                     </div>
                   </div>
