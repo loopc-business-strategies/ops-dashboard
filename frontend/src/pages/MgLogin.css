@@ -13,20 +13,13 @@
 
   position: fixed;
   inset: 0;
-  width: 100%;
   width: 100vw;
-  width: 100dvw;
-  height: 100%;
   height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
+  overflow: auto;
   background: var(--mg-white);
   color: var(--mg-text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   box-sizing: border-box;
-}
-.mg-login.enterprise-login {
-  overflow: hidden;
 }
 
 .mg-login *,
@@ -548,37 +541,10 @@
 }
 
 /* Unified enterprise login (all tenants) */
-/*
- * Desktop/TV first (2-column). Portrait phones stack.
- * Avoids TCL under-reported width keeping a single centered card on wall TVs —
- * without scaling/zooming the whole ops app.
- */
 .enterprise-login .mg-login__frame {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   min-height: 100%;
-  height: 100%;
-}
-.enterprise-login .mg-login__panel--brand,
-.enterprise-login .mg-login__panel--form {
-  min-height: 100%;
-  height: 100%;
-  overflow: auto;
-}
-@media (max-width: 767px) and (orientation: portrait) {
-  .mg-login.enterprise-login {
-    overflow: auto;
-  }
-  .enterprise-login .mg-login__frame {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: 100%;
-  }
-  .enterprise-login .mg-login__panel--brand,
-  .enterprise-login .mg-login__panel--form {
-    height: auto;
-    min-height: 0;
-  }
 }
 .enterprise-login .mg-login__panel--brand {
   color: #fff;
