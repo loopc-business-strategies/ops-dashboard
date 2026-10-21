@@ -41,6 +41,7 @@ function registerTransactionRoutes(deps) {
     validateTransactionPayload,
     validateFxReferenceRateRequirement,
     normalizeMetalFixStatus,
+    applyVoucherMetaFixingTypeAlias,
     sanitizeOptionalRef,
     normalizeTransactionNote,
     appendTransactionAudit,
@@ -482,6 +483,8 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
         })
       : normalizeVoucherMetaDocNo(type, voucherMeta || undefined)
 
+    voucherMetaPayload = applyVoucherMetaFixingTypeAlias(voucherMetaPayload)
+
     const requestedVocNo = String(voucherMetaPayload?.vocNo || '').trim()
     const docDateForVoc = voucherMetaPayload?.docDate || date || null
     if (!requestedVocNo || await voucherDocNoExists(Transaction, requestedVocNo)) {
@@ -548,6 +551,9 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     res.status(201).json({ success: true, transaction: tx })
   } catch (e) {
     if (/Invalid|exceeds allowed maximum/i.test(e?.message || '')) {
+      return res.status(400).json({ success: false, message: e.message })
+    }
+    if (e?.name === 'ValidationError') {
       return res.status(400).json({ success: false, message: e.message })
     }
     console.error('Create transaction error:', e)
@@ -668,7 +674,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
         meta.partyAccountId = sanitizeOptionalRef(meta.partyAccountId)
         meta.fixings = Array.isArray(tx.voucherMeta?.fixings) ? tx.voucherMeta.fixings : []
       }
-      tx.voucherMeta = meta
+      tx.voucherMeta = applyVoucherMetaFixingTypeAlias(meta)
     }
     if (req.body.metalFixStatus !== undefined) {
       const normalizedMetalFixStatus = normalizeMetalFixStatus(req.body.metalFixStatus)
@@ -705,6 +711,9 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
       return respondRouteError(res, e, { tag: 'erp-accounting/transactions' })
     }
     if (/Invalid|exceeds allowed maximum/i.test(e?.message || '')) {
+      return res.status(400).json({ success: false, message: e.message })
+    }
+    if (e?.name === 'ValidationError') {
       return res.status(400).json({ success: false, message: e.message })
     }
     console.error('Update transaction error:', e)

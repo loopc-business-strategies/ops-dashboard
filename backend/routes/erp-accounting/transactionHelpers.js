@@ -64,6 +64,25 @@ const normalizeMetalFixStatus = (value) => {
   return ''
 }
 
+/** Map UI/API aliases onto Transaction.voucherMeta.fixingType enum values. */
+const normalizeVoucherMetaFixingType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (['fixing', 'fixed'].includes(normalized)) return 'fixing'
+  if (['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)) return 'non-fixing'
+  return 'fixing'
+}
+
+const applyVoucherMetaFixingTypeAlias = (voucherMeta) => {
+  if (!voucherMeta || typeof voucherMeta !== 'object') return voucherMeta
+  if (voucherMeta.fixingType === undefined || voucherMeta.fixingType === null || voucherMeta.fixingType === '') {
+    return voucherMeta
+  }
+  return {
+    ...voucherMeta,
+    fixingType: normalizeVoucherMetaFixingType(voucherMeta.fixingType),
+  }
+}
+
 const normalizeMoneyValue = (value, field = 'amount') => {
   const coerced = typeof value === 'number' ? value : (parseAmount(value) ?? Number(value))
   const num = coerced
@@ -172,6 +191,8 @@ module.exports = {
   coerceMoneyInput,
   sanitizeOptionalRef,
   normalizeMetalFixStatus,
+  normalizeVoucherMetaFixingType,
+  applyVoucherMetaFixingTypeAlias,
   normalizeMoneyValue,
   normalizeTransactionAmount,
   SIGNED_AMOUNT_TRANSACTION_TYPES,
