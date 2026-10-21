@@ -15,6 +15,7 @@ import dns from 'node:dns'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { assertClientLiveAllowsDestructive } from './lib/client-live-tenants.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -275,8 +276,10 @@ async function main() {
   const reason = String(arg('reason', '')).trim()
 
   if (apply) {
+    assertClientLiveAllowsDestructive('vb', { action: 'ERP master reset / wipe' })
     if (process.env.I_UNDERSTAND !== UNDERSTAND) {
       console.error(`Refusing apply: set I_UNDERSTAND=${UNDERSTAND}`)
+      console.error('Also required while CLIENT LIVE: CLIENT_LIVE_UNLOCK=UNLOCK-CLIENT-LIVE-VB')
       process.exit(1)
     }
     if (reason.length < 10) {

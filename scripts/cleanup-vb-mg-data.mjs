@@ -11,6 +11,7 @@ import dns from 'node:dns'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { assertClientLiveAllowsDestructive } from './lib/client-live-tenants.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -107,11 +108,13 @@ function safeUser(doc) {
 }
 
 async function main() {
+  assertClientLiveAllowsDestructive('vb', { action: 'VB user cleanup' })
   if (process.env.I_UNDERSTAND !== UNDERSTAND) {
     console.error(`Refusing: set I_UNDERSTAND=${UNDERSTAND}`)
+    console.error('Also required while CLIENT LIVE: CLIENT_LIVE_UNLOCK=UNLOCK-CLIENT-LIVE-VB')
     console.error('Example:')
     console.error(
-      `  I_UNDERSTAND=${UNDERSTAND} npm run cleanup:vb-mg-data -- --from-railway --railway-project <id> --ids=<vbUserId>`,
+      `  CLIENT_LIVE_UNLOCK=UNLOCK-CLIENT-LIVE-VB I_UNDERSTAND=${UNDERSTAND} npm run cleanup:vb-mg-data -- --from-railway --ids=<vbUserId>`,
     )
     process.exit(1)
   }
