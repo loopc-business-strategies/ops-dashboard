@@ -4,7 +4,12 @@ function ERPSubTabContainer({ activeTab, tabId, persist = false, children }) {
 }
 
 export function ERPDashboardTabContainer({ activeTab, persist = false, children }) {
-  return <ERPSubTabContainer activeTab={activeTab} tabId="dashboard" persist={persist}>{children}</ERPSubTabContainer>
+  if (!persist && activeTab !== 'dashboard') return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }}>
+      {children}
+    </div>
+  )
 }
 
 export function ERPAccountsTabContainer({ activeTab, persist = false, children }) {
