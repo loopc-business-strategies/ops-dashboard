@@ -87,6 +87,7 @@ export default function VoucherFixingModal({
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open: Boolean(voucher),
+    persistKey: 'voucher-fixing',
     defaultWidth: 720,
     defaultHeightRatio: 0.85,
     minWidth: 480,

@@ -124,6 +124,7 @@ export default function ERPInventoryTab({
 
   const productChrome = useFloatingModalChrome({
     open: showInventoryProductModal,
+    persistKey: 'erp-inventory-product',
     defaultWidth: 680,
     defaultHeightRatio: 0.48,
     minWidth: 480,
@@ -132,6 +133,7 @@ export default function ERPInventoryTab({
   })
   const mappingChrome = useFloatingModalChrome({
     open: showInventoryMappingModal,
+    persistKey: 'erp-inventory-stock-type',
     defaultWidth: 520,
     defaultHeightRatio: 0.62,
     minWidth: 400,

@@ -6,6 +6,10 @@ import {
   projectDragOffset,
   projectResizeSize,
 } from '../erp/modalGeometryUtils'
+import {
+  resolveFloatingModalOpenSize,
+  writePersistedFloatingModalSize,
+} from '../erp/useFloatingModalChrome'
 
 export function getDefaultModalHeight() {
   if (typeof window === 'undefined') return 792
@@ -30,17 +34,34 @@ export function getModalResizeBounds(wide = false) {
   }
 }
 
-export function useMasterSettingsModalChrome({ open, wide = false }) {
+export function useMasterSettingsModalChrome({ open, wide = false, persistKey = '' }) {
   const panelRef = useRef(null)
   const dragSessionRef = useRef(null)
   const resizeSessionRef = useRef(null)
   const moveHandlerRef = useRef(null)
   const upHandlerRef = useRef(null)
   const suppressBackdropCloseRef = useRef(false)
+  const sizeRef = useRef(null)
+  const persistKeyRef = useRef(persistKey)
+  persistKeyRef.current = persistKey
+
+  const bounds = getModalResizeBounds(wide)
+  const resolveOpenSize = useCallback(
+    () => resolveFloatingModalOpenSize({
+      persistKey,
+      getDefaultSize: () => getDefaultModalSize(wide),
+      minWidth: bounds.minWidth,
+      minHeight: bounds.minHeight,
+      maxHeight: bounds.maxHeight,
+    }),
+    [persistKey, wide, bounds.minWidth, bounds.minHeight, bounds.maxHeight],
+  )
+
   const [offset, setOffset] = useState(ZERO_OFFSET)
-  const [size, setSize] = useState(() => getDefaultModalSize(wide))
+  const [size, setSize] = useState(resolveOpenSize)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
+  sizeRef.current = size
 
   const cleanupListeners = useCallback(() => {
     if (moveHandlerRef.current) {
@@ -77,7 +98,6 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
   useEffect(() => {
     if (open) return undefined
     setOffset(ZERO_OFFSET)
-    setSize(getDefaultModalSize(wide))
     suppressBackdropCloseRef.current = false
     stopInteraction()
     if (panelRef.current) {
@@ -85,14 +105,14 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
       panelRef.current.style.willChange = ''
     }
     return undefined
-  }, [open, wide, stopInteraction])
+  }, [open, stopInteraction])
 
   useEffect(() => {
     if (!open) return undefined
     setOffset(ZERO_OFFSET)
-    setSize(getDefaultModalSize(wide))
+    setSize(resolveOpenSize())
     return undefined
-  }, [open, wide])
+  }, [open, resolveOpenSize])
 
   const beginDrag = useCallback((event) => {
     if (event.button !== 0) return
@@ -122,13 +142,18 @@ export function useMasterSettingsModalChrome({ open, wide = false }) {
     suppressBackdropCloseRef.current = true
     cleanupListeners()
     resizeSessionRef.current = createResizeState(event, size)
-    const bounds = getModalResizeBounds(wide)
+    const resizeBounds = getModalResizeBounds(wide)
     const onMove = (moveEvent) => {
       const session = resizeSessionRef.current
       if (!session) return
-      setSize(projectResizeSize(session, moveEvent, bounds))
+      const next = projectResizeSize(session, moveEvent, resizeBounds)
+      sizeRef.current = next
+      setSize(next)
     }
-    const onUp = () => finishInteraction()
+    const onUp = () => {
+      writePersistedFloatingModalSize(persistKeyRef.current, sizeRef.current)
+      finishInteraction()
+    }
     moveHandlerRef.current = onMove
     upHandlerRef.current = onUp
     setIsResizing(true)

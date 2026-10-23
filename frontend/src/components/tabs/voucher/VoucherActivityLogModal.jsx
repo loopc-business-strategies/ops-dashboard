@@ -56,6 +56,7 @@ export default function VoucherActivityLogModal({
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open,
+    persistKey: 'voucher-activity-log',
     defaultWidth: 640,
     defaultHeightRatio: 0.68,
     minWidth: 420,

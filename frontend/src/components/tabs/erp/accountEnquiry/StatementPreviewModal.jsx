@@ -25,6 +25,7 @@ function StatementPreviewModal({
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open,
+    persistKey: 'erp-statement-preview',
     defaultWidth: 1200,
     defaultHeightRatio: 0.88,
     minWidth: 640,

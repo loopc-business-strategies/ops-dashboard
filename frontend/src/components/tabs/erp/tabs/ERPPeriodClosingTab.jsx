@@ -62,6 +62,7 @@ export default function ERPPeriodClosingTab({ C }) {
     canCloseOnBackdropClick: canClosePeriodModalOnBackdrop,
   } = useFloatingModalChrome({
     open: Boolean(modal),
+    persistKey: 'erp-period-closing',
     defaultWidth: 520,
     defaultHeightRatio: 0.55,
     minWidth: 360,

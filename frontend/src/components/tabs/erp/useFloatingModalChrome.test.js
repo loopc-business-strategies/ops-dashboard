@@ -1,8 +1,21 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useFloatingModalChrome } from './useFloatingModalChrome'
+import {
+  FLOATING_MODAL_SIZE_STORAGE_PREFIX,
+  readPersistedFloatingModalSize,
+  useFloatingModalChrome,
+  writePersistedFloatingModalSize,
+} from './useFloatingModalChrome'
 
 describe('useFloatingModalChrome', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
   it('starts drag from non-interactive surface and updates offset', () => {
     const { result } = renderHook(() => useFloatingModalChrome({ open: true, defaultWidth: 640 }))
     const surface = document.createElement('div')
@@ -84,5 +97,60 @@ describe('useFloatingModalChrome', () => {
     })
     expect(result.current.isDragging).toBe(false)
     button.remove()
+  })
+
+  it('persists resize size and restores it on reopen', () => {
+    const persistKey = 'test-product-modal'
+    const { result, rerender } = renderHook(
+      ({ open }) => useFloatingModalChrome({
+        open,
+        persistKey,
+        defaultWidth: 640,
+        defaultHeightRatio: 0.5,
+        minWidth: 400,
+        minHeight: 200,
+      }),
+      { initialProps: { open: true } },
+    )
+
+    act(() => {
+      result.current.beginResize({
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      })
+    })
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 220, clientY: 180 }))
+    })
+    const resized = { ...result.current.size }
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup'))
+    })
+
+    expect(readPersistedFloatingModalSize(persistKey, null, {
+      minWidth: 400,
+      minHeight: 200,
+    })).toEqual(resized)
+
+    act(() => {
+      rerender({ open: false })
+    })
+    act(() => {
+      rerender({ open: true })
+    })
+    expect(result.current.size).toEqual(resized)
+  })
+
+  it('read/write helpers round-trip through localStorage', () => {
+    writePersistedFloatingModalSize('helper-key', { width: 777, height: 444 })
+    expect(window.localStorage.getItem(`${FLOATING_MODAL_SIZE_STORAGE_PREFIX}helper-key`)).toContain('777')
+    expect(readPersistedFloatingModalSize('helper-key', { width: 1, height: 1 }, {
+      minWidth: 200,
+      minHeight: 200,
+      maxHeight: 2000,
+    })).toEqual({ width: 777, height: 444 })
   })
 })

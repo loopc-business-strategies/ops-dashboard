@@ -30,6 +30,7 @@ function VoucherPreviewModal({
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open,
+    persistKey: 'voucher-preview',
     defaultWidth: 1200,
     defaultHeightRatio: 0.88,
     minWidth: 640,
