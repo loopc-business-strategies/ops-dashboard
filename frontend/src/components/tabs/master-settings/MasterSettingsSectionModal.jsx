@@ -1,4 +1,5 @@
 import { memo, useEffect } from 'react'
+import { FloatingModalResizeHandle } from '../erp/useFloatingModalChrome'
 import { useMasterSettingsModalChrome } from './useMasterSettingsModalChrome'
 
 function MasterSettingsSectionModal({
@@ -109,28 +110,13 @@ function MasterSettingsSectionModal({
           flex: 1,
           overflow: 'auto',
           background: '#F9FAFB',
-          padding: '1rem 1.25rem',
+          padding: '1rem 1.25rem 1.75rem',
           minHeight: 0,
         }}
         >
           {children}
         </div>
-        <div
-          onMouseDown={beginResize}
-          title="Resize"
-          aria-label="Resize"
-          style={{
-            position: 'absolute',
-            right: '6px',
-            bottom: '6px',
-            width: '16px',
-            height: '16px',
-            cursor: 'nwse-resize',
-            background: '#64748B',
-            clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
-            borderBottomRightRadius: '0.35rem',
-          }}
-        />
+        <FloatingModalResizeHandle onMouseDown={beginResize} />
       </div>
     </div>
   )

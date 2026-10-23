@@ -1,9 +1,44 @@
+import { useEffect } from 'react'
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { formatAmount } from '../../../../utils/money'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { createInventoryProductForm } from '../erpTabUtils'
 import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FloatingModalResizeHandle,
+  useFloatingModalChrome,
+} from '../useFloatingModalChrome'
+
+/** Tenant-branded chrome shared by Product / Stock Type inventory modals. */
+const INV_MODAL = {
+  headerBg: 'var(--brand-dark, var(--brand-primary))',
+  headerFg: 'var(--brand-on-solid, #FFFFFF)',
+  headerMuted: 'color-mix(in srgb, var(--brand-on-solid, #FFFFFF) 88%, transparent)',
+  bodyBg: 'color-mix(in srgb, var(--brand-soft) 45%, #F3F4F6)',
+  cardBg: '#FFFFFF',
+  cardBorder: 'var(--brand-border, #E5E7EB)',
+  footerBg: 'color-mix(in srgb, var(--brand-soft) 35%, #F9FAFB)',
+  inputBorder: 'var(--brand-border, #CBD5E0)',
+  inputBg: '#FFFFFF',
+  inputReadonlyBg: 'color-mix(in srgb, var(--brand-soft) 55%, #EEF2F7)',
+  cancelBg: '#E5E7EB',
+  cancelFg: '#111827',
+  primaryBg: 'var(--brand-button-bg, var(--brand-primary))',
+  primaryFg: 'var(--brand-button-text, var(--brand-on-primary, #FFFFFF))',
+  closeBtnBg: 'color-mix(in srgb, var(--brand-on-solid, #FFFFFF) 14%, transparent)',
+  radius: '0.65rem',
+  inputRadius: '0.45rem',
+}
+
+const invFieldLabel = {
+  display: 'block',
+  fontSize: '0.72rem',
+  color: '#64748B',
+  fontWeight: 600,
+  marginBottom: '0.3rem',
+}
 
 export default function ERPInventoryTab({
   activeTab,
@@ -39,11 +74,11 @@ export default function ERPInventoryTab({
   showInventoryMappingModal,
   editingProductId,
   editingInventoryProductId,
-  stockTypeModalTab,
-  inventoryModalOffset,
-  inventoryModalDragging,
-  inventoryProductModalOffset,
-  inventoryProductModalDragging,
+  stockTypeModalTab: _stockTypeModalTab,
+  inventoryModalOffset: _inventoryModalOffset,
+  inventoryModalDragging: _inventoryModalDragging,
+  inventoryProductModalOffset: _inventoryProductModalOffset,
+  inventoryProductModalDragging: _inventoryProductModalDragging,
   inventoryMappingForm,
   inventoryProductForm,
   inventoryStockTypeOptions,
@@ -60,12 +95,12 @@ export default function ERPInventoryTab({
   setInventoryVatSortDir,
   setStockMovementsFilter,
   setInventoryProductForm,
-  setStockTypeModalTab,
+  setStockTypeModalTab: _setStockTypeModalTab,
   createInventoryMappingForm,
   decodeInventoryCategoryMeta,
   titleCaseWords,
   formatVatPercent,
-  resolveMainStockValueFromForm,
+  resolveMainStockValueFromForm: _resolveMainStockValueFromForm,
   handleEditProduct,
   handleDeleteProduct,
   handleEditInventoryCatalogProduct,
@@ -73,10 +108,10 @@ export default function ERPInventoryTab({
   loadStockLedger,
   resetInventoryProductForm,
   handleCreateInventoryCatalogProduct,
-  handleInventoryProductModalDragStart,
+  handleInventoryProductModalDragStart: _handleInventoryProductModalDragStart,
   resetInventoryMappingForm,
   handleCreateProduct,
-  handleInventoryModalDragStart,
+  handleInventoryModalDragStart: _handleInventoryModalDragStart,
 }) {
   const invColCount = 13
   const {
@@ -86,6 +121,39 @@ export default function ERPInventoryTab({
     paddingTop: invPadTop,
     paddingBottom: invPadBottom,
   } = useVirtualTableRows(sortedInventoryTableRows.length, { estimateSize: 44 })
+
+  const productChrome = useFloatingModalChrome({
+    open: showInventoryProductModal,
+    defaultWidth: 680,
+    defaultHeightRatio: 0.48,
+    minWidth: 480,
+    minHeight: 300,
+    maxHeight: 560,
+  })
+  const mappingChrome = useFloatingModalChrome({
+    open: showInventoryMappingModal,
+    defaultWidth: 520,
+    defaultHeightRatio: 0.62,
+    minWidth: 400,
+    minHeight: 360,
+    maxHeight: 900,
+  })
+  const invInputStyle = {
+    ...modalInputStyle,
+    marginBottom: 0,
+    border: `1px solid ${INV_MODAL.inputBorder}`,
+    background: INV_MODAL.inputBg,
+    borderRadius: INV_MODAL.inputRadius,
+  }
+  void _stockTypeModalTab
+  void _setStockTypeModalTab
+  void _resolveMainStockValueFromForm
+  void _inventoryModalOffset
+  void _inventoryModalDragging
+  void _inventoryProductModalOffset
+  void _inventoryProductModalDragging
+  void _handleInventoryProductModalDragStart
+  void _handleInventoryModalDragStart
 
   const inventoryCurrencyCodes = (() => {
     const rows = Array.isArray(currencies) && currencies.length
@@ -99,6 +167,38 @@ export default function ERPInventoryTab({
       ? current
       : (inventoryCurrencyCodes[0] || baseCurrencyCode || 'USD')
   })()
+  const useLivePrice = Boolean(inventoryMappingForm?.useLivePrice)
+  const mappingLiveMetalKey = resolveLiveMetalKey(
+    inventoryMappingForm?.mainStock || inventoryMappingForm?.metalType,
+  )
+
+  useEffect(() => {
+    if (!showInventoryMappingModal || !useLivePrice || !mappingLiveMetalKey) return undefined
+    const livePrice = resolveLiveInventoryUnitCost(
+      inventoryMappingForm.mainStock || inventoryMappingForm.metalType,
+      liveMetalSnapshot,
+      inventoryMappingForm.priceUnit || 'OZ',
+    )
+    if (!livePrice) return undefined
+    const nextPrice = livePrice.toFixed(4)
+    const nextCurrency = String(liveMetalSnapshot?.currency || inventoryMappingForm.priceCurrency || 'USD').toUpperCase()
+    setInventoryMappingForm((prev) => {
+      if (!prev.useLivePrice) return prev
+      if (prev.currentPrice === nextPrice && String(prev.priceCurrency || '').toUpperCase() === nextCurrency) return prev
+      return { ...prev, currentPrice: nextPrice, priceCurrency: nextCurrency }
+    })
+    return undefined
+  }, [
+    showInventoryMappingModal,
+    useLivePrice,
+    mappingLiveMetalKey,
+    liveMetalSnapshot,
+    inventoryMappingForm?.mainStock,
+    inventoryMappingForm?.metalType,
+    inventoryMappingForm?.priceUnit,
+    inventoryMappingForm?.priceCurrency,
+    setInventoryMappingForm,
+  ])
 
   return (
   <>
@@ -474,100 +574,306 @@ export default function ERPInventoryTab({
           </div>
 
           {showInventoryProductModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={(e) => { if (e.target === e.currentTarget) resetInventoryProductForm() }}>
-              <form onSubmit={handleCreateInventoryCatalogProduct} style={{ width: 'min(1100px, 96vw)', background: '#FFFFFF', border: '1px solid #CBD5E0', borderRadius: '0.5rem', padding: 0, boxShadow: '0 20px 42px rgba(0,0,0,0.35)', overflow: 'hidden', transform: `translate(${inventoryProductModalOffset.x}px, ${inventoryProductModalOffset.y}px)`, userSelect: inventoryProductModalDragging ? 'none' : 'auto' }}>
-                <div style={{ height: 0, overflow: 'hidden' }} />
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: (productChrome.isDragging || productChrome.isResizing)
+                  ? 'rgba(17,24,39,0.18)'
+                  : 'rgba(17,24,39,0.45)',
+                zIndex: 1210,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1rem',
+              }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget && productChrome.canCloseOnBackdropClick()) resetInventoryProductForm()
+              }}
+            >
+              <form
+                ref={productChrome.panelRef}
+                onSubmit={handleCreateInventoryCatalogProduct}
+                style={{
+                  position: 'relative',
+                  width: productChrome.size.width,
+                  height: 'auto',
+                  maxWidth: '100%',
+                  maxHeight: productChrome.size.height,
+                  background: INV_MODAL.cardBg,
+                  border: `1px solid ${INV_MODAL.cardBorder}`,
+                  borderRadius: INV_MODAL.radius,
+                  padding: 0,
+                  boxShadow: '0 20px 42px rgba(0,0,0,0.35)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transform: `translate(${productChrome.offset.x}px, ${productChrome.offset.y}px)`,
+                }}
+              >
                 <div
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', backgroundColor: '#3F4B2E', color: '#FFFFFF', padding: '1rem', cursor: inventoryProductModalDragging ? 'grabbing' : 'grab' }}
-                  onMouseDown={handleInventoryProductModalDragStart}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    backgroundColor: INV_MODAL.headerBg,
+                    color: INV_MODAL.headerFg,
+                    padding: '1rem 1.25rem',
+                    cursor: productChrome.isDragging ? 'grabbing' : 'grab',
+                    userSelect: 'none',
+                    flexShrink: 0,
+                  }}
+                  onMouseDown={productChrome.beginDrag}
                 >
                   <div>
-                    <p style={{ margin: 0, color: '#FFFFFF', fontWeight: '800', fontSize: '1.08rem' }}>{editingInventoryProductId ? 'Edit Product' : 'Product Creation'}</p>
-                    <p style={{ margin: '0.25rem 0 0', color: 'rgba(255,255,255,0.88)', fontSize: '0.84rem' }}>Enter Product Category, Name, Description, Weight, Gross Weight, Purity, Tax Type, VAT %, and auto-calculated Purity Weight.</p>
+                    <p style={{ margin: 0, color: INV_MODAL.headerFg, fontWeight: 800, fontSize: '1.08rem' }}>
+                      {editingInventoryProductId ? 'Edit Product' : 'Product Creation'}
+                    </p>
+                    <p style={{ margin: '0.2rem 0 0', color: INV_MODAL.headerMuted, fontSize: '0.76rem' }}>
+                      All product fields in one place — purity weight is automatic.
+                    </p>
                   </div>
-                  <button type="button" onClick={resetInventoryProductForm} style={{ border: 'none', background: 'transparent', color: '#FFFFFF', cursor: 'pointer', fontSize: '1.45rem', lineHeight: 1 }}>✕</button>
+                  <button
+                    type="button"
+                    aria-label="Close"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={resetInventoryProductForm}
+                    style={{
+                      width: '2rem',
+                      height: '2rem',
+                      border: 'none',
+                      borderRadius: '0.45rem',
+                      background: INV_MODAL.closeBtnBg,
+                      color: INV_MODAL.headerFg,
+                      cursor: 'pointer',
+                      fontSize: '1.2rem',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
-                <div style={{ padding: '1.2rem 1.5rem', background: '#F3F4F6' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
-                    <select value={inventoryProductForm.stockTypeId} onChange={(e) => {
-                      const option = inventoryStockTypeOptions.find((item) => item.id === e.target.value)
-                      setInventoryProductForm((prev) => ({ ...prev, stockTypeId: e.target.value, categoryName: option?.mainStock || '', purity: option?.purity || '' }))
-                    }} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}>
-                      <option value="">Product Category</option>
-                      {inventoryStockTypeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-                    </select>
-                    <input
-                      placeholder="Product Name"
-                      value={inventoryProductForm.name}
-                      onChange={(e) => {
-                        const nextName = e.target.value
-                        setInventoryProductForm((prev) => {
-                          const nextPurity = sanitizeCatalogProductPurity({
-                            productName: nextName,
-                            productPurity: prev.purity,
-                          })
-                          const shouldAutofill = nextPurity
-                            && (
-                              !String(prev.purity || '').trim()
-                              || String(prev.purity).trim() === '1'
-                              || String(prev.purity).trim() === '1.0'
-                            )
-                          return {
-                            ...prev,
-                            name: nextName,
-                            ...(shouldAutofill ? { purity: nextPurity } : {}),
-                          }
-                        })
-                      }}
-                      style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}
-                    />
-                    <input placeholder="Description" value={inventoryProductForm.description} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, description: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <input type="number" step="0.0001" placeholder="Weight" value={inventoryProductForm.weight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, weight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <input type="number" step="0.0001" placeholder="Gross Weight" value={inventoryProductForm.grossWeight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, grossWeight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <input placeholder="Purity" value={inventoryProductForm.purity} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, purity: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <select value={inventoryProductForm.taxType} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, taxType: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}>
-                      <option value="VAT">VAT</option>
-                      <option value="GST">GST</option>
-                      <option value="Sales Tax">Sales Tax</option>
-                      <option value="None">None</option>
-                    </select>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="VAT %"
-                      value={inventoryProductForm.vatPercent}
-                      onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, vatPercent: e.target.value }))}
-                      style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}
-                    />
-                    <input value={inventoryProductPurityWeight ? inventoryProductPurityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 }) : ''} readOnly placeholder="Purity Weight" style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#EEF2F7', color: C.inkSoft, borderRadius: '0.45rem' }} />
+                <div style={{ padding: '0.85rem 1.1rem', background: INV_MODAL.bodyBg, overflow: 'auto', flex: 1, minHeight: 0 }}>
+                  <div style={{ background: INV_MODAL.cardBg, border: `1px solid ${INV_MODAL.cardBorder}`, borderRadius: INV_MODAL.radius, padding: '0.85rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.55rem' }}>
+                      <div>
+                        <label style={invFieldLabel}>Product Category</label>
+                        <select
+                          value={inventoryProductForm.stockTypeId}
+                          onChange={(e) => {
+                            const option = inventoryStockTypeOptions.find((item) => item.id === e.target.value)
+                            setInventoryProductForm((prev) => ({
+                              ...prev,
+                              stockTypeId: e.target.value,
+                              categoryName: option?.mainStock || '',
+                              purity: option?.purity || '',
+                            }))
+                          }}
+                          style={invInputStyle}
+                        >
+                          <option value="">Select category</option>
+                          {inventoryStockTypeOptions.map((option) => (
+                            <option key={option.id} value={option.id}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={invFieldLabel}>Product Name</label>
+                        <input
+                          placeholder="e.g. 22K Coin"
+                          value={inventoryProductForm.name}
+                          onChange={(e) => {
+                            const nextName = e.target.value
+                            setInventoryProductForm((prev) => {
+                              const nextPurity = sanitizeCatalogProductPurity({
+                                productName: nextName,
+                                productPurity: prev.purity,
+                              })
+                              const shouldAutofill = nextPurity
+                                && (
+                                  !String(prev.purity || '').trim()
+                                  || String(prev.purity).trim() === '1'
+                                  || String(prev.purity).trim() === '1.0'
+                                )
+                              return {
+                                ...prev,
+                                name: nextName,
+                                ...(shouldAutofill ? { purity: nextPurity } : {}),
+                              }
+                            })
+                          }}
+                          style={invInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={invFieldLabel}>Weight</label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          placeholder="0"
+                          value={inventoryProductForm.weight}
+                          onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, weight: e.target.value }))}
+                          style={invInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={invFieldLabel}>Gross Weight</label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          placeholder="0"
+                          value={inventoryProductForm.grossWeight}
+                          onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, grossWeight: e.target.value }))}
+                          style={invInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={invFieldLabel}>Purity</label>
+                        <input
+                          placeholder="e.g. 0.917"
+                          value={inventoryProductForm.purity}
+                          onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, purity: e.target.value }))}
+                          style={invInputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={invFieldLabel}>Purity Weight</label>
+                        <input
+                          value={inventoryProductPurityWeight
+                            ? inventoryProductPurityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 })
+                            : ''}
+                          readOnly
+                          placeholder="Auto"
+                          style={{
+                            ...invInputStyle,
+                            background: INV_MODAL.inputReadonlyBg,
+                            color: '#64748B',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={invFieldLabel}>Tax Type</label>
+                        <select
+                          value={inventoryProductForm.taxType}
+                          onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, taxType: e.target.value }))}
+                          style={invInputStyle}
+                        >
+                          <option value="VAT">VAT</option>
+                          <option value="GST">GST</option>
+                          <option value="Sales Tax">Sales Tax</option>
+                          <option value="None">None</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={invFieldLabel}>VAT %</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0"
+                          value={inventoryProductForm.vatPercent}
+                          onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, vatPercent: e.target.value }))}
+                          style={invInputStyle}
+                        />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={invFieldLabel}>Description</label>
+                        <input
+                          placeholder="Optional description"
+                          value={inventoryProductForm.description}
+                          onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, description: e.target.value }))}
+                          style={invInputStyle}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                  <button type="button" onClick={resetInventoryProductForm} style={{ padding: '0.6rem 1.2rem', background: '#E5E7EB', color: '#111827', border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                  <button type="button" disabled={saving} onClick={(e) => handleCreateInventoryCatalogProduct({ preventDefault: () => e.preventDefault() })} style={{ padding: '0.6rem 1.2rem', backgroundColor: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700', opacity: saving ? 0.75 : 1 }}>{saving ? 'Saving...' : editingInventoryProductId ? 'Update Product' : 'Create Product'}</button>
+                <div style={{
+                  background: INV_MODAL.footerBg,
+                  borderTop: `1px solid ${INV_MODAL.cardBorder}`,
+                  padding: `0.65rem ${FLOATING_MODAL_FOOTER_END_PAD} 0.65rem 1.1rem`,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '0.55rem',
+                  flexShrink: 0,
+                }}
+                >
+                  <button
+                    type="button"
+                    onClick={resetInventoryProductForm}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: INV_MODAL.cancelBg,
+                      color: INV_MODAL.cancelFg,
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.82rem',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={(e) => handleCreateInventoryCatalogProduct({ preventDefault: () => e.preventDefault() })}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: INV_MODAL.primaryBg,
+                      color: INV_MODAL.primaryFg,
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      cursor: saving ? 'wait' : 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      opacity: saving ? 0.75 : 1,
+                    }}
+                  >
+                    {saving ? 'Saving…' : editingInventoryProductId ? 'Update Product' : 'Create Product'}
+                  </button>
                 </div>
+                <FloatingModalResizeHandle onMouseDown={productChrome.beginResize} />
               </form>
             </div>
           )}
 
           {showInventoryMappingModal && (
             <div
-              style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-              onClick={(e) => { if (e.target === e.currentTarget) resetInventoryMappingForm() }}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: (mappingChrome.isDragging || mappingChrome.isResizing)
+                  ? 'rgba(17,24,39,0.18)'
+                  : 'rgba(17,24,39,0.45)',
+                zIndex: 1200,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1rem',
+              }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget && mappingChrome.canCloseOnBackdropClick()) resetInventoryMappingForm()
+              }}
             >
               <form
+                ref={mappingChrome.panelRef}
                 onSubmit={handleCreateProduct}
                 style={{
-                  width: 'min(720px, 96vw)',
-                  maxHeight: '88vh',
-                  overflowY: 'auto',
-                  background: C.p1,
-                  border: `1px solid ${C.p2}`,
-                  borderRadius: '0.75rem',
-                  boxShadow: '0 18px 50px rgba(15, 23, 42, 0.2)',
-                  transform: `translate(${inventoryModalOffset.x}px, ${inventoryModalOffset.y}px)`,
-                  userSelect: inventoryModalDragging ? 'none' : 'auto',
+                  position: 'relative',
+                  width: mappingChrome.size.width,
+                  height: mappingChrome.size.height,
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  overflow: 'hidden',
+                  background: INV_MODAL.cardBg,
+                  border: `1px solid ${INV_MODAL.cardBorder}`,
+                  borderRadius: INV_MODAL.radius,
+                  boxShadow: '0 20px 42px rgba(0,0,0,0.35)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transform: `translate(${mappingChrome.offset.x}px, ${mappingChrome.offset.y}px)`,
                 }}
               >
                 <div
@@ -577,202 +883,190 @@ export default function ERPInventoryTab({
                     alignItems: 'center',
                     gap: '0.75rem',
                     padding: '1rem 1.25rem',
-                    borderBottom: `1px solid ${C.p2}`,
-                    cursor: inventoryModalDragging ? 'grabbing' : 'grab',
+                    backgroundColor: INV_MODAL.headerBg,
+                    color: INV_MODAL.headerFg,
+                    cursor: mappingChrome.isDragging ? 'grabbing' : 'grab',
+                    userSelect: 'none',
+                    flexShrink: 0,
                   }}
-                  onMouseDown={handleInventoryModalDragStart}
+                  onMouseDown={mappingChrome.beginDrag}
                 >
                   <div>
-                    <p style={{ margin: 0, fontWeight: '700', color: C.ink, fontSize: '1.05rem' }}>
+                    <p style={{ margin: 0, fontWeight: 800, color: INV_MODAL.headerFg, fontSize: '1.08rem' }}>
                       {editingProductId ? 'Edit Stock Type' : 'Stock Type Creation'}
                     </p>
-                    <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
-                      Define metal type, pricing, and stock-code mapping.
+                    <p style={{ margin: '0.25rem 0 0', color: INV_MODAL.headerMuted, fontSize: '0.8rem' }}>
+                      Metal type, live or manual price, unit, and currency.
                     </p>
                   </div>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={resetInventoryMappingForm}
                     aria-label="Close"
                     style={{
                       width: '2rem',
                       height: '2rem',
-                      borderRadius: '0.5rem',
-                      border: `1px solid ${C.p2}`,
-                      background: C.p2,
-                      color: C.inkSoft,
+                      borderRadius: '0.45rem',
+                      border: 'none',
+                      background: INV_MODAL.closeBtnBg,
+                      color: INV_MODAL.headerFg,
                       cursor: 'pointer',
-                      fontSize: '1rem',
+                      fontSize: '1.2rem',
                       lineHeight: 1,
                     }}
                   >
-                    ×
+                    ✕
                   </button>
                 </div>
 
-                <div style={{ padding: '1rem 1.25rem' }}>
-                  <div
-                    role="tablist"
-                    style={{
-                      display: 'flex',
-                      gap: '0.35rem',
-                      marginBottom: '1rem',
-                      padding: '0.25rem',
-                      background: C.p2,
-                      borderRadius: '0.6rem',
-                    }}
-                  >
-                    {[['details', 'Details'], ['pricing', 'Pricing'], ['stockenquiry', 'Stock Enquiry']].map(([key, label]) => {
-                      const active = stockTypeModalTab === key
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          role="tab"
-                          aria-selected={active}
-                          onClick={() => setStockTypeModalTab(key)}
-                          style={{
-                            flex: 1,
-                            padding: '0.55rem 0.75rem',
-                            border: 'none',
-                            borderRadius: '0.45rem',
-                            cursor: 'pointer',
-                            fontWeight: 700,
-                            fontSize: '0.8rem',
-                            color: active ? '#fff' : C.inkSoft,
-                            background: active ? C.s1 : 'transparent',
-                            boxShadow: active ? '0 4px 12px rgba(15, 23, 42, 0.12)' : 'none',
-                          }}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
+                <div style={{ padding: '1rem 1.25rem', background: INV_MODAL.bodyBg, overflow: 'auto', flex: 1, minHeight: 0 }}>
+                  <div style={{ display: 'grid', gap: '0.85rem', maxWidth: 480 }}>
+                    <div style={{ background: INV_MODAL.cardBg, border: `1px solid ${INV_MODAL.cardBorder}`, borderRadius: INV_MODAL.radius, padding: '1rem' }}>
+                      <label style={invFieldLabel}>Metal type</label>
+                      <input
+                        placeholder="e.g. Gold, Silver, Platinum"
+                        value={inventoryMappingForm.mainStock}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setInventoryMappingForm((prev) => ({ ...prev, mainStock: val, metalType: val.trim().toLowerCase() }))
+                        }}
+                        style={invInputStyle}
+                      />
+                    </div>
 
-                  {stockTypeModalTab === 'pricing' && (
-                    <div style={{ background: C.p2, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem', maxWidth: '420px' }}>
-                      <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: C.ink, fontWeight: 700 }}>Current Price</p>
-                      {resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType) && (
-                        <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ background: INV_MODAL.cardBg, border: `1px solid ${INV_MODAL.cardBorder}`, borderRadius: INV_MODAL.radius, padding: '1rem' }}>
+                      <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: '#111827', fontWeight: 700 }}>Current Price</p>
+                      {mappingLiveMetalKey ? (
+                        <div style={{ marginBottom: '0.75rem' }}>
                           <StockTypeLivePrice
-                            metalKey={resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)}
+                            metalKey={mappingLiveMetalKey}
                             snapshot={liveMetalSnapshot}
                             error={liveMetalError}
                             align="left"
                           />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const metalKey = resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)
-                              const livePrice = resolveLiveInventoryUnitCost(
-                                inventoryMappingForm.mainStock || inventoryMappingForm.metalType,
-                                liveMetalSnapshot,
-                                inventoryMappingForm.priceUnit || 'OZ',
-                              )
-                              if (!metalKey || !livePrice) return
-                              setInventoryMappingForm((prev) => ({
-                                ...prev,
-                                currentPrice: livePrice.toFixed(4),
-                                priceCurrency: liveMetalSnapshot?.currency || prev.priceCurrency || 'USD',
-                              }))
-                            }}
-                            style={{
-                              padding: '0.4rem 0.7rem',
-                              background: C.softBg,
-                              border: '1px solid var(--brand-border, #D1D5DB)',
-                              borderRadius: '0.45rem',
-                              color: C.link,
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            Use live price
-                          </button>
                         </div>
+                      ) : (
+                        <p style={{ margin: '0 0 0.75rem', fontSize: '0.75rem', color: '#64748B' }}>
+                          Live price is available for Gold, Silver, or Platinum metal types.
+                        </p>
                       )}
-                      <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Price</label>
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          marginBottom: '0.75rem',
+                          fontSize: '0.8rem',
+                          color: '#111827',
+                          fontWeight: 600,
+                          cursor: mappingLiveMetalKey ? 'pointer' : 'not-allowed',
+                          opacity: mappingLiveMetalKey ? 1 : 0.55,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={useLivePrice}
+                          disabled={!mappingLiveMetalKey}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            if (!checked) {
+                              setInventoryMappingForm((prev) => ({ ...prev, useLivePrice: false }))
+                              return
+                            }
+                            const livePrice = resolveLiveInventoryUnitCost(
+                              inventoryMappingForm.mainStock || inventoryMappingForm.metalType,
+                              liveMetalSnapshot,
+                              inventoryMappingForm.priceUnit || 'OZ',
+                            )
+                            setInventoryMappingForm((prev) => ({
+                              ...prev,
+                              useLivePrice: true,
+                              ...(livePrice
+                                ? {
+                                  currentPrice: livePrice.toFixed(4),
+                                  priceCurrency: liveMetalSnapshot?.currency || prev.priceCurrency || 'USD',
+                                }
+                                : {}),
+                            }))
+                          }}
+                        />
+                        Use live price
+                      </label>
+                      <label style={{ ...invFieldLabel, marginBottom: '0.35rem' }}>
+                        Price{useLivePrice ? ' (from live spot)' : ' (manual)'}
+                      </label>
                       <input
                         type="number"
                         step="0.01"
-                        placeholder="Enter price"
+                        placeholder={useLivePrice ? 'Filled from live spot' : 'Enter price'}
                         value={inventoryMappingForm.currentPrice}
-                        onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, currentPrice: e.target.value }))}
-                        style={{ ...modalInputStyle, marginBottom: '0.75rem' }}
+                        readOnly={useLivePrice}
+                        onChange={(e) => {
+                          if (useLivePrice) return
+                          setInventoryMappingForm((prev) => ({ ...prev, currentPrice: e.target.value, useLivePrice: false }))
+                        }}
+                        style={{
+                          ...invInputStyle,
+                          marginBottom: '0.75rem',
+                          background: useLivePrice ? INV_MODAL.inputReadonlyBg : INV_MODAL.inputBg,
+                          color: useLivePrice ? '#64748B' : undefined,
+                          cursor: useLivePrice ? 'default' : 'text',
+                        }}
                       />
-                      <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Unit</label>
+                      <label style={{ ...invFieldLabel, marginBottom: '0.35rem' }}>Unit</label>
                       <select
                         value={inventoryMappingForm.priceUnit}
                         onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, priceUnit: e.target.value }))}
-                        style={{ ...modalInputStyle, marginBottom: '0.75rem' }}
+                        style={{ ...invInputStyle, marginBottom: '0.75rem' }}
                       >
                         <option value="OZ">Per OZ (Troy)</option>
                         <option value="GRAM">Per Gram</option>
                         <option value="KG">Per KG</option>
                       </select>
-                      <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Currency</label>
+                      <label style={{ ...invFieldLabel, marginBottom: '0.35rem' }}>Currency</label>
                       <select
                         value={inventoryPriceCurrency}
-                        onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, priceCurrency: e.target.value }))}
-                        style={{ ...modalInputStyle, marginBottom: 0 }}
+                        disabled={useLivePrice}
+                        onChange={(e) => {
+                          if (useLivePrice) return
+                          setInventoryMappingForm((prev) => ({ ...prev, priceCurrency: e.target.value }))
+                        }}
+                        style={{
+                          ...invInputStyle,
+                          background: useLivePrice ? INV_MODAL.inputReadonlyBg : INV_MODAL.inputBg,
+                          color: useLivePrice ? '#64748B' : undefined,
+                        }}
                       >
                         {inventoryCurrencyCodes.map((code) => (
                           <option key={code} value={code}>{code}</option>
                         ))}
                       </select>
                     </div>
-                  )}
-
-                  {stockTypeModalTab !== 'pricing' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.85rem' }}>
-                      <div style={{ background: C.p2, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem' }}>
-                        <label style={{ display: 'block', fontSize: '0.78rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.35rem' }}>Metal type</label>
-                        <input
-                          placeholder="e.g. Gold, Silver, Platinum"
-                          value={inventoryMappingForm.mainStock}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setInventoryMappingForm((prev) => ({ ...prev, mainStock: val, metalType: val.trim().toLowerCase() }))
-                          }}
-                          style={{ ...modalInputStyle, marginBottom: 0 }}
-                        />
-                      </div>
-
-                      <div style={{ background: C.p2, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem' }}>
-                        <p style={{ margin: '0 0 0.65rem', fontSize: '0.8rem', color: C.ink, fontWeight: 700 }}>Stock information</p>
-                        <div style={{ display: 'grid', gap: '0.55rem' }}>
-                          <div>
-                            <div style={{ fontSize: '0.72rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.25rem' }}>Description</div>
-                            <div style={{ ...modalInputStyle, marginBottom: 0, background: C.p1 }}>
-                              {titleCaseWords(resolveMainStockValueFromForm(inventoryMappingForm) || '-')}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '0.72rem', color: C.inkSoft, fontWeight: 600, marginBottom: '0.25rem' }}>Details</div>
-                            <div style={{ ...modalInputStyle, marginBottom: 0, background: C.p1, fontFamily: 'Consolas, "Courier New", monospace', fontSize: '0.74rem' }}>
-                              {`mainStock=${resolveMainStockValueFromForm(inventoryMappingForm) || '-'};metalType=${inventoryMappingForm.metalType || '-'}`}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.55rem', justifyContent: 'flex-end', padding: '0 1.25rem 1.15rem' }}>
+                <div style={{
+                  display: 'flex',
+                  gap: '0.65rem',
+                  justifyContent: 'flex-end',
+                  padding: `0.85rem ${FLOATING_MODAL_FOOTER_END_PAD} 0.85rem 1.25rem`,
+                  flexShrink: 0,
+                  borderTop: `1px solid ${INV_MODAL.cardBorder}`,
+                  background: INV_MODAL.footerBg,
+                }}
+                >
                   <button
                     type="button"
                     onClick={resetInventoryMappingForm}
                     style={{
-                      padding: '0.6rem 1rem',
-                      background: C.p2,
-                      color: C.ink,
-                      border: `1px solid ${C.p2}`,
+                      padding: '0.6rem 1.15rem',
+                      background: INV_MODAL.cancelBg,
+                      color: INV_MODAL.cancelFg,
+                      border: '1px solid #D1D5DB',
                       borderRadius: '0.5rem',
                       cursor: 'pointer',
-                      fontWeight: 700,
+                      fontWeight: 600,
                       fontSize: '0.84rem',
                     }}
                   >
@@ -782,9 +1076,9 @@ export default function ERPInventoryTab({
                     type="submit"
                     disabled={saving}
                     style={{
-                      padding: '0.6rem 1.05rem',
-                      background: C.s1,
-                      color: '#fff',
+                      padding: '0.6rem 1.15rem',
+                      background: INV_MODAL.primaryBg,
+                      color: INV_MODAL.primaryFg,
                       border: 'none',
                       borderRadius: '0.5rem',
                       cursor: saving ? 'wait' : 'pointer',
@@ -796,6 +1090,7 @@ export default function ERPInventoryTab({
                     {saving ? 'Saving…' : editingProductId ? 'Save Stock Type' : 'Create Stock Type'}
                   </button>
                 </div>
+                <FloatingModalResizeHandle onMouseDown={mappingChrome.beginResize} />
               </form>
             </div>
           )}

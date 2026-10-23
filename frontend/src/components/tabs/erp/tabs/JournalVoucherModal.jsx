@@ -2,6 +2,10 @@ import { Fragment, useCallback, useRef } from 'react'
 import AccountCombobox from '../../../AccountCombobox'
 import { focusElement, handleRecommendedTab } from '../../voucher/voucherKeyboardNav'
 import { formatMoney } from '../../../../utils/money'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FloatingModalResizeHandle,
+} from '../useFloatingModalChrome'
 
 export default function JournalVoucherModal({
   C,
@@ -325,7 +329,7 @@ export default function JournalVoucherModal({
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.65rem 1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: `0.65rem ${FLOATING_MODAL_FOOTER_END_PAD} 0.65rem 1rem`, background: '#F8FAFC', borderTop: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
             {!jvReadOnly && (
               <>
                 <button type="button" onClick={addJvLine} style={{ padding: '0.38rem 0.8rem', background: 'var(--brand-soft)', color: 'var(--purple)', border: '1px solid var(--brand-border)', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>+ Add Row</button>
@@ -350,11 +354,7 @@ export default function JournalVoucherModal({
             )}
           </div>
         </div>
-        <div
-          onMouseDown={beginJvModalResize}
-          title="Resize"
-          style={{ position: 'absolute', right: '6px', bottom: '6px', width: '16px', height: '16px', cursor: 'nwse-resize', background: '#64748B', clipPath: 'polygon(100% 0, 100% 100%, 0 100%)', borderBottomRightRadius: '0.35rem' }}
-        />
+        <FloatingModalResizeHandle onMouseDown={beginJvModalResize} />
       </div>
     </div>
   )

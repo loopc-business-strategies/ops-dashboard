@@ -6,6 +6,10 @@ import { buildStatementNarration } from '../statementExportModel'
 import { isMarginPercentDisplayable, MARGIN_PERCENT_HIDDEN_TITLE } from '../marginFormatters'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { parseAuthorizedPersons, serializeAuthorizedPersons } from '../authorizedPersons'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FLOATING_MODAL_RESIZE_HANDLE_STYLE,
+} from '../useFloatingModalChrome'
 
 const linkButtonStyle = {
   textDecoration: 'none',
@@ -17,8 +21,12 @@ export default function AccountEnquiryModal({
   onClose,
   enquiryBackdropColor,
   enquiryModalOffset,
+  enquiryModalSize,
   enquiryModalDrag,
+  enquiryModalResizing,
   beginEnquiryModalDrag,
+  beginEnquiryModalResize,
+  canCloseEnquiryOnBackdropClick,
   enquiryLoading,
   accountEnquiryCode,
   setAccountEnquiryCode,
@@ -150,16 +158,35 @@ export default function AccountEnquiryModal({
   ])
 
   if (!open) return null
+  const panelW = Number(enquiryModalSize?.width) || 1100
+  const panelH = Number(enquiryModalSize?.height) || Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.9)
+  const closeOnBackdrop = typeof canCloseEnquiryOnBackdropClick === 'function'
+    ? canCloseEnquiryOnBackdropClick()
+    : !(enquiryModalDrag?.active || enquiryModalResizing)
   return (
         <div
-          onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+          onClick={(e) => { if (e.target === e.currentTarget && closeOnBackdrop) onClose() }}
           style={{ position: 'fixed', inset: 0, background: enquiryBackdropColor, transition: 'background 120ms ease', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
         >
-          <div style={{ background: '#fff', borderRadius: '8px', width: 'min(1100px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 42px rgba(0,0,0,0.35)', transform: `translate(${enquiryModalOffset.x}px, ${enquiryModalOffset.y}px)` }}>
+          <div style={{
+            position: 'relative',
+            background: '#fff',
+            borderRadius: '8px',
+            width: panelW,
+            height: panelH,
+            maxWidth: '100%',
+            maxHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 20px 42px rgba(0,0,0,0.35)',
+            transform: `translate(${enquiryModalOffset?.x || 0}px, ${enquiryModalOffset?.y || 0}px)`,
+          }}
+          >
             {/* Header - Dark Green Bar */}
             <div
               onMouseDown={beginEnquiryModalDrag}
-              style={{ background: AS.headerBg, color: AS.headerFg, padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: enquiryModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
+              style={{ background: AS.headerBg, color: AS.headerFg, padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: enquiryModalDrag?.active ? 'grabbing' : 'grab', userSelect: 'none', flexShrink: 0 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>Account Details — Statement of Account</span>
@@ -841,7 +868,7 @@ export default function AccountEnquiryModal({
               )}
             </div>
             {/* Footer */}
-            <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: `1rem ${FLOATING_MODAL_FOOTER_END_PAD} 1rem 1.5rem`, display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               {canExportAccountSummary && accountEnquiryData && (
                 <>
                   <a
@@ -876,6 +903,16 @@ export default function AccountEnquiryModal({
                 Close
               </button>
             </div>
+            {typeof beginEnquiryModalResize === 'function' ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onMouseDown={beginEnquiryModalResize}
+                title="Resize"
+                aria-label="Resize"
+                style={FLOATING_MODAL_RESIZE_HANDLE_STYLE}
+              />
+            ) : null}
           </div>
         </div>
   )

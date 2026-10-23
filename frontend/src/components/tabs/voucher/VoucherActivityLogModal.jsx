@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../../context/AuthContext'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FLOATING_MODAL_RESIZE_HANDLE_STYLE,
+  useFloatingModalChrome,
+} from '../erp/useFloatingModalChrome'
 import { btn, S } from './voucherTabShared'
 
 function currentMonthKey() {
@@ -39,6 +44,23 @@ export default function VoucherActivityLogModal({
   const [action, setAction] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
+
+  const {
+    panelRef,
+    offset,
+    size,
+    isDragging,
+    isResizing,
+    beginDrag,
+    beginResize,
+    canCloseOnBackdropClick,
+  } = useFloatingModalChrome({
+    open,
+    defaultWidth: 640,
+    defaultHeightRatio: 0.68,
+    minWidth: 420,
+    minHeight: 280,
+  })
 
   const typeKey = String(voucherType || '').trim().toLowerCase()
   const title = `${voucherLabel || 'Voucher'} — Activity Log`
@@ -96,14 +118,19 @@ export default function VoucherActivityLogModal({
     fontSize: '0.78rem',
   }
   const cell = { padding: '0.4rem 0.5rem' }
+  const backdropColor = (isDragging || isResizing)
+    ? 'rgba(15, 23, 42, 0.12)'
+    : 'rgba(15, 23, 42, 0.4)'
 
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && canCloseOnBackdropClick()) onClose()
+      }}
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15, 23, 42, 0.4)',
+        background: backdropColor,
         zIndex: 1100,
         display: 'flex',
         alignItems: 'center',
@@ -112,18 +139,24 @@ export default function VoucherActivityLogModal({
       }}
     >
       <div
+        ref={panelRef}
         style={{
+          position: 'relative',
           background: '#fff',
           borderRadius: 8,
-          width: 'min(640px, 100%)',
-          maxHeight: '68vh',
+          width: size.width,
+          height: size.height,
+          maxWidth: '100%',
+          maxHeight: '100%',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           boxShadow: '0 12px 28px rgba(0,0,0,0.22)',
+          transform: `translate(${offset.x}px, ${offset.y}px)`,
         }}
       >
         <div
+          onMouseDown={beginDrag}
           style={{
             background: 'var(--brand-dark, var(--brand-primary))',
             color: 'var(--brand-on-solid, #fff)',
@@ -132,12 +165,16 @@ export default function VoucherActivityLogModal({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '0.5rem',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            userSelect: 'none',
+            flexShrink: 0,
           }}
         >
           <div style={{ fontWeight: 700, fontSize: '0.92rem', lineHeight: 1.25 }}>{title}</div>
           <button
             type="button"
             aria-label="Close activity log"
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={onClose}
             style={{
               background: 'transparent',
@@ -160,6 +197,7 @@ export default function VoucherActivityLogModal({
           flexWrap: 'wrap',
           gap: '0.4rem',
           alignItems: 'center',
+          flexShrink: 0,
         }}
         >
           <input
@@ -197,7 +235,7 @@ export default function VoucherActivityLogModal({
           </button>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '0.5rem 0.75rem' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '0.5rem 0.75rem', minHeight: 0 }}>
           {error ? (
             <div style={{ color: '#991B1B', fontSize: '0.78rem', marginBottom: '0.45rem' }}>{error}</div>
           ) : null}
@@ -239,13 +277,14 @@ export default function VoucherActivityLogModal({
 
         <div style={{
           borderTop: `1px solid ${S.border}`,
-          padding: '0.45rem 0.75rem',
+          padding: `0.45rem ${FLOATING_MODAL_FOOTER_END_PAD} 0.45rem 0.75rem`,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           gap: '0.5rem',
           flexWrap: 'wrap',
           background: '#F9FAFB',
+          flexShrink: 0,
         }}
         >
           <span style={{ color: S.muted, fontSize: '0.74rem' }}>
@@ -275,6 +314,14 @@ export default function VoucherActivityLogModal({
             <button type="button" style={smallBtn} onClick={onClose}>Close</button>
           </div>
         </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onMouseDown={beginResize}
+          title="Resize"
+          aria-label="Resize"
+          style={FLOATING_MODAL_RESIZE_HANDLE_STYLE}
+        />
       </div>
     </div>
   )

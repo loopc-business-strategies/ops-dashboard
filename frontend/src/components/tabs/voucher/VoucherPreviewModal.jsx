@@ -1,4 +1,9 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useMemo } from 'react'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FloatingModalResizeHandle,
+  useFloatingModalChrome,
+} from '../erp/useFloatingModalChrome'
 import VoucherPrintPanel from './VoucherPrintPanel'
 import { VOUCHER_PREVIEW_TYPES } from './voucherPreviewSamples'
 
@@ -14,12 +19,23 @@ function VoucherPreviewModal({
   onPreviewModeChange,
   onPrint,
 }) {
-  const panelRef = useRef(null)
-  const offsetRef = useRef({ x: 0, y: 0 })
-  const dragSessionRef = useRef(null)
-  const moveHandlerRef = useRef(null)
-  const upHandlerRef = useRef(null)
-  const [isDragging, setIsDragging] = useState(false)
+  const {
+    panelRef,
+    offset,
+    size,
+    isDragging,
+    isResizing,
+    beginDrag,
+    beginResize,
+    canCloseOnBackdropClick,
+  } = useFloatingModalChrome({
+    open,
+    defaultWidth: 1200,
+    defaultHeightRatio: 0.88,
+    minWidth: 640,
+    minHeight: 360,
+    maxHeight: 1400,
+  })
 
   const isSettingsMode = mode === 'settings'
   const resolvedTitle = useMemo(() => {
@@ -29,81 +45,15 @@ function VoucherPreviewModal({
     return `${typeLabel} — ${modeLabel} Preview`
   }, [isSettingsMode, previewMode, title, voucherType])
 
-  const applyPanelTransform = () => {
-    const panel = panelRef.current
-    if (!panel) return
-    const { x, y } = offsetRef.current
-    panel.style.transform = `translate3d(${x}px, ${y}px, 0)`
-  }
-
-  const cleanupDragListeners = () => {
-    if (moveHandlerRef.current) {
-      window.removeEventListener('mousemove', moveHandlerRef.current)
-      moveHandlerRef.current = null
-    }
-    if (upHandlerRef.current) {
-      window.removeEventListener('mouseup', upHandlerRef.current)
-      upHandlerRef.current = null
-    }
-    dragSessionRef.current = null
-    document.body.style.removeProperty('user-select')
-  }
-
-  const stopDrag = () => {
-    cleanupDragListeners()
-    setIsDragging(false)
-  }
-
-  const beginModalDrag = (event) => {
-    if (event.button !== 0) return
-    if (event.target.closest('button, select, label, input')) return
-    event.preventDefault()
-    cleanupDragListeners()
-    dragSessionRef.current = {
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startOffsetX: offsetRef.current.x,
-      startOffsetY: offsetRef.current.y,
-    }
-    const onDragMove = (moveEvent) => {
-      const session = dragSessionRef.current
-      if (!session) return
-      offsetRef.current = {
-        x: session.startOffsetX + (moveEvent.clientX - session.pointerX),
-        y: session.startOffsetY + (moveEvent.clientY - session.pointerY),
-      }
-      applyPanelTransform()
-    }
-    const onDragEnd = () => stopDrag()
-    moveHandlerRef.current = onDragMove
-    upHandlerRef.current = onDragEnd
-    setIsDragging(true)
-    document.body.style.userSelect = 'none'
-    window.addEventListener('mousemove', onDragMove)
-    window.addEventListener('mouseup', onDragEnd)
-  }
-
-  useEffect(() => {
-    if (open) return undefined
-    offsetRef.current = { x: 0, y: 0 }
-    if (panelRef.current) {
-      panelRef.current.style.transform = ''
-      panelRef.current.style.willChange = ''
-    }
-    cleanupDragListeners()
-    setIsDragging(false)
-    return undefined
-  }, [open])
-
-  useEffect(() => () => cleanupDragListeners(), [])
-
   if (!open || !printModel) return null
 
-  const backdropColor = isDragging ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
+  const backdropColor = (isDragging || isResizing)
+    ? 'rgba(15, 23, 42, 0.12)'
+    : 'rgba(15, 23, 42, 0.45)'
 
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget && !isDragging) onClose() }}
+      onClick={(e) => { if (e.target === e.currentTarget && canCloseOnBackdropClick()) onClose() }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -118,19 +68,22 @@ function VoucherPreviewModal({
       <div
         ref={panelRef}
         style={{
+          position: 'relative',
           background: '#fff',
           borderRadius: '8px',
-          width: 'min(1200px, 96vw)',
-          height: 'min(88vh, 900px)',
+          width: size.width,
+          height: size.height,
+          maxWidth: '100%',
+          maxHeight: '100%',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           boxShadow: '0 20px 42px rgba(0,0,0,0.35)',
-          willChange: isDragging ? 'transform' : undefined,
+          transform: `translate(${offset.x}px, ${offset.y}px)`,
         }}
       >
         <div
-          onMouseDown={beginModalDrag}
+          onMouseDown={beginDrag}
           style={{
             background: '#0F172A',
             color: '#FFFFFF',
@@ -173,6 +126,7 @@ function VoucherPreviewModal({
             padding: '12px 16px',
             borderBottom: '1px solid #E5E7EB',
             background: '#F8FAFC',
+            flexShrink: 0,
           }}
           >
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
@@ -210,14 +164,14 @@ function VoucherPreviewModal({
           </div>
         ) : null}
 
-        <div style={{ flex: 1, overflow: 'auto', background: '#F3F4F6', padding: '16px' }}>
+        <div style={{ flex: 1, overflow: 'auto', background: '#F3F4F6', padding: '16px', minHeight: 0 }}>
           <VoucherPrintPanel printModel={printModel} renderMode="preview" />
         </div>
 
         <div style={{
           background: '#F9FAFB',
           borderTop: '1px solid #E5E7EB',
-          padding: '1rem 1.5rem',
+          padding: `1rem ${FLOATING_MODAL_FOOTER_END_PAD} 1rem 1.5rem`,
           display: 'flex',
           justifyContent: 'flex-end',
           gap: '10px',
@@ -257,6 +211,7 @@ function VoucherPreviewModal({
             Close
           </button>
         </div>
+        <FloatingModalResizeHandle onMouseDown={beginResize} />
       </div>
     </div>
   )

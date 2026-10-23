@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FloatingModalResizeHandle,
+  useFloatingModalChrome,
+} from '../erp/useFloatingModalChrome'
 import { btn, fmt, inputStyle, S } from './voucherTabShared'
 import {
   VOUCHER_FIXING_RATE_TYPES,
@@ -71,26 +76,84 @@ export default function VoucherFixingModal({
     onFix({ date, pureWeight: gramsValue, rate: rateValue, rateType, notes: notes.trim() })
   }
 
+  const {
+    panelRef,
+    offset,
+    size,
+    isDragging,
+    isResizing,
+    beginDrag,
+    beginResize,
+    canCloseOnBackdropClick,
+  } = useFloatingModalChrome({
+    open: Boolean(voucher),
+    defaultWidth: 720,
+    defaultHeightRatio: 0.85,
+    minWidth: 480,
+    minHeight: 320,
+  })
+
   if (!voucher) return null
   const meta = voucher.voucherMeta || {}
   const sideLabel = String(voucher.type || '').toLowerCase() === 'sale' ? 'Sale' : 'Purchase'
+  const backdropColor = (isDragging || isResizing)
+    ? 'rgba(15, 23, 42, 0.12)'
+    : 'rgba(15, 23, 42, 0.45)'
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`Fix ${docNo}`}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-      onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}
+      style={{ position: 'fixed', inset: 0, background: backdropColor, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !saving && canCloseOnBackdropClick()) onClose()
+      }}
     >
-      <div style={{ background: S.white, borderRadius: '12px', width: 'min(720px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 50px rgba(15, 23, 42, 0.25)' }}>
-        <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${S.border}`, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div
+        ref={panelRef}
+        style={{
+          position: 'relative',
+          background: S.white,
+          borderRadius: '12px',
+          width: size.width,
+          height: size.height,
+          maxWidth: '100%',
+          maxHeight: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 20px 50px rgba(15, 23, 42, 0.25)',
+          transform: `translate(${offset.x}px, ${offset.y}px)`,
+        }}
+      >
+        <div
+          onMouseDown={beginDrag}
+          style={{
+            padding: '1rem 1.25rem',
+            borderBottom: `1px solid ${S.border}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            userSelect: 'none',
+            flexShrink: 0,
+          }}
+        >
           <h3 style={{ margin: 0, fontSize: '1rem', color: S.ink }}>Fix {sideLabel.toLowerCase()} {docNo}</h3>
           <span style={{ color: S.muted, fontSize: '0.85rem' }}>{meta.partyName || meta.partyCode || ''}</span>
-          <button type="button" style={{ ...btn('secondary'), marginLeft: 'auto', padding: '0.25rem 0.7rem' }} onClick={onClose} disabled={saving}>Close</button>
+          <button
+            type="button"
+            style={{ ...btn('secondary'), marginLeft: 'auto', padding: '0.25rem 0.7rem' }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            disabled={saving}
+          >
+            Close
+          </button>
         </div>
 
-        <div style={{ padding: '1rem 1.25rem', display: 'grid', gap: '1rem' }}>
+        <div style={{ padding: '1rem 1.25rem', display: 'grid', gap: '1rem', overflow: 'auto', flex: 1, minHeight: 0 }}>
           {error ? (
             <div role="alert" style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.82rem', fontWeight: 600 }}>
               {error}
@@ -198,7 +261,7 @@ export default function VoucherFixingModal({
               <div style={{ color: S.muted, fontSize: '0.78rem' }}>
                 Posts the metal value on the fixing date. The voucher and its stock are not changed.
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingRight: FLOATING_MODAL_FOOTER_END_PAD, paddingBottom: '0.35rem' }}>
                 <button type="button" style={btn('secondary')} onClick={onClose} disabled={saving}>Cancel</button>
                 <button type="button" style={{ ...btn('primary'), opacity: canSubmit ? 1 : 0.6 }} onClick={submit} disabled={!canSubmit}>
                   {saving ? 'Saving…' : 'Fix'}
@@ -211,6 +274,7 @@ export default function VoucherFixingModal({
             </div>
           )}
         </div>
+        <FloatingModalResizeHandle onMouseDown={beginResize} />
       </div>
     </div>
   )

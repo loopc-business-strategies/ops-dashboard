@@ -22,6 +22,7 @@ export function mappingProductToFormState(product, baseCurrencyCode = 'USD') {
     currentPrice: priceValue > 0 ? String(priceValue) : '',
     priceUnit: meta.priceUnit || 'OZ',
     priceCurrency: meta.priceCurrency || product.currency || base,
+    useLivePrice: false,
     openingQty: '',
   }
 }

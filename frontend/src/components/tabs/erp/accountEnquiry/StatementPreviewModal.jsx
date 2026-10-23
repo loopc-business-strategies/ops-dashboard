@@ -1,4 +1,9 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useEffect } from 'react'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FLOATING_MODAL_RESIZE_HANDLE_STYLE,
+  useFloatingModalChrome,
+} from '../useFloatingModalChrome'
 
 function StatementPreviewModal({
   open,
@@ -9,99 +14,28 @@ function StatementPreviewModal({
   showPrintButton = false,
   onPrint,
 }) {
-  const panelRef = useRef(null)
-  const offsetRef = useRef({ x: 0, y: 0 })
-  const dragSessionRef = useRef(null)
-  const moveHandlerRef = useRef(null)
-  const upHandlerRef = useRef(null)
-  const suppressBackdropCloseRef = useRef(false)
-  const [isDragging, setIsDragging] = useState(false)
-
-  const applyPanelTransform = () => {
-    const panel = panelRef.current
-    if (!panel) return
-    const { x, y } = offsetRef.current
-    panel.style.transform = `translate3d(${x}px, ${y}px, 0)`
-  }
-
-  const cleanupDragListeners = () => {
-    if (moveHandlerRef.current) {
-      window.removeEventListener('mousemove', moveHandlerRef.current)
-      moveHandlerRef.current = null
-    }
-    if (upHandlerRef.current) {
-      window.removeEventListener('mouseup', upHandlerRef.current)
-      upHandlerRef.current = null
-    }
-    dragSessionRef.current = null
-    document.body.style.removeProperty('user-select')
-  }
-
-  const stopDrag = () => {
-    cleanupDragListeners()
-    setIsDragging(false)
-  }
-
-  const finishDrag = () => {
-    suppressBackdropCloseRef.current = true
-    stopDrag()
-    setTimeout(() => {
-      suppressBackdropCloseRef.current = false
-    }, 0)
-  }
-
-  const canCloseOnBackdropClick = useCallback(() => (
-    !suppressBackdropCloseRef.current && !isDragging
-  ), [isDragging])
-
-  const beginModalDrag = (event) => {
-    if (event.button !== 0) return
-    if (event.target.closest('button')) return
-    event.preventDefault()
-    suppressBackdropCloseRef.current = true
-    cleanupDragListeners()
-    dragSessionRef.current = {
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startOffsetX: offsetRef.current.x,
-      startOffsetY: offsetRef.current.y,
-    }
-    const onDragMove = (moveEvent) => {
-      const session = dragSessionRef.current
-      if (!session) return
-      offsetRef.current = {
-        x: session.startOffsetX + (moveEvent.clientX - session.pointerX),
-        y: session.startOffsetY + (moveEvent.clientY - session.pointerY),
-      }
-      applyPanelTransform()
-    }
-    const onDragEnd = () => {
-      finishDrag()
-    }
-    moveHandlerRef.current = onDragMove
-    upHandlerRef.current = onDragEnd
-    setIsDragging(true)
-    document.body.style.userSelect = 'none'
-    window.addEventListener('mousemove', onDragMove)
-    window.addEventListener('mouseup', onDragEnd)
-  }
+  const {
+    panelRef,
+    offset,
+    size,
+    isDragging,
+    isResizing,
+    beginDrag,
+    beginResize,
+    canCloseOnBackdropClick,
+  } = useFloatingModalChrome({
+    open,
+    defaultWidth: 1200,
+    defaultHeightRatio: 0.88,
+    minWidth: 640,
+    minHeight: 360,
+  })
 
   useEffect(() => {
-    if (open) return undefined
-    offsetRef.current = { x: 0, y: 0 }
-    suppressBackdropCloseRef.current = false
-    if (panelRef.current) {
-      panelRef.current.style.transform = ''
-      panelRef.current.style.willChange = ''
-    }
-    cleanupDragListeners()
-    setIsDragging(false)
+    if (!open || !panelRef.current) return undefined
+    panelRef.current.style.willChange = (isDragging || isResizing) ? 'transform, width, height' : ''
     return undefined
-  }, [open])
-
-  useEffect(() => () => {
-    cleanupDragListeners()
-  }, [])
+  }, [open, isDragging, isResizing, panelRef])
 
   const handlePrint = () => {
     if (onPrint) {
@@ -121,7 +55,9 @@ function StatementPreviewModal({
 
   if (!open) return null
 
-  const backdropColor = isDragging ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
+  const backdropColor = (isDragging || isResizing)
+    ? 'rgba(15, 23, 42, 0.12)'
+    : 'rgba(15, 23, 42, 0.45)'
 
   return (
     <div
@@ -140,19 +76,22 @@ function StatementPreviewModal({
       <div
         ref={panelRef}
         style={{
+          position: 'relative',
           background: '#fff',
           borderRadius: '8px',
-          width: 'min(1200px, 96vw)',
-          height: 'min(88vh, 900px)',
+          width: size.width,
+          height: size.height,
+          maxWidth: '100%',
+          maxHeight: '100%',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           boxShadow: '0 20px 42px rgba(0,0,0,0.35)',
-          willChange: isDragging ? 'transform' : undefined,
+          transform: `translate(${offset.x}px, ${offset.y}px)`,
         }}
       >
         <div
-          onMouseDown={beginModalDrag}
+          onMouseDown={beginDrag}
           style={{
             background: '#0F172A',
             color: '#FFFFFF',
@@ -185,7 +124,7 @@ function StatementPreviewModal({
             ✕
           </button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', background: '#F9FAFB' }}>
+        <div style={{ flex: 1, overflow: 'auto', background: '#F9FAFB', minHeight: 0 }}>
           {loading ? (
             <div style={{
               display: 'flex',
@@ -208,7 +147,7 @@ function StatementPreviewModal({
                 border: 'none',
                 display: 'block',
                 background: '#FFFFFF',
-                pointerEvents: isDragging ? 'none' : 'auto',
+                pointerEvents: (isDragging || isResizing) ? 'none' : 'auto',
               }}
             />
           )}
@@ -216,7 +155,7 @@ function StatementPreviewModal({
         <div style={{
           background: '#F9FAFB',
           borderTop: '1px solid #E5E7EB',
-          padding: '1rem 1.5rem',
+          padding: `1rem ${FLOATING_MODAL_FOOTER_END_PAD} 1rem 1.5rem`,
           display: 'flex',
           justifyContent: 'flex-end',
           gap: '10px',
@@ -260,6 +199,14 @@ function StatementPreviewModal({
             Close
           </button>
         </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onMouseDown={beginResize}
+          title="Resize"
+          aria-label="Resize"
+          style={FLOATING_MODAL_RESIZE_HANDLE_STYLE}
+        />
       </div>
     </div>
   )

@@ -10,6 +10,7 @@ const createInventoryMappingForm = (baseCurrencyCode = 'USD') => {
     currentPrice: '',
     priceUnit: 'OZ',
     priceCurrency: base,
+    useLivePrice: false,
   }
 }
 
