@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, inputStyle, isMetalStockVoucherType, isSaveSubmitOnlyVoucherType, S } from './voucherTabShared'
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
 import { canFixVoucher, resolveVoucherFixingBadge, resolveVoucherIndicativeTotalNote, summarizeVoucherFixing } from './voucherFixingHelpers'
+import VoucherActivityLogModal from './VoucherActivityLogModal'
 
 const FIXING_BADGE_COLORS = {
   fixed: { bg: '#DCFCE7', color: '#166534' },
@@ -65,6 +67,7 @@ export default function VoucherListPanel({
   const visibleIndexes = virtEnabled
     ? virtualItems.map((v) => v.index)
     : filteredVouchers.map((_, index) => index)
+  const [showActivityLog, setShowActivityLog] = useState(false)
 
   return (
     <div>
@@ -93,10 +96,24 @@ export default function VoucherListPanel({
           style={{ ...inputStyle, width: '280px' }}
         />
         <button type="button" style={btn('gray')} onClick={loadVouchers}>↺ Refresh</button>
+        <button
+          type="button"
+          style={btn('gray')}
+          onClick={() => setShowActivityLog(true)}
+          title={`Activity log for ${voucherLabel} only`}
+        >
+          Activity Log
+        </button>
         {canCreate && (
           <button type="button" style={{ ...btn('primary'), marginLeft: 'auto' }} onClick={() => openCreate()}>+ New</button>
         )}
       </div>
+      <VoucherActivityLogModal
+        open={showActivityLog}
+        onClose={() => setShowActivityLog(false)}
+        voucherType={voucherType}
+        voucherLabel={voucherLabel}
+      />
       {erpAdvancedListFiltersEnabled ? (
         <div style={{ marginBottom: '1rem' }}>
           <ErpMonthYearFilter
