@@ -1,3 +1,4 @@
+const { describe, expect, test } = require('@jest/globals')
 const { resolveRange } = require('./activityLogRoutes')
 
 describe('activityLogRoutes.resolveRange', () => {
