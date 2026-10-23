@@ -33,6 +33,30 @@ export const ERP_TAB_COLORS = {
   softBg: 'var(--brand-soft)',
 }
 
+/**
+ * Account Summary chrome (lookup card, modal header, account/position panels).
+ * Uses tenant CSS vars from applyTenantTheme — MG orange, VB gold, etc.
+ */
+export const ACCOUNT_SUMMARY_CHROME = {
+  headerBg: 'var(--brand-dark, var(--brand-primary))',
+  headerFg: 'var(--brand-on-solid, #FFFFFF)',
+  headerEdge: 'var(--brand-button-hover, var(--brand-hover, var(--brand-dark)))',
+  cardBorder: 'var(--brand-dark, var(--brand-primary))',
+  cardBg: 'var(--brand-soft)',
+  softPanelBg: 'var(--brand-soft)',
+  softPanelBorder: 'var(--brand-border)',
+  tableHeadBg: 'color-mix(in srgb, var(--brand-soft) 72%, #E5E7EB)',
+  tableSubHeadBg: 'color-mix(in srgb, var(--brand-soft) 55%, #EEF2F7)',
+  lookupSurfaceBg: 'color-mix(in srgb, var(--brand-soft) 55%, #FFFFFF)',
+  lookupBorder: 'var(--brand-border)',
+  lookupTitle: 'var(--brand-on-soft, var(--brand-dark))',
+  lookupGroupBg: 'var(--brand-soft)',
+  lookupGroupFg: 'var(--brand-on-soft, var(--brand-dark))',
+  inputBorder: 'var(--brand-border)',
+  ctaBg: 'var(--brand-button-bg, var(--purple))',
+  ctaFg: 'var(--brand-button-text, #FFFFFF)',
+}
+
 /** Shared register table cell styles (pair with `.erp-table` when possible). */
 export const ERP_TABLE = {
   wrap: {
