@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../../../context/AuthContext'
 import erpAccountingAPI from '../../../../api/erp-accounting'
 import { canManageAccountingPeriods } from '../accessPolicy'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FloatingModalResizeHandle,
+  useFloatingModalChrome,
+} from '../useFloatingModalChrome'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -46,6 +51,22 @@ export default function ERPPeriodClosingTab({ C }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const {
+    panelRef: periodModalRef,
+    offset: periodModalOffset,
+    size: periodModalSize,
+    isDragging: periodModalDragging,
+    isResizing: periodModalResizing,
+    beginDrag: beginPeriodModalDrag,
+    beginResize: beginPeriodModalResize,
+    canCloseOnBackdropClick: canClosePeriodModalOnBackdrop,
+  } = useFloatingModalChrome({
+    open: Boolean(modal),
+    defaultWidth: 520,
+    defaultHeightRatio: 0.55,
+    minWidth: 360,
+    minHeight: 280,
+  })
 
   const load = useCallback(async () => {
     if (!token) return
@@ -205,17 +226,59 @@ export default function ERPPeriodClosingTab({ C }) {
       </div>
 
       {modal ? (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80, padding: '1rem',
-        }}>
-          <div style={{ width: 'min(520px, 100%)', background: '#fff', borderRadius: 10, padding: '1.25rem', boxShadow: '0 20px 40px rgba(0,0,0,0.18)' }}>
-            <h4 style={{ marginTop: 0, color: ink }}>
-              {modal.mode === 'close' ? 'Close' : 'Reopen'}{' '}
-              {modal.period.periodType === 'YEARLY'
-                ? `FY ${modal.period.financialYear}`
-                : `${MONTH_NAMES[(modal.period.month || 1) - 1]} ${modal.period.financialYear}`}
-            </h4>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: (periodModalDragging || periodModalResizing)
+              ? 'rgba(15,23,42,0.18)'
+              : 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 80,
+            padding: '1rem',
+          }}
+          onClick={() => {
+            if (!busy && canClosePeriodModalOnBackdrop()) setModal(null)
+          }}
+        >
+          <div
+            ref={periodModalRef}
+            style={{
+              position: 'relative',
+              width: periodModalSize.width,
+              height: periodModalSize.height,
+              maxWidth: '100%',
+              maxHeight: '100%',
+              background: '#fff',
+              borderRadius: 10,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              transform: `translate(${periodModalOffset.x}px, ${periodModalOffset.y}px)`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              onMouseDown={beginPeriodModalDrag}
+              style={{
+                padding: '1rem 1.25rem',
+                borderBottom: '1px solid #E5E7EB',
+                cursor: periodModalDragging ? 'grabbing' : 'grab',
+                userSelect: 'none',
+                flexShrink: 0,
+              }}
+            >
+              <h4 style={{ margin: 0, color: ink }}>
+                {modal.mode === 'close' ? 'Close' : 'Reopen'}{' '}
+                {modal.period.periodType === 'YEARLY'
+                  ? `FY ${modal.period.financialYear}`
+                  : `${MONTH_NAMES[(modal.period.month || 1) - 1]} ${modal.period.financialYear}`}
+              </h4>
+            </div>
+            <div style={{ padding: '1.25rem', overflow: 'auto', flex: 1, minHeight: 0 }}>
             {modal.mode === 'close' && modal.period.periodType === 'YEARLY' ? (
               <p style={{ marginTop: 0, color: soft, fontSize: '0.85rem' }}>
                 Closing the financial year will also close all 12 months. Accounting entries become view-only until Super Admin reopens periods.
@@ -265,7 +328,7 @@ export default function ERPPeriodClosingTab({ C }) {
               <div style={{ marginBottom: '0.75rem', color: '#991B1B', fontSize: '0.85rem' }}>{message}</div>
             ) : null}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingRight: FLOATING_MODAL_FOOTER_END_PAD, paddingBottom: '0.35rem' }}>
               <button type="button" disabled={busy} onClick={() => setModal(null)} style={btnSecondary}>Cancel</button>
               <button
                 type="button"
@@ -276,6 +339,8 @@ export default function ERPPeriodClosingTab({ C }) {
                 {busy ? 'Working…' : modal.mode === 'close' ? 'Confirm Close' : 'Confirm Reopen'}
               </button>
             </div>
+            </div>
+            <FloatingModalResizeHandle onMouseDown={beginPeriodModalResize} />
           </div>
         </div>
       ) : null}

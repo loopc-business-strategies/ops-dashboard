@@ -14,8 +14,12 @@ export default function ERPTabModals({
   lastEnquiryDeepLinkKeyRef,
   enquiryBackdropColor,
   enquiryModalOffset,
+  enquiryModalSize,
   enquiryModalDrag,
+  enquiryModalResizing,
   beginEnquiryModalDrag,
+  beginEnquiryModalResize,
+  canCloseEnquiryOnBackdropClick,
   enquiryLoading,
   accountEnquiryCode,
   setAccountEnquiryCode,
@@ -104,8 +108,12 @@ export default function ERPTabModals({
         }}
         enquiryBackdropColor={enquiryBackdropColor}
         enquiryModalOffset={enquiryModalOffset}
+        enquiryModalSize={enquiryModalSize}
         enquiryModalDrag={enquiryModalDrag}
+        enquiryModalResizing={enquiryModalResizing}
         beginEnquiryModalDrag={beginEnquiryModalDrag}
+        beginEnquiryModalResize={beginEnquiryModalResize}
+        canCloseEnquiryOnBackdropClick={canCloseEnquiryOnBackdropClick}
         enquiryLoading={enquiryLoading}
         accountEnquiryCode={accountEnquiryCode}
         setAccountEnquiryCode={setAccountEnquiryCode}

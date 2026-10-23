@@ -11,6 +11,11 @@ import { useExpensePeriodFilter } from './useExpensePeriodFilter'
 import { useExpenseRegisterExports } from './useExpenseRegisterExports'
 import { useExpenseChartData } from './useExpenseChartData'
 import { useExpenseFooterStats } from './useExpenseFooterStats'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FloatingModalResizeHandle,
+  useFloatingModalChrome,
+} from './useFloatingModalChrome'
 
 const smallControl = {
   border: '1px solid #E5E7EB',
@@ -46,6 +51,23 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
   const [trendRange, setTrendRange] = useState('6m')
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const {
+    panelRef,
+    offset,
+    size,
+    isDragging,
+    isResizing,
+    beginDrag,
+    beginResize,
+    canCloseOnBackdropClick,
+  } = useFloatingModalChrome({
+    open: true,
+    defaultWidth: 1120,
+    defaultHeightRatio: 0.88,
+    minWidth: 720,
+    minHeight: 420,
+    maxHeight: 1400,
+  })
 
   const {
     year: yearFilter,
@@ -124,16 +146,49 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     ? registerCategories
     : [...new Set((exp.recent || []).map((row) => row.category).filter(Boolean))]
 
+  const backdropColor = (isDragging || isResizing)
+    ? 'rgba(15,23,42,0.12)'
+    : 'rgba(15,23,42,0.24)'
+
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 3200, background: 'rgba(15,23,42,0.24)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}
-      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 3200, background: backdropColor, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}
+      onClick={() => { if (canCloseOnBackdropClick()) onClose() }}
     >
       <div
-        style={{ width: 'min(1120px, 96vw)', maxHeight: '88vh', overflow: 'hidden', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '0.8rem', boxShadow: '0 24px 70px rgba(15,23,42,0.28)', display: 'flex', flexDirection: 'column' }}
+        ref={panelRef}
+        style={{
+          position: 'relative',
+          width: size.width,
+          height: size.height,
+          maxWidth: '100%',
+          maxHeight: '100%',
+          overflow: 'hidden',
+          background: '#FFFFFF',
+          border: '1px solid #E5E7EB',
+          borderRadius: '0.8rem',
+          boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
+          display: 'flex',
+          flexDirection: 'column',
+          transform: `translate(${offset.x}px, ${offset.y}px)`,
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ padding: '1rem 1.1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'nowrap', flexShrink: 0 }}>
+        <div
+          onMouseDown={beginDrag}
+          style={{
+            padding: '1rem 1.1rem',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'nowrap',
+            flexShrink: 0,
+            cursor: isDragging ? 'grabbing' : 'grab',
+            userSelect: 'none',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
             <span style={{ width: 42, height: 42, borderRadius: '0.65rem', display: 'grid', placeItems: 'center', background: '#FEF9C3', fontSize: '1.2rem', flexShrink: 0 }}>📋</span>
             <div style={{ minWidth: 0 }}>
@@ -141,7 +196,15 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
               <p style={{ margin: '0.15rem 0 0', color: '#64748B', fontSize: '0.78rem' }}>Detailed overview of your expenses</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} style={modalCloseButtonStyle} aria-label="Close">×</button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            style={modalCloseButtonStyle}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
         <div style={{ padding: '0.65rem 1.1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', background: '#F8FAFC', flexShrink: 0 }}>
@@ -159,7 +222,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
           </select>
         </div>
 
-        <div style={{ padding: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+        <div style={{ padding: `1rem ${FLOATING_MODAL_FOOTER_END_PAD} 1.5rem 1rem`, overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <ExpenseChartsPanel
             segments={segments}
             displayTotal={displayTotal}
@@ -209,6 +272,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
 
           <ExpenseStatsFooter {...footerStats} baseCurrencyCode={baseCurrencyCode} />
         </div>
+        <FloatingModalResizeHandle onMouseDown={beginResize} />
       </div>
     </div>
   )

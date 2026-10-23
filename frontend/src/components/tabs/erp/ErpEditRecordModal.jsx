@@ -1,6 +1,11 @@
 import { useMemo } from 'react'
-import { ERP_MODAL_BACKDROP_STYLE, ERP_MODAL_CARD_STYLE, ERP_MODAL_INPUT_STYLE } from './erpTabPresentation'
+import { ERP_MODAL_INPUT_STYLE } from './erpTabPresentation'
 import AccountCombobox from '../../AccountCombobox'
+import {
+  FLOATING_MODAL_FOOTER_END_PAD,
+  FloatingModalResizeHandle,
+  useFloatingModalChrome,
+} from './useFloatingModalChrome'
 
 function buildAccountGroups(accounts) {
   return [{
@@ -24,107 +29,194 @@ export default function ErpEditRecordModal({
   colors,
 }) {
   const accountComboGroups = useMemo(() => buildAccountGroups(accounts), [accounts])
+  const open = Boolean(editState?.record)
+  const {
+    panelRef,
+    offset,
+    size,
+    isDragging,
+    isResizing,
+    beginDrag,
+    beginResize,
+    canCloseOnBackdropClick,
+  } = useFloatingModalChrome({
+    open,
+    defaultWidth: 540,
+    defaultHeightRatio: 0.75,
+    minWidth: 360,
+    minHeight: 280,
+  })
+
   if (!editState.record) return null
   const C = colors
+  const title = `Edit ${editState.type.charAt(0).toUpperCase() + editState.type.slice(1)}`
+  const backdropColor = (isDragging || isResizing)
+    ? 'rgba(17, 24, 39, 0.18)'
+    : 'rgba(17, 24, 39, 0.45)'
+
   return (
-    <div style={ERP_MODAL_BACKDROP_STYLE} onClick={onClose}>
-      <div style={ERP_MODAL_CARD_STYLE} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0, marginBottom: '1rem', color: C.ink, fontSize: '1.1rem', fontWeight: '700' }}>
-          Edit {editState.type.charAt(0).toUpperCase() + editState.type.slice(1)}
-        </h3>
-        <form onSubmit={onSubmit}>
-          {editState.type === 'account' && (
-            <>
-              <input value={editState.form.accountName || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, accountName: e.target.value } }))} placeholder="Account Name" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.description || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))} placeholder="Description" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.department || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))} placeholder="Department" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.currency || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value } }))} placeholder="Currency" style={ERP_MODAL_INPUT_STYLE} />
-            </>
-          )}
-          {editState.type === 'mapping' && (
-            <>
-              <input value={editState.form.mappingType || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, mappingType: e.target.value } }))} placeholder="Mapping Type" style={ERP_MODAL_INPUT_STYLE} />
-              <AccountCombobox
-                groups={accountComboGroups}
-                value={editState.form.debitAccountId || ''}
-                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: val } }))}
-                placeholder="Select Debit Account"
-                style={ERP_MODAL_INPUT_STYLE}
-              />
-              <AccountCombobox
-                groups={accountComboGroups}
-                value={editState.form.creditAccountId || ''}
-                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: val } }))}
-                placeholder="Select Credit Account"
-                style={ERP_MODAL_INPUT_STYLE}
-              />
-              <select value={editState.form.department || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
-                <option value="">Shared / All Departments</option>
-                {ledgerDepartments.map((department) => (
-                  <option key={department} value={department}>{department}</option>
-                ))}
-              </select>
-              <input value={editState.form.description || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))} placeholder="Description" style={ERP_MODAL_INPUT_STYLE} />
-            </>
-          )}
-          {editState.type === 'currency' && (
-            <>
-              <input value={editState.form.code || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, code: e.target.value.toUpperCase() } }))} placeholder="Code" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.name || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))} placeholder="Name" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.symbol || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, symbol: e.target.value } }))} placeholder="Symbol" style={ERP_MODAL_INPUT_STYLE} />
-              <input type="number" step="0.0001" value={editState.form.exchangeRate || 1} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, exchangeRate: e.target.value } }))} placeholder="Exchange Rate" style={ERP_MODAL_INPUT_STYLE} disabled={Boolean(editState.form.baseCurrency)} />
-              {!editState.form.baseCurrency && (
-                <input type="number" step="0.0001" min="0" value={editState.form.oneUsdEquals ?? ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, oneUsdEquals: e.target.value } }))} placeholder={`1 ${erpBaseCurrencyCode} = (units of this currency)`} style={ERP_MODAL_INPUT_STYLE} />
-              )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
-                <input type="checkbox" checked={Boolean(editState.form.baseCurrency)} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, baseCurrency: e.target.checked, exchangeRate: e.target.checked ? 1 : prev.form.exchangeRate } }))} />
-                Base currency
-              </label>
-            </>
-          )}
-          {editState.type === 'customer' && (
-            <>
-              <input value={editState.form.name || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))} placeholder="Name" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.phone || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, phone: e.target.value } }))} placeholder="Phone" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.email || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, email: e.target.value } }))} placeholder="Email" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.address || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, address: e.target.value } }))} placeholder="Address" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.gstVat || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, gstVat: e.target.value } }))} placeholder="GST/VAT" style={ERP_MODAL_INPUT_STYLE} />
-              <input type="number" value={editState.form.creditLimit || 0} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditLimit: e.target.value } }))} placeholder="Credit Limit" style={ERP_MODAL_INPUT_STYLE} />
-              <input type="number" value={editState.form.paymentTermsDays || 0} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, paymentTermsDays: e.target.value } }))} placeholder="Payment Terms (days)" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.currency || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value } }))} placeholder="Currency" style={ERP_MODAL_INPUT_STYLE} />
-              <textarea value={editState.form.notes || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, notes: e.target.value } }))} placeholder="Notes" style={{ ...ERP_MODAL_INPUT_STYLE, minHeight: '72px' }} />
-            </>
-          )}
-          {editState.type === 'ledger' && (
-            <>
-              <input type="date" value={editState.form.date || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, date: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE} />
-              <AccountCombobox
-                groups={accountComboGroups}
-                value={editState.form.debitAccountId || ''}
-                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: val } }))}
-                placeholder="Debit Account"
-                style={ERP_MODAL_INPUT_STYLE}
-              />
-              <AccountCombobox
-                groups={accountComboGroups}
-                value={editState.form.creditAccountId || ''}
-                onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: val } }))}
-                placeholder="Credit Account"
-                style={ERP_MODAL_INPUT_STYLE}
-              />
-              <input type="number" step="0.01" value={editState.form.amount || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, amount: e.target.value } }))} placeholder="Amount" style={ERP_MODAL_INPUT_STYLE} />
-              <input value={editState.form.description || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))} placeholder="Description" style={ERP_MODAL_INPUT_STYLE} />
-              <select value={editState.form.referenceType || 'journal'} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, referenceType: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
-                <option value="journal">Journal</option>
-                <option value="invoice">Invoice</option>
-                <option value="payment">Payment</option>
-                <option value="purchase">Purchase</option>
-                <option value="expense">Expense</option>
-                <option value="payroll">Payroll</option>
-              </select>
-            </>
-          )}
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: backdropColor,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 60,
+        padding: '1rem',
+      }}
+      onClick={() => { if (canCloseOnBackdropClick()) onClose() }}
+    >
+      <div
+        ref={panelRef}
+        style={{
+          position: 'relative',
+          width: size.width,
+          height: size.height,
+          maxWidth: '100%',
+          maxHeight: '100%',
+          background: '#FFFFFF',
+          borderRadius: '0.75rem',
+          boxShadow: '0 18px 50px rgba(15, 23, 42, 0.2)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          transform: `translate(${offset.x}px, ${offset.y}px)`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          onMouseDown={beginDrag}
+          style={{
+            padding: '1rem 1.25rem',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            userSelect: 'none',
+            flexShrink: 0,
+          }}
+        >
+          <h3 style={{ margin: 0, color: C.ink, fontSize: '1.1rem', fontWeight: '700' }}>{title}</h3>
+          <button
+            type="button"
+            aria-label="Close"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: C.ink,
+              cursor: 'pointer',
+              fontSize: '18px',
+              lineHeight: 1,
+              padding: '0.2rem 0.35rem',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        <form
+          onSubmit={onSubmit}
+          style={{ flex: 1, overflow: 'auto', padding: '1.25rem', minHeight: 0, display: 'flex', flexDirection: 'column' }}
+        >
+          <div style={{ flex: 1 }}>
+            {editState.type === 'account' && (
+              <>
+                <input value={editState.form.accountName || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, accountName: e.target.value } }))} placeholder="Account Name" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.description || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))} placeholder="Description" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.department || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))} placeholder="Department" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.currency || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value } }))} placeholder="Currency" style={ERP_MODAL_INPUT_STYLE} />
+              </>
+            )}
+            {editState.type === 'mapping' && (
+              <>
+                <input value={editState.form.mappingType || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, mappingType: e.target.value } }))} placeholder="Mapping Type" style={ERP_MODAL_INPUT_STYLE} />
+                <AccountCombobox
+                  groups={accountComboGroups}
+                  value={editState.form.debitAccountId || ''}
+                  onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: val } }))}
+                  placeholder="Select Debit Account"
+                  style={ERP_MODAL_INPUT_STYLE}
+                />
+                <AccountCombobox
+                  groups={accountComboGroups}
+                  value={editState.form.creditAccountId || ''}
+                  onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: val } }))}
+                  placeholder="Select Credit Account"
+                  style={ERP_MODAL_INPUT_STYLE}
+                />
+                <select value={editState.form.department || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
+                  <option value="">Shared / All Departments</option>
+                  {ledgerDepartments.map((department) => (
+                    <option key={department} value={department}>{department}</option>
+                  ))}
+                </select>
+                <input value={editState.form.description || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))} placeholder="Description" style={ERP_MODAL_INPUT_STYLE} />
+              </>
+            )}
+            {editState.type === 'currency' && (
+              <>
+                <input value={editState.form.code || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, code: e.target.value.toUpperCase() } }))} placeholder="Code" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.name || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))} placeholder="Name" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.symbol || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, symbol: e.target.value } }))} placeholder="Symbol" style={ERP_MODAL_INPUT_STYLE} />
+                <input type="number" step="0.0001" value={editState.form.exchangeRate || 1} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, exchangeRate: e.target.value } }))} placeholder="Exchange Rate" style={ERP_MODAL_INPUT_STYLE} disabled={Boolean(editState.form.baseCurrency)} />
+                {!editState.form.baseCurrency && (
+                  <input type="number" step="0.0001" min="0" value={editState.form.oneUsdEquals ?? ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, oneUsdEquals: e.target.value } }))} placeholder={`1 ${erpBaseCurrencyCode} = (units of this currency)`} style={ERP_MODAL_INPUT_STYLE} />
+                )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
+                  <input type="checkbox" checked={Boolean(editState.form.baseCurrency)} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, baseCurrency: e.target.checked, exchangeRate: e.target.checked ? 1 : prev.form.exchangeRate } }))} />
+                  Base currency
+                </label>
+              </>
+            )}
+            {editState.type === 'customer' && (
+              <>
+                <input value={editState.form.name || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))} placeholder="Name" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.phone || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, phone: e.target.value } }))} placeholder="Phone" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.email || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, email: e.target.value } }))} placeholder="Email" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.address || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, address: e.target.value } }))} placeholder="Address" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.gstVat || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, gstVat: e.target.value } }))} placeholder="GST/VAT" style={ERP_MODAL_INPUT_STYLE} />
+                <input type="number" value={editState.form.creditLimit || 0} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditLimit: e.target.value } }))} placeholder="Credit Limit" style={ERP_MODAL_INPUT_STYLE} />
+                <input type="number" value={editState.form.paymentTermsDays || 0} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, paymentTermsDays: e.target.value } }))} placeholder="Payment Terms (days)" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.currency || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value } }))} placeholder="Currency" style={ERP_MODAL_INPUT_STYLE} />
+                <textarea value={editState.form.notes || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, notes: e.target.value } }))} placeholder="Notes" style={{ ...ERP_MODAL_INPUT_STYLE, minHeight: '72px' }} />
+              </>
+            )}
+            {editState.type === 'ledger' && (
+              <>
+                <input type="date" value={editState.form.date || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, date: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE} />
+                <AccountCombobox
+                  groups={accountComboGroups}
+                  value={editState.form.debitAccountId || ''}
+                  onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: val } }))}
+                  placeholder="Debit Account"
+                  style={ERP_MODAL_INPUT_STYLE}
+                />
+                <AccountCombobox
+                  groups={accountComboGroups}
+                  value={editState.form.creditAccountId || ''}
+                  onChange={(val) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: val } }))}
+                  placeholder="Credit Account"
+                  style={ERP_MODAL_INPUT_STYLE}
+                />
+                <input type="number" step="0.01" value={editState.form.amount || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, amount: e.target.value } }))} placeholder="Amount" style={ERP_MODAL_INPUT_STYLE} />
+                <input value={editState.form.description || ''} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))} placeholder="Description" style={ERP_MODAL_INPUT_STYLE} />
+                <select value={editState.form.referenceType || 'journal'} onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, referenceType: e.target.value } }))} style={ERP_MODAL_INPUT_STYLE}>
+                  <option value="journal">Journal</option>
+                  <option value="invoice">Invoice</option>
+                  <option value="payment">Payment</option>
+                  <option value="purchase">Purchase</option>
+                  <option value="expense">Expense</option>
+                  <option value="payroll">Payroll</option>
+                </select>
+              </>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem', flexShrink: 0, paddingRight: FLOATING_MODAL_FOOTER_END_PAD, paddingBottom: '0.35rem' }}>
             <button type="button" onClick={onClose} style={{ padding: '0.6rem 1rem', background: '#FFFFFF', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer' }}>
               Cancel
             </button>
@@ -133,6 +225,7 @@ export default function ErpEditRecordModal({
             </button>
           </div>
         </form>
+        <FloatingModalResizeHandle onMouseDown={beginResize} />
       </div>
     </div>
   )

@@ -302,8 +302,12 @@ export function useErpTabCatalogSlice(scope) {
 
   const {
     enquiryModalOffset,
+    enquiryModalSize,
     enquiryModalDrag,
+    enquiryModalResizing,
     beginEnquiryModalDrag,
+    beginEnquiryModalResize,
+    canCloseEnquiryOnBackdropClick,
     enquiryBackdropColor,
   } = useAccountEnquiryModalDrag(showEnquiryModal)
 
@@ -477,7 +481,9 @@ export function useErpTabCatalogSlice(scope) {
     baseCurrencyCode,
     basePerUsd,
     beginEnquiryModalDrag,
+    beginEnquiryModalResize,
     beginFixingRegPanelDrag,
+    canCloseEnquiryOnBackdropClick,
     convertStatementDisplayAmount,
     customerMarginCompactView,
     customerMarginContextMenu,
@@ -488,6 +494,8 @@ export function useErpTabCatalogSlice(scope) {
     enquiryLiveRecalcEnabled,
     enquiryModalDrag,
     enquiryModalOffset,
+    enquiryModalResizing,
+    enquiryModalSize,
     enquirySuppressMetalSpotMtm,
     entryAccountOptions,
     filteredGroupedSummaryAccounts,
