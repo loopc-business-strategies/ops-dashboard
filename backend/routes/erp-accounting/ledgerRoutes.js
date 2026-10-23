@@ -1,4 +1,5 @@
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
+const { auditLog } = require('../../middleware/audit')
 
 const { resolveRequestTenantKey } = require('../../config/tenants')
 const mongoose = require('mongoose')
@@ -687,6 +688,16 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
     }).catch((err) => console.warn('[notify] jv_posted', err?.message || err))
 
     invalidateErpReadCaches(tenantKey)
+
+    await auditLog(req, {
+      resource: 'JournalVoucher',
+      resourceId: referenceId,
+      action: 'create',
+      detail: `${mode === 'bank_jv' ? 'Bank JV' : 'Journal voucher'} ${vocNo || ''} (${createdEntries.length} lines)`.trim(),
+      module: 'journal',
+      documentNo: vocNo || String(referenceId),
+      changes: { mode, count: createdEntries.length, replaceCount: replaceEntryIds.length },
+    })
 
     return res.status(201).json({
       success: true,

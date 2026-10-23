@@ -24,6 +24,7 @@ const express = require('express')
 const jwt     = require('jsonwebtoken')
 const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
+const { auditLog, auditLogForTenant } = require('../middleware/audit')
 const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
 const { timingSafeEqualString } = require('../utils/timingSafeEqualString')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
@@ -384,6 +385,16 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
     user.lastLogin = new Date()
     await user.save({ validateBeforeSave: false })
 
+    await auditLogForTenant(tenant, user, {
+      resource: 'Auth',
+      resourceId: user._id,
+      action: 'login',
+      detail: `Signed in as ${user.name}`,
+      module: 'auth',
+      ip: req.ip || req.headers?.['x-forwarded-for'] || '',
+      userAgent: req.headers?.['user-agent'] || '',
+    })
+
     await sendToken(user, 200, res, tenant, req)
   } catch (err) {
     return sendAuthCatchError(res, err, 'Login error:')
@@ -666,7 +677,14 @@ router.delete('/me/web-push-subscription', protect, validateBody(webPushDeleteSc
   }
 })
 
-router.post('/logout', protect, (req, res) => {
+router.post('/logout', protect, async (req, res) => {
+  await auditLog(req, {
+    resource: 'Auth',
+    resourceId: req.user?._id,
+    action: 'logout',
+    detail: `Signed out (${req.user?.name || 'user'})`,
+    module: 'auth',
+  })
   clearTenantSessionCookies(res, req.tenant)
   clearCsrfCookie(res, req.tenant)
   res.json({ success: true, message: 'Logged out.' })
@@ -684,6 +702,14 @@ router.post('/logout-all-devices', protect, async (req, res) => {
 
     user.sessionInvalidatedAt = new Date()
     await user.save({ validateBeforeSave: false })
+
+    await auditLog(req, {
+      resource: 'Auth',
+      resourceId: req.user?._id,
+      action: 'logout_all',
+      detail: `Signed out on all devices (${req.user?.name || 'user'})`,
+      module: 'auth',
+    })
 
     clearTenantSessionCookies(res, req.tenant)
     clearCsrfCookie(res, req.tenant)

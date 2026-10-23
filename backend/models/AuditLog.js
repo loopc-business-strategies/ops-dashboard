@@ -21,6 +21,10 @@ const auditLogSchema = new mongoose.Schema(
     action: { type: String, required: true, trim: true }, // e.g. 'create', 'update', 'delete', 'status_change'
     detail: { type: String, trim: true, default: '' },    // human-readable summary
 
+    // ERP Activity Log grouping / search helpers
+    module: { type: String, trim: true, default: '', index: true }, // auth | voucher | journal | account | period
+    documentNo: { type: String, trim: true, default: '', index: true },
+
     // Optional: what changed (old vs new)
     changes: { type: mongoose.Schema.Types.Mixed, default: null },
 
@@ -36,5 +40,7 @@ const auditLogSchema = new mongoose.Schema(
 auditLogSchema.index({ resource: 1, resourceId: 1, createdAt: -1 })
 auditLogSchema.index({ actorId: 1, createdAt: -1 })
 auditLogSchema.index({ action: 1, createdAt: -1 })
+auditLogSchema.index({ module: 1, createdAt: -1 })
+auditLogSchema.index({ createdAt: -1 })
 
 module.exports = createTenantModel('AuditLog', auditLogSchema)

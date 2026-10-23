@@ -238,6 +238,7 @@
   "erpCurrencies": "Currencies",
   "erpMetalRates": "Metal Rates",
   "erpReports": "Reports",
+  "erpActivityLog": "Activity Log",
   "erpChartOfAccounts": "Chart of Accounts",
   "erpVouchers": "Vouchers",
   "erpDirectDeals": "Fixing Deals",

@@ -135,6 +135,8 @@ function registerAccountingPeriodRoutes(deps) {
         resourceId: period._id,
         action,
         detail: `${label} closed`,
+        module: 'period',
+        documentNo: label,
         changes: { previousStatus, newStatus: 'CLOSED', reason },
       })
 
@@ -155,6 +157,8 @@ function registerAccountingPeriodRoutes(deps) {
             resourceId: row.period._id,
             action: 'PERIOD_CLOSED',
             detail: `${row.label} closed (cascaded from year close)`,
+            module: 'period',
+            documentNo: row.label,
             changes: {
               previousStatus: row.previousStatus,
               newStatus: 'CLOSED',
@@ -238,6 +242,8 @@ function registerAccountingPeriodRoutes(deps) {
         resourceId: period._id,
         action,
         detail: `${label} reopened: ${reason}`,
+        module: 'period',
+        documentNo: label,
         changes: { previousStatus, newStatus: 'OPEN', reason },
       })
 
@@ -256,6 +262,8 @@ function registerAccountingPeriodRoutes(deps) {
             resourceId: row.period._id,
             action: 'PERIOD_REOPENED',
             detail: `${row.label} reopened (cascaded from year reopen): ${cascadeReason}`,
+            module: 'period',
+            documentNo: row.label,
             changes: {
               previousStatus: row.previousStatus,
               newStatus: 'OPEN',

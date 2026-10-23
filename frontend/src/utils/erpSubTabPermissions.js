@@ -12,6 +12,7 @@ export const ERP_SUB_TABS = [
   'period-closing',
   'transactions',
   'reports',
+  'activity-log',
   'vendors',
   'inventory',
   'vouchers',

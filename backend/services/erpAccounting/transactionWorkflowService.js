@@ -46,11 +46,11 @@ function createTransactionWorkflowAction({
       tx.status = 'submitted'
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'submit_note')
-      appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note })
+      appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note, req: options.req })
       // All tenants: Submit always posts (Draft → Posted). No separate Approve/Post step.
       tx.status = 'approved'
       tx.approvedBy = user._id
-      appendTransactionAudit(tx, user, 'approve', { fromStatus: 'submitted', toStatus: 'approved', comment: note })
+      appendTransactionAudit(tx, user, 'approve', { fromStatus: 'submitted', toStatus: 'approved', comment: note, req: options.req })
       return getTransactionPostingService().executePostWorkflowAction({
         tx,
         user,
@@ -71,7 +71,7 @@ function createTransactionWorkflowAction({
       tx.approvedBy = user._id
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'approval_note')
-      appendTransactionAudit(tx, user, 'approve', { fromStatus, toStatus: 'approved', comment: note })
+      appendTransactionAudit(tx, user, 'approve', { fromStatus, toStatus: 'approved', comment: note, req: options.req })
       await tx.save(saveOpts)
       return { transaction: tx }
     }
@@ -83,7 +83,7 @@ function createTransactionWorkflowAction({
       tx.status = 'returned'
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'return_note')
-      appendTransactionAudit(tx, user, 'return', { fromStatus, toStatus: 'returned', comment: note })
+      appendTransactionAudit(tx, user, 'return', { fromStatus, toStatus: 'returned', comment: note, req: options.req })
       await tx.save(saveOpts)
       return { transaction: tx }
     }
@@ -95,7 +95,7 @@ function createTransactionWorkflowAction({
       tx.status = 'rejected'
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'reject_note')
-      appendTransactionAudit(tx, user, 'reject', { fromStatus, toStatus: 'rejected', comment: note })
+      appendTransactionAudit(tx, user, 'reject', { fromStatus, toStatus: 'rejected', comment: note, req: options.req })
       await tx.save(saveOpts)
       return { transaction: tx }
     }
@@ -116,6 +116,7 @@ function createTransactionWorkflowAction({
           fromStatus: 'submitted',
           toStatus: 'approved',
           comment: note || 'Auto-approved for backlog post',
+          req: options.req,
         })
         postFromStatus = 'approved'
       }

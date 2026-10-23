@@ -292,7 +292,7 @@ function createTransactionPostingService(deps) {
     tx.postedBy = user._id
     tx.updatedBy = user._id
     appendTransactionComment(tx, user, note, 'posting_note')
-    appendTransactionAudit(tx, user, 'post', { fromStatus, toStatus: 'posted', comment: note })
+    appendTransactionAudit(tx, user, 'post', { fromStatus, toStatus: 'posted', comment: note, req: options?.req })
     await tx.save(writeOpts(session))
 
     const accountSignFlips = []

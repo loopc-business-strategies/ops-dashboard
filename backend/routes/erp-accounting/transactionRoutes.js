@@ -533,7 +533,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
       }
     }
 
-    appendTransactionAudit(tx, req.user, 'create', { fromStatus: '', toStatus: 'draft', comment: description })
+    appendTransactionAudit(tx, req.user, 'create', { fromStatus: '', toStatus: 'draft', comment: description, req })
     await tx.save()
 
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
@@ -690,7 +690,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
       }
     }
     tx.updatedBy = req.user._id
-    appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })
+    appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '', req })
     await tx.save()
 
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
@@ -750,7 +750,7 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
       tx.isDeleted = true
       tx.deletedAt = now
       tx.updatedBy = req.user._id
-      appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.destructiveAction.reason })
+      appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.destructiveAction.reason, req })
       await tx.save(writeOpts(session))
     })
 
@@ -894,7 +894,7 @@ router.delete('/transactions/:id', protect, async (req, res) => {
     tx.isDeleted = true
     tx.deletedAt = new Date()
     tx.updatedBy = req.user._id
-    appendTransactionAudit(tx, req.user, 'delete', { fromStatus: tx.status, toStatus: tx.status })
+    appendTransactionAudit(tx, req.user, 'delete', { fromStatus: tx.status, toStatus: tx.status, req })
     await tx.save()
 
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
@@ -940,6 +940,7 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
       comment: req.body?.comment,
       postImmediately: true,
       mappingOverride: req.body || {},
+      req,
     }
     const result = await runInTransaction(async (session) => {
       const freshTx = await Transaction.findById(req.params.id).session(session)
@@ -998,7 +999,7 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
     const result = await runInTransaction(async (session) => {
       const freshTx = await Transaction.findById(req.params.id).session(session)
       if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
-      return applyTransactionWorkflowAction(freshTx, req.user, 'approve', { comment: req.body?.comment }, session)
+      return applyTransactionWorkflowAction(freshTx, req.user, 'approve', { comment: req.body?.comment, req }, session)
     })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
@@ -1036,7 +1037,7 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
       const freshTx = await Transaction.findById(req.params.id).session(session)
       if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
       if (freshTx.status === 'posted') throw new Error('Transaction is already posted.')
-      return applyTransactionWorkflowAction(freshTx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {} }, session)
+      return applyTransactionWorkflowAction(freshTx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {}, req }, session)
     })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
@@ -1289,7 +1290,7 @@ router.post('/transactions/:id/return', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    const result = await applyTransactionWorkflowAction(tx, req.user, 'return', { comment: req.body?.comment })
+    const result = await applyTransactionWorkflowAction(tx, req.user, 'return', { comment: req.body?.comment, req })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
@@ -1316,7 +1317,7 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    const result = await applyTransactionWorkflowAction(tx, req.user, 'reject', { comment: req.body?.comment })
+    const result = await applyTransactionWorkflowAction(tx, req.user, 'reject', { comment: req.body?.comment, req })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
@@ -1371,6 +1372,7 @@ router.post('/transactions/bulk-action', protect, validateBody(transactionBulkAc
         const workflowOptions = {
           comment,
           mappingOverride,
+          req,
           ...(action === 'submit' ? { postImmediately: true } : {}),
         }
         const actionResult = needsTxn

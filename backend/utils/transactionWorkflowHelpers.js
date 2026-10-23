@@ -22,6 +22,34 @@ function appendTransactionAudit(transaction, user, action, options = {}) {
     actorId: user._id,
     createdAt: new Date(),
   })
+
+  // Dual-write to tenant AuditLog for ERP Activity Log (non-blocking).
+  if (options.req && !options.skipGlobalAudit) {
+    try {
+      const { auditLog } = require('../middleware/audit')
+      const docNo = String(transaction?.voucherMeta?.vocNo || transaction?.reference || transaction?._id || '')
+      const statusTrail = [options.fromStatus, options.toStatus].filter(Boolean).join(' → ')
+      const note = normalizeTransactionNote(options.comment)
+      const detail = note
+        ? `${action}${statusTrail ? ` (${statusTrail})` : ''}: ${note}`
+        : (statusTrail || `${action} ${transaction?.type || 'transaction'}`)
+      void auditLog(options.req, {
+        resource: 'Transaction',
+        resourceId: transaction._id,
+        action,
+        detail,
+        module: 'voucher',
+        documentNo: docNo,
+        changes: {
+          fromStatus: options.fromStatus || '',
+          toStatus: options.toStatus || '',
+          type: transaction?.type || '',
+        },
+      })
+    } catch (err) {
+      console.error('[audit] voucher dual-write failed:', err?.message || err)
+    }
+  }
 }
 
 function getTransactionWorkflowErrorStatus(message) {

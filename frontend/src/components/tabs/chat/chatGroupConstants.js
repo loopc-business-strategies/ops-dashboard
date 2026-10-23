@@ -11,6 +11,7 @@ const GROUP_MODULES = [
   { key: 'ledger', label: 'Ledger', desc: 'View ledger and entries', icon: '□', tone: '#E0F2FE' },
   { key: 'transactions', label: 'Transactions', desc: 'Manage transactions', icon: '⌘', tone: '#E0F2FE' },
   { key: 'reports', label: 'Reports', desc: 'View and export reports', icon: '◰', tone: '#FCE7F3' },
+  { key: 'activity-log', label: 'Activity Log', desc: 'View who did what and when', icon: '▤', tone: '#EEF2FF' },
   { key: 'vendors', label: 'Vendors', desc: 'Manage vendors', icon: '♧', tone: '#E0F2FE' },
   { key: 'inventory', label: 'Inventory', desc: 'Manage inventory', icon: '▧', tone: '#DCFCE7' },
   { key: 'direct-deals', label: 'Fixing Deals', desc: 'Manage fixing deals', icon: '⌘', tone: '#FEF3C7' },
@@ -18,7 +19,7 @@ const GROUP_MODULES = [
 ]
 
 const DEFAULT_GROUP_PERMISSIONS = GROUP_MODULES.reduce((acc, item, index) => {
-  acc[item.key] = index < 8 || ['reports', 'vendors', 'inventory', 'direct-deals', 'fixing-register'].includes(item.key)
+  acc[item.key] = index < 8 || ['reports', 'activity-log', 'vendors', 'inventory', 'direct-deals', 'fixing-register'].includes(item.key)
   return acc
 }, {})
 
