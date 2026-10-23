@@ -47,10 +47,16 @@ function createTransactionWorkflowAction({
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'submit_note')
       appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note, req: options.req })
-      // All tenants: Submit always posts (Draft → Posted). No separate Approve/Post step.
+      // All tenants: Submit always posts (Draft → Posted). No separate Approve step in UI/Activity Log.
       tx.status = 'approved'
       tx.approvedBy = user._id
-      appendTransactionAudit(tx, user, 'approve', { fromStatus: 'submitted', toStatus: 'approved', comment: note, req: options.req })
+      // Keep voucher-local trail for status machine, but do not surface "approve" in Activity Log.
+      appendTransactionAudit(tx, user, 'approve', {
+        fromStatus: 'submitted',
+        toStatus: 'approved',
+        comment: note,
+        skipGlobalAudit: true,
+      })
       return getTransactionPostingService().executePostWorkflowAction({
         tx,
         user,
@@ -71,7 +77,12 @@ function createTransactionWorkflowAction({
       tx.approvedBy = user._id
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'approval_note')
-      appendTransactionAudit(tx, user, 'approve', { fromStatus, toStatus: 'approved', comment: note, req: options.req })
+      appendTransactionAudit(tx, user, 'approve', {
+        fromStatus,
+        toStatus: 'approved',
+        comment: note,
+        skipGlobalAudit: true,
+      })
       await tx.save(saveOpts)
       return { transaction: tx }
     }
@@ -116,7 +127,7 @@ function createTransactionWorkflowAction({
           fromStatus: 'submitted',
           toStatus: 'approved',
           comment: note || 'Auto-approved for backlog post',
-          req: options.req,
+          skipGlobalAudit: true,
         })
         postFromStatus = 'approved'
       }

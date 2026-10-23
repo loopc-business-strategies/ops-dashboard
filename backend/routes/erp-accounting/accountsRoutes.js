@@ -1292,13 +1292,19 @@ router.post('/accounts', protect, validateBody(accountCreateSchema), async (req,
         : 0,
       createdBy: req.user._id,
     })
+    const { buildAccountActivityDetail } = require('../../utils/activityLogDetail')
     await auditLog(req, {
       resource: 'ChartOfAccount',
       resourceId: account._id,
       action: 'create',
-      detail: `Created account ${account.accountCode} — ${account.accountName}`,
+      detail: buildAccountActivityDetail(account),
       module: 'account',
       documentNo: account.accountCode,
+      changes: {
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        accountType: account.accountType,
+      },
     })
     res.status(201).json({ success: true, account })
   } catch (e) {

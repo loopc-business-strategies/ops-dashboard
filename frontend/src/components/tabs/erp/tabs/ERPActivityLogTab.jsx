@@ -19,7 +19,6 @@ const ACTIONS = [
   { value: 'create', label: 'Create' },
   { value: 'update', label: 'Update' },
   { value: 'submit', label: 'Submit' },
-  { value: 'approve', label: 'Approve' },
   { value: 'post', label: 'Post' },
   { value: 'void', label: 'Void' },
   { value: 'return', label: 'Return' },
