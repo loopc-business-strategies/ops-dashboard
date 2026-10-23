@@ -18,6 +18,7 @@
     "canCreateTransaction": { "roles": ["super_admin"], "departmentHead": ["finance"] },
     "canAccessTransactions": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales", "operations", "production", "hr"] },
     "canAccessReports": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canAccessActivityLog": { "roles": ["super_admin"], "departmentHead": ["finance"] },
     "canAccessVendors": { "roles": ["super_admin"], "departmentHead": ["finance", "operations"] },
     "canManageVendors": { "roles": ["super_admin"], "departmentHead": ["finance"] },
     "canUpdateVendorOperational": { "roles": ["super_admin"], "departmentHead": ["finance", "operations"] },

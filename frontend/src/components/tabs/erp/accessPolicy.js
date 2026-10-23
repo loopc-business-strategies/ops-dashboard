@@ -57,6 +57,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canCreateTransaction: ['transactions', 'vouchers'],
   canAccessTransactions: ['transactions'],
   canAccessReports: ['reports', 'period-closing'],
+  canAccessActivityLog: ['activity-log'],
   canAccessVendors: ['vendors', 'supplier-margin'],
   canManageVendors: ['vendors'],
   canUpdateVendorOperational: ['vendors'],
@@ -173,6 +174,7 @@ export function deriveErpAccessPolicy(user) {
   const canExportAccountSummary = evaluateErpPermission(user, 'canExportAccountSummary')
   const canAccessTransactions = evaluateErpPermission(user, 'canAccessTransactions')
   const canAccessReports = evaluateErpPermission(user, 'canAccessReports')
+  const canAccessActivityLog = evaluateErpPermission(user, 'canAccessActivityLog')
   const canAccessVendors = evaluateErpPermission(user, 'canAccessVendors')
   const canManageVendors = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageVendors'))
   const canUpdateVendorOperational = applyManagementReadOnly(user, evaluateErpPermission(user, 'canUpdateVendorOperational'))
@@ -210,6 +212,7 @@ export function deriveErpAccessPolicy(user) {
     canExportAccountSummary,
     canAccessTransactions,
     canAccessReports,
+    canAccessActivityLog,
     canAccessVendors,
     canManageVendors,
     canUpdateVendorOperational,

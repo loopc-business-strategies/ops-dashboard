@@ -59,6 +59,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canViewLedger: ['ledger', 'period-closing'],
   canCreateTransaction: ['transactions', 'vouchers'],
   canAccessReports: ['reports', 'period-closing'],
+  canAccessActivityLog: ['activity-log'],
   canAccessVendors: ['vendors', 'supplier-margin'],
   canManageVendors: ['vendors'],
   canUpdateVendorOperational: ['vendors'],
@@ -269,6 +270,10 @@ function canAccessReports(user) {
   return evaluateErpPermission(user, 'canAccessReports')
 }
 
+function canAccessActivityLog(user) {
+  return evaluateErpPermission(user, 'canAccessActivityLog')
+}
+
 function canAccessVendors(user) {
   return evaluateErpPermission(user, 'canAccessVendors')
 }
@@ -370,6 +375,7 @@ function deriveErpAccessPolicy(user) {
     canExportAccountSummary: evaluateErpPermission(user, 'canExportAccountSummary'),
     canAccessTransactions: canAccessTransactionsValue,
     canAccessReports: canAccessReports(user),
+    canAccessActivityLog: canAccessActivityLog(user),
     canAccessVendors: canAccessVendors(user),
     canManageVendors: canManageVendors(user),
     canUpdateVendorOperational: canUpdateVendorOperational(user),
@@ -413,6 +419,7 @@ module.exports = {
   canCreateTransaction,
   canCreateTransactionFor,
   canAccessReports,
+  canAccessActivityLog,
   canAccessVendors,
   canManageVendors,
   canUpdateVendorOperational,
