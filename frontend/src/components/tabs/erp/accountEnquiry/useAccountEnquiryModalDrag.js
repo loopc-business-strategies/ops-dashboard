@@ -19,6 +19,8 @@ export function useAccountEnquiryModalDrag(showEnquiryModal) {
 
   const beginEnquiryModalDrag = (event) => {
     if (event.button !== 0) return
+    // Close / action controls live in the drag header — do not start a drag from them.
+    if (event.target?.closest?.('button, a, input, select, textarea, label, [role="button"]')) return
     event.preventDefault()
     setEnquiryModalDrag({
       active: true,

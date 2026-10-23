@@ -6,6 +6,8 @@ export function buildErpTabModalProps(scope) {
     colors: scope.C,
     showEnquiryModal: scope.showEnquiryModal,
     setShowEnquiryModal: scope.setShowEnquiryModal,
+    syncEnquiryUrl: scope.syncEnquiryUrl,
+    lastEnquiryDeepLinkKeyRef: scope.lastEnquiryDeepLinkKeyRef,
     enquiryBackdropColor: scope.enquiryBackdropColor,
     enquiryModalOffset: scope.enquiryModalOffset,
     enquiryModalDrag: scope.enquiryModalDrag,

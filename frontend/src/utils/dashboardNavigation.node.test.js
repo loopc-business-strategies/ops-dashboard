@@ -106,6 +106,19 @@ describe('dashboardNavigation', () => {
     expect(params.get('view')).toBeNull()
   })
 
+  test('buildDashboardSearchParams clears account when closing Account Summary modal', () => {
+    const params = buildDashboardSearchParams({
+      activeTab: 'erp',
+      erpSubTab: 'enquiry',
+      enquiryAccount: null,
+      enquiryView: null,
+      preserveFrom: '?tab=erp-enquiry&account=1000&view=statement',
+    })
+    expect(params.get('tab')).toBe('erp-enquiry')
+    expect(params.get('account')).toBeNull()
+    expect(params.get('view')).toBeNull()
+  })
+
   test('buildDashboardHref preserves enquiry account for sidebar open-in-new-tab', () => {
     const href = buildDashboardHref({
       tabId: 'erp',
