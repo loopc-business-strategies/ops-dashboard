@@ -1,6 +1,7 @@
 import { accountsApi } from './erp-accounting/accounts'
 import { accountingPeriodsApi } from './erp-accounting/accountingPeriods'
 import { accountingControlsApi } from './erp-accounting/accountingControls'
+import { activityLogsApi } from './erp-accounting/activityLogs'
 import { currenciesApi } from './erp-accounting/currencies'
 import { customersApi } from './erp-accounting/customers'
 import { directDealsApi } from './erp-accounting/directDeals'
@@ -15,6 +16,7 @@ const erpAccountingAPI = {
   ...accountsApi,
   ...accountingPeriodsApi,
   ...accountingControlsApi,
+  ...activityLogsApi,
   ...customersApi,
   ...ledgerApi,
   ...mappingsApi,

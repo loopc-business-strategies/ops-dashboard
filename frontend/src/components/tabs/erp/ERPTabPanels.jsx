@@ -29,6 +29,7 @@ const loadErpLedgerTab = () => import('./tabs/ERPLedgerTab')
 const loadErpPeriodClosingTab = () => import('./tabs/ERPPeriodClosingTab')
 const loadErpTransactionsTab = () => import('./tabs/ERPTransactionsTab')
 const loadErpReportsTab = () => import('./tabs/ERPReportsTab')
+const loadErpActivityLogTab = () => import('./tabs/ERPActivityLogTab')
 const loadErpFixingRegisterTab = () => import('./tabs/ERPFixingRegisterTab')
 const loadErpCustomersTab = () => import('./tabs/ERPCustomersTab')
 const loadErpCustomerMarginTab = () => import('./tabs/ERPCustomerMarginTab')
@@ -48,6 +49,7 @@ const ERPLedgerTab = lazy(loadErpLedgerTab)
 const ERPPeriodClosingTab = lazy(loadErpPeriodClosingTab)
 const ERPTransactionsTab = lazy(loadErpTransactionsTab)
 const ERPReportsTab = lazy(loadErpReportsTab)
+const ERPActivityLogTab = lazy(loadErpActivityLogTab)
 const ERPFixingRegisterTab = lazy(loadErpFixingRegisterTab)
 const ERPCustomersTab = lazy(loadErpCustomersTab)
 const ERPCustomerMarginTab = lazy(loadErpCustomerMarginTab)
@@ -63,6 +65,7 @@ const ERP_MENU_CHUNK_LOADERS = [
   importVoucherTab,
   loadErpLedgerTab,
   loadErpReportsTab,
+  loadErpActivityLogTab,
   loadErpTransactionsTab,
   loadErpCustomersTab,
   loadErpVendorsTab,
@@ -918,6 +921,13 @@ export default function ERPTabPanels({
         transactionPageCount={transactionPageCount}
         loading={transactionsLoading}
           />
+        </Suspense>
+      </div>
+      )}
+      {keepTab('activity-log') && (
+      <div style={activeTab === 'activity-log' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'activity-log'}>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPActivityLogTab C={C} />
         </Suspense>
       </div>
       )}

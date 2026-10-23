@@ -79,6 +79,7 @@ const ERP_PERMISSION_ROWS = [
   { id: 'ledger', label: 'Ledger', icon: '📒' },
   { id: 'transactions', label: 'Transactions', icon: '🔄' },
   { id: 'reports', label: 'Reports', icon: '📋' },
+  { id: 'activity-log', label: 'Activity Log', icon: '📜' },
   { id: 'vendors', label: 'Vendors', icon: '🏢' },
   { id: 'inventory', label: 'Inventory', icon: '📦' },
   { id: 'vouchers', label: 'Vouchers', icon: '🧾' },

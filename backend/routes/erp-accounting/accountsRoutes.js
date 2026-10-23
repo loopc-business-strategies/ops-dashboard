@@ -1,4 +1,5 @@
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
+const { auditLog } = require('../../middleware/audit')
 
 const mongoose = require('mongoose')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
@@ -1290,6 +1291,14 @@ router.post('/accounts', protect, validateBody(accountCreateSchema), async (req,
         ? Number(marginPercent)
         : 0,
       createdBy: req.user._id,
+    })
+    await auditLog(req, {
+      resource: 'ChartOfAccount',
+      resourceId: account._id,
+      action: 'create',
+      detail: `Created account ${account.accountCode} — ${account.accountName}`,
+      module: 'account',
+      documentNo: account.accountCode,
     })
     res.status(201).json({ success: true, account })
   } catch (e) {

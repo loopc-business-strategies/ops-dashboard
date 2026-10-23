@@ -99,6 +99,7 @@ const { createAccountingPeriodLockService } = require('../services/erpAccounting
 const AccountingPeriod = require('../models/AccountingPeriod')
 const { registerAccountingPeriodRoutes } = require('./erp-accounting/accountingPeriodRoutes')
 const { registerAccountingControlsRoutes } = require('./erp-accounting/accountingControlsRoutes')
+const { registerActivityLogRoutes } = require('./erp-accounting/activityLogRoutes')
 const {
   populateTransactionListQuery,
   populateTransactionQuery,
@@ -493,6 +494,11 @@ function registerErpAccountingRoutes(router) {
     ChartOfAccount,
     BASE_CURRENCY_CODE,
     assertAccountingPeriodOpen,
+  })
+
+  registerActivityLogRoutes({
+    router,
+    canAccessReports,
   })
 
   registerAccountingPeriodRoutes({

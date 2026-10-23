@@ -156,6 +156,7 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'erp-period-closing', label: t('erpPeriodClosing'), group: 'erp', erpSub: 'period-closing', show: Boolean(branding?.featureFlags?.accountingPeriodClosing) && canShowErpSubTab('period-closing') },
     { id: 'erp-transactions', label: t('erpTransactions'), group: 'erp', erpSub: 'transactions', show: canShowErpSubTab('transactions') },
     { id: 'erp-reports', label: t('erpReports'), group: 'erp', erpSub: 'reports', show: canShowErpSubTab('reports') },
+    { id: 'erp-activity-log', label: t('erpActivityLog'), group: 'erp', erpSub: 'activity-log', show: canShowErpSubTab('activity-log') },
     { id: 'erp-vendors', label: t('erpVendors'), group: 'erp', erpSub: 'vendors', show: canShowErpSubTab('vendors') },
     { id: 'erp-inventory', label: t('erpInventory'), group: 'erp', erpSub: 'inventory', show: canShowErpSubTab('inventory') },
     { id: 'erp-vouchers', label: t('erpVouchers'), group: 'erp', erpSub: 'vouchers', show: canShowErpSubTab('vouchers') },
