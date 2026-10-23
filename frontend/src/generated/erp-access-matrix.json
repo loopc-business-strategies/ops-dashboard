@@ -128,6 +128,14 @@
         "finance"
       ]
     },
+    "canAccessActivityLog": {
+      "roles": [
+        "super_admin"
+      ],
+      "departmentHead": [
+        "finance"
+      ]
+    },
     "canAccessVendors": {
       "roles": [
         "super_admin"
