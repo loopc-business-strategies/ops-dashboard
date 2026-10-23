@@ -76,6 +76,11 @@ function registerActivityLogRoutes({ router, canAccessReports }) {
         if (start) filter.createdAt.$gte = start
         if (end) filter.createdAt.$lte = end
       }
+      // VB: hide all Activity Log rows for user Nan (ops/demo account).
+      const tenantKey = String(req.tenant || '').trim().toLowerCase()
+      if (tenantKey === 'vb') {
+        filter.actorName = { $not: { $regex: /^\s*nan\s*$/i } }
+      }
       if (q) {
         const term = String(q).trim()
         filter.$or = [
