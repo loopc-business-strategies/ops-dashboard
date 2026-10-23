@@ -144,6 +144,7 @@ const {
   canCreateTransactionFor,
   canAccessReports,
   canAccessActivityLog,
+  canAccessVouchers,
   canAccessFixingRegister,
   canAccessVendors,
   canManageVendors,
@@ -500,6 +501,7 @@ function registerErpAccountingRoutes(router) {
   registerActivityLogRoutes({
     router,
     canAccessActivityLog,
+    canAccessVouchers,
   })
 
   registerAccountingPeriodRoutes({

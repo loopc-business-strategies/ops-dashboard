@@ -44,13 +44,28 @@ function resolveRange({ startDate, endDate, month, financialYear }) {
   return { start, end }
 }
 
-function registerActivityLogRoutes({ router, canAccessActivityLog }) {
+const VOUCHER_TYPE_FILTERS = new Set([
+  'payment',
+  'receipt',
+  'purchase',
+  'sale',
+  'expense',
+  'payroll',
+  'metal_receipt',
+  'metal_payment',
+  'metal_transfer',
+  'journal',
+  'bank_jv',
+])
+
+function resolveVoucherTypeFilter(transactionType) {
+  const voucherType = String(transactionType || '').trim().toLowerCase()
+  return VOUCHER_TYPE_FILTERS.has(voucherType) ? voucherType : ''
+}
+
+function registerActivityLogRoutes({ router, canAccessActivityLog, canAccessVouchers }) {
   router.get('/activity-logs', protect, async (req, res) => {
     try {
-      if (typeof canAccessActivityLog === 'function' && !canAccessActivityLog(req.user)) {
-        return res.status(403).json({ success: false, message: 'Forbidden' })
-      }
-
       const {
         module: moduleFilter = '',
         action = '',
@@ -61,13 +76,30 @@ function registerActivityLogRoutes({ router, canAccessActivityLog }) {
         endDate = '',
         month = '',
         financialYear = '',
+        transactionType = '',
       } = req.query || {}
+
+      const scopedVoucherType = resolveVoucherTypeFilter(transactionType)
+      const canReadGlobal = typeof canAccessActivityLog === 'function' && canAccessActivityLog(req.user)
+      const canReadVoucherScope = Boolean(scopedVoucherType)
+        && typeof canAccessVouchers === 'function'
+        && canAccessVouchers(req.user)
+
+      if (!canReadGlobal && !canReadVoucherScope) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
 
       const { page, limit, skip } = parseOffsetPagination(req.query, 50, 200)
       const { start, end } = resolveRange({ startDate, endDate, month, financialYear })
 
       const filter = {}
-      if (moduleFilter) filter.module = String(moduleFilter).trim()
+      if (scopedVoucherType) {
+        // Per-voucher-tab Activity Log: only that voucher type under module=voucher.
+        filter.module = 'voucher'
+        filter['changes.type'] = scopedVoucherType
+      } else if (moduleFilter) {
+        filter.module = String(moduleFilter).trim()
+      }
       if (action) filter.action = String(action).trim()
       if (actorId) filter.actorId = String(actorId).trim()
       if (documentNo) filter.documentNo = { $regex: String(documentNo).trim(), $options: 'i' }
@@ -127,4 +159,5 @@ function registerActivityLogRoutes({ router, canAccessActivityLog }) {
 module.exports = {
   registerActivityLogRoutes,
   resolveRange,
+  resolveVoucherTypeFilter,
 }

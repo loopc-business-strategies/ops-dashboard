@@ -1,5 +1,18 @@
 const { describe, expect, test } = require('@jest/globals')
-const { resolveRange } = require('./activityLogRoutes')
+const { resolveRange, resolveVoucherTypeFilter } = require('./activityLogRoutes')
+
+describe('activityLogRoutes.resolveVoucherTypeFilter', () => {
+  test('accepts known voucher types', () => {
+    expect(resolveVoucherTypeFilter('payment')).toBe('payment')
+    expect(resolveVoucherTypeFilter('Receipt')).toBe('receipt')
+    expect(resolveVoucherTypeFilter('metal_transfer')).toBe('metal_transfer')
+  })
+
+  test('rejects unknown types', () => {
+    expect(resolveVoucherTypeFilter('')).toBe('')
+    expect(resolveVoucherTypeFilter('not-a-type')).toBe('')
+  })
+})
 
 describe('activityLogRoutes.resolveRange', () => {
   test('uses financial year when provided', () => {
