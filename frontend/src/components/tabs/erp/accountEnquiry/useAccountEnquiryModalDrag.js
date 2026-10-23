@@ -17,6 +17,7 @@ export function useAccountEnquiryModalDrag(showEnquiryModal) {
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open: showEnquiryModal,
+    persistKey: 'erp-account-enquiry',
     defaultWidth: 1100,
     defaultHeightRatio: 0.9,
     minWidth: 640,

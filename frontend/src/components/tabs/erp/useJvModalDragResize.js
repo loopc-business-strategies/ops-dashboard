@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
+import {
+  resolveFloatingModalOpenSize,
+  writePersistedFloatingModalSize,
+} from './useFloatingModalChrome'
 
 /** JV modal drag + resize while the ledger voucher form is open. */
 export function useJvModalDragResize({
@@ -12,8 +16,15 @@ export function useJvModalDragResize({
   jvModalSize,
   setJvModalSize,
   jvModalDefaultSize,
+  persistKey = '',
+  minWidth = 860,
+  minHeight = 500,
 }) {
   const suppressBackdropCloseRef = useRef(false)
+  const sizeRef = useRef(jvModalSize)
+  sizeRef.current = jvModalSize
+  const persistKeyRef = useRef(persistKey)
+  persistKeyRef.current = persistKey
 
   const finishInteraction = useCallback((setActive) => {
     suppressBackdropCloseRef.current = true
@@ -63,13 +74,32 @@ export function useJvModalDragResize({
         return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
       })
       setJvModalResize((prev) => {
-        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startW === jvModalDefaultSize.width && prev.startH === jvModalDefaultSize.height) return prev
-        return { active: false, pointerX: 0, pointerY: 0, startW: jvModalDefaultSize.width, startH: jvModalDefaultSize.height }
+        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0) return prev
+        return {
+          active: false,
+          pointerX: 0,
+          pointerY: 0,
+          startW: sizeRef.current.width,
+          startH: sizeRef.current.height,
+        }
       })
-      setJvModalSize((prev) => (prev.width === jvModalDefaultSize.width && prev.height === jvModalDefaultSize.height ? prev : jvModalDefaultSize))
       return undefined
     }
-    if (!jvModalDrag.active) return undefined
+    setJvModalSize((prev) => {
+      const next = resolveFloatingModalOpenSize({
+        persistKey: persistKeyRef.current,
+        getDefaultSize: () => jvModalDefaultSize,
+        minWidth,
+        minHeight,
+      })
+      if (prev.width === next.width && prev.height === next.height) return prev
+      return next
+    })
+    return undefined
+  }, [showLedgerForm, jvModalDefaultSize, minWidth, minHeight, setJvModalDrag, setJvModalOffset, setJvModalResize, setJvModalSize])
+
+  useEffect(() => {
+    if (!showLedgerForm || !jvModalDrag.active) return undefined
     const onMouseMove = (event) => {
       setJvModalOffset({
         x: jvModalDrag.startX + (event.clientX - jvModalDrag.pointerX),
@@ -87,16 +117,20 @@ export function useJvModalDragResize({
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [showLedgerForm, jvModalDrag, jvModalDefaultSize, setJvModalDrag, setJvModalOffset, setJvModalResize, setJvModalSize, finishInteraction])
+  }, [showLedgerForm, jvModalDrag, setJvModalDrag, setJvModalOffset, finishInteraction])
 
   useEffect(() => {
     if (!showLedgerForm || !jvModalResize.active) return undefined
     const onMouseMove = (event) => {
-      const nextWidth = Math.max(860, Math.min(window.innerWidth - 24, jvModalResize.startW + (event.clientX - jvModalResize.pointerX)))
-      const nextHeight = Math.max(500, Math.min(window.innerHeight - 24, jvModalResize.startH + (event.clientY - jvModalResize.pointerY)))
-      setJvModalSize({ width: nextWidth, height: nextHeight })
+      const next = {
+        width: Math.max(minWidth, Math.min(window.innerWidth - 24, jvModalResize.startW + (event.clientX - jvModalResize.pointerX))),
+        height: Math.max(minHeight, Math.min(window.innerHeight - 24, jvModalResize.startH + (event.clientY - jvModalResize.pointerY))),
+      }
+      sizeRef.current = next
+      setJvModalSize(next)
     }
     const onMouseUp = () => {
+      writePersistedFloatingModalSize(persistKeyRef.current, sizeRef.current)
       finishInteraction(() => {
         setJvModalResize((prev) => ({ ...prev, active: false }))
       })
@@ -107,7 +141,7 @@ export function useJvModalDragResize({
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [showLedgerForm, jvModalResize, setJvModalResize, setJvModalSize, finishInteraction])
+  }, [showLedgerForm, jvModalResize, minWidth, minHeight, setJvModalResize, setJvModalSize, finishInteraction])
 
   return { beginJvModalDrag, beginJvModalResize, canCloseOnBackdropClick }
 }

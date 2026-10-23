@@ -62,6 +62,7 @@ export default function ExpenseDashboardModal({ dashboard, token, onClose, onOpe
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open: true,
+    persistKey: 'erp-expense-dashboard',
     defaultWidth: 1120,
     defaultHeightRatio: 0.88,
     minWidth: 720,

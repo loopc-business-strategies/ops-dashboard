@@ -16,6 +16,7 @@ export default function ErpMappingTestModal({ open, testMapping, colors, onClose
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open: Boolean(open && testMapping),
+    persistKey: 'erp-mapping-test',
     defaultWidth: 540,
     defaultHeightRatio: 0.7,
     minWidth: 360,

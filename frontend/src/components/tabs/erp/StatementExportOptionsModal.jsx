@@ -19,6 +19,7 @@ export default function StatementExportOptionsModal({ open, onClose, onPrint, on
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open,
+    persistKey: 'erp-statement-export',
     defaultWidth: 420,
     defaultHeightRatio: 0.28,
     minWidth: 320,

@@ -41,6 +41,7 @@ export default function ErpEditRecordModal({
     canCloseOnBackdropClick,
   } = useFloatingModalChrome({
     open,
+    persistKey: `erp-edit-${String(editState?.type || 'record')}`,
     defaultWidth: 540,
     defaultHeightRatio: 0.75,
     minWidth: 360,

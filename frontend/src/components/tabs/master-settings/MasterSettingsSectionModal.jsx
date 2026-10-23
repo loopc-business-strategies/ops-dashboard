@@ -18,7 +18,11 @@ function MasterSettingsSectionModal({
     beginDrag,
     beginResize,
     canCloseOnBackdropClick,
-  } = useMasterSettingsModalChrome({ open, wide })
+  } = useMasterSettingsModalChrome({
+    open,
+    wide,
+    persistKey: title ? `master-settings:${String(title).trim()}` : 'master-settings',
+  })
 
   useEffect(() => {
     if (!open) return undefined
