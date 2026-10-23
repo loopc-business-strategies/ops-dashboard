@@ -44,10 +44,10 @@ function resolveRange({ startDate, endDate, month, financialYear }) {
   return { start, end }
 }
 
-function registerActivityLogRoutes({ router, canAccessReports }) {
+function registerActivityLogRoutes({ router, canAccessActivityLog }) {
   router.get('/activity-logs', protect, async (req, res) => {
     try {
-      if (typeof canAccessReports === 'function' && !canAccessReports(req.user)) {
+      if (typeof canAccessActivityLog === 'function' && !canAccessActivityLog(req.user)) {
         return res.status(403).json({ success: false, message: 'Forbidden' })
       }
 

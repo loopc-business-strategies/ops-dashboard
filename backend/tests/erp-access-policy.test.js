@@ -22,6 +22,7 @@ const {
   canViewAccountSummary,
   canViewCustomers,
   canAccessReports,
+  canAccessActivityLog,
   canAccessInventory,
   canAccessDirectDeals,
   canAccessErpSettings,
@@ -184,9 +185,37 @@ describe('ERP accounting access policy', () => {
     }
 
     expect(canAccessReports(user)).toBe(true)
+    expect(canAccessActivityLog(user)).toBe(false)
     expect(canViewAccounts(user)).toBe(false)
     expect(canReadErpDashboardReport(user)).toBe(true)
     expect(canReadErpReferenceData(user)).toBe(true)
+  })
+
+  test('activity-log permission is independent of reports', () => {
+    const user = {
+      role: 'department_user',
+      department: 'finance',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            'activity-log': { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canAccessActivityLog(user)).toBe(true)
+    expect(canAccessReports(user)).toBe(false)
+  })
+
+  test('finance department head can access activity log via matrix', () => {
+    const user = {
+      role: 'department_head',
+      department: 'finance',
+    }
+
+    expect(canAccessActivityLog(user)).toBe(true)
   })
 
   test('fixing register permission grants operational reads without full tabs', () => {
