@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
+import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE, ACCOUNT_SUMMARY_CHROME as AS } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { resolveExposureDirection } from '../statementHelpers'
 import { buildStatementNarration } from '../statementExportModel'
@@ -159,13 +159,13 @@ export default function AccountEnquiryModal({
             {/* Header - Dark Green Bar */}
             <div
               onMouseDown={beginEnquiryModalDrag}
-              style={{ background: '#3F4B2E', color: '#FFFFFF', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: enquiryModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
+              style={{ background: AS.headerBg, color: AS.headerFg, padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: enquiryModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>Account Details — Statement of Account</span>
                 {enquiryLoading && <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>(Loading…)</span>}
               </div>
-              <button onClick={() => onClose()} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer', fontSize: '20px', padding: '0', lineHeight: 1 }}>✕</button>
+              <button onClick={() => onClose()} style={{ background: 'transparent', border: 'none', color: AS.headerFg, cursor: 'pointer', fontSize: '20px', padding: '0', lineHeight: 1 }}>✕</button>
             </div>
             {/* Scrollable Content Area */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '1.2rem 1.5rem' }}>
@@ -190,10 +190,10 @@ export default function AccountEnquiryModal({
                       style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '100%', borderRadius: '0.5rem', background: '#FFFFFF' }}
                     />
                     {showEnquiryLookupMenu && filteredGroupedSummaryAccounts.length > 0 && (
-                      <div style={{ position: 'absolute', top: 'calc(100% + 0.35rem)', left: 0, right: 0, zIndex: 5, border: '1px solid #D6D3C4', borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '260px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)' }}>
+                      <div style={{ position: 'absolute', top: 'calc(100% + 0.35rem)', left: 0, right: 0, zIndex: 5, border: `1px solid ${AS.lookupBorder}`, borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '260px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)' }}>
                         {filteredGroupedSummaryAccounts.map((group) => (
                           <div key={group.type}>
-                            <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: '#F5F7F0', borderBottom: '1px solid #E5E7EB', color: '#3F4B2E', fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                            <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: AS.lookupGroupBg, borderBottom: '1px solid #E5E7EB', color: AS.lookupGroupFg, fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                               {group.type}
                             </div>
                             {group.accounts.map((account) => (
@@ -230,8 +230,8 @@ export default function AccountEnquiryModal({
                     style={{
                       ...linkButtonStyle,
                       padding: '0.6rem 1.2rem',
-                      background: 'var(--purple)',
-                      color: '#fff',
+                      background: AS.ctaBg,
+                      color: AS.ctaFg,
                       border: 'none',
                       borderRadius: '0.5rem',
                       cursor: enquiryLoading ? 'not-allowed' : 'pointer',
@@ -258,7 +258,7 @@ export default function AccountEnquiryModal({
                     {/* LEFT COLUMN - Account Details Box with Position Table */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
                       {/* Account Details Panel */}
-                      <div style={{ border: '2px solid #3F4B2E', borderRadius: '0.6rem', background: '#F5F7F0', padding: '1rem', position: 'relative' }}>
+                      <div style={{ border: `2px solid ${AS.cardBorder}`, borderRadius: '0.6rem', background: AS.cardBg, padding: '1rem', position: 'relative' }}>
                         <div style={{ borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
                           <h3 style={{ margin: '0 0 0.4rem', color: '#111827', fontWeight: '800', fontSize: '1.1rem' }}>{accountEnquiryData.account.accountName || 'Account'}</h3>
                           <p style={{ margin: 0, color: '#6B7280', fontSize: '0.9rem', lineHeight: '1.4' }}>{accountEnquiryData.account.description || accountEnquiryData.account.accountName}</p>
@@ -312,14 +312,14 @@ export default function AccountEnquiryModal({
                       </div>
                       {/* Metal position (grams) + unfixed activity */}
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
-                        <div style={{ background: '#3F4B2E', padding: '0.7rem 1rem', borderBottom: '1px solid #2D3620' }}>
-                          <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
-                          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed trades, direct deals, and metal transfers)</span>
+                        <div style={{ background: AS.headerBg, padding: '0.7rem 1rem', borderBottom: `1px solid ${AS.headerEdge}` }}>
+                          <span style={{ color: AS.headerFg, fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
+                          <span style={{ color: AS.headerFg, opacity: 0.82, fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed trades, direct deals, and metal transfers)</span>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead>
-                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                              <tr style={{ background: AS.tableHeadBg, borderBottom: `2px solid ${AS.softPanelBorder}` }}>
                                 <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Type</th>
                                 <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Limits</th>
                                 <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Balance</th>
@@ -356,7 +356,7 @@ export default function AccountEnquiryModal({
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead>
-                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                              <tr style={{ background: AS.tableHeadBg, borderBottom: `2px solid ${AS.softPanelBorder}` }}>
                                 <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Date</th>
                                 <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Voucher</th>
                                 <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Deal</th>
@@ -525,7 +525,7 @@ export default function AccountEnquiryModal({
                   </div>
                   {/* Full Statement Table */}
                   <div style={{ marginTop: '1.25rem', border: '1px solid #CBD5E0', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
-                    <div style={{ padding: '0.85rem 1rem', background: '#F5F7F0', borderBottom: '1px solid #D1D5DB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div style={{ padding: '0.85rem 1rem', background: AS.softPanelBg, borderBottom: `1px solid ${AS.softPanelBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                       <div>
                         <p style={{ margin: 0, fontSize: '0.95rem', color: '#111827', fontWeight: '800' }}>Full Statement of Account</p>
                         <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#6B7280' }}>{filteredStatementEntries.length} entries shown</p>
@@ -718,7 +718,7 @@ export default function AccountEnquiryModal({
                     <div ref={setStatementScrollRef} tabIndex={-1} style={{ overflow: 'auto', maxHeight: statementVirtEnabled ? 480 : undefined }} data-statement-table="true">
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                         <thead>
-                          <tr style={{ background: '#E8EBE0', borderBottom: '1px solid #CBD5E0' }}>
+                          <tr style={{ background: AS.tableHeadBg, borderBottom: `1px solid ${AS.softPanelBorder}` }}>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Date</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Receipt No</th>
                             {showStatementAuditIds && <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Transaction ID</th>}
@@ -728,7 +728,7 @@ export default function AccountEnquiryModal({
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In {statementDisplayCurrency}</th>
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
                           </tr>
-                          <tr style={{ background: '#EEF1E8', borderBottom: '2px solid #CBD5E0' }}>
+                          <tr style={{ background: AS.tableSubHeadBg, borderBottom: `2px solid ${AS.softPanelBorder}` }}>
                             <th colSpan={showStatementAuditIds ? 6 : 5} style={{ padding: 0, border: 0 }} />
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
@@ -832,8 +832,8 @@ export default function AccountEnquiryModal({
                     style={{
                       ...linkButtonStyle,
                       padding: '0.6rem 1.2rem',
-                      background: 'var(--brand-button-bg, var(--brand-primary))',
-                      color: '#fff',
+                      background: AS.ctaBg,
+                      color: AS.ctaFg,
                       border: 'none',
                       borderRadius: '0.5rem',
                       fontSize: '0.95rem',
@@ -843,7 +843,7 @@ export default function AccountEnquiryModal({
                   >
                     👁 View Statement
                   </a>
-                  <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
+                  <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: AS.ctaBg, color: AS.ctaFg, border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
                 </>
               )}
               <button onClick={() => onClose()} style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Close</button>

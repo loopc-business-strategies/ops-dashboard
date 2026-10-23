@@ -1,5 +1,5 @@
 import { ERPEnquiryTabContainer } from '../ERPTabContainers'
-import { ERP_EMPTY_CARD_STYLE } from '../erpTabPresentation'
+import { ERP_EMPTY_CARD_STYLE, ACCOUNT_SUMMARY_CHROME as AS } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 
 const linkButtonStyle = { textDecoration: 'none', display: 'inline-block' }
@@ -42,9 +42,9 @@ export default function ERPEnquiryTab({
               ) : (
                 <>
                   <div style={{ marginBottom: '1rem' }}>
-                    <form onSubmit={handleAccountEnquiry} style={{ background: '#FAFAF7', border: '1px solid #D6D3C4', borderRadius: '0.75rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)' }}>
+                    <form onSubmit={handleAccountEnquiry} style={{ background: AS.lookupSurfaceBg, border: `1px solid ${AS.lookupBorder}`, borderRadius: '0.75rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                        <p style={{ margin: 0, color: '#3F4B2E', fontWeight: '800', letterSpacing: '0.02em' }}>Account Lookup</p>
+                        <p style={{ margin: 0, color: AS.lookupTitle, fontWeight: '800', letterSpacing: '0.02em' }}>Account Lookup</p>
                         <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Type account code</span>
                       </div>
                       <input
@@ -54,13 +54,13 @@ export default function ERPEnquiryTab({
                           setAccountEnquiryCode(e.target.value)
                           setEnquiryStatus({ type: '', message: '' })
                         }}
-                        style={{ display: 'block', width: '100%', padding: '0.7rem 0.8rem', marginBottom: '0.75rem', background: '#FFFFFF', border: '1px solid #B8BEA0', color: C.ink, borderRadius: '0.5rem' }}
+                        style={{ display: 'block', width: '100%', padding: '0.7rem 0.8rem', marginBottom: '0.75rem', background: '#FFFFFF', border: `1px solid ${AS.inputBorder}`, color: C.ink, borderRadius: '0.5rem' }}
                       />
                       {filteredGroupedSummaryAccounts.length > 0 && (
-                        <div style={{ marginTop: '-0.35rem', marginBottom: '0.75rem', border: '1px solid #D6D3C4', borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '300px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)' }}>
+                        <div style={{ marginTop: '-0.35rem', marginBottom: '0.75rem', border: `1px solid ${AS.lookupBorder}`, borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '300px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)' }}>
                           {filteredGroupedSummaryAccounts.map((group) => (
                             <div key={group.type}>
-                              <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: '#F5F7F0', borderBottom: '1px solid #E5E7EB', color: '#3F4B2E', fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                              <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: AS.lookupGroupBg, borderBottom: '1px solid #E5E7EB', color: AS.lookupGroupFg, fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                                 {group.type}
                               </div>
                               {group.accounts.map((account) => (
@@ -100,8 +100,8 @@ export default function ERPEnquiryTab({
                           style={{
                             ...linkButtonStyle,
                             padding: '0.6rem 1rem',
-                            background: 'var(--purple)',
-                            color: '#FFFFFF',
+                            background: AS.ctaBg,
+                            color: AS.ctaFg,
                             border: 'none',
                             borderRadius: '0.45rem',
                             cursor: enquiryLoading ? 'not-allowed' : 'pointer',
@@ -149,9 +149,9 @@ export default function ERPEnquiryTab({
                                   ...linkButtonStyle,
                                   padding: '0.35rem 0.6rem',
                                   borderRadius: '999px',
-                                  border: '1px solid #C7D2FE',
-                                  background: '#EEF2FF',
-                                  color: '#3730A3',
+                                  border: `1px solid ${AS.lookupBorder}`,
+                                  background: AS.lookupGroupBg,
+                                  color: AS.lookupGroupFg,
                                   cursor: 'pointer',
                                   fontSize: '0.76rem',
                                   fontWeight: '700',
