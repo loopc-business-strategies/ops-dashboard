@@ -28,6 +28,7 @@ export function useErpAccountEnquiryController({
   setShowEnquiryLookupMenu,
   setEnquiryStatus,
   setShowEnquiryModal,
+  showEnquiryModalRef,
   setPendingStatementPreview,
   setStatementFilters,
   setStatementMetalCommodityEnabled,
@@ -199,12 +200,19 @@ export function useErpAccountEnquiryController({
       }
       pushEnquiryHistory(merged.account)
       setError('')
-      lastEnquiryDeepLinkKeyRef.current = deepLinkKey
-      syncEnquiryUrl({
-        account: merged.account.accountCode,
-        view: options.openStatementPreview ? 'statement' : null,
-      })
-      if (options.openStatementPreview) setPendingStatementPreview(true)
+      const modalStillOpen = !shouldOpenModal || showEnquiryModalRef?.current !== false
+      if (!modalStillOpen) {
+        // User closed while loading — keep modal shut and drop deep-link so it cannot reopen.
+        lastEnquiryDeepLinkKeyRef.current = ''
+        syncEnquiryUrl({ account: null, view: null })
+      } else {
+        lastEnquiryDeepLinkKeyRef.current = deepLinkKey
+        syncEnquiryUrl({
+          account: merged.account.accountCode,
+          view: options.openStatementPreview ? 'statement' : null,
+        })
+        if (options.openStatementPreview) setPendingStatementPreview(true)
+      }
       if (!preserveFilters && !cached) showNotification('✅ Account summary loaded')
     } catch (e) {
       if (isAbortError(e) || seq !== enquirySeqRef.current) return
@@ -231,6 +239,7 @@ export function useErpAccountEnquiryController({
     setPendingStatementPreview,
     setShowEnquiryLookupMenu,
     setShowEnquiryModal,
+    showEnquiryModalRef,
     setStatementFilters,
     setStatementMetalCommodityEnabled,
     showNotification,

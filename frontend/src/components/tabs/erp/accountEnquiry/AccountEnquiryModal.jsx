@@ -165,7 +165,29 @@ export default function AccountEnquiryModal({
                 <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>Account Details — Statement of Account</span>
                 {enquiryLoading && <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>(Loading…)</span>}
               </div>
-              <button onClick={() => onClose()} style={{ background: 'transparent', border: 'none', color: AS.headerFg, cursor: 'pointer', fontSize: '20px', padding: '0', lineHeight: 1 }}>✕</button>
+              <button
+                type="button"
+                aria-label="Close account summary"
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onClose()
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: AS.headerFg,
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  lineHeight: 1,
+                  padding: '0.35rem 0.5rem',
+                  margin: '-0.35rem -0.25rem -0.35rem 0',
+                  borderRadius: '0.35rem',
+                  flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
             </div>
             {/* Scrollable Content Area */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '1.2rem 1.5rem' }}>
@@ -846,7 +868,13 @@ export default function AccountEnquiryModal({
                   <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: AS.ctaBg, color: AS.ctaFg, border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
                 </>
               )}
-              <button onClick={() => onClose()} style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Close</button>
+              <button
+                type="button"
+                onClick={() => onClose()}
+                style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

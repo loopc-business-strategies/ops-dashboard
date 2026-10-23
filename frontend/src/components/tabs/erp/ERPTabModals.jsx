@@ -10,6 +10,8 @@ export default function ERPTabModals({
   colors,
   showEnquiryModal,
   setShowEnquiryModal,
+  syncEnquiryUrl,
+  lastEnquiryDeepLinkKeyRef,
   enquiryBackdropColor,
   enquiryModalOffset,
   enquiryModalDrag,
@@ -95,7 +97,11 @@ export default function ERPTabModals({
       />
       <AccountEnquiryModal
         open={showEnquiryModal}
-        onClose={() => setShowEnquiryModal(false)}
+        onClose={() => {
+          setShowEnquiryModal(false)
+          if (lastEnquiryDeepLinkKeyRef) lastEnquiryDeepLinkKeyRef.current = ''
+          if (typeof syncEnquiryUrl === 'function') syncEnquiryUrl({ account: null, view: null })
+        }}
         enquiryBackdropColor={enquiryBackdropColor}
         enquiryModalOffset={enquiryModalOffset}
         enquiryModalDrag={enquiryModalDrag}
