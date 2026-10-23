@@ -689,14 +689,28 @@ router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatch
 
     invalidateErpReadCaches(tenantKey)
 
+    const { buildJournalActivityDetail } = require('../../utils/activityLogDetail')
+    const jvDetail = await buildJournalActivityDetail({
+      mode,
+      documentNo: vocNo,
+      entries: createdEntries,
+      totalAmount,
+      currency: firstEntry?.currency || BASE_CURRENCY_CODE || 'USD',
+    })
     await auditLog(req, {
       resource: 'JournalVoucher',
       resourceId: referenceId,
       action: 'create',
-      detail: `${mode === 'bank_jv' ? 'Bank JV' : 'Journal voucher'} ${vocNo || ''} (${createdEntries.length} lines)`.trim(),
+      detail: jvDetail,
       module: 'journal',
       documentNo: vocNo || String(referenceId),
-      changes: { mode, count: createdEntries.length, replaceCount: replaceEntryIds.length },
+      changes: {
+        mode,
+        count: createdEntries.length,
+        replaceCount: replaceEntryIds.length,
+        amount: totalAmount,
+        currency: firstEntry?.currency || BASE_CURRENCY_CODE || 'USD',
+      },
     })
 
     return res.status(201).json({

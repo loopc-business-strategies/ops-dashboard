@@ -109,7 +109,7 @@ function registerActivityLogRoutes({ router, canAccessReports }) {
           modules: ['auth', 'voucher', 'journal', 'account', 'period'],
           actions: [
             'login', 'logout', 'logout_all',
-            'create', 'update', 'submit', 'approve', 'post', 'void', 'return', 'reject', 'delete',
+            'create', 'update', 'submit', 'post', 'void', 'return', 'reject', 'delete',
           ],
         },
       })

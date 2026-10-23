@@ -25,30 +25,36 @@ function appendTransactionAudit(transaction, user, action, options = {}) {
 
   // Dual-write to tenant AuditLog for ERP Activity Log (non-blocking).
   if (options.req && !options.skipGlobalAudit) {
-    try {
-      const { auditLog } = require('../middleware/audit')
-      const docNo = String(transaction?.voucherMeta?.vocNo || transaction?.reference || transaction?._id || '')
-      const statusTrail = [options.fromStatus, options.toStatus].filter(Boolean).join(' → ')
-      const note = normalizeTransactionNote(options.comment)
-      const detail = note
-        ? `${action}${statusTrail ? ` (${statusTrail})` : ''}: ${note}`
-        : (statusTrail || `${action} ${transaction?.type || 'transaction'}`)
-      void auditLog(options.req, {
-        resource: 'Transaction',
-        resourceId: transaction._id,
-        action,
-        detail,
-        module: 'voucher',
-        documentNo: docNo,
-        changes: {
-          fromStatus: options.fromStatus || '',
-          toStatus: options.toStatus || '',
-          type: transaction?.type || '',
-        },
-      })
-    } catch (err) {
-      console.error('[audit] voucher dual-write failed:', err?.message || err)
-    }
+    void (async () => {
+      try {
+        const { auditLog } = require('../middleware/audit')
+        const { buildVoucherActivityDetail } = require('./activityLogDetail')
+        const docNo = String(transaction?.voucherMeta?.vocNo || transaction?.reference || transaction?._id || '')
+        const detail = await buildVoucherActivityDetail(transaction, action, {
+          comment: options.comment,
+          fromStatus: options.fromStatus,
+          toStatus: options.toStatus,
+        })
+        await auditLog(options.req, {
+          resource: 'Transaction',
+          resourceId: transaction._id,
+          action,
+          detail,
+          module: 'voucher',
+          documentNo: docNo,
+          changes: {
+            fromStatus: options.fromStatus || '',
+            toStatus: options.toStatus || '',
+            type: transaction?.type || '',
+            amount: transaction?.amount,
+            currency: transaction?.currency || '',
+            partyName: transaction?.voucherMeta?.partyName || '',
+          },
+        })
+      } catch (err) {
+        console.error('[audit] voucher dual-write failed:', err?.message || err)
+      }
+    })()
   }
 }
 
