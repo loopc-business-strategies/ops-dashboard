@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import BuildInfoBadge from '../components/BuildInfoBadge'
 import './MgLogin.css'
 
 const rememberKeyFor = (tenant) => {
@@ -103,9 +102,6 @@ export default function TenantLoginShell({
         </div>
 
         <div className="mg-login__panel mg-login__panel--form">
-          <div style={{ position: 'absolute', top: 16, right: 16 }}>
-            <BuildInfoBadge tone="light" className="hidden sm:inline-flex" />
-          </div>
           <form className="mg-login__card" onSubmit={onSubmit} noValidate>
             {branding.logoImage ? (
               <div className="mg-login__form-logo" aria-hidden="true">
