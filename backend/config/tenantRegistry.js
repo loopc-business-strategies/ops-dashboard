@@ -11,7 +11,7 @@ const BUILTIN_CATALOG = {
     mg: {
       key: 'mg',
       displayName: 'MG',
-      tagline: 'MG Business Control System',
+      tagline: 'Business Control System',
       portalHost: 'mg.loopcstrategies.com',
       envVar: 'MONGO_URI_MG',
       sharedInboxEmail: '',
