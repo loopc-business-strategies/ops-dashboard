@@ -345,8 +345,8 @@ const tenantBranding = {
     // Tab icon: M-mark from brand art on a white rounded plate (readable on dark chrome).
     favicon: '/logos/mg-icon-64.png',
     appleTouchIcon: '/logos/mg-icon.png',
-    tagline: 'MG Business Control System',
-    controlSystem: 'MG Business Control System',
+    tagline: 'Business Control System',
+    controlSystem: 'Business Control System',
     phone: '',
     trn: '',
     colors: buildPalette({

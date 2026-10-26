@@ -30,7 +30,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     appName: APP_NAME,
     displayName: 'MG',
     companyName: 'MODERN GOLD JEWELRY MANUFACTURING',
-    tagline: 'MG Business Control System',
+    tagline: 'Business Control System',
     logoText: 'MG',
     portalHost: 'mg.loopcstrategies.com',
     colors: {

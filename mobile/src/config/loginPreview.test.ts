@@ -13,7 +13,7 @@ describe('getLoginPreviewBranding', () => {
     const branding = getLoginPreviewBranding('mg')
     expect(branding?.logoText).toBe('MG')
     expect(branding?.colors.primary).toBe('#EA580C')
-    expect(branding?.tagline).toBe('MG Business Control System')
+    expect(branding?.tagline).toBe('Business Control System')
   })
 
   it('returns CG branding for cg (case-insensitive)', () => {
