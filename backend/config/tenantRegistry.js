@@ -11,7 +11,7 @@ const BUILTIN_CATALOG = {
     mg: {
       key: 'mg',
       displayName: 'MG',
-      tagline: 'Metal Group Operations',
+      tagline: 'MG Business Control System',
       portalHost: 'mg.loopcstrategies.com',
       envVar: 'MONGO_URI_MG',
       sharedInboxEmail: '',
@@ -19,7 +19,7 @@ const BUILTIN_CATALOG = {
     cg: {
       key: 'cg',
       displayName: 'CG',
-      tagline: 'CG Enterprise Suite',
+      tagline: 'Business Control System',
       portalHost: 'cg.loopcstrategies.com',
       envVar: 'MONGO_URI_CG',
       sharedInboxEmail: '',
@@ -27,7 +27,7 @@ const BUILTIN_CATALOG = {
     loopc: {
       key: 'loopc',
       displayName: 'LoopC',
-      tagline: 'Loop C Business Platform',
+      tagline: 'Business Control System',
       portalHost: 'loopc.loopcstrategies.com',
       envVar: 'MONGO_URI_LOOPC',
       sharedInboxEmail: 'business@loopcstrategies.com',
