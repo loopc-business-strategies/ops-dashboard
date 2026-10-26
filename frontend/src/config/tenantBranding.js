@@ -328,8 +328,8 @@ const tenantBranding = {
     logoText: 'MG',
     logoImage: '/logos/mg-logo.png',
     logoUrl: '/logos/mg-logo.png',
-    // Square M-mark crop — wide wordmark is illegible as a browser tab favicon.
-    favicon: '/logos/mg-favicon.png',
+    // Square M-mark on white (matches brand art). Not the wide wordmark.
+    favicon: '/logos/mg-tab-icon.png',
     tagline: 'Metal Group Operations',
     phone: '',
     trn: '',
