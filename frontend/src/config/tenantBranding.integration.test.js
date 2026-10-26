@@ -38,6 +38,7 @@ describe('tenant branding integration', () => {
     expect(vb.displayName).toBe('Venus Bullion')
     expect(vb.controlSystem).toBe('Business Control System')
     expect(vb.favicon).toBe('/logos/vb-logo.png')
+    expect(mg.favicon).toBe('/logos/mg-favicon.png')
     expect(mg.companyName).toBe('MODERN GOLD JEWELRY MANUFACTURING')
     expect(vb.companyName).toBe('Venus Bullion Gold Trading L.L.C')
     expect(vb.address).toMatch(/Al Dhagaya Gold Souq/)
@@ -61,6 +62,30 @@ describe('tenant branding integration', () => {
     expect(isDepartmentsComingSoonEnabled('mg')).toBe(false)
     expect(mg.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
     expect(vb.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
+  })
+
+  test('applyTenantDocumentMeta sets MG title and square favicon mark', () => {
+    document.title = 'Ops Dashboard'
+    let icon = document.querySelector("link[rel='icon']")
+    if (!icon) {
+      icon = document.createElement('link')
+      icon.setAttribute('rel', 'icon')
+      icon.setAttribute('href', '/favicon.svg')
+      icon.setAttribute('type', 'image/svg+xml')
+      document.head.appendChild(icon)
+    } else {
+      icon.setAttribute('href', '/favicon.svg')
+      icon.setAttribute('type', 'image/svg+xml')
+    }
+
+    const restore = applyTenantDocumentMeta(getTenantBranding('mg'))
+    expect(document.title).toBe('MG')
+    const next = document.querySelector("link[rel='icon']")
+    expect(next?.getAttribute('href')).toBe('/logos/mg-favicon.png')
+    expect(next?.getAttribute('type')).toBe('image/png')
+    expect(next?.getAttribute('sizes')).toBe('32x32')
+    expect(document.querySelector("link[rel='apple-touch-icon']")?.getAttribute('href')).toBe('/logos/mg-favicon.png')
+    restore()
   })
 
   test('applyTenantDocumentMeta sets Venus Bullion title and favicon', () => {
