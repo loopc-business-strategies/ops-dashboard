@@ -142,21 +142,10 @@
 /* ─── Reset & Base ──────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/*
- * App density (all tenants share one scale — no per-tenant zoom).
- * Applied to the authenticated shell only — NOT login.
- * 0.95 = recommended. Layout is enlarged by 1/zoom so after CSS zoom the
- * shell still fills the window. html/body/#root clip overflow so that
- * wider-than-viewport layout never creates a horizontal page scrollbar.
- */
-:root {
-  --app-ui-zoom: 0.95;
-}
-
 html, body, #root {
   height: 100%;
   width: 100%;
-  overflow: hidden; /* clip density compensation — no page horizontal scroll */
+  overflow: hidden; /* app shell owns scrolling — no page horizontal bar */
   font-family: var(--font);
   background: var(--bg-base);
   color: var(--text-primary);
@@ -175,13 +164,11 @@ html, body, #root {
 /* ─── App Shell ──────────────────────────────────────── */
 .app-shell {
   display: flex;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--bg-base);
-  zoom: var(--app-ui-zoom);
-  width: calc(100vw / var(--app-ui-zoom));
-  max-width: calc(100vw / var(--app-ui-zoom));
-  height: calc(100dvh / var(--app-ui-zoom));
-  max-height: calc(100dvh / var(--app-ui-zoom));
 }
 .app-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
