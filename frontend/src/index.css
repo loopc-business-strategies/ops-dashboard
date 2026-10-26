@@ -14,6 +14,7 @@ html, body, #root {
   color: #1C2A33;
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
+  /* Density zoom lives in design-system.css (--app-ui-zoom); keep tenants identical. */
 }
 
 @media (max-width: 640px) {

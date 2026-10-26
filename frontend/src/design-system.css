@@ -142,6 +142,20 @@
 /* ─── Reset & Base ──────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/*
+ * Global UI density (all tenants share one scale — no per-tenant zoom).
+ * 0.95 = recommended: a bit more content in view, text stays clear.
+ * (0.92 = more aggressive; 1 = original size.)
+ */
+:root {
+  --app-ui-zoom: 0.95;
+}
+
+html {
+  /* Chromium / Edge: same effect as browser zoom, applied consistently. */
+  zoom: var(--app-ui-zoom);
+}
+
 html, body, #root {
   height: 100%;
   font-family: var(--font);
