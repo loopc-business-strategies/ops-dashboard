@@ -96,13 +96,6 @@
   transform: rotate(180deg);
 }
 
-.mg-login__badge {
-  position: absolute;
-  top: 16px;
-  right: 18px;
-  z-index: 5;
-}
-
 .mg-login__grid {
   position: relative;
   z-index: 1;

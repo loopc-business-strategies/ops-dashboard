@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import BuildInfoBadge from '../components/BuildInfoBadge'
 import './MgLogin.css'
 
 const REMEMBER_KEY = 'mg.login.rememberName'
@@ -156,9 +155,6 @@ export default function MgLoginShell({
   return (
     <div className="mg-login">
       <DecorCurves />
-      <div className="mg-login__badge">
-        <BuildInfoBadge tone="light" className="hidden sm:inline-flex" />
-      </div>
 
       <div className="mg-login__grid">
         <aside className="mg-login__brand">
