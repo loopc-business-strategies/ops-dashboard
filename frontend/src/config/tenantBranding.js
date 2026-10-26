@@ -187,12 +187,20 @@ export function applyTenantDocumentMeta(branding = {}) {
   const faviconHref = String(
     branding.favicon || branding.logoImage || branding.logoUrl || '/favicon.svg',
   ).trim() || '/favicon.svg'
+  const appleHref = String(
+    branding.appleTouchIcon || branding.favicon || branding.logoImage || branding.logoUrl || faviconHref,
+  ).trim() || faviconHref
 
   const prevTitle = document.title
   document.title = title
 
-  const ensureIconLink = (rel) => {
-    let link = document.querySelector(`link[rel='${rel}']`)
+  const ensureIconLink = (rel, { sizes } = {}) => {
+    const selector = sizes
+      ? `link[rel='${rel}'][sizes='${sizes}']`
+      : `link[rel='${rel}']:not([sizes])`
+    let link = document.querySelector(selector) || (
+      sizes ? null : document.querySelector(`link[rel='${rel}']`)
+    )
     const created = !link
     if (!link) {
       link = document.createElement('link')
@@ -209,13 +217,18 @@ export function applyTenantDocumentMeta(branding = {}) {
   const mime = faviconMimeType(faviconHref)
   if (mime) link.setAttribute('type', mime)
   else link.removeAttribute('type')
-  if (mime === 'image/png' || mime === 'image/webp') link.setAttribute('sizes', '32x32')
-  else link.removeAttribute('sizes')
+  if (mime === 'image/png' || mime === 'image/webp') {
+    // Prefer explicit size when the asset is a dedicated tab PNG.
+    const sizeHint = /[-_](\d+)\.png$/i.exec(faviconHref)?.[1]
+    link.setAttribute('sizes', sizeHint ? `${sizeHint}x${sizeHint}` : '64x64')
+  } else {
+    link.removeAttribute('sizes')
+  }
   link.setAttribute('href', faviconHref)
 
   const { link: appleLink, created: appleCreated } = ensureIconLink('apple-touch-icon')
   const prevAppleHref = appleLink.getAttribute('href')
-  appleLink.setAttribute('href', faviconHref)
+  appleLink.setAttribute('href', appleHref)
 
   return () => {
     document.title = prevTitle
@@ -328,8 +341,9 @@ const tenantBranding = {
     logoText: 'MG',
     logoImage: '/logos/mg-logo.png',
     logoUrl: '/logos/mg-logo.png',
-    // Square M-mark on white (matches brand art). Not the wide wordmark.
-    favicon: '/logos/mg-tab-icon.png',
+    // Tab icon: M-mark from brand art on a white rounded plate (readable on dark chrome).
+    favicon: '/logos/mg-icon-64.png',
+    appleTouchIcon: '/logos/mg-icon.png',
     tagline: 'Metal Group Operations',
     phone: '',
     trn: '',
