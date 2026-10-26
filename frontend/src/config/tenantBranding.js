@@ -191,30 +191,51 @@ export function applyTenantDocumentMeta(branding = {}) {
   const prevTitle = document.title
   document.title = title
 
-  let link = document.querySelector("link[rel='icon']")
-  const created = !link
-  if (!link) {
-    link = document.createElement('link')
-    link.setAttribute('rel', 'icon')
-    document.head.appendChild(link)
+  const ensureIconLink = (rel) => {
+    let link = document.querySelector(`link[rel='${rel}']`)
+    const created = !link
+    if (!link) {
+      link = document.createElement('link')
+      link.setAttribute('rel', rel)
+      document.head.appendChild(link)
+    }
+    return { link, created }
   }
+
+  const { link, created } = ensureIconLink('icon')
   const prevHref = link.getAttribute('href')
   const prevType = link.getAttribute('type')
+  const prevSizes = link.getAttribute('sizes')
   const mime = faviconMimeType(faviconHref)
   if (mime) link.setAttribute('type', mime)
   else link.removeAttribute('type')
+  if (mime === 'image/png' || mime === 'image/webp') link.setAttribute('sizes', '32x32')
+  else link.removeAttribute('sizes')
   link.setAttribute('href', faviconHref)
+
+  const { link: appleLink, created: appleCreated } = ensureIconLink('apple-touch-icon')
+  const prevAppleHref = appleLink.getAttribute('href')
+  appleLink.setAttribute('href', faviconHref)
 
   return () => {
     document.title = prevTitle
     if (created) {
       link.remove()
-      return
+    } else {
+      if (prevHref != null) link.setAttribute('href', prevHref)
+      else link.removeAttribute('href')
+      if (prevType) link.setAttribute('type', prevType)
+      else link.removeAttribute('type')
+      if (prevSizes) link.setAttribute('sizes', prevSizes)
+      else link.removeAttribute('sizes')
     }
-    if (prevHref != null) link.setAttribute('href', prevHref)
-    else link.removeAttribute('href')
-    if (prevType) link.setAttribute('type', prevType)
-    else link.removeAttribute('type')
+    if (appleCreated) {
+      appleLink.remove()
+    } else if (prevAppleHref != null) {
+      appleLink.setAttribute('href', prevAppleHref)
+    } else {
+      appleLink.removeAttribute('href')
+    }
   }
 }
 
@@ -307,6 +328,8 @@ const tenantBranding = {
     logoText: 'MG',
     logoImage: '/logos/mg-logo.png',
     logoUrl: '/logos/mg-logo.png',
+    // Square M-mark crop — wide wordmark is illegible as a browser tab favicon.
+    favicon: '/logos/mg-favicon.png',
     tagline: 'Metal Group Operations',
     phone: '',
     trn: '',
