@@ -13,20 +13,20 @@ describe('getLoginPreviewBranding', () => {
     const branding = getLoginPreviewBranding('mg')
     expect(branding?.logoText).toBe('MG')
     expect(branding?.colors.primary).toBe('#EA580C')
-    expect(branding?.tagline).toBe('Metal Group Operations')
+    expect(branding?.tagline).toBe('MG Business Control System')
   })
 
   it('returns CG branding for cg (case-insensitive)', () => {
     const branding = getLoginPreviewBranding('CG')
     expect(branding?.logoText).toBe('CG')
     expect(branding?.colors.primary).toBe('#16A34A')
-    expect(branding?.tagline).toBe('CG Enterprise Suite')
+    expect(branding?.tagline).toBe('Business Control System')
   })
 
   it('returns LoopC branding for loopc', () => {
     const branding = getLoginPreviewBranding('loopc')
     expect(branding?.logoText).toBe('LC')
     expect(branding?.colors.primary).toBe('#2563EB')
-    expect(branding?.tagline).toBe('Loop C Business Platform')
+    expect(branding?.tagline).toBe('Business Control System')
   })
 })

@@ -30,7 +30,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     appName: APP_NAME,
     displayName: 'MG',
     companyName: 'MODERN GOLD JEWELRY MANUFACTURING',
-    tagline: 'Metal Group Operations',
+    tagline: 'MG Business Control System',
     logoText: 'MG',
     portalHost: 'mg.loopcstrategies.com',
     colors: {
@@ -52,7 +52,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     key: 'cg',
     appName: APP_NAME,
     displayName: 'CG',
-    tagline: 'CG Enterprise Suite',
+    tagline: 'Business Control System',
     logoText: 'CG',
     portalHost: 'cg.loopcstrategies.com',
     colors: {
@@ -74,7 +74,7 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     key: 'loopc',
     appName: APP_NAME,
     displayName: 'LoopC',
-    tagline: 'Loop C Business Platform',
+    tagline: 'Business Control System',
     logoText: 'LC',
     portalHost: 'loopc.loopcstrategies.com',
     colors: {
