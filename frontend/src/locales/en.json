@@ -670,6 +670,8 @@
   "searchSupplier": "Search supplier...",
   "sortMarginDesc": "Sort: Margin % ↓",
   "sortMarginAsc": "Sort: Margin % ↑",
+  "sortEquityDesc": "Sort: Equity ↓ (highest first)",
+  "sortEquityAsc": "Sort: Equity ↑ (lowest first)",
   "sortNameAsc": "Sort: Name A–Z",
   "noCustomersFound": "No customers found.",
   "noSuppliersFound": "No suppliers found.",
