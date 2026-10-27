@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { calculateAccountSummaryMetrics } from './statementHelpers'
+import { hasNonZeroEquity } from './dashboardMarginRows'
 import {
   computeMarginMetricsRaw,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
@@ -22,7 +23,13 @@ function positionMarginContextMenu(event) {
 }
 
 function sortMarginRows(rows, sortKey, nameKey) {
-  if (sortKey === 'margin-asc') {
+  if (sortKey === 'equity-asc') {
+    rows.sort((a, b) => Number(a.equity || 0) - Number(b.equity || 0)
+      || String(a[nameKey] || '').localeCompare(String(b[nameKey] || '')))
+  } else if (sortKey === 'equity-desc') {
+    rows.sort((a, b) => Number(b.equity || 0) - Number(a.equity || 0)
+      || String(a[nameKey] || '').localeCompare(String(b[nameKey] || '')))
+  } else if (sortKey === 'margin-asc') {
     rows.sort((a, b) => {
       const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
       const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
@@ -31,6 +38,7 @@ function sortMarginRows(rows, sortKey, nameKey) {
   } else if (sortKey === 'name-asc') {
     rows.sort((a, b) => String(a[nameKey] || '').localeCompare(String(b[nameKey] || '')))
   } else {
+    // margin-desc (legacy default)
     rows.sort((a, b) => {
       const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
       const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
@@ -58,7 +66,7 @@ export function useErpCustomerMargin({
 }) {
   const [customerMarginSearch, setCustomerMarginSearch] = useState('')
   const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
-  const [customerMarginSort, setCustomerMarginSort] = useState('margin-desc')
+  const [customerMarginSort, setCustomerMarginSort] = useState('equity-desc')
   const [customerMarginContextMenu, setCustomerMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
 
   const customerMarginRows = useMemo(() => {
@@ -151,6 +159,7 @@ export function useErpCustomerMargin({
           description: String(customer?.ledgerAccountId?.accountName || `${String(customer?.name || '').trim()} customer`),
         }
       })
+      .filter((row) => hasNonZeroEquity(row))
       .filter((row) => (!query ? true : row.customerName.toLowerCase().includes(query)))
     return sortMarginRows(rows, customerMarginSort, 'customerName')
   }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
@@ -184,7 +193,7 @@ export function useErpSupplierMargin({
 }) {
   const [supplierMarginSearch, setSupplierMarginSearch] = useState('')
   const [supplierMarginCompactView, setSupplierMarginCompactView] = useState(true)
-  const [supplierMarginSort, setSupplierMarginSort] = useState('margin-desc')
+  const [supplierMarginSort, setSupplierMarginSort] = useState('equity-desc')
   const [supplierMarginContextMenu, setSupplierMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
 
   const supplierMarginRows = useMemo(() => {
@@ -267,6 +276,7 @@ export function useErpSupplierMargin({
           description: String(vendor?.ledgerAccountId?.accountName || `${String(vendor?.name || '').trim()} supplier`),
         }
       })
+      .filter((row) => hasNonZeroEquity(row))
       .filter((row) => (!query ? true : row.supplierName.toLowerCase().includes(query)))
     return sortMarginRows(rows, supplierMarginSort, 'supplierName')
   }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
