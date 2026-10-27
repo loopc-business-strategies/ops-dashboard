@@ -37,6 +37,8 @@ export default function ERPSupplierMarginTab({
                     onChange={(e) => setSupplierMarginSort(e.target.value)}
                     style={{ padding: '0.48rem 0.62rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink, fontSize: '0.82rem' }}
                   >
+                    <option value="equity-desc">Sort: Equity (High to Low)</option>
+                    <option value="equity-asc">Sort: Equity (Low to High)</option>
                     <option value="margin-desc">Sort: Margin % (High to Low)</option>
                     <option value="margin-asc">Sort: Margin % (Low to High)</option>
                     <option value="name-asc">Sort: Name (A-Z)</option>
