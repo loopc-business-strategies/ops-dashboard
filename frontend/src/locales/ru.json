@@ -670,6 +670,8 @@
   "searchSupplier": "Поиск поставщика...",
   "sortMarginDesc": "Сортировка: Маржа % ↓",
   "sortMarginAsc": "Сортировка: Маржа % ↑",
+  "sortEquityDesc": "Сортировка: Капитал ↓ (сначала высокий)",
+  "sortEquityAsc": "Сортировка: Капитал ↑ (сначала низкий)",
   "sortNameAsc": "Сортировка: Имя А–Я",
   "noCustomersFound": "Клиенты не найдены.",
   "noSuppliersFound": "Поставщики не найдены.",

@@ -670,6 +670,8 @@
   "searchSupplier": "بحث عن مورد...",
   "sortMarginDesc": "ترتيب: الهامش % ↓",
   "sortMarginAsc": "ترتيب: الهامش % ↑",
+  "sortEquityDesc": "ترتيب: حقوق الملكية ↓ (الأعلى أولاً)",
+  "sortEquityAsc": "ترتيب: حقوق الملكية ↑ (الأدنى أولاً)",
   "sortNameAsc": "ترتيب: الاسم أ–ي",
   "noCustomersFound": "لم يتم العثور على عملاء.",
   "noSuppliersFound": "لم يتم العثور على موردين.",

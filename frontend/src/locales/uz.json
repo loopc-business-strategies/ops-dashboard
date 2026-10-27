@@ -670,6 +670,8 @@
   "searchSupplier": "Yetkazib beruvchini qidirish...",
   "sortMarginDesc": "Saralash: Marja % ↓",
   "sortMarginAsc": "Saralash: Marja % ↑",
+  "sortEquityDesc": "Saralash: Kapital ↓ (avval eng yuqori)",
+  "sortEquityAsc": "Saralash: Kapital ↑ (avval eng past)",
   "sortNameAsc": "Saralash: Nom A–Z",
   "noCustomersFound": "Mijozlar topilmadi.",
   "noSuppliersFound": "Yetkazib beruvchilar topilmadi.",

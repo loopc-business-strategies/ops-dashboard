@@ -11,6 +11,7 @@ import { useLanguage } from '../../../context/LanguageContext'
 
 import { formatAmount, formatMoney } from '../../../utils/money'
 import { ERP_TAB_COLORS } from './erpTabPresentation'
+import { filterAndSortDashboardMarginRows } from './dashboardMarginRows'
 
 const ERP_LINK = ERP_TAB_COLORS.link
 const ERP_POSITIVE = ERP_TAB_COLORS.positive
@@ -42,9 +43,10 @@ function MarginsWidget({
   const silverPriceUSD = liveSpot.silverPriceUSD
   const marginLiveRecalc = liveRecalcEnabled && liveSpot.liveRecalcEnabled
   const [tab, setTab] = useState('customers')
+  const [equitySort, setEquitySort] = useState('desc') // highest equity first by default
   const [showModal, setShowModal] = useState(false)
   const [modalSearch, setModalSearch] = useState('')
-  const [modalSort, setModalSort] = useState('margin-desc')
+  const [modalSort, setModalSort] = useState('equity-desc')
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 })
   const dragRef = useRef(null)
   const dragging = useRef(false)
@@ -64,17 +66,33 @@ function MarginsWidget({
   // Customer Margins: Credit-positive funds (−ledger) + metal revaluation.
   const customers = rawCustomers.map((row) => mapRow(row, 'customerName'))
   const suppliers = rawSuppliers.map((row) => mapRow(row, 'supplierName', { suppressMetalSpotMtm: true }))
-  const activeRows = tab === 'suppliers' ? suppliers : customers
+  // Card: hide Equity 0.00 rows; sort by equity (default highest → lowest).
+  const activeRows = filterAndSortDashboardMarginRows(
+    tab === 'suppliers' ? suppliers : customers,
+    equitySort,
+  )
   const activeTitle = tab === 'suppliers' ? t('erpSupplierMargin') : t('erpCustomerMargin')
 
   const modalRows = (() => {
     const q = modalSearch.trim().toLowerCase()
     const rows = activeRows.filter(c => !q || c.name.toLowerCase().includes(q))
-    if (modalSort === 'margin-asc')    rows.sort((a, b) => (Number.isFinite(a.marginPercent) ? a.marginPercent : -1) - (Number.isFinite(b.marginPercent) ? b.marginPercent : -1))
-    else if (modalSort === 'name-asc') rows.sort((a, b) => a.name.localeCompare(b.name))
-    else                               rows.sort((a, b) => (Number.isFinite(b.marginPercent) ? b.marginPercent : -1) - (Number.isFinite(a.marginPercent) ? a.marginPercent : -1))
+    if (modalSort === 'equity-asc') {
+      rows.sort((a, b) => Number(a.equity || 0) - Number(b.equity || 0))
+    } else if (modalSort === 'equity-desc') {
+      rows.sort((a, b) => Number(b.equity || 0) - Number(a.equity || 0))
+    } else if (modalSort === 'margin-asc') {
+      rows.sort((a, b) => (Number.isFinite(a.marginPercent) ? a.marginPercent : -1) - (Number.isFinite(b.marginPercent) ? b.marginPercent : -1))
+    } else if (modalSort === 'name-asc') {
+      rows.sort((a, b) => a.name.localeCompare(b.name))
+    } else {
+      rows.sort((a, b) => (Number.isFinite(b.marginPercent) ? b.marginPercent : -1) - (Number.isFinite(a.marginPercent) ? a.marginPercent : -1))
+    }
     return rows
   })()
+
+  const toggleEquitySort = () => {
+    setEquitySort((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+  }
 
   const onMouseDown = (e) => {
     if (e.target.closest('button')) return
@@ -116,7 +134,16 @@ function MarginsWidget({
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left',   fontSize: '0.65rem', fontWeight: '700', color: muted }}>{tab === 'suppliers' ? t('supplier') : t('customer')}</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('goldPosition')}</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('silverPosition')}</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('equity')}</th>
+                  <th
+                    role="button"
+                    tabIndex={0}
+                    title={equitySort === 'desc' ? t('sortEquityDesc') : t('sortEquityAsc')}
+                    onClick={toggleEquitySort}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleEquitySort() } }}
+                    style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: '700', color: 'var(--purple)', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                  >
+                    {t('equity')} {equitySort === 'desc' ? '↓' : '↑'}
+                  </th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('margin')}</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>{t('marginPct')}</th>
                 </tr></thead>
@@ -145,7 +172,7 @@ function MarginsWidget({
                 onNavigate(tab === 'suppliers' ? 'supplier-margin' : 'customer-margin')
                 return
               }
-              setShowModal(true); setModalSearch(''); setModalSort('margin-desc'); setDragPos({ x: 0, y: 0 })
+              setShowModal(true); setModalSearch(''); setModalSort(equitySort === 'asc' ? 'equity-asc' : 'equity-desc'); setDragPos({ x: 0, y: 0 })
             }}
             style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
           >{t('viewFullReport')}</button>
@@ -202,6 +229,8 @@ function MarginsWidget({
                 onChange={(e) => setModalSort(e.target.value)}
                 style={{ padding: '0.42rem 0.6rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', background: '#FFFFFF', color: ink, fontSize: '0.82rem' }}
               >
+                <option value="equity-desc">{t('sortEquityDesc')}</option>
+                <option value="equity-asc">{t('sortEquityAsc')}</option>
                 <option value="margin-desc">{t('sortMarginDesc')}</option>
                 <option value="margin-asc">{t('sortMarginAsc')}</option>
                 <option value="name-asc">{t('sortNameAsc')}</option>
