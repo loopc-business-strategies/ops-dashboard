@@ -141,6 +141,12 @@ function buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount, includ
     return /(cash|bank|receivable|debtor|customer|inventory|stock|payable|creditor|tax|accrual|short)/i.test(text)
   }
 
+  /** Cash/bank overdraft stays under assets as Cr, not reclassified to liabilities. */
+  const isCashOrBankBalanceSheetAccount = (account) => {
+    const text = `${String(account.accountCode || '')} ${String(account.accountName || '')}`
+    return /\b(cash|bank|petty)\b/i.test(text)
+  }
+
   const buildBalanceSheetRow = (account, signedBalance, balance, classification, direction) => {
     const normalSection = account.accountType === 'Asset'
       ? 'Asset'
@@ -164,13 +170,22 @@ function buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount, includ
     }
   }
 
+  const sheetRowSignedAmount = (row) => {
+    const amount = Math.abs(Number(row?.balance || 0))
+    return String(row?.direction || '').toLowerCase().startsWith('c') ? -amount : amount
+  }
+
   accounts.forEach((account) => {
     const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(String(account._id)) || 0)
     if (account.accountType === 'Asset') {
       if (bal >= 0) {
         if (keepRow(bal)) assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
       } else if (keepRow(Math.abs(bal))) {
-        liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
+        if (isCashOrBankBalanceSheetAccount(account)) {
+          assets.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Asset', 'Cr'))
+        } else {
+          liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
+        }
       }
       return
     }
@@ -206,11 +221,11 @@ function buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount, includ
     })
   }
 
-  const totalAssets = toMoney(assets.reduce((s, x) => s + Number(x.balance || 0), 0))
+  const totalAssets = toMoney(assets.reduce((s, x) => s + sheetRowSignedAmount(x), 0))
   const totalLiabilities = toMoney(liabilities.reduce((s, x) => s + Number(x.balance || 0), 0))
   const totalEquity = toMoney(equity.reduce((s, x) => s + Number(x.balance || 0), 0))
   const liabilitiesPlusEquity = toMoney(Number(totalLiabilities) + Number(totalEquity))
-  const currentAssets = toMoney(assets.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
+  const currentAssets = toMoney(assets.filter((x) => x.isCurrent).reduce((s, x) => s + sheetRowSignedAmount(x), 0))
   const currentLiabilities = toMoney(liabilities.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
   const workingCapital = toMoney(Number(currentAssets) - Number(currentLiabilities))
   const currentRatio = Number(currentLiabilities) > 0 ? roundRatio(Number(currentAssets) / Number(currentLiabilities)) : null
