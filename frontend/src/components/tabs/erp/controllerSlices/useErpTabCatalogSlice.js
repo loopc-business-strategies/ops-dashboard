@@ -14,6 +14,7 @@ import { resolveInventoryValuationUnitCost, resolveLiveMetalKey } from '../../..
 import { normalizeJvCurrencyCode } from '../journalVoucherHelpers'
 import { resolveCurrencyRowByCode } from '../erpCurrencyRowHelpers'
 import {
+  computeInventoryBookStockValue,
   computeInventoryPureStockQty,
   computeInventoryStockValue,
   resolveInventoryPurityFactor,
@@ -96,18 +97,20 @@ export function useErpTabCatalogSlice(scope) {
     const metalName = productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || ''
     const priceUnit = categoryMeta.priceUnit || productMeta.priceUnit || 'OZ'
     const storedUnitCost = Number(item.unitCost || 0)
-    // Metal stock qty is grams — value with $/g so Total Value aligns with account MTM.
+    // Book value matches stock GL (gross qty × stored unit cost).
+    const bookStockValue = computeInventoryBookStockValue(quantity, storedUnitCost)
+    // Live spot is secondary MTM for metal stock (pure qty × live $/g when available).
     const stockUnit = String(item.unit || 'grams').trim().toLowerCase()
     const stockIsGrams = ['g', 'gram', 'grams'].includes(stockUnit)
     const isLiveMetal = Boolean(resolveLiveMetalKey(metalName))
     const valuationPriceUnit = (stockIsGrams || isLiveMetal) ? 'G' : priceUnit
-    const unitCost = resolveInventoryValuationUnitCost(
+    const liveUnitCost = resolveInventoryValuationUnitCost(
       storedUnitCost,
       metalName,
       erpLiveMetalSnapshot,
       valuationPriceUnit,
     )
-    const usesLivePrice = unitCost !== storedUnitCost && unitCost > 0
+    const usesLivePrice = liveUnitCost !== storedUnitCost && liveUnitCost > 0
     const minThreshold = Number(item.minThreshold || 0)
     const metal = titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || 'Unmapped')
     const categoryName = productMeta.productCategory || titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || item.name)
@@ -116,7 +119,7 @@ export function useErpTabCatalogSlice(scope) {
     const purityFactor = resolveInventoryPurityFactor(purity)
     const purityWeight = Number(productMeta.purityWeight || 0)
     const pureStockQty = computeInventoryPureStockQty(quantity, purity)
-    const stockValue = computeInventoryStockValue(quantity, unitCost, purity)
+    const liveStockValue = computeInventoryStockValue(quantity, liveUnitCost, purity)
     const isZeroStock = quantity <= 0
     const isBelowMinStock = minThreshold > 0 && quantity <= minThreshold
     return {
@@ -124,10 +127,13 @@ export function useErpTabCatalogSlice(scope) {
       categoryMeta,
       productMeta,
       quantity,
-      unitCost,
+      unitCost: storedUnitCost,
       storedUnitCost,
+      liveUnitCost,
       usesLivePrice,
-      stockValue,
+      stockValue: bookStockValue,
+      bookStockValue,
+      liveStockValue,
       minThreshold,
       metal,
       categoryName,
@@ -143,10 +149,11 @@ export function useErpTabCatalogSlice(scope) {
     })
   }, [activeTab, inventoryReportProducts, erpLiveMetalSnapshot])
   const inventoryTotalQuantity = inventoryReportRows.reduce((sum, row) => sum + row.quantity, 0)
-  const inventoryTotalValue = inventoryReportRows.reduce((sum, row) => sum + row.stockValue, 0)
+  const inventoryTotalValue = inventoryReportRows.reduce((sum, row) => sum + row.bookStockValue, 0)
+  const inventoryTotalLiveValue = inventoryReportRows.reduce((sum, row) => sum + row.liveStockValue, 0)
   const inventoryLowStockCount = inventoryReportRows.filter((row) => row.isLowStock).length
   const inventoryTopProducts = [...inventoryReportRows]
-    .sort((a, b) => b.stockValue - a.stockValue)
+    .sort((a, b) => b.bookStockValue - a.bookStockValue)
     .slice(0, 5)
   const inventoryMetalBreakdown = Object.values(inventoryReportRows.reduce((groups, row) => {
     const key = row.metal || 'Unmapped'
@@ -161,7 +168,8 @@ export function useErpTabCatalogSlice(scope) {
     }
     groups[key].productCount += 1
     groups[key].totalQty += row.quantity
-    groups[key].totalValue += row.stockValue
+    groups[key].totalValue += row.bookStockValue
+    groups[key].liveTotalValue = (groups[key].liveTotalValue || 0) + row.liveStockValue
     groups[key].lowStockCount += row.isLowStock ? 1 : 0
     return groups
   }, {})).sort((a, b) => b.totalValue - a.totalValue)
@@ -529,6 +537,7 @@ export function useErpTabCatalogSlice(scope) {
     inventoryTopProducts,
     inventoryTotalQuantity,
     inventoryTotalValue,
+    inventoryTotalLiveValue,
     isBankJvEligibleAccount,
     jvComboGroups,
     legacyInventoryProducts,

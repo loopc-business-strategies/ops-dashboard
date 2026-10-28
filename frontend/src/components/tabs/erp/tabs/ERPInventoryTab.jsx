@@ -58,6 +58,7 @@ export default function ERPInventoryTab({
   inventoryReportProducts,
   inventoryTotalQuantity,
   inventoryTotalValue,
+  inventoryTotalLiveValue,
   inventoryLowStockCount,
   inventoryMetalBreakdown,
   inventoryTopProducts,
@@ -325,7 +326,7 @@ export default function ERPInventoryTab({
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: '800', color: '#1D4ED8', fontSize: '1rem' }}>Inventory Report</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#4B5E8B', fontSize: '0.8rem', lineHeight: 1.5 }}>Live snapshot of stock left by product and metal, including quantity on hand, inventory value, and low-stock exposure.</p>
+                  <p style={{ margin: '0.35rem 0 0', color: '#4B5E8B', fontSize: '0.8rem', lineHeight: 1.5 }}>Stock on hand by product and metal. Book value matches stock GL; live spot is shown as a secondary market view.</p>
                 </div>
                 <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DBEAFE', color: '#1D4ED8', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryReportProducts.length}</span>
               </div>
@@ -333,7 +334,16 @@ export default function ERPInventoryTab({
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Gross Stock Left</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{formatAmount(inventoryTotalValue, { currencyCode: baseCurrencyCode })}</p><p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>Live spot where metal stock types apply</p></div>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                  <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value (Book)</p>
+                  <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{formatAmount(inventoryTotalValue, { currencyCode: baseCurrencyCode })}</p>
+                  <p style={{ margin: '0.15rem 0 0', color: C.inkSoft, fontSize: '0.68rem', fontWeight: '600' }}>Matches stock GL (qty × book unit cost)</p>
+                  {Number(inventoryTotalLiveValue || 0) > 0 && Math.abs(Number(inventoryTotalLiveValue) - Number(inventoryTotalValue || 0)) > 0.009 ? (
+                    <p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>
+                      Live spot: {formatAmount(inventoryTotalLiveValue, { currencyCode: baseCurrencyCode })}
+                    </p>
+                  ) : null}
+                </div>
               </div>
               <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
@@ -365,11 +375,14 @@ export default function ERPInventoryTab({
                       <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid #EFF6FF' }}>
                         <div>
                           <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{item.name}</div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.metal} | Category {row.categoryName} | Gross Stock Left {row.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {row.stockUnit} | Stock Value {formatAmount(row.stockValue, { currencyCode: baseCurrencyCode })}</div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.metal} | Category {row.categoryName} | Gross Stock Left {row.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {row.stockUnit} | Book Value {formatAmount(row.bookStockValue ?? row.stockValue, { currencyCode: baseCurrencyCode })}</div>
                           <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Gross Wt {row.weight.toLocaleString(undefined, { maximumFractionDigits: 4 })} g | Purity {row.purity || '-'} | Tax {productMeta.taxType || '-'} | VAT {formatVatPercent(productMeta.vatPercent)} | Pure Wt {row.purityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 })} | Pure Stock {row.pureStockQty.toLocaleString(undefined, { maximumFractionDigits: 4 })} g</div>
                         </div>
                         <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>
-                          <div>{formatAmount(row.stockValue, { currencyCode: baseCurrencyCode })}</div>
+                          <div>{formatAmount(row.bookStockValue ?? row.stockValue, { currencyCode: baseCurrencyCode })}</div>
+                          {row.usesLivePrice ? (
+                            <div style={{ color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>Live {formatAmount(row.liveStockValue, { currencyCode: baseCurrencyCode })}</div>
+                          ) : null}
                           <div style={{ color: row.quantity <= 0 ? '#B91C1C' : row.isLowStock ? '#B45309' : C.inkSoft, fontSize: '0.7rem' }}>{row.quantity <= 0 ? 'Zero Stock' : row.isLowStock ? 'Low Stock' : 'In Stock'}</div>
                         </div>
                       </div>
@@ -393,7 +406,7 @@ export default function ERPInventoryTab({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>All Inventory Items</p>
-                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Live stock on hand — quantities updated automatically when sale/purchase vouchers are posted.</p>
+                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Book unit cost and value match stock GL. Live spot (blue) is market MTM only.</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <select
@@ -419,10 +432,10 @@ export default function ERPInventoryTab({
                 <table className="erp-table">
                   <thead>
                     <tr>
-                      {['SKU', 'Name', 'Category', 'Tax Type', 'VAT %', 'Qty On Hand (Gross)', 'Pure Qty', 'Unit', 'Unit Cost', 'Selling Price', 'Total Value', 'Min Stock', 'Status'].map(col => {
+                      {['SKU', 'Name', 'Category', 'Tax Type', 'VAT %', 'Qty On Hand (Gross)', 'Pure Qty', 'Unit', 'Unit Cost (Book)', 'Selling Price', 'Total Value (Book)', 'Min Stock', 'Status'].map(col => {
                         const isVatCol = col === 'VAT %'
                         const vatSortIndicator = inventoryVatSortDir === 'none' ? '' : inventoryVatSortDir === 'asc' ? ' ▲' : ' ▼'
-                        const isNum = col === 'VAT %' || col === 'Qty On Hand (Gross)' || col === 'Pure Qty' || col === 'Unit Cost' || col === 'Selling Price' || col === 'Total Value'
+                        const isNum = col === 'VAT %' || col === 'Qty On Hand (Gross)' || col === 'Pure Qty' || col === 'Unit Cost (Book)' || col === 'Selling Price' || col === 'Total Value (Book)'
                         return (
                           <th
                             key={col}
@@ -451,9 +464,11 @@ export default function ERPInventoryTab({
                       const displayQty = Math.max(0, Number(item.quantity || 0))
                       const zeroStock = displayQty <= 0
                       const lowStock = zeroStock || (Number(item.minThreshold || 0) > 0 && displayQty <= Number(item.minThreshold || 0))
-                      const unitCost = Number(reportRow?.unitCost ?? item.unitCost ?? 0)
-                      const totalValue = Number(reportRow?.stockValue ?? (displayQty * unitCost))
+                      const bookUnitCost = Number(reportRow?.storedUnitCost ?? reportRow?.unitCost ?? item.unitCost ?? 0)
+                      const bookValue = Number(reportRow?.bookStockValue ?? (displayQty * bookUnitCost))
                       const usesLivePrice = Boolean(reportRow?.usesLivePrice)
+                      const liveUnitCost = Number(reportRow?.liveUnitCost || 0)
+                      const liveValue = Number(reportRow?.liveStockValue || 0)
                       return (
                         <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined, contentVisibility: 'auto', containIntrinsicSize: 'auto 44px' }}>
                           <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
@@ -464,9 +479,23 @@ export default function ERPInventoryTab({
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{displayQty.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(reportRow?.pureStockQty || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: usesLivePrice ? '#1D4ED8' : C.ink, fontWeight: usesLivePrice ? '700' : '400' }} title={usesLivePrice ? 'Live spot price' : undefined}>{unitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }} title="Book unit cost (matches stock GL)">
+                            <div>{bookUnitCost.toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
+                            {usesLivePrice ? (
+                              <div style={{ color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }} title="Live spot price">
+                                Live {liveUnitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                              </div>
+                            ) : null}
+                          </td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8' }}>{formatAmount(totalValue, { currencyCode: baseCurrencyCode })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: C.ink }} title="Book value = qty × book unit cost">
+                            <div>{formatAmount(bookValue, { currencyCode: baseCurrencyCode })}</div>
+                            {usesLivePrice ? (
+                              <div style={{ color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>
+                                Live {formatAmount(liveValue, { currencyCode: baseCurrencyCode })}
+                              </div>
+                            ) : null}
+                          </td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(item.minThreshold || 0) || '—'}</td>
                           <td style={{ padding: '0.5rem 0.7rem' }}>
                             {zeroStock
