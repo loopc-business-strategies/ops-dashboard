@@ -143,6 +143,33 @@ describe('buildBalanceSheetSummaryFromBalances includeZero', () => {
     expect(summary.equity.some((row) => row.accountCode === '3000')).toBe(true)
     expect(summary.totalAssets).toBe(700)
   })
+
+  test('keeps overdrawn cash under assets as Cr instead of reclassifying to liabilities', () => {
+    const overdrawn = [
+      { _id: 'cash', accountCode: '1000', accountName: 'Cash on Hand', accountType: 'Asset', openingBalance: 0 },
+      { _id: 'bank', accountCode: '1010', accountName: 'Main Bank Account', accountType: 'Asset', openingBalance: 500 },
+      { _id: 'debtor', accountCode: '1301', accountName: 'Customer (Debtor)', accountType: 'Asset', openingBalance: 0 },
+      { _id: 'equity', accountCode: '3000', accountName: 'Equity', accountType: 'Equity', openingBalance: -(500 - 96.29 - 50) },
+    ]
+    const balances = new Map([
+      ['cash', -96.29],
+      ['debtor', -50],
+    ])
+    const summary = buildBalanceSheetSummaryFromBalances(overdrawn, balances, false)
+    const cashRow = summary.assets.find((row) => row.accountCode === '1000')
+    expect(cashRow).toMatchObject({
+      classification: 'Asset',
+      direction: 'Cr',
+      balance: 96.29,
+      isReclassified: false,
+    })
+    expect(summary.liabilities.some((row) => row.accountCode === '1000')).toBe(false)
+    // Non-cash credit assets still reclass to liabilities (e.g. debtor advances).
+    expect(summary.liabilities.some((row) => row.accountCode === '1301')).toBe(true)
+    // Cr cash reduces total assets (500 bank - 96.29 cash).
+    expect(summary.totalAssets).toBeCloseTo(500 - 96.29, 2)
+    expect(summary.balanced).toBe(true)
+  })
 })
 
 describe('buildProfitLossDateQuery', () => {
