@@ -79,6 +79,33 @@ export function buildErpReportRequestKey({ targetView, commonRange, reportFilter
 }
 
 const SUMMARY_REPORT_TTL_MS = 45_000
+
+/** Filter-only key so Summary can prefetch P&L + BS for the headline cards. */
+export function buildErpReportHeadlineKey({ commonRange, reportFilters }) {
+  return buildErpReportRequestKey({
+    targetView: 'headline-kpi',
+    commonRange,
+    reportFilters,
+  })
+}
+
+export function reportNeedsTrialBalance(targetView) {
+  return targetView === 'summary' || targetView === 'trial'
+}
+
+export function reportNeedsProfitLoss(targetView) {
+  return targetView === 'summary' || targetView === 'trial' || targetView === 'pnl'
+}
+
+export function reportNeedsBalanceSheet(targetView) {
+  return targetView === 'summary' || targetView === 'trial' || targetView === 'balanceSheet'
+}
+
+export function isHeadlineReportCacheFresh(cache, headlineKey, ttlMs = SUMMARY_REPORT_TTL_MS) {
+  if (!cache?.key || cache.key !== headlineKey) return false
+  return Date.now() - Number(cache.at || 0) < ttlMs
+}
+
 const summaryReportCache = { key: '', at: 0, trialBalance: null }
 let summaryReportInflight = null
 let summaryReportInflightKey = ''
@@ -177,6 +204,7 @@ export function useErpReportsController({
 
   const reportRequestRef = useRef({ key: '', promise: null })
   const reportResultCacheRef = useRef({ key: '', at: 0 })
+  const reportHeadlineCacheRef = useRef({ key: '', at: 0, hasPnl: false, hasBs: false })
   const ledgerRequestRef = useRef({ key: '', promise: null })
   const reportEffectTimerRef = useRef(null)
   const reportCooldownUntilRef = useRef(0)
@@ -250,21 +278,49 @@ export function useErpReportsController({
 
     const { endDate, commonRange } = buildErpReportDateRange(reportQueryFilters)
     const requestKey = buildErpReportRequestKey({ targetView, commonRange, reportFilters: reportQueryFilters })
+    const headlineKey = buildErpReportHeadlineKey({ commonRange, reportFilters: reportQueryFilters })
+    const headlineFresh = isHeadlineReportCacheFresh(reportHeadlineCacheRef.current, headlineKey)
+    const headlineHasPnl = headlineFresh && reportHeadlineCacheRef.current.hasPnl
+    const headlineHasBs = headlineFresh && reportHeadlineCacheRef.current.hasBs
+
+    // Summary/Trial prefetch P&L + BS for KPI cards; skip re-fetch when opening those tabs.
+    if (targetView === 'pnl' && headlineHasPnl) return null
+    if (targetView === 'balanceSheet' && headlineHasBs) return null
+
     if (reportRequestRef.current.key === requestKey && reportRequestRef.current.promise) {
       return reportRequestRef.current.promise
     }
     if (reportResultCacheRef.current.key === requestKey && Date.now() - reportResultCacheRef.current.at < 45_000) {
-      return null
-    }
-    if (targetView === 'summary') {
-      const sharedSummary = peekSharedSummaryReport(requestKey)
-      if (sharedSummary) {
-        setReports((prev) => ({ ...prev, trialBalance: sharedSummary.trialBalance }))
-        reportResultCacheRef.current = { key: requestKey, at: sharedSummary.at }
-        setError('')
+      // Summary cache hit still needs KPI prefetch when headline cards are empty.
+      if (!(targetView === 'summary' || targetView === 'trial') || (headlineHasPnl && headlineHasBs)) {
         return null
       }
     }
+
+    let sharedTrialBalance = null
+    if (targetView === 'summary') {
+      const sharedSummary = peekSharedSummaryReport(requestKey)
+      if (sharedSummary) {
+        sharedTrialBalance = sharedSummary.trialBalance
+        setReports((prev) => ({ ...prev, trialBalance: sharedTrialBalance }))
+        reportResultCacheRef.current = { key: requestKey, at: sharedSummary.at }
+        if (headlineHasPnl && headlineHasBs) {
+          setError('')
+          return null
+        }
+      }
+    }
+
+    const needsTb = reportNeedsTrialBalance(targetView) && !sharedTrialBalance
+    const needsPnl = reportNeedsProfitLoss(targetView) && !headlineHasPnl
+    const needsBs = reportNeedsBalanceSheet(targetView) && !headlineHasBs
+    const needsDayBook = targetView === 'dayBook'
+    const needsOutstanding = targetView === 'outstanding'
+    const needsForex = targetView === 'forex'
+    if (!needsTb && !needsPnl && !needsBs && !needsDayBook && !needsOutstanding && !needsForex) {
+      return null
+    }
+
     const silentRefresh = reportResultCacheRef.current.key === requestKey
     if (!silentRefresh) setReportsLoading(true)
     const seq = reportLoadSeqRef.current + 1
@@ -272,8 +328,18 @@ export function useErpReportsController({
     const promise = (async () => {
       try {
         const updates = {}
+        const includeZero = reportQueryFilters.includeZeroAccounts ? 'true' : 'false'
+        const pnlParams = {
+          ...commonRange,
+          includeZero,
+          comparePrevious: reportQueryFilters.comparePrevious,
+        }
+        const bsParams = {
+          ...(endDate ? { endDate } : {}),
+          includeZero,
+        }
 
-        if (targetView === 'summary' || targetView === 'trial') {
+        const fetchTrialBalance = async () => {
           const defaultFilters = defaultSummaryReportFilters()
           const defaultKey = buildErpReportRequestKey({
             targetView: 'summary',
@@ -281,43 +347,43 @@ export function useErpReportsController({
             reportFilters: defaultFilters,
           })
           if (targetView === 'summary' && requestKey === defaultKey) {
-            updates.trialBalance = (await loadSharedSummaryReport(token)).trialBalance
-          } else {
-            const includeZero = targetView === 'summary' ? 'false' : (reportQueryFilters.includeZeroAccounts ? 'true' : 'false')
-            updates.trialBalance = await api.getTrialBalance(token, {
-              ...commonRange,
-              ...(reportQueryFilters.accountType ? { accountType: reportQueryFilters.accountType } : {}),
-              includeZero,
-              sortBy: reportQueryFilters.sortBy,
-              sortDir: reportQueryFilters.sortDir,
-              ...(reportQueryFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
-              ...(reportQueryFilters.showClosedAccounts ? { showClosedAccounts: 'true' } : {}),
-              ...(reportQueryFilters.excludeHedging ? { excludeHedging: 'true' } : {}),
-              ...(reportQueryFilters.metalType ? { metalType: reportQueryFilters.metalType } : {}),
-            })
+            return (await loadSharedSummaryReport(token)).trialBalance
           }
-        }
-        if (targetView === 'pnl') {
-          updates.profitLoss = await api.getProfitLossReport(token, {
+          const tbIncludeZero = targetView === 'summary' ? 'false' : includeZero
+          return api.getTrialBalance(token, {
             ...commonRange,
-            includeZero: reportQueryFilters.includeZeroAccounts ? 'true' : 'false',
-            comparePrevious: reportQueryFilters.comparePrevious,
+            ...(reportQueryFilters.accountType ? { accountType: reportQueryFilters.accountType } : {}),
+            includeZero: tbIncludeZero,
+            sortBy: reportQueryFilters.sortBy,
+            sortDir: reportQueryFilters.sortDir,
+            ...(reportQueryFilters.calculateClosingStock ? { calculateClosingStock: 'true' } : {}),
+            ...(reportQueryFilters.showClosedAccounts ? { showClosedAccounts: 'true' } : {}),
+            ...(reportQueryFilters.excludeHedging ? { excludeHedging: 'true' } : {}),
+            ...(reportQueryFilters.metalType ? { metalType: reportQueryFilters.metalType } : {}),
           })
         }
-        if (targetView === 'balanceSheet') {
-          updates.balanceSheet = await api.getBalanceSheetReport(token, {
-            ...(endDate ? { endDate } : {}),
-            includeZero: reportQueryFilters.includeZeroAccounts ? 'true' : 'false',
-          })
-        }
-        if (targetView === 'dayBook') {
+
+        const [tbResult, pnlResult, bsResult] = await Promise.allSettled([
+          needsTb ? fetchTrialBalance() : Promise.resolve(null),
+          needsPnl ? api.getProfitLossReport(token, pnlParams) : Promise.resolve(null),
+          needsBs ? api.getBalanceSheetReport(token, bsParams) : Promise.resolve(null),
+        ])
+        const settledValue = (result) => (result.status === 'fulfilled' ? result.value : null)
+        const trialBalance = settledValue(tbResult)
+        const profitLoss = settledValue(pnlResult)
+        const balanceSheet = settledValue(bsResult)
+        if (trialBalance) updates.trialBalance = trialBalance
+        if (profitLoss) updates.profitLoss = profitLoss
+        if (balanceSheet) updates.balanceSheet = balanceSheet
+
+        if (needsDayBook) {
           updates.dayBook = await api.getDayBookReport(token, {
             ...commonRange,
             ...(reportQueryFilters.referenceType ? { referenceType: reportQueryFilters.referenceType } : {}),
             ...(reportQueryFilters.minAmount ? { minAmount: reportQueryFilters.minAmount } : {}),
           })
         }
-        if (targetView === 'outstanding') {
+        if (needsOutstanding) {
           const [custOut, venOut] = await Promise.all([
             api.getCustomerOutstandingReport(token),
             api.getVendorOutstandingReport(token),
@@ -325,14 +391,38 @@ export function useErpReportsController({
           updates.customerOutstanding = custOut
           updates.vendorOutstanding = venOut
         }
-        if (targetView === 'forex') {
+        if (needsForex) {
           updates.forex = await api.getForexGainLossReport(token, commonRange)
+        }
+
+        const headlineFetchFailed = [tbResult, pnlResult, bsResult].find((result, index) => {
+          const needed = [needsTb, needsPnl, needsBs][index]
+          return needed && result.status === 'rejected'
+        })
+        if (headlineFetchFailed && Object.keys(updates).length === 0 && !needsDayBook && !needsOutstanding && !needsForex) {
+          throw headlineFetchFailed.reason
         }
 
         if (seq === reportLoadSeqRef.current) {
           setReports((prev) => ({ ...prev, ...updates }))
           reportResultCacheRef.current = { key: requestKey, at: Date.now() }
-          setError('')
+          if (needsPnl || needsBs || headlineHasPnl || headlineHasBs) {
+            reportHeadlineCacheRef.current = {
+              key: headlineKey,
+              at: Date.now(),
+              hasPnl: Boolean(updates.profitLoss) || headlineHasPnl,
+              hasBs: Boolean(updates.balanceSheet) || headlineHasBs,
+            }
+          }
+          if (headlineFetchFailed) {
+            const failedError = headlineFetchFailed.reason
+            if (Number(failedError?.response?.status) === 429) {
+              reportCooldownUntilRef.current = Date.now() + REPORT_RATE_LIMIT_COOLDOWN_MS
+            }
+            setError(failedError?.response?.data?.message || 'Failed to load some report cards')
+          } else {
+            setError('')
+          }
         }
       } catch (e) {
         if (Number(e?.response?.status) === 429) {

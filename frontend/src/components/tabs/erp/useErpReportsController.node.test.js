@@ -1,8 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import {
   buildErpReportDateRange,
+  buildErpReportHeadlineKey,
   buildErpReportRequestKey,
   createInitialReportsState,
+  isHeadlineReportCacheFresh,
+  reportNeedsBalanceSheet,
+  reportNeedsProfitLoss,
+  reportNeedsTrialBalance,
 } from './useErpReportsController'
 
 describe('useErpReportsController helpers', () => {
@@ -98,5 +103,41 @@ describe('useErpReportsController helpers', () => {
       vendorOutstanding: null,
       forex: null,
     })
+  })
+
+  test('summary and trial prefetch P&L and Balance Sheet for headline cards', () => {
+    expect(reportNeedsTrialBalance('summary')).toBe(true)
+    expect(reportNeedsProfitLoss('summary')).toBe(true)
+    expect(reportNeedsBalanceSheet('summary')).toBe(true)
+    expect(reportNeedsTrialBalance('trial')).toBe(true)
+    expect(reportNeedsProfitLoss('trial')).toBe(true)
+    expect(reportNeedsBalanceSheet('trial')).toBe(true)
+    expect(reportNeedsTrialBalance('pnl')).toBe(false)
+    expect(reportNeedsProfitLoss('pnl')).toBe(true)
+    expect(reportNeedsBalanceSheet('pnl')).toBe(false)
+    expect(reportNeedsBalanceSheet('balanceSheet')).toBe(true)
+    expect(reportNeedsProfitLoss('balanceSheet')).toBe(false)
+  })
+
+  test('headline cache key ignores report view so Summary can fill KPI cards', () => {
+    const commonRange = { startDate: '2026-01-01', endDate: '2026-10-28' }
+    const reportFilters = {
+      accountType: '',
+      includeZeroAccounts: false,
+      sortBy: 'accountCode',
+      sortDir: 'asc',
+      comparePrevious: true,
+      referenceType: '',
+      minAmount: '',
+    }
+    const headline = buildErpReportHeadlineKey({ commonRange, reportFilters })
+    expect(headline).toBe(buildErpReportHeadlineKey({ commonRange, reportFilters }))
+    expect(headline).not.toBe(buildErpReportRequestKey({
+      targetView: 'summary',
+      commonRange,
+      reportFilters,
+    }))
+    expect(isHeadlineReportCacheFresh({ key: headline, at: Date.now(), hasPnl: true, hasBs: true }, headline)).toBe(true)
+    expect(isHeadlineReportCacheFresh({ key: headline, at: Date.now() - 60_000 }, headline)).toBe(false)
   })
 })
