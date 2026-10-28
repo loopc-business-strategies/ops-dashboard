@@ -682,7 +682,7 @@ export default function ERPReportsTab({
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.35rem' }}>Purchases and sales</p>
                 <p style={{ margin: '0 0 0.6rem', fontSize: '0.76rem', color: C.inkSoft, lineHeight: 1.35 }}>
-                  Every posted purchase and sale in this period. Sales are included in Sales Revenue. Purchases are included in Cost Of Goods Sold.
+                  Every posted purchase and sale in this period. Sales may lift Sales Revenue when higher than ledger. Purchases stay on stock assets (Balance Sheet) — they are not added to Cost Of Goods Sold.
                 </p>
                 <div style={{ overflowX: 'auto', maxHeight: '320px', overflowY: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
