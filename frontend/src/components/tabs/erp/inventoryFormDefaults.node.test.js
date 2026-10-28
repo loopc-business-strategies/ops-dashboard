@@ -3,6 +3,7 @@ import {
   buildInventoryMappingPayload,
   computeInventoryProductPurityWeight,
   computeInventoryPureStockQty,
+  computeInventoryBookStockValue,
   computeInventoryStockValue,
   mappingProductToFormState,
   resolveInventoryPurityFactor,
@@ -95,6 +96,13 @@ describe('inventoryFormDefaults', () => {
     expect(computeInventoryStockValue(1000, 10, '0')).toBe(10000)
     expect(computeInventoryStockValue(1000, 10, '1')).toBe(10000)
     expect(computeInventoryStockValue(1000, 10, '0.916')).toBeCloseTo(9160)
+  })
+
+  test('computeInventoryBookStockValue uses gross qty × stored unit cost for GL match', () => {
+    expect(computeInventoryBookStockValue(200, 130.38905)).toBeCloseTo(26077.81, 2)
+    expect(computeInventoryBookStockValue(1000, 0.09002)).toBeCloseTo(90.02, 2)
+    expect(computeInventoryBookStockValue(10.06, 99.403579)).toBeCloseTo(1000, 2)
+    expect(computeInventoryBookStockValue(0, 10)).toBe(0)
   })
 })
 

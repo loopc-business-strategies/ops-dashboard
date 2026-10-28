@@ -183,6 +183,7 @@ export function buildErpTabPanelProps(scope) {
     inventoryTopProducts: scope.inventoryTopProducts,
     inventoryTotalQuantity: scope.inventoryTotalQuantity,
     inventoryTotalValue: scope.inventoryTotalValue,
+    inventoryTotalLiveValue: scope.inventoryTotalLiveValue,
     inventoryVatFilter: scope.inventoryVatFilter,
     inventoryVatSortDir: scope.inventoryVatSortDir,
     isFinance: scope.isFinance,

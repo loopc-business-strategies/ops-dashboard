@@ -103,6 +103,14 @@ export function computeInventoryStockValue(quantity, unitCost, purity) {
   return qtyForValue * (Number.isFinite(cost) ? cost : 0)
 }
 
+/** Book / GL inventory value: gross on-hand qty × stored unit cost (matches stock ledger). */
+export function computeInventoryBookStockValue(quantity, storedUnitCost) {
+  const qty = Math.max(0, Number(quantity || 0))
+  const cost = Number(storedUnitCost || 0)
+  if (!Number.isFinite(qty) || !Number.isFinite(cost)) return 0
+  return qty * cost
+}
+
 /**
  * Resolve metal voucher line purity from catalog product, else karat in the name (22k → 0.917).
  * Never falls back to a prior stock fine-purity value.

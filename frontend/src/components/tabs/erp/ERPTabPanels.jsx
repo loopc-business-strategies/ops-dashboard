@@ -274,6 +274,7 @@ export default function ERPTabPanels({
   inventoryTopProducts,
   inventoryTotalQuantity,
   inventoryTotalValue,
+  inventoryTotalLiveValue,
   inventoryVatFilter,
   inventoryVatSortDir,
   isFinance,
@@ -1050,6 +1051,7 @@ export default function ERPTabPanels({
         inventoryReportProducts={inventoryReportProducts}
         inventoryTotalQuantity={inventoryTotalQuantity}
         inventoryTotalValue={inventoryTotalValue}
+        inventoryTotalLiveValue={inventoryTotalLiveValue}
         inventoryLowStockCount={inventoryLowStockCount}
         inventoryMetalBreakdown={inventoryMetalBreakdown}
         inventoryTopProducts={inventoryTopProducts}
