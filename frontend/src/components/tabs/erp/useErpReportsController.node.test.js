@@ -6,6 +6,7 @@ import {
   createInitialReportsState,
   isHeadlineReportCacheFresh,
   reportNeedsBalanceSheet,
+  reportNeedsForex,
   reportNeedsProfitLoss,
   reportNeedsTrialBalance,
 } from './useErpReportsController'
@@ -105,18 +106,23 @@ describe('useErpReportsController helpers', () => {
     })
   })
 
-  test('summary and trial prefetch P&L and Balance Sheet for headline cards', () => {
+  test('summary and trial prefetch P&L, Balance Sheet, and Forex for headline cards', () => {
     expect(reportNeedsTrialBalance('summary')).toBe(true)
     expect(reportNeedsProfitLoss('summary')).toBe(true)
     expect(reportNeedsBalanceSheet('summary')).toBe(true)
+    expect(reportNeedsForex('summary')).toBe(true)
     expect(reportNeedsTrialBalance('trial')).toBe(true)
     expect(reportNeedsProfitLoss('trial')).toBe(true)
     expect(reportNeedsBalanceSheet('trial')).toBe(true)
+    expect(reportNeedsForex('trial')).toBe(true)
     expect(reportNeedsTrialBalance('pnl')).toBe(false)
     expect(reportNeedsProfitLoss('pnl')).toBe(true)
     expect(reportNeedsBalanceSheet('pnl')).toBe(false)
+    expect(reportNeedsForex('pnl')).toBe(false)
     expect(reportNeedsBalanceSheet('balanceSheet')).toBe(true)
     expect(reportNeedsProfitLoss('balanceSheet')).toBe(false)
+    expect(reportNeedsForex('forex')).toBe(true)
+    expect(reportNeedsForex('dayBook')).toBe(false)
   })
 
   test('headline cache key ignores report view so Summary can fill KPI cards', () => {

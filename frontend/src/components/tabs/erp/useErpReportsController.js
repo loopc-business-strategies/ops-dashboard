@@ -101,6 +101,10 @@ export function reportNeedsBalanceSheet(targetView) {
   return targetView === 'summary' || targetView === 'trial' || targetView === 'balanceSheet'
 }
 
+export function reportNeedsForex(targetView) {
+  return targetView === 'summary' || targetView === 'trial' || targetView === 'forex'
+}
+
 export function isHeadlineReportCacheFresh(cache, headlineKey, ttlMs = SUMMARY_REPORT_TTL_MS) {
   if (!cache?.key || cache.key !== headlineKey) return false
   return Date.now() - Number(cache.at || 0) < ttlMs
@@ -204,7 +208,7 @@ export function useErpReportsController({
 
   const reportRequestRef = useRef({ key: '', promise: null })
   const reportResultCacheRef = useRef({ key: '', at: 0 })
-  const reportHeadlineCacheRef = useRef({ key: '', at: 0, hasPnl: false, hasBs: false })
+  const reportHeadlineCacheRef = useRef({ key: '', at: 0, hasPnl: false, hasBs: false, hasForex: false })
   const ledgerRequestRef = useRef({ key: '', promise: null })
   const reportEffectTimerRef = useRef(null)
   const reportCooldownUntilRef = useRef(0)
@@ -282,17 +286,20 @@ export function useErpReportsController({
     const headlineFresh = isHeadlineReportCacheFresh(reportHeadlineCacheRef.current, headlineKey)
     const headlineHasPnl = headlineFresh && reportHeadlineCacheRef.current.hasPnl
     const headlineHasBs = headlineFresh && reportHeadlineCacheRef.current.hasBs
+    const headlineHasForex = headlineFresh && reportHeadlineCacheRef.current.hasForex
+    const headlineComplete = headlineHasPnl && headlineHasBs && headlineHasForex
 
-    // Summary/Trial prefetch P&L + BS for KPI cards; skip re-fetch when opening those tabs.
+    // Summary/Trial prefetch P&L + BS + Forex for KPI cards; skip re-fetch when opening those tabs.
     if (targetView === 'pnl' && headlineHasPnl) return null
     if (targetView === 'balanceSheet' && headlineHasBs) return null
+    if (targetView === 'forex' && headlineHasForex) return null
 
     if (reportRequestRef.current.key === requestKey && reportRequestRef.current.promise) {
       return reportRequestRef.current.promise
     }
     if (reportResultCacheRef.current.key === requestKey && Date.now() - reportResultCacheRef.current.at < 45_000) {
       // Summary cache hit still needs KPI prefetch when headline cards are empty.
-      if (!(targetView === 'summary' || targetView === 'trial') || (headlineHasPnl && headlineHasBs)) {
+      if (!(targetView === 'summary' || targetView === 'trial') || headlineComplete) {
         return null
       }
     }
@@ -304,7 +311,7 @@ export function useErpReportsController({
         sharedTrialBalance = sharedSummary.trialBalance
         setReports((prev) => ({ ...prev, trialBalance: sharedTrialBalance }))
         reportResultCacheRef.current = { key: requestKey, at: sharedSummary.at }
-        if (headlineHasPnl && headlineHasBs) {
+        if (headlineComplete) {
           setError('')
           return null
         }
@@ -316,7 +323,7 @@ export function useErpReportsController({
     const needsBs = reportNeedsBalanceSheet(targetView) && !headlineHasBs
     const needsDayBook = targetView === 'dayBook'
     const needsOutstanding = targetView === 'outstanding'
-    const needsForex = targetView === 'forex'
+    const needsForex = reportNeedsForex(targetView) && !headlineHasForex
     if (!needsTb && !needsPnl && !needsBs && !needsDayBook && !needsOutstanding && !needsForex) {
       return null
     }
@@ -363,18 +370,21 @@ export function useErpReportsController({
           })
         }
 
-        const [tbResult, pnlResult, bsResult] = await Promise.allSettled([
+        const [tbResult, pnlResult, bsResult, forexResult] = await Promise.allSettled([
           needsTb ? fetchTrialBalance() : Promise.resolve(null),
           needsPnl ? api.getProfitLossReport(token, pnlParams) : Promise.resolve(null),
           needsBs ? api.getBalanceSheetReport(token, bsParams) : Promise.resolve(null),
+          needsForex ? api.getForexGainLossReport(token, commonRange) : Promise.resolve(null),
         ])
         const settledValue = (result) => (result.status === 'fulfilled' ? result.value : null)
         const trialBalance = settledValue(tbResult)
         const profitLoss = settledValue(pnlResult)
         const balanceSheet = settledValue(bsResult)
+        const forex = settledValue(forexResult)
         if (trialBalance) updates.trialBalance = trialBalance
         if (profitLoss) updates.profitLoss = profitLoss
         if (balanceSheet) updates.balanceSheet = balanceSheet
+        if (forex) updates.forex = forex
 
         if (needsDayBook) {
           updates.dayBook = await api.getDayBookReport(token, {
@@ -391,27 +401,25 @@ export function useErpReportsController({
           updates.customerOutstanding = custOut
           updates.vendorOutstanding = venOut
         }
-        if (needsForex) {
-          updates.forex = await api.getForexGainLossReport(token, commonRange)
-        }
 
-        const headlineFetchFailed = [tbResult, pnlResult, bsResult].find((result, index) => {
-          const needed = [needsTb, needsPnl, needsBs][index]
+        const headlineFetchFailed = [tbResult, pnlResult, bsResult, forexResult].find((result, index) => {
+          const needed = [needsTb, needsPnl, needsBs, needsForex][index]
           return needed && result.status === 'rejected'
         })
-        if (headlineFetchFailed && Object.keys(updates).length === 0 && !needsDayBook && !needsOutstanding && !needsForex) {
+        if (headlineFetchFailed && Object.keys(updates).length === 0 && !needsDayBook && !needsOutstanding) {
           throw headlineFetchFailed.reason
         }
 
         if (seq === reportLoadSeqRef.current) {
           setReports((prev) => ({ ...prev, ...updates }))
           reportResultCacheRef.current = { key: requestKey, at: Date.now() }
-          if (needsPnl || needsBs || headlineHasPnl || headlineHasBs) {
+          if (needsPnl || needsBs || needsForex || headlineHasPnl || headlineHasBs || headlineHasForex) {
             reportHeadlineCacheRef.current = {
               key: headlineKey,
               at: Date.now(),
               hasPnl: Boolean(updates.profitLoss) || headlineHasPnl,
               hasBs: Boolean(updates.balanceSheet) || headlineHasBs,
+              hasForex: Boolean(updates.forex) || headlineHasForex,
             }
           }
           if (headlineFetchFailed) {
