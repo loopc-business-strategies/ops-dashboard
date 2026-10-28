@@ -1,5 +1,25 @@
 import { describe, expect, test } from 'vitest'
-import { combineVoucherStatementRows, resolveBreakEvenPricePerGram } from './useAccountEnquiryStatement'
+import {
+  combineVoucherStatementRows,
+  isStrictCashStatementType,
+  resolveBreakEvenPricePerGram,
+} from './useAccountEnquiryStatement'
+
+describe('isStrictCashStatementType', () => {
+  test('includes posted journal vouchers (referenceType journal), not only legacy jv', () => {
+    expect(isStrictCashStatementType('journal')).toBe(true)
+    expect(isStrictCashStatementType('jv')).toBe(true)
+    expect(isStrictCashStatementType('bank_jv')).toBe(true)
+    expect(isStrictCashStatementType('payment')).toBe(true)
+    expect(isStrictCashStatementType('receipt')).toBe(true)
+  })
+
+  test('rejects non-cash statement types', () => {
+    expect(isStrictCashStatementType('direct_deal')).toBe(false)
+    expect(isStrictCashStatementType('metal_transfer')).toBe(false)
+    expect(isStrictCashStatementType('')).toBe(false)
+  })
+})
 
 describe('combineVoucherStatementRows', () => {
   test('keeps each fixing-deal line as its own buy or sell row', () => {

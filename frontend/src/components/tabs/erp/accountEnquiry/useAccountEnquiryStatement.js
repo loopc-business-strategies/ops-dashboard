@@ -219,15 +219,21 @@ function summarizeMetalDealRows(rows) {
   })
 }
 
+/** Cash on Hand statement keeps real cash movements; FX gain/loss posts stay off the grid. */
 const STRICT_CASH_STATEMENT_TYPES = new Set([
   'payment',
   'receipt',
   'sale',
   'purchase',
+  'journal',
   'jv',
   'bank_jv',
   'bank-jv',
 ])
+
+export function isStrictCashStatementType(type) {
+  return STRICT_CASH_STATEMENT_TYPES.has(String(type || '').toLowerCase().trim())
+}
 
 /**
  * Statement merge, MTM/revaluation, and display helpers for account enquiry.
@@ -498,7 +504,7 @@ export function useAccountEnquiryStatement({
       const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
       const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
       const effectiveType = sourceType || referenceType
-      if (!STRICT_CASH_STATEMENT_TYPES.has(effectiveType)) return false
+      if (!isStrictCashStatementType(effectiveType)) return false
     }
     const entryDate = entry.date ? new Date(entry.date) : null
     if (statementFilters.startDate) {
@@ -529,12 +535,16 @@ export function useAccountEnquiryStatement({
     return true
   })
 
-  const visibleStatementNetBalance = sumStatementSignedAmounts(filteredStatementEntries)
-  const visibleStatementClosingBalance = resolveVisibleStatementClosingBalance({
-    filteredEntries: filteredStatementEntries,
-    allEntriesCount: statementEntries.length,
-    ledgerNetBalance: accountEnquiryData?.balances?.netBalance ?? 0,
-  })
+  const ledgerNetBalance = Number(accountEnquiryData?.balances?.netBalance ?? 0)
+  // Cash on Hand Total Balance / closing always follow full ledger (Reports/TB), even when
+  // exchange gain/loss adjustment rows are hidden from the statement grid.
+  const visibleStatementClosingBalance = isCashOnHandEnquiry
+    ? (Number.isFinite(ledgerNetBalance) ? ledgerNetBalance : sumStatementSignedAmounts(filteredStatementEntries))
+    : resolveVisibleStatementClosingBalance({
+      filteredEntries: filteredStatementEntries,
+      allEntriesCount: statementEntries.length,
+      ledgerNetBalance,
+    })
   stampStatementRunningBalances(filteredStatementEntries, visibleStatementClosingBalance)
   // Rows not loaded (older pages, opening balance) stay at today's rate.
   stampStatementDisplayRunningBalances(
@@ -542,11 +552,11 @@ export function useAccountEnquiryStatement({
     convertStatementDisplayAmount(visibleStatementClosingBalance) + sumStatementDisplayFxAdjustments(filteredStatementEntries),
   )
 
-  const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
+  const modalTotalFundsDisplay = modalTotalFunds
   const modalTotalFundsInDisplayCurrency = convertStatementDisplayAmount(modalTotalFundsDisplay)
-    + sumStatementDisplayFxAdjustments(isCashOnHandEnquiry ? filteredStatementEntries : statementEntries)
+    + sumStatementDisplayFxAdjustments(statementEntries)
   // Credit-positive margin funds: Debit ledger → negative, Credit ledger → positive.
-  const marginEquityFundsForMetrics = -(isCashOnHandEnquiry ? visibleStatementNetBalance : totalFunds)
+  const marginEquityFundsForMetrics = -totalFunds
 
   const hasMetalExposure = hasAccountEnquiryMetalExposure(xauValuationBalance, xagValuationBalance)
   const bookedRevaluationTotal = resolveAccountEnquiryBookedRevaluation(

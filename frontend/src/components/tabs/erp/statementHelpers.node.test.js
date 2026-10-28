@@ -497,10 +497,12 @@ describe('statement helpers', () => {
     ])
   })
 
-  test('cash Total Balance direction uses exposure of the displayed amount, not full-ledger Credit', () => {
-    const visibleClosing = 143.28
-    expect(resolveExposureDirection(visibleClosing)).toBe('Debit')
-    expect(resolveExposureDirection(-visibleClosing)).toBe('Credit')
+  test('Cash on Hand Total Balance direction follows ledger net (Reports), not filtered cash-only sum', () => {
+    // Visible cash rows can stay Debit while full ledger (incl. journals / FX) is Credit.
+    const visibleCashOnly = 143.28
+    const ledgerNetMatchingReports = -96.29
+    expect(resolveExposureDirection(visibleCashOnly)).toBe('Debit')
+    expect(resolveExposureDirection(ledgerNetMatchingReports)).toBe('Credit')
   })
 })
 
