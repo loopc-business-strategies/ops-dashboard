@@ -85,21 +85,41 @@ function buildEmployeePayload(form) {
 
 function FieldLabel({ children, required = false }) {
   return (
-    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-600">
+    <label className="mb-2 block text-xs font-semibold text-slate-700">
       {children}
       {required ? <span className="ml-0.5 text-orange-600">*</span> : null}
     </label>
   )
 }
 
+function PencilIcon({ className = 'h-3.5 w-3.5' }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828Z" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className = 'h-3.5 w-3.5' }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4.5H2.75a.75.75 0 0 0 0 1.5h.55l.77 10.01A2.75 2.75 0 0 0 6.76 18.5h6.48a2.75 2.75 0 0 0 2.69-2.49l.77-10.01h.55a.75.75 0 0 0 0-1.5H14v-.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM7.5 3.75c0-.69.56-1.25 1.25-1.25h2.5c.69 0 1.25.56 1.25 1.25V4.5h-5v-.75ZM8.3 7.25a.75.75 0 0 1 .75.69l.4 7a.75.75 0 1 1-1.5.08l-.4-7a.75.75 0 0 1 .75-.77Zm3.4 0a.75.75 0 0 1 .75.77l-.4 7a.75.75 0 1 1-1.5-.08l.4-7a.75.75 0 0 1 .75-.69Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  )
+}
+
 const DRAWER_INPUT =
-  'w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-normal text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:bg-white focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
+  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm leading-normal text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
 
 const PRIMARY_BTN =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
-const ACTION_PILL =
-  'inline-flex min-h-8 items-center justify-center rounded-full px-3.5 py-1.5 text-xs font-semibold leading-none tracking-normal transition-colors'
+const ACTION_BTN =
+  'inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold leading-none tracking-normal transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -108,8 +128,14 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   const [form, setForm] = useState(() => employeeToForm(initialEmployee))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [entered, setEntered] = useState(false)
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -142,84 +168,90 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[950] flex justify-end bg-slate-950/40 backdrop-blur-[1px]">
+    <div className="fixed inset-0 z-[950] flex justify-end">
       <button
         type="button"
         aria-label="Close employee drawer"
-        className="absolute inset-0 cursor-default"
+        className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-300 ${entered ? 'opacity-100' : 'opacity-0'}`}
         onClick={onCancel}
       />
       <aside
-        className="relative flex h-full w-full max-w-[480px] flex-col border-l border-slate-200 bg-white shadow-2xl"
-        style={{ boxShadow: 'inset 2px 0 0 0 var(--brand-primary, #ea580c), -12px 0 40px rgba(15,23,42,0.12)' }}
+        className={`relative flex h-full w-full max-w-[560px] flex-col border-l border-slate-200 bg-white transition-transform duration-300 ease-out ${entered ? 'translate-x-0' : 'translate-x-full'}`}
+        style={{ boxShadow: 'inset 3px 0 0 0 var(--brand-primary, #ea580c), -16px 0 48px rgba(15,23,42,0.18)' }}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-6 py-5">
-          <div>
-            <h3 className="text-lg font-semibold leading-snug text-slate-950">
-              {isEdit ? 'Edit employee' : t('addNewEmployee')}
-            </h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{t('fillEmployeeDetails')}</p>
+        <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-semibold leading-snug text-slate-950">
+                {isEdit ? 'Edit Employee' : 'Add New Employee'}
+              </h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+                Fill in the employee details below.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xl font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              aria-label="Close"
+            >
+              ×
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-            aria-label="Close"
-          >
-            ×
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {error && (
-              <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">
+              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
                 {error}
               </div>
             )}
 
-            <div className="space-y-7">
-              <section className="space-y-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Identity</p>
-                <div>
-                  <FieldLabel required>Name</FieldLabel>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={set('name')}
-                    placeholder="e.g. John Smith"
-                    className={DRAWER_INPUT}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-5">
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Identity</p>
+                <div className="space-y-4">
                   <div>
-                    <FieldLabel required>ID number</FieldLabel>
+                    <FieldLabel required>Employee Name</FieldLabel>
                     <input
                       type="text"
-                      value={form.idNumber}
-                      onChange={set('idNumber')}
-                      placeholder="e.g. 8501015009087"
+                      value={form.name}
+                      onChange={set('name')}
+                      placeholder="e.g. John Smith"
                       className={DRAWER_INPUT}
                     />
                   </div>
-                  <div>
-                    <FieldLabel required>{t('employeeCode')}</FieldLabel>
-                    <input
-                      type="text"
-                      value={form.employeeCode}
-                      onChange={set('employeeCode')}
-                      placeholder="e.g. EMP-001"
-                      className={DRAWER_INPUT}
-                    />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <FieldLabel required>ID Number</FieldLabel>
+                      <input
+                        type="text"
+                        value={form.idNumber}
+                        onChange={set('idNumber')}
+                        placeholder="e.g. 8501015009087"
+                        className={DRAWER_INPUT}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel required>Employee Code</FieldLabel>
+                      <input
+                        type="text"
+                        value={form.employeeCode}
+                        onChange={set('employeeCode')}
+                        placeholder="e.g. EMP-001"
+                        className={DRAWER_INPUT}
+                      />
+                    </div>
                   </div>
                 </div>
               </section>
 
-              <section className="space-y-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Dates</p>
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Employment Dates</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <FieldLabel>Joining date</FieldLabel>
+                    <FieldLabel>Joining Date</FieldLabel>
                     <input
                       type="date"
                       value={form.joiningDate}
@@ -228,7 +260,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                     />
                   </div>
                   <div>
-                    <FieldLabel>Last increment</FieldLabel>
+                    <FieldLabel>Last Increment</FieldLabel>
                     <input
                       type="date"
                       value={form.lastIncrement}
@@ -239,11 +271,11 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="space-y-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Compensation</p>
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Compensation</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <FieldLabel>Salary agreed</FieldLabel>
+                    <FieldLabel>Salary Agreed</FieldLabel>
                     <input
                       type="number"
                       min="0"
@@ -271,22 +303,24 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
             </div>
           </div>
 
-          <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white px-6 py-5">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={PRIMARY_BTN}
-              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
-            >
-              {loading ? t('saving') : isEdit ? 'Save changes' : t('saveEmployee')}
-            </button>
+          <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-5">
+            <div className="flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className={PRIMARY_BTN}
+                style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+              >
+                {loading ? t('saving') : isEdit ? 'Save Changes' : 'Save Employee'}
+              </button>
+            </div>
           </div>
         </form>
       </aside>
@@ -355,7 +389,7 @@ function EmployeeList({ token, company }) {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">{error}</div>
       )}
 
       {formMode && (
@@ -385,33 +419,42 @@ function EmployeeList({ token, company }) {
           />
         </div>
       ) : employees.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
           <p className="mb-3 text-4xl">👤</p>
           <p className="font-medium text-slate-700">No employees yet</p>
           <p className="mt-1 text-sm text-slate-500">Click &quot;Add Employee&quot; to add the first record</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm leading-relaxed">
+            <table className="w-full min-w-[880px] border-collapse text-sm">
+              <colgroup>
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '20%' }} />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Name</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">ID number</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Joining date</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Salary agreed</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Last increment</th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">ID Number</th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Joining Date</th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Salary Agreed</th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Last Increment</th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Rebate</th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Actions</th>
+                  <th className="px-5 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {employees.map((emp, index) => (
                   <tr
                     key={emp._id}
-                    className={`transition-colors hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
+                    className={`transition-colors hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                   >
-                    <td className="px-5 py-4 whitespace-nowrap font-semibold text-slate-900">
+                    <td className="px-5 py-4 align-middle whitespace-nowrap font-semibold text-slate-900">
                       {structured ? (
                         <button
                           type="button"
@@ -424,33 +467,34 @@ function EmployeeList({ token, company }) {
                         emp.name
                       )}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-slate-600">{emp.idNumber}</td>
-                    <td className="px-5 py-4 whitespace-nowrap text-slate-600">
+                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">{emp.idNumber}</td>
+                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">
                       {formatDateDisplay(emp.joiningDate)}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap font-medium text-slate-800">
+                    <td className="px-5 py-4 align-middle whitespace-nowrap font-medium text-slate-800">
                       {formatMoney(emp.salaryAgreed)}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-slate-600">
+                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">
                       {formatDateDisplay(emp.lastIncrement)}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-slate-600">
+                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">
                       {formatMoney(emp.rebate)}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-right">
-                      <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                    <td className="px-5 py-4 align-middle">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => setFormMode(emp)}
-                          className={`${ACTION_PILL} border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
+                          className={`${ACTION_BTN} border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
                         >
-                          Edit
+                          <PencilIcon />
+                          <span>Edit</span>
                         </button>
                         {structured && (
                           <button
                             type="button"
                             onClick={() => setProfileId(emp._id)}
-                            className={`${ACTION_PILL} border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100`}
+                            className={`${ACTION_BTN} border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100`}
                           >
                             Profile
                           </button>
@@ -458,9 +502,10 @@ function EmployeeList({ token, company }) {
                         <button
                           type="button"
                           onClick={() => handleDelete(emp._id, emp.name)}
-                          className={`${ACTION_PILL} border border-red-200 bg-red-50 text-red-700 hover:bg-red-100`}
+                          className={`${ACTION_BTN} border border-red-200 bg-red-50 text-red-700 hover:bg-red-100`}
                         >
-                          Delete
+                          <TrashIcon />
+                          <span>Delete</span>
                         </button>
                       </div>
                     </td>
