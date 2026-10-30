@@ -14,6 +14,7 @@ import { isStructuredPayrollEnabled } from '../../config/tenantBranding'
 import EmployeeProfileDrawer from './hr/EmployeeProfileDrawer'
 import AttendanceLogPanel from './hr/AttendanceLogPanel'
 import RemarksPanel from './hr/RemarksPanel'
+import { downloadPayrollPdf } from './hr/payrollPdfExport'
 
 function getHRSubTabs(t) {
   return [
@@ -374,10 +375,15 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
 function EmployeeList({ token, company }) {
   const [employees, setEmployees] = useState([])
   const [monthMeta, setMonthMeta] = useState({ calendarDays: 31, statsById: {}, statsByName: {} })
+  const [reportPeriod, setReportPeriod] = useState(() => {
+    const now = new Date()
+    return { year: now.getFullYear(), month: now.getMonth() + 1 }
+  })
   const [loading, setLoading] = useState(true)
   const [formMode, setFormMode] = useState(null)
   const [error, setError] = useState('')
   const [profileId, setProfileId] = useState(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
   const structured = isStructuredPayrollEnabled(company)
 
   const load = useCallback(async (isMounted = () => true) => {
@@ -397,6 +403,7 @@ function EmployeeList({ token, company }) {
       ])
       if (!isMounted()) return
       setEmployees(data.employees || [])
+      setReportPeriod({ year, month })
       const statsById = {}
       const statsByName = {}
       for (const row of monthData?.stats || []) {
@@ -432,11 +439,84 @@ function EmployeeList({ token, company }) {
     }
   }
 
-  const resolveWorkedDays = (emp) => {
-    const byId = monthMeta.statsById[String(emp._id)]
-    if (byId !== undefined) return byId
-    const byName = monthMeta.statsByName[normalizeName(emp.name)]
-    return byName !== undefined ? byName : 0
+  const { payrollRows, payrollTotals } = useMemo(() => {
+    let gross = 0
+    let rebate = 0
+    let personalTax = 0
+    let socialTax = 0
+    let netPayable = 0
+    const rows = employees.map((emp) => {
+      const byId = monthMeta.statsById[String(emp._id)]
+      const byName = monthMeta.statsByName[normalizeName(emp.name)]
+      const workedDays = byId !== undefined ? byId : (byName !== undefined ? byName : 0)
+      const accumulated = prorateAccumulatedSalary(
+        emp.salaryAgreed,
+        monthMeta.calendarDays,
+        workedDays,
+      )
+      const tax = computeTaxBreakdown(accumulated)
+      const rebateN = Number(emp.rebate)
+      const rebateValue = Number.isFinite(rebateN) ? rebateN : 0
+      rebate += rebateValue
+      if (accumulated !== null && accumulated !== undefined) {
+        gross += Number(accumulated) || 0
+        personalTax += Number(tax.personalTax) || 0
+        socialTax += Number(tax.socialTax) || 0
+        netPayable += Number(tax.netPayable) || 0
+      }
+      return {
+        id: emp._id,
+        emp,
+        name: emp.name || '',
+        employeeCode: emp.employeeCode || '',
+        workedDays,
+        salaryAgreed: emp.salaryAgreed,
+        rebate: emp.rebate,
+        accumulated,
+        personalTax: tax.personalTax,
+        socialTax: tax.socialTax,
+        netPayable: tax.netPayable,
+      }
+    })
+    return {
+      payrollRows: rows,
+      payrollTotals: {
+        employeeCount: rows.length,
+        gross: round2(gross),
+        rebate: round2(rebate),
+        personalTax: round2(personalTax),
+        socialTax: round2(socialTax),
+        taxesTotal: round2(personalTax + socialTax),
+        netPayable: round2(netPayable),
+      },
+    }
+  }, [employees, monthMeta])
+
+  const summaryCards = [
+    { label: 'Employees', value: payrollTotals.employeeCount, money: false },
+    { label: 'Gross salary (MTD)', value: payrollTotals.gross, money: true },
+    { label: 'Total rebate', value: payrollTotals.rebate, money: true },
+    { label: 'Taxes total', value: payrollTotals.taxesTotal, money: true },
+    { label: 'Net payable', value: payrollTotals.netPayable, money: true },
+  ]
+
+  const handleDownloadPdf = async () => {
+    if (!payrollRows.length || pdfBusy) return
+    setPdfBusy(true)
+    setError('')
+    try {
+      await downloadPayrollPdf({
+        rows: payrollRows,
+        totals: payrollTotals,
+        year: reportPeriod.year,
+        month: reportPeriod.month,
+        companyName: company || '',
+      })
+    } catch {
+      setError('Failed to generate payroll PDF.')
+    } finally {
+      setPdfBusy(false)
+    }
   }
 
   return (
@@ -451,15 +531,25 @@ function EmployeeList({ token, company }) {
           </p>
         </div>
         {!formMode && (
-          <button
-            type="button"
-            onClick={() => setFormMode('create')}
-            className={`${PRIMARY_BTN} shrink-0 hover:-translate-y-px hover:shadow-md`}
-            style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
-          >
-            <span aria-hidden="true">+</span>
-            <span>Add Employee</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={loading || employees.length === 0 || pdfBusy}
+              className={`${FOOTER_CANCEL_BTN} shrink-0`}
+            >
+              {pdfBusy ? 'Preparing…' : 'Download PDF'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormMode('create')}
+              className={`${PRIMARY_BTN} shrink-0 hover:-translate-y-px hover:shadow-md`}
+              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+            >
+              <span aria-hidden="true">+</span>
+              <span>Add Employee</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -484,6 +574,24 @@ function EmployeeList({ token, company }) {
           onClose={() => setProfileId(null)}
           onSaved={() => load()}
         />
+      )}
+
+      {!loading && (
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {summaryCards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {card.label}
+              </p>
+              <p className="mt-1.5 text-base font-semibold tabular-nums text-slate-900">
+                {card.money ? formatMoney(card.value) : card.value}
+              </p>
+            </div>
+          ))}
+        </div>
       )}
 
       {loading ? (
@@ -534,17 +642,11 @@ function EmployeeList({ token, company }) {
                 </tr>
               </thead>
               <tbody>
-                {employees.map((emp, index) => {
-                  const workedDays = resolveWorkedDays(emp)
-                  const accumulated = prorateAccumulatedSalary(
-                    emp.salaryAgreed,
-                    monthMeta.calendarDays,
-                    workedDays,
-                  )
-                  const { personalTax, socialTax, netPayable } = computeTaxBreakdown(accumulated)
+                {payrollRows.map((row, index) => {
+                  const emp = row.emp
                   return (
                   <tr
-                    key={emp._id}
+                    key={row.id}
                     className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}
                   >
                     <td className="max-w-0 truncate px-4 py-4 align-middle text-sm font-semibold text-slate-900" title={emp.name}>
@@ -574,19 +676,19 @@ function EmployeeList({ token, company }) {
                       {formatMoney(emp.rebate)}
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
-                      {workedDays}
+                      {row.workedDays}
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {formatMoney(accumulated)}
+                      {formatMoney(row.accumulated)}
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-700">
-                      {formatMoney(personalTax)}
+                      {formatMoney(row.personalTax)}
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-700">
-                      {formatMoney(socialTax)}
+                      {formatMoney(row.socialTax)}
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {formatMoney(netPayable)}
+                      {formatMoney(row.netPayable)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 align-middle">
                       <div className="inline-flex flex-nowrap items-center gap-2">
