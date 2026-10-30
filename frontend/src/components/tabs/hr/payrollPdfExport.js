@@ -54,6 +54,7 @@ export async function downloadPayrollPdf({
   const body = rows.map((row) => [
     row.name || '—',
     row.employeeCode || '—',
+    row.phoneNumber || '—',
     String(row.workedDays ?? 0),
     formatPdfMoney(row.salaryAgreed),
     formatPdfMoney(row.rebate),
@@ -68,6 +69,7 @@ export async function downloadPayrollPdf({
     head: [[
       'Name',
       'Code',
+      'Phone',
       'Worked days',
       'Salary agreed',
       'Rebate',
@@ -77,17 +79,17 @@ export async function downloadPayrollPdf({
       'Net payable',
     ]],
     body,
-    styles: { fontSize: 8, cellPadding: 4 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 },
     headStyles: { fillColor: [51, 65, 85], textColor: 255 },
-    margin: { left: 36, right: 36 },
+    margin: { left: 28, right: 28 },
     columnStyles: {
-      2: { halign: 'right' },
       3: { halign: 'right' },
       4: { halign: 'right' },
       5: { halign: 'right' },
       6: { halign: 'right' },
       7: { halign: 'right' },
       8: { halign: 'right' },
+      9: { halign: 'right' },
     },
   })
 
@@ -99,12 +101,12 @@ export async function downloadPayrollPdf({
   pdf.setFontSize(10)
 
   const summaryLines = [
-    `Gross salary (MTD): ${formatPdfMoney(totals.gross)}`,
-    `Total rebate: ${formatPdfMoney(totals.rebate)}`,
-    `Personal tax: ${formatPdfMoney(totals.personalTax)}`,
-    `Social tax: ${formatPdfMoney(totals.socialTax)}`,
-    `Taxes total: ${formatPdfMoney(totals.taxesTotal)}`,
-    `Net payable (salary to pay): ${formatPdfMoney(totals.netPayable)}`,
+    `1. Gross total salary: ${formatPdfMoney(totals.gross)}`,
+    `2. Total personal tax: ${formatPdfMoney(totals.personalTax)}`,
+    `3. Total social tax: ${formatPdfMoney(totals.socialTax)}`,
+    `4. Net payable: ${formatPdfMoney(totals.netPayable)}`,
+    `5. Rebate: ${formatPdfMoney(totals.rebate)}`,
+    `6. Net expense: ${formatPdfMoney(totals.netExpense)}`,
   ]
   summaryLines.forEach((line, i) => {
     pdf.text(line, 40, endY + 16 + i * 14)

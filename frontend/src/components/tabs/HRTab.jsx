@@ -469,6 +469,7 @@ function EmployeeList({ token, company }) {
         emp,
         name: emp.name || '',
         employeeCode: emp.employeeCode || '',
+        phoneNumber: emp.phoneNumber || '',
         workedDays,
         salaryAgreed: emp.salaryAgreed,
         rebate: emp.rebate,
@@ -478,26 +479,33 @@ function EmployeeList({ token, company }) {
         netPayable: tax.netPayable,
       }
     })
+    const grossR = round2(gross)
+    const rebateR = round2(rebate)
+    const personalTaxR = round2(personalTax)
+    const socialTaxR = round2(socialTax)
+    const netPayableR = round2(netPayable)
     return {
       payrollRows: rows,
       payrollTotals: {
         employeeCount: rows.length,
-        gross: round2(gross),
-        rebate: round2(rebate),
-        personalTax: round2(personalTax),
-        socialTax: round2(socialTax),
-        taxesTotal: round2(personalTax + socialTax),
-        netPayable: round2(netPayable),
+        gross: grossR,
+        personalTax: personalTaxR,
+        socialTax: socialTaxR,
+        netPayable: netPayableR,
+        rebate: rebateR,
+        netExpense: round2(netPayableR - rebateR),
       },
     }
   }, [employees, monthMeta])
 
   const summaryCards = [
     { label: 'Employees', value: payrollTotals.employeeCount, money: false },
-    { label: 'Gross salary (MTD)', value: payrollTotals.gross, money: true },
-    { label: 'Total rebate', value: payrollTotals.rebate, money: true },
-    { label: 'Taxes total', value: payrollTotals.taxesTotal, money: true },
+    { label: 'Gross total salary', value: payrollTotals.gross, money: true },
+    { label: 'Total personal tax', value: payrollTotals.personalTax, money: true },
+    { label: 'Total social tax', value: payrollTotals.socialTax, money: true },
     { label: 'Net payable', value: payrollTotals.netPayable, money: true },
+    { label: 'Rebate', value: payrollTotals.rebate, money: true },
+    { label: 'Net expense', value: payrollTotals.netExpense, money: true },
   ]
 
   const handleDownloadPdf = async () => {
@@ -577,7 +585,7 @@ function EmployeeList({ token, company }) {
       )}
 
       {!loading && (
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {summaryCards.map((card) => (
             <div
               key={card.label}
@@ -610,8 +618,9 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1400px] border-collapse text-[13px] leading-snug">
+            <table className="w-full min-w-[1500px] border-collapse text-[13px] leading-snug">
               <colgroup>
+                <col />
                 <col />
                 <col />
                 <col />
@@ -629,6 +638,7 @@ function EmployeeList({ token, company }) {
                 <tr className="border-b border-slate-200 bg-slate-100/80">
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Name</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">ID Number</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Phone</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Joining Date</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Salary Agreed</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Last Increment</th>
@@ -663,6 +673,9 @@ function EmployeeList({ token, company }) {
                       )}
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">{emp.idNumber || '—'}</td>
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
+                      {emp.phoneNumber || '—'}
+                    </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatDateDisplay(emp.joiningDate)}
                     </td>
