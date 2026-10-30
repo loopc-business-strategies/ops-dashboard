@@ -14,6 +14,9 @@ const markRecord = async (_token, data) =>
 const getMyAttendance = async (_token) =>
   (await axios.get(`${BASE}/me`)).data
 
+const getMonthStats = async (_token, year, month) =>
+  (await axios.get(`${BASE}/month-stats`, { params: { year, month } })).data
+
 const getLeaveRequests = async (_token, status = 'all') =>
   (await axios.get(`${BASE}/leave`, { params: { status } })).data
 
@@ -28,6 +31,7 @@ const attendanceAPI = {
   getRecords,
   markRecord,
   getMyAttendance,
+  getMonthStats,
   getLeaveRequests,
   createLeaveRequest,
   reviewLeaveRequest,

@@ -6,6 +6,7 @@
 import { useCallback, useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import hrAPI from '../../api/hr'
+import attendanceAPI from '../../api/attendance'
 import { useLanguage } from '../../context/LanguageContext'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModuleTabColumn } from '../layout/ModuleTabChrome'
@@ -56,6 +57,22 @@ function formatMoney(value) {
   const n = Number(value)
   if (!Number.isFinite(n)) return '—'
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
+
+/** Match payroll: monthlySalary / calendarDays × workedDays, rounded to 2dp. */
+function prorateAccumulatedSalary(salaryAgreed, calendarDays, workedDays) {
+  const monthly = Number(salaryAgreed)
+  const cal = Number(calendarDays)
+  const days = Number(workedDays)
+  if (!Number.isFinite(monthly) || monthly < 0) return null
+  if (!Number.isFinite(cal) || cal <= 0) return null
+  if (!Number.isFinite(days) || days < 0) return 0
+  if (days >= cal) return Math.round(monthly * 100) / 100
+  return Math.round((monthly / cal) * days * 100) / 100
+}
+
+function normalizeName(value) {
+  return String(value || '').trim().toLowerCase()
 }
 
 function employeeToForm(emp) {
@@ -337,6 +354,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
 // ── Employee List sub-tab ────────────────────────
 function EmployeeList({ token, company }) {
   const [employees, setEmployees] = useState([])
+  const [monthMeta, setMonthMeta] = useState({ calendarDays: 31, statsById: {}, statsByName: {} })
   const [loading, setLoading] = useState(true)
   const [formMode, setFormMode] = useState(null)
   const [error, setError] = useState('')
@@ -346,9 +364,27 @@ function EmployeeList({ token, company }) {
   const load = useCallback(async (isMounted = () => true) => {
     setLoading(true)
     setError('')
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
     try {
-      const data = await hrAPI.getEmployees(token)
-      if (isMounted()) setEmployees(data.employees || [])
+      const [data, monthData] = await Promise.all([
+        hrAPI.getEmployees(token),
+        attendanceAPI.getMonthStats(token, year, month).catch(() => null),
+      ])
+      if (!isMounted()) return
+      setEmployees(data.employees || [])
+      const statsById = {}
+      const statsByName = {}
+      for (const row of monthData?.stats || []) {
+        if (row.employeeId) statsById[String(row.employeeId)] = row.workedDays || 0
+        if (row.employeeName) statsByName[normalizeName(row.employeeName)] = row.workedDays || 0
+      }
+      setMonthMeta({
+        calendarDays: Number(monthData?.calendarDays) || new Date(year, month, 0).getDate(),
+        statsById,
+        statsByName,
+      })
     } catch {
       if (isMounted()) setError('Failed to load employees.')
     } finally {
@@ -370,6 +406,13 @@ function EmployeeList({ token, company }) {
     } catch {
       setError('Failed to delete employee.')
     }
+  }
+
+  const resolveWorkedDays = (emp) => {
+    const byId = monthMeta.statsById[String(emp._id)]
+    if (byId !== undefined) return byId
+    const byName = monthMeta.statsByName[normalizeName(emp.name)]
+    return byName !== undefined ? byName : 0
   }
 
   return (
@@ -435,8 +478,10 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] border-collapse text-[13px] leading-snug">
+            <table className="w-full min-w-[1100px] border-collapse text-[13px] leading-snug">
               <colgroup>
+                <col />
+                <col />
                 <col />
                 <col />
                 <col />
@@ -453,11 +498,20 @@ function EmployeeList({ token, company }) {
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Salary Agreed</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Last Increment</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Working Days</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Accumulated Salary</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {employees.map((emp, index) => (
+                {employees.map((emp, index) => {
+                  const workedDays = resolveWorkedDays(emp)
+                  const accumulated = prorateAccumulatedSalary(
+                    emp.salaryAgreed,
+                    monthMeta.calendarDays,
+                    workedDays,
+                  )
+                  return (
                   <tr
                     key={emp._id}
                     className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}
@@ -487,6 +541,12 @@ function EmployeeList({ token, company }) {
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatMoney(emp.rebate)}
+                    </td>
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
+                      {workedDays}
+                    </td>
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
+                      {formatMoney(accumulated)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 align-middle">
                       <div className="inline-flex flex-nowrap items-center gap-2">
@@ -518,7 +578,8 @@ function EmployeeList({ token, company }) {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

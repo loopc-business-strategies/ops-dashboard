@@ -15,6 +15,9 @@ const {
   normalize,
   escapeRegex,
 } = require('../services/permissions/moduleAccessPolicy')
+const { daysInMonth } = require('../services/payroll/payrollCalculationService')
+
+const WORKED_STATUSES = ['present', 'late', 'wfh']
 
 const router = express.Router()
 
@@ -180,6 +183,88 @@ router.get('/summary', protect, async (req, res) => {
   }
 })
 
+router.get('/month-stats', protect, async (req, res) => {
+  try {
+    const now = new Date()
+    const year = Number(req.query.year) || now.getFullYear()
+    const month = Number(req.query.month) || (now.getMonth() + 1)
+
+    if (!Number.isInteger(year) || year < 2000 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) {
+      return res.status(400).json({ success: false, message: 'Invalid year or month.' })
+    }
+
+    const calendarDays = daysInMonth(year, month)
+    const monthPad = `${month}`.padStart(2, '0')
+    const monthStart = `${year}-${monthPad}-01`
+    const monthEndFull = `${year}-${monthPad}-${`${calendarDays}`.padStart(2, '0')}`
+    const today = dayKey()
+    const endDate = today < monthStart ? monthStart : (today > monthEndFull ? monthEndFull : today)
+
+    const query = {
+      date: { $gte: monthStart, $lte: endDate },
+      status: { $in: WORKED_STATUSES },
+    }
+
+    const deptScope = scopedDepartment(req.user)
+    if (deptScope) {
+      query.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
+    }
+
+    if (req.user.role === 'department_user' || req.user.role === 'external') {
+      query.employeeName = new RegExp(`^${escapeRegex(req.user.name)}$`, 'i')
+    }
+
+    const records = await AttendanceRecord.find(query)
+      .select('employeeId employeeName date status')
+      .lean()
+
+    // Unique worked dates per employee (prefer employeeId, fall back to name)
+    const byId = new Map()
+    const byName = new Map()
+
+    for (const rec of records) {
+      const dateKey = String(rec.date || '')
+      if (!dateKey) continue
+      const id = rec.employeeId ? String(rec.employeeId) : ''
+      const nameKey = normalize(rec.employeeName)
+      if (id) {
+        if (!byId.has(id)) byId.set(id, { employeeId: id, employeeName: rec.employeeName || '', dates: new Set() })
+        const entry = byId.get(id)
+        entry.dates.add(dateKey)
+        if (!entry.employeeName && rec.employeeName) entry.employeeName = rec.employeeName
+      } else if (nameKey) {
+        if (!byName.has(nameKey)) byName.set(nameKey, { employeeId: null, employeeName: rec.employeeName || '', dates: new Set() })
+        byName.get(nameKey).dates.add(dateKey)
+      }
+    }
+
+    const stats = [
+      ...[...byId.values()].map((e) => ({
+        employeeId: e.employeeId,
+        employeeName: e.employeeName,
+        workedDays: e.dates.size,
+      })),
+      ...[...byName.values()].map((e) => ({
+        employeeId: e.employeeId,
+        employeeName: e.employeeName,
+        workedDays: e.dates.size,
+      })),
+    ]
+
+    res.json({
+      success: true,
+      year,
+      month,
+      calendarDays,
+      from: monthStart,
+      to: endDate,
+      stats,
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
 router.get('/me', protect, async (req, res) => {
   try {
     const monthStart = new Date()
@@ -198,7 +283,7 @@ router.get('/me', protect, async (req, res) => {
       }).lean(),
     ])
 
-    const presentDays = records.filter((r) => ['present', 'late', 'wfh'].includes(r.status)).length
+    const presentDays = records.filter((r) => WORKED_STATUSES.includes(r.status)).length
     const leaveDays = records.filter((r) => r.status === 'leave').length
     const totalDays = Math.max(records.length, 1)
 
