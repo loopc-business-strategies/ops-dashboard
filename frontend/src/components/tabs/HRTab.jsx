@@ -125,7 +125,7 @@ const FOOTER_SAVE_BTN =
   'inline-flex min-h-11 min-w-[128px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
 const ACTION_BTN =
-  'inline-flex h-9 min-w-[88px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-semibold leading-none tracking-normal shadow-sm transition-colors'
+  'inline-flex h-9 min-w-[88px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-semibold leading-none tracking-normal shadow-sm transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -373,11 +373,13 @@ function EmployeeList({ token, company }) {
   }
 
   return (
-    <div className="pt-1">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-xl font-semibold leading-tight text-slate-900">Employee List</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+    <div className="pt-2">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+        <div className="min-w-0 space-y-2">
+          <h3 className="text-xl font-semibold leading-tight tracking-tight text-slate-900">
+            Employee List
+          </h3>
+          <p className="text-sm leading-relaxed text-slate-500">
             {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
           </p>
         </div>
@@ -431,7 +433,7 @@ function EmployeeList({ token, company }) {
           <p className="mt-1 text-sm text-slate-500">Click &quot;Add Employee&quot; to add the first record</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[920px] border-collapse text-[13px] leading-snug">
               <colgroup>
