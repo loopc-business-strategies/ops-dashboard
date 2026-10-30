@@ -92,7 +92,7 @@ function FieldLabel({ children, required = false }) {
   )
 }
 
-function PencilIcon({ className = 'h-3.5 w-3.5' }) {
+function PencilIcon({ className = 'h-4 w-4' }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828Z" />
@@ -100,7 +100,7 @@ function PencilIcon({ className = 'h-3.5 w-3.5' }) {
   )
 }
 
-function TrashIcon({ className = 'h-3.5 w-3.5' }) {
+function TrashIcon({ className = 'h-4 w-4' }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path
@@ -118,8 +118,14 @@ const DRAWER_INPUT =
 const PRIMARY_BTN =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
+const FOOTER_CANCEL_BTN =
+  'inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-[10px] py-[10px] text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50'
+
+const FOOTER_SAVE_BTN =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-[10px] py-[10px] text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+
 const ACTION_BTN =
-  'inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold leading-none tracking-normal transition-colors'
+  'inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-xs font-semibold leading-none tracking-normal transition-colors hover:shadow-sm'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -209,7 +215,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
             )}
 
             <div className="space-y-5">
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Identity</p>
                 <div className="space-y-4">
                   <div>
@@ -247,7 +253,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Employment Dates</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -271,7 +277,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Compensation</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -308,14 +314,14 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
               <button
                 type="button"
                 onClick={onCancel}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50"
+                className={FOOTER_CANCEL_BTN}
               >
                 {t('cancel')}
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className={PRIMARY_BTN}
+                className={FOOTER_SAVE_BTN}
                 style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
               >
                 {loading ? t('saving') : isEdit ? 'Save Changes' : 'Save Employee'}
@@ -481,7 +487,7 @@ function EmployeeList({ token, company }) {
                       {formatMoney(emp.rebate)}
                     </td>
                     <td className="px-5 py-4 align-middle">
-                      <div className="flex flex-wrap items-center justify-center gap-2">
+                      <div className="flex flex-wrap items-center justify-center gap-2.5">
                         <button
                           type="button"
                           onClick={() => setFormMode(emp)}
