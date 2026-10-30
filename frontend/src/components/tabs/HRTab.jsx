@@ -540,15 +540,18 @@ function EmployeeList({ token, company }) {
   }), [employees, monthMeta])
 
   const filteredPayrollRows = useMemo(() => {
+    const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
     const q = searchQuery.trim().toLowerCase()
-    if (!q) return payrollRows
     return payrollRows.filter((row) => {
+      const joinKey = toDateInput(row.emp?.joiningDate)
+      if (joinKey && joinKey > monthEnd) return false
+      if (!q) return true
       const name = String(row.name || '').toLowerCase()
       const idNumber = String(row.idNumber || '').toLowerCase()
       const code = String(row.employeeCode || '').toLowerCase()
       return name.includes(q) || idNumber.includes(q) || code.includes(q)
     })
-  }, [payrollRows, searchQuery])
+  }, [payrollRows, searchQuery, filterYear, filterMonth])
 
   const payrollTotals = useMemo(
     () => sumPayrollTotals(filteredPayrollRows),
