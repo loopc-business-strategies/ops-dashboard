@@ -151,4 +151,44 @@ describe('HR employees routes', () => {
     expect(deleteRes.status).toBe(200)
     expect(deleteRes.body.success).toBe(true)
   })
+
+  test('create and list round-trip spreadsheet HR fields', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const payload = {
+      name: 'Spreadsheet Staff',
+      idNumber: '8501015009087',
+      employeeCode: 'EMP-SHEET-1',
+      department: 'hr',
+      joiningDate: '2024-03-15',
+      salaryAgreed: 25000,
+      lastIncrement: '2025-01-01',
+      rebate: 500,
+      remarks: 'Probation cleared',
+    }
+
+    const createRes = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send(payload)
+
+    expect(createRes.status).toBe(201)
+    expect(createRes.body.success).toBe(true)
+    expect(createRes.body.employee.name).toBe(payload.name)
+    expect(createRes.body.employee.salaryAgreed).toBe(25000)
+    expect(createRes.body.employee.rebate).toBe(500)
+    expect(createRes.body.employee.remarks).toBe('Probation cleared')
+    expect(String(createRes.body.employee.joiningDate)).toContain('2024-03-15')
+    expect(String(createRes.body.employee.lastIncrement)).toContain('2025-01-01')
+
+    const listRes = await request(app)
+      .get('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+
+    expect(listRes.status).toBe(200)
+    const row = listRes.body.employees.find((e) => e.employeeCode === 'EMP-SHEET-1')
+    expect(row).toBeTruthy()
+    expect(row.salaryAgreed).toBe(25000)
+    expect(row.rebate).toBe(500)
+    expect(row.remarks).toBe('Probation cleared')
+  })
 })

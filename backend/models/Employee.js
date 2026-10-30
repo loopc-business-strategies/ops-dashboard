@@ -71,6 +71,12 @@ const employeeSchema = new mongoose.Schema(
     },
     contractRef: { type: String, trim: true, default: '' },
     salaryRef: { type: String, trim: true, default: '' },
+
+    // Spreadsheet-style HR list fields
+    salaryAgreed: { type: Number, default: null },
+    lastIncrement: { type: Date, default: null },
+    rebate: { type: Number, default: null },
+    remarks: { type: String, trim: true, default: '' },
   },
   {
     timestamps: true,

@@ -50,6 +50,10 @@ const optionalProfileFields = {
   status:       Joi.string().valid(...STATUS_VALUES).optional(),
   contractRef:  Joi.string().trim().allow('').max(120).optional(),
   salaryRef:    Joi.string().trim().allow('').max(120).optional(),
+  salaryAgreed: Joi.alternatives().try(Joi.number().min(0), Joi.valid(null), Joi.string().trim().allow('')).optional(),
+  lastIncrement: Joi.alternatives().try(Joi.date().iso(), Joi.string().trim().allow('').max(40), Joi.valid(null)).optional(),
+  rebate:       Joi.alternatives().try(Joi.number().min(0), Joi.valid(null), Joi.string().trim().allow('')).optional(),
+  remarks:      Joi.string().trim().allow('').max(1000).optional(),
 }
 
 const createEmployeeSchema = Joi.object({
@@ -85,13 +89,22 @@ function pickEmployeePayload(body) {
     'name', 'idNumber', 'employeeCode', 'address', 'phoneNumber', 'department', 'rating',
     'email', 'photoUrl', 'emergencyContactName', 'emergencyContactPhone', 'joiningDate',
     'position', 'managerName', 'shift', 'status', 'contractRef', 'salaryRef',
+    'salaryAgreed', 'lastIncrement', 'rebate', 'remarks',
   ]
+  const dateFields = new Set(['joiningDate', 'lastIncrement'])
+  const moneyFields = new Set(['salaryAgreed', 'rebate'])
   const out = {}
   for (const key of fields) {
     if (body[key] !== undefined) {
-      if (key === 'joiningDate') {
+      if (dateFields.has(key)) {
         if (body[key] === '' || body[key] === null) out[key] = null
         else out[key] = new Date(body[key])
+      } else if (moneyFields.has(key)) {
+        if (body[key] === '' || body[key] === null) out[key] = null
+        else {
+          const n = Number(body[key])
+          out[key] = Number.isFinite(n) ? n : null
+        }
       } else {
         out[key] = body[key]
       }

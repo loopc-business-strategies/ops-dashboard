@@ -1,7 +1,7 @@
 // FILE: src/components/tabs/HRTab.jsx
 // WHAT THIS IS:
 //   The HR section of the dashboard.
-//   Sub-tabs: Employee List, Labour Law, Current Updates, Admin
+//   Sub-tabs: Attendance Log, Employee List, Labour Law, Current Updates
 
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
@@ -11,70 +11,90 @@ import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { isStructuredPayrollEnabled } from '../../config/tenantBranding'
 import EmployeeProfileDrawer from './hr/EmployeeProfileDrawer'
+import AttendanceLogPanel from './hr/AttendanceLogPanel'
 
 function getHRSubTabs(t) {
   return [
-    { id: 'employee_list',   label: t('employeeList') },
-    { id: 'labour_law',      label: t('labourLaw') },
+    { id: 'attendance_log', label: t('attendanceLog') },
+    { id: 'employee_list', label: t('employeeList') },
+    { id: 'labour_law', label: t('labourLaw') },
     { id: 'current_updates', label: t('currentUpdates') },
   ]
 }
-
-const DEPARTMENTS = [
-  { value: '',            label: 'Select department' },
-  { value: 'production',  label: 'Production & Factory' },
-  { value: 'hr',          label: 'Hiring & HR' },
-  { value: 'finance',     label: 'Finance & Accounts' },
-  { value: 'government',  label: 'Govt. & Compliance' },
-  { value: 'sales',       label: 'Sales & Marketing' },
-  { value: 'operations',  label: 'Operations & Logistics' },
-  { value: 'training',    label: 'Training & Development' },
-  { value: 'management',  label: 'Management' },
-]
 
 const EMPTY_EMPLOYEE = {
   name: '',
   idNumber: '',
   employeeCode: '',
-  address: '',
-  phoneNumber: '',
-  department: '',
-  rating: 3,
+  joiningDate: '',
+  salaryAgreed: '',
+  lastIncrement: '',
+  rebate: '',
+  remarks: '',
 }
 
-// ── Star rating input ────────────────────────────
-function StarRating({ value, onChange }) {
-  const [hover, setHover] = useState(0)
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map(star => (
-        <button
-          key={star}
-          type="button"
-          onClick={() => onChange(star)}
-          onMouseEnter={() => setHover(star)}
-          onMouseLeave={() => setHover(0)}
-          className={`text-2xl transition-colors leading-none ${
-            star <= (hover || value) ? 'text-yellow-400' : 'text-gray-700'
-          }`}
-        >
-          ★
-        </button>
-      ))}
-    </div>
-  )
+function toDateInput(value) {
+  if (!value) return ''
+  const s = String(value)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = `${d.getMonth() + 1}`.padStart(2, '0')
+  const day = `${d.getDate()}`.padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
-// ── Add Employee form ────────────────────────────
-function AddEmployeeForm({ onSave, onCancel, token }) {
+function formatDateDisplay(value) {
+  const key = toDateInput(value)
+  return key || '—'
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
+
+function employeeToForm(emp) {
+  if (!emp) return { ...EMPTY_EMPLOYEE }
+  return {
+    name: emp.name || '',
+    idNumber: emp.idNumber || '',
+    employeeCode: emp.employeeCode || '',
+    joiningDate: toDateInput(emp.joiningDate),
+    salaryAgreed: emp.salaryAgreed === null || emp.salaryAgreed === undefined ? '' : String(emp.salaryAgreed),
+    lastIncrement: toDateInput(emp.lastIncrement),
+    rebate: emp.rebate === null || emp.rebate === undefined ? '' : String(emp.rebate),
+    remarks: emp.remarks || '',
+  }
+}
+
+function buildEmployeePayload(form) {
+  return {
+    name: form.name.trim(),
+    idNumber: form.idNumber.trim(),
+    employeeCode: form.employeeCode.trim(),
+    joiningDate: form.joiningDate || null,
+    salaryAgreed: form.salaryAgreed === '' ? null : Number(form.salaryAgreed),
+    lastIncrement: form.lastIncrement || null,
+    rebate: form.rebate === '' ? null : Number(form.rebate),
+    remarks: form.remarks.trim(),
+  }
+}
+
+// ── Add / Edit Employee form ─────────────────────
+function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   const { t } = useLanguage()
-  const [form, setForm] = useState(EMPTY_EMPLOYEE)
+  const isEdit = Boolean(initialEmployee?._id)
+  const [form, setForm] = useState(() => employeeToForm(initialEmployee))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [position, setPosition] = useState({ x: 0, y: 26 })
   const dragRef = useRef(null)
 
-  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
+  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const startDrag = (event) => {
     const point = event.touches?.[0] || event
@@ -121,13 +141,18 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.name.trim())         return setError(t('hrErrName'))
-    if (!form.idNumber.trim())     return setError(t('hrErrId'))
+    if (!form.name.trim()) return setError(t('hrErrName'))
+    if (!form.idNumber.trim()) return setError(t('hrErrId'))
     if (!form.employeeCode.trim()) return setError(t('hrErrCode'))
     setLoading(true)
     setError('')
     try {
-      await hrAPI.createEmployee(token, form)
+      const payload = buildEmployeePayload(form)
+      if (isEdit) {
+        await hrAPI.updateEmployee(token, initialEmployee._id, payload)
+      } else {
+        await hrAPI.createEmployee(token, payload)
+      }
       onSave()
     } catch (err) {
       setError(err.response?.data?.message || t('hrErrSave'))
@@ -148,7 +173,9 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           onTouchStart={startDrag}
         >
           <div>
-            <h3 className="text-base font-semibold leading-tight text-slate-950">{t('addNewEmployee')}</h3>
+            <h3 className="text-base font-semibold leading-tight text-slate-950">
+              {isEdit ? 'Edit employee' : t('addNewEmployee')}
+            </h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-600">{t('fillEmployeeDetails')}</p>
           </div>
           <button
@@ -157,136 +184,146 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
             onMouseDown={(event) => event.stopPropagation()}
             onTouchStart={(event) => event.stopPropagation()}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-lg font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-            aria-label="Close add employee form"
+            aria-label="Close employee form"
           >
             x
           </button>
         </div>
 
         <div className="max-h-[calc(100vh-140px)] overflow-y-auto p-5">
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
-          {error}
-        </div>
-      )}
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                  Name <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={set('name')}
+                  placeholder="e.g. John Smith"
+                  className="input-field"
+                />
+              </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                  ID number <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.idNumber}
+                  onChange={set('idNumber')}
+                  placeholder="e.g. 8501015009087"
+                  className="input-field"
+                />
+              </div>
 
-          {/* Name */}
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-              {t('fullName')} <span className="text-emerald-700">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={set('name')}
-              placeholder="e.g. John Smith"
-              className="input-field"
-            />
-          </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                  {t('employeeCode')} <span className="text-emerald-700">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.employeeCode}
+                  onChange={set('employeeCode')}
+                  placeholder="e.g. EMP-001"
+                  className="input-field"
+                />
+              </div>
 
-          {/* ID Number */}
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-              {t('idNumber')} <span className="text-emerald-700">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.idNumber}
-              onChange={set('idNumber')}
-              placeholder="e.g. 8501015009087"
-              className="input-field"
-            />
-          </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                  Joining date
+                </label>
+                <input
+                  type="date"
+                  value={form.joiningDate}
+                  onChange={set('joiningDate')}
+                  className="input-field"
+                />
+              </div>
 
-          {/* Employee Code */}
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-              {t('employeeCode')} <span className="text-emerald-700">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.employeeCode}
-              onChange={set('employeeCode')}
-              placeholder="e.g. EMP-001"
-              className="input-field"
-            />
-          </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                  Salary agreed
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.salaryAgreed}
+                  onChange={set('salaryAgreed')}
+                  placeholder="e.g. 25000"
+                  className="input-field"
+                />
+              </div>
 
-          {/* Phone Number */}
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-              {t('phoneNumber')}
-            </label>
-            <input
-              type="text"
-              value={form.phoneNumber}
-              onChange={set('phoneNumber')}
-              placeholder="e.g. 082 555 1234"
-              className="input-field"
-            />
-          </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                  Last increment
+                </label>
+                <input
+                  type="date"
+                  value={form.lastIncrement}
+                  onChange={set('lastIncrement')}
+                  className="input-field"
+                />
+              </div>
 
-          {/* Department */}
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-              {t('department')}
-            </label>
-            <select
-              value={form.department}
-              onChange={set('department')}
-              className="input-field"
-            >
-              {DEPARTMENTS.map(d => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                  Rebate
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.rebate}
+                  onChange={set('rebate')}
+                  placeholder="e.g. 500"
+                  className="input-field"
+                />
+              </div>
+            </div>
 
-          {/* Rating */}
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-              {t('rating')}
-            </label>
-            <StarRating value={form.rating} onChange={(val) => setForm(f => ({ ...f, rating: val }))} />
-          </div>
-        </div>
+            <div className="mt-4">
+              <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
+                Remarks
+              </label>
+              <textarea
+                value={form.remarks}
+                onChange={set('remarks')}
+                placeholder="Notes about this employee"
+                rows={3}
+                className="input-field resize-none"
+              />
+            </div>
 
-        {/* Address — full width */}
-        <div className="mt-4">
-          <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-            {t('address')}
-          </label>
-          <textarea
-            value={form.address}
-            onChange={set('address')}
-            placeholder="e.g. 123 Main Street, Johannesburg, 2001"
-            rows={3}
-            className="input-field resize-none"
-          />
-        </div>
-
-        <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            {t('cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
-            style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
-          >
-            {loading ? t('saving') : t('saveEmployee')}
-          </button>
-        </div>
-      </form>
+            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+              >
+                {loading ? t('saving') : isEdit ? 'Save changes' : t('saveEmployee')}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -296,9 +333,9 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 // ── Employee List sub-tab ────────────────────────
 function EmployeeList({ token, company }) {
   const [employees, setEmployees] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [showForm,  setShowForm]  = useState(false)
-  const [error,     setError]     = useState('')
+  const [loading, setLoading] = useState(true)
+  const [formMode, setFormMode] = useState(null) // null | 'create' | employee object
+  const [error, setError] = useState('')
   const [profileId, setProfileId] = useState(null)
   const structured = isStructuredPayrollEnabled(company)
 
@@ -325,32 +362,25 @@ function EmployeeList({ token, company }) {
     if (!window.confirm(`Delete ${name}?`)) return
     try {
       await hrAPI.deleteEmployee(token, id)
-      setEmployees(prev => prev.filter(e => e._id !== id))
+      setEmployees((prev) => prev.filter((e) => e._id !== id))
     } catch {
       setError('Failed to delete employee.')
     }
   }
 
-  const renderStars = (rating) =>
-    [1, 2, 3, 4, 5].map(s => (
-      <span key={s} className={s <= rating ? 'text-yellow-400' : 'text-gray-800'}>★</span>
-    ))
-
-  const deptLabel = (val) => DEPARTMENTS.find(d => d.value === val)?.label || val || '—'
-
   return (
     <div>
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="mb-5 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-white leading-tight">Employee List</h3>
-          <p className="text-gray-500 text-sm mt-1 leading-relaxed">
+          <h3 className="text-base font-semibold leading-tight text-white">Employee List</h3>
+          <p className="mt-1 text-sm leading-relaxed text-gray-500">
             {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
           </p>
         </div>
-        {!showForm && (
+        {!formMode && (
           <button
-            onClick={() => setShowForm(true)}
+            type="button"
+            onClick={() => setFormMode('create')}
             className="inline-flex min-h-10 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md"
             style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
           >
@@ -360,15 +390,15 @@ function EmployeeList({ token, company }) {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>
       )}
 
-      {/* Add form */}
-      {showForm && (
-        <AddEmployeeForm
+      {formMode && (
+        <EmployeeForm
           token={token}
-          onSave={() => { setShowForm(false); load() }}
-          onCancel={() => setShowForm(false)}
+          initialEmployee={formMode === 'create' ? null : formMode}
+          onSave={() => { setFormMode(null); load() }}
+          onCancel={() => setFormMode(null)}
         />
       )}
 
@@ -382,36 +412,38 @@ function EmployeeList({ token, company }) {
         />
       )}
 
-      {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '4px solid var(--brand-primary)', borderTopColor: 'transparent' }} />
+          <div
+            className="h-6 w-6 animate-spin rounded-full"
+            style={{ border: '4px solid var(--brand-primary)', borderTopColor: 'transparent' }}
+          />
         </div>
       ) : employees.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-gray-800 rounded-2xl">
-          <p className="text-4xl mb-3">👤</p>
-          <p className="text-gray-400 font-medium">No employees yet</p>
-          <p className="text-gray-600 text-sm mt-1">Click "Add Employee" to add the first record</p>
+        <div className="rounded-2xl border border-dashed border-gray-800 py-16 text-center">
+          <p className="mb-3 text-4xl">👤</p>
+          <p className="font-medium text-gray-400">No employees yet</p>
+          <p className="mt-1 text-sm text-gray-600">Click &quot;Add Employee&quot; to add the first record</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-800">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-800/60 border-b border-gray-700">
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Name</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Employee Code</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">ID Number</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Department</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Phone</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Address</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Rating</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none"></th>
+              <tr className="border-b border-gray-700 bg-gray-800/60">
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">ID number</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Joining date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Salary agreed</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Last increment</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Rebate</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Remarks</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {employees.map(emp => (
-                <tr key={emp._id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-white whitespace-nowrap leading-tight">
+              {employees.map((emp) => (
+                <tr key={emp._id} className="transition-colors hover:bg-gray-800/30">
+                  <td className="px-4 py-3 whitespace-nowrap font-medium leading-tight text-white">
                     {structured ? (
                       <button
                         type="button"
@@ -420,15 +452,34 @@ function EmployeeList({ token, company }) {
                       >
                         {emp.name}
                       </button>
-                    ) : emp.name}
+                    ) : (
+                      emp.name
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-gray-300 font-mono text-xs whitespace-nowrap leading-tight">{emp.employeeCode}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap leading-tight">{emp.idNumber}</td>
-                  <td className="px-4 py-3 text-gray-300 text-xs whitespace-nowrap leading-tight">{deptLabel(emp.department)}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap leading-tight">{emp.phoneNumber || '—'}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs max-w-[180px] truncate leading-tight">{emp.address || '—'}</td>
-                  <td className="px-4 py-3 text-base whitespace-nowrap">{renderStars(emp.rating)}</td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap leading-tight text-gray-400">{emp.idNumber}</td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap leading-tight text-gray-400">
+                    {formatDateDisplay(emp.joiningDate)}
+                  </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap leading-tight text-gray-300">
+                    {formatMoney(emp.salaryAgreed)}
+                  </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap leading-tight text-gray-400">
+                    {formatDateDisplay(emp.lastIncrement)}
+                  </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap leading-tight text-gray-300">
+                    {formatMoney(emp.rebate)}
+                  </td>
+                  <td className="max-w-[200px] truncate px-4 py-3 text-xs leading-tight text-gray-400">
+                    {emp.remarks || '—'}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setFormMode(emp)}
+                      className="mr-3 text-xs font-medium text-sky-400 hover:text-sky-300"
+                    >
+                      Edit
+                    </button>
                     {structured && (
                       <button
                         type="button"
@@ -439,8 +490,9 @@ function EmployeeList({ token, company }) {
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => handleDelete(emp._id, emp.name)}
-                      className="text-red-400 hover:text-red-300 text-xs font-medium transition-colors"
+                      className="text-xs font-medium text-red-400 transition-colors hover:text-red-300"
                     >
                       Delete
                     </button>
@@ -455,29 +507,30 @@ function EmployeeList({ token, company }) {
   )
 }
 
-// ── Labour Law sub-tab ───────────────────────────
 function LabourLaw() {
   return (
-    <div className="text-center py-20 border border-dashed border-gray-800 rounded-2xl">
-      <p className="text-4xl mb-3">⚖️</p>
-      <p className="text-gray-400 font-medium leading-tight">Labour Law</p>
-      <p className="text-gray-600 text-sm mt-1 leading-relaxed">Labour law guidelines and compliance documents will appear here</p>
+    <div className="rounded-2xl border border-dashed border-gray-800 py-20 text-center">
+      <p className="mb-3 text-4xl">⚖️</p>
+      <p className="font-medium leading-tight text-gray-400">Labour Law</p>
+      <p className="mt-1 text-sm leading-relaxed text-gray-600">
+        Labour law guidelines and compliance documents will appear here
+      </p>
     </div>
   )
 }
 
-// ── Current Updates sub-tab ──────────────────────
 function CurrentUpdates() {
   return (
-    <div className="text-center py-20 border border-dashed border-gray-800 rounded-2xl">
-      <p className="text-4xl mb-3">📋</p>
-      <p className="text-gray-400 font-medium leading-tight">Current Updates</p>
-      <p className="text-gray-600 text-sm mt-1 leading-relaxed">HR announcements and updates will appear here</p>
+    <div className="rounded-2xl border border-dashed border-gray-800 py-20 text-center">
+      <p className="mb-3 text-4xl">📋</p>
+      <p className="font-medium leading-tight text-gray-400">Current Updates</p>
+      <p className="mt-1 text-sm leading-relaxed text-gray-600">
+        HR announcements and updates will appear here
+      </p>
     </div>
   )
 }
 
-// ── Main HRTab component ─────────────────────────
 export default function HRTab({ embedded = false } = {}) {
   const { token, company } = useAuth()
   const { t } = useLanguage()
@@ -493,16 +546,17 @@ export default function HRTab({ embedded = false } = {}) {
 
   const renderSubTab = () => {
     switch (subTab) {
-      case 'employee_list':   return <EmployeeList token={token} company={company} />
-      case 'labour_law':      return <LabourLaw />
+      case 'attendance_log': return <AttendanceLogPanel token={token} />
+      case 'employee_list': return <EmployeeList token={token} company={company} />
+      case 'labour_law': return <LabourLaw />
       case 'current_updates': return <CurrentUpdates />
-      default:                return null
+      default: return null
     }
   }
 
   return (
     <ModuleTabColumn>
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-wrap gap-2">
         {HR_SUB_TABS.map((tab) => (
           <ErpSubTabButton
             key={tab.id}
