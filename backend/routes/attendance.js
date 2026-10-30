@@ -66,6 +66,16 @@ const dayKey = (date = new Date()) => {
   return `${year}-${month}-${day}`
 }
 
+/** Persist / compare attendance dates as YYYY-MM-DD only (not ISO datetimes). */
+const toDateKey = (value) => {
+  const raw = String(value || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
+  if (!raw) return dayKey()
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return dayKey()
+  return dayKey(d)
+}
+
 const daysBetweenInclusive = (start, end) => {
   const ms = 24 * 60 * 60 * 1000
   const a = new Date(start)
@@ -200,8 +210,9 @@ router.get('/month-stats', protect, async (req, res) => {
     const today = dayKey()
     const endDate = today < monthStart ? monthStart : (today > monthEndFull ? monthEndFull : today)
 
+    // Match YYYY-MM-DD and legacy ISO datetime strings for this month; filter with toDateKey below.
     const query = {
-      date: { $gte: monthStart, $lte: endDate },
+      date: new RegExp(`^${year}-${monthPad}-`),
       status: { $in: WORKED_STATUSES },
     }
 
@@ -223,8 +234,10 @@ router.get('/month-stats', protect, async (req, res) => {
     const byName = new Map()
 
     for (const rec of records) {
-      const dateKey = String(rec.date || '')
+      const dateKey = toDateKey(rec.date)
       if (!dateKey) continue
+      // Skip ISO leftovers outside the YYYY-MM-DD window after normalize
+      if (dateKey < monthStart || dateKey > endDate) continue
       const id = rec.employeeId ? String(rec.employeeId) : ''
       const nameKey = normalize(rec.employeeName)
       if (id) {
@@ -319,12 +332,14 @@ router.post('/records', protect, validateBody(attendanceRecordSchema), async (re
       return res.status(403).json({ success: false, message: 'You can only mark attendance for your department.' })
     }
 
+    const dateKey = toDateKey(date)
+
     const payload = {
       employeeId: employeeId || null,
       userId: userId || null,
       employeeName: String(employeeName).trim(),
       department: String(department).trim().toLowerCase(),
-      date: String(date),
+      date: dateKey,
       status,
       checkIn,
       checkOut,
