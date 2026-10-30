@@ -71,6 +71,25 @@ function prorateAccumulatedSalary(salaryAgreed, calendarDays, workedDays) {
   return Math.round((monthly / cal) * days * 100) / 100
 }
 
+function round2(value) {
+  return Math.round(Number(value) * 100) / 100
+}
+
+/** Personal/social tax at 12% of MTD accumulated; net = accumulated − personal tax only. */
+function computeTaxBreakdown(accumulated) {
+  if (accumulated === null || accumulated === undefined) {
+    return { personalTax: null, socialTax: null, netPayable: null }
+  }
+  const base = Number(accumulated)
+  if (!Number.isFinite(base) || base < 0) {
+    return { personalTax: null, socialTax: null, netPayable: null }
+  }
+  const personalTax = round2(base * 0.12)
+  const socialTax = round2(base * 0.12)
+  const netPayable = round2(base - personalTax)
+  return { personalTax, socialTax, netPayable }
+}
+
 function normalizeName(value) {
   return String(value || '').trim().toLowerCase()
 }
@@ -483,8 +502,11 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] border-collapse text-[13px] leading-snug">
+            <table className="w-full min-w-[1400px] border-collapse text-[13px] leading-snug">
               <colgroup>
+                <col />
+                <col />
+                <col />
                 <col />
                 <col />
                 <col />
@@ -505,6 +527,9 @@ function EmployeeList({ token, company }) {
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Working Days</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Accumulated Salary</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Personal Tax</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Social Tax</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Net Payable</th>
                   <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Actions</th>
                 </tr>
               </thead>
@@ -516,6 +541,7 @@ function EmployeeList({ token, company }) {
                     monthMeta.calendarDays,
                     workedDays,
                   )
+                  const { personalTax, socialTax, netPayable } = computeTaxBreakdown(accumulated)
                   return (
                   <tr
                     key={emp._id}
@@ -552,6 +578,15 @@ function EmployeeList({ token, company }) {
                     </td>
                     <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
                       {formatMoney(accumulated)}
+                    </td>
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-700">
+                      {formatMoney(personalTax)}
+                    </td>
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-700">
+                      {formatMoney(socialTax)}
+                    </td>
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
+                      {formatMoney(netPayable)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 align-middle">
                       <div className="inline-flex flex-nowrap items-center gap-2">
