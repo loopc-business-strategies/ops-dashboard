@@ -125,7 +125,7 @@ const FOOTER_SAVE_BTN =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-[10px] py-[10px] text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
 const ACTION_BTN =
-  'inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-xs font-semibold leading-none tracking-normal transition-colors hover:shadow-sm'
+  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-xs font-semibold leading-none tracking-normal shadow-sm transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -487,11 +487,11 @@ function EmployeeList({ token, company }) {
                       {formatMoney(emp.rebate)}
                     </td>
                     <td className="px-5 py-4 align-middle">
-                      <div className="flex flex-wrap items-center justify-center gap-2.5">
+                      <div className="inline-flex flex-wrap items-center justify-center gap-3">
                         <button
                           type="button"
                           onClick={() => setFormMode(emp)}
-                          className={`${ACTION_BTN} border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
+                          className={`${ACTION_BTN} border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
                         >
                           <PencilIcon />
                           <span>Edit</span>
@@ -500,7 +500,7 @@ function EmployeeList({ token, company }) {
                           <button
                             type="button"
                             onClick={() => setProfileId(emp._id)}
-                            className={`${ACTION_BTN} border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100`}
+                            className={`${ACTION_BTN} border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100`}
                           >
                             Profile
                           </button>
@@ -508,7 +508,7 @@ function EmployeeList({ token, company }) {
                         <button
                           type="button"
                           onClick={() => handleDelete(emp._id, emp.name)}
-                          className={`${ACTION_BTN} border border-red-200 bg-red-50 text-red-700 hover:bg-red-100`}
+                          className={`${ACTION_BTN} border-red-200 bg-red-50 text-red-700 hover:bg-red-100`}
                         >
                           <TrashIcon />
                           <span>Delete</span>
