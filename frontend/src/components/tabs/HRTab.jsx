@@ -92,7 +92,7 @@ function FieldLabel({ children, required = false }) {
   )
 }
 
-function PencilIcon({ className = 'h-3.5 w-3.5' }) {
+function PencilIcon({ className = 'h-4 w-4' }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828Z" />
@@ -100,7 +100,7 @@ function PencilIcon({ className = 'h-3.5 w-3.5' }) {
   )
 }
 
-function TrashIcon({ className = 'h-3.5 w-3.5' }) {
+function TrashIcon({ className = 'h-4 w-4' }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path
@@ -125,7 +125,7 @@ const FOOTER_SAVE_BTN =
   'inline-flex min-h-11 min-w-[128px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
 const ACTION_BTN =
-  'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold leading-none tracking-normal transition-colors'
+  'inline-flex h-9 min-w-[88px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-semibold leading-none tracking-normal shadow-sm transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -374,10 +374,10 @@ function EmployeeList({ token, company }) {
 
   return (
     <div className="pt-1">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-lg font-semibold leading-tight text-slate-900">Employee List</h3>
-          <p className="mt-1 text-sm leading-relaxed text-slate-500">
+          <h3 className="text-xl font-semibold leading-tight text-slate-900">Employee List</h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
             {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
           </p>
         </div>
@@ -433,34 +433,34 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
+            <table className="w-full min-w-[920px] border-collapse text-[13px] leading-snug">
               <colgroup>
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '25%' }} />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col style={{ width: structured ? '300px' : '220px' }} />
               </colgroup>
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Name</th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">ID Number</th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Joining Date</th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Salary Agreed</th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Last Increment</th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Rebate</th>
-                  <th className="px-6 py-3.5 text-right text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Actions</th>
+                <tr className="border-b border-slate-200 bg-slate-100/80">
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Name</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">ID Number</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Joining Date</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Salary Agreed</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Last Increment</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {employees.map((emp) => (
+              <tbody>
+                {employees.map((emp, index) => (
                   <tr
                     key={emp._id}
-                    className="bg-white transition-colors hover:bg-orange-50/40"
+                    className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}
                   >
-                    <td className="truncate px-6 py-3.5 align-middle font-semibold text-slate-900" title={emp.name}>
+                    <td className="max-w-0 truncate px-4 py-4 align-middle text-sm font-semibold text-slate-900" title={emp.name}>
                       {structured ? (
                         <button
                           type="button"
@@ -473,25 +473,25 @@ function EmployeeList({ token, company }) {
                         emp.name
                       )}
                     </td>
-                    <td className="truncate px-6 py-3.5 align-middle text-slate-600">{emp.idNumber}</td>
-                    <td className="whitespace-nowrap px-6 py-3.5 align-middle text-slate-600">
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">{emp.idNumber || '—'}</td>
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatDateDisplay(emp.joiningDate)}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-3.5 align-middle font-medium text-slate-800">
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
                       {formatMoney(emp.salaryAgreed)}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-3.5 align-middle text-slate-600">
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatDateDisplay(emp.lastIncrement)}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-3.5 align-middle text-slate-600">
+                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatMoney(emp.rebate)}
                     </td>
-                    <td className="px-6 py-3.5 align-middle">
-                      <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                    <td className="whitespace-nowrap px-4 py-4 align-middle">
+                      <div className="inline-flex flex-nowrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setFormMode(emp)}
-                          className={`${ACTION_BTN} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
+                          className={`${ACTION_BTN} border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50`}
                         >
                           <PencilIcon />
                           <span>Edit</span>
@@ -500,7 +500,7 @@ function EmployeeList({ token, company }) {
                           <button
                             type="button"
                             onClick={() => setProfileId(emp._id)}
-                            className={`${ACTION_BTN} border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100`}
+                            className={`${ACTION_BTN} border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100`}
                           >
                             Profile
                           </button>
@@ -508,7 +508,7 @@ function EmployeeList({ token, company }) {
                         <button
                           type="button"
                           onClick={() => handleDelete(emp._id, emp.name)}
-                          className={`${ACTION_BTN} border-red-200 bg-red-50 text-red-600 hover:bg-red-100`}
+                          className={`${ACTION_BTN} border-red-300 bg-red-50 text-red-700 hover:bg-red-100`}
                         >
                           <TrashIcon />
                           <span>Delete</span>
