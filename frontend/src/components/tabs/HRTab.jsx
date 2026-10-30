@@ -371,51 +371,118 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   )
 }
 
+const MONTH_FILTER_OPTIONS = [
+  { value: 1, label: 'January' },
+  { value: 2, label: 'February' },
+  { value: 3, label: 'March' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'June' },
+  { value: 7, label: 'July' },
+  { value: 8, label: 'August' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'October' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'December' },
+]
+
+function sumPayrollTotals(rows) {
+  let gross = 0
+  let rebate = 0
+  let personalTax = 0
+  let socialTax = 0
+  let netPayable = 0
+  for (const row of rows) {
+    const rebateN = Number(row.rebate)
+    if (Number.isFinite(rebateN)) rebate += rebateN
+    if (row.accumulated === null || row.accumulated === undefined) continue
+    gross += Number(row.accumulated) || 0
+    personalTax += Number(row.personalTax) || 0
+    socialTax += Number(row.socialTax) || 0
+    netPayable += Number(row.netPayable) || 0
+  }
+  const grossR = round2(gross)
+  const rebateR = round2(rebate)
+  const personalTaxR = round2(personalTax)
+  const socialTaxR = round2(socialTax)
+  const netPayableR = round2(netPayable)
+  return {
+    employeeCount: rows.length,
+    gross: grossR,
+    personalTax: personalTaxR,
+    socialTax: socialTaxR,
+    netPayable: netPayableR,
+    rebate: rebateR,
+    netExpense: round2(netPayableR - rebateR),
+  }
+}
+
+function applyMonthStats(monthData, year, month) {
+  const statsById = {}
+  const statsByName = {}
+  for (const row of monthData?.stats || []) {
+    if (row.employeeId) statsById[String(row.employeeId)] = row.workedDays || 0
+    if (row.employeeName) statsByName[normalizeName(row.employeeName)] = row.workedDays || 0
+  }
+  return {
+    calendarDays: Number(monthData?.calendarDays) || new Date(year, month, 0).getDate(),
+    statsById,
+    statsByName,
+  }
+}
+
+const FILTER_SELECT =
+  'h-11 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
+
+const FILTER_INPUT =
+  'h-11 min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
+
 // ── Employee List sub-tab ────────────────────────
 function EmployeeList({ token, company }) {
+  const now = useMemo(() => new Date(), [])
+  const currentYear = now.getFullYear()
   const [employees, setEmployees] = useState([])
   const [monthMeta, setMonthMeta] = useState({ calendarDays: 31, statsById: {}, statsByName: {} })
-  const [reportPeriod, setReportPeriod] = useState(() => {
-    const now = new Date()
-    return { year: now.getFullYear(), month: now.getMonth() + 1 }
-  })
+  const [filterYear, setFilterYear] = useState(currentYear)
+  const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1)
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [monthLoading, setMonthLoading] = useState(false)
   const [formMode, setFormMode] = useState(null)
   const [error, setError] = useState('')
   const [profileId, setProfileId] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
   const structured = isStructuredPayrollEnabled(company)
 
-  const load = useCallback(async (isMounted = () => true) => {
+  const yearOptions = useMemo(() => {
+    const years = []
+    for (let y = currentYear; y >= currentYear - 10; y -= 1) years.push(y)
+    return years
+  }, [currentYear])
+
+  const loadMonthStats = useCallback(async (year, month, isMounted = () => true) => {
+    setMonthLoading(true)
+    let monthError = ''
+    try {
+      const monthData = await attendanceAPI.getMonthStats(token, year, month).catch((err) => {
+        monthError = err.response?.data?.message || 'Failed to load working days / accumulated salary.'
+        return null
+      })
+      if (!isMounted()) return
+      setMonthMeta(applyMonthStats(monthData, year, month))
+      if (monthError) setError(monthError)
+    } finally {
+      if (isMounted()) setMonthLoading(false)
+    }
+  }, [token])
+
+  const loadEmployees = useCallback(async (isMounted = () => true) => {
     setLoading(true)
     setError('')
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = now.getMonth() + 1
     try {
-      let monthError = ''
-      const [data, monthData] = await Promise.all([
-        hrAPI.getEmployees(token),
-        attendanceAPI.getMonthStats(token, year, month).catch((err) => {
-          monthError = err.response?.data?.message || 'Failed to load working days / accumulated salary.'
-          return null
-        }),
-      ])
+      const data = await hrAPI.getEmployees(token)
       if (!isMounted()) return
       setEmployees(data.employees || [])
-      setReportPeriod({ year, month })
-      const statsById = {}
-      const statsByName = {}
-      for (const row of monthData?.stats || []) {
-        if (row.employeeId) statsById[String(row.employeeId)] = row.workedDays || 0
-        if (row.employeeName) statsByName[normalizeName(row.employeeName)] = row.workedDays || 0
-      }
-      setMonthMeta({
-        calendarDays: Number(monthData?.calendarDays) || new Date(year, month, 0).getDate(),
-        statsById,
-        statsByName,
-      })
-      if (monthError) setError(monthError)
     } catch {
       if (isMounted()) setError('Failed to load employees.')
     } finally {
@@ -425,9 +492,15 @@ function EmployeeList({ token, company }) {
 
   useEffect(() => {
     let mounted = true
-    load(() => mounted)
+    loadEmployees(() => mounted)
     return () => { mounted = false }
-  }, [load])
+  }, [loadEmployees])
+
+  useEffect(() => {
+    let mounted = true
+    loadMonthStats(filterYear, filterMonth, () => mounted)
+    return () => { mounted = false }
+  }, [filterYear, filterMonth, loadMonthStats])
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete ${name}?`)) return
@@ -439,64 +512,48 @@ function EmployeeList({ token, company }) {
     }
   }
 
-  const { payrollRows, payrollTotals } = useMemo(() => {
-    let gross = 0
-    let rebate = 0
-    let personalTax = 0
-    let socialTax = 0
-    let netPayable = 0
-    const rows = employees.map((emp) => {
-      const byId = monthMeta.statsById[String(emp._id)]
-      const byName = monthMeta.statsByName[normalizeName(emp.name)]
-      const workedDays = byId !== undefined ? byId : (byName !== undefined ? byName : 0)
-      const accumulated = prorateAccumulatedSalary(
-        emp.salaryAgreed,
-        monthMeta.calendarDays,
-        workedDays,
-      )
-      const tax = computeTaxBreakdown(accumulated)
-      const rebateN = Number(emp.rebate)
-      const rebateValue = Number.isFinite(rebateN) ? rebateN : 0
-      rebate += rebateValue
-      if (accumulated !== null && accumulated !== undefined) {
-        gross += Number(accumulated) || 0
-        personalTax += Number(tax.personalTax) || 0
-        socialTax += Number(tax.socialTax) || 0
-        netPayable += Number(tax.netPayable) || 0
-      }
-      return {
-        id: emp._id,
-        emp,
-        name: emp.name || '',
-        employeeCode: emp.employeeCode || '',
-        phoneNumber: emp.phoneNumber || '',
-        workedDays,
-        salaryAgreed: emp.salaryAgreed,
-        rebate: emp.rebate,
-        accumulated,
-        personalTax: tax.personalTax,
-        socialTax: tax.socialTax,
-        netPayable: tax.netPayable,
-      }
-    })
-    const grossR = round2(gross)
-    const rebateR = round2(rebate)
-    const personalTaxR = round2(personalTax)
-    const socialTaxR = round2(socialTax)
-    const netPayableR = round2(netPayable)
+  const payrollRows = useMemo(() => employees.map((emp) => {
+    const byId = monthMeta.statsById[String(emp._id)]
+    const byName = monthMeta.statsByName[normalizeName(emp.name)]
+    const workedDays = byId !== undefined ? byId : (byName !== undefined ? byName : 0)
+    const accumulated = prorateAccumulatedSalary(
+      emp.salaryAgreed,
+      monthMeta.calendarDays,
+      workedDays,
+    )
+    const tax = computeTaxBreakdown(accumulated)
     return {
-      payrollRows: rows,
-      payrollTotals: {
-        employeeCount: rows.length,
-        gross: grossR,
-        personalTax: personalTaxR,
-        socialTax: socialTaxR,
-        netPayable: netPayableR,
-        rebate: rebateR,
-        netExpense: round2(netPayableR - rebateR),
-      },
+      id: emp._id,
+      emp,
+      name: emp.name || '',
+      idNumber: emp.idNumber || '',
+      employeeCode: emp.employeeCode || '',
+      phoneNumber: emp.phoneNumber || '',
+      workedDays,
+      salaryAgreed: emp.salaryAgreed,
+      rebate: emp.rebate,
+      accumulated,
+      personalTax: tax.personalTax,
+      socialTax: tax.socialTax,
+      netPayable: tax.netPayable,
     }
-  }, [employees, monthMeta])
+  }), [employees, monthMeta])
+
+  const filteredPayrollRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return payrollRows
+    return payrollRows.filter((row) => {
+      const name = String(row.name || '').toLowerCase()
+      const idNumber = String(row.idNumber || '').toLowerCase()
+      const code = String(row.employeeCode || '').toLowerCase()
+      return name.includes(q) || idNumber.includes(q) || code.includes(q)
+    })
+  }, [payrollRows, searchQuery])
+
+  const payrollTotals = useMemo(
+    () => sumPayrollTotals(filteredPayrollRows),
+    [filteredPayrollRows],
+  )
 
   const summaryCards = [
     { label: 'Employees', value: payrollTotals.employeeCount, money: false },
@@ -509,15 +566,15 @@ function EmployeeList({ token, company }) {
   ]
 
   const handleDownloadPdf = async () => {
-    if (!payrollRows.length || pdfBusy) return
+    if (!filteredPayrollRows.length || pdfBusy) return
     setPdfBusy(true)
     setError('')
     try {
       await downloadPayrollPdf({
-        rows: payrollRows,
+        rows: filteredPayrollRows,
         totals: payrollTotals,
-        year: reportPeriod.year,
-        month: reportPeriod.month,
+        year: filterYear,
+        month: filterMonth,
         companyName: company || '',
       })
     } catch {
@@ -527,36 +584,93 @@ function EmployeeList({ token, company }) {
     }
   }
 
+  const handleRefresh = () => {
+    let mounted = true
+    loadEmployees(() => mounted)
+    loadMonthStats(filterYear, filterMonth, () => mounted)
+  }
+
   return (
     <div className="pt-2">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
-        <div className="min-w-0 space-y-2">
-          <h3 className="text-xl font-semibold leading-tight tracking-tight text-slate-900">
-            Employee List
-          </h3>
-          <p className="text-sm leading-relaxed text-slate-500">
-            {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
-          </p>
+      <div className="mb-6 space-y-4 border-b border-slate-200 pb-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0 space-y-2">
+            <h3 className="text-xl font-semibold leading-tight tracking-tight text-slate-900">
+              Employee List
+            </h3>
+            <p className="text-sm leading-relaxed text-slate-500">
+              {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
+              {searchQuery.trim() ? ` · ${filteredPayrollRows.length} shown` : ''}
+            </p>
+          </div>
+          {!formMode && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={loading || monthLoading}
+                className={`${FOOTER_CANCEL_BTN} shrink-0`}
+              >
+                ↺ Refresh
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={loading || filteredPayrollRows.length === 0 || pdfBusy}
+                className={`${FOOTER_CANCEL_BTN} shrink-0`}
+              >
+                {pdfBusy ? 'Preparing…' : 'Download PDF'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormMode('create')}
+                className={`${PRIMARY_BTN} shrink-0 hover:-translate-y-px hover:shadow-md`}
+                style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+              >
+                <span aria-hidden="true">+</span>
+                <span>Add Employee</span>
+              </button>
+            </div>
+          )}
         </div>
+
         {!formMode && (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={loading || employees.length === 0 || pdfBusy}
-              className={`${FOOTER_CANCEL_BTN} shrink-0`}
-            >
-              {pdfBusy ? 'Preparing…' : 'Download PDF'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFormMode('create')}
-              className={`${PRIMARY_BTN} shrink-0 hover:-translate-y-px hover:shadow-md`}
-              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
-            >
-              <span aria-hidden="true">+</span>
-              <span>Add Employee</span>
-            </button>
+          <div className="flex flex-wrap items-end gap-3">
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search name, ID, or employee code"
+              className={FILTER_INPUT}
+              aria-label="Search employees"
+            />
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Year
+              <select
+                value={filterYear}
+                onChange={(e) => setFilterYear(Number(e.target.value))}
+                className={FILTER_SELECT}
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Month
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(Number(e.target.value))}
+                className={`${FILTER_SELECT} min-w-[150px]`}
+              >
+                {MONTH_FILTER_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </label>
+            {monthLoading && (
+              <span className="pb-3 text-xs text-slate-500">Updating month…</span>
+            )}
           </div>
         )}
       </div>
@@ -569,7 +683,7 @@ function EmployeeList({ token, company }) {
         <EmployeeForm
           token={token}
           initialEmployee={formMode === 'create' ? null : formMode}
-          onSave={() => { setFormMode(null); load() }}
+          onSave={() => { setFormMode(null); handleRefresh() }}
           onCancel={() => setFormMode(null)}
         />
       )}
@@ -580,7 +694,7 @@ function EmployeeList({ token, company }) {
           company={company}
           employeeId={profileId}
           onClose={() => setProfileId(null)}
-          onSaved={() => load()}
+          onSaved={() => handleRefresh()}
         />
       )}
 
@@ -614,6 +728,11 @@ function EmployeeList({ token, company }) {
           <p className="mb-3 text-4xl">👤</p>
           <p className="font-medium text-slate-700">No employees yet</p>
           <p className="mt-1 text-sm text-slate-500">Click &quot;Add Employee&quot; to add the first record</p>
+        </div>
+      ) : filteredPayrollRows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">
+          <p className="font-medium text-slate-700">No employees match your search</p>
+          <p className="mt-1 text-sm text-slate-500">Try a different name, ID, or employee code</p>
         </div>
       ) : (
         <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -652,7 +771,7 @@ function EmployeeList({ token, company }) {
                 </tr>
               </thead>
               <tbody>
-                {payrollRows.map((row, index) => {
+                {filteredPayrollRows.map((row, index) => {
                   const emp = row.emp
                   return (
                   <tr
