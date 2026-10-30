@@ -368,9 +368,13 @@ function EmployeeList({ token, company }) {
     const year = now.getFullYear()
     const month = now.getMonth() + 1
     try {
+      let monthError = ''
       const [data, monthData] = await Promise.all([
         hrAPI.getEmployees(token),
-        attendanceAPI.getMonthStats(token, year, month).catch(() => null),
+        attendanceAPI.getMonthStats(token, year, month).catch((err) => {
+          monthError = err.response?.data?.message || 'Failed to load working days / accumulated salary.'
+          return null
+        }),
       ])
       if (!isMounted()) return
       setEmployees(data.employees || [])
@@ -385,6 +389,7 @@ function EmployeeList({ token, company }) {
         statsById,
         statsByName,
       })
+      if (monthError) setError(monthError)
     } catch {
       if (isMounted()) setError('Failed to load employees.')
     } finally {

@@ -114,4 +114,44 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
     expect(calendarDays).toBe(31)
     expect(accumulated).toBe(5000)
   })
+
+  it('GET /records returns legacy ISO same-day rows without deleting them', async () => {
+    const admin = await User.create({
+      name: 'hr-admin-iso',
+      email: 'hr-admin-iso@example.com',
+      password: 'password123',
+      role: 'super_admin',
+      department: 'hr',
+    })
+    const token = tokenFor(admin)
+
+    const TenantAttendance = await AttendanceRecord.getTenantModel(TEST_TENANT)
+    await TenantAttendance.create({
+      employeeName: 'Legacy ISO Emp',
+      department: 'hr',
+      date: '2026-10-15T00:00:00.000Z',
+      status: 'present',
+      checkIn: '09:00',
+      checkOut: '17:00',
+    })
+
+    const before = await TenantAttendance.find({ employeeName: 'Legacy ISO Emp' }).lean()
+    expect(before).toHaveLength(1)
+    expect(before[0].date).toBe('2026-10-15T00:00:00.000Z')
+
+    const res = await request(app)
+      .get('/api/attendance/records')
+      .query({ date: '2026-10-15' })
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.count).toBe(1)
+    expect(res.body.records[0].employeeName).toBe('Legacy ISO Emp')
+    expect(res.body.records[0].date).toBe('2026-10-15')
+    expect(res.body.records[0].status).toBe('present')
+
+    const after = await TenantAttendance.find({ employeeName: 'Legacy ISO Emp' }).lean()
+    expect(after).toHaveLength(1)
+    expect(after[0].date).toBe('2026-10-15T00:00:00.000Z')
+  })
 })

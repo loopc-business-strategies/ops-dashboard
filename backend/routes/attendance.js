@@ -88,8 +88,10 @@ const daysBetweenInclusive = (start, end) => {
 router.get('/records', protect, async (req, res) => {
   try {
     const { date = dayKey(), department = 'all', status = 'all', search = '', limit = 400 } = req.query
+    const dateKey = toDateKey(date)
 
-    const query = { date: String(date) }
+    // Match YYYY-MM-DD and legacy ISO datetime strings for the same calendar day (do not delete/alter rows).
+    const query = { date: new RegExp(`^${escapeRegex(dateKey)}`) }
     const deptScope = scopedDepartment(req.user)
 
     if (deptScope) {
@@ -110,8 +112,14 @@ router.get('/records', protect, async (req, res) => {
       query.employeeName = new RegExp(`^${escapeRegex(req.user.name)}$`, 'i')
     }
 
-    const records = await AttendanceRecord.find(query).sort({ employeeName: 1 }).limit(Number(limit) || 400)
-    res.json({ success: true, count: records.length, records })
+    const records = await AttendanceRecord.find(query).sort({ employeeName: 1 }).limit(Number(limit) || 400).lean()
+    res.json({
+      success: true,
+      count: records.length,
+      date: dateKey,
+      // Normalize date in the response only — do not rewrite stored rows.
+      records: records.map((r) => ({ ...r, date: toDateKey(r.date) })),
+    })
   } catch {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
@@ -119,13 +127,13 @@ router.get('/records', protect, async (req, res) => {
 
 router.get('/summary', protect, async (req, res) => {
   try {
-    const date = String(req.query.date || dayKey())
+    const date = toDateKey(req.query.date || dayKey())
     const deptScope = scopedDepartment(req.user)
 
     const employeeFilter = {}
     if (deptScope) employeeFilter.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
 
-    const recordFilter = { date }
+    const recordFilter = { date: new RegExp(`^${escapeRegex(date)}`) }
     if (deptScope) recordFilter.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
 
     const [employees, records] = await Promise.all([
