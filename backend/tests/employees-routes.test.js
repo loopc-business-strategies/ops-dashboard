@@ -10,6 +10,7 @@ const {
 const createApp = require('../app')
 const User = require('../models/User')
 const Employee = require('../models/Employee')
+const EmployeeRemark = require('../models/EmployeeRemark')
 
 let mongo
 let app
@@ -63,6 +64,10 @@ afterEach(async () => {
     (async () => {
       const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
       await TenantEmployee.deleteMany({})
+    })(),
+    (async () => {
+      const TenantRemark = await EmployeeRemark.getTenantModel(TEST_TENANT)
+      await TenantRemark.deleteMany({})
     })(),
   ])
 })
@@ -163,7 +168,6 @@ describe('HR employees routes', () => {
       salaryAgreed: 25000,
       lastIncrement: '2025-01-01',
       rebate: 500,
-      remarks: 'Probation cleared',
     }
 
     const createRes = await request(app)
@@ -176,7 +180,6 @@ describe('HR employees routes', () => {
     expect(createRes.body.employee.name).toBe(payload.name)
     expect(createRes.body.employee.salaryAgreed).toBe(25000)
     expect(createRes.body.employee.rebate).toBe(500)
-    expect(createRes.body.employee.remarks).toBe('Probation cleared')
     expect(String(createRes.body.employee.joiningDate)).toContain('2024-03-15')
     expect(String(createRes.body.employee.lastIncrement)).toContain('2025-01-01')
 
@@ -189,6 +192,29 @@ describe('HR employees routes', () => {
     expect(row).toBeTruthy()
     expect(row.salaryAgreed).toBe(25000)
     expect(row.rebate).toBe(500)
-    expect(row.remarks).toBe('Probation cleared')
+  })
+
+  test('hr head can append and list employee remarks', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr', name: 'HR Head' })
+    const employee = await createEmployee({ department: 'hr', name: 'Remark Target' })
+
+    const createRes = await request(app)
+      .post(`/api/hr/employees/${employee._id.toString()}/remarks`)
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({ text: 'Completed probation review' })
+
+    expect(createRes.status).toBe(201)
+    expect(createRes.body.success).toBe(true)
+    expect(createRes.body.remark.text).toBe('Completed probation review')
+    expect(createRes.body.remark.createdByName).toBe('HR Head')
+    expect(createRes.body.remark.employeeName).toBe('Remark Target')
+
+    const listRes = await request(app)
+      .get(`/api/hr/employees/${employee._id.toString()}/remarks`)
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+
+    expect(listRes.status).toBe(200)
+    expect(listRes.body.remarks).toHaveLength(1)
+    expect(listRes.body.remarks[0].text).toBe('Completed probation review')
   })
 })

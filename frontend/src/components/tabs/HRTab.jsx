@@ -1,9 +1,9 @@
 // FILE: src/components/tabs/HRTab.jsx
 // WHAT THIS IS:
 //   The HR section of the dashboard.
-//   Sub-tabs: Attendance Log, Employee List, Labour Law, Current Updates
+//   Sub-tabs: Attendance Log, Employee List, Remarks, Labour Law, Current Updates
 
-import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import hrAPI from '../../api/hr'
 import { useLanguage } from '../../context/LanguageContext'
@@ -12,11 +12,13 @@ import { ErpSubTabButton, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { isStructuredPayrollEnabled } from '../../config/tenantBranding'
 import EmployeeProfileDrawer from './hr/EmployeeProfileDrawer'
 import AttendanceLogPanel from './hr/AttendanceLogPanel'
+import RemarksPanel from './hr/RemarksPanel'
 
 function getHRSubTabs(t) {
   return [
     { id: 'attendance_log', label: t('attendanceLog') },
     { id: 'employee_list', label: t('employeeList') },
+    { id: 'remarks', label: t('hrRemarks') },
     { id: 'labour_law', label: t('labourLaw') },
     { id: 'current_updates', label: t('currentUpdates') },
   ]
@@ -30,7 +32,6 @@ const EMPTY_EMPLOYEE = {
   salaryAgreed: '',
   lastIncrement: '',
   rebate: '',
-  remarks: '',
 }
 
 function toDateInput(value) {
@@ -67,7 +68,6 @@ function employeeToForm(emp) {
     salaryAgreed: emp.salaryAgreed === null || emp.salaryAgreed === undefined ? '' : String(emp.salaryAgreed),
     lastIncrement: toDateInput(emp.lastIncrement),
     rebate: emp.rebate === null || emp.rebate === undefined ? '' : String(emp.rebate),
-    remarks: emp.remarks || '',
   }
 }
 
@@ -80,64 +80,35 @@ function buildEmployeePayload(form) {
     salaryAgreed: form.salaryAgreed === '' ? null : Number(form.salaryAgreed),
     lastIncrement: form.lastIncrement || null,
     rebate: form.rebate === '' ? null : Number(form.rebate),
-    remarks: form.remarks.trim(),
   }
 }
 
-// ── Add / Edit Employee form ─────────────────────
+function FieldLabel({ children, required = false }) {
+  return (
+    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+      {children}
+      {required ? <span className="ml-0.5 text-emerald-600">*</span> : null}
+    </label>
+  )
+}
+
+// ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   const { t } = useLanguage()
   const isEdit = Boolean(initialEmployee?._id)
   const [form, setForm] = useState(() => employeeToForm(initialEmployee))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [position, setPosition] = useState({ x: 0, y: 26 })
-  const dragRef = useRef(null)
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
-  const startDrag = (event) => {
-    const point = event.touches?.[0] || event
-    dragRef.current = {
-      startX: point.clientX - position.x,
-      startY: point.clientY - position.y,
-    }
-    document.body.style.userSelect = 'none'
-  }
-
   useEffect(() => {
-    const handleMove = (event) => {
-      if (!dragRef.current) return
-      const point = event.touches?.[0] || event
-      const nextX = point.clientX - dragRef.current.startX
-      const nextY = point.clientY - dragRef.current.startY
-      const maxX = Math.max(window.innerWidth / 2 - 180, 0)
-      const maxY = Math.max(window.innerHeight - 220, 80)
-
-      setPosition({
-        x: Math.min(Math.max(nextX, -maxX), maxX),
-        y: Math.min(Math.max(nextY, 12), maxY),
-      })
+    const onKey = (e) => {
+      if (e.key === 'Escape') onCancel()
     }
-
-    const stopDrag = () => {
-      dragRef.current = null
-      document.body.style.userSelect = ''
-    }
-
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', stopDrag)
-    window.addEventListener('touchmove', handleMove, { passive: false })
-    window.addEventListener('touchend', stopDrag)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', stopDrag)
-      window.removeEventListener('touchmove', handleMove)
-      window.removeEventListener('touchend', stopDrag)
-      document.body.style.userSelect = ''
-    }
-  }, [position.x, position.y])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -162,98 +133,95 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[950] bg-slate-950/35 px-4 py-5 backdrop-blur-[2px]">
-      <div
-        className="mx-auto w-full max-w-4xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
-        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-      >
-        <div
-          className="flex cursor-move items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4"
-          onMouseDown={startDrag}
-          onTouchStart={startDrag}
-        >
+    <div className="fixed inset-0 z-[950] flex justify-end">
+      <button
+        type="button"
+        aria-label="Close employee drawer"
+        className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px]"
+        onClick={onCancel}
+      />
+      <aside className="relative flex h-full w-full max-w-[440px] flex-col border-l border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5">
           <div>
-            <h3 className="text-base font-semibold leading-tight text-slate-950">
+            <h3 className="text-sm font-semibold leading-tight text-slate-950">
               {isEdit ? 'Edit employee' : t('addNewEmployee')}
             </h3>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">{t('fillEmployeeDetails')}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{t('fillEmployeeDetails')}</p>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            onMouseDown={(event) => event.stopPropagation()}
-            onTouchStart={(event) => event.stopPropagation()}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-lg font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-            aria-label="Close employee form"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-base font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            aria-label="Close"
           >
-            x
+            ×
           </button>
         </div>
 
-        <div className="max-h-[calc(100vh-140px)] overflow-y-auto p-5">
-          {error && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {error && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
+                {error}
+              </div>
+            )}
 
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                  Name <span className="text-emerald-700">*</span>
-                </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <FieldLabel required>Name</FieldLabel>
                 <input
                   type="text"
                   value={form.name}
                   onChange={set('name')}
                   placeholder="e.g. John Smith"
-                  className="input-field"
+                  className="input-field py-2 text-sm"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                  ID number <span className="text-emerald-700">*</span>
-                </label>
+                <FieldLabel required>ID number</FieldLabel>
                 <input
                   type="text"
                   value={form.idNumber}
                   onChange={set('idNumber')}
                   placeholder="e.g. 8501015009087"
-                  className="input-field"
+                  className="input-field py-2 text-sm"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                  {t('employeeCode')} <span className="text-emerald-700">*</span>
-                </label>
+                <FieldLabel required>{t('employeeCode')}</FieldLabel>
                 <input
                   type="text"
                   value={form.employeeCode}
                   onChange={set('employeeCode')}
                   placeholder="e.g. EMP-001"
-                  className="input-field"
+                  className="input-field py-2 text-sm"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                  Joining date
-                </label>
+                <FieldLabel>Joining date</FieldLabel>
                 <input
                   type="date"
                   value={form.joiningDate}
                   onChange={set('joiningDate')}
-                  className="input-field"
+                  className="input-field py-2 text-sm"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                  Salary agreed
-                </label>
+                <FieldLabel>Last increment</FieldLabel>
+                <input
+                  type="date"
+                  value={form.lastIncrement}
+                  onChange={set('lastIncrement')}
+                  className="input-field py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <FieldLabel>Salary agreed</FieldLabel>
                 <input
                   type="number"
                   min="0"
@@ -261,26 +229,12 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                   value={form.salaryAgreed}
                   onChange={set('salaryAgreed')}
                   placeholder="e.g. 25000"
-                  className="input-field"
+                  className="input-field py-2 text-sm"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                  Last increment
-                </label>
-                <input
-                  type="date"
-                  value={form.lastIncrement}
-                  onChange={set('lastIncrement')}
-                  className="input-field"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                  Rebate
-                </label>
+                <FieldLabel>Rebate</FieldLabel>
                 <input
                   type="number"
                   min="0"
@@ -288,44 +242,31 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                   value={form.rebate}
                   onChange={set('rebate')}
                   placeholder="e.g. 500"
-                  className="input-field"
+                  className="input-field py-2 text-sm"
                 />
               </div>
             </div>
+          </div>
 
-            <div className="mt-4">
-              <label className="mb-2 block text-xs font-semibold uppercase leading-none tracking-wider text-slate-600">
-                Remarks
-              </label>
-              <textarea
-                value={form.remarks}
-                onChange={set('remarks')}
-                placeholder="Notes about this employee"
-                rows={3}
-                className="input-field resize-none"
-              />
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                {t('cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
-                style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
-              >
-                {loading ? t('saving') : isEdit ? 'Save changes' : t('saveEmployee')}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+            >
+              {loading ? t('saving') : isEdit ? 'Save changes' : t('saveEmployee')}
+            </button>
+          </div>
+        </form>
+      </aside>
     </div>
   )
 }
@@ -334,7 +275,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
 function EmployeeList({ token, company }) {
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
-  const [formMode, setFormMode] = useState(null) // null | 'create' | employee object
+  const [formMode, setFormMode] = useState(null)
   const [error, setError] = useState('')
   const [profileId, setProfileId] = useState(null)
   const structured = isStructuredPayrollEnabled(company)
@@ -436,7 +377,6 @@ function EmployeeList({ token, company }) {
                 <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Salary agreed</th>
                 <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Last increment</th>
                 <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Rebate</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Remarks</th>
                 <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400" />
               </tr>
             </thead>
@@ -468,9 +408,6 @@ function EmployeeList({ token, company }) {
                   </td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap leading-tight text-gray-300">
                     {formatMoney(emp.rebate)}
-                  </td>
-                  <td className="max-w-[200px] truncate px-4 py-3 text-xs leading-tight text-gray-400">
-                    {emp.remarks || '—'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <button
@@ -548,6 +485,7 @@ export default function HRTab({ embedded = false } = {}) {
     switch (subTab) {
       case 'attendance_log': return <AttendanceLogPanel token={token} />
       case 'employee_list': return <EmployeeList token={token} company={company} />
+      case 'remarks': return <RemarksPanel token={token} />
       case 'labour_law': return <LabourLaw />
       case 'current_updates': return <CurrentUpdates />
       default: return null

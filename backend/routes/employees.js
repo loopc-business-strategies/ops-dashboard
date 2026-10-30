@@ -14,6 +14,7 @@
 
 const express  = require('express')
 const Employee = require('../models/Employee')
+const EmployeeRemark = require('../models/EmployeeRemark')
 const EmployeeSalaryAssignment = require('../models/EmployeeSalaryAssignment')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
@@ -31,6 +32,9 @@ const { normalizeComponents } = require('../services/payroll/payrollCalculationS
 const router = express.Router()
 
 const employeeIdParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+const remarkBodySchema = Joi.object({
+  text: Joi.string().trim().min(1).max(2000).required(),
+})
 
 const STATUS_VALUES = ['ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED']
 
@@ -221,6 +225,64 @@ router.delete('/:id', protect, validateParams(employeeIdParam), async (req, res)
 
     await softDeleteById(TenantEmployee, req.params.id, req)
     res.json({ success: true, message: 'Employee deleted.' })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ─── Append-only employee remarks log ───
+
+router.get('/:id/remarks', protect, validateParams(employeeIdParam), async (req, res) => {
+  try {
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
+    const filter = buildEmployeeReadFilter(req.user)
+    if (filter === null) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+
+    const employee = await TenantEmployee.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true },
+      ...filter,
+    }).lean()
+    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
+
+    const TenantRemark = await EmployeeRemark.getTenantModel(req.tenant)
+    const remarks = await TenantRemark.find({ employeeId: employee._id })
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean()
+
+    res.json({ success: true, count: remarks.length, remarks })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+router.post('/:id/remarks', protect, validateParams(employeeIdParam), validateBody(remarkBodySchema), async (req, res) => {
+  try {
+    if (!canManageEmployees(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only super admin or HR department head can add remarks.' })
+    }
+
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
+    const employee = await TenantEmployee.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
+
+    if (req.user.role !== 'super_admin' && normalize(employee.department) !== 'hr') {
+      return res.status(403).json({ success: false, message: 'HR department head can only add remarks for HR employees.' })
+    }
+
+    const TenantRemark = await EmployeeRemark.getTenantModel(req.tenant)
+    const remark = await TenantRemark.create({
+      employeeId: employee._id,
+      employeeName: employee.name || '',
+      text: String(req.body.text).trim(),
+      createdById: req.user._id,
+      createdByName: req.user.name || '',
+    })
+
+    res.status(201).json({ success: true, remark })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }

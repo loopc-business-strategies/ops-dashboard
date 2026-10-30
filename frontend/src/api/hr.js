@@ -12,6 +12,8 @@ const updateEmployee  = async (_token, id, data) => (await axios.put(`${BASE}/${
 const deleteEmployee  = async (_token, id)     => (await axios.delete(`${BASE}/${id}`)).data
 const getSalaryAssignment = async (_token, id) => (await axios.get(`${BASE}/${id}/salary-assignment`)).data
 const putSalaryAssignment = async (_token, id, data) => (await axios.put(`${BASE}/${id}/salary-assignment`, data)).data
+const getEmployeeRemarks = async (_token, id) => (await axios.get(`${BASE}/${id}/remarks`)).data
+const addEmployeeRemark = async (_token, id, data) => (await axios.post(`${BASE}/${id}/remarks`, data)).data
 
 const hrAPI = {
   getEmployees,
@@ -21,5 +23,7 @@ const hrAPI = {
   deleteEmployee,
   getSalaryAssignment,
   putSalaryAssignment,
+  getEmployeeRemarks,
+  addEmployeeRemark,
 }
 export default hrAPI
