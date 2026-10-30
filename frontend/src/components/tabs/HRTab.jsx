@@ -439,6 +439,50 @@ function EmployeeList({ token, company }) {
     return byName !== undefined ? byName : 0
   }
 
+  const monthSummary = useMemo(() => {
+    let gross = 0
+    let rebate = 0
+    let personalTax = 0
+    let socialTax = 0
+    let netPayable = 0
+    for (const emp of employees) {
+      const rebateN = Number(emp.rebate)
+      if (Number.isFinite(rebateN)) rebate += rebateN
+
+      const byId = monthMeta.statsById[String(emp._id)]
+      const byName = monthMeta.statsByName[normalizeName(emp.name)]
+      const workedDays = byId !== undefined ? byId : (byName !== undefined ? byName : 0)
+      const accumulated = prorateAccumulatedSalary(
+        emp.salaryAgreed,
+        monthMeta.calendarDays,
+        workedDays,
+      )
+      if (accumulated === null || accumulated === undefined) continue
+      const tax = computeTaxBreakdown(accumulated)
+      gross += Number(accumulated) || 0
+      personalTax += Number(tax.personalTax) || 0
+      socialTax += Number(tax.socialTax) || 0
+      netPayable += Number(tax.netPayable) || 0
+    }
+    return {
+      gross: round2(gross),
+      rebate: round2(rebate),
+      personalTax: round2(personalTax),
+      socialTax: round2(socialTax),
+      taxesTotal: round2(personalTax + socialTax),
+      netPayable: round2(netPayable),
+    }
+  }, [employees, monthMeta])
+
+  const summaryCards = [
+    { label: 'Gross salary (MTD)', value: monthSummary.gross },
+    { label: 'Total rebate', value: monthSummary.rebate },
+    { label: 'Personal tax', value: monthSummary.personalTax },
+    { label: 'Social tax', value: monthSummary.socialTax },
+    { label: 'Taxes total', value: monthSummary.taxesTotal },
+    { label: 'Net payable', value: monthSummary.netPayable },
+  ]
+
   return (
     <div className="pt-2">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
@@ -484,6 +528,24 @@ function EmployeeList({ token, company }) {
           onClose={() => setProfileId(null)}
           onSaved={() => load()}
         />
+      )}
+
+      {!loading && (
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {summaryCards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {card.label}
+              </p>
+              <p className="mt-1.5 text-base font-semibold tabular-nums text-slate-900">
+                {formatMoney(card.value)}
+              </p>
+            </div>
+          ))}
+        </div>
       )}
 
       {loading ? (
