@@ -498,6 +498,25 @@ export default function ERPReportsTab({
                   Compare
                 </label>
               )}
+              {(reportView === 'summary' || reportView === 'trial') && (
+                <label style={reportFilterCheckStyle}>
+                  <input
+                    type="checkbox"
+                    aria-label="Show Metal"
+                    checked={reportDisplay.showMetal !== false}
+                    onChange={(e) => {
+                      const showMetal = e.target.checked
+                      const metalType = showMetal
+                        ? sanitizeTrialMetalType(reportFilters.metalType || reportDisplay.metalType, closingStockOptions)
+                        : ''
+                      setReportDisplay((prev) => ({ ...prev, showMetal, metalType }))
+                      setReportDisplayDraft((prev) => ({ ...prev, showMetal, metalType }))
+                      setReportFilters((prev) => ({ ...prev, metalType }))
+                    }}
+                  />
+                  Metal
+                </label>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: 'auto' }}>
                 <button onClick={() => handleExportReportCsv(reportExportDisplay)} style={reportBrandButtonStyle}>CSV</button>
                 <button onClick={() => handleExportReportXlsx(reportExportDisplay)} style={reportBrandButtonStyle}>XLSX</button>
