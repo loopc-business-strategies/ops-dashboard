@@ -92,7 +92,7 @@ function FieldLabel({ children, required = false }) {
   )
 }
 
-function PencilIcon({ className = 'h-4 w-4' }) {
+function PencilIcon({ className = 'h-3.5 w-3.5' }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828Z" />
@@ -100,7 +100,7 @@ function PencilIcon({ className = 'h-4 w-4' }) {
   )
 }
 
-function TrashIcon({ className = 'h-4 w-4' }) {
+function TrashIcon({ className = 'h-3.5 w-3.5' }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path
@@ -119,13 +119,13 @@ const PRIMARY_BTN =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
 const FOOTER_CANCEL_BTN =
-  'inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-[10px] py-[10px] text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50'
+  'inline-flex min-h-11 min-w-[96px] items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50'
 
 const FOOTER_SAVE_BTN =
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-[10px] py-[10px] text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex min-h-11 min-w-[128px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
 const ACTION_BTN =
-  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-xs font-semibold leading-none tracking-normal shadow-sm transition-colors'
+  'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold leading-none tracking-normal transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -185,20 +185,20 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
         className={`relative flex h-full w-full max-w-[560px] flex-col border-l border-slate-200 bg-white transition-transform duration-300 ease-out ${entered ? 'translate-x-0' : 'translate-x-full'}`}
         style={{ boxShadow: 'inset 3px 0 0 0 var(--brand-primary, #ea580c), -16px 0 48px rgba(15,23,42,0.18)' }}
       >
-        <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-5">
+        <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-4">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <h3 className="text-xl font-semibold leading-snug text-slate-950">
                 {isEdit ? 'Edit Employee' : 'Add New Employee'}
               </h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+              <p className="mt-1 text-sm leading-relaxed text-slate-500">
                 Fill in the employee details below.
               </p>
             </div>
             <button
               type="button"
               onClick={onCancel}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xl font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
               aria-label="Close"
             >
               ×
@@ -207,7 +207,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
             {error && (
               <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
                 {error}
@@ -215,7 +215,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
             )}
 
             <div className="space-y-5">
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
+              <section className="rounded-xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Identity</p>
                 <div className="space-y-4">
                   <div>
@@ -253,7 +253,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
+              <section className="rounded-xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Employment Dates</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -277,7 +277,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
+              <section className="rounded-xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Compensation</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -309,8 +309,8 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
             </div>
           </div>
 
-          <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-5">
-            <div className="flex flex-wrap justify-end gap-3">
+          <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
+            <div className="flex flex-nowrap items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={onCancel}
@@ -373,11 +373,11 @@ function EmployeeList({ token, company }) {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <div className="pt-1">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold leading-tight text-slate-900">Employee List</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+          <p className="mt-1 text-sm leading-relaxed text-slate-500">
             {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
           </p>
         </div>
@@ -385,7 +385,7 @@ function EmployeeList({ token, company }) {
           <button
             type="button"
             onClick={() => setFormMode('create')}
-            className={`${PRIMARY_BTN} hover:-translate-y-px hover:shadow-md`}
+            className={`${PRIMARY_BTN} shrink-0 hover:-translate-y-px hover:shadow-md`}
             style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
           >
             <span aria-hidden="true">+</span>
@@ -425,47 +425,47 @@ function EmployeeList({ token, company }) {
           />
         </div>
       ) : employees.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">
           <p className="mb-3 text-4xl">👤</p>
           <p className="font-medium text-slate-700">No employees yet</p>
           <p className="mt-1 text-sm text-slate-500">Click &quot;Add Employee&quot; to add the first record</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse text-sm">
+            <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
               <colgroup>
                 <col style={{ width: '16%' }} />
-                <col style={{ width: '14%' }} />
                 <col style={{ width: '13%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '20%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '25%' }} />
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Name</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">ID Number</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Joining Date</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Salary Agreed</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Last Increment</th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Rebate</th>
-                  <th className="px-5 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Actions</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Name</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">ID Number</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Joining Date</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Salary Agreed</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Last Increment</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Rebate</th>
+                  <th className="px-6 py-3.5 text-right text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {employees.map((emp, index) => (
+                {employees.map((emp) => (
                   <tr
                     key={emp._id}
-                    className={`transition-colors hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                    className="bg-white transition-colors hover:bg-orange-50/40"
                   >
-                    <td className="px-5 py-4 align-middle whitespace-nowrap font-semibold text-slate-900">
+                    <td className="truncate px-6 py-3.5 align-middle font-semibold text-slate-900" title={emp.name}>
                       {structured ? (
                         <button
                           type="button"
                           onClick={() => setProfileId(emp._id)}
-                          className="text-left hover:underline"
+                          className="max-w-full truncate text-left hover:underline"
                         >
                           {emp.name}
                         </button>
@@ -473,25 +473,25 @@ function EmployeeList({ token, company }) {
                         emp.name
                       )}
                     </td>
-                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">{emp.idNumber}</td>
-                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">
+                    <td className="truncate px-6 py-3.5 align-middle text-slate-600">{emp.idNumber}</td>
+                    <td className="whitespace-nowrap px-6 py-3.5 align-middle text-slate-600">
                       {formatDateDisplay(emp.joiningDate)}
                     </td>
-                    <td className="px-5 py-4 align-middle whitespace-nowrap font-medium text-slate-800">
+                    <td className="whitespace-nowrap px-6 py-3.5 align-middle font-medium text-slate-800">
                       {formatMoney(emp.salaryAgreed)}
                     </td>
-                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">
+                    <td className="whitespace-nowrap px-6 py-3.5 align-middle text-slate-600">
                       {formatDateDisplay(emp.lastIncrement)}
                     </td>
-                    <td className="px-5 py-4 align-middle whitespace-nowrap text-slate-600">
+                    <td className="whitespace-nowrap px-6 py-3.5 align-middle text-slate-600">
                       {formatMoney(emp.rebate)}
                     </td>
-                    <td className="px-5 py-4 align-middle">
-                      <div className="inline-flex flex-wrap items-center justify-center gap-3">
+                    <td className="px-6 py-3.5 align-middle">
+                      <div className="flex flex-nowrap items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={() => setFormMode(emp)}
-                          className={`${ACTION_BTN} border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
+                          className={`${ACTION_BTN} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
                         >
                           <PencilIcon />
                           <span>Edit</span>
@@ -508,7 +508,7 @@ function EmployeeList({ token, company }) {
                         <button
                           type="button"
                           onClick={() => handleDelete(emp._id, emp.name)}
-                          className={`${ACTION_BTN} border-red-200 bg-red-50 text-red-700 hover:bg-red-100`}
+                          className={`${ACTION_BTN} border-red-200 bg-red-50 text-red-600 hover:bg-red-100`}
                         >
                           <TrashIcon />
                           <span>Delete</span>
