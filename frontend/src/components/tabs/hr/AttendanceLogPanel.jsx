@@ -26,6 +26,103 @@ function interpolate(template, vars = {}) {
   ))
 }
 
+const CELL_PAD = { padding: '0.875rem' }
+
+const PILL_CONTROL = {
+  paddingLeft: '0.875rem',
+  paddingRight: '0.875rem',
+  borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
+  borderRadius: '9999px',
+}
+
+const STATUS_DOT = {
+  present: '#16A34A',
+  absent: '#DC2626',
+  leave: '#D97706',
+  late: '#F4510B',
+}
+
+function IconCalendar({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  )
+}
+
+function IconUsers({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+
+function IconCheck({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
+function IconX({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  )
+}
+
+function IconLeave({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 11h-6M19 8v6" />
+    </svg>
+  )
+}
+
+function IconClock({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  )
+}
+
+function SummaryCard({ label, value, icon: Icon }) {
+  return (
+    <div
+      className="flex min-h-[88px] flex-col justify-between rounded-xl border border-slate-200 bg-white shadow-sm"
+      style={{ padding: '1rem' }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-[11px] font-semibold uppercase leading-snug tracking-[0.06em] text-slate-500">
+          {label}
+        </p>
+        <span
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+          style={{
+            background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 12%, white)',
+            color: 'var(--brand-primary, #F4510B)',
+          }}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight text-slate-900" style={{ marginTop: '0.75rem' }}>
+        {value}
+      </p>
+    </div>
+  )
+}
+
 /**
  * Daily attendance mark UI for HR: date picker + per-employee status / check-in / check-out.
  */
@@ -129,37 +226,64 @@ export default function AttendanceLogPanel({ token }) {
     }
   }, [rows])
 
+  const summaryCards = useMemo(() => ([
+    { label: t('totalEmployees'), value: employees.length, icon: IconUsers },
+    { label: t('present'), value: counts.present, icon: IconCheck },
+    { label: t('absent'), value: counts.absent, icon: IconX },
+    { label: t('onLeave'), value: counts.leave, icon: IconLeave },
+    { label: t('late'), value: counts.late, icon: IconClock },
+  ]), [t, employees.length, counts])
+
   return (
-    <div className="space-y-4 pt-2">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-5" style={{ paddingTop: '0.5rem' }}>
+      {/* Header + date */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <h3 className="text-xl font-semibold tracking-tight text-slate-900">{t('attendanceLogTitle')}</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+          <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{t('attendanceLogTitle')}</h3>
+          <p className="text-sm text-slate-500" style={{ marginTop: '0.5rem' }}>
             {t('attendanceLogHint')}
-            {employees.length > 0
-              ? ` · ${interpolate(t('attendanceCountSummary'), counts)}`
-              : ''}
           </p>
         </div>
-        <label className="flex shrink-0 flex-col gap-1.5 text-xs font-semibold text-slate-500">
-          {t('date')}
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
-          />
-        </label>
+        <div
+          className="shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm"
+          style={{ padding: '0.75rem 1rem' }}
+        >
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
+            {t('date')}
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="h-10 border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+              style={PILL_CONTROL}
+            />
+          </label>
+        </div>
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 text-sm text-red-700" style={{ padding: '0.875rem' }}>
           {error}
         </div>
       )}
       {message && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-700">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 text-sm text-emerald-700" style={{ padding: '0.875rem' }}>
           {message}
+        </div>
+      )}
+
+      {/* Summary cards */}
+      {!loading && employees.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {summaryCards.map((card) => (
+            <SummaryCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              icon={card.icon}
+            />
+          ))}
         </div>
       )}
 
@@ -173,70 +297,89 @@ export default function AttendanceLogPanel({ token }) {
       ) : employees.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
           <p className="font-semibold text-slate-800">{t('noEmployeesToMark')}</p>
-          <p className="mt-1 text-sm text-slate-500">{t('addEmployeesFirst')}</p>
+          <p className="text-sm text-slate-500" style={{ marginTop: '0.25rem' }}>{t('addEmployeesFirst')}</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('name')}</th>
-                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('department')}</th>
-                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('status')}</th>
-                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('checkIn')}</th>
-                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('checkOut')}</th>
-                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600" />
+                  <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('name')}</th>
+                  <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('department')}</th>
+                  <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('status')}</th>
+                  <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('checkIn')}</th>
+                  <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('checkOut')}</th>
+                  <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD} />
                 </tr>
               </thead>
               <tbody>
-                {employees.map((emp, index) => {
+                {employees.map((emp) => {
                   const row = rows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }
+                  const statusColor = STATUS_DOT[row.status] || '#64748B'
                   return (
                     <tr
                       key={emp._id}
-                      className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/35 ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                      className="border-b border-slate-100 bg-white transition-colors last:border-b-0 hover:bg-orange-50/40"
                     >
-                      <td className="whitespace-nowrap px-3 py-3 align-middle text-sm font-semibold text-slate-900">
+                      <td className="whitespace-nowrap align-middle text-sm font-semibold text-slate-900" style={CELL_PAD}>
                         {emp.name}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 align-middle text-sm text-slate-600">
+                      <td className="whitespace-nowrap align-middle text-sm text-slate-600" style={CELL_PAD}>
                         {emp.department || '—'}
                       </td>
-                      <td className="px-3 py-3 align-middle">
-                        <select
-                          value={row.status}
-                          onChange={(e) => setRowField(emp._id, 'status', e.target.value)}
-                          className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
-                        >
-                          {statuses.map((s) => (
-                            <option key={s.value} value={s.value}>{s.label}</option>
-                          ))}
-                        </select>
+                      <td className="align-middle" style={CELL_PAD}>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ background: statusColor }}
+                            aria-hidden
+                          />
+                          <select
+                            value={row.status}
+                            onChange={(e) => setRowField(emp._id, 'status', e.target.value)}
+                            className="h-9 border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                            style={{
+                              ...PILL_CONTROL,
+                              borderColor: `color-mix(in srgb, ${statusColor} 45%, white)`,
+                            }}
+                          >
+                            {statuses.map((s) => (
+                              <option key={s.value} value={s.value}>{s.label}</option>
+                            ))}
+                          </select>
+                        </div>
                       </td>
-                      <td className="px-3 py-3 align-middle">
+                      <td className="align-middle" style={CELL_PAD}>
                         <input
                           type="time"
                           value={row.checkIn || ''}
                           onChange={(e) => setRowField(emp._id, 'checkIn', e.target.value)}
-                          className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                          className="h-9 border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                          style={PILL_CONTROL}
                         />
                       </td>
-                      <td className="px-3 py-3 align-middle">
+                      <td className="align-middle" style={CELL_PAD}>
                         <input
                           type="time"
                           value={row.checkOut || ''}
                           onChange={(e) => setRowField(emp._id, 'checkOut', e.target.value)}
-                          className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                          className="h-9 border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                          style={PILL_CONTROL}
                         />
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 align-middle">
+                      <td className="whitespace-nowrap align-middle" style={CELL_PAD}>
                         <button
                           type="button"
                           disabled={savingId === emp._id}
                           onClick={() => handleSave(emp)}
-                          className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-                          style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+                          className="inline-flex h-9 items-center text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                          style={{
+                            background: 'var(--brand-primary, #F4510B)',
+                            color: 'var(--brand-on-primary, #ffffff)',
+                            padding: '0 0.875rem',
+                            borderRadius: '9999px',
+                          }}
                         >
                           {savingId === emp._id ? t('saving') : t('save')}
                         </button>
