@@ -130,117 +130,123 @@ export default function AttendanceLogPanel({ token }) {
   }, [rows])
 
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h3 className="text-base font-semibold leading-tight text-white">{t('attendanceLogTitle')}</h3>
-          <p className="mt-1 text-sm leading-relaxed text-gray-500">
+    <div className="space-y-4 pt-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-xl font-semibold tracking-tight text-slate-900">{t('attendanceLogTitle')}</h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
             {t('attendanceLogHint')}
             {employees.length > 0
               ? ` · ${interpolate(t('attendanceCountSummary'), counts)}`
               : ''}
           </p>
         </div>
-        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
+        <label className="flex shrink-0 flex-col gap-1.5 text-xs font-semibold text-slate-500">
           {t('date')}
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium normal-case tracking-normal text-white"
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
           />
         </label>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {message && (
-        <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-400">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-700">
           {message}
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-24 shadow-sm">
           <div
-            className="h-6 w-6 animate-spin rounded-full"
-            style={{ border: '4px solid var(--brand-primary)', borderTopColor: 'transparent' }}
+            className="h-7 w-7 animate-spin rounded-full"
+            style={{ border: '3px solid var(--brand-primary)', borderTopColor: 'transparent' }}
           />
         </div>
       ) : employees.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-800 py-16 text-center">
-          <p className="font-medium text-gray-400">{t('noEmployeesToMark')}</p>
-          <p className="mt-1 text-sm text-gray-600">{t('addEmployeesFirst')}</p>
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
+          <p className="font-semibold text-slate-800">{t('noEmployeesToMark')}</p>
+          <p className="mt-1 text-sm text-slate-500">{t('addEmployeesFirst')}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-700 bg-gray-800/60">
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('name')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('department')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('status')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('checkIn')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('checkOut')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {employees.map((emp) => {
-                const row = rows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }
-                return (
-                  <tr key={emp._id} className="transition-colors hover:bg-gray-800/30">
-                    <td className="px-4 py-3 whitespace-nowrap font-medium leading-tight text-white">
-                      {emp.name}
-                    </td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap leading-tight text-gray-400">
-                      {emp.department || '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={row.status}
-                        onChange={(e) => setRowField(emp._id, 'status', e.target.value)}
-                        className="rounded-md border border-gray-700 bg-gray-900 px-2 py-1.5 text-xs text-white"
-                      >
-                        {statuses.map((s) => (
-                          <option key={s.value} value={s.value}>{s.label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="time"
-                        value={row.checkIn || ''}
-                        onChange={(e) => setRowField(emp._id, 'checkIn', e.target.value)}
-                        className="rounded-md border border-gray-700 bg-gray-900 px-2 py-1.5 text-xs text-white"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="time"
-                        value={row.checkOut || ''}
-                        onChange={(e) => setRowField(emp._id, 'checkOut', e.target.value)}
-                        className="rounded-md border border-gray-700 bg-gray-900 px-2 py-1.5 text-xs text-white"
-                      />
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <button
-                        type="button"
-                        disabled={savingId === emp._id}
-                        onClick={() => handleSave(emp)}
-                        className="text-xs font-medium text-sky-400 transition-colors hover:text-sky-300 disabled:opacity-60"
-                      >
-                        {savingId === emp._id ? t('saving') : t('save')}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('name')}</th>
+                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('department')}</th>
+                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('status')}</th>
+                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('checkIn')}</th>
+                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">{t('checkOut')}</th>
+                  <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600" />
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map((emp, index) => {
+                  const row = rows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }
+                  return (
+                    <tr
+                      key={emp._id}
+                      className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/35 ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                    >
+                      <td className="whitespace-nowrap px-3 py-3 align-middle text-sm font-semibold text-slate-900">
+                        {emp.name}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 align-middle text-sm text-slate-600">
+                        {emp.department || '—'}
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <select
+                          value={row.status}
+                          onChange={(e) => setRowField(emp._id, 'status', e.target.value)}
+                          className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                        >
+                          {statuses.map((s) => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <input
+                          type="time"
+                          value={row.checkIn || ''}
+                          onChange={(e) => setRowField(emp._id, 'checkIn', e.target.value)}
+                          className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                        />
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <input
+                          type="time"
+                          value={row.checkOut || ''}
+                          onChange={(e) => setRowField(emp._id, 'checkOut', e.target.value)}
+                          className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                        />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 align-middle">
+                        <button
+                          type="button"
+                          disabled={savingId === emp._id}
+                          onClick={() => handleSave(emp)}
+                          className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                          style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+                        >
+                          {savingId === emp._id ? t('saving') : t('save')}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

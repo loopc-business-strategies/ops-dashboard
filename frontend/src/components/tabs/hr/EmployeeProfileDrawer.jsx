@@ -211,19 +211,27 @@ export default function EmployeeProfileDrawer({ token, company, employeeId, onCl
           <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-800" aria-label={t('close')}>✕</button>
         </div>
 
-        <div className="flex gap-2 border-b border-slate-100 px-5 py-2">
-          {tabs.map((tabItem) => (
-            <button
-              key={tabItem.id}
-              type="button"
-              onClick={() => setTab(tabItem.id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                tab === tabItem.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              {tabItem.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-2.5">
+          {tabs.map((tabItem) => {
+            const active = tab === tabItem.id
+            return (
+              <button
+                key={tabItem.id}
+                type="button"
+                onClick={() => setTab(tabItem.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active ? '' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+                style={active ? {
+                  borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
+                  background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 10%, white)',
+                  color: 'var(--brand-primary, #F4510B)',
+                } : undefined}
+              >
+                {tabItem.label}
+              </button>
+            )
+          })}
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -343,7 +351,7 @@ export default function EmployeeProfileDrawer({ token, company, employeeId, onCl
         </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
+          <button type="button" onClick={onClose} className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
             {t('close')}
           </button>
           {tab === 'salary' && structured ? (
@@ -351,8 +359,8 @@ export default function EmployeeProfileDrawer({ token, company, employeeId, onCl
               type="button"
               disabled={saving || loading}
               onClick={saveSalary}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-              style={{ background: 'var(--brand-button-bg, var(--brand-dark))' }}
+              className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
             >
               {saving ? t('saving') : t('saveSalaryStructure')}
             </button>
@@ -361,8 +369,8 @@ export default function EmployeeProfileDrawer({ token, company, employeeId, onCl
               type="button"
               disabled={saving || loading}
               onClick={saveProfile}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-              style={{ background: 'var(--brand-button-bg, var(--brand-dark))' }}
+              className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
             >
               {saving ? t('saving') : t('saveProfile')}
             </button>

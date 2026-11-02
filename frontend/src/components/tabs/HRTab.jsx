@@ -369,8 +369,8 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
             )}
 
             <div className="space-y-4">
-              <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('identitySection')}</p>
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{t('identitySection')}</p>
                 <div className="space-y-3.5">
                   <div>
                     <FieldLabel required>{t('employeeName')}</FieldLabel>
@@ -389,8 +389,8 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('employmentDatesSection')}</p>
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{t('employmentDatesSection')}</p>
                 <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                   <div>
                     <FieldLabel>{t('joiningDate')}</FieldLabel>
@@ -403,8 +403,8 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('compensationSection')}</p>
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{t('compensationSection')}</p>
                 <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                   <div>
                     <FieldLabel>{t('salaryAgreed')}</FieldLabel>
@@ -532,8 +532,8 @@ function KpiCard({ label, value, money, icon: Icon }) {
       <div className="flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.05em] text-slate-500">{label}</p>
         <span
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-          style={{ background: 'color-mix(in srgb, var(--brand-primary, #ea580c) 12%, white)', color: 'var(--brand-primary, #ea580c)' }}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+          style={{ background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 12%, white)', color: 'var(--brand-primary, #F4510B)' }}
         >
           <Icon className="h-3.5 w-3.5" />
         </span>
@@ -777,7 +777,14 @@ function EmployeeList({ token, company }) {
             <h3 className="text-xl font-semibold tracking-tight text-slate-900">
               {t('employeeList')}
             </h3>
-            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-600">
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 28%, white)',
+                background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 10%, white)',
+                color: 'var(--brand-primary, #F4510B)',
+              }}
+            >
               {countBadge}
             </span>
           </div>
@@ -1048,11 +1055,15 @@ function EmployeeList({ token, company }) {
 function LabourLaw() {
   const { t } = useLanguage()
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center">
-      <p className="font-medium leading-tight text-slate-700">{t('labourLaw')}</p>
-      <p className="mt-1 text-sm leading-relaxed text-slate-500">
-        {t('labourLawPlaceholder')}
-      </p>
+    <div className="space-y-4 pt-2">
+      <div>
+        <h3 className="text-xl font-semibold tracking-tight text-slate-900">{t('labourLaw')}</h3>
+        <p className="mt-1.5 text-sm text-slate-500">{t('labourLawPlaceholder')}</p>
+      </div>
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white py-20 text-center shadow-sm">
+        <p className="font-semibold text-slate-800">{t('labourLaw')}</p>
+        <p className="mt-1 text-sm text-slate-500">{t('labourLawPlaceholder')}</p>
+      </div>
     </div>
   )
 }
@@ -1060,11 +1071,15 @@ function LabourLaw() {
 function CurrentUpdates() {
   const { t } = useLanguage()
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center">
-      <p className="font-medium leading-tight text-slate-700">{t('currentUpdates')}</p>
-      <p className="mt-1 text-sm leading-relaxed text-slate-500">
-        {t('currentUpdatesPlaceholder')}
-      </p>
+    <div className="space-y-4 pt-2">
+      <div>
+        <h3 className="text-xl font-semibold tracking-tight text-slate-900">{t('currentUpdates')}</h3>
+        <p className="mt-1.5 text-sm text-slate-500">{t('currentUpdatesPlaceholder')}</p>
+      </div>
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white py-20 text-center shadow-sm">
+        <p className="font-semibold text-slate-800">{t('currentUpdates')}</p>
+        <p className="mt-1 text-sm text-slate-500">{t('currentUpdatesPlaceholder')}</p>
+      </div>
     </div>
   )
 }

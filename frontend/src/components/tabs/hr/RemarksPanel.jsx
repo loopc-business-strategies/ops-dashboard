@@ -103,21 +103,21 @@ export default function RemarksPanel({ token }) {
   const selected = employees.find((e) => e._id === employeeId)
 
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h3 className="text-base font-semibold leading-tight text-white">{t('remarksTitle')}</h3>
-          <p className="mt-1 text-sm leading-relaxed text-gray-500">
+    <div className="space-y-4 pt-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-xl font-semibold tracking-tight text-slate-900">{t('remarksTitle')}</h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
             {t('remarksHint')}
           </p>
         </div>
-        <label className="flex min-w-[220px] flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
+        <label className="flex min-w-[220px] shrink-0 flex-col gap-1.5 text-xs font-semibold text-slate-500">
           {t('employee')}
           <select
             value={employeeId}
             onChange={(e) => setEmployeeId(e.target.value)}
             disabled={loadingEmployees || employees.length === 0}
-            className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium normal-case tracking-normal text-white"
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {employees.length === 0 ? (
               <option value="">{t('noEmployees')}</option>
@@ -133,35 +133,35 @@ export default function RemarksPanel({ token }) {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {message && (
-        <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-400">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-700">
           {message}
         </div>
       )}
 
       {loadingEmployees ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-24 shadow-sm">
           <div
-            className="h-6 w-6 animate-spin rounded-full"
-            style={{ border: '4px solid var(--brand-primary)', borderTopColor: 'transparent' }}
+            className="h-7 w-7 animate-spin rounded-full"
+            style={{ border: '3px solid var(--brand-primary)', borderTopColor: 'transparent' }}
           />
         </div>
       ) : employees.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-800 py-16 text-center">
-          <p className="font-medium text-gray-400">{t('noEmployeesYet')}</p>
-          <p className="mt-1 text-sm text-gray-600">{t('addEmployeesFirst')}</p>
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
+          <p className="font-semibold text-slate-800">{t('noEmployeesYet')}</p>
+          <p className="mt-1 text-sm text-slate-500">{t('addEmployeesFirst')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <form
             onSubmit={handleAdd}
-            className="rounded-xl border border-gray-800 bg-gray-900/40 p-4"
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <p className="mb-3 text-sm font-medium text-white">
+            <p className="mb-3 text-sm font-semibold text-slate-900">
               {selected
                 ? interpolate(t('newRemarkFor'), { name: selected.name })
                 : t('newRemark')}
@@ -172,14 +172,14 @@ export default function RemarksPanel({ token }) {
               rows={5}
               maxLength={2000}
               placeholder={t('writeNotePlaceholder')}
-              className="w-full resize-none rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white placeholder:text-gray-600"
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
             />
             <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="text-xs text-gray-500">{text.trim().length}/2000</span>
+              <span className="text-xs font-medium text-slate-500">{text.trim().length}/2000</span>
               <button
                 type="submit"
                 disabled={saving || !text.trim()}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
               >
                 {saving ? t('saving') : t('addRemark')}
@@ -187,35 +187,35 @@ export default function RemarksPanel({ token }) {
             </div>
           </form>
 
-          <div className="rounded-xl border border-gray-800">
-            <div className="border-b border-gray-800 px-4 py-3">
-              <p className="text-sm font-medium text-white">{t('remarkHistory')}</p>
-              <p className="mt-0.5 text-xs text-gray-500">{t('newestFirst')}</p>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">{t('remarkHistory')}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{t('newestFirst')}</p>
             </div>
             {loadingRemarks ? (
               <div className="flex items-center justify-center py-16">
                 <div
-                  className="h-5 w-5 animate-spin rounded-full"
+                  className="h-6 w-6 animate-spin rounded-full"
                   style={{ border: '3px solid var(--brand-primary)', borderTopColor: 'transparent' }}
                 />
               </div>
             ) : remarks.length === 0 ? (
-              <div className="px-4 py-12 text-center text-sm text-gray-500">
+              <div className="px-4 py-12 text-center text-sm text-slate-500">
                 {t('noRemarksYet')}
               </div>
             ) : (
-              <ul className="max-h-[480px] divide-y divide-gray-800 overflow-y-auto">
+              <ul className="max-h-[480px] divide-y divide-slate-100 overflow-y-auto">
                 {remarks.map((r) => (
                   <li key={r._id} className="px-4 py-3">
                     <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="text-xs font-medium text-gray-400">
+                      <span className="text-xs font-medium text-slate-500">
                         {formatRemarkWhen(r.createdAt, langCode)}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-slate-400">
                         {r.createdByName || '—'}
                       </span>
                     </div>
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
                       {r.text}
                     </p>
                   </li>
