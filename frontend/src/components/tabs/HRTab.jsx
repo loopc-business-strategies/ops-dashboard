@@ -852,8 +852,15 @@ function EmployeeList({ token, company }) {
                 onChange={(e) => setFilterYear(Number(e.target.value))}
                 className="h-10 min-w-[120px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                 style={{
+                  boxSizing: 'border-box',
+                  height: '40px',
+                  minHeight: '40px',
+                  paddingTop: '8px',
+                  paddingBottom: '8px',
                   paddingLeft: '0.875rem',
                   paddingRight: '1.75rem',
+                  lineHeight: '1.25',
+                  fontSize: '13px',
                   borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
                   borderRadius: '9999px',
                 }}
@@ -871,8 +878,15 @@ function EmployeeList({ token, company }) {
                 onChange={(e) => setFilterMonth(Number(e.target.value))}
                 className="h-10 min-w-[150px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                 style={{
+                  boxSizing: 'border-box',
+                  height: '40px',
+                  minHeight: '40px',
+                  paddingTop: '8px',
+                  paddingBottom: '8px',
                   paddingLeft: '0.875rem',
                   paddingRight: '1.75rem',
+                  lineHeight: '1.25',
+                  fontSize: '13px',
                   borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
                   borderRadius: '9999px',
                 }}

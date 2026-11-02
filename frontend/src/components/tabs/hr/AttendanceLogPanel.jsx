@@ -28,11 +28,24 @@ function interpolate(template, vars = {}) {
 
 const CELL_PAD = { padding: '0.875rem' }
 
+/* Fixed px height beats rem-based h-10 (root font-size is 13px → h-10 = 32.5px) */
 const PILL_CONTROL = {
+  boxSizing: 'border-box',
+  height: '40px',
+  minHeight: '40px',
+  paddingTop: '8px',
+  paddingBottom: '8px',
   paddingLeft: '0.875rem',
   paddingRight: '0.875rem',
+  lineHeight: '1.25',
+  fontSize: '13px',
   borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
   borderRadius: '9999px',
+}
+
+const PILL_SELECT = {
+  ...PILL_CONTROL,
+  paddingRight: '1.75rem',
 }
 
 const STATUS_DOT = {
@@ -255,7 +268,7 @@ export default function AttendanceLogPanel({ token }) {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="h-10 border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+              className="border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
               style={PILL_CONTROL}
             />
           </label>
@@ -338,9 +351,9 @@ export default function AttendanceLogPanel({ token }) {
                           <select
                             value={row.status}
                             onChange={(e) => setRowField(emp._id, 'status', e.target.value)}
-                            className="h-9 border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                            className="border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                             style={{
-                              ...PILL_CONTROL,
+                              ...PILL_SELECT,
                               borderColor: `color-mix(in srgb, ${statusColor} 45%, white)`,
                             }}
                           >
@@ -355,7 +368,7 @@ export default function AttendanceLogPanel({ token }) {
                           type="time"
                           value={row.checkIn || ''}
                           onChange={(e) => setRowField(emp._id, 'checkIn', e.target.value)}
-                          className="h-9 border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                          className="border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                           style={PILL_CONTROL}
                         />
                       </td>
@@ -364,7 +377,7 @@ export default function AttendanceLogPanel({ token }) {
                           type="time"
                           value={row.checkOut || ''}
                           onChange={(e) => setRowField(emp._id, 'checkOut', e.target.value)}
-                          className="h-9 border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                          className="border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                           style={PILL_CONTROL}
                         />
                       </td>
