@@ -530,19 +530,19 @@ const KPI_ICONS = [
 function KpiCard({ label, value, money, icon: Icon }) {
   return (
     <div
-      className="flex min-h-[92px] flex-col justify-between rounded-xl border border-slate-200 bg-white shadow-sm"
-      style={{ padding: '1rem' }}
+      className="flex min-h-[72px] flex-col justify-between rounded-xl border border-slate-200 bg-white shadow-sm"
+      style={{ padding: '0.75rem' }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-[11px] font-semibold uppercase leading-snug tracking-[0.06em] text-slate-500">{label}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 text-[10px] font-semibold uppercase leading-snug tracking-[0.06em] text-slate-500">{label}</p>
         <span
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
           style={{ background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 12%, white)', color: 'var(--brand-primary, #F4510B)' }}
         >
-          <Icon className="h-4 w-4" />
+          <Icon className="h-3.5 w-3.5" />
         </span>
       </div>
-      <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight text-slate-900" style={{ marginTop: '0.75rem' }}>
+      <p className="text-lg font-semibold tabular-nums leading-none tracking-tight text-slate-900" style={{ marginTop: '0.5rem' }}>
         {money ? formatMoney(value) : value}
       </p>
     </div>
@@ -926,9 +926,9 @@ function EmployeeList({ token, company }) {
         />
       )}
 
-      {/* KPI cards — desktop 4 then 3 */}
+      {/* KPI cards — desktop 7-up */}
       {!loading && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
           {summaryCards.map((card, i) => (
             <KpiCard
               key={card.label}
