@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import hrAPI from '../../../api/hr'
 import attendanceAPI from '../../../api/attendance'
-
-const STATUSES = [
-  { value: 'present', label: 'Present' },
-  { value: 'absent', label: 'Absent' },
-  { value: 'leave', label: 'Leave' },
-  { value: 'late', label: 'Late' },
-]
+import { useLanguage } from '../../../context/LanguageContext'
 
 function todayKey() {
   const d = new Date()
@@ -26,10 +20,17 @@ function deptForMark(employee) {
   return dept || 'operations'
 }
 
+function interpolate(template, vars = {}) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (
+    vars[key] === undefined || vars[key] === null ? `{${key}}` : String(vars[key])
+  ))
+}
+
 /**
  * Daily attendance mark UI for HR: date picker + per-employee status / check-in / check-out.
  */
 export default function AttendanceLogPanel({ token }) {
+  const { t } = useLanguage()
   const [date, setDate] = useState(todayKey)
   const [employees, setEmployees] = useState([])
   const [rows, setRows] = useState({})
@@ -37,6 +38,13 @@ export default function AttendanceLogPanel({ token }) {
   const [savingId, setSavingId] = useState(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+
+  const statuses = useMemo(() => [
+    { value: 'present', label: t('present') },
+    { value: 'absent', label: t('absent') },
+    { value: 'leave', label: t('leaveStatus') },
+    { value: 'late', label: t('late') },
+  ], [t])
 
   const load = useCallback(async (isMounted = () => true) => {
     setLoading(true)
@@ -68,12 +76,12 @@ export default function AttendanceLogPanel({ token }) {
       setRows(next)
     } catch (err) {
       if (isMounted()) {
-        setError(err.response?.data?.message || 'Failed to load attendance.')
+        setError(err.response?.data?.message || t('failedLoadAttendance'))
       }
     } finally {
       if (isMounted()) setLoading(false)
     }
-  }, [token, date])
+  }, [token, date, t])
 
   useEffect(() => {
     let mounted = true
@@ -103,9 +111,9 @@ export default function AttendanceLogPanel({ token }) {
         checkIn: row.checkIn || '',
         checkOut: row.checkOut || '',
       })
-      setMessage(`Saved attendance for ${emp.name}.`)
+      setMessage(interpolate(t('savedAttendanceFor'), { name: emp.name }))
     } catch (err) {
-      setError(err.response?.data?.message || `Failed to save ${emp.name}.`)
+      setError(err.response?.data?.message || interpolate(t('failedSaveNamed'), { name: emp.name }))
     } finally {
       setSavingId(null)
     }
@@ -125,16 +133,16 @@ export default function AttendanceLogPanel({ token }) {
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold leading-tight text-white">Attendance Log</h3>
+          <h3 className="text-base font-semibold leading-tight text-white">{t('attendanceLogTitle')}</h3>
           <p className="mt-1 text-sm leading-relaxed text-gray-500">
-            Mark daily attendance for employees
+            {t('attendanceLogHint')}
             {employees.length > 0
-              ? ` · ${counts.present} present · ${counts.absent} absent · ${counts.leave} leave · ${counts.late} late`
+              ? ` · ${interpolate(t('attendanceCountSummary'), counts)}`
               : ''}
           </p>
         </div>
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
-          Date
+          {t('date')}
           <input
             type="date"
             value={date}
@@ -164,19 +172,19 @@ export default function AttendanceLogPanel({ token }) {
         </div>
       ) : employees.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-800 py-16 text-center">
-          <p className="font-medium text-gray-400">No employees to mark</p>
-          <p className="mt-1 text-sm text-gray-600">Add employees under Employee List first</p>
+          <p className="font-medium text-gray-400">{t('noEmployeesToMark')}</p>
+          <p className="mt-1 text-sm text-gray-600">{t('addEmployeesFirst')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-800">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700 bg-gray-800/60">
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Department</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Check-in</th>
-                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">Check-out</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('name')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('department')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('status')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('checkIn')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400">{t('checkOut')}</th>
                 <th className="px-4 py-3 text-left text-xs font-medium leading-none text-gray-400" />
               </tr>
             </thead>
@@ -197,7 +205,7 @@ export default function AttendanceLogPanel({ token }) {
                         onChange={(e) => setRowField(emp._id, 'status', e.target.value)}
                         className="rounded-md border border-gray-700 bg-gray-900 px-2 py-1.5 text-xs text-white"
                       >
-                        {STATUSES.map((s) => (
+                        {statuses.map((s) => (
                           <option key={s.value} value={s.value}>{s.label}</option>
                         ))}
                       </select>
@@ -225,7 +233,7 @@ export default function AttendanceLogPanel({ token }) {
                         onClick={() => handleSave(emp)}
                         className="text-xs font-medium text-sky-400 transition-colors hover:text-sky-300 disabled:opacity-60"
                       >
-                        {savingId === emp._id ? 'Saving…' : 'Save'}
+                        {savingId === emp._id ? t('saving') : t('save')}
                       </button>
                     </td>
                   </tr>

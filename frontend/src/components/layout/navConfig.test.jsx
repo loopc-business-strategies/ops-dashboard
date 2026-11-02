@@ -25,6 +25,17 @@ describe('getNavItems — Operations visibility', () => {
     expect(ids(items)).not.toContain('operations')
   })
 
+  test('HR-only users do not see Master Settings', () => {
+    const items = getNavItems(perms({ modules: ['hr'] }), t)
+    expect(ids(items)).toContain('hr')
+    expect(ids(items)).not.toContain('master-settings')
+  })
+
+  test('management users see Master Settings', () => {
+    const items = getNavItems({ ...perms({ modules: ['overview'] }), isManagement: true }, t)
+    expect(ids(items)).toContain('master-settings')
+  })
+
   test('the tenant branding still decides whether Operations exists at all', () => {
     const branding = { enabledTabs: ['production-new', 'master-settings'], enabledErpSubTabs: [], featureFlags: {} }
     const items = getNavItems(perms({ modules: ['production'], canApproveMgFloor: true }), t, 0, branding)

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import hrAPI from '../../../api/hr'
+import { useLanguage } from '../../../context/LanguageContext'
 
-function formatRemarkWhen(value) {
+function formatRemarkWhen(value, langCode = 'en') {
   if (!value) return '—'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString(undefined, {
+  const locale = langCode === 'ru' ? 'ru-RU' : langCode === 'uz' ? 'uz-UZ' : undefined
+  return d.toLocaleString(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -14,10 +16,17 @@ function formatRemarkWhen(value) {
   })
 }
 
+function interpolate(template, vars = {}) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (
+    vars[key] === undefined || vars[key] === null ? `{${key}}` : String(vars[key])
+  ))
+}
+
 /**
  * HR Remarks sub-tab: pick an employee and append dated notes over time.
  */
 export default function RemarksPanel({ token }) {
+  const { t, langCode } = useLanguage()
   const [employees, setEmployees] = useState([])
   const [employeeId, setEmployeeId] = useState('')
   const [remarks, setRemarks] = useState([])
@@ -40,7 +49,7 @@ export default function RemarksPanel({ token }) {
         setEmployees(list)
         if (list.length && !employeeId) setEmployeeId(list[0]._id)
       } catch (err) {
-        if (mounted) setError(err.response?.data?.message || 'Failed to load employees.')
+        if (mounted) setError(err.response?.data?.message || t('failedLoadEmployees'))
       } finally {
         if (mounted) setLoadingEmployees(false)
       }
@@ -60,11 +69,11 @@ export default function RemarksPanel({ token }) {
       const data = await hrAPI.getEmployeeRemarks(token, employeeId)
       if (isMounted()) setRemarks(data.remarks || [])
     } catch (err) {
-      if (isMounted()) setError(err.response?.data?.message || 'Failed to load remarks.')
+      if (isMounted()) setError(err.response?.data?.message || t('failedLoadRemarks'))
     } finally {
       if (isMounted()) setLoadingRemarks(false)
     }
-  }, [token, employeeId])
+  }, [token, employeeId, t])
 
   useEffect(() => {
     let mounted = true
@@ -82,10 +91,10 @@ export default function RemarksPanel({ token }) {
     try {
       await hrAPI.addEmployeeRemark(token, employeeId, { text: trimmed })
       setText('')
-      setMessage('Remark added.')
+      setMessage(t('remarkAdded'))
       await loadRemarks()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to add remark.')
+      setError(err.response?.data?.message || t('failedAddRemark'))
     } finally {
       setSaving(false)
     }
@@ -97,13 +106,13 @@ export default function RemarksPanel({ token }) {
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold leading-tight text-white">Remarks</h3>
+          <h3 className="text-base font-semibold leading-tight text-white">{t('remarksTitle')}</h3>
           <p className="mt-1 text-sm leading-relaxed text-gray-500">
-            Add dated notes for an employee over time
+            {t('remarksHint')}
           </p>
         </div>
         <label className="flex min-w-[220px] flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
-          Employee
+          {t('employee')}
           <select
             value={employeeId}
             onChange={(e) => setEmployeeId(e.target.value)}
@@ -111,7 +120,7 @@ export default function RemarksPanel({ token }) {
             className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium normal-case tracking-normal text-white"
           >
             {employees.length === 0 ? (
-              <option value="">No employees</option>
+              <option value="">{t('noEmployees')}</option>
             ) : (
               employees.map((emp) => (
                 <option key={emp._id} value={emp._id}>
@@ -143,8 +152,8 @@ export default function RemarksPanel({ token }) {
         </div>
       ) : employees.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-800 py-16 text-center">
-          <p className="font-medium text-gray-400">No employees yet</p>
-          <p className="mt-1 text-sm text-gray-600">Add employees under Employee List first</p>
+          <p className="font-medium text-gray-400">{t('noEmployeesYet')}</p>
+          <p className="mt-1 text-sm text-gray-600">{t('addEmployeesFirst')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
@@ -153,14 +162,16 @@ export default function RemarksPanel({ token }) {
             className="rounded-xl border border-gray-800 bg-gray-900/40 p-4"
           >
             <p className="mb-3 text-sm font-medium text-white">
-              New remark{selected ? ` for ${selected.name}` : ''}
+              {selected
+                ? interpolate(t('newRemarkFor'), { name: selected.name })
+                : t('newRemark')}
             </p>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={5}
               maxLength={2000}
-              placeholder="Write a note…"
+              placeholder={t('writeNotePlaceholder')}
               className="w-full resize-none rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white placeholder:text-gray-600"
             />
             <div className="mt-3 flex items-center justify-between gap-3">
@@ -171,15 +182,15 @@ export default function RemarksPanel({ token }) {
                 className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
               >
-                {saving ? 'Saving…' : 'Add remark'}
+                {saving ? t('saving') : t('addRemark')}
               </button>
             </div>
           </form>
 
           <div className="rounded-xl border border-gray-800">
             <div className="border-b border-gray-800 px-4 py-3">
-              <p className="text-sm font-medium text-white">Remark history</p>
-              <p className="mt-0.5 text-xs text-gray-500">Newest first</p>
+              <p className="text-sm font-medium text-white">{t('remarkHistory')}</p>
+              <p className="mt-0.5 text-xs text-gray-500">{t('newestFirst')}</p>
             </div>
             {loadingRemarks ? (
               <div className="flex items-center justify-center py-16">
@@ -190,7 +201,7 @@ export default function RemarksPanel({ token }) {
               </div>
             ) : remarks.length === 0 ? (
               <div className="px-4 py-12 text-center text-sm text-gray-500">
-                No remarks yet for this employee
+                {t('noRemarksYet')}
               </div>
             ) : (
               <ul className="max-h-[480px] divide-y divide-gray-800 overflow-y-auto">
@@ -198,7 +209,7 @@ export default function RemarksPanel({ token }) {
                   <li key={r._id} className="px-4 py-3">
                     <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
                       <span className="text-xs font-medium text-gray-400">
-                        {formatRemarkWhen(r.createdAt)}
+                        {formatRemarkWhen(r.createdAt, langCode)}
                       </span>
                       <span className="text-xs text-gray-500">
                         {r.createdByName || '—'}

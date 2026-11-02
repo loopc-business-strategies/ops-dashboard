@@ -36,6 +36,12 @@ const EMPTY_EMPLOYEE = {
   rebate: '',
 }
 
+function interpolate(template, vars = {}) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (
+    vars[key] === undefined || vars[key] === null ? `{${key}}` : String(vars[key])
+  ))
+}
+
 function toDateInput(value) {
   if (!value) return ''
   const s = String(value)
@@ -122,7 +128,7 @@ function buildEmployeePayload(form) {
 
 function FieldLabel({ children, required = false }) {
   return (
-    <label className="mb-2 block text-xs font-semibold text-slate-700">
+    <label className="mb-1.5 block text-xs font-semibold text-slate-700">
       {children}
       {required ? <span className="ml-0.5 text-orange-600">*</span> : null}
     </label>
@@ -188,7 +194,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
     <div className="fixed inset-0 z-[950] flex justify-end">
       <button
         type="button"
-        aria-label="Close employee drawer"
+        aria-label={t('closeEmployeeDrawer')}
         className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-300 ${entered ? 'opacity-100' : 'opacity-0'}`}
         onClick={onCancel}
       />
@@ -200,17 +206,17 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="text-xl font-semibold leading-snug text-slate-950">
-                {isEdit ? 'Edit Employee' : 'Add New Employee'}
+                {isEdit ? t('editEmployee') : t('addNewEmployee')}
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                Fill in the employee details below.
+                {t('fillEmployeeDetails')}
               </p>
             </div>
             <button
               type="button"
               onClick={onCancel}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg font-semibold leading-none text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-              aria-label="Close"
+              aria-label={t('close')}
             >
               ×
             </button>
@@ -218,45 +224,45 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
             {error && (
-              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
                 {error}
               </div>
             )}
 
-            <div className="space-y-5">
-              <section className="rounded-xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Identity</p>
-                <div className="space-y-4">
+            <div className="space-y-4">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('identitySection')}</p>
+                <div className="space-y-3.5">
                   <div>
-                    <FieldLabel required>Employee Name</FieldLabel>
+                    <FieldLabel required>{t('employeeName')}</FieldLabel>
                     <input
                       type="text"
                       value={form.name}
                       onChange={set('name')}
-                      placeholder="e.g. John Smith"
+                      placeholder={t('namePlaceholder')}
                       className={DRAWER_INPUT}
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                     <div>
-                      <FieldLabel required>ID Number</FieldLabel>
+                      <FieldLabel required>{t('idNumber')}</FieldLabel>
                       <input
                         type="text"
                         value={form.idNumber}
                         onChange={set('idNumber')}
-                        placeholder="e.g. 8501015009087"
+                        placeholder={t('idNumberPlaceholder')}
                         className={DRAWER_INPUT}
                       />
                     </div>
                     <div>
-                      <FieldLabel required>Employee Code</FieldLabel>
+                      <FieldLabel required>{t('employeeCode')}</FieldLabel>
                       <input
                         type="text"
                         value={form.employeeCode}
                         onChange={set('employeeCode')}
-                        placeholder="e.g. EMP-001"
+                        placeholder={t('employeeCodePlaceholder')}
                         className={DRAWER_INPUT}
                       />
                     </div>
@@ -264,11 +270,11 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Employment Dates</p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('employmentDatesSection')}</p>
+                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                   <div>
-                    <FieldLabel>Joining Date</FieldLabel>
+                    <FieldLabel>{t('joiningDate')}</FieldLabel>
                     <input
                       type="date"
                       value={form.joiningDate}
@@ -277,7 +283,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                     />
                   </div>
                   <div>
-                    <FieldLabel>Last Increment</FieldLabel>
+                    <FieldLabel>{t('lastIncrement')}</FieldLabel>
                     <input
                       type="date"
                       value={form.lastIncrement}
@@ -288,30 +294,30 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50/70" style={{ padding: 20 }}>
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Compensation</p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('compensationSection')}</p>
+                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                   <div>
-                    <FieldLabel>Salary Agreed</FieldLabel>
+                    <FieldLabel>{t('salaryAgreed')}</FieldLabel>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       value={form.salaryAgreed}
                       onChange={set('salaryAgreed')}
-                      placeholder="e.g. 25000"
+                      placeholder={t('salaryPlaceholder')}
                       className={DRAWER_INPUT}
                     />
                   </div>
                   <div>
-                    <FieldLabel>Rebate</FieldLabel>
+                    <FieldLabel>{t('rebate')}</FieldLabel>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       value={form.rebate}
                       onChange={set('rebate')}
-                      placeholder="e.g. 500"
+                      placeholder={t('rebatePlaceholder')}
                       className={DRAWER_INPUT}
                     />
                   </div>
@@ -335,7 +341,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                 className={FOOTER_SAVE_BTN}
                 style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
               >
-                {loading ? t('saving') : isEdit ? 'Save Changes' : 'Save Employee'}
+                {loading ? t('saving') : isEdit ? t('saveChanges') : t('saveEmployee')}
               </button>
             </div>
           </div>
@@ -345,20 +351,15 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   )
 }
 
-const MONTH_FILTER_OPTIONS = [
-  { value: 1, label: 'January' },
-  { value: 2, label: 'February' },
-  { value: 3, label: 'March' },
-  { value: 4, label: 'April' },
-  { value: 5, label: 'May' },
-  { value: 6, label: 'June' },
-  { value: 7, label: 'July' },
-  { value: 8, label: 'August' },
-  { value: 9, label: 'September' },
-  { value: 10, label: 'October' },
-  { value: 11, label: 'November' },
-  { value: 12, label: 'December' },
-]
+function useMonthFilterOptions(langCode) {
+  return useMemo(() => {
+    const locale = langCode === 'ru' ? 'ru-RU' : langCode === 'uz' ? 'uz-UZ' : 'en-US'
+    return Array.from({ length: 12 }, (_, i) => {
+      const label = new Date(2020, i, 1).toLocaleString(locale, { month: 'long' })
+      return { value: i + 1, label: label.charAt(0).toUpperCase() + label.slice(1) }
+    })
+  }, [langCode])
+}
 
 function sumPayrollTotals(rows) {
   let gross = 0
@@ -426,8 +427,13 @@ function hasRebateAmount(emp) {
   return Number.isFinite(n) && n > 0
 }
 
+const TH =
+  'px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500'
+
 // ── Employee List sub-tab ────────────────────────
 function EmployeeList({ token, company }) {
+  const { t, langCode } = useLanguage()
+  const monthOptions = useMonthFilterOptions(langCode)
   const now = useMemo(() => new Date(), [])
   const currentYear = now.getFullYear()
   const [employees, setEmployees] = useState([])
@@ -456,7 +462,7 @@ function EmployeeList({ token, company }) {
     let monthError = ''
     try {
       const monthData = await attendanceAPI.getMonthStats(token, year, month).catch((err) => {
-        monthError = err.response?.data?.message || 'Failed to load working days / accumulated salary.'
+        monthError = err.response?.data?.message || t('failedLoadMonthStats')
         return null
       })
       if (!isMounted()) return
@@ -465,7 +471,7 @@ function EmployeeList({ token, company }) {
     } finally {
       if (isMounted()) setMonthLoading(false)
     }
-  }, [token])
+  }, [token, t])
 
   const loadEmployees = useCallback(async (isMounted = () => true) => {
     setLoading(true)
@@ -475,11 +481,11 @@ function EmployeeList({ token, company }) {
       if (!isMounted()) return
       setEmployees(data.employees || [])
     } catch {
-      if (isMounted()) setError('Failed to load employees.')
+      if (isMounted()) setError(t('failedLoadEmployees'))
     } finally {
       if (isMounted()) setLoading(false)
     }
-  }, [token])
+  }, [token, t])
 
   useEffect(() => {
     let mounted = true
@@ -508,13 +514,13 @@ function EmployeeList({ token, company }) {
   }, [nameMenu])
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete ${name}?`)) return
+    if (!window.confirm(interpolate(t('confirmDeleteNamed'), { name }))) return
     try {
       await hrAPI.deleteEmployee(token, id)
       setEmployees((prev) => prev.filter((e) => e._id !== id))
       setNameMenu(null)
     } catch {
-      setError('Failed to delete employee.')
+      setError(t('failedDeleteEmployee'))
     }
   }
 
@@ -545,7 +551,7 @@ function EmployeeList({ token, company }) {
       setEmployees((list) => list.map((e) => (
         e._id === id ? { ...e, rebateCollectedMonths: prevMonths } : e
       )))
-      setError('Failed to update rebate collected status.')
+      setError(t('failedUpdateRebateCollected'))
     } finally {
       setRebateBusyId(null)
     }
@@ -599,13 +605,13 @@ function EmployeeList({ token, company }) {
   )
 
   const summaryCards = [
-    { label: 'Employees', value: payrollTotals.employeeCount, money: false },
-    { label: 'Gross total salary', value: payrollTotals.gross, money: true },
-    { label: 'Total personal tax', value: payrollTotals.personalTax, money: true },
-    { label: 'Total social tax', value: payrollTotals.socialTax, money: true },
-    { label: 'Net payable', value: payrollTotals.netPayable, money: true },
-    { label: 'Rebate', value: payrollTotals.rebate, money: true },
-    { label: 'Net expense', value: payrollTotals.netExpense, money: true },
+    { label: t('employees'), value: payrollTotals.employeeCount, money: false },
+    { label: t('grossTotalSalary'), value: payrollTotals.gross, money: true },
+    { label: t('totalPersonalTax'), value: payrollTotals.personalTax, money: true },
+    { label: t('totalSocialTax'), value: payrollTotals.socialTax, money: true },
+    { label: t('netPayable'), value: payrollTotals.netPayable, money: true },
+    { label: t('rebate'), value: payrollTotals.rebate, money: true },
+    { label: t('netExpense'), value: payrollTotals.netExpense, money: true },
   ]
 
   const handleDownloadPdf = async () => {
@@ -619,9 +625,34 @@ function EmployeeList({ token, company }) {
         year: filterYear,
         month: filterMonth,
         companyName: company || '',
+        langCode,
+        labels: {
+          title: t('monthlyPayrollReport'),
+          period: t('periodLabel'),
+          employees: t('employees'),
+          generated: t('generatedLabel'),
+          name: t('name'),
+          code: t('employeeCode'),
+          phone: t('phone'),
+          workedDays: t('workedDays'),
+          salaryAgreed: t('salaryAgreed'),
+          rebate: t('rebate'),
+          collected: t('collected'),
+          accumulatedMtd: t('accumulatedMtd'),
+          personalTax: t('personalTax'),
+          socialTax: t('socialTax'),
+          netPayable: t('netPayable'),
+          grandTotals: t('grandTotals'),
+          grossTotalSalary: t('grossTotalSalary'),
+          totalPersonalTax: t('totalPersonalTax'),
+          totalSocialTax: t('totalSocialTax'),
+          netExpense: t('netExpense'),
+          yes: t('yes'),
+          no: t('no'),
+        },
       })
     } catch {
-      setError('Failed to generate payroll PDF.')
+      setError(t('failedGeneratePayrollPdf'))
     } finally {
       setPdfBusy(false)
     }
@@ -633,18 +664,24 @@ function EmployeeList({ token, company }) {
     loadMonthStats(filterYear, filterMonth, () => mounted)
   }
 
+  const recordLine = [
+    interpolate(t('employeesOnRecord'), { count: employees.length }),
+    filteredPayrollRows.length !== employees.length
+      ? interpolate(t('employeesShown'), { count: filteredPayrollRows.length })
+      : null,
+    t('employeeListHint'),
+  ].filter(Boolean).join(' · ')
+
   return (
     <div className="pt-2">
-      <div className="mb-4 space-y-3 border-b border-slate-200 pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 space-y-3 border-b border-slate-200/80 pb-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-lg font-semibold leading-tight tracking-tight text-slate-900">
-              Employee List
+            <h3 className="text-[1.125rem] font-semibold leading-tight tracking-tight text-slate-900">
+              {t('employeeList')}
             </h3>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {employees.length} on record
-              {filteredPayrollRows.length !== employees.length ? ` · ${filteredPayrollRows.length} shown` : ''}
-              <span className="text-slate-400"> · click name to edit · right-click for more</span>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              {recordLine}
             </p>
           </div>
           {!formMode && (
@@ -655,7 +692,7 @@ function EmployeeList({ token, company }) {
                 disabled={loading || monthLoading}
                 className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
               >
-                Refresh
+                {t('refresh')}
               </button>
               <button
                 type="button"
@@ -663,7 +700,7 @@ function EmployeeList({ token, company }) {
                 disabled={loading || filteredPayrollRows.length === 0 || pdfBusy}
                 className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
               >
-                {pdfBusy ? 'Preparing…' : 'Download PDF'}
+                {pdfBusy ? t('preparingPdf') : t('downloadPdf')}
               </button>
               <button
                 type="button"
@@ -672,24 +709,24 @@ function EmployeeList({ token, company }) {
                 style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
               >
                 <span aria-hidden="true">+</span>
-                <span>Add</span>
+                <span>{t('add')}</span>
               </button>
             </div>
           )}
         </div>
 
         {!formMode && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-2.5">
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, ID, or code"
+              placeholder={t('searchNameIdCode')}
               className={FILTER_INPUT}
-              aria-label="Search employees"
+              aria-label={t('searchEmployees')}
             />
             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-              Year
+              {t('year')}
               <select
                 value={filterYear}
                 onChange={(e) => setFilterYear(Number(e.target.value))}
@@ -701,19 +738,19 @@ function EmployeeList({ token, company }) {
               </select>
             </label>
             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-              Month
+              {t('month')}
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(Number(e.target.value))}
                 className={`${FILTER_SELECT} min-w-[130px]`}
               >
-                {MONTH_FILTER_OPTIONS.map((m) => (
+                {monthOptions.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
             </label>
             {monthLoading && (
-              <span className="text-xs text-slate-500">Updating…</span>
+              <span className="text-xs text-slate-500">{t('updating')}</span>
             )}
           </div>
         )}
@@ -743,20 +780,19 @@ function EmployeeList({ token, company }) {
       )}
 
       {!loading && (
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-          {summaryCards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                {card.label}
-              </p>
-              <p className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
-                {card.money ? formatMoney(card.value) : card.value}
-              </p>
-            </div>
-          ))}
+        <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="grid grid-cols-2 divide-x divide-y divide-slate-100 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 xl:divide-y-0">
+            {summaryCards.map((card) => (
+              <div key={card.label} className="px-3 py-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  {card.label}
+                </p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
+                  {card.money ? formatMoney(card.value) : card.value}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -768,35 +804,43 @@ function EmployeeList({ token, company }) {
           />
         </div>
       ) : employees.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">
-          <p className="mb-3 text-4xl">👤</p>
-          <p className="font-medium text-slate-700">No employees yet</p>
-          <p className="mt-1 text-sm text-slate-500">Click &quot;Add Employee&quot; to add the first record</p>
+        <div className="rounded-xl border border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50 py-16 text-center">
+          <p className="font-semibold text-slate-800">{t('noEmployeesYet')}</p>
+          <p className="mt-1 text-sm text-slate-500">{t('addFirstEmployeeHint')}</p>
+          <button
+            type="button"
+            onClick={() => setFormMode('create')}
+            className="mt-5 inline-flex h-10 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm hover:opacity-95"
+            style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+          >
+            <span aria-hidden="true">+</span>
+            {t('addEmployee')}
+          </button>
         </div>
       ) : filteredPayrollRows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">
-          <p className="font-medium text-slate-700">No employees match your search</p>
-          <p className="mt-1 text-sm text-slate-500">Try a different name, ID, or employee code</p>
+          <p className="font-semibold text-slate-800">{t('noEmployeesMatchSearch')}</p>
+          <p className="mt-1 text-sm text-slate-500">{t('tryDifferentSearch')}</p>
         </div>
       ) : (
         <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1400px] border-collapse text-[13px] leading-snug">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-100/80">
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Name</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">ID Number</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Phone</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Joining Date</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Salary Agreed</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Last Increment</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Working Days</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Accumulated</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Personal Tax</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Social Tax</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Net Payable</th>
-                  <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate collected</th>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className={TH}>{t('name')}</th>
+                  <th className={TH}>{t('idNumber')}</th>
+                  <th className={TH}>{t('phone')}</th>
+                  <th className={TH}>{t('joiningDate')}</th>
+                  <th className={TH}>{t('salaryAgreed')}</th>
+                  <th className={TH}>{t('lastIncrement')}</th>
+                  <th className={TH}>{t('rebate')}</th>
+                  <th className={TH}>{t('workingDays')}</th>
+                  <th className={TH}>{t('accumulated')}</th>
+                  <th className={TH}>{t('personalTax')}</th>
+                  <th className={TH}>{t('socialTax')}</th>
+                  <th className={TH}>{t('netPayable')}</th>
+                  <th className={`${TH} text-center`}>{t('rebateCollected')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -807,9 +851,9 @@ function EmployeeList({ token, company }) {
                   return (
                   <tr
                     key={row.id}
-                    className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}
+                    className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/40 ${index % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
                   >
-                    <td className="max-w-0 truncate px-3 py-2.5 align-middle text-sm font-semibold text-slate-900" title={`${emp.name} — click to edit, right-click for menu`}>
+                    <td className="max-w-0 truncate px-3 py-2.5 align-middle text-sm font-semibold text-slate-900">
                       <button
                         type="button"
                         onClick={() => setFormMode(emp)}
@@ -859,9 +903,9 @@ function EmployeeList({ token, company }) {
                         checked={collected}
                         disabled={!rebateEnabled || rebateBusyId === emp._id}
                         onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
-                        title={rebateEnabled ? 'Mark rebate collected for this month' : 'No rebate amount on this employee'}
+                        title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
                         className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#ea580c)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                        aria-label={`Rebate collected for ${emp.name}`}
+                        aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
                       />
                     </td>
                   </tr>
@@ -889,7 +933,7 @@ function EmployeeList({ token, company }) {
               setNameMenu(null)
             }}
           >
-            Edit details
+            {t('editDetails')}
           </button>
           {structured && (
             <button
@@ -901,7 +945,7 @@ function EmployeeList({ token, company }) {
                 setNameMenu(null)
               }}
             >
-              Open profile
+              {t('openProfile')}
             </button>
           )}
           <button
@@ -910,7 +954,7 @@ function EmployeeList({ token, company }) {
             className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
             onClick={() => handleDelete(nameMenu.emp._id, nameMenu.emp.name)}
           >
-            Delete
+            {t('delete')}
           </button>
         </div>
       )}
@@ -919,24 +963,24 @@ function EmployeeList({ token, company }) {
 }
 
 function LabourLaw() {
+  const { t } = useLanguage()
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center">
-      <p className="mb-3 text-4xl">⚖️</p>
-      <p className="font-medium leading-tight text-slate-700">Labour Law</p>
+      <p className="font-medium leading-tight text-slate-700">{t('labourLaw')}</p>
       <p className="mt-1 text-sm leading-relaxed text-slate-500">
-        Labour law guidelines and compliance documents will appear here
+        {t('labourLawPlaceholder')}
       </p>
     </div>
   )
 }
 
 function CurrentUpdates() {
+  const { t } = useLanguage()
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center">
-      <p className="mb-3 text-4xl">📋</p>
-      <p className="font-medium leading-tight text-slate-700">Current Updates</p>
+      <p className="font-medium leading-tight text-slate-700">{t('currentUpdates')}</p>
       <p className="mt-1 text-sm leading-relaxed text-slate-500">
-        HR announcements and updates will appear here
+        {t('currentUpdatesPlaceholder')}
       </p>
     </div>
   )
