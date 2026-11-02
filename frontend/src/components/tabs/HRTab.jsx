@@ -507,11 +507,11 @@ function hasRebateAmount(emp) {
   return Number.isFinite(n) && n > 0
 }
 
-const TH = 'whitespace-nowrap px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500'
+const TH = 'whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600'
 const TH_RIGHT = `${TH} text-right`
-const TD = 'whitespace-nowrap px-4 py-3 align-middle text-sm text-slate-600'
+const TD = 'whitespace-nowrap px-4 py-3.5 align-middle text-sm text-slate-600'
 const TD_RIGHT = `${TD} text-right tabular-nums`
-const TD_MONEY = 'whitespace-nowrap px-4 py-3 align-middle text-right text-sm font-medium tabular-nums text-slate-800'
+const TD_MONEY = 'whitespace-nowrap px-4 py-3.5 align-middle text-right text-sm font-medium tabular-nums text-slate-800'
 
 const KPI_ICONS = [
   IconUsers,
@@ -525,17 +525,17 @@ const KPI_ICONS = [
 
 function KpiCard({ label, value, money, icon: Icon }) {
   return (
-    <div className="flex min-h-[96px] flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex min-h-[88px] flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">{label}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">{label}</p>
         <span
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
           style={{ background: 'color-mix(in srgb, var(--brand-primary, #ea580c) 12%, white)', color: 'var(--brand-primary, #ea580c)' }}
         >
-          <Icon className="h-4 w-4" />
+          <Icon className="h-3.5 w-3.5" />
         </span>
       </div>
-      <p className="mt-3 text-xl font-semibold tabular-nums tracking-tight text-slate-900">
+      <p className="mt-2 text-lg font-semibold tabular-nums tracking-tight text-slate-900">
         {money ? formatMoney(value) : value}
       </p>
     </div>
@@ -926,11 +926,10 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1560px] border-collapse">
+            <table className="w-full min-w-[1420px] border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
+                <tr className="border-b border-slate-200 bg-slate-50/90">
                   <th className={TH}>{t('name')}</th>
-                  <th className={TH}>{t('idNumber')}</th>
                   <th className={TH}>{t('phone')}</th>
                   <th className={TH}>{t('joiningDate')}</th>
                   <th className={TH_RIGHT}>{t('salaryAgreed')}</th>
@@ -955,10 +954,9 @@ function EmployeeList({ token, company }) {
                       key={row.id}
                       className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/35 ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                     >
-                      <td className="max-w-[180px] truncate px-4 py-3 align-middle text-sm font-semibold text-slate-900" title={emp.name}>
+                      <td className="max-w-[200px] truncate px-4 py-3.5 align-middle text-sm font-semibold text-slate-900" title={emp.name}>
                         {emp.name}
                       </td>
-                      <td className={TD}>{emp.idNumber || '—'}</td>
                       <td className={TD}>{emp.phoneNumber || '—'}</td>
                       <td className={TD}>{formatDateDisplay(emp.joiningDate)}</td>
                       <td className={TD_MONEY}>{formatMoney(emp.salaryAgreed)}</td>
@@ -969,7 +967,7 @@ function EmployeeList({ token, company }) {
                       <td className={TD_RIGHT}>{formatMoney(row.personalTax)}</td>
                       <td className={TD_RIGHT}>{formatMoney(row.socialTax)}</td>
                       <td className={`${TD_MONEY} font-semibold text-slate-900`}>{formatMoney(row.netPayable)}</td>
-                      <td className="px-4 py-3 align-middle text-center">
+                      <td className="px-4 py-3.5 align-middle text-center">
                         <input
                           type="checkbox"
                           checked={collected}
@@ -980,7 +978,7 @@ function EmployeeList({ token, company }) {
                           aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
                         />
                       </td>
-                      <td className="px-4 py-3 align-middle">
+                      <td className="px-4 py-3.5 align-middle">
                         <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                           <button
                             type="button"
