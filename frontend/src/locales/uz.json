@@ -755,8 +755,10 @@
 
   "hrErrName": "Xodim ismi majburiy.",
   "hrErrId": "ID raqami majburiy.",
+  "hrErrPhone": "Telefon raqami majburiy.",
   "hrErrCode": "Xodim kodi majburiy.",
   "hrErrSave": "Xodimni saqlab bo'lmadi.",
+  "phonePlaceholder": "masalan, +998 90 123 45 67",
   "editEmployee": "Xodimni tahrirlash",
   "saveChanges": "O'zgarishlarni saqlash",
   "employeeName": "Xodim ismi",

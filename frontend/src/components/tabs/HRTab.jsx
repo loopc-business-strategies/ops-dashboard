@@ -28,7 +28,7 @@ function getHRSubTabs(t) {
 
 const EMPTY_EMPLOYEE = {
   name: '',
-  idNumber: '',
+  phoneNumber: '',
   employeeCode: '',
   joiningDate: '',
   salaryAgreed: '',
@@ -105,7 +105,7 @@ function employeeToForm(emp) {
   if (!emp) return { ...EMPTY_EMPLOYEE }
   return {
     name: emp.name || '',
-    idNumber: emp.idNumber || '',
+    phoneNumber: emp.phoneNumber || emp.idNumber || '',
     employeeCode: emp.employeeCode || '',
     joiningDate: toDateInput(emp.joiningDate),
     salaryAgreed: emp.salaryAgreed === null || emp.salaryAgreed === undefined ? '' : String(emp.salaryAgreed),
@@ -115,9 +115,12 @@ function employeeToForm(emp) {
 }
 
 function buildEmployeePayload(form) {
+  const phone = form.phoneNumber.trim()
   return {
     name: form.name.trim(),
-    idNumber: form.idNumber.trim(),
+    // Backend still requires idNumber; mirror phone so create/update stays valid.
+    idNumber: phone,
+    phoneNumber: phone,
     employeeCode: form.employeeCode.trim(),
     // HR list creates/edits HR-scoped employees so dept heads can see them after save.
     department: 'hr',
@@ -305,7 +308,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.name.trim()) return setError(t('hrErrName'))
-    if (!form.idNumber.trim()) return setError(t('hrErrId'))
+    if (!form.phoneNumber.trim()) return setError(t('hrErrPhone'))
     if (!form.employeeCode.trim()) return setError(t('hrErrCode'))
     setLoading(true)
     setError('')
@@ -375,8 +378,8 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                   </div>
                   <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                     <div>
-                      <FieldLabel required>{t('idNumber')}</FieldLabel>
-                      <input type="text" value={form.idNumber} onChange={set('idNumber')} placeholder={t('idNumberPlaceholder')} className={DRAWER_INPUT} />
+                      <FieldLabel required>{t('phone')}</FieldLabel>
+                      <input type="tel" value={form.phoneNumber} onChange={set('phoneNumber')} placeholder={t('phonePlaceholder')} className={DRAWER_INPUT} />
                     </div>
                     <div>
                       <FieldLabel required>{t('employeeCode')}</FieldLabel>
@@ -690,8 +693,9 @@ function EmployeeList({ token, company }) {
       if (!q) return true
       const name = String(row.name || '').toLowerCase()
       const idNumber = String(row.idNumber || '').toLowerCase()
+      const phone = String(row.phoneNumber || '').toLowerCase()
       const code = String(row.employeeCode || '').toLowerCase()
-      return name.includes(q) || idNumber.includes(q) || code.includes(q)
+      return name.includes(q) || idNumber.includes(q) || phone.includes(q) || code.includes(q)
     })
   }, [payrollRows, searchQuery, filterYear, filterMonth])
 
@@ -926,22 +930,22 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1420px] border-collapse">
+            <table className="w-full min-w-[1520px] border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/90">
-                  <th className={TH}>{t('name')}</th>
-                  <th className={TH}>{t('phone')}</th>
-                  <th className={TH}>{t('joiningDate')}</th>
-                  <th className={TH_RIGHT}>{t('salaryAgreed')}</th>
-                  <th className={TH}>{t('lastIncrement')}</th>
-                  <th className={TH_RIGHT}>{t('rebate')}</th>
-                  <th className={TH_RIGHT}>{t('workingDays')}</th>
-                  <th className={TH_RIGHT}>{t('accumulated')}</th>
-                  <th className={TH_RIGHT}>{t('personalTax')}</th>
-                  <th className={TH_RIGHT}>{t('socialTax')}</th>
-                  <th className={TH_RIGHT}>{t('netPayable')}</th>
-                  <th className={`${TH} text-center`}>{t('rebateCollected')}</th>
-                  <th className={`${TH} text-center`}>{t('actions')}</th>
+                  <th className={`${TH} min-w-[8rem]`}>{t('name')}</th>
+                  <th className={`${TH} min-w-[7rem]`}>{t('phone')}</th>
+                  <th className={`${TH} min-w-[7.5rem]`}>{t('joiningDate')}</th>
+                  <th className={`${TH_RIGHT} min-w-[8rem]`}>{t('salaryAgreed')}</th>
+                  <th className={`${TH} min-w-[8rem]`}>{t('lastIncrement')}</th>
+                  <th className={`${TH_RIGHT} min-w-[5.5rem]`}>{t('rebate')}</th>
+                  <th className={`${TH_RIGHT} min-w-[7rem]`}>{t('workingDays')}</th>
+                  <th className={`${TH_RIGHT} min-w-[7.5rem]`}>{t('accumulated')}</th>
+                  <th className={`${TH_RIGHT} min-w-[7.5rem]`}>{t('personalTax')}</th>
+                  <th className={`${TH_RIGHT} min-w-[7rem]`}>{t('socialTax')}</th>
+                  <th className={`${TH_RIGHT} min-w-[7.5rem]`}>{t('netPayable')}</th>
+                  <th className={`${TH} min-w-[8.5rem] text-center`}>{t('rebateCollected')}</th>
+                  <th className={`${TH} min-w-[5.5rem] text-center`}>{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>

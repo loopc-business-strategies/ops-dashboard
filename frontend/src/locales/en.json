@@ -755,8 +755,10 @@
 
   "hrErrName": "Employee name is required.",
   "hrErrId": "ID number is required.",
+  "hrErrPhone": "Phone number is required.",
   "hrErrCode": "Employee code is required.",
   "hrErrSave": "Failed to save employee.",
+  "phonePlaceholder": "e.g. +27 82 123 4567",
   "editEmployee": "Edit Employee",
   "saveChanges": "Save Changes",
   "employeeName": "Employee Name",
