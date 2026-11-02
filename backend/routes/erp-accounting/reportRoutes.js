@@ -1770,6 +1770,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       XAG: { metal: 'Silver', code: 'XAG', netPosition: 0 },
       XPT: { metal: 'Platinum', code: 'XPT', netPosition: 0 },
     }
+    // Net Position is cumulative: every posted fixed deal, including prior years.
+    // Volume traded and other dashboard cards still use the selected period.
     const [
       fixingVoucherTxs,
       laterFixedVoucherTxs,
@@ -1782,20 +1784,18 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         type: { $in: ['sale', 'purchase'] },
         status: 'posted',
         isDeleted: { $ne: true },
-        date: { $gte: periodStart, $lte: periodEnd },
       }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean(),
       Transaction.find({
         type: { $in: ['sale', 'purchase'] },
         status: 'posted',
         isDeleted: { $ne: true },
         'voucherMeta.fixings': {
-          $elemMatch: { isDeleted: { $ne: true }, date: { $gte: periodStart, $lte: periodEnd } },
+          $elemMatch: { isDeleted: { $ne: true } },
         },
       }).select('type voucherMeta.fixings').lean(),
       DirectDeal.find({
         entryType: 'fixing',
         isDeleted: { $ne: true },
-        docDate: { $gte: periodStart, $lte: periodEnd },
         status: 'confirmed',
       }).lean(),
       StockMovement.find({
@@ -1822,8 +1822,6 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     laterFixedVoucherTxs.forEach((tx) => {
       const sign = tx.type === 'purchase' ? 1 : -1
       listActiveVoucherFixings(tx).forEach((fixing) => {
-        const fixingDate = new Date(fixing.date)
-        if (fixingDate < periodStart || fixingDate > periodEnd) return
         const metalCode = resolveDashboardMetalCode(fixing.metalCode || 'XAU')
         if (!fixingByMetal[metalCode]) return
         fixingByMetal[metalCode].netPosition += sign * (Number(fixing.pureWeight || 0) / 31.1034768)
