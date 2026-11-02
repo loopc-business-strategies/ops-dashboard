@@ -510,11 +510,12 @@ function hasRebateAmount(emp) {
   return Number.isFinite(n) && n > 0
 }
 
-const TH = 'whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600'
+const TH = 'sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600'
 const TH_RIGHT = `${TH} text-right`
-const TD = 'whitespace-nowrap px-3 py-3 align-middle text-sm text-slate-600'
+const TD = 'whitespace-nowrap align-middle text-sm text-slate-600'
 const TD_RIGHT = `${TD} text-right tabular-nums`
-const TD_MONEY = 'whitespace-nowrap px-3 py-3 align-middle text-right text-sm font-medium tabular-nums text-slate-800'
+const TD_MONEY = 'whitespace-nowrap align-middle text-right text-sm font-medium tabular-nums text-slate-800'
+const CELL_PAD = { padding: '0.875rem' }
 
 const KPI_ICONS = [
   IconUsers,
@@ -528,17 +529,20 @@ const KPI_ICONS = [
 
 function KpiCard({ label, value, money, icon: Icon }) {
   return (
-    <div className="flex min-h-[72px] flex-col justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.05em] text-slate-500">{label}</p>
+    <div
+      className="flex min-h-[92px] flex-col justify-between rounded-xl border border-slate-200 bg-white shadow-sm"
+      style={{ padding: '1rem' }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-[11px] font-semibold uppercase leading-snug tracking-[0.06em] text-slate-500">{label}</p>
         <span
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
           style={{ background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 12%, white)', color: 'var(--brand-primary, #F4510B)' }}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-1.5 text-lg font-semibold tabular-nums leading-tight tracking-tight text-slate-900">
+      <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight text-slate-900" style={{ marginTop: '0.75rem' }}>
         {money ? formatMoney(value) : value}
       </p>
     </div>
@@ -769,32 +773,33 @@ function EmployeeList({ token, company }) {
     : interpolate(t('employeesOnRecord'), { count: employees.length })
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="flex flex-col gap-5" style={{ paddingTop: '0.5rem' }}>
       {/* Header */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h3 className="text-xl font-semibold tracking-tight text-slate-900">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
               {t('employeeList')}
             </h3>
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums"
+              className="inline-flex items-center rounded-full border text-xs font-semibold tabular-nums"
               style={{
                 borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 28%, white)',
                 background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 10%, white)',
                 color: 'var(--brand-primary, #F4510B)',
+                padding: '0.25rem 0.625rem',
               }}
             >
               {countBadge}
             </span>
           </div>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="text-sm text-slate-500" style={{ marginTop: '0.5rem' }}>
             {t('employeeListManageDesc')}
           </p>
         </div>
         {!formMode && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
-            <button type="button" onClick={handleRefresh} disabled={loading || monthLoading} className={BTN_SECONDARY}>
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5 lg:justify-end">
+            <button type="button" onClick={handleRefresh} disabled={loading || monthLoading} className={BTN_SECONDARY} style={{ padding: '0 0.875rem' }}>
               <IconRefresh />
               {t('refresh')}
             </button>
@@ -803,6 +808,7 @@ function EmployeeList({ token, company }) {
               onClick={handleDownloadPdf}
               disabled={loading || filteredPayrollRows.length === 0 || pdfBusy}
               className={BTN_SECONDARY}
+              style={{ padding: '0 0.875rem' }}
             >
               <IconDownload />
               {pdfBusy ? t('preparingPdf') : t('downloadPdf')}
@@ -811,7 +817,7 @@ function EmployeeList({ token, company }) {
               type="button"
               onClick={() => setFormMode('create')}
               className={BTN_PRIMARY}
-              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+              style={{ background: 'var(--brand-primary, #F4510B)', color: 'var(--brand-on-primary, #ffffff)', padding: '0 1rem' }}
             >
               <IconPlus />
               {t('addEmployee')}
@@ -822,9 +828,9 @@ function EmployeeList({ token, company }) {
 
       {/* Filters */}
       {!formMode && (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="relative min-w-[220px] flex-1">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ padding: '1rem' }}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center">
+            <div className="relative min-w-[240px] flex-1">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
                 <IconSearch />
               </span>
@@ -833,30 +839,33 @@ function EmployeeList({ token, company }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchNameIdCode')}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                style={{ paddingLeft: '2.25rem', paddingRight: '0.75rem' }}
                 aria-label={t('searchEmployees')}
               />
             </div>
-            <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
+            <label className="flex shrink-0 items-center gap-2.5 text-xs font-semibold text-slate-500">
               <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
               {t('year')}
               <select
                 value={filterYear}
                 onChange={(e) => setFilterYear(Number(e.target.value))}
-                className="h-10 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                className="h-10 min-w-[120px] rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                style={{ paddingLeft: '0.75rem', paddingRight: '0.75rem' }}
               >
                 {yearOptions.map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
             </label>
-            <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
+            <label className="flex shrink-0 items-center gap-2.5 text-xs font-semibold text-slate-500">
               <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
               {t('month')}
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(Number(e.target.value))}
-                className="h-10 min-w-[140px] rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                className="h-10 min-w-[150px] rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                style={{ paddingLeft: '0.75rem', paddingRight: '0.75rem' }}
               >
                 {monthOptions.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
@@ -895,7 +904,7 @@ function EmployeeList({ token, company }) {
 
       {/* KPI cards — desktop 4 then 3 */}
       {!loading && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card, i) => (
             <KpiCard
               key={card.label}
@@ -923,7 +932,7 @@ function EmployeeList({ token, company }) {
             type="button"
             onClick={() => setFormMode('create')}
             className={`${BTN_PRIMARY} mt-5`}
-            style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+            style={{ background: 'var(--brand-primary, #F4510B)', color: 'var(--brand-on-primary, #ffffff)' }}
           >
             <IconPlus />
             {t('addEmployee')}
@@ -935,7 +944,7 @@ function EmployeeList({ token, company }) {
           <p className="mt-1 text-sm text-slate-500">{t('tryDifferentSearch')}</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1760px] table-fixed border-collapse">
               <colgroup>
@@ -956,58 +965,58 @@ function EmployeeList({ token, company }) {
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className={TH}>{t('name')}</th>
-                  <th className={TH}>{t('idNumber')}</th>
-                  <th className={TH}>{t('phone')}</th>
-                  <th className={TH}>{t('joiningDate')}</th>
-                  <th className={TH_RIGHT}>{t('salaryAgreed')}</th>
-                  <th className={TH}>{t('lastIncrement')}</th>
-                  <th className={TH_RIGHT}>{t('rebate')}</th>
-                  <th className={TH_RIGHT}>{t('workingDays')}</th>
-                  <th className={TH_RIGHT}>{t('accumulated')}</th>
-                  <th className={TH_RIGHT}>{t('personalTax')}</th>
-                  <th className={TH_RIGHT}>{t('socialTax')}</th>
-                  <th className={TH_RIGHT}>{t('netPayable')}</th>
-                  <th className={`${TH} text-center`}>{t('rebateCollected')}</th>
-                  <th className={`${TH} text-center`}>{t('actions')}</th>
+                  <th className={TH} style={CELL_PAD}>{t('name')}</th>
+                  <th className={TH} style={CELL_PAD}>{t('idNumber')}</th>
+                  <th className={TH} style={CELL_PAD}>{t('phone')}</th>
+                  <th className={TH} style={CELL_PAD}>{t('joiningDate')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>{t('salaryAgreed')}</th>
+                  <th className={TH} style={CELL_PAD}>{t('lastIncrement')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>{t('rebate')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>{t('workingDays')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>{t('accumulated')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>{t('personalTax')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>{t('socialTax')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>{t('netPayable')}</th>
+                  <th className={`${TH} text-center`} style={CELL_PAD}>{t('rebateCollected')}</th>
+                  <th className={`${TH} text-center`} style={CELL_PAD}>{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredPayrollRows.map((row, index) => {
+                {filteredPayrollRows.map((row) => {
                   const emp = row.emp
                   const rebateEnabled = hasRebateAmount(emp)
                   const collected = row.rebateCollected
                   return (
                     <tr
                       key={row.id}
-                      className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/35 ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                      className="border-b border-slate-100 bg-white transition-colors last:border-b-0 hover:bg-orange-50/40"
                     >
-                      <td className="truncate px-3 py-3 align-middle text-sm font-semibold text-slate-900" title={emp.name}>
+                      <td className="truncate align-middle text-sm font-semibold text-slate-900" style={CELL_PAD} title={emp.name}>
                         {emp.name}
                       </td>
-                      <td className={`${TD} truncate`} title={emp.idNumber || ''}>{emp.idNumber || '—'}</td>
-                      <td className={`${TD} truncate`} title={emp.phoneNumber || ''}>{emp.phoneNumber || '—'}</td>
-                      <td className={TD}>{formatDateDisplay(emp.joiningDate)}</td>
-                      <td className={TD_MONEY}>{formatMoney(emp.salaryAgreed)}</td>
-                      <td className={TD}>{formatDateDisplay(emp.lastIncrement)}</td>
-                      <td className={TD_RIGHT}>{formatMoney(emp.rebate)}</td>
-                      <td className={TD_RIGHT}>{row.workedDays}</td>
-                      <td className={`${TD_MONEY} font-semibold text-slate-900`}>{formatMoney(row.accumulated)}</td>
-                      <td className={TD_RIGHT}>{formatMoney(row.personalTax)}</td>
-                      <td className={TD_RIGHT}>{formatMoney(row.socialTax)}</td>
-                      <td className={`${TD_MONEY} font-semibold text-slate-900`}>{formatMoney(row.netPayable)}</td>
-                      <td className="px-3 py-3 align-middle text-center">
+                      <td className={`${TD} truncate`} style={CELL_PAD} title={emp.idNumber || ''}>{emp.idNumber || '—'}</td>
+                      <td className={`${TD} truncate`} style={CELL_PAD} title={emp.phoneNumber || ''}>{emp.phoneNumber || '—'}</td>
+                      <td className={TD} style={CELL_PAD}>{formatDateDisplay(emp.joiningDate)}</td>
+                      <td className={TD_MONEY} style={CELL_PAD}>{formatMoney(emp.salaryAgreed)}</td>
+                      <td className={TD} style={CELL_PAD}>{formatDateDisplay(emp.lastIncrement)}</td>
+                      <td className={TD_RIGHT} style={CELL_PAD}>{formatMoney(emp.rebate)}</td>
+                      <td className={TD_RIGHT} style={CELL_PAD}>{row.workedDays}</td>
+                      <td className={`${TD_MONEY} font-semibold text-slate-900`} style={CELL_PAD}>{formatMoney(row.accumulated)}</td>
+                      <td className={TD_RIGHT} style={CELL_PAD}>{formatMoney(row.personalTax)}</td>
+                      <td className={TD_RIGHT} style={CELL_PAD}>{formatMoney(row.socialTax)}</td>
+                      <td className={`${TD_MONEY} font-semibold text-slate-900`} style={CELL_PAD}>{formatMoney(row.netPayable)}</td>
+                      <td className="align-middle text-center" style={CELL_PAD}>
                         <input
                           type="checkbox"
                           checked={collected}
                           disabled={!rebateEnabled || rebateBusyId === emp._id}
                           onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
                           title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
-                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#ea580c)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
                         />
                       </td>
-                      <td className="px-3 py-3 align-middle">
+                      <td className="align-middle" style={CELL_PAD}>
                         <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                           <button
                             type="button"
@@ -1111,16 +1120,25 @@ export default function HRTab({ embedded = false } = {}) {
   return (
     <ModuleTabColumn>
       <div className="flex flex-wrap gap-2">
-        {HR_SUB_TABS.map((tab) => (
-          <ErpSubTabButton
-            key={tab.id}
-            active={subTab === tab.id}
-            href={buildSubHref(tab.id)}
-            onClick={(event) => handleSubTabClick(tab.id, event)}
-          >
-            {tab.label}
-          </ErpSubTabButton>
-        ))}
+        {HR_SUB_TABS.map((tab) => {
+          const active = subTab === tab.id
+          return (
+            <ErpSubTabButton
+              key={tab.id}
+              active={active}
+              href={buildSubHref(tab.id)}
+              onClick={(event) => handleSubTabClick(tab.id, event)}
+              style={active ? {
+                background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 12%, white)',
+                color: 'var(--brand-primary, #F4510B)',
+                border: '1px solid color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
+                fontWeight: 700,
+              } : undefined}
+            >
+              {tab.label}
+            </ErpSubTabButton>
+          )
+        })}
       </div>
 
       {renderSubTab()}
