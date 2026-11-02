@@ -756,6 +756,7 @@
   "hrErrName": "Employee name is required.",
   "hrErrId": "ID number is required.",
   "hrErrPhone": "Phone number is required.",
+  "hrErrPhoneNotId": "Phone number cannot be the same as ID number.",
   "hrErrCode": "Employee code is required.",
   "hrErrSave": "Failed to save employee.",
   "phonePlaceholder": "e.g. +27 82 123 4567",

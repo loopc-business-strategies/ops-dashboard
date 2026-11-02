@@ -113,6 +113,19 @@ function normalizeName(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+function looksLikeSameId(phone, id) {
+  const p = String(phone || '').trim().toLowerCase()
+  const i = String(id || '').trim().toLowerCase()
+  return Boolean(p && i && p === i)
+}
+
+/** Hide passport/ID mistakenly stored in phoneNumber (legacy form). */
+function displayPhone(emp) {
+  const phone = String(emp?.phoneNumber || '').trim()
+  if (!phone || looksLikeSameId(phone, emp?.idNumber)) return '—'
+  return phone
+}
+
 function employeeToForm(emp, { nextCode = '' } = {}) {
   if (!emp) {
     return {
@@ -120,10 +133,12 @@ function employeeToForm(emp, { nextCode = '' } = {}) {
       employeeCode: nextCode || '',
     }
   }
+  const rawPhone = emp.phoneNumber || ''
+  const idNumber = emp.idNumber || ''
   return {
     name: emp.name || '',
-    phoneNumber: emp.phoneNumber || '',
-    idNumber: emp.idNumber || '',
+    phoneNumber: looksLikeSameId(rawPhone, idNumber) ? '' : rawPhone,
+    idNumber,
     employeeCode: emp.employeeCode || '',
     joiningDate: toDateInput(emp.joiningDate),
     salaryAgreed: emp.salaryAgreed === null || emp.salaryAgreed === undefined ? '' : String(emp.salaryAgreed),
@@ -326,6 +341,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null, nextEmp
     if (!form.name.trim()) return setError(t('hrErrName'))
     if (!form.phoneNumber.trim()) return setError(t('hrErrPhone'))
     if (!form.idNumber.trim()) return setError(t('hrErrId'))
+    if (looksLikeSameId(form.phoneNumber, form.idNumber)) return setError(t('hrErrPhoneNotId'))
     if (!form.employeeCode.trim()) return setError(t('hrErrCode'))
     setLoading(true)
     setError('')
@@ -1051,7 +1067,7 @@ function EmployeeList({ token, company }) {
                       </td>
                       <td className={`${TD} truncate`} style={CELL_PAD} title={emp.idNumber || ''}>{emp.idNumber || '—'}</td>
                       <td className={`${TD} truncate`} style={CELL_PAD} title={emp.employeeCode || ''}>{emp.employeeCode || '—'}</td>
-                      <td className={`${TD} truncate`} style={CELL_PAD} title={emp.phoneNumber || ''}>{emp.phoneNumber || '—'}</td>
+                      <td className={`${TD} truncate`} style={CELL_PAD} title={displayPhone(emp)}>{displayPhone(emp)}</td>
                       <td className={TD} style={CELL_PAD}>{formatDateDisplay(emp.joiningDate)}</td>
                       <td className={TD_MONEY} style={CELL_PAD}>{formatMoney(emp.salaryAgreed)}</td>
                       <td className={TD} style={CELL_PAD}>{formatDateDisplay(emp.lastIncrement)}</td>

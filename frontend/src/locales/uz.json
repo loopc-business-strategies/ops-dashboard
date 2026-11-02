@@ -756,6 +756,7 @@
   "hrErrName": "Xodim ismi majburiy.",
   "hrErrId": "ID raqami majburiy.",
   "hrErrPhone": "Telefon raqami majburiy.",
+  "hrErrPhoneNotId": "Telefon raqami ID raqami bilan bir xil bo'lishi mumkin emas.",
   "hrErrCode": "Xodim kodi majburiy.",
   "hrErrSave": "Xodimni saqlab bo'lmadi.",
   "phonePlaceholder": "masalan, +998 90 123 45 67",
