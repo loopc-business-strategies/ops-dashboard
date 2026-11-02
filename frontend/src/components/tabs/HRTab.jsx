@@ -29,11 +29,23 @@ function getHRSubTabs(t) {
 const EMPTY_EMPLOYEE = {
   name: '',
   phoneNumber: '',
+  idNumber: '',
   employeeCode: '',
   joiningDate: '',
   salaryAgreed: '',
   lastIncrement: '',
   rebate: '',
+}
+
+/** Next EMP-NNN from employee count + highest existing EMP-N suffix. */
+function nextEmployeeCode(employees = []) {
+  let maxSuffix = 0
+  for (const emp of employees) {
+    const match = String(emp?.employeeCode || '').trim().match(/^(?:EMP-)?(\d+)$/i)
+    if (match) maxSuffix = Math.max(maxSuffix, Number(match[1]))
+  }
+  const n = Math.max(employees.length, maxSuffix) + 1
+  return `EMP-${String(n).padStart(3, '0')}`
 }
 
 function interpolate(template, vars = {}) {
@@ -101,11 +113,17 @@ function normalizeName(value) {
   return String(value || '').trim().toLowerCase()
 }
 
-function employeeToForm(emp) {
-  if (!emp) return { ...EMPTY_EMPLOYEE }
+function employeeToForm(emp, { nextCode = '' } = {}) {
+  if (!emp) {
+    return {
+      ...EMPTY_EMPLOYEE,
+      employeeCode: nextCode || '',
+    }
+  }
   return {
     name: emp.name || '',
-    phoneNumber: emp.phoneNumber || emp.idNumber || '',
+    phoneNumber: emp.phoneNumber || '',
+    idNumber: emp.idNumber || '',
     employeeCode: emp.employeeCode || '',
     joiningDate: toDateInput(emp.joiningDate),
     salaryAgreed: emp.salaryAgreed === null || emp.salaryAgreed === undefined ? '' : String(emp.salaryAgreed),
@@ -115,12 +133,10 @@ function employeeToForm(emp) {
 }
 
 function buildEmployeePayload(form) {
-  const phone = form.phoneNumber.trim()
   return {
     name: form.name.trim(),
-    // Backend still requires idNumber; mirror phone so create/update stays valid.
-    idNumber: phone,
-    phoneNumber: phone,
+    idNumber: form.idNumber.trim(),
+    phoneNumber: form.phoneNumber.trim(),
     employeeCode: form.employeeCode.trim(),
     // HR list creates/edits HR-scoped employees so dept heads can see them after save.
     department: 'hr',
@@ -282,10 +298,10 @@ const ACTION_BTN =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
-function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
+function EmployeeForm({ onSave, onCancel, token, initialEmployee = null, nextEmployeeCode = '' }) {
   const { t } = useLanguage()
   const isEdit = Boolean(initialEmployee?._id)
-  const [form, setForm] = useState(() => employeeToForm(initialEmployee))
+  const [form, setForm] = useState(() => employeeToForm(initialEmployee, { nextCode: nextEmployeeCode }))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [entered, setEntered] = useState(false)
@@ -309,6 +325,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
     e.preventDefault()
     if (!form.name.trim()) return setError(t('hrErrName'))
     if (!form.phoneNumber.trim()) return setError(t('hrErrPhone'))
+    if (!form.idNumber.trim()) return setError(t('hrErrId'))
     if (!form.employeeCode.trim()) return setError(t('hrErrCode'))
     setLoading(true)
     setError('')
@@ -382,8 +399,19 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
                       <input type="tel" value={form.phoneNumber} onChange={set('phoneNumber')} placeholder={t('phonePlaceholder')} className={DRAWER_INPUT} />
                     </div>
                     <div>
+                      <FieldLabel required>{t('idNumber')}</FieldLabel>
+                      <input type="text" value={form.idNumber} onChange={set('idNumber')} placeholder={t('idNumberPlaceholder')} className={DRAWER_INPUT} />
+                    </div>
+                    <div className="sm:col-span-2">
                       <FieldLabel required>{t('employeeCode')}</FieldLabel>
-                      <input type="text" value={form.employeeCode} onChange={set('employeeCode')} placeholder={t('employeeCodePlaceholder')} className={DRAWER_INPUT} />
+                      <input
+                        type="text"
+                        value={form.employeeCode}
+                        readOnly
+                        placeholder={t('employeeCodePlaceholder')}
+                        className={`${DRAWER_INPUT} cursor-default bg-slate-50 text-slate-600`}
+                        aria-readonly="true"
+                      />
                     </div>
                   </div>
                 </div>
@@ -911,6 +939,7 @@ function EmployeeList({ token, company }) {
         <EmployeeForm
           token={token}
           initialEmployee={formMode === 'create' ? null : formMode}
+          nextEmployeeCode={formMode === 'create' ? nextEmployeeCode(employees) : ''}
           onSave={() => { setFormMode(null); handleRefresh() }}
           onCancel={() => setFormMode(null)}
         />
@@ -970,10 +999,11 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1760px] table-fixed border-collapse">
+            <table className="w-full min-w-[1870px] table-fixed border-collapse">
               <colgroup>
                 <col style={{ width: 160 }} />
                 <col style={{ width: 130 }} />
+                <col style={{ width: 110 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 120 }} />
@@ -991,6 +1021,7 @@ function EmployeeList({ token, company }) {
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className={TH} style={CELL_PAD}>{t('name')}</th>
                   <th className={TH} style={CELL_PAD}>{t('idNumber')}</th>
+                  <th className={TH} style={CELL_PAD}>{t('employeeCode')}</th>
                   <th className={TH} style={CELL_PAD}>{t('phone')}</th>
                   <th className={TH} style={CELL_PAD}>{t('joiningDate')}</th>
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('salaryAgreed')}</th>
@@ -1019,6 +1050,7 @@ function EmployeeList({ token, company }) {
                         {emp.name}
                       </td>
                       <td className={`${TD} truncate`} style={CELL_PAD} title={emp.idNumber || ''}>{emp.idNumber || '—'}</td>
+                      <td className={`${TD} truncate`} style={CELL_PAD} title={emp.employeeCode || ''}>{emp.employeeCode || '—'}</td>
                       <td className={`${TD} truncate`} style={CELL_PAD} title={emp.phoneNumber || ''}>{emp.phoneNumber || '—'}</td>
                       <td className={TD} style={CELL_PAD}>{formatDateDisplay(emp.joiningDate)}</td>
                       <td className={TD_MONEY} style={CELL_PAD}>{formatMoney(emp.salaryAgreed)}</td>
