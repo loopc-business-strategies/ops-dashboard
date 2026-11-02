@@ -119,11 +119,136 @@ function buildEmployeePayload(form) {
     name: form.name.trim(),
     idNumber: form.idNumber.trim(),
     employeeCode: form.employeeCode.trim(),
+    // HR list creates/edits HR-scoped employees so dept heads can see them after save.
+    department: 'hr',
     joiningDate: form.joiningDate || null,
     salaryAgreed: form.salaryAgreed === '' ? null : Number(form.salaryAgreed),
     lastIncrement: form.lastIncrement || null,
     rebate: form.rebate === '' ? null : Number(form.rebate),
   }
+}
+
+/* ── Inline icons (no extra deps) ───────────────── */
+function IconSearch({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.35-4.35" />
+    </svg>
+  )
+}
+
+function IconRefresh({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M23 4v6h-6M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+    </svg>
+  )
+}
+
+function IconDownload({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  )
+}
+
+function IconPlus({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function IconCalendar({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  )
+}
+
+function IconPencil({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  )
+}
+
+function IconTrash({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />
+    </svg>
+  )
+}
+
+function IconUser({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
+
+function IconUsers({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+    </svg>
+  )
+}
+
+function IconCash({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function IconPercent({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M19 5L5 19M9 7a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  )
+}
+
+function IconWallet({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-5z" />
+      <path d="M16 12h5v4h-5a2 2 0 010-4z" />
+    </svg>
+  )
+}
+
+function IconTag({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+      <circle cx="7" cy="7" r="1.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function IconTrend({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M23 6l-9.5 9.5-5-5L1 18" />
+      <path d="M17 6h6v6" />
+    </svg>
+  )
 }
 
 function FieldLabel({ children, required = false }) {
@@ -136,13 +261,22 @@ function FieldLabel({ children, required = false }) {
 }
 
 const DRAWER_INPUT =
-  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm leading-normal text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
+  'h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm leading-normal text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
 
 const FOOTER_CANCEL_BTN =
-  'inline-flex min-h-11 min-w-[96px] items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50'
+  'inline-flex min-h-11 min-w-[96px] items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50'
 
 const FOOTER_SAVE_BTN =
-  'inline-flex min-h-11 min-w-[128px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex min-h-11 min-w-[128px] items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+
+const BTN_SECONDARY =
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60'
+
+const BTN_PRIMARY =
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+
+const ACTION_BTN =
+  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -195,17 +329,17 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
       <button
         type="button"
         aria-label={t('closeEmployeeDrawer')}
-        className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-300 ${entered ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] transition-opacity duration-300 ${entered ? 'opacity-100' : 'opacity-0'}`}
         onClick={onCancel}
       />
       <aside
         className={`relative flex h-full w-full max-w-[560px] flex-col border-l border-slate-200 bg-white transition-transform duration-300 ease-out ${entered ? 'translate-x-0' : 'translate-x-full'}`}
-        style={{ boxShadow: 'inset 3px 0 0 0 var(--brand-primary, #ea580c), -16px 0 48px rgba(15,23,42,0.18)' }}
+        style={{ boxShadow: 'inset 3px 0 0 0 var(--brand-primary, #ea580c), -16px 0 40px rgba(15,23,42,0.14)' }}
       >
         <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="text-xl font-semibold leading-snug text-slate-950">
+              <h3 className="text-lg font-semibold leading-snug text-slate-950">
                 {isEdit ? t('editEmployee') : t('addNewEmployee')}
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-500">
@@ -224,102 +358,58 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
             {error && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
                 {error}
               </div>
             )}
 
             <div className="space-y-4">
-              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('identitySection')}</p>
                 <div className="space-y-3.5">
                   <div>
                     <FieldLabel required>{t('employeeName')}</FieldLabel>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={set('name')}
-                      placeholder={t('namePlaceholder')}
-                      className={DRAWER_INPUT}
-                    />
+                    <input type="text" value={form.name} onChange={set('name')} placeholder={t('namePlaceholder')} className={DRAWER_INPUT} />
                   </div>
                   <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                     <div>
                       <FieldLabel required>{t('idNumber')}</FieldLabel>
-                      <input
-                        type="text"
-                        value={form.idNumber}
-                        onChange={set('idNumber')}
-                        placeholder={t('idNumberPlaceholder')}
-                        className={DRAWER_INPUT}
-                      />
+                      <input type="text" value={form.idNumber} onChange={set('idNumber')} placeholder={t('idNumberPlaceholder')} className={DRAWER_INPUT} />
                     </div>
                     <div>
                       <FieldLabel required>{t('employeeCode')}</FieldLabel>
-                      <input
-                        type="text"
-                        value={form.employeeCode}
-                        onChange={set('employeeCode')}
-                        placeholder={t('employeeCodePlaceholder')}
-                        className={DRAWER_INPUT}
-                      />
+                      <input type="text" value={form.employeeCode} onChange={set('employeeCode')} placeholder={t('employeeCodePlaceholder')} className={DRAWER_INPUT} />
                     </div>
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('employmentDatesSection')}</p>
                 <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                   <div>
                     <FieldLabel>{t('joiningDate')}</FieldLabel>
-                    <input
-                      type="date"
-                      value={form.joiningDate}
-                      onChange={set('joiningDate')}
-                      className={DRAWER_INPUT}
-                    />
+                    <input type="date" value={form.joiningDate} onChange={set('joiningDate')} className={DRAWER_INPUT} />
                   </div>
                   <div>
                     <FieldLabel>{t('lastIncrement')}</FieldLabel>
-                    <input
-                      type="date"
-                      value={form.lastIncrement}
-                      onChange={set('lastIncrement')}
-                      className={DRAWER_INPUT}
-                    />
+                    <input type="date" value={form.lastIncrement} onChange={set('lastIncrement')} className={DRAWER_INPUT} />
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t('compensationSection')}</p>
                 <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                   <div>
                     <FieldLabel>{t('salaryAgreed')}</FieldLabel>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.salaryAgreed}
-                      onChange={set('salaryAgreed')}
-                      placeholder={t('salaryPlaceholder')}
-                      className={DRAWER_INPUT}
-                    />
+                    <input type="number" min="0" step="0.01" value={form.salaryAgreed} onChange={set('salaryAgreed')} placeholder={t('salaryPlaceholder')} className={DRAWER_INPUT} />
                   </div>
                   <div>
                     <FieldLabel>{t('rebate')}</FieldLabel>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.rebate}
-                      onChange={set('rebate')}
-                      placeholder={t('rebatePlaceholder')}
-                      className={DRAWER_INPUT}
-                    />
+                    <input type="number" min="0" step="0.01" value={form.rebate} onChange={set('rebate')} placeholder={t('rebatePlaceholder')} className={DRAWER_INPUT} />
                   </div>
                 </div>
               </section>
@@ -328,11 +418,7 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
 
           <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
             <div className="flex flex-nowrap items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={onCancel}
-                className={FOOTER_CANCEL_BTN}
-              >
+              <button type="button" onClick={onCancel} className={FOOTER_CANCEL_BTN}>
                 {t('cancel')}
               </button>
               <button
@@ -406,12 +492,6 @@ function applyMonthStats(monthData, year, month) {
   }
 }
 
-const FILTER_SELECT =
-  'h-9 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
-
-const FILTER_INPUT =
-  'h-9 min-w-[200px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
-
 function payrollMonthKey(year, month) {
   return `${year}-${String(month).padStart(2, '0')}`
 }
@@ -427,8 +507,40 @@ function hasRebateAmount(emp) {
   return Number.isFinite(n) && n > 0
 }
 
-const TH =
-  'px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500'
+const TH = 'whitespace-nowrap px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500'
+const TH_RIGHT = `${TH} text-right`
+const TD = 'whitespace-nowrap px-4 py-3 align-middle text-sm text-slate-600'
+const TD_RIGHT = `${TD} text-right tabular-nums`
+const TD_MONEY = 'whitespace-nowrap px-4 py-3 align-middle text-right text-sm font-medium tabular-nums text-slate-800'
+
+const KPI_ICONS = [
+  IconUsers,
+  IconCash,
+  IconPercent,
+  IconPercent,
+  IconWallet,
+  IconTag,
+  IconTrend,
+]
+
+function KpiCard({ label, value, money, icon: Icon }) {
+  return (
+    <div className="flex min-h-[96px] flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">{label}</p>
+        <span
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: 'color-mix(in srgb, var(--brand-primary, #ea580c) 12%, white)', color: 'var(--brand-primary, #ea580c)' }}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-3 text-xl font-semibold tabular-nums tracking-tight text-slate-900">
+        {money ? formatMoney(value) : value}
+      </p>
+    </div>
+  )
+}
 
 // ── Employee List sub-tab ────────────────────────
 function EmployeeList({ token, company }) {
@@ -447,7 +559,6 @@ function EmployeeList({ token, company }) {
   const [error, setError] = useState('')
   const [profileId, setProfileId] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
-  const [nameMenu, setNameMenu] = useState(null)
   const [rebateBusyId, setRebateBusyId] = useState(null)
   const structured = isStructuredPayrollEnabled(company)
 
@@ -499,26 +610,11 @@ function EmployeeList({ token, company }) {
     return () => { mounted = false }
   }, [filterYear, filterMonth, loadMonthStats])
 
-  useEffect(() => {
-    if (!nameMenu) return undefined
-    const close = () => setNameMenu(null)
-    const onKey = (e) => { if (e.key === 'Escape') close() }
-    document.addEventListener('click', close)
-    document.addEventListener('scroll', close, true)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('click', close)
-      document.removeEventListener('scroll', close, true)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [nameMenu])
-
   const handleDelete = async (id, name) => {
     if (!window.confirm(interpolate(t('confirmDeleteNamed'), { name }))) return
     try {
       await hrAPI.deleteEmployee(token, id)
       setEmployees((prev) => prev.filter((e) => e._id !== id))
-      setNameMenu(null)
     } catch {
       setError(t('failedDeleteEmployee'))
     }
@@ -605,7 +701,7 @@ function EmployeeList({ token, company }) {
   )
 
   const summaryCards = [
-    { label: t('employees'), value: payrollTotals.employeeCount, money: false },
+    { label: t('totalEmployees'), value: payrollTotals.employeeCount, money: false },
     { label: t('grossTotalSalary'), value: payrollTotals.gross, money: true },
     { label: t('totalPersonalTax'), value: payrollTotals.personalTax, money: true },
     { label: t('totalSocialTax'), value: payrollTotals.socialTax, money: true },
@@ -664,85 +760,92 @@ function EmployeeList({ token, company }) {
     loadMonthStats(filterYear, filterMonth, () => mounted)
   }
 
-  const recordLine = [
-    interpolate(t('employeesOnRecord'), { count: employees.length }),
-    filteredPayrollRows.length !== employees.length
-      ? interpolate(t('employeesShown'), { count: filteredPayrollRows.length })
-      : null,
-    t('employeeListHint'),
-  ].filter(Boolean).join(' · ')
+  const countBadge = filteredPayrollRows.length !== employees.length
+    ? `${employees.length} · ${interpolate(t('employeesShown'), { count: filteredPayrollRows.length })}`
+    : interpolate(t('employeesOnRecord'), { count: employees.length })
 
   return (
-    <div className="pt-2">
-      <div className="mb-4 space-y-3 border-b border-slate-200/80 pb-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-[1.125rem] font-semibold leading-tight tracking-tight text-slate-900">
+    <div className="space-y-5 pt-2">
+      {/* Header */}
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h3 className="text-xl font-semibold tracking-tight text-slate-900">
               {t('employeeList')}
             </h3>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              {recordLine}
-            </p>
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-600">
+              {countBadge}
+            </span>
           </div>
-          {!formMode && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={loading || monthLoading}
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {t('refresh')}
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={loading || filteredPayrollRows.length === 0 || pdfBusy}
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {pdfBusy ? t('preparingPdf') : t('downloadPdf')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormMode('create')}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold text-white shadow-sm hover:opacity-95"
-                style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
-              >
-                <span aria-hidden="true">+</span>
-                <span>{t('add')}</span>
-              </button>
-            </div>
-          )}
+          <p className="mt-1.5 text-sm text-slate-500">
+            {t('employeeListManageDesc')}
+          </p>
         </div>
-
         {!formMode && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-2.5">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('searchNameIdCode')}
-              className={FILTER_INPUT}
-              aria-label={t('searchEmployees')}
-            />
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <button type="button" onClick={handleRefresh} disabled={loading || monthLoading} className={BTN_SECONDARY}>
+              <IconRefresh />
+              {t('refresh')}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={loading || filteredPayrollRows.length === 0 || pdfBusy}
+              className={BTN_SECONDARY}
+            >
+              <IconDownload />
+              {pdfBusy ? t('preparingPdf') : t('downloadPdf')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormMode('create')}
+              className={BTN_PRIMARY}
+              style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
+            >
+              <IconPlus />
+              {t('addEmployee')}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Filters */}
+      {!formMode && (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                <IconSearch />
+              </span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('searchNameIdCode')}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                aria-label={t('searchEmployees')}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <IconCalendar className="h-4 w-4 text-slate-400" />
               {t('year')}
               <select
                 value={filterYear}
                 onChange={(e) => setFilterYear(Number(e.target.value))}
-                className={FILTER_SELECT}
+                className="h-10 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
               >
                 {yearOptions.map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
             </label>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <IconCalendar className="h-4 w-4 text-slate-400" />
               {t('month')}
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(Number(e.target.value))}
-                className={`${FILTER_SELECT} min-w-[130px]`}
+                className="h-10 min-w-[140px] rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
               >
                 {monthOptions.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
@@ -750,14 +853,14 @@ function EmployeeList({ token, company }) {
               </select>
             </label>
             {monthLoading && (
-              <span className="text-xs text-slate-500">{t('updating')}</span>
+              <span className="text-xs font-medium text-slate-500">{t('updating')}</span>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {error && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">{error}</div>
       )}
 
       {formMode && (
@@ -779,68 +882,67 @@ function EmployeeList({ token, company }) {
         />
       )}
 
+      {/* KPI cards */}
       {!loading && (
-        <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="grid grid-cols-2 divide-x divide-y divide-slate-100 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 xl:divide-y-0">
-            {summaryCards.map((card) => (
-              <div key={card.label} className="px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  {card.label}
-                </p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
-                  {card.money ? formatMoney(card.value) : card.value}
-                </p>
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
+          {summaryCards.map((card, i) => (
+            <KpiCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              money={card.money}
+              icon={KPI_ICONS[i] || IconCash}
+            />
+          ))}
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-24 shadow-sm">
           <div
-            className="h-6 w-6 animate-spin rounded-full"
-            style={{ border: '4px solid var(--brand-primary)', borderTopColor: 'transparent' }}
+            className="h-7 w-7 animate-spin rounded-full"
+            style={{ border: '3px solid var(--brand-primary)', borderTopColor: 'transparent' }}
           />
         </div>
       ) : employees.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50 py-16 text-center">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
           <p className="font-semibold text-slate-800">{t('noEmployeesYet')}</p>
           <p className="mt-1 text-sm text-slate-500">{t('addFirstEmployeeHint')}</p>
           <button
             type="button"
             onClick={() => setFormMode('create')}
-            className="mt-5 inline-flex h-10 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm hover:opacity-95"
+            className={`${BTN_PRIMARY} mt-5`}
             style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
           >
-            <span aria-hidden="true">+</span>
+            <IconPlus />
             {t('addEmployee')}
           </button>
         </div>
       ) : filteredPayrollRows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
           <p className="font-semibold text-slate-800">{t('noEmployeesMatchSearch')}</p>
           <p className="mt-1 text-sm text-slate-500">{t('tryDifferentSearch')}</p>
         </div>
       ) : (
-        <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1400px] border-collapse text-[13px] leading-snug">
+            <table className="w-full min-w-[1560px] border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className={TH}>{t('name')}</th>
                   <th className={TH}>{t('idNumber')}</th>
                   <th className={TH}>{t('phone')}</th>
                   <th className={TH}>{t('joiningDate')}</th>
-                  <th className={TH}>{t('salaryAgreed')}</th>
+                  <th className={TH_RIGHT}>{t('salaryAgreed')}</th>
                   <th className={TH}>{t('lastIncrement')}</th>
-                  <th className={TH}>{t('rebate')}</th>
-                  <th className={TH}>{t('workingDays')}</th>
-                  <th className={TH}>{t('accumulated')}</th>
-                  <th className={TH}>{t('personalTax')}</th>
-                  <th className={TH}>{t('socialTax')}</th>
-                  <th className={TH}>{t('netPayable')}</th>
+                  <th className={TH_RIGHT}>{t('rebate')}</th>
+                  <th className={TH_RIGHT}>{t('workingDays')}</th>
+                  <th className={TH_RIGHT}>{t('accumulated')}</th>
+                  <th className={TH_RIGHT}>{t('personalTax')}</th>
+                  <th className={TH_RIGHT}>{t('socialTax')}</th>
+                  <th className={TH_RIGHT}>{t('netPayable')}</th>
                   <th className={`${TH} text-center`}>{t('rebateCollected')}</th>
+                  <th className={`${TH} text-center`}>{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -849,113 +951,74 @@ function EmployeeList({ token, company }) {
                   const rebateEnabled = hasRebateAmount(emp)
                   const collected = row.rebateCollected
                   return (
-                  <tr
-                    key={row.id}
-                    className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/40 ${index % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
-                  >
-                    <td className="max-w-0 truncate px-3 py-2.5 align-middle text-sm font-semibold text-slate-900">
-                      <button
-                        type="button"
-                        onClick={() => setFormMode(emp)}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          setNameMenu({ x: e.clientX, y: e.clientY, emp })
-                        }}
-                        className="max-w-full truncate text-left text-[color:var(--brand-primary,#ea580c)] hover:underline"
-                      >
+                    <tr
+                      key={row.id}
+                      className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/35 ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                    >
+                      <td className="max-w-[180px] truncate px-4 py-3 align-middle text-sm font-semibold text-slate-900" title={emp.name}>
                         {emp.name}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">{emp.idNumber || '—'}</td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
-                      {emp.phoneNumber || '—'}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
-                      {formatDateDisplay(emp.joiningDate)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
-                      {formatMoney(emp.salaryAgreed)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
-                      {formatDateDisplay(emp.lastIncrement)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
-                      {formatMoney(emp.rebate)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
-                      {row.workedDays}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {formatMoney(row.accumulated)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-700">
-                      {formatMoney(row.personalTax)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-700">
-                      {formatMoney(row.socialTax)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {formatMoney(row.netPayable)}
-                    </td>
-                    <td className="px-3 py-2.5 align-middle text-center">
-                      <input
-                        type="checkbox"
-                        checked={collected}
-                        disabled={!rebateEnabled || rebateBusyId === emp._id}
-                        onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
-                        title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
-                        className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#ea580c)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                        aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
-                      />
-                    </td>
-                  </tr>
+                      </td>
+                      <td className={TD}>{emp.idNumber || '—'}</td>
+                      <td className={TD}>{emp.phoneNumber || '—'}</td>
+                      <td className={TD}>{formatDateDisplay(emp.joiningDate)}</td>
+                      <td className={TD_MONEY}>{formatMoney(emp.salaryAgreed)}</td>
+                      <td className={TD}>{formatDateDisplay(emp.lastIncrement)}</td>
+                      <td className={TD_RIGHT}>{formatMoney(emp.rebate)}</td>
+                      <td className={TD_RIGHT}>{row.workedDays}</td>
+                      <td className={`${TD_MONEY} font-semibold text-slate-900`}>{formatMoney(row.accumulated)}</td>
+                      <td className={TD_RIGHT}>{formatMoney(row.personalTax)}</td>
+                      <td className={TD_RIGHT}>{formatMoney(row.socialTax)}</td>
+                      <td className={`${TD_MONEY} font-semibold text-slate-900`}>{formatMoney(row.netPayable)}</td>
+                      <td className="px-4 py-3 align-middle text-center">
+                        <input
+                          type="checkbox"
+                          checked={collected}
+                          disabled={!rebateEnabled || rebateBusyId === emp._id}
+                          onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
+                          title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
+                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#ea580c)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setFormMode(emp)}
+                            className={`${ACTION_BTN} border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900`}
+                            aria-label={interpolate(t('editEmployeeAria'), { name: emp.name })}
+                            title={t('edit')}
+                          >
+                            <IconPencil className="h-3.5 w-3.5" />
+                          </button>
+                          {structured && (
+                            <button
+                              type="button"
+                              onClick={() => setProfileId(emp._id)}
+                              className={`${ACTION_BTN} border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900`}
+                              aria-label={interpolate(t('openProfileAria'), { name: emp.name })}
+                              title={t('openProfile')}
+                            >
+                              <IconUser className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(emp._id, emp.name)}
+                            className={`${ACTION_BTN} border-red-100 bg-white text-red-600 hover:border-red-200 hover:bg-red-50`}
+                            aria-label={interpolate(t('deleteEmployeeAria'), { name: emp.name })}
+                            title={t('delete')}
+                          >
+                            <IconTrash className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {nameMenu && (
-        <div
-          role="menu"
-          className="fixed z-50 min-w-[160px] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
-          style={{ left: nameMenu.x, top: nameMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
-            onClick={() => {
-              setFormMode(nameMenu.emp)
-              setNameMenu(null)
-            }}
-          >
-            {t('editDetails')}
-          </button>
-          {structured && (
-            <button
-              type="button"
-              role="menuitem"
-              className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
-              onClick={() => {
-                setProfileId(nameMenu.emp._id)
-                setNameMenu(null)
-              }}
-            >
-              {t('openProfile')}
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
-            onClick={() => handleDelete(nameMenu.emp._id, nameMenu.emp.name)}
-          >
-            {t('delete')}
-          </button>
         </div>
       )}
     </div>
