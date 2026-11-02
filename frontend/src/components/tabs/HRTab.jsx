@@ -844,28 +844,36 @@ function EmployeeList({ token, company }) {
                 aria-label={t('searchEmployees')}
               />
             </div>
-            <label className="flex shrink-0 items-center gap-2.5 text-xs font-semibold text-slate-500">
+            <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
               <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
               {t('year')}
               <select
                 value={filterYear}
                 onChange={(e) => setFilterYear(Number(e.target.value))}
-                className="h-10 min-w-[120px] rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
-                style={{ paddingLeft: '0.75rem', paddingRight: '0.75rem' }}
+                className="h-10 min-w-[120px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                style={{
+                  paddingLeft: '0.875rem',
+                  paddingRight: '1.75rem',
+                  borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
+                }}
               >
                 {yearOptions.map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
             </label>
-            <label className="flex shrink-0 items-center gap-2.5 text-xs font-semibold text-slate-500">
+            <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
               <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
               {t('month')}
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(Number(e.target.value))}
-                className="h-10 min-w-[150px] rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
-                style={{ paddingLeft: '0.75rem', paddingRight: '0.75rem' }}
+                className="h-10 min-w-[150px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                style={{
+                  paddingLeft: '0.875rem',
+                  paddingRight: '1.75rem',
+                  borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
+                }}
               >
                 {monthOptions.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
