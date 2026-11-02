@@ -19,6 +19,12 @@ function monthYearLabel(year, month) {
   return d.toLocaleString(undefined, { month: 'long', year: 'numeric' })
 }
 
+function formatCollected(row) {
+  const rebateN = Number(row.rebate)
+  if (!Number.isFinite(rebateN) || rebateN <= 0) return '—'
+  return row.rebateCollected ? 'Yes' : 'No'
+}
+
 /**
  * Download current-month payroll PDF (employee rows + grand totals).
  * @param {{ rows: Array, totals: object, year: number, month: number, companyName?: string }} opts
@@ -58,6 +64,7 @@ export async function downloadPayrollPdf({
     String(row.workedDays ?? 0),
     formatPdfMoney(row.salaryAgreed),
     formatPdfMoney(row.rebate),
+    formatCollected(row),
     formatPdfMoney(row.accumulated),
     formatPdfMoney(row.personalTax),
     formatPdfMoney(row.socialTax),
@@ -73,23 +80,25 @@ export async function downloadPayrollPdf({
       'Worked days',
       'Salary agreed',
       'Rebate',
+      'Collected',
       'Accumulated (MTD)',
       'Personal tax',
       'Social tax',
       'Net payable',
     ]],
     body,
-    styles: { fontSize: 7.5, cellPadding: 3.5 },
+    styles: { fontSize: 7, cellPadding: 3 },
     headStyles: { fillColor: [51, 65, 85], textColor: 255 },
-    margin: { left: 28, right: 28 },
+    margin: { left: 24, right: 24 },
     columnStyles: {
       3: { halign: 'right' },
       4: { halign: 'right' },
       5: { halign: 'right' },
-      6: { halign: 'right' },
+      6: { halign: 'center' },
       7: { halign: 'right' },
       8: { halign: 'right' },
       9: { halign: 'right' },
+      10: { halign: 'right' },
     },
   })
 

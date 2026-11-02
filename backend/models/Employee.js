@@ -76,6 +76,8 @@ const employeeSchema = new mongoose.Schema(
     salaryAgreed: { type: Number, default: null },
     lastIncrement: { type: Date, default: null },
     rebate: { type: Number, default: null },
+    /** YYYY-MM keys when rebate was marked collected for that payroll month */
+    rebateCollectedMonths: { type: [String], default: [] },
     remarks: { type: String, trim: true, default: '' },
   },
   {

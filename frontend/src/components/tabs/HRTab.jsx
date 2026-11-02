@@ -129,40 +129,14 @@ function FieldLabel({ children, required = false }) {
   )
 }
 
-function PencilIcon({ className = 'h-4 w-4' }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828Z" />
-    </svg>
-  )
-}
-
-function TrashIcon({ className = 'h-4 w-4' }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path
-        fillRule="evenodd"
-        d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4.5H2.75a.75.75 0 0 0 0 1.5h.55l.77 10.01A2.75 2.75 0 0 0 6.76 18.5h6.48a2.75 2.75 0 0 0 2.69-2.49l.77-10.01h.55a.75.75 0 0 0 0-1.5H14v-.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM7.5 3.75c0-.69.56-1.25 1.25-1.25h2.5c.69 0 1.25.56 1.25 1.25V4.5h-5v-.75ZM8.3 7.25a.75.75 0 0 1 .75.69l.4 7a.75.75 0 1 1-1.5.08l-.4-7a.75.75 0 0 1 .75-.77Zm3.4 0a.75.75 0 0 1 .75.77l-.4 7a.75.75 0 1 1-1.5-.08l.4-7a.75.75 0 0 1 .75-.69Z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-}
-
 const DRAWER_INPUT =
   'h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm leading-normal text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
-
-const PRIMARY_BTN =
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
 
 const FOOTER_CANCEL_BTN =
   'inline-flex min-h-11 min-w-[96px] items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-slate-700 transition-colors hover:bg-slate-50'
 
 const FOOTER_SAVE_BTN =
   'inline-flex min-h-11 min-w-[128px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold leading-none tracking-normal text-white shadow-sm transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
-
-const ACTION_BTN =
-  'inline-flex h-9 min-w-[88px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-semibold leading-none tracking-normal shadow-sm transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({ onSave, onCancel, token, initialEmployee = null }) {
@@ -432,10 +406,25 @@ function applyMonthStats(monthData, year, month) {
 }
 
 const FILTER_SELECT =
-  'h-11 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
+  'h-9 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
 
 const FILTER_INPUT =
-  'h-11 min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
+  'h-9 min-w-[200px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20'
+
+function payrollMonthKey(year, month) {
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function isRebateCollectedForMonth(emp, year, month) {
+  const key = payrollMonthKey(year, month)
+  const list = Array.isArray(emp?.rebateCollectedMonths) ? emp.rebateCollectedMonths : []
+  return list.map(String).includes(key)
+}
+
+function hasRebateAmount(emp) {
+  const n = Number(emp?.rebate)
+  return Number.isFinite(n) && n > 0
+}
 
 // ── Employee List sub-tab ────────────────────────
 function EmployeeList({ token, company }) {
@@ -452,6 +441,8 @@ function EmployeeList({ token, company }) {
   const [error, setError] = useState('')
   const [profileId, setProfileId] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [nameMenu, setNameMenu] = useState(null)
+  const [rebateBusyId, setRebateBusyId] = useState(null)
   const structured = isStructuredPayrollEnabled(company)
 
   const yearOptions = useMemo(() => {
@@ -502,13 +493,61 @@ function EmployeeList({ token, company }) {
     return () => { mounted = false }
   }, [filterYear, filterMonth, loadMonthStats])
 
+  useEffect(() => {
+    if (!nameMenu) return undefined
+    const close = () => setNameMenu(null)
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    document.addEventListener('click', close)
+    document.addEventListener('scroll', close, true)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', close)
+      document.removeEventListener('scroll', close, true)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [nameMenu])
+
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete ${name}?`)) return
     try {
       await hrAPI.deleteEmployee(token, id)
       setEmployees((prev) => prev.filter((e) => e._id !== id))
+      setNameMenu(null)
     } catch {
       setError('Failed to delete employee.')
+    }
+  }
+
+  const handleToggleRebateCollected = async (emp, collected) => {
+    if (!hasRebateAmount(emp) || rebateBusyId) return
+    const id = emp._id
+    const key = payrollMonthKey(filterYear, filterMonth)
+    const prevMonths = Array.isArray(emp.rebateCollectedMonths) ? emp.rebateCollectedMonths.map(String) : []
+    const nextMonths = collected
+      ? (prevMonths.includes(key) ? prevMonths : [...prevMonths, key])
+      : prevMonths.filter((k) => k !== key)
+
+    setRebateBusyId(id)
+    setError('')
+    setEmployees((list) => list.map((e) => (
+      e._id === id ? { ...e, rebateCollectedMonths: nextMonths } : e
+    )))
+    try {
+      const res = await hrAPI.setRebateCollected(token, id, {
+        year: filterYear,
+        month: filterMonth,
+        collected,
+      })
+      if (res?.employee) {
+        setEmployees((list) => list.map((e) => (e._id === id ? { ...e, ...res.employee } : e)))
+      }
+    } catch {
+      setEmployees((list) => list.map((e) => (
+        e._id === id ? { ...e, rebateCollectedMonths: prevMonths } : e
+      )))
+      setError('Failed to update rebate collected status.')
+    } finally {
+      setRebateBusyId(null)
     }
   }
 
@@ -532,12 +571,13 @@ function EmployeeList({ token, company }) {
       workedDays,
       salaryAgreed: emp.salaryAgreed,
       rebate: emp.rebate,
+      rebateCollected: isRebateCollectedForMonth(emp, filterYear, filterMonth),
       accumulated,
       personalTax: tax.personalTax,
       socialTax: tax.socialTax,
       netPayable: tax.netPayable,
     }
-  }), [employees, monthMeta])
+  }), [employees, monthMeta, filterYear, filterMonth])
 
   const filteredPayrollRows = useMemo(() => {
     const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
@@ -595,15 +635,16 @@ function EmployeeList({ token, company }) {
 
   return (
     <div className="pt-2">
-      <div className="mb-6 space-y-4 border-b border-slate-200 pb-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0 space-y-2">
-            <h3 className="text-xl font-semibold leading-tight tracking-tight text-slate-900">
+      <div className="mb-4 space-y-3 border-b border-slate-200 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold leading-tight tracking-tight text-slate-900">
               Employee List
             </h3>
-            <p className="text-sm leading-relaxed text-slate-500">
-              {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
-              {searchQuery.trim() ? ` · ${filteredPayrollRows.length} shown` : ''}
+            <p className="mt-0.5 text-xs text-slate-500">
+              {employees.length} on record
+              {filteredPayrollRows.length !== employees.length ? ` · ${filteredPayrollRows.length} shown` : ''}
+              <span className="text-slate-400"> · click name to edit · right-click for more</span>
             </p>
           </div>
           {!formMode && (
@@ -612,42 +653,42 @@ function EmployeeList({ token, company }) {
                 type="button"
                 onClick={handleRefresh}
                 disabled={loading || monthLoading}
-                className={`${FOOTER_CANCEL_BTN} shrink-0`}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
               >
-                ↺ Refresh
+                Refresh
               </button>
               <button
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={loading || filteredPayrollRows.length === 0 || pdfBusy}
-                className={`${FOOTER_CANCEL_BTN} shrink-0`}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
               >
                 {pdfBusy ? 'Preparing…' : 'Download PDF'}
               </button>
               <button
                 type="button"
                 onClick={() => setFormMode('create')}
-                className={`${PRIMARY_BTN} shrink-0 hover:-translate-y-px hover:shadow-md`}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold text-white shadow-sm hover:opacity-95"
                 style={{ background: 'var(--brand-button-bg, var(--brand-dark))', color: 'var(--brand-on-primary, #ffffff)' }}
               >
                 <span aria-hidden="true">+</span>
-                <span>Add Employee</span>
+                <span>Add</span>
               </button>
             </div>
           )}
         </div>
 
         {!formMode && (
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, ID, or employee code"
+              placeholder="Search name, ID, or code"
               className={FILTER_INPUT}
               aria-label="Search employees"
             />
-            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
               Year
               <select
                 value={filterYear}
@@ -659,12 +700,12 @@ function EmployeeList({ token, company }) {
                 ))}
               </select>
             </label>
-            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
               Month
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(Number(e.target.value))}
-                className={`${FILTER_SELECT} min-w-[150px]`}
+                className={`${FILTER_SELECT} min-w-[130px]`}
               >
                 {MONTH_FILTER_OPTIONS.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
@@ -672,7 +713,7 @@ function EmployeeList({ token, company }) {
               </select>
             </label>
             {monthLoading && (
-              <span className="pb-3 text-xs text-slate-500">Updating month…</span>
+              <span className="text-xs text-slate-500">Updating…</span>
             )}
           </div>
         )}
@@ -702,16 +743,16 @@ function EmployeeList({ token, company }) {
       )}
 
       {!loading && (
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {summaryCards.map((card) => (
             <div
               key={card.label}
-              className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
             >
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 {card.label}
               </p>
-              <p className="mt-1.5 text-base font-semibold tabular-nums text-slate-900">
+              <p className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
                 {card.money ? formatMoney(card.value) : card.value}
               </p>
             </div>
@@ -740,119 +781,88 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px] border-collapse text-[13px] leading-snug">
-              <colgroup>
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col style={{ width: structured ? '300px' : '220px' }} />
-              </colgroup>
+            <table className="w-full min-w-[1400px] border-collapse text-[13px] leading-snug">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-100/80">
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Name</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">ID Number</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Phone</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Joining Date</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Salary Agreed</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Last Increment</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Working Days</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Accumulated Salary</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Personal Tax</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Social Tax</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Net Payable</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Actions</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Name</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">ID Number</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Phone</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Joining Date</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Salary Agreed</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Last Increment</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Working Days</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Accumulated</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Personal Tax</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Social Tax</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Net Payable</th>
+                  <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Rebate collected</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPayrollRows.map((row, index) => {
                   const emp = row.emp
+                  const rebateEnabled = hasRebateAmount(emp)
+                  const collected = row.rebateCollected
                   return (
                   <tr
                     key={row.id}
                     className={`border-b border-slate-100 transition-colors last:border-b-0 hover:bg-orange-50/50 ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}
                   >
-                    <td className="max-w-0 truncate px-4 py-4 align-middle text-sm font-semibold text-slate-900" title={emp.name}>
-                      {structured ? (
-                        <button
-                          type="button"
-                          onClick={() => setProfileId(emp._id)}
-                          className="max-w-full truncate text-left hover:underline"
-                        >
-                          {emp.name}
-                        </button>
-                      ) : (
-                        emp.name
-                      )}
+                    <td className="max-w-0 truncate px-3 py-2.5 align-middle text-sm font-semibold text-slate-900" title={`${emp.name} — click to edit, right-click for menu`}>
+                      <button
+                        type="button"
+                        onClick={() => setFormMode(emp)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setNameMenu({ x: e.clientX, y: e.clientY, emp })
+                        }}
+                        className="max-w-full truncate text-left text-[color:var(--brand-primary,#ea580c)] hover:underline"
+                      >
+                        {emp.name}
+                      </button>
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">{emp.idNumber || '—'}</td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">{emp.idNumber || '—'}</td>
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
                       {emp.phoneNumber || '—'}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatDateDisplay(emp.joiningDate)}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
                       {formatMoney(emp.salaryAgreed)}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatDateDisplay(emp.lastIncrement)}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-600">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-600">
                       {formatMoney(emp.rebate)}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-medium text-slate-800">
                       {row.workedDays}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
                       {formatMoney(row.accumulated)}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-700">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-700">
                       {formatMoney(row.personalTax)}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm text-slate-700">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm text-slate-700">
                       {formatMoney(row.socialTax)}
                     </td>
-                    <td className="px-4 py-4 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap text-sm font-semibold text-slate-900">
                       {formatMoney(row.netPayable)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 align-middle">
-                      <div className="inline-flex flex-nowrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setFormMode(emp)}
-                          className={`${ACTION_BTN} border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50`}
-                        >
-                          <PencilIcon />
-                          <span>Edit</span>
-                        </button>
-                        {structured && (
-                          <button
-                            type="button"
-                            onClick={() => setProfileId(emp._id)}
-                            className={`${ACTION_BTN} border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100`}
-                          >
-                            Profile
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(emp._id, emp.name)}
-                          className={`${ACTION_BTN} border-red-300 bg-red-50 text-red-700 hover:bg-red-100`}
-                        >
-                          <TrashIcon />
-                          <span>Delete</span>
-                        </button>
-                      </div>
+                    <td className="px-3 py-2.5 align-middle text-center">
+                      <input
+                        type="checkbox"
+                        checked={collected}
+                        disabled={!rebateEnabled || rebateBusyId === emp._id}
+                        onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
+                        title={rebateEnabled ? 'Mark rebate collected for this month' : 'No rebate amount on this employee'}
+                        className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#ea580c)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label={`Rebate collected for ${emp.name}`}
+                      />
                     </td>
                   </tr>
                   )
@@ -860,6 +870,48 @@ function EmployeeList({ token, company }) {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {nameMenu && (
+        <div
+          role="menu"
+          className="fixed z-50 min-w-[160px] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          style={{ left: nameMenu.x, top: nameMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+            onClick={() => {
+              setFormMode(nameMenu.emp)
+              setNameMenu(null)
+            }}
+          >
+            Edit details
+          </button>
+          {structured && (
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+              onClick={() => {
+                setProfileId(nameMenu.emp._id)
+                setNameMenu(null)
+              }}
+            >
+              Open profile
+            </button>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+            onClick={() => handleDelete(nameMenu.emp._id, nameMenu.emp.name)}
+          >
+            Delete
+          </button>
         </div>
       )}
     </div>

@@ -10,6 +10,8 @@ const getEmployee     = async (_token, id)     => (await axios.get(`${BASE}/${id
 const createEmployee  = async (_token, data)   => (await axios.post(BASE, data)).data
 const updateEmployee  = async (_token, id, data) => (await axios.put(`${BASE}/${id}`, data)).data
 const deleteEmployee  = async (_token, id)     => (await axios.delete(`${BASE}/${id}`)).data
+const setRebateCollected = async (_token, id, data) =>
+  (await axios.patch(`${BASE}/${id}/rebate-collected`, data)).data
 const getSalaryAssignment = async (_token, id) => (await axios.get(`${BASE}/${id}/salary-assignment`)).data
 const putSalaryAssignment = async (_token, id, data) => (await axios.put(`${BASE}/${id}/salary-assignment`, data)).data
 const getEmployeeRemarks = async (_token, id) => (await axios.get(`${BASE}/${id}/remarks`)).data
@@ -21,6 +23,7 @@ const hrAPI = {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  setRebateCollected,
   getSalaryAssignment,
   putSalaryAssignment,
   getEmployeeRemarks,

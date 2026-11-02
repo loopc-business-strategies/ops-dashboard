@@ -230,6 +230,54 @@ router.delete('/:id', protect, validateParams(employeeIdParam), async (req, res)
   }
 })
 
+const rebateCollectedSchema = Joi.object({
+  year: Joi.number().integer().min(2000).max(2100).required(),
+  month: Joi.number().integer().min(1).max(12).required(),
+  collected: Joi.boolean().required(),
+})
+
+function payrollMonthKey(year, month) {
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+// PATCH mark rebate collected for a payroll month
+router.patch(
+  '/:id/rebate-collected',
+  protect,
+  validateParams(employeeIdParam),
+  validateBody(rebateCollectedSchema),
+  async (req, res) => {
+    try {
+      const TenantEmployee = await Employee.getTenantModel(req.tenant)
+      if (!canManageEmployees(req.user)) {
+        return res.status(403).json({ success: false, message: 'Only super admin or HR department head can update rebate status.' })
+      }
+
+      const employee = await TenantEmployee.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+      if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
+
+      if (req.user.role !== 'super_admin' && normalize(employee.department) !== 'hr') {
+        return res.status(403).json({ success: false, message: 'HR department head can only update HR employees.' })
+      }
+
+      const key = payrollMonthKey(req.body.year, req.body.month)
+      const current = Array.isArray(employee.rebateCollectedMonths)
+        ? employee.rebateCollectedMonths.map(String)
+        : []
+      const next = req.body.collected
+        ? (current.includes(key) ? current : [...current, key])
+        : current.filter((k) => k !== key)
+
+      employee.rebateCollectedMonths = next
+      await employee.save()
+
+      res.json({ success: true, employee })
+    } catch (err) {
+      res.status(500).json({ success: false, message: 'Server error.' })
+    }
+  },
+)
+
 // ─── Append-only employee remarks log ───
 
 router.get('/:id/remarks', protect, validateParams(employeeIdParam), async (req, res) => {
