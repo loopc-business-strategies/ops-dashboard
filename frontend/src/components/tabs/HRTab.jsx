@@ -855,6 +855,7 @@ function EmployeeList({ token, company }) {
                   paddingLeft: '0.875rem',
                   paddingRight: '1.75rem',
                   borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
+                  borderRadius: '9999px',
                 }}
               >
                 {yearOptions.map((y) => (
@@ -873,6 +874,7 @@ function EmployeeList({ token, company }) {
                   paddingLeft: '0.875rem',
                   paddingRight: '1.75rem',
                   borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
+                  borderRadius: '9999px',
                 }}
               >
                 {monthOptions.map((m) => (
