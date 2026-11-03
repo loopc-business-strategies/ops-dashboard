@@ -209,6 +209,68 @@ describe('HR employees routes', () => {
     expect(row.rebate).toBe(500)
   })
 
+  test('hr staff can record rebate collection amount and date for any department', async () => {
+    const hrUser = await createUser({ role: 'department_user', department: 'hr' })
+    const employee = await createEmployee({
+      department: 'finance',
+      name: 'Finance Rebate Emp',
+      employeeCode: 'EMP-REB-1',
+      rebate: 400,
+    })
+
+    const collectRes = await request(app)
+      .patch(`/api/hr/employees/${employee._id.toString()}/rebate-collected`)
+      .set('Authorization', `Bearer ${tokenFor(hrUser)}`)
+      .send({
+        year: 2026,
+        month: 11,
+        collected: true,
+        amount: 250,
+        collectedAt: '2026-11-05',
+      })
+
+    expect(collectRes.status).toBe(200)
+    expect(collectRes.body.success).toBe(true)
+    expect(collectRes.body.employee.rebateCollectedMonths).toContain('2026-11')
+    const entry = (collectRes.body.employee.rebateCollections || []).find((c) => c.month === '2026-11')
+    expect(entry).toBeTruthy()
+    expect(entry.amount).toBe(250)
+    expect(String(entry.collectedAt)).toContain('2026-11-05')
+
+    const clearRes = await request(app)
+      .patch(`/api/hr/employees/${employee._id.toString()}/rebate-collected`)
+      .set('Authorization', `Bearer ${tokenFor(hrUser)}`)
+      .send({ year: 2026, month: 11, collected: false })
+
+    expect(clearRes.status).toBe(200)
+    expect(clearRes.body.employee.rebateCollectedMonths || []).not.toContain('2026-11')
+    expect((clearRes.body.employee.rebateCollections || []).some((c) => c.month === '2026-11')).toBe(false)
+  })
+
+  test('legacy rebateCollectedMonths without rebateCollections still marks month collected', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const employee = await createEmployee({
+      department: 'hr',
+      name: 'Legacy Rebate Emp',
+      employeeCode: 'EMP-REB-LEG',
+      rebate: 100,
+    })
+    const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
+    await TenantEmployee.updateOne(
+      { _id: employee._id },
+      { $set: { rebateCollectedMonths: ['2026-10'], rebateCollections: [] } },
+    )
+
+    const listRes = await request(app)
+      .get('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+
+    expect(listRes.status).toBe(200)
+    const row = listRes.body.employees.find((e) => e.employeeCode === 'EMP-REB-LEG')
+    expect(row).toBeTruthy()
+    expect(row.rebateCollectedMonths).toContain('2026-10')
+  })
+
   test('hr head can append and list employee remarks', async () => {
     const hrHead = await createUser({ role: 'department_head', department: 'hr', name: 'HR Head' })
     const employee = await createEmployee({ department: 'hr', name: 'Remark Target' })

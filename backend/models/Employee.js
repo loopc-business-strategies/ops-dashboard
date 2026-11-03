@@ -78,6 +78,16 @@ const employeeSchema = new mongoose.Schema(
     rebate: { type: Number, default: null },
     /** YYYY-MM keys when rebate was marked collected for that payroll month */
     rebateCollectedMonths: { type: [String], default: [] },
+    /** Per-month actual rebate collections (amount + date); kept in sync with rebateCollectedMonths */
+    rebateCollections: {
+      type: [{
+        month: { type: String, trim: true, required: true },
+        amount: { type: Number, min: 0, required: true },
+        collectedAt: { type: Date, default: null },
+        _id: false,
+      }],
+      default: [],
+    },
     remarks: { type: String, trim: true, default: '' },
   },
   {

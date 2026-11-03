@@ -497,12 +497,17 @@ function useMonthFilterOptions(langCode) {
 function sumPayrollTotals(rows) {
   let gross = 0
   let rebate = 0
+  let rebateCollectedTotal = 0
   let personalTax = 0
   let socialTax = 0
   let netPayable = 0
+  let pendingRebateCount = 0
   for (const row of rows) {
     const rebateN = Number(row.rebate)
     if (Number.isFinite(rebateN)) rebate += rebateN
+    if (Number.isFinite(rebateN) && rebateN > 0 && !row.rebateCollected) pendingRebateCount += 1
+    const collectedN = Number(row.rebateCollectedAmount)
+    if (row.rebateCollected && Number.isFinite(collectedN)) rebateCollectedTotal += collectedN
     if (row.accumulated === null || row.accumulated === undefined) continue
     gross += Number(row.accumulated) || 0
     personalTax += Number(row.personalTax) || 0
@@ -511,9 +516,11 @@ function sumPayrollTotals(rows) {
   }
   const grossR = round2(gross)
   const rebateR = round2(rebate)
+  const rebateCollectedR = round2(rebateCollectedTotal)
   const personalTaxR = round2(personalTax)
   const socialTaxR = round2(socialTax)
   const netPayableR = round2(netPayable)
+  // Net Expenses = Social Tax + Personal Tax + Accumulated − Total Rebate Collected
   return {
     employeeCount: rows.length,
     gross: grossR,
@@ -521,7 +528,9 @@ function sumPayrollTotals(rows) {
     socialTax: socialTaxR,
     netPayable: netPayableR,
     rebate: rebateR,
-    netExpense: round2(netPayableR - rebateR),
+    rebateCollected: rebateCollectedR,
+    pendingRebateCount,
+    netExpense: round2(socialTaxR + personalTaxR + grossR - rebateCollectedR),
   }
 }
 
@@ -545,13 +554,43 @@ function payrollMonthKey(year, month) {
 
 function isRebateCollectedForMonth(emp, year, month) {
   const key = payrollMonthKey(year, month)
+  const collections = Array.isArray(emp?.rebateCollections) ? emp.rebateCollections : []
+  if (collections.some((c) => String(c?.month) === key)) return true
   const list = Array.isArray(emp?.rebateCollectedMonths) ? emp.rebateCollectedMonths : []
   return list.map(String).includes(key)
+}
+
+function resolveRebateCollection(emp, year, month) {
+  const key = payrollMonthKey(year, month)
+  const collections = Array.isArray(emp?.rebateCollections) ? emp.rebateCollections : []
+  const hit = collections.find((c) => String(c?.month) === key)
+  if (hit) {
+    const amount = Number(hit.amount)
+    return {
+      collected: true,
+      amount: Number.isFinite(amount) ? amount : 0,
+      collectedAt: hit.collectedAt ? toDateInput(hit.collectedAt) : '',
+    }
+  }
+  const list = Array.isArray(emp?.rebateCollectedMonths) ? emp.rebateCollectedMonths : []
+  if (list.map(String).includes(key)) {
+    const agreed = Number(emp?.rebate)
+    return {
+      collected: true,
+      amount: Number.isFinite(agreed) && agreed > 0 ? agreed : 0,
+      collectedAt: '',
+    }
+  }
+  return { collected: false, amount: null, collectedAt: '' }
 }
 
 function hasRebateAmount(emp) {
   const n = Number(emp?.rebate)
   return Number.isFinite(n) && n > 0
+}
+
+function todayInputKey() {
+  return toDateInput(new Date())
 }
 
 const TH = 'sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600'
@@ -567,6 +606,7 @@ const KPI_ICONS = [
   IconPercent,
   IconPercent,
   IconWallet,
+  IconTag,
   IconTag,
   IconTrend,
 ]
@@ -611,6 +651,8 @@ function EmployeeList({ token, company }) {
   const [profileId, setProfileId] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [rebateBusyId, setRebateBusyId] = useState(null)
+  const [rebateDrafts, setRebateDrafts] = useState({})
+  const [rebateSort, setRebateSort] = useState(null) // null | 'asc' | 'desc'
   const structured = isStructuredPayrollEnabled(company)
 
   const yearOptions = useMemo(() => {
@@ -671,37 +713,105 @@ function EmployeeList({ token, company }) {
     }
   }
 
-  const handleToggleRebateCollected = async (emp, collected) => {
+  const getRebateDraft = (emp) => {
+    const id = emp._id
+    if (rebateDrafts[id]) return rebateDrafts[id]
+    const resolved = resolveRebateCollection(emp, filterYear, filterMonth)
+    if (resolved.collected) {
+      return {
+        amount: resolved.amount === null || resolved.amount === undefined ? '' : String(resolved.amount),
+        collectedAt: resolved.collectedAt || todayInputKey(),
+      }
+    }
+    const agreed = Number(emp.rebate)
+    return {
+      amount: Number.isFinite(agreed) && agreed > 0 ? String(agreed) : '',
+      collectedAt: todayInputKey(),
+    }
+  }
+
+  const setRebateDraftField = (emp, field, value) => {
+    const id = emp._id
+    const base = rebateDrafts[id] || getRebateDraft(emp)
+    setRebateDrafts((prev) => ({
+      ...prev,
+      [id]: { ...base, [field]: value },
+    }))
+  }
+
+  const persistRebateCollection = async (emp, { collected, amount, collectedAt }) => {
     if (!hasRebateAmount(emp) || rebateBusyId) return
     const id = emp._id
-    const key = payrollMonthKey(filterYear, filterMonth)
     const prevMonths = Array.isArray(emp.rebateCollectedMonths) ? emp.rebateCollectedMonths.map(String) : []
-    const nextMonths = collected
+    const prevCollections = Array.isArray(emp.rebateCollections) ? emp.rebateCollections : []
+    const key = payrollMonthKey(filterYear, filterMonth)
+    const amountN = Number(amount)
+    const payloadAmount = Number.isFinite(amountN) && amountN >= 0 ? amountN : Number(emp.rebate) || 0
+    const payloadDate = collectedAt || todayInputKey()
+
+    const optimisticCollections = collected
+      ? [
+        ...prevCollections.filter((c) => String(c?.month) !== key),
+        { month: key, amount: payloadAmount, collectedAt: payloadDate },
+      ]
+      : prevCollections.filter((c) => String(c?.month) !== key)
+    const optimisticMonths = collected
       ? (prevMonths.includes(key) ? prevMonths : [...prevMonths, key])
       : prevMonths.filter((k) => k !== key)
 
     setRebateBusyId(id)
     setError('')
     setEmployees((list) => list.map((e) => (
-      e._id === id ? { ...e, rebateCollectedMonths: nextMonths } : e
+      e._id === id
+        ? { ...e, rebateCollectedMonths: optimisticMonths, rebateCollections: optimisticCollections }
+        : e
     )))
     try {
       const res = await hrAPI.setRebateCollected(token, id, {
         year: filterYear,
         month: filterMonth,
         collected,
+        amount: collected ? payloadAmount : undefined,
+        collectedAt: collected ? payloadDate : undefined,
       })
       if (res?.employee) {
         setEmployees((list) => list.map((e) => (e._id === id ? { ...e, ...res.employee } : e)))
       }
+      if (!collected) {
+        setRebateDrafts((prev) => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+      }
     } catch {
       setEmployees((list) => list.map((e) => (
-        e._id === id ? { ...e, rebateCollectedMonths: prevMonths } : e
+        e._id === id
+          ? { ...e, rebateCollectedMonths: prevMonths, rebateCollections: prevCollections }
+          : e
       )))
       setError(t('failedUpdateRebateCollected'))
     } finally {
       setRebateBusyId(null)
     }
+  }
+
+  const handleToggleRebateCollected = async (emp, collected) => {
+    const draft = getRebateDraft(emp)
+    await persistRebateCollection(emp, {
+      collected,
+      amount: draft.amount,
+      collectedAt: draft.collectedAt,
+    })
+  }
+
+  const handleSaveRebateDetails = async (emp) => {
+    const draft = getRebateDraft(emp)
+    await persistRebateCollection(emp, {
+      collected: true,
+      amount: draft.amount,
+      collectedAt: draft.collectedAt,
+    })
   }
 
   const payrollRows = useMemo(() => employees.map((emp) => {
@@ -714,6 +824,7 @@ function EmployeeList({ token, company }) {
       workedDays,
     )
     const tax = computeTaxBreakdown(accumulated)
+    const collection = resolveRebateCollection(emp, filterYear, filterMonth)
     return {
       id: emp._id,
       emp,
@@ -724,7 +835,9 @@ function EmployeeList({ token, company }) {
       workedDays,
       salaryAgreed: emp.salaryAgreed,
       rebate: emp.rebate,
-      rebateCollected: isRebateCollectedForMonth(emp, filterYear, filterMonth),
+      rebateCollected: collection.collected,
+      rebateCollectedAmount: collection.collected ? collection.amount : null,
+      rebateCollectedAt: collection.collectedAt,
       accumulated,
       personalTax: tax.personalTax,
       socialTax: tax.socialTax,
@@ -735,7 +848,7 @@ function EmployeeList({ token, company }) {
   const filteredPayrollRows = useMemo(() => {
     const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
     const q = searchQuery.trim().toLowerCase()
-    return payrollRows.filter((row) => {
+    let rows = payrollRows.filter((row) => {
       const joinKey = toDateInput(row.emp?.joiningDate)
       if (joinKey && joinKey > monthEnd) return false
       if (!q) return true
@@ -745,7 +858,15 @@ function EmployeeList({ token, company }) {
       const code = String(row.employeeCode || '').toLowerCase()
       return name.includes(q) || idNumber.includes(q) || phone.includes(q) || code.includes(q)
     })
-  }, [payrollRows, searchQuery, filterYear, filterMonth])
+    if (rebateSort === 'asc' || rebateSort === 'desc') {
+      rows = [...rows].sort((a, b) => {
+        const av = a.rebateCollected ? Number(a.rebateCollectedAmount) || 0 : -1
+        const bv = b.rebateCollected ? Number(b.rebateCollectedAmount) || 0 : -1
+        return rebateSort === 'asc' ? av - bv : bv - av
+      })
+    }
+    return rows
+  }, [payrollRows, searchQuery, filterYear, filterMonth, rebateSort])
 
   const payrollTotals = useMemo(
     () => sumPayrollTotals(filteredPayrollRows),
@@ -764,8 +885,13 @@ function EmployeeList({ token, company }) {
     { label: t('totalSocialTax'), value: payrollTotals.socialTax, money: true },
     { label: t('netPayable'), value: payrollTotals.netPayable, money: true },
     { label: t('rebate'), value: payrollTotals.rebate, money: true },
+    { label: t('totalRebatesCollected'), value: payrollTotals.rebateCollected, money: true },
     { label: t('netExpense'), value: payrollTotals.netExpense, money: true },
   ]
+
+  const cycleRebateSort = () => {
+    setRebateSort((prev) => (prev === null ? 'asc' : prev === 'asc' ? 'desc' : null))
+  }
 
   const handleDownloadPdf = async () => {
     if (!filteredPayrollRows.length || pdfBusy) return
@@ -790,6 +916,7 @@ function EmployeeList({ token, company }) {
           workedDays: t('workedDays'),
           salaryAgreed: t('salaryAgreed'),
           rebate: t('rebate'),
+          rebatesCollectedAmount: t('rebatesCollectedAmount'),
           collected: t('collected'),
           accumulatedMtd: t('accumulatedMtd'),
           personalTax: t('personalTax'),
@@ -799,6 +926,7 @@ function EmployeeList({ token, company }) {
           grossTotalSalary: t('grossTotalSalary'),
           totalPersonalTax: t('totalPersonalTax'),
           totalSocialTax: t('totalSocialTax'),
+          totalRebatesCollected: t('totalRebatesCollected'),
           netExpense: t('netExpense'),
           yes: t('yes'),
           no: t('no'),
@@ -986,9 +1114,19 @@ function EmployeeList({ token, company }) {
         </div>
       )}
 
-      {/* KPI cards — desktop 7-up */}
+      {!loading && payrollTotals.pendingRebateCount > 0 && (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-900"
+          style={{ padding: '0.875rem' }}
+        >
+          {interpolate(t('rebatesPendingHint'), { count: payrollTotals.pendingRebateCount })}
+        </div>
+      )}
+
+      {/* KPI cards */}
       {!loading && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
           {summaryCards.map((card, i) => (
             <KpiCard
               key={card.label}
@@ -1030,7 +1168,7 @@ function EmployeeList({ token, company }) {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1870px] table-fixed border-collapse">
+            <table className="w-full min-w-[2200px] table-fixed border-collapse">
               <colgroup>
                 <col style={{ width: 160 }} />
                 <col style={{ width: 130 }} />
@@ -1040,12 +1178,14 @@ function EmployeeList({ token, company }) {
                 <col style={{ width: 120 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 90 }} />
-                <col style={{ width: 110 }} />
-                <col style={{ width: 120 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 110 }} />
                 <col style={{ width: 120 }} />
-                <col style={{ width: 140 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 220 }} />
                 <col style={{ width: 100 }} />
               </colgroup>
               <thead>
@@ -1058,11 +1198,25 @@ function EmployeeList({ token, company }) {
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('salaryAgreed')}</th>
                   <th className={TH} style={CELL_PAD}>{t('lastIncrement')}</th>
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('rebate')}</th>
+                  <th className={TH_RIGHT} style={CELL_PAD}>
+                    <button
+                      type="button"
+                      onClick={cycleRebateSort}
+                      className="inline-flex items-center gap-1 font-semibold uppercase tracking-[0.06em] text-slate-600 hover:text-slate-900"
+                      title={t('sortByRebatesCollected')}
+                    >
+                      {t('rebatesCollectedAmount')}
+                      <span className="text-[10px] tabular-nums">
+                        {rebateSort === 'asc' ? '↑' : rebateSort === 'desc' ? '↓' : '↕'}
+                      </span>
+                    </button>
+                  </th>
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('workingDays')}</th>
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('accumulated')}</th>
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('personalTax')}</th>
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('socialTax')}</th>
                   <th className={TH_RIGHT} style={CELL_PAD}>{t('netPayable')}</th>
+                  <th className={`${TH} text-center`} style={CELL_PAD}>{t('rebateStatus')}</th>
                   <th className={`${TH} text-center`} style={CELL_PAD}>{t('rebateCollected')}</th>
                   <th className={`${TH} text-center`} style={CELL_PAD}>{t('actions')}</th>
                 </tr>
@@ -1072,6 +1226,7 @@ function EmployeeList({ token, company }) {
                   const emp = row.emp
                   const rebateEnabled = hasRebateAmount(emp)
                   const collected = row.rebateCollected
+                  const draft = getRebateDraft(emp)
                   return (
                     <tr
                       key={row.id}
@@ -1087,21 +1242,73 @@ function EmployeeList({ token, company }) {
                       <td className={TD_MONEY} style={CELL_PAD}>{formatMoney(emp.salaryAgreed)}</td>
                       <td className={TD} style={CELL_PAD}>{formatDateDisplay(emp.lastIncrement)}</td>
                       <td className={TD_RIGHT} style={CELL_PAD}>{formatMoney(emp.rebate)}</td>
+                      <td className={TD_MONEY} style={CELL_PAD}>
+                        {collected ? formatMoney(row.rebateCollectedAmount) : '—'}
+                      </td>
                       <td className={TD_RIGHT} style={CELL_PAD}>{row.workedDays}</td>
                       <td className={`${TD_MONEY} font-semibold text-slate-900`} style={CELL_PAD}>{formatMoney(row.accumulated)}</td>
                       <td className={TD_RIGHT} style={CELL_PAD}>{formatMoney(row.personalTax)}</td>
                       <td className={TD_RIGHT} style={CELL_PAD}>{formatMoney(row.socialTax)}</td>
                       <td className={`${TD_MONEY} font-semibold text-slate-900`} style={CELL_PAD}>{formatMoney(row.netPayable)}</td>
                       <td className="align-middle text-center" style={CELL_PAD}>
-                        <input
-                          type="checkbox"
-                          checked={collected}
-                          disabled={!rebateEnabled || rebateBusyId === emp._id}
-                          onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
-                          title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
-                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                          aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
-                        />
+                        <span
+                          className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                          style={{
+                            background: collected
+                              ? 'color-mix(in srgb, #16A34A 14%, white)'
+                              : 'color-mix(in srgb, #D97706 14%, white)',
+                            color: collected ? '#15803D' : '#B45309',
+                          }}
+                        >
+                          {collected ? t('rebateStatusCollected') : t('rebateStatusPending')}
+                        </span>
+                      </td>
+                      <td className="align-middle" style={CELL_PAD}>
+                        <div className="flex flex-col items-stretch gap-1.5">
+                          <label className="flex items-center justify-center gap-2 text-xs text-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={collected}
+                              disabled={!rebateEnabled || rebateBusyId === emp._id}
+                              onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
+                              title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
+                              className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                              aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
+                            />
+                            {t('rebateCollected')}
+                          </label>
+                          {rebateEnabled && (
+                            <div className="flex flex-wrap items-center justify-center gap-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={draft.amount}
+                                disabled={rebateBusyId === emp._id}
+                                onChange={(e) => setRebateDraftField(emp, 'amount', e.target.value)}
+                                placeholder={t('rebateCollectedAmountPlaceholder')}
+                                className="h-8 w-[88px] rounded-lg border border-slate-200 bg-white px-2 text-xs tabular-nums text-slate-800 outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20 disabled:opacity-50"
+                                aria-label={interpolate(t('rebateAmountCollectedFor'), { name: emp.name })}
+                              />
+                              <input
+                                type="date"
+                                value={draft.collectedAt || ''}
+                                disabled={rebateBusyId === emp._id}
+                                onChange={(e) => setRebateDraftField(emp, 'collectedAt', e.target.value)}
+                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-800 outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20 disabled:opacity-50"
+                                aria-label={interpolate(t('rebateCollectedDateFor'), { name: emp.name })}
+                              />
+                              <button
+                                type="button"
+                                disabled={rebateBusyId === emp._id}
+                                onClick={() => handleSaveRebateDetails(emp)}
+                                className="h-8 rounded-full border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {t('save')}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="align-middle" style={CELL_PAD}>
                         <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">

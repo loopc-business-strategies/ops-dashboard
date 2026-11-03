@@ -26,6 +26,11 @@ function formatCollected(row, yesLabel = 'Yes', noLabel = 'No') {
   return row.rebateCollected ? yesLabel : noLabel
 }
 
+function formatCollectedAmount(row) {
+  if (!row.rebateCollected) return '—'
+  return formatPdfMoney(row.rebateCollectedAmount)
+}
+
 /**
  * Download current-month payroll PDF (employee rows + grand totals).
  * @param {{ rows: Array, totals: object, year: number, month: number, companyName?: string, langCode?: string, labels?: object }} opts
@@ -54,6 +59,7 @@ export async function downloadPayrollPdf({
     workedDays: labels.workedDays || 'Worked days',
     salaryAgreed: labels.salaryAgreed || 'Salary agreed',
     rebate: labels.rebate || 'Rebate',
+    rebatesCollectedAmount: labels.rebatesCollectedAmount || 'Rebates collected',
     collected: labels.collected || 'Collected',
     accumulatedMtd: labels.accumulatedMtd || 'Accumulated (MTD)',
     personalTax: labels.personalTax || 'Personal tax',
@@ -63,6 +69,7 @@ export async function downloadPayrollPdf({
     grossTotalSalary: labels.grossTotalSalary || 'Gross total salary',
     totalPersonalTax: labels.totalPersonalTax || 'Total personal tax',
     totalSocialTax: labels.totalSocialTax || 'Total social tax',
+    totalRebatesCollected: labels.totalRebatesCollected || 'Total rebates collected',
     netExpense: labels.netExpense || 'Net expense',
     yes: labels.yes || 'Yes',
     no: labels.no || 'No',
@@ -91,6 +98,7 @@ export async function downloadPayrollPdf({
     String(row.workedDays ?? 0),
     formatPdfMoney(row.salaryAgreed),
     formatPdfMoney(row.rebate),
+    formatCollectedAmount(row),
     formatCollected(row, L.yes, L.no),
     formatPdfMoney(row.accumulated),
     formatPdfMoney(row.personalTax),
@@ -107,6 +115,7 @@ export async function downloadPayrollPdf({
       L.workedDays,
       L.salaryAgreed,
       L.rebate,
+      L.rebatesCollectedAmount,
       L.collected,
       L.accumulatedMtd,
       L.personalTax,
@@ -121,11 +130,12 @@ export async function downloadPayrollPdf({
       3: { halign: 'right' },
       4: { halign: 'right' },
       5: { halign: 'right' },
-      6: { halign: 'center' },
-      7: { halign: 'right' },
+      6: { halign: 'right' },
+      7: { halign: 'center' },
       8: { halign: 'right' },
       9: { halign: 'right' },
       10: { halign: 'right' },
+      11: { halign: 'right' },
     },
   })
 
@@ -142,7 +152,8 @@ export async function downloadPayrollPdf({
     `3. ${L.totalSocialTax}: ${formatPdfMoney(totals.socialTax)}`,
     `4. ${L.netPayable}: ${formatPdfMoney(totals.netPayable)}`,
     `5. ${L.rebate}: ${formatPdfMoney(totals.rebate)}`,
-    `6. ${L.netExpense}: ${formatPdfMoney(totals.netExpense)}`,
+    `6. ${L.totalRebatesCollected}: ${formatPdfMoney(totals.rebateCollected)}`,
+    `7. ${L.netExpense}: ${formatPdfMoney(totals.netExpense)}`,
   ]
   summaryLines.forEach((line, i) => {
     pdf.text(line, 40, endY + 16 + i * 14)
