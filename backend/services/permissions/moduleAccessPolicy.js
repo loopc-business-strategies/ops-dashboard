@@ -60,7 +60,9 @@ function canManageEmployees(user) {
 
 function buildEmployeeReadFilter(user) {
   if (!user) return null
-  if (isSuperAdmin(user) || isManagement(user)) return {}
+  // Super/management and HR managers (HR head / explicit HR write) see company-wide roster + salaries.
+  // Attendance mark still requires isHrHead (department_head + department=hr) via canManageAttendance.
+  if (isSuperAdmin(user) || isManagement(user) || canManageEmployees(user)) return {}
   if (!resolveModuleAccess(user, 'hr', () => Boolean(userDept(user)))) return null
   const dept = userDept(user)
   if (!dept) return null
