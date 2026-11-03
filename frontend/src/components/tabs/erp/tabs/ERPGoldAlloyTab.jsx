@@ -20,6 +20,7 @@ import {
   createBlankAlloyMixLines,
   findFinishedAlloyProductHint,
   listAvailableAlloyLineTemplates,
+  listFinishedAlloyOptionsForKarat,
   normalizeAlloyPurity,
   patchInventoryCategoryPurity,
   removeAlloyExtraLine,
@@ -155,11 +156,20 @@ export default function ERPGoldAlloyTab({
   )
 
   const finishedOptions = useMemo(
-    () => stockOptions.filter((row) => (
-      row.kind === 'product' && /alloy|alloyed/i.test(`${row.name} ${row.mainStock}`)
-    )),
-    [stockOptions],
+    () => listFinishedAlloyOptionsForKarat(karat, stockOptions),
+    [karat, stockOptions],
   )
+
+  // Keep selected finished product aligned with karat (14K → 14K alloy inventory, etc.).
+  useEffect(() => {
+    if (!karat) return
+    const hint = findFinishedAlloyProductHint(karat, stockOptions)
+    if (!hint.id) return
+    const stillValid = finishedOptions.some((row) => String(row.id) === String(finishedProductId))
+    if (!finishedProductId || !stillValid) {
+      setFinishedProductId(hint.id)
+    }
+  }, [karat, stockOptions, finishedOptions, finishedProductId])
 
   const finishedHint = useMemo(
     () => (karat ? findFinishedAlloyProductHint(karat, stockOptions) : {
@@ -1441,7 +1451,7 @@ export default function ERPGoldAlloyTab({
                 ) : null}
               </div>
               <div>
-                <label style={labelStyle} htmlFor="gold-alloy-finished">Finished product</label>
+                <label style={labelStyle} htmlFor="gold-alloy-finished">Finished product (inventory IN)</label>
                 <select
                   id="gold-alloy-finished"
                   aria-label="Finished alloy product"
@@ -1451,9 +1461,19 @@ export default function ERPGoldAlloyTab({
                 >
                   <option value="">Select finished product</option>
                   {finishedOptions.map((option) => (
-                    <option key={option.id} value={option.id}>{option.label}</option>
+                    <option key={option.id} value={option.id}>
+                      {option.label || option.name}
+                      {option.quantity != null
+                        ? ` · on hand ${Number(option.quantity).toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
+                        : ''}
+                    </option>
                   ))}
                 </select>
+                <div style={{ marginTop: 4, fontSize: '0.7rem', color: '#64748B', lineHeight: 1.35 }}>
+                  {karat
+                    ? `Post / Update adds finished weight to this ${karat}K product only. Metals go OUT.`
+                    : 'Select karat first — finished product locks to that karat’s inventory SKU.'}
+                </div>
               </div>
             </div>
 
