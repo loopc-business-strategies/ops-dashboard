@@ -101,7 +101,13 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
     expect(statsRes.status).toBe(200)
     expect(statsRes.body.success).toBe(true)
     expect(statsRes.body.calendarDays).toBe(31)
-    expect(statsRes.body.to).toBe('2026-10-30')
+    // MTD clip: same local dayKey rules as routes/attendance.js
+    const monthEndFull = '2026-10-31'
+    const now = new Date()
+    const todayKey = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, '0')}-${`${now.getDate()}`.padStart(2, '0')}`
+    const expectedTo =
+      todayKey < '2026-10-01' ? '2026-10-01' : todayKey > monthEndFull ? monthEndFull : todayKey
+    expect(statsRes.body.to).toBe(expectedTo)
 
     const row = (statsRes.body.stats || []).find(
       (s) => String(s.employeeId) === String(emp._id) || String(s.employeeName).toLowerCase() === 'salary test emp',
