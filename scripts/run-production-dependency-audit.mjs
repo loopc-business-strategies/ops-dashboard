@@ -19,10 +19,13 @@ const workspaces = [
  * GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: image-size ICNS/JXL/HEIF DoS — latest npm is 2.0.2
  * (still flagged). Allowlist until a patched release > 2.0.2 is published.
  * GHSA-86w9-cpqp-85rv: node-forge RSA signature verification — mobile only, via expo-updates cli/
- * code signing and @expo/cli (build tooling, not in the app bundle). Latest npm is 1.4.0 (still
- * flagged). Allowlist until a patched release > 1.4.0 is published.
+ * code signing and @expo/cli (build tooling, not in the app bundle). Patched line forced via
+ * overrides to node-forge ^1.4.2 when available; keep allowlist for residual forge advisories
+ * still reported against Expo tooling until Expo bumps its transitive range.
  * GHSA-vfj7-8cjw-p6xm: braces nested-pattern DoS — mobile only, via @expo/cli → metro-file-map →
  * micromatch (bundler tooling). Latest npm is 3.0.3 (still flagged). Allowlist until > 3.0.3.
+ * GHSA-mrhx-c7xc-m3w5: zod memory exhaustion — mobile only, via @expo/cli (zod@3). Expo SDK 56
+ * has not published a zod@4 consumer; allowlist until Expo upgrades (major zod bump is unsafe).
  */
 const ALLOWLISTED_ADVISORY_IDS = new Set([
   'GHSA-qwww-vcr4-c8h2',
@@ -30,6 +33,7 @@ const ALLOWLISTED_ADVISORY_IDS = new Set([
   'GHSA-5p2g-fcmc-qvqq',
   'GHSA-86w9-cpqp-85rv',
   'GHSA-vfj7-8cjw-p6xm',
+  'GHSA-mrhx-c7xc-m3w5',
 ])
 
 function extractAdvisoryId(entry) {
