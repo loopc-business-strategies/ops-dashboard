@@ -150,6 +150,7 @@ export default function AttendanceLogPanel({ token }) {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [bulkStatus, setBulkStatus] = useState('present')
   const [bulkCheckIn, setBulkCheckIn] = useState('09:00')
+  const [bulkCheckOut, setBulkCheckOut] = useState('18:00')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -231,7 +232,7 @@ export default function AttendanceLogPanel({ token }) {
     })
   }
 
-  const applyBulkToIds = (ids, { status, checkIn }) => {
+  const applyBulkToIds = (ids, { status, checkIn, checkOut }) => {
     if (!ids.length) return
     setRows((prev) => {
       const next = { ...prev }
@@ -240,6 +241,7 @@ export default function AttendanceLogPanel({ token }) {
           ...(next[id] || { status: 'absent', checkIn: '', checkOut: '' }),
           status,
           checkIn: checkIn || '',
+          checkOut: checkOut || '',
         }
       }
       return next
@@ -300,7 +302,7 @@ export default function AttendanceLogPanel({ token }) {
       return
     }
     setError('')
-    applyBulkToIds(ids, { status: bulkStatus, checkIn: bulkCheckIn })
+    applyBulkToIds(ids, { status: bulkStatus, checkIn: bulkCheckIn, checkOut: bulkCheckOut })
     setMessage(interpolate(t('appliedBulkToSelected'), { count: ids.length }))
   }
 
@@ -313,6 +315,7 @@ export default function AttendanceLogPanel({ token }) {
         ...(nextRows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }),
         status: bulkStatus,
         checkIn: bulkCheckIn || '',
+        checkOut: bulkCheckOut || '',
       }
     }
     setRows(nextRows)
@@ -328,6 +331,7 @@ export default function AttendanceLogPanel({ token }) {
         ...(nextRows[id] || { status: 'absent', checkIn: '', checkOut: '' }),
         status: 'present',
         checkIn: bulkCheckIn || '09:00',
+        checkOut: bulkCheckOut || '18:00',
       }
     }
     setBulkStatus('present')
@@ -450,6 +454,18 @@ export default function AttendanceLogPanel({ token }) {
               type="time"
               value={bulkCheckIn}
               onChange={(e) => setBulkCheckIn(e.target.value)}
+              disabled={busy}
+              className="border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+              style={PILL_CONTROL}
+            />
+          </label>
+
+          <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
+            {t('checkOut')}
+            <input
+              type="time"
+              value={bulkCheckOut}
+              onChange={(e) => setBulkCheckOut(e.target.value)}
               disabled={busy}
               className="border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
               style={PILL_CONTROL}
