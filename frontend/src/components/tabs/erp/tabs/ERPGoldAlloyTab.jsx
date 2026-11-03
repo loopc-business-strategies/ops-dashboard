@@ -789,6 +789,8 @@ export default function ERPGoldAlloyTab({
         const reversed = await reversePostedMix(editingPosted, { skipConfirm: true })
         if (!reversed) return
       }
+      // Edit = reverse + replace as a normal posted mix (never tag as "updated").
+      // Update dialog alone uses status "updated" for metal-loss versions.
       const payload = buildAlloyMixPayload({
         karat,
         targetGross,
@@ -799,7 +801,7 @@ export default function ERPGoldAlloyTab({
             description: buildAlloyMixReasonBase({
               karat,
               targetGross,
-              status: editingPosted.isHistory ? 'posted' : 'updated',
+              status: 'posted',
             }),
           }
           : {}),
@@ -1325,9 +1327,19 @@ export default function ERPGoldAlloyTab({
                     : 'New mix'}
                 </h3>
                 <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: '#475569', lineHeight: 1.45 }}>
-                  Choose karat → ratios fill in. Enter <strong>gold input</strong> → mix
-                  <strong> Calc gross</strong> / post target (e.g. 75 @ 18K → 100). Other stocks
-                  <strong> gross</strong> / <strong>purity</strong> stay manual.
+                  {editingPosted ? (
+                    <>
+                      <strong>Edit</strong> opens the full mix form — change karat, stocks, or weights, then
+                      <strong> Post edited mix</strong> to reverse and replace this row as a normal <strong>Posted</strong> mix.
+                      For finished-weight / metal-loss only, close and use <strong>Update</strong>.
+                    </>
+                  ) : (
+                    <>
+                      Choose karat → ratios fill in. Enter <strong>gold input</strong> → mix
+                      <strong> Calc gross</strong> / post target (e.g. 75 @ 18K → 100). Other stocks
+                      <strong> gross</strong> / <strong>purity</strong> stay manual.
+                    </>
+                  )}
                 </p>
               </div>
               <button type="button" onClick={closeNewMixDialog} disabled={posting} style={secondaryBtnStyle}>
@@ -1471,7 +1483,7 @@ export default function ERPGoldAlloyTab({
                 </select>
                 <div style={{ marginTop: 4, fontSize: '0.7rem', color: '#64748B', lineHeight: 1.35 }}>
                   {karat
-                    ? `Post / Update adds finished weight to this ${karat}K product only. Metals go OUT.`
+                    ? `Post / Edit adds finished weight to this ${karat}K product only. Metals go OUT.`
                     : 'Select karat first — finished product locks to that karat’s inventory SKU.'}
                 </div>
               </div>
@@ -1794,7 +1806,10 @@ export default function ERPGoldAlloyTab({
           >
             <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#111827' }}>Update posted mix</h3>
             <p style={{ margin: '0.45rem 0 0.75rem', fontSize: '0.84rem', color: '#475569', lineHeight: 1.5 }}>
-              <strong>Metals must equal finished</strong> (inventory). For metal loss, lower <strong>Allowed wt</strong>
+              <strong>Update</strong> adjusts finished weight / metal loss and posts a new <strong>Updated</strong> version
+              (keeps the original as linked history). Not the same as <strong>Edit</strong> (full mix form).
+              {' '}
+              <strong>Metals must equal finished</strong>. For metal loss, lower <strong>Allowed wt</strong>
               — metals rebalance; loss = new − original. <strong>Purity</strong> = mix share on gold / silver / copper only.
             </p>
 
@@ -2215,7 +2230,7 @@ export default function ERPGoldAlloyTab({
                       ) : null}
                       {isHistory ? (
                         <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: 2, fontWeight: 600 }}>
-                          Replaced by later update — read only
+                          Replaced by a later Edit or Update — read only
                         </div>
                       ) : null}
                     </div>
