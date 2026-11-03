@@ -128,6 +128,8 @@ describe('Dashboard navigation behavior', () => {
       canViewModule: () => true,
       canViewERP: true,
       isReadOnly: false,
+      isSuperAdmin: true,
+      isManagement: false,
     })
 
     useLanguageMock.mockReturnValue({

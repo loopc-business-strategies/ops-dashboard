@@ -45,6 +45,9 @@ const ALLOWLIST = Object.freeze({
   // Nan super-admin upsert; intentional production use with I_UNDERSTAND + --apply (staging via --staging).
   'backend/scripts/upsert-nan-super-admin.js':
     'Upsert Nan super_admin; gated by I_UNDERSTAND=UPSERT-NAN-SUPER-ADMIN + --apply.',
+  // MG HR portal user upsert; intentional production use with I_UNDERSTAND + --apply (staging via --staging).
+  'backend/scripts/upsert-mg-hr-user.js':
+    'Upsert MG HR portal user; gated by I_UNDERSTAND=UPSERT-MG-HR-USER + --apply.',
   // VB ops wipe; intentional production VB use with I_UNDERSTAND + --apply (staging via --staging).
   'backend/scripts/wipe-vb-ops-data.js':
     'VB ops hard-wipe (tx/ledgers/movements); gated by I_UNDERSTAND=WIPE-VB-OPS-DATA + --apply.',
