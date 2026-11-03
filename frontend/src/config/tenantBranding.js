@@ -361,7 +361,7 @@ const tenantBranding = {
       brandButtonHover: '#7C2D12',
     }),
     enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production-new', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
-    enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'activity-log', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
+    enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'activity-log', 'vendors', 'inventory', 'gold-alloy', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,
       erpAdvancedListFilters: true,

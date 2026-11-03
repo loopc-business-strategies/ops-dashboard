@@ -82,6 +82,7 @@ const ERP_PERMISSION_ROWS = [
   { id: 'activity-log', label: 'Activity Log', icon: '📜' },
   { id: 'vendors', label: 'Vendors', icon: '🏢' },
   { id: 'inventory', label: 'Inventory', icon: '📦' },
+  { id: 'gold-alloy', label: 'Gold Alloy', icon: '🥇' },
   { id: 'vouchers', label: 'Vouchers', icon: '🧾' },
   { id: 'direct-deals', label: 'Fixing Deals', icon: '🤝' },
   { id: 'fixing-register', label: 'Net Position', icon: '📌' },

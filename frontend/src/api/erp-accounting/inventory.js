@@ -8,7 +8,11 @@ const updateInventoryProduct = async (token, id, payload) => (await axios.put(`$
 const deleteInventoryProduct = async (token, id) => (await axios.delete(`${BASE}/inventory/products/${id}`, getAuthConfig(token))).data
 const stockInInventory = async (token, payload) => (await axios.post(`${BASE}/inventory/stock-in`, payload, getAuthConfig(token))).data
 const stockOutInventory = async (token, payload) => (await axios.post(`${BASE}/inventory/stock-out`, payload, getAuthConfig(token))).data
-const getStockLedger = async (token) => (await axios.get(`${BASE}/inventory/stock-ledger`, getAuthConfig(token))).data
+const postAlloyMix = async (token, payload) => (await axios.post(`${BASE}/inventory/alloy-mix`, payload, getAuthConfig(token))).data
+const reverseAlloyMix = async (token, payload) => (await axios.post(`${BASE}/inventory/alloy-mix/reverse`, payload, getAuthConfig(token))).data
+const getStockLedger = async (token, params = {}) => (
+  await axios.get(`${BASE}/inventory/stock-ledger`, getAuthConfig(token, params))
+).data
 
 export const inventoryApi = {
   getInventoryProducts,
@@ -17,5 +21,7 @@ export const inventoryApi = {
   deleteInventoryProduct,
   stockInInventory,
   stockOutInventory,
+  postAlloyMix,
+  reverseAlloyMix,
   getStockLedger,
 }
