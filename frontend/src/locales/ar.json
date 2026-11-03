@@ -874,5 +874,14 @@
   "workedDays": "Worked days",
   "collected": "Collected",
   "accumulatedMtd": "Accumulated (MTD)",
-  "grandTotals": "Grand totals"
+  "grandTotals": "Grand totals",
+  "selectAllEmployees": "Select all employees",
+  "attendanceStatus": "Attendance status",
+  "markAllAsPresent": "Mark all as Present",
+  "saveSelected": "Save selected",
+  "applyToSelected": "Apply to selected",
+  "selectEmployeesFirst": "Select at least one employee.",
+  "savedAttendanceBulk": "Saved {saved} of {total} attendance records.",
+  "failedBulkAttendance": "Some attendance records failed to save.",
+  "appliedBulkToSelected": "Applied status and check-in to {count} employees."
 }

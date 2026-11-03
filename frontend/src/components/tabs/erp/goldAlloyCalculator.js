@@ -386,6 +386,26 @@ export function findFinishedAlloyProductHint(karat, stockOptions = []) {
   }
 }
 
+/** Alloy finished-product dropdown options, optionally locked to the selected karat. */
+export function listFinishedAlloyOptionsForKarat(karat, stockOptions = []) {
+  const list = catalogProductOptions(stockOptions).filter((row) => (
+    /alloy|alloyed/i.test(`${row.name} ${row.mainStock}`)
+  ))
+  const karatNum = Number(karat)
+  if (!(karatNum > 0)) return list
+  const recipe = resolveKaratRecipe(karatNum)
+  const targetPurity = recipe ? normalizeAlloyPurity(recipe.goldRatio) : 0
+  const karatRe = new RegExp(`${karatNum}\\s*k`, 'i')
+  const matched = list.filter((row) => {
+    const text = `${row.name} ${row.mainStock}`
+    if (karatRe.test(text)) return true
+    if (!(targetPurity > 0)) return false
+    return Math.abs(optionPurityScore(row) - targetPurity) <= 0.01
+  })
+  // Prefer karat-matched products so Post/Update always hit the right inventory SKU.
+  return matched.length ? matched : list
+}
+
 export function isAlloyExtraLineActive(line = {}) {
   return Boolean(String(line.stockId || '').trim())
     || Math.abs(Number(line.gross || 0)) > GROSS_EPS

@@ -11,6 +11,7 @@ import {
   createBlankAlloyMixLines,
   findFinishedAlloyProductHint,
   listAvailableAlloyLineTemplates,
+  listFinishedAlloyOptionsForKarat,
   normalizeAlloyPurity,
   pickPreferredFineGoldStock,
   removeAlloyExtraLine,
@@ -115,6 +116,19 @@ describe('goldAlloyCalculator', () => {
     expect(pickPreferredFineGoldStock(options)?.id).toBe('b')
     expect(findFinishedAlloyProductHint(22, options).id).toBe('c')
     expect(findFinishedAlloyProductHint(22, options).message).toMatch(/22k Alloyed Gold/)
+  })
+
+  test('finished options lock to selected karat inventory product', () => {
+    const options = [
+      { id: '14', name: '14K alloy', mainStock: 'alloy', purity: '0.5833', kind: 'product', quantity: 1000 },
+      { id: '18', name: '18K Alloyed Gold', mainStock: 'alloy', purity: '0.75', kind: 'product', quantity: 50 },
+      { id: '22', name: '22K Alloyed Gold', mainStock: 'alloy', purity: '0.916', kind: 'product', quantity: 0 },
+      { id: 'au', name: 'Gold 24K Bar', mainStock: 'gold', purity: '1', kind: 'product', quantity: 500 },
+    ]
+    expect(listFinishedAlloyOptionsForKarat(14, options).map((r) => r.id)).toEqual(['14'])
+    expect(listFinishedAlloyOptionsForKarat(18, options).map((r) => r.id)).toEqual(['18'])
+    expect(findFinishedAlloyProductHint(14, options).id).toBe('14')
+    expect(findFinishedAlloyProductHint(14, options).name).toMatch(/14K alloy/i)
   })
 
   test('blank mix starts empty; user picks which row to add', () => {
