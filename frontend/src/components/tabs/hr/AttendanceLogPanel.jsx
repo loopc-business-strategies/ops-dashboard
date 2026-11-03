@@ -146,6 +146,10 @@ export default function AttendanceLogPanel({ token }) {
   const [rows, setRows] = useState({})
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState(null)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [bulkStatus, setBulkStatus] = useState('present')
+  const [bulkCheckIn, setBulkCheckIn] = useState('09:00')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -156,10 +160,14 @@ export default function AttendanceLogPanel({ token }) {
     { value: 'late', label: t('late') },
   ], [t])
 
+  const allSelected = employees.length > 0 && selectedIds.size === employees.length
+  const someSelected = selectedIds.size > 0 && !allSelected
+
   const load = useCallback(async (isMounted = () => true) => {
     setLoading(true)
     setError('')
     setMessage('')
+    setSelectedIds(new Set())
     try {
       const [empRes, recRes] = await Promise.all([
         hrAPI.getEmployees(token),
@@ -206,27 +214,125 @@ export default function AttendanceLogPanel({ token }) {
     }))
   }
 
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+      return
+    }
+    setSelectedIds(new Set(employees.map((e) => e._id)))
+  }
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const applyBulkToIds = (ids, { status, checkIn }) => {
+    if (!ids.length) return
+    setRows((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        next[id] = {
+          ...(next[id] || { status: 'absent', checkIn: '', checkOut: '' }),
+          status,
+          checkIn: checkIn || '',
+        }
+      }
+      return next
+    })
+  }
+
+  const markOne = async (emp, rowOverride) => {
+    const row = rowOverride || rows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }
+    await attendanceAPI.markRecord(token, {
+      employeeId: emp._id,
+      employeeName: emp.name,
+      department: deptForMark(emp),
+      date,
+      status: row.status,
+      checkIn: row.checkIn || '',
+      checkOut: row.checkOut || '',
+    })
+  }
+
   const handleSave = async (emp) => {
-    const row = rows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }
     setSavingId(emp._id)
     setError('')
     setMessage('')
     try {
-      await attendanceAPI.markRecord(token, {
-        employeeId: emp._id,
-        employeeName: emp.name,
-        department: deptForMark(emp),
-        date,
-        status: row.status,
-        checkIn: row.checkIn || '',
-        checkOut: row.checkOut || '',
-      })
+      await markOne(emp)
       setMessage(interpolate(t('savedAttendanceFor'), { name: emp.name }))
     } catch (err) {
       setError(err.response?.data?.message || interpolate(t('failedSaveNamed'), { name: emp.name }))
     } finally {
       setSavingId(null)
     }
+  }
+
+  const saveEmployees = async (list, rowMap) => {
+    if (!list.length) {
+      setError(t('selectEmployeesFirst'))
+      return
+    }
+    setBulkSaving(true)
+    setError('')
+    setMessage('')
+    const results = await Promise.allSettled(
+      list.map((emp) => markOne(emp, rowMap?.[emp._id])),
+    )
+    const saved = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.find((r) => r.status === 'rejected')
+    setMessage(interpolate(t('savedAttendanceBulk'), { saved, total: list.length }))
+    if (failed) {
+      setError(failed.reason?.response?.data?.message || t('failedBulkAttendance'))
+    }
+    setBulkSaving(false)
+  }
+
+  const handleApplyToSelected = () => {
+    const ids = [...selectedIds]
+    if (!ids.length) {
+      setError(t('selectEmployeesFirst'))
+      return
+    }
+    setError('')
+    applyBulkToIds(ids, { status: bulkStatus, checkIn: bulkCheckIn })
+    setMessage(interpolate(t('appliedBulkToSelected'), { count: ids.length }))
+  }
+
+  const handleSaveSelected = async () => {
+    const list = employees.filter((e) => selectedIds.has(e._id))
+    // Apply toolbar values to selected first so save uses them
+    const nextRows = { ...rows }
+    for (const emp of list) {
+      nextRows[emp._id] = {
+        ...(nextRows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }),
+        status: bulkStatus,
+        checkIn: bulkCheckIn || '',
+      }
+    }
+    setRows(nextRows)
+    await saveEmployees(list, nextRows)
+  }
+
+  const handleMarkAllPresent = async () => {
+    const ids = employees.map((e) => e._id)
+    setSelectedIds(new Set(ids))
+    const nextRows = { ...rows }
+    for (const id of ids) {
+      nextRows[id] = {
+        ...(nextRows[id] || { status: 'absent', checkIn: '', checkOut: '' }),
+        status: 'present',
+        checkIn: bulkCheckIn || '09:00',
+      }
+    }
+    setBulkStatus('present')
+    setRows(nextRows)
+    await saveEmployees(employees, nextRows)
   }
 
   const counts = useMemo(() => {
@@ -246,6 +352,8 @@ export default function AttendanceLogPanel({ token }) {
     { label: t('onLeave'), value: counts.leave, icon: IconLeave },
     { label: t('late'), value: counts.late, icon: IconClock },
   ]), [t, employees.length, counts])
+
+  const busy = bulkSaving || savingId !== null
 
   return (
     <div className="flex flex-col gap-5" style={{ paddingTop: '0.5rem' }}>
@@ -300,6 +408,101 @@ export default function AttendanceLogPanel({ token }) {
         </div>
       )}
 
+      {/* Bulk attendance toolbar */}
+      {!loading && employees.length > 0 && (
+        <div
+          className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white shadow-sm lg:flex-row lg:flex-wrap lg:items-center"
+          style={{ padding: '0.875rem 1rem' }}
+        >
+          <label className="flex shrink-0 items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(el) => { if (el) el.indeterminate = someSelected }}
+              onChange={toggleSelectAll}
+              disabled={busy}
+              className="h-4 w-4 rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)]"
+            />
+            {t('selectAllEmployees')}
+          </label>
+
+          <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
+            {t('attendanceStatus')}
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value)}
+              disabled={busy}
+              className="border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+              style={{
+                ...PILL_SELECT,
+                borderColor: `color-mix(in srgb, ${STATUS_DOT[bulkStatus] || '#64748B'} 45%, white)`,
+              }}
+            >
+              {statuses.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
+            {t('checkIn')}
+            <input
+              type="time"
+              value={bulkCheckIn}
+              onChange={(e) => setBulkCheckIn(e.target.value)}
+              disabled={busy}
+              className="border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+              style={PILL_CONTROL}
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleApplyToSelected}
+              className="inline-flex h-9 items-center text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                padding: '0 0.875rem',
+                borderRadius: '9999px',
+              }}
+            >
+              {t('applyToSelected')}
+            </button>
+            <button
+              type="button"
+              disabled={busy || selectedIds.size === 0}
+              onClick={handleSaveSelected}
+              className="inline-flex h-9 items-center text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                background: 'var(--brand-primary, #F4510B)',
+                color: 'var(--brand-on-primary, #ffffff)',
+                padding: '0 0.875rem',
+                borderRadius: '9999px',
+              }}
+            >
+              {bulkSaving ? t('saving') : t('saveSelected')}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleMarkAllPresent}
+              className="inline-flex h-9 items-center text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                background: 'var(--brand-primary, #F4510B)',
+                color: 'var(--brand-on-primary, #ffffff)',
+                padding: '0 0.875rem',
+                borderRadius: '9999px',
+              }}
+            >
+              {bulkSaving ? t('saving') : t('markAllAsPresent')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-24 shadow-sm">
           <div
@@ -315,9 +518,20 @@ export default function AttendanceLogPanel({ token }) {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
+            <table className="w-full min-w-[760px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="sticky top-0 z-[1] w-10 bg-slate-50" style={CELL_PAD}>
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(el) => { if (el) el.indeterminate = someSelected }}
+                      onChange={toggleSelectAll}
+                      disabled={busy}
+                      aria-label={t('selectAllEmployees')}
+                      className="h-4 w-4 rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)]"
+                    />
+                  </th>
                   <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('name')}</th>
                   <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('department')}</th>
                   <th className="sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600" style={CELL_PAD}>{t('status')}</th>
@@ -330,11 +544,22 @@ export default function AttendanceLogPanel({ token }) {
                 {employees.map((emp) => {
                   const row = rows[emp._id] || { status: 'absent', checkIn: '', checkOut: '' }
                   const statusColor = STATUS_DOT[row.status] || '#64748B'
+                  const checked = selectedIds.has(emp._id)
                   return (
                     <tr
                       key={emp._id}
                       className="border-b border-slate-100 bg-white transition-colors last:border-b-0 hover:bg-orange-50/40"
                     >
+                      <td className="align-middle" style={CELL_PAD}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSelectOne(emp._id)}
+                          disabled={busy}
+                          aria-label={emp.name}
+                          className="h-4 w-4 rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)]"
+                        />
+                      </td>
                       <td className="whitespace-nowrap align-middle text-sm font-semibold text-slate-900" style={CELL_PAD}>
                         {emp.name}
                       </td>
@@ -351,6 +576,7 @@ export default function AttendanceLogPanel({ token }) {
                           <select
                             value={row.status}
                             onChange={(e) => setRowField(emp._id, 'status', e.target.value)}
+                            disabled={busy}
                             className="border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                             style={{
                               ...PILL_SELECT,
@@ -368,6 +594,7 @@ export default function AttendanceLogPanel({ token }) {
                           type="time"
                           value={row.checkIn || ''}
                           onChange={(e) => setRowField(emp._id, 'checkIn', e.target.value)}
+                          disabled={busy}
                           className="border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                           style={PILL_CONTROL}
                         />
@@ -377,6 +604,7 @@ export default function AttendanceLogPanel({ token }) {
                           type="time"
                           value={row.checkOut || ''}
                           onChange={(e) => setRowField(emp._id, 'checkOut', e.target.value)}
+                          disabled={busy}
                           className="border bg-white text-sm text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                           style={PILL_CONTROL}
                         />
@@ -384,7 +612,7 @@ export default function AttendanceLogPanel({ token }) {
                       <td className="whitespace-nowrap align-middle" style={CELL_PAD}>
                         <button
                           type="button"
-                          disabled={savingId === emp._id}
+                          disabled={busy || savingId === emp._id}
                           onClick={() => handleSave(emp)}
                           className="inline-flex h-9 items-center text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
                           style={{
