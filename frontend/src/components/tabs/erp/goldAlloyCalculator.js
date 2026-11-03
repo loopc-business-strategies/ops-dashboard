@@ -517,7 +517,7 @@ export function alloyMixStatusFromReason(reason = '') {
   return /\bupdated\b/i.test(String(reason || '')) ? 'updated' : 'posted'
 }
 
-/** Reason base for a new post (`posted`) or replace via Update/Edit (`updated`). */
+/** Reason base for a new/Edit post (`posted`) or metal-loss Update (`updated`). */
 export function buildAlloyMixReasonBase({
   karat,
   targetGross,
