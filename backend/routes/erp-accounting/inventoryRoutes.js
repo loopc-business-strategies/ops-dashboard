@@ -5,8 +5,11 @@ const { sanitizeInventoryCategoryPurity } = require('../../utils/catalogProductP
 const {
   applyCatalogOnHandQuantities,
   catalogOnHandFromMovements,
+  catalogQuantityFromMovements,
   isCatalogInventoryProduct,
+  rebuildStockMovementQuantityChain,
 } = require('../../utils/catalogOnHandQuantity')
+const { createAlloyMixService } = require('../../services/erpAccounting/alloyMixService')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -38,6 +41,21 @@ const stockOutSchema = Joi.object({
   quantity: Joi.number().positive().required(),
   currency: Joi.string().trim().allow('').max(10).optional(),
   description: Joi.string().trim().allow('').max(1000).optional(),
+})
+const alloyMixSchema = Joi.object({
+  karat: Joi.number().positive().required(),
+  targetGross: Joi.number().positive().required(),
+  finishedProductId: objectId.required(),
+  lines: Joi.array().items(Joi.object({
+    itemId: objectId.required(),
+    gross: Joi.number().positive().required(),
+    role: Joi.string().trim().allow('').max(40).optional(),
+    label: Joi.string().trim().allow('').max(80).optional(),
+  })).min(1).required(),
+  description: Joi.string().trim().allow('').max(1000).optional(),
+})
+const alloyMixReverseSchema = Joi.object({
+  reason: Joi.string().trim().min(1).max(1000).required(),
 })
 
 /** Pure candidate pick for stock-in/out ledger currency (before Currency master validate). */
@@ -374,17 +392,130 @@ function registerInventoryRoutes(deps) {
     }
   })
 
+  const alloyMixService = createAlloyMixService({
+    InventoryItem,
+    StockMovement,
+    Ledger,
+    assertAccountingPeriodOpen: assertPeriod,
+  })
+
+  router.post('/inventory/alloy-mix', protect, validateBody(alloyMixSchema), async (req, res) => {
+    try {
+      if (!canWriteInventory(req.user)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
+      const result = await alloyMixService.postAlloyMix({
+        user: req.user,
+        tenant: req.tenant,
+        karat: req.body.karat,
+        targetGross: req.body.targetGross,
+        finishedProductId: req.body.finishedProductId,
+        lines: req.body.lines,
+        description: req.body.description,
+      })
+      res.status(201).json(result)
+    } catch (error) {
+      respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix' })
+    }
+  })
+
+  router.post('/inventory/alloy-mix/reverse', protect, validateBody(alloyMixReverseSchema), async (req, res) => {
+    try {
+      if (!canWriteInventory(req.user)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
+      const result = await alloyMixService.reverseAlloyMix({
+        user: req.user,
+        tenant: req.tenant,
+        reason: req.body.reason,
+      })
+      res.json(result)
+    } catch (error) {
+      respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/reverse' })
+    }
+  })
+
   router.get('/inventory/stock-ledger', protect, async (req, res) => {
     try {
       if (!canReadErpInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { page, limit, skip } = parsePagination(req.query, 50, 200)
+      const includeDeleted = String(req.query.includeDeleted || '') === '1'
+      const alloyOnly = String(req.query.alloyOnly || '') === '1'
+      const filter = {}
+      if (!includeDeleted) filter.isDeleted = { $ne: true }
+      if (alloyOnly) {
+        // Alloy mix consume/receive rows (active + soft-deleted history when includeDeleted=1).
+        filter.reason = /Gold alloy mix|alloy mix/i
+      }
       const [movements, total] = await Promise.all([
-        StockMovement.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }).skip(skip).limit(limit),
-        StockMovement.countDocuments({ isDeleted: { $ne: true } }),
+        StockMovement.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+        StockMovement.countDocuments(filter),
       ])
       res.json({ success: true, movements, total, page, limit })
     } catch (err) {
       respondRouteError(res, err, { tag: 'erp-accounting/inventoryRoutes' })
+    }
+  })
+
+  /** Hard-delete soft-deleted alloy mix movements (clears prior Posted history clutter). */
+  router.post('/inventory/alloy-mix/clear-history', protect, async (req, res) => {
+    try {
+      if (!canManageInventorySettings(req.user)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
+      const karatNum = Number(req.body?.karat)
+      const reason = Number.isFinite(karatNum) && karatNum > 0
+        ? new RegExp(`Gold alloy mix\\s*\\(${karatNum}\\s*K|alloy mix\\s*\\(${karatNum}\\s*K`, 'i')
+        : /Gold alloy mix|alloy mix/i
+      const result = await StockMovement.deleteMany({
+        isDeleted: true,
+        reason,
+      })
+      res.json({
+        success: true,
+        deletedCount: result.deletedCount || 0,
+        karat: Number.isFinite(karatNum) && karatNum > 0 ? karatNum : null,
+      })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/inventory/alloy-mix/clear-history' })
+    }
+  })
+
+  /** Rebuild before/after on active movements after soft-deletes (e.g. mix reverse). */
+  router.post('/inventory/rebuild-movement-balances', protect, async (req, res) => {
+    try {
+      if (!canManageInventorySettings(req.user)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
+      const products = await InventoryItem.find({ isDeleted: { $ne: true } })
+      const items = []
+      let movesUpdated = 0
+      let qtyFixed = 0
+      for (const product of products) {
+        if (!isCatalogInventoryProduct(product.category)) continue
+        const result = await rebuildStockMovementQuantityChain(StockMovement, product._id)
+        const nextQty = catalogQuantityFromMovements(result.quantity)
+        const qtyDiff = Math.abs(Number(product.quantity || 0) - nextQty) > 0.0001
+        if (result.updated || qtyDiff) {
+          if (qtyDiff) {
+            product.quantity = nextQty
+            product.updatedBy = req.user._id
+            await product.save()
+            qtyFixed += 1
+          }
+          movesUpdated += result.updated
+          items.push({
+            itemId: String(product._id),
+            name: product.name,
+            quantity: nextQty,
+            movesUpdated: result.updated,
+            qtyFixed: qtyDiff,
+          })
+        }
+      }
+      res.json({ success: true, itemsTouched: items.length, movesUpdated, qtyFixed, items })
+    } catch (err) {
+      respondRouteError(res, err, { tag: 'erp-accounting/inventory/rebuild-movement-balances' })
     }
   })
 

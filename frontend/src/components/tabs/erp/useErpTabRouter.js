@@ -123,6 +123,8 @@ export function useErpTabRouter({
         loadStockLedger()
         loadVendors()
       })
+    } else if (activeTab === 'gold-alloy') {
+      refresh('gold-alloy-inventory', () => loadInventory())
     } else if (activeTab === 'settings') {
       refresh('settings', () => {
         loadCurrencies()

@@ -24,6 +24,7 @@ const loadErpEditRecordModal = () => import('./ErpEditRecordModal')
 const loadChartOfAccountsTree = () => import('../ChartOfAccountsTree')
 const loadDirectDealsTab = () => import('../DirectDealsTab')
 const loadErpInventoryTab = () => import('./tabs/ERPInventoryTab')
+const loadErpGoldAlloyTab = () => import('./tabs/ERPGoldAlloyTab')
 const loadErpVendorsTab = () => import('./tabs/ERPVendorsTab')
 const loadErpLedgerTab = () => import('./tabs/ERPLedgerTab')
 const loadErpPeriodClosingTab = () => import('./tabs/ERPPeriodClosingTab')
@@ -44,6 +45,7 @@ const ErpEditRecordModal = lazy(loadErpEditRecordModal)
 const ChartOfAccountsTree = lazy(loadChartOfAccountsTree)
 const DirectDealsTab = lazy(loadDirectDealsTab)
 const ERPInventoryTab = lazy(loadErpInventoryTab)
+const ERPGoldAlloyTab = lazy(loadErpGoldAlloyTab)
 const ERPVendorsTab = lazy(loadErpVendorsTab)
 const ERPLedgerTab = lazy(loadErpLedgerTab)
 const ERPPeriodClosingTab = lazy(loadErpPeriodClosingTab)
@@ -73,6 +75,7 @@ const ERP_MENU_CHUNK_LOADERS = [
   loadErpEnquiryTab,
   loadErpDashboardTab,
   loadErpInventoryTab,
+  loadErpGoldAlloyTab,
   loadDirectDealsTab,
   loadErpPeriodClosingTab,
   loadErpFixingRegisterTab,
@@ -1028,6 +1031,22 @@ export default function ERPTabPanels({
       </div>
       )}
       {/* INVENTORY TAB */}
+      {keepTab('gold-alloy') && (
+      <div style={activeTab === 'gold-alloy' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'gold-alloy'}>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPGoldAlloyTab
+            activeTab={activeTab}
+            C={C}
+            inventoryProducts={inventoryProducts}
+            loadInventory={loadInventory}
+            token={token}
+            tenantKey={inventoryTenantKey}
+            showNotification={showNotification}
+            setError={setError}
+          />
+        </Suspense>
+      </div>
+      )}
       {keepTab('inventory') && (
       <div style={activeTab === 'inventory' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'inventory'}>
         <Suspense fallback={<ErpSubTabFallback />}>

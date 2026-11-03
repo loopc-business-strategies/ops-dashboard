@@ -1,6 +1,7 @@
 const {
   catalogQuantityFromMovements,
   isCatalogInventoryProduct,
+  roundMovementQty,
 } = require('../utils/catalogOnHandQuantity')
 
 describe('catalogOnHandQuantity', () => {
@@ -13,5 +14,9 @@ describe('catalogOnHandQuantity', () => {
     expect(catalogQuantityFromMovements(0)).toBe(0)
     expect(catalogQuantityFromMovements(18.906)).toBe(18.906)
     expect(catalogQuantityFromMovements(-2)).toBe(0)
+  })
+
+  test('roundMovementQty keeps four decimal places', () => {
+    expect(roundMovementQty(23.84123)).toBe(23.8412)
   })
 })
