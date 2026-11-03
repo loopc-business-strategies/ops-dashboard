@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import hrAPI from '../../../api/hr'
 import attendanceAPI from '../../../api/attendance'
 import { useLanguage } from '../../../context/LanguageContext'
+import { usePermissions } from '../../../hooks/usePermissions'
+
+function isAttendanceForbidden(err) {
+  return err?.response?.status === 403
+}
 
 function todayKey() {
   const d = new Date()
@@ -141,6 +146,7 @@ function SummaryCard({ label, value, icon: Icon }) {
  */
 export default function AttendanceLogPanel({ token }) {
   const { t } = useLanguage()
+  const { canMarkAttendance } = usePermissions()
   const [date, setDate] = useState(todayKey)
   const [employees, setEmployees] = useState([])
   const [rows, setRows] = useState({})
@@ -262,6 +268,10 @@ export default function AttendanceLogPanel({ token }) {
   }
 
   const handleSave = async (emp) => {
+    if (!canMarkAttendance) {
+      setError(t('attendancePermissionDenied'))
+      return
+    }
     setSavingId(emp._id)
     setError('')
     setMessage('')
@@ -269,7 +279,11 @@ export default function AttendanceLogPanel({ token }) {
       await markOne(emp)
       setMessage(interpolate(t('savedAttendanceFor'), { name: emp.name }))
     } catch (err) {
-      setError(err.response?.data?.message || interpolate(t('failedSaveNamed'), { name: emp.name }))
+      setError(
+        isAttendanceForbidden(err)
+          ? t('attendancePermissionDenied')
+          : (err.response?.data?.message || interpolate(t('failedSaveNamed'), { name: emp.name })),
+      )
     } finally {
       setSavingId(null)
     }
@@ -278,6 +292,10 @@ export default function AttendanceLogPanel({ token }) {
   const saveEmployees = async (list, rowMap) => {
     if (!list.length) {
       setError(t('selectEmployeesFirst'))
+      return
+    }
+    if (!canMarkAttendance) {
+      setError(t('attendancePermissionDenied'))
       return
     }
     setBulkSaving(true)
@@ -290,7 +308,11 @@ export default function AttendanceLogPanel({ token }) {
     const failed = results.find((r) => r.status === 'rejected')
     setMessage(interpolate(t('savedAttendanceBulk'), { saved, total: list.length }))
     if (failed) {
-      setError(failed.reason?.response?.data?.message || t('failedBulkAttendance'))
+      setError(
+        isAttendanceForbidden(failed.reason)
+          ? t('attendancePermissionDenied')
+          : (failed.reason?.response?.data?.message || t('failedBulkAttendance')),
+      )
     }
     setBulkSaving(false)
   }
@@ -358,6 +380,7 @@ export default function AttendanceLogPanel({ token }) {
   ]), [t, employees.length, counts])
 
   const busy = bulkSaving || savingId !== null
+  const markDisabled = busy || !canMarkAttendance
 
   return (
     <div className="flex flex-col gap-5" style={{ paddingTop: '0.5rem' }}>
@@ -387,6 +410,15 @@ export default function AttendanceLogPanel({ token }) {
         </div>
       </div>
 
+      {!canMarkAttendance && (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-900"
+          style={{ padding: '0.875rem' }}
+        >
+          {t('attendancePermissionBanner')}
+        </div>
+      )}
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 text-sm text-red-700" style={{ padding: '0.875rem' }}>
           {error}
@@ -489,7 +521,7 @@ export default function AttendanceLogPanel({ token }) {
             </button>
             <button
               type="button"
-              disabled={busy || selectedIds.size === 0}
+              disabled={markDisabled || selectedIds.size === 0}
               onClick={handleSaveSelected}
               className="inline-flex h-9 items-center text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
               style={{
@@ -503,7 +535,7 @@ export default function AttendanceLogPanel({ token }) {
             </button>
             <button
               type="button"
-              disabled={busy}
+              disabled={markDisabled}
               onClick={handleMarkAllPresent}
               className="inline-flex h-9 items-center text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
               style={{
@@ -628,7 +660,7 @@ export default function AttendanceLogPanel({ token }) {
                       <td className="whitespace-nowrap align-middle" style={CELL_PAD}>
                         <button
                           type="button"
-                          disabled={busy || savingId === emp._id}
+                          disabled={markDisabled || savingId === emp._id}
                           onClick={() => handleSave(emp)}
                           className="inline-flex h-9 items-center text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
                           style={{

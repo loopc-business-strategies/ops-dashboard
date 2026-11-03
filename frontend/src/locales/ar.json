@@ -883,5 +883,8 @@
   "selectEmployeesFirst": "Select at least one employee.",
   "savedAttendanceBulk": "Saved {saved} of {total} attendance records.",
   "failedBulkAttendance": "Some attendance records failed to save.",
+  "attendancePermissionDenied": "You do not have permission to mark attendance. Use Dept. Head with department Hiring & HR (or ask a super admin).",
+  "attendancePermissionBanner": "This account cannot mark attendance. Calculated salaries on Employee List stay at 0 until a Dept. Head (HR) saves present/late days for the month.",
+  "payrollNeedsAttendanceHint": "All working days are 0 for this month. Mark present/late in Attendance Log for the selected year and month so calculated salary and taxes appear.",
   "appliedBulkToSelected": "Applied status and check-in to {count} employees."
 }

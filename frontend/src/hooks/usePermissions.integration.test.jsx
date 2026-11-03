@@ -23,6 +23,7 @@ function PermissionsProbe() {
       <p data-testid="readonly">{String(perms.isReadOnly)}</p>
       <p data-testid="operations">{String(perms.canViewModule('operations'))}</p>
       <p data-testid="mg-floor-approver">{String(perms.canApproveMgFloor)}</p>
+      <p data-testid="mark-attendance">{String(perms.canMarkAttendance)}</p>
     </div>
   )
 }
@@ -128,5 +129,22 @@ describe('sidebar permission integration', () => {
     render(<PermissionsProbe />)
 
     expect(screen.getByTestId('mg-floor-approver').textContent).toBe('true')
+  })
+
+  test('HR dept head and HR dept user can both mark attendance', () => {
+    mockedUser = { role: 'department_head', department: 'hr', allowedModules: ['hr'], modulePermissions: {} }
+    const { unmount } = render(<PermissionsProbe />)
+    expect(screen.getByTestId('mark-attendance').textContent).toBe('true')
+    unmount()
+
+    mockedUser = { role: 'department_user', department: 'hr', allowedModules: ['hr'], modulePermissions: {} }
+    render(<PermissionsProbe />)
+    expect(screen.getByTestId('mark-attendance').textContent).toBe('true')
+  })
+
+  test('non-HR department users cannot mark attendance', () => {
+    mockedUser = { role: 'department_user', department: 'finance', allowedModules: [], modulePermissions: {} }
+    render(<PermissionsProbe />)
+    expect(screen.getByTestId('mark-attendance').textContent).toBe('false')
   })
 })

@@ -99,6 +99,25 @@ describe('Finance and attendance route guards', () => {
     expect(Array.isArray(res.body.records)).toBe(true)
   })
 
+  test('HR department user can mark and save attendance for any department', async () => {
+    const hrUser = await createUser({ role: 'department_user', department: 'hr' })
+
+    const res = await request(app)
+      .post('/api/attendance/records')
+      .set('Authorization', `Bearer ${tokenFor(hrUser)}`)
+      .send({
+        employeeName: 'Payroll Staff',
+        department: 'finance',
+        status: 'present',
+        checkIn: '09:00',
+        checkOut: '18:00',
+      })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.record.status).toBe('present')
+  })
+
   test('operations user cannot create attendance records for other departments', async () => {
     const opsUser = await createUser({ role: 'department_user', department: 'operations' })
 

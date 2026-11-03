@@ -356,7 +356,15 @@ function UserFormFields({ form, setForm, isEdit = false }) {
       </div>
 
       {(form.role === 'department_head' || form.role === 'department_user') && (
-        <div><FieldLabel>Department</FieldLabel><AdminSelect value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>{DEPTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</AdminSelect></div>
+        <div>
+          <FieldLabel>Department</FieldLabel>
+          <AdminSelect value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>{DEPTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</AdminSelect>
+          {form.department === 'hr' && (form.role === 'department_user' || form.role === 'department_head') && (
+            <span style={{ display: 'block', fontSize: '0.72rem', color: ADMIN.inkSoft, marginTop: 4 }}>
+              HR department accounts (Dept. Head or Dept. User) get full HR module access: attendance, employee roster, salaries, and remarks. Other modules stay closed unless granted separately.
+            </span>
+          )}
+        </div>
       )}
 
       {isMg && (

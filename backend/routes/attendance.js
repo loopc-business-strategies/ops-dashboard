@@ -11,7 +11,7 @@ const {
   canTouchAttendanceDepartment,
   isSuperAdmin,
   isManagement,
-  isHrHead,
+  isHrStaff,
   normalize,
   escapeRegex,
 } = require('../services/permissions/moduleAccessPolicy')
@@ -108,7 +108,8 @@ router.get('/records', protect, async (req, res) => {
       query.employeeName = new RegExp(escapeRegex(String(search)), 'i')
     }
 
-    if (req.user.role === 'department_user' || req.user.role === 'external') {
+    // Non-HR department_user / external see only their own name; HR staff manage company-wide.
+    if ((req.user.role === 'department_user' || req.user.role === 'external') && !isHrStaff(req.user)) {
       query.employeeName = new RegExp(`^${escapeRegex(req.user.name)}$`, 'i')
     }
 
@@ -147,7 +148,7 @@ router.get('/summary', protect, async (req, res) => {
       scopedEmployees = [{ _id: null, name: req.user.name, department: req.user.department || '' }]
     }
 
-    if (req.user.role === 'department_user' || req.user.role === 'external') {
+    if ((req.user.role === 'department_user' || req.user.role === 'external') && !isHrStaff(req.user)) {
       scopedEmployees = scopedEmployees.filter((e) => normalize(e.name) === normalize(req.user.name))
       scopedRecords = scopedRecords.filter((r) => normalize(r.employeeName) === normalize(req.user.name))
     }
@@ -229,7 +230,7 @@ router.get('/month-stats', protect, async (req, res) => {
       query.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
     }
 
-    if (req.user.role === 'department_user' || req.user.role === 'external') {
+    if ((req.user.role === 'department_user' || req.user.role === 'external') && !isHrStaff(req.user)) {
       query.employeeName = new RegExp(`^${escapeRegex(req.user.name)}$`, 'i')
     }
 
@@ -376,7 +377,7 @@ router.get('/leave', protect, async (req, res) => {
 
     if (status !== 'all') query.status = String(status)
 
-    if (isSuper(req.user) || isManagement(req.user) || isHrHead(req.user)) {
+    if (isSuper(req.user) || isManagement(req.user) || isHrStaff(req.user)) {
       // global read
     } else if (req.user.role === 'department_head') {
       query.department = new RegExp(`^${escapeRegex(req.user.department)}$`, 'i')
@@ -410,7 +411,11 @@ router.post('/leave', protect, validateBody(leaveRequestSchema), async (req, res
       return res.status(400).json({ success: false, message: 'Employee name and department are required.' })
     }
 
-    if ((req.user.role === 'department_user' || req.user.role === 'external') && normalize(req.user.name) !== normalize(resolvedName)) {
+    if (
+      (req.user.role === 'department_user' || req.user.role === 'external')
+      && !isHrStaff(req.user)
+      && normalize(req.user.name) !== normalize(resolvedName)
+    ) {
       return res.status(403).json({ success: false, message: 'You can only submit leave for your own profile.' })
     }
 
@@ -448,7 +453,7 @@ router.put('/leave/:id/decision', protect, validateParams(recordIdParam), valida
       return res.status(404).json({ success: false, message: 'Leave request not found.' })
     }
 
-    if (!isSuper(req.user) && !isHrHead(req.user) && normalize(leaveRequest.department) !== normalize(req.user.department)) {
+    if (!isSuper(req.user) && !isHrStaff(req.user) && normalize(leaveRequest.department) !== normalize(req.user.department)) {
       return res.status(403).json({ success: false, message: 'You can only review requests from your department.' })
     }
 

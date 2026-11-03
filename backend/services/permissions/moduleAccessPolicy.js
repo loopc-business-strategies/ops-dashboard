@@ -51,17 +51,22 @@ function resolveModuleWrite(user, moduleKey, legacyFn) {
 
 // ─── HR / employees ───────────────────────────────────────────────────────────
 
+/** Any HR department operator (Dept Head or Dept User) — full HR module access. */
+function isHrStaff(user) {
+  if (!user) return false
+  if (userDept(user) !== 'hr') return false
+  return user.role === 'department_head' || user.role === 'department_user'
+}
+
 function canManageEmployees(user) {
   return resolveModuleWrite(user, 'hr', (subject) => (
-    isSuperAdmin(subject)
-    || (isDepartmentHead(subject) && userDept(subject) === 'hr')
+    isSuperAdmin(subject) || isHrStaff(subject)
   ))
 }
 
 function buildEmployeeReadFilter(user) {
   if (!user) return null
-  // Super/management and HR managers (HR head / explicit HR write) see company-wide roster + salaries.
-  // Attendance mark still requires isHrHead (department_head + department=hr) via canManageAttendance.
+  // Super/management and HR staff (dept hr + head/user, or explicit HR write) see company-wide roster + salaries.
   if (isSuperAdmin(user) || isManagement(user) || canManageEmployees(user)) return {}
   if (!resolveModuleAccess(user, 'hr', () => Boolean(userDept(user)))) return null
   const dept = userDept(user)
@@ -253,22 +258,22 @@ function isHrHead(user) {
 }
 
 function canManageAttendance(user) {
-  return resolveModuleWrite(user, 'hr', (subject) => isSuperAdmin(subject) || isHrHead(subject))
+  return resolveModuleWrite(user, 'hr', (subject) => isSuperAdmin(subject) || isHrStaff(subject))
 }
 
 function canReviewLeave(user) {
-  return isSuperAdmin(user) || isHrHead(user) || isDepartmentHead(user)
+  return isSuperAdmin(user) || isHrStaff(user) || isDepartmentHead(user)
 }
 
 function scopedAttendanceDepartment(user) {
   if (!user) return null
-  if (isSuperAdmin(user) || isManagement(user) || isHrHead(user)) return null
+  if (isSuperAdmin(user) || isManagement(user) || isHrStaff(user)) return null
   if (user.role === 'department_head' || user.role === 'department_user') return userDept(user)
   return null
 }
 
 function canTouchAttendanceDepartment(user, dept) {
-  if (isSuperAdmin(user) || isHrHead(user)) return true
+  if (isSuperAdmin(user) || isHrStaff(user)) return true
   if (user.role === 'department_head') return userDept(user) === normalize(dept)
   return false
 }
@@ -443,6 +448,7 @@ module.exports = {
   canViewOperationsModule,
   canWriteOperationsLegalDocuments,
   isHrHead,
+  isHrStaff,
   canManageAttendance,
   canReviewLeave,
   scopedAttendanceDepartment,

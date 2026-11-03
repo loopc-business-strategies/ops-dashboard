@@ -843,6 +843,9 @@
   "selectEmployeesFirst": "Kamida bitta xodimni tanlang.",
   "savedAttendanceBulk": "{total} ta davomat yozuvining {saved} tasi saqlandi.",
   "failedBulkAttendance": "Ba'zi davomat yozuvlarini saqlab bo'lmadi.",
+  "attendancePermissionDenied": "Davomat belgilash uchun ruxsatingiz yo'q. Hiring & HR bo'limi bilan Dept. Head rolidan foydalaning (yoki super admin so'rang).",
+  "attendancePermissionBanner": "Bu hisob davomat belgilay olmaydi. HR Dept. Head oy uchun kelgan/kechikkan kunlarni saqlamaguncha Xodimlar ro'yxatidagi hisoblangan maoshlar 0 bo'lib qoladi.",
+  "payrollNeedsAttendanceHint": "Bu oy uchun barcha ish kunlari 0. Hisoblangan maosh va soliqlar ko'rinishi uchun tanlangan yil/oyda Davomat jurnalida kelgan/kechikkan deb belgilang.",
   "appliedBulkToSelected": "Holat va kirish vaqti {count} ta xodimga qo'llandi.",
 
   "remarksTitle": "Izohlar",

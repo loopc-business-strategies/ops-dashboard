@@ -28,10 +28,12 @@ const user = (overrides = {}) => ({
 })
 
 describe('moduleAccessPolicy', () => {
-  test('HR manage allows super admin and HR department head', () => {
+  test('HR manage allows super admin and any HR department staff', () => {
     expect(canManageEmployees(user({ role: 'super_admin' }))).toBe(true)
     expect(canManageEmployees(user({ role: 'department_head', department: 'hr' }))).toBe(true)
+    expect(canManageEmployees(user({ role: 'department_user', department: 'hr' }))).toBe(true)
     expect(canManageEmployees(user({ role: 'department_head', department: 'finance' }))).toBe(false)
+    expect(canManageEmployees(user({ role: 'department_user', department: 'finance' }))).toBe(false)
   })
 
   test('modulePermissions override legacy HR access', () => {
@@ -51,13 +53,14 @@ describe('moduleAccessPolicy', () => {
   test('employee read filter scopes non-management users to their department', () => {
     expect(buildEmployeeReadFilter(user({ role: 'super_admin' }))).toEqual({})
     expect(buildEmployeeReadFilter(user({ role: 'management' }))).toEqual({})
-    // HR head sees all employees (company payroll), not only department=hr
+    // HR staff (head or user) see all employees (company payroll), not only department=hr
     expect(buildEmployeeReadFilter(user({ role: 'department_head', department: 'hr' }))).toEqual({})
+    expect(buildEmployeeReadFilter(user({ role: 'department_user', department: 'hr' }))).toEqual({})
     expect(buildEmployeeReadFilter(user({ role: 'department_head', department: 'finance' }))).toEqual({
       department: /^finance$/i,
     })
-    expect(buildEmployeeReadFilter(user({ role: 'department_user', department: 'hr' }))).toEqual({
-      department: /^hr$/i,
+    expect(buildEmployeeReadFilter(user({ role: 'department_user', department: 'finance' }))).toEqual({
+      department: /^finance$/i,
     })
     expect(buildEmployeeReadFilter(user({ role: 'department_user', department: '' }))).toBeNull()
   })
@@ -121,8 +124,8 @@ describe('moduleAccessPolicy', () => {
 
   test('attendance and messages helpers preserve role semantics', () => {
     expect(canManageAttendance(user({ role: 'department_head', department: 'hr' }))).toBe(true)
-    // Admin default "HR user" as department_user cannot mark attendance
-    expect(canManageAttendance(user({ role: 'department_user', department: 'hr' }))).toBe(false)
+    expect(canManageAttendance(user({ role: 'department_user', department: 'hr' }))).toBe(true)
+    expect(canManageAttendance(user({ role: 'department_user', department: 'finance' }))).toBe(false)
     expect(canSeeAllMessages(user({ role: 'management' }))).toBe(true)
     expect(canSeeAllMessages(user({ role: 'department_user', department: 'finance' }))).toBe(false)
   })

@@ -123,18 +123,33 @@ describe('HR employees routes', () => {
     expect(res.status).toBe(403)
   })
 
-  test('hr department user only sees employees in their department', async () => {
+  test('hr department user sees company-wide employees including salaries', async () => {
     const hrUser = await createUser({ role: 'department_user', department: 'hr' })
-    await createEmployee({ department: 'hr', name: 'HR Staff' })
-    await createEmployee({ department: 'finance', name: 'Finance Staff', employeeCode: 'EMP-FIN' })
+    await createEmployee({ department: 'hr', name: 'HR Staff', salaryAgreed: 1000 })
+    await createEmployee({ department: 'finance', name: 'Finance Staff', employeeCode: 'EMP-FIN', salaryAgreed: 2000 })
 
     const res = await request(app)
       .get('/api/hr/employees')
       .set('Authorization', `Bearer ${tokenFor(hrUser)}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.employees.every((row) => /^hr$/i.test(row.department))).toBe(true)
-    expect(res.body.employees.some((row) => row.name === 'Finance Staff')).toBe(false)
+    expect(res.body.employees.some((row) => row.name === 'HR Staff')).toBe(true)
+    expect(res.body.employees.some((row) => row.name === 'Finance Staff')).toBe(true)
+    const finance = res.body.employees.find((row) => row.name === 'Finance Staff')
+    expect(finance.salaryAgreed).toBe(2000)
+  })
+
+  test('hr department user can update hr employees', async () => {
+    const hrUser = await createUser({ role: 'department_user', department: 'hr' })
+    const employee = await createEmployee({ department: 'hr', name: 'HR Before' })
+
+    const res = await request(app)
+      .put(`/api/hr/employees/${employee._id.toString()}`)
+      .set('Authorization', `Bearer ${tokenFor(hrUser)}`)
+      .send({ name: 'HR After' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.employee.name).toBe('HR After')
   })
 
   test('hr head can update and delete hr employees', async () => {

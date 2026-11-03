@@ -752,6 +752,11 @@ function EmployeeList({ token, company }) {
     [filteredPayrollRows],
   )
 
+  const allWorkedDaysZero = useMemo(
+    () => filteredPayrollRows.length > 0 && filteredPayrollRows.every((row) => Number(row.workedDays) === 0),
+    [filteredPayrollRows],
+  )
+
   const summaryCards = [
     { label: t('totalEmployees'), value: payrollTotals.employeeCount, money: false },
     { label: t('grossTotalSalary'), value: payrollTotals.gross, money: true },
@@ -969,6 +974,16 @@ function EmployeeList({ token, company }) {
           onClose={() => setProfileId(null)}
           onSaved={() => handleRefresh()}
         />
+      )}
+
+      {!loading && !monthLoading && allWorkedDaysZero && (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-900"
+          style={{ padding: '0.875rem' }}
+        >
+          {t('payrollNeedsAttendanceHint')}
+        </div>
       )}
 
       {/* KPI cards — desktop 7-up */}

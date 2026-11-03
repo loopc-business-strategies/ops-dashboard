@@ -71,6 +71,19 @@ export function usePermissions() {
     // Can see risk panel and 7-day plan
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),
 
+    // Attendance mark — mirrors backend isHrStaff / canManageAttendance (HR head or HR user)
+    canMarkAttendance: (() => {
+      if (role === 'super_admin') return true
+      const dept = String(user?.department || '').trim().toLowerCase()
+      if (dept === 'hr' && (role === 'department_head' || role === 'department_user')) return true
+      if (role === 'department_head') {
+        const perm = user?.modulePermissions?.hr
+        if (perm !== undefined) return perm.on === true && perm.edit !== false
+        return false
+      }
+      return false
+    })(),
+
     // ERP access — super_admin always; others via allowedModules or granular modulePermissions
     canViewERP: canViewERPModule(user),
     canViewERPSubTab,
