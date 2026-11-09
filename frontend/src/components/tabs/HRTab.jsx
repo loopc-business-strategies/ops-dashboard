@@ -552,7 +552,7 @@ function payrollMonthKey(year, month) {
   return `${year}-${String(month).padStart(2, '0')}`
 }
 
-function isRebateCollectedForMonth(emp, year, month) {
+function _isRebateCollectedForMonth(emp, year, month) {
   const key = payrollMonthKey(year, month)
   const collections = Array.isArray(emp?.rebateCollections) ? emp.rebateCollections : []
   if (collections.some((c) => String(c?.month) === key)) return true

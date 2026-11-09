@@ -114,6 +114,27 @@ function resolveVoucherForeignLineTotal(tx = {}) {
   return Number.isFinite(amount) ? amount : 0
 }
 
+function resolveBackendFxRateFromVoucher(tx = {}, baseCurrencyCode = 'USD') {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  const currency = String(tx?.currency || base).trim().toUpperCase() || base
+  const headerRate = Number(tx?.exchangeRate || 0)
+  // exchangeRate === 1 on a foreign voucher is the metal-save default ("unset").
+  if (Number.isFinite(headerRate) && headerRate > 0 && (currency === base || headerRate !== 1)) {
+    return headerRate
+  }
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  for (const line of lines) {
+    const lineCode = String(line?.currCode || currency || base).trim().toUpperCase() || base
+    const lineRate = Number(line?.currRate || 0)
+    if (!(Number.isFinite(lineRate) && lineRate > 0) || lineCode === base) continue
+    // Prefer base-per-1-foreign; invert AED/UZS display rates typed as "1 USD = N".
+    if (lineRate > 1 && (lineCode === 'AED' || lineCode === 'UZS')) return 1 / lineRate
+    return lineRate
+  }
+  if (Number.isFinite(headerRate) && headerRate > 0) return headerRate
+  return 1
+}
+
 /**
  * Indicative unfixed voucher value in base currency for Account Summary.
  * Metal line totals are in voucher currency; exchangeRate is base-per-1-foreign
@@ -122,9 +143,10 @@ function resolveVoucherForeignLineTotal(tx = {}) {
  */
 function resolveUnfixedIndicativeAmountInBase(tx = {}, baseCurrencyCode = 'USD') {
   const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
-  const currency = String(tx?.currency || base).trim().toUpperCase() || base
-  const exchangeRate = Number(tx?.exchangeRate || 1)
-  const rate = Number.isFinite(exchangeRate) && exchangeRate > 0 ? exchangeRate : 1
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  const lineCurrency = String(lines.find((line) => String(line?.currCode || '').trim())?.currCode || '').trim().toUpperCase()
+  const currency = String(tx?.currency || lineCurrency || base).trim().toUpperCase() || base
+  const rate = resolveBackendFxRateFromVoucher({ ...tx, currency }, base)
   const foreignTotal = resolveVoucherForeignLineTotal(tx)
   const rawAmount = Number(tx?.amount || tx?.voucherMeta?.grandTotal || 0) || 0
 

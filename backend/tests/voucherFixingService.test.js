@@ -102,6 +102,18 @@ describe('voucherFixingService helpers', () => {
     }, 'USD')).toBe(1000)
   })
 
+  test('unfixed indicative amount recovers FX when header exchangeRate was left at 1', () => {
+    const aedTotal = 243461.83
+    expect(resolveUnfixedIndicativeAmountInBase({
+      currency: 'AED',
+      exchangeRate: 1,
+      amount: aedTotal,
+      voucherMeta: {
+        lineItems: [{ currCode: 'AED', currRate: 1 / 3.674, amountLC: aedTotal, amountWithVAT: aedTotal }],
+      },
+    }, 'USD')).toBeCloseTo(66266.15, 2)
+  })
+
   test('rejects fixed, unposted and fully fixed vouchers', () => {
     const fixed = buildUnfixedPurchase()
     fixed.voucherMeta.fixingType = 'fixing'
