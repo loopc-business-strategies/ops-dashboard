@@ -52,6 +52,7 @@ export default function VoucherListPanel({
   displayVoucherDocNo,
   erpAdvancedListFiltersEnabled,
   baseCurrencyCode = 'USD',
+  resolvePartyDisplayName = null,
 }) {
   const colCount = 7
     + (isSimpleMetalVoucher ? 0 : 2)
@@ -179,7 +180,11 @@ export default function VoucherListPanel({
                       <td style={{ padding: '0.55rem 0.75rem' }}>{meta.valueDate ? String(meta.valueDate).slice(0, 10) : (voucher.date ? voucher.date.slice(0, 10) : '-')}</td>
                     )}
                     <td style={{ padding: '0.55rem 0.75rem' }}>{meta.partyCode || '-'}</td>
-                    <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.partyName || '-'}</td>
+                    <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {(typeof resolvePartyDisplayName === 'function'
+                        ? resolvePartyDisplayName(meta.partyCode, meta.partyName)
+                        : meta.partyName) || '-'}
+                    </td>
                     {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher && (
                       <td style={{ padding: '0.55rem 0.75rem' }}>
                         <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', whiteSpace: 'nowrap', background: fixingBadgeStyle.bg, color: fixingBadgeStyle.color }}>

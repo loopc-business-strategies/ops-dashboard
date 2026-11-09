@@ -35,6 +35,7 @@ export default function VoucherFixingModal({
   onClose,
   onFix,
   onRemove,
+  resolvePartyDisplayName = null,
 }) {
   const state = useMemo(() => summarizeVoucherFixing(voucher), [voucher])
   const currency = String(voucher?.currency || 'USD').toUpperCase()
@@ -96,6 +97,9 @@ export default function VoucherFixingModal({
 
   if (!voucher) return null
   const meta = voucher.voucherMeta || {}
+  const partyDisplayName = typeof resolvePartyDisplayName === 'function'
+    ? (resolvePartyDisplayName(meta.partyCode, meta.partyName) || meta.partyCode || '')
+    : (meta.partyName || meta.partyCode || '')
   const sideLabel = String(voucher.type || '').toLowerCase() === 'sale' ? 'Sale' : 'Purchase'
   const backdropColor = (isDragging || isResizing)
     ? 'rgba(15, 23, 42, 0.12)'
@@ -142,7 +146,7 @@ export default function VoucherFixingModal({
           }}
         >
           <h3 style={{ margin: 0, fontSize: '1rem', color: S.ink }}>Fix {sideLabel.toLowerCase()} {docNo}</h3>
-          <span style={{ color: S.muted, fontSize: '0.85rem' }}>{meta.partyName || meta.partyCode || ''}</span>
+          <span style={{ color: S.muted, fontSize: '0.85rem' }}>{partyDisplayName}</span>
           <button
             type="button"
             style={{ ...btn('secondary'), marginLeft: 'auto', padding: '0.25rem 0.7rem' }}

@@ -12,6 +12,28 @@ function chartAddressForCode(chartAccounts, code) {
   return String(account?.address || '').trim()
 }
 
+/** Prefer ledger/COA title over a different customer/vendor-master nickname. */
+export function resolvePreferredPartyDisplayName({
+  partyCode = '',
+  savedPartyName = '',
+  resolveVoucherParty = null,
+  findPartyOptionByCode = null,
+  accountNameByCode = null,
+} = {}) {
+  const resolved = typeof resolveVoucherParty === 'function' ? resolveVoucherParty(partyCode) : null
+  const resolvedName = String(resolved?.partyName || '').trim()
+  if (resolvedName) return resolvedName
+  const option = typeof findPartyOptionByCode === 'function' ? findPartyOptionByCode(partyCode) : null
+  const optionName = String(option?.partyName || '').trim()
+  if (optionName) return optionName
+  const code = String(partyCode || '').trim()
+  if (code && typeof accountNameByCode === 'function') {
+    const chartName = String(accountNameByCode(code) || '').trim()
+    if (chartName) return chartName
+  }
+  return String(savedPartyName || '').trim()
+}
+
 export function resolveVoucherPartyRecord(partyCode, {
   activeVendors = [],
   activeCustomers = [],
@@ -33,31 +55,41 @@ export function resolveVoucherPartyRecord(partyCode, {
     return lookupValue === normalizeLookupValue(item._id) || lookupValue === ledgerCode
   })
 
-  const toVendor = (vendor) => ({
-    customerId: '',
-    vendorId: vendor._id,
-    partyName: vendor.name || '',
-    partyCode: vendor.ledgerAccountId?.accountCode || vendor.vendorCode || String(vendor._id),
-    partyId: `vendor:${String(vendor._id)}`,
-    partyType: 'vendor',
-    accountCurrency: String(vendor.ledgerAccountId?.currency || vendor.currency || '').trim().toUpperCase(),
-    email: vendor.email || '',
-    phone: vendor.phone || '',
-    address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode, chartAddressForCode(chartAccounts, vendor.ledgerAccountId?.accountCode || vendor.vendorCode)),
-  })
+  const toVendor = (vendor) => {
+    const ledgerName = String(vendor?.ledgerAccountId?.accountName || '').trim()
+    const vendorName = String(vendor?.name || '').trim()
+    return {
+      customerId: '',
+      vendorId: vendor._id,
+      // Prefer ledger title so Party Details matches the selected COA row (Prestige),
+      // not a different vendor-master nickname (test supplier).
+      partyName: ledgerName || vendorName,
+      partyCode: vendor.ledgerAccountId?.accountCode || vendor.vendorCode || String(vendor._id),
+      partyId: `vendor:${String(vendor._id)}`,
+      partyType: 'vendor',
+      accountCurrency: String(vendor.ledgerAccountId?.currency || vendor.currency || '').trim().toUpperCase(),
+      email: vendor.email || '',
+      phone: vendor.phone || '',
+      address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode, chartAddressForCode(chartAccounts, vendor.ledgerAccountId?.accountCode || vendor.vendorCode)),
+    }
+  }
 
-  const toCustomer = (customer) => ({
-    customerId: customer._id,
-    vendorId: '',
-    partyName: customer.name || '',
-    partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
-    partyId: `customer:${String(customer._id)}`,
-    partyType: 'customer',
-    accountCurrency: String(customer.ledgerAccountId?.currency || customer.currency || '').trim().toUpperCase(),
-    email: customer.email || '',
-    phone: customer.phone || '',
-    address: formatPartyAddress(customer.address, chartAddressForCode(chartAccounts, customer.ledgerAccountId?.accountCode)),
-  })
+  const toCustomer = (customer) => {
+    const ledgerName = String(customer?.ledgerAccountId?.accountName || '').trim()
+    const customerName = String(customer?.name || '').trim()
+    return {
+      customerId: customer._id,
+      vendorId: '',
+      partyName: ledgerName || customerName,
+      partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
+      partyId: `customer:${String(customer._id)}`,
+      partyType: 'customer',
+      accountCurrency: String(customer.ledgerAccountId?.currency || customer.currency || '').trim().toUpperCase(),
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: formatPartyAddress(customer.address, chartAddressForCode(chartAccounts, customer.ledgerAccountId?.accountCode)),
+    }
+  }
 
   // Sale/receipt: prefer customer (counterparty is usually buyer). Purchase/payment: prefer vendor (supplier).
   const preferCustomerFirst = voucherType === 'sale' || voucherType === 'receipt' || voucherType === 'metal_payment'
@@ -103,7 +135,9 @@ export function buildVoucherPartyOptions({
   const customerPartyOptions = activeCustomers
     .map((customer) => {
       const code = String(customer?.ledgerAccountId?.accountCode || '').trim()
-      const name = String(customer?.name || '').trim()
+      const ledgerName = String(customer?.ledgerAccountId?.accountName || '').trim()
+      const customerName = String(customer?.name || '').trim()
+      const name = ledgerName || customerName
       if (!code) return null
       return {
         id: `customer:${String(customer._id)}`,
@@ -128,7 +162,7 @@ export function buildVoucherPartyOptions({
       const vendorName = String(vendor?.name || '').trim()
       const code = ledgerCode || vendorCode
       const labelName = ledgerName || vendorName
-      const partyName = vendorName || ledgerName.replace(/\s*\((?:debtor|creditor)\)\s*$/i, '').trim()
+      const partyName = ledgerName || vendorName
       if (!code) return null
       return {
         id: `vendor:${String(vendor._id)}`,

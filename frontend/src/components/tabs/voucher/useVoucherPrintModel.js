@@ -19,6 +19,7 @@ import {
   numberToWords,
 } from './voucherTabShared'
 import { buildNetAmountRows } from './voucherNetAmounts'
+import { resolvePreferredPartyDisplayName } from './voucherPartyOptions'
 
 const upperCode = (value) => String(value || '').trim().toUpperCase()
 
@@ -80,9 +81,15 @@ export function buildVoucherPrintModel({
   const activeTenantBranding = resolveErpUserTenantBranding(user)
   const voucherPrintSettings = resolveVoucherPrintSettings({ reportBranding, user, tenantBranding: activeTenantBranding })
   const documentBranding = voucherPrintSettings
+  const preferredPartyName = resolvePreferredPartyDisplayName({
+    partyCode: header?.partyCode || '',
+    savedPartyName: header?.partyName || '',
+    resolveVoucherParty,
+    findPartyOptionByCode,
+  })
   const voucher = {
     currency: printCurrency,
-    partyName: header?.partyName || '',
+    partyName: preferredPartyName,
     partyAccount: header?.partyCode || '',
   }
   const companyPhone = documentBranding.phone || branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
@@ -163,7 +170,13 @@ export function buildVoucherPrintModel({
   const mgPartyPrintPhone = String(mgResolvedParty?.phone || '').trim()
   const mgPartyPrintAddress = String(mgResolvedParty?.address || '').trim()
   const mgPartyAccountCode = String(voucher?.partyAccount || mgSelectedParty?.partyCode || '').trim()
-  const mgPartyAccountName = String(voucher?.partyName || mgSelectedParty?.partyName || accountNameByCode(mgPartyAccountCode) || '').trim()
+  const mgPartyAccountName = String(
+    preferredPartyName
+    || mgSelectedParty?.partyName
+    || accountNameByCode(mgPartyAccountCode)
+    || voucher?.partyName
+    || '',
+  ).trim()
   const mgAccountDescription = () => {
     const joined = `${mgPartyAccountName}${mgPartyAccountCode ? ` ${mgPartyAccountCode}` : ''}`.trim()
     return joined || mgPartyAccountCode || mgPartyAccountName || ''

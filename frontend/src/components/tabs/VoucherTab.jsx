@@ -9,6 +9,7 @@ import {
   buildLineAccountComboGroups,
   buildVoucherPartyOptions,
   findVoucherPartyOptionByCode,
+  resolvePreferredPartyDisplayName,
   resolveVoucherPartyRecord,
   toPartyComboGroups,
 } from './voucher/voucherPartyOptions'
@@ -1119,8 +1120,9 @@ export default function VoucherTab({
         return
       }
       const code = String(c.ledgerAccountId?.accountCode || '').trim() || String(c._id)
+      const ledgerName = String(c.ledgerAccountId?.accountName || '').trim()
       setHdr('partyCode', code)
-      setHdr('partyName', String(c.name || '').trim())
+      setHdr('partyName', ledgerName || String(c.name || '').trim())
       applyPartyCurrency(resolveVoucherParty(code))
       return
     }
@@ -1133,8 +1135,9 @@ export default function VoucherTab({
         return
       }
       const code = String(v.ledgerAccountId?.accountCode || v.vendorCode || '').trim() || String(v._id)
+      const ledgerName = String(v.ledgerAccountId?.accountName || '').trim()
       setHdr('partyCode', code)
-      setHdr('partyName', String(v.name || '').trim())
+      setHdr('partyName', ledgerName || String(v.name || '').trim())
       applyPartyCurrency(resolveVoucherParty(code))
       return
     }
@@ -1383,6 +1386,12 @@ export default function VoucherTab({
           displayVoucherDocNo={resolveDisplayVoucherDocNo}
           baseCurrencyCode={baseCurrencyCode}
           erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
+          resolvePartyDisplayName={(partyCode, savedPartyName) => resolvePreferredPartyDisplayName({
+            partyCode,
+            savedPartyName,
+            resolveVoucherParty,
+            findPartyOptionByCode,
+          })}
         />
       )}
 
@@ -1397,6 +1406,12 @@ export default function VoucherTab({
           onClose={() => setFixingVoucher(null)}
           onFix={handleFixVoucher}
           onRemove={handleRemoveVoucherFixing}
+          resolvePartyDisplayName={(partyCode, savedPartyName) => resolvePreferredPartyDisplayName({
+            partyCode,
+            savedPartyName,
+            resolveVoucherParty,
+            findPartyOptionByCode,
+          })}
         />
       )}
 

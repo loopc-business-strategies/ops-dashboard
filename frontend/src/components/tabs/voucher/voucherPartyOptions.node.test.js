@@ -3,6 +3,7 @@ import {
   buildLineAccountComboGroups,
   buildVoucherPartyOptions,
   findVoucherPartyOptionByCode,
+  resolvePreferredPartyDisplayName,
   resolveVoucherPartyRecord,
   toPartyComboGroups,
 } from './voucherPartyOptions'
@@ -60,10 +61,38 @@ describe('voucherPartyOptions', () => {
     })
     expect(options).toEqual([expect.objectContaining({
       partyCode: '2301',
-      partyName: 'test supplier',
+      partyName: 'Prestige (Creditor)',
       label: '2301 - Prestige (Creditor)',
       group: 'Vendors',
     })])
+  })
+
+  test('resolveVoucherPartyRecord prefers vendor ledger name over vendor-master nickname', () => {
+    const vendors = [{
+      _id: 'vend-1',
+      name: 'test supplier',
+      vendorCode: 'VEN-0001',
+      ledgerAccountId: {
+        _id: 'acct-p',
+        accountCode: '2301',
+        accountName: 'Prestige (Creditor)',
+        currency: 'USD',
+      },
+    }]
+    const resolved = resolveVoucherPartyRecord('2301', {
+      activeVendors: vendors,
+      voucherType: 'purchase',
+    })
+    expect(resolved.partyName).toBe('Prestige (Creditor)')
+    expect(resolved.partyType).toBe('vendor')
+    expect(resolvePreferredPartyDisplayName({
+      partyCode: '2301',
+      savedPartyName: 'test supplier',
+      resolveVoucherParty: (code) => resolveVoucherPartyRecord(code, {
+        activeVendors: vendors,
+        voucherType: 'purchase',
+      }),
+    })).toBe('Prestige (Creditor)')
   })
 
   test('groups customers before party chart accounts and finds a party by code', () => {

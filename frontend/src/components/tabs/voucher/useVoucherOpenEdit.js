@@ -79,7 +79,10 @@ export function useVoucherOpenEdit({
   const nextHeader = {
     branch: m.branch || '',
     partyCode: m.partyCode || '',
-    partyName: m.partyName || '',
+    partyName: resolvedParty?.partyName
+      || findPartyOptionByCode?.(m.partyCode || '')?.partyName
+      || m.partyName
+      || '',
     currCode: voucherCurrency,
     currRate: normalizedHeaderRate.toFixed(6),
     currRateSource: headerRateSource === 'fixed_aed' ? 'currency_table' : headerRateSource,

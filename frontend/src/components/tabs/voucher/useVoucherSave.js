@@ -196,7 +196,7 @@ export function useVoucherSave({
     vendorId: resolvedParty?.vendorId || undefined,
     voucherMeta: {
       partyCode: isProductTransferSave ? '' : header.partyCode,
-      partyName: isProductTransferSave ? '' : (header.partyName || resolvedParty?.partyName || ''),
+      partyName: isProductTransferSave ? '' : (resolvedParty?.partyName || header.partyName || ''),
       // Never send '' — ObjectId cast fails with Server error. Metal Transfer has no party.
       partyAccountId: isProductTransferSave
         ? null

@@ -175,6 +175,35 @@ describe('buildVoucherPrintModel tenant layout routing', () => {
     expect(model.proMetalCopyLabel).toBe('ACCOUNTS COPY')
   })
 
+  it('prints ledger party name instead of a different vendor-master nickname', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'purchase',
+      voucherLabel: 'Metal Purchase Voucher',
+      isMetalVoucher: true,
+      header: {
+        vocNo: 'Pur/2026/0001',
+        docDate: '2026-11-09',
+        currCode: 'AED',
+        partyCode: '2301',
+        partyName: 'test supplier',
+      },
+      resolveVoucherParty: () => ({
+        partyName: 'Prestige (Creditor)',
+        partyType: 'vendor',
+        partyCode: '2301',
+      }),
+      findPartyOptionByCode: () => ({
+        partyCode: '2301',
+        partyName: 'Prestige (Creditor)',
+      }),
+      user: { company: 'vb', name: 'VB User', tenant: { key: 'vb' } },
+    })
+
+    expect(model.voucher.partyName).toBe('Prestige (Creditor)')
+    expect(model.mgPartyAccountName).toBe('Prestige (Creditor)')
+  })
+
   it('prints AED metal purchase labels and amount-in-words in AED, not USD', () => {
     const model = buildVoucherPrintModel({
       ...baseArgs,
