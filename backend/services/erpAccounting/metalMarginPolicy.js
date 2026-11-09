@@ -4,6 +4,8 @@
  * (see backend/tests/metalMarginPolicy.test.js).
  */
 
+const { resolveUnfixedIndicativeAmountInBase } = require('./voucherFixingService')
+
 /**
  * @param {string} [accountType]
  * @returns {boolean}
@@ -231,9 +233,7 @@ function computeBookedUnfixedRevaluationFromTransactions(transactions = []) {
         metalFixStatus: normalizeUnfixedFixingStatus(tx?.voucherMeta?.fixingType || tx?.metalFixStatus),
         isMetalTrade: true,
         metalCode,
-        unfixedVoucherAmount: Math.abs(
-          Number(tx?.amount || tx?.voucherMeta?.grandTotal || 0) * Number(tx?.exchangeRate || 1),
-        ),
+        unfixedVoucherAmount: Math.abs(resolveUnfixedIndicativeAmountInBase(tx)),
         signedAmount: 0,
         debitAmount: 0,
         creditAmount: 0,

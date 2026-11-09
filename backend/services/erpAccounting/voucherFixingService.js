@@ -101,6 +101,44 @@ function calculateUnfixedPremiumAmount(lines = []) {
   }, 0)
 }
 
+function resolveVoucherForeignLineTotal(tx = {}) {
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  const fromLines = lines.reduce((sum, line) => {
+    const value = Number(line?.amountWithVAT || line?.amountLC || line?.totalAmount || 0)
+    return sum + (Number.isFinite(value) ? value : 0)
+  }, 0)
+  if (fromLines > 0) return fromLines
+  const grandTotal = Number(tx?.voucherMeta?.grandTotal || 0)
+  if (Number.isFinite(grandTotal) && grandTotal > 0) return grandTotal
+  const amount = Number(tx?.amount || 0)
+  return Number.isFinite(amount) ? amount : 0
+}
+
+/**
+ * Indicative unfixed voucher value in base currency for Account Summary.
+ * Metal line totals are in voucher currency; exchangeRate is base-per-1-foreign
+ * when currency ≠ base. Prefer line totals so older metal saves that stored
+ * amount = foreign × displayRate still convert to base (not raw foreign).
+ */
+function resolveUnfixedIndicativeAmountInBase(tx = {}, baseCurrencyCode = 'USD') {
+  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
+  const currency = String(tx?.currency || base).trim().toUpperCase() || base
+  const exchangeRate = Number(tx?.exchangeRate || 1)
+  const rate = Number.isFinite(exchangeRate) && exchangeRate > 0 ? exchangeRate : 1
+  const foreignTotal = resolveVoucherForeignLineTotal(tx)
+  const rawAmount = Number(tx?.amount || tx?.voucherMeta?.grandTotal || 0) || 0
+
+  if (!currency || currency === base) {
+    return foreignTotal > 0 ? foreignTotal : rawAmount
+  }
+
+  if (foreignTotal > 0) {
+    return foreignTotal * rate
+  }
+
+  return rawAmount * rate
+}
+
 /**
  * Voucher amount still waiting for a price: premium stays booked (signed —
  * negative = discount), the metal part shrinks with the open share of grams
@@ -330,6 +368,8 @@ module.exports = {
   computeVoucherFixingAmount,
   summarizeVoucherFixingState,
   calculateUnfixedPremiumAmount,
+  resolveVoucherForeignLineTotal,
+  resolveUnfixedIndicativeAmountInBase,
   resolveOpenUnfixedVoucherAmount,
   assertVoucherFixable,
   createVoucherFixingService,

@@ -18,6 +18,7 @@ const {
 const {
   summarizeVoucherFixingState,
   calculateUnfixedPremiumAmount,
+  resolveUnfixedIndicativeAmountInBase,
   resolveOpenUnfixedVoucherAmount,
 } = require('../../services/erpAccounting/voucherFixingService')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
@@ -586,7 +587,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const hasVoucherLines = Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length > 0
       const isMetalTransfer = METAL_TRANSFER_LEDGER_TYPES.includes(txType)
       const isMetalTrade = (['sale', 'purchase'].includes(txType) && Boolean(metalCode || hasVoucherLines)) || isMetalTransfer
-      const voucherAmount = Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1)
+      const voucherAmount = resolveUnfixedIndicativeAmountInBase(tx, baseCurrencyCode)
       const metalSignedWeight = isMetalTransfer
         ? resolveTransferSignedPureWeight(txType, tx.voucherMeta?.lineItems)
         : (isMetalTrade && fixingStatus === 'unfixed')

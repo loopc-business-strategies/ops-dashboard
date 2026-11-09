@@ -2,6 +2,7 @@ const {
   computeVoucherFixingAmount,
   summarizeVoucherFixingState,
   calculateUnfixedPremiumAmount,
+  resolveUnfixedIndicativeAmountInBase,
   resolveOpenUnfixedVoucherAmount,
   assertVoucherFixable,
   createVoucherFixingService,
@@ -74,6 +75,31 @@ describe('voucherFixingService helpers', () => {
     expect(calculateUnfixedPremiumAmount([
       { pureWeight: OZ, rateType: 'OZ', premiumValue: -100 },
     ])).toBeCloseTo(-100, 6)
+  })
+
+  test('unfixed indicative amount converts AED line totals to base USD', () => {
+    const aedTotal = 243461.83
+    const backendRate = 1 / 3.674
+    const tx = {
+      currency: 'AED',
+      // Older metal saves stored amount = foreign × display rate; product was AED not USD.
+      amount: Math.round(aedTotal * 3.674 * 100) / 100,
+      exchangeRate: backendRate,
+      voucherMeta: {
+        lineItems: [{ amountLC: aedTotal, amountWithVAT: aedTotal }],
+      },
+    }
+    expect(resolveUnfixedIndicativeAmountInBase(tx, 'USD')).toBeCloseTo(aedTotal * backendRate, 2)
+    expect(resolveUnfixedIndicativeAmountInBase(tx, 'USD')).toBeCloseTo(66266.15, 2)
+  })
+
+  test('unfixed indicative amount keeps USD vouchers in base', () => {
+    expect(resolveUnfixedIndicativeAmountInBase({
+      currency: 'USD',
+      exchangeRate: 1,
+      amount: 1000,
+      voucherMeta: { lineItems: [{ amountLC: 1000 }] },
+    }, 'USD')).toBe(1000)
   })
 
   test('rejects fixed, unposted and fully fixed vouchers', () => {

@@ -261,10 +261,11 @@ export function useVoucherSave({
     && headerDisplayRate > 0
     && payloadLineTotal > 0
   if (postHeaderForeignAmount) {
-    // Ledger stays in USD (foreign amount × USD-per-unit). The statement keeps the som figure from this rate.
+    // Line totals are already in voucher currency. Store foreign face × backend
+    // rate (base per 1 foreign) so amount × exchangeRate is base USD/indicative.
     payload.currency = normalizedHeaderCurrency
     payload.exchangeRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency, true)
-    payload.amount = Math.round(payloadLineTotal * headerDisplayRate * 100) / 100
+    payload.amount = Math.round(payloadLineTotal * 100) / 100
   } else {
     payload.amount = (isSimpleMetalSave || isProductTransferSave) ? 0.01 : (payloadLineTotal || 0.01)
   }
