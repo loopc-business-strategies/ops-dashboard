@@ -134,7 +134,7 @@ export function useVoucherSave({
     const resolvedPartyCheck = resolveVoucherParty(header.partyCode)
     const selectedAccountCheck = findPartyOptionByCode(header.partyCode)
     if (!resolvedPartyCheck && !selectedAccountCheck) {
-      setError('Party must match a customer, vendor, or chart account')
+      setError('Party must match a customer, vendor, or party ledger account')
       return false
     }
   }

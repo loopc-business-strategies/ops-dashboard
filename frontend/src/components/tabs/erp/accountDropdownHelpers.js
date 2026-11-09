@@ -22,12 +22,41 @@ export function filterActiveAccounts(accounts = []) {
     })
 }
 
-/** Active chart accounts suitable for voucher party dropdowns (valid account codes only). */
+/**
+ * Chart accounts eligible as voucher Party Details entries when no customer/vendor master exists.
+ * Keep this narrow: cash/bank/stock/P&L/control accounts belong on voucher lines, not as party.
+ * Party-like = trade debtor/creditor naming, or AR/AP-style codes outside control accounts.
+ */
+export function isPartyEligibleChartAccount(account) {
+  if (!isActiveChartAccount(account)) return false
+  const code = String(account?.accountCode || account?.code || '').trim()
+  if (!isValidPartyAccountCode(code)) return false
+
+  const name = String(account?.accountName || account?.name || '').trim()
+  const type = String(account?.accountType || '').trim().toLowerCase()
+  const haystack = `${code} ${name}`.toLowerCase()
+
+  // Explicit party naming always wins (customer ledgers created in COA before master link).
+  if (/\(debtor\)|\(creditor\)|\bdebtor\b|\bcreditor\b|\bcustomer\b|\bvendor\b|\bsupplier\b|\bsundry\b/i.test(haystack)) {
+    return true
+  }
+
+  // Never treat operational / P&L / inventory / tax / equity / fixing GL as a party.
+  if (
+    /\b(cash|bank|petty|inventory|stock|vat|tax|payroll|equity|retained|depreciation|revenue|sales|income|expense|cogs|rent|utilities|fixing|payable|receivable|equipment|property)\b/i.test(
+      haystack,
+    )
+  ) {
+    return false
+  }
+
+  // Remaining Asset/Liability ledgers with a real code may be party sub-ledgers (e.g. 1304).
+  return type === 'asset' || type === 'liability'
+}
+
+/** Active chart accounts suitable for voucher party dropdowns (party-eligible only). */
 export function filterPartyAccounts(accounts = []) {
-  return filterActiveAccounts(accounts).filter((account) => {
-    const code = String(account?.accountCode || account?.code || '').trim()
-    return isValidPartyAccountCode(code)
-  })
+  return filterActiveAccounts(accounts).filter(isPartyEligibleChartAccount)
 }
 
 export function isActiveCustomer(customer) {

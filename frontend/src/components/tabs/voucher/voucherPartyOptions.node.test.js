@@ -42,15 +42,15 @@ describe('voucherPartyOptions', () => {
     expect(resolved.partyCode).toBe('1319')
   })
 
-  test('groups customers before chart accounts and finds a party by code', () => {
+  test('groups customers before party chart accounts and finds a party by code', () => {
     const options = buildVoucherPartyOptions({
       activeCustomers: [customer],
       activeVendors: [],
-      partyChartAccounts: [{ _id: 'cash', accountCode: '1000', accountName: 'Cash on Hand', accountType: 'Asset' }],
+      partyChartAccounts: [{ _id: 'party', accountCode: '1306', accountName: 'NEW BUYER', accountType: 'Asset' }],
     })
-    expect(options.map((item) => item.partyCode)).toEqual(['1319', '1000'])
+    expect(options.map((item) => item.partyCode)).toEqual(['1319', '1306'])
     expect(toPartyComboGroups(options).map((group) => group.label)).toEqual(['Customers', 'Asset'])
-    expect(findVoucherPartyOptionByCode(options, '1000').partyName).toBe('Cash on Hand')
+    expect(findVoucherPartyOptionByCode(options, '1306').partyName).toBe('NEW BUYER')
   })
 
   test('groups line accounts in chart order', () => {

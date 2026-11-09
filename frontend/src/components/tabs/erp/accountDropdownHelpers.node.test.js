@@ -58,10 +58,22 @@ describe('accountDropdownHelpers', () => {
 
   test('filterPartyAccounts rejects mongo-id account codes', () => {
     const rows = [
-      { _id: 'a1', accountCode: '1303', isActive: true },
-      { _id: 'a2', accountCode: '69f9a1ef682467dc3f029e42', isActive: true },
-      { _id: 'a3', accountCode: '2000', isActive: false },
+      { _id: 'a1', accountCode: '1303', accountName: 'Trade Party', accountType: 'Asset', isActive: true },
+      { _id: 'a2', accountCode: '69f9a1ef682467dc3f029e42', accountName: 'Bad', accountType: 'Asset', isActive: true },
+      { _id: 'a3', accountCode: '2000', accountName: 'AP', accountType: 'Liability', isActive: false },
     ]
     expect(filterPartyAccounts(rows).map((row) => row._id)).toEqual(['a1'])
+  })
+
+  test('filterPartyAccounts keeps party ledgers and drops cash/stock/P&L', () => {
+    const rows = [
+      { _id: 'party', accountCode: '1306', accountName: 'NEW BUYER', accountType: 'Asset', isActive: true },
+      { _id: 'debtor', accountCode: '1310', accountName: 'Acme (Debtor)', accountType: 'Asset', isActive: true },
+      { _id: 'cash', accountCode: '1000', accountName: 'Cash on Hand', accountType: 'Asset', isActive: true },
+      { _id: 'stock', accountCode: '1200', accountName: 'Stock in Hand', accountType: 'Asset', isActive: true },
+      { _id: 'sales', accountCode: '4000', accountName: 'Sales Revenue', accountType: 'Income', isActive: true },
+      { _id: 'ar', accountCode: '1100', accountName: 'Accounts Receivable', accountType: 'Asset', isActive: true },
+    ]
+    expect(filterPartyAccounts(rows).map((row) => row._id)).toEqual(['party', 'debtor'])
   })
 })
