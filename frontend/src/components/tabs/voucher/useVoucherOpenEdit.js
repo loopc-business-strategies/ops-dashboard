@@ -57,6 +57,8 @@ export function useVoucherOpenEdit({
   baseCurrencyCode = 'USD',
   isReadOnly = false,
   isEntryLocked = () => false,
+  refreshParties,
+  refreshAccounts,
 }) {
   const openVoucher = (v) => {
   const m = v.voucherMeta || {}
@@ -130,6 +132,15 @@ export function useVoucherOpenEdit({
 }
 
   const openCreate = async (freshList, forcedType = voucherType) => {
+  // Pull latest customers/vendors/accounts so newly created parties (e.g. Prestige) appear.
+  try {
+    await Promise.all([
+      typeof refreshParties === 'function' ? refreshParties({ force: true }) : null,
+      typeof refreshAccounts === 'function' ? refreshAccounts({ force: true }) : null,
+    ])
+  } catch {
+    // Keep existing local catalogs if refresh fails.
+  }
   // If already filling a new form, ask before discarding
   if (mode === 'create' && !editingId) {
     const hasTransferData = isMetalProductTransferVoucherType(forcedType || voucherType)

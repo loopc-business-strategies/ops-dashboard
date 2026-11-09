@@ -5,12 +5,13 @@ import { loadSharedPagedList } from './erpPagedRows'
 const PARTY_PARAMS = { all: true, sharedPages: true }
 
 /** Full customer list. Concurrent callers share one download for 45 seconds. */
-export function loadSharedCustomers(token, { onPage, filters = {} } = {}) {
+export function loadSharedCustomers(token, { onPage, filters = {}, force = false } = {}) {
   return loadSharedPagedList({
     cacheKind: CATALOG_KINDS.customers,
     token,
     params: { ...filters, ...PARTY_PARAMS },
     pageSize: 100,
+    force,
     readPage: async ({ page, limit }) => {
       const res = await erpAccountingAPI.getCustomers(token, { ...filters, page, limit })
       return { rows: res.customers || [], total: res.total }
@@ -20,12 +21,13 @@ export function loadSharedCustomers(token, { onPage, filters = {} } = {}) {
 }
 
 /** Full vendor list. Concurrent callers share one download for 45 seconds. */
-export function loadSharedVendors(token, { onPage } = {}) {
+export function loadSharedVendors(token, { onPage, force = false } = {}) {
   return loadSharedPagedList({
     cacheKind: CATALOG_KINDS.vendors,
     token,
     params: PARTY_PARAMS,
     pageSize: 100,
+    force,
     readPage: async ({ page, limit }) => {
       const res = await erpAccountingAPI.getVendors(token, { page, limit })
       return { rows: res.vendors || [], total: res.total }

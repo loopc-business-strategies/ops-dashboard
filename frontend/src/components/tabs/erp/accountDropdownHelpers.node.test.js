@@ -34,8 +34,9 @@ describe('accountDropdownHelpers', () => {
       { _id: 'v1', isActive: true, vendorCode: 'VEN-0001', ledgerAccountId: { _id: 'a1', accountCode: '2100', isActive: true } },
       { _id: 'v2', isActive: true, deletedAt: '2026-01-01' },
       { _id: 'v3', isActive: false },
+      { _id: 'v4', isActive: true, vendorCode: 'VEN-0002', ledgerAccountId: null },
     ]
-    expect(filterActiveVendors(rows).map((row) => row._id)).toEqual(['v1'])
+    expect(filterActiveVendors(rows).map((row) => row._id)).toEqual(['v1', 'v4'])
   })
 
   test('buildEntryAccountOptions merges active party ledgers without duplicates', () => {

@@ -58,6 +58,7 @@ export function useErpVendorActions({
         showNotification('✅ Vendor created')
       }
       invalidateCatalogCache(CATALOG_KINDS.vendors)
+      invalidateCatalogCache(CATALOG_KINDS.accounts)
       setVendorForm(createEmptyVendorForm(baseCurrencyCode))
       setShowVendorForm(false)
       setEditingVendorId('')

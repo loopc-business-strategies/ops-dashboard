@@ -42,6 +42,30 @@ describe('voucherPartyOptions', () => {
     expect(resolved.partyCode).toBe('1319')
   })
 
+  test('vendor party options prefer ledger account code/name like MG COA', () => {
+    const options = buildVoucherPartyOptions({
+      activeCustomers: [],
+      activeVendors: [{
+        _id: 'vend-1',
+        name: 'test supplier',
+        vendorCode: 'VEN-0001',
+        ledgerAccountId: {
+          _id: 'acct-p',
+          accountCode: '2301',
+          accountName: 'Prestige (Creditor)',
+          currency: 'USD',
+        },
+      }],
+      partyChartAccounts: [],
+    })
+    expect(options).toEqual([expect.objectContaining({
+      partyCode: '2301',
+      partyName: 'test supplier',
+      label: '2301 - Prestige (Creditor)',
+      group: 'Vendors',
+    })])
+  })
+
   test('groups customers before party chart accounts and finds a party by code', () => {
     const options = buildVoucherPartyOptions({
       activeCustomers: [customer],

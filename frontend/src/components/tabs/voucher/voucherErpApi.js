@@ -6,18 +6,20 @@ import { loadSharedCustomers, loadSharedVendors } from '../../../utils/erpShared
 
 /** Voucher tab ERP API facade — routes all /api/erp-accounting calls through erpAccountingAPI. */
 
-export async function fetchVoucherParties(token, { onPage } = {}) {
+export async function fetchVoucherParties(token, { onPage, force = false } = {}) {
   let customers = []
   let vendors = []
   const publish = () => onPage?.({ customers, vendors })
   await Promise.all([
     loadSharedCustomers(token, {
+      force,
       onPage: (rows) => {
         customers = rows
         publish()
       },
     }),
     loadSharedVendors(token, {
+      force,
       onPage: (rows) => {
         vendors = rows
         publish()

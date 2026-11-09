@@ -37,7 +37,7 @@ export function resolveVoucherPartyRecord(partyCode, {
     customerId: '',
     vendorId: vendor._id,
     partyName: vendor.name || '',
-    partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
+    partyCode: vendor.ledgerAccountId?.accountCode || vendor.vendorCode || String(vendor._id),
     partyId: `vendor:${String(vendor._id)}`,
     partyType: 'vendor',
     accountCurrency: String(vendor.ledgerAccountId?.currency || vendor.currency || '').trim().toUpperCase(),
@@ -120,15 +120,22 @@ export function buildVoucherPartyOptions({
 
   const vendorPartyOptions = activeVendors
     .map((vendor) => {
-      const code = String(vendor?.vendorCode || vendor?.ledgerAccountId?.accountCode || '').trim()
-      const name = String(vendor?.name || '').trim()
+      // Prefer ledger code/name so Party Details matches Chart of Accounts / MG
+      // (e.g. 2301 - Prestige (Creditor)), even when vendor master name differs.
+      const ledgerCode = String(vendor?.ledgerAccountId?.accountCode || '').trim()
+      const ledgerName = String(vendor?.ledgerAccountId?.accountName || '').trim()
+      const vendorCode = String(vendor?.vendorCode || '').trim()
+      const vendorName = String(vendor?.name || '').trim()
+      const code = ledgerCode || vendorCode
+      const labelName = ledgerName || vendorName
+      const partyName = vendorName || ledgerName.replace(/\s*\((?:debtor|creditor)\)\s*$/i, '').trim()
       if (!code) return null
       return {
         id: `vendor:${String(vendor._id)}`,
         accountId: String(vendor?.ledgerAccountId?._id || vendor._id),
-        label: `${code}${name ? ` - ${name}` : ''}`,
+        label: `${code}${labelName ? ` - ${labelName}` : ''}`,
         partyCode: code,
-        partyName: name,
+        partyName,
         accountType: 'Vendors',
         group: 'Vendors',
       }

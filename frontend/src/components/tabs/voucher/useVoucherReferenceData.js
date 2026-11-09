@@ -19,10 +19,11 @@ export function useVoucherReferenceData({
   setLocalCurrencies,
   setLatestMetalRates,
 }) {
-  const refreshAccounts = useCallback(async () => {
+  const refreshAccounts = useCallback(async ({ force = false } = {}) => {
     if (!token || !setLocalAccounts) return
     try {
       await fetchVoucherAccounts(token, {
+        force,
         onPage: (accounts) => {
           if (accounts.length > 0) setLocalAccounts(accounts)
         },
@@ -32,10 +33,11 @@ export function useVoucherReferenceData({
     }
   }, [token, setLocalAccounts])
 
-  const refreshParties = useCallback(async () => {
+  const refreshParties = useCallback(async ({ force = false } = {}) => {
     if (!token) return
     try {
       await fetchVoucherParties(token, {
+        force,
         onPage: ({ customers, vendors }) => {
           if (customers.length > 0) setLocalCustomers(customers)
           if (vendors.length > 0) setLocalVendors(vendors)

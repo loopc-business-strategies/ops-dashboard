@@ -72,10 +72,14 @@ export function isActiveVendor(vendor) {
   if (!vendor || vendor.isActive === false) return false
   if (vendor.deletedAt) return false
   const ledger = vendor.ledgerAccountId
-  if (!ledger || typeof ledger !== 'object' || !ledger._id) return false
-  if (ledger.isActive === false) return false
-  if (!isValidPartyAccountCode(ledger.accountCode) && !isValidPartyAccountCode(vendor.vendorCode)) return false
-  return true
+  // Populated ledger: require active ledger + a usable code (ledger or vendor code).
+  if (ledger && typeof ledger === 'object' && ledger._id) {
+    if (ledger.isActive === false) return false
+    return isValidPartyAccountCode(ledger.accountCode) || isValidPartyAccountCode(vendor.vendorCode)
+  }
+  // Unpopulated / missing ledger still OK when vendor master has a real vendor code
+  // (Party Details can resolve by vendorCode; avoids dropping new suppliers from dropdown).
+  return isValidPartyAccountCode(vendor.vendorCode)
 }
 
 export function filterActiveCustomers(customers = []) {

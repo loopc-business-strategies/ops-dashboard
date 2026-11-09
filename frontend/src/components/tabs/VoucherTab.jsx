@@ -661,6 +661,8 @@ export default function VoucherTab({
     baseCurrencyCode,
     isReadOnly,
     isEntryLocked,
+    refreshParties,
+    refreshAccounts,
   })
 
   openVoucherRef.current = openVoucher
@@ -1130,7 +1132,7 @@ export default function VoucherTab({
         setHdr('partyName', '')
         return
       }
-      const code = String(v.vendorCode || v.ledgerAccountId?.accountCode || '').trim() || String(v._id)
+      const code = String(v.ledgerAccountId?.accountCode || v.vendorCode || '').trim() || String(v._id)
       setHdr('partyCode', code)
       setHdr('partyName', String(v.name || '').trim())
       applyPartyCurrency(resolveVoucherParty(code))

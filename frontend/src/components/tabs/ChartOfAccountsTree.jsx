@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { loadSharedAccountChart } from '../../utils/erpSharedAccountChart'
 import { loadSharedCurrencies } from '../../utils/erpSharedCurrencies'
+import { CATALOG_KINDS, invalidateCatalogCache } from '../../utils/erpCatalogCache'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import {
@@ -410,6 +411,9 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             currency: newCustomerDraft.currency || baseCurrencyCode,
           })
 
+          // Keep voucher Party Details in sync (shared catalog cache).
+          invalidateCatalogCache(CATALOG_KINDS.customers)
+          invalidateCatalogCache(CATALOG_KINDS.accounts)
           setSuccess('New customer and receivable account created')
           setModal(null)
           await load({ force: true })
@@ -426,6 +430,9 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             currency: newSupplierDraft.currency || baseCurrencyCode,
           })
 
+          // Keep voucher Party Details in sync (shared catalog cache).
+          invalidateCatalogCache(CATALOG_KINDS.vendors)
+          invalidateCatalogCache(CATALOG_KINDS.accounts)
           setSuccess('New supplier and payable account created')
           setModal(null)
           await load({ force: true })
@@ -465,6 +472,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           marginPercent:   marginPercentValue,
         })
 
+        invalidateCatalogCache(CATALOG_KINDS.accounts)
         setSuccess('Account created')
       } else if (modal.mode === 'edit') {
         const marginPercentValue = form.marginPercent === '' || form.marginPercent == null
