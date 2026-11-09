@@ -1,14 +1,17 @@
+/** Peg: 1 USD = 3.674 AED → store USD-per-1-AED. */
+const AED_USD_PER_UNIT = Number((1 / 3.674).toFixed(6)) // 0.272183
+
 const DEFAULT_CURRENCY_MASTER = [
   { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
   { code: 'EUR', name: 'Euro', symbol: 'EUR', exchangeRate: 1.08, baseCurrency: false },
-  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: AED_USD_PER_UNIT, baseCurrency: false },
   { code: 'UZS', name: 'Uzbekistan Som', symbol: 'UZS', exchangeRate: 0.000078, baseCurrency: false },
 ]
 
 /** Venus Bullions: USD base + AED foreign only. */
 const VB_CURRENCY_MASTER = [
   { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
-  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: AED_USD_PER_UNIT, baseCurrency: false },
 ]
 
 function normalizeTenantKey(tenant) {
@@ -101,7 +104,10 @@ function createCurrencyBootstrapService({ Currency, BASE_CURRENCY_CODE }) {
         changed = true
       }
       const nextRate = Number(existing.exchangeRate || 0)
-      if (!Number.isFinite(nextRate) || nextRate <= 0) {
+      // Missing/invalid rates, or foreign currency stuck at 1 (same as USD base)
+      // after a bad edit — restore the tenant master peg (e.g. AED 0.272183).
+      const looksUnsetOrParity = !Number.isFinite(nextRate) || nextRate <= 0 || nextRate === 1
+      if (looksUnsetOrParity && Number(preset.exchangeRate) > 0 && Number(preset.exchangeRate) !== 1) {
         existing.exchangeRate = preset.exchangeRate
         changed = true
       }

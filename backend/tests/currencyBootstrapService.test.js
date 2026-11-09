@@ -18,5 +18,6 @@ describe('currencyBootstrapService tenant masters', () => {
     expect(VB_CURRENCY_MASTER.map((row) => row.code)).toEqual(['USD', 'AED'])
     expect(VB_CURRENCY_MASTER.find((row) => row.code === 'USD')?.baseCurrency).toBe(true)
     expect(VB_CURRENCY_MASTER.find((row) => row.code === 'AED')?.baseCurrency).toBe(false)
+    expect(VB_CURRENCY_MASTER.find((row) => row.code === 'AED')?.exchangeRate).toBeCloseTo(0.272183, 6)
   })
 })
