@@ -67,6 +67,19 @@ describe('resolveVoucherNetAmounts', () => {
     expect(result.uzsAmount).toBeCloseTo(160589143, 2)
   })
 
+  test('AED metal purchase converts Net Amt (USD) with the typed AED/USD rate', () => {
+    const result = resolveVoucherNetAmounts({
+      isReceiptPayment: false,
+      grandTotal: 243461.83,
+      baseCurrencyCode: 'USD',
+      uzsPerBase: 0,
+      voucherCurrency: 'AED',
+      voucherDisplayRate: 3.674,
+    })
+    expect(result.baseAmount).toBeCloseTo(66266.15, 2)
+    expect(result.uzsAmount).toBeNull()
+  })
+
   test('mixed receipt lines: UZS line keeps FC, USD line converts', () => {
     const result = resolveVoucherNetAmounts({
       isReceiptPayment: true,

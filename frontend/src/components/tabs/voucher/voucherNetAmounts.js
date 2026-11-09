@@ -32,9 +32,30 @@ export function resolveVoucherUzsPerBase({ header = {}, masterUzsPerBase = 0 } =
 }
 
 /**
+ * Convert a voucher-currency total into base currency.
+ * Header display rates are foreign units per 1 base (e.g. 3.674 AED/USD).
+ */
+export function convertVoucherTotalToBase({
+  grandTotal = 0,
+  voucherCurrency = '',
+  voucherDisplayRate = 0,
+  baseCurrencyCode = 'USD',
+} = {}) {
+  const base = normalizeCode(baseCurrencyCode) || 'USD'
+  const ownCode = normalizeCode(voucherCurrency) || base
+  const total = toNumber(grandTotal)
+  const displayRate = toNumber(voucherDisplayRate)
+  if (ownCode && ownCode !== base && displayRate > 0) {
+    return total / displayRate
+  }
+  return total
+}
+
+/**
  * Voucher net amount in base currency and in UZS.
  * Receipt/payment lines carry their own currency amount (amountFC) and base
- * equivalent (amountLC); other vouchers post their total in base currency.
+ * equivalent (amountLC). Metal / other vouchers may total in the header currency
+ * (e.g. AED) and must be converted to base with the typed display rate.
  */
 export function resolveVoucherNetAmounts({
   isReceiptPayment = false,
@@ -42,6 +63,8 @@ export function resolveVoucherNetAmounts({
   grandTotal = 0,
   baseCurrencyCode = 'USD',
   uzsPerBase = 0,
+  voucherCurrency = '',
+  voucherDisplayRate = 0,
 } = {}) {
   const base = normalizeCode(baseCurrencyCode) || 'USD'
   const rate = toNumber(uzsPerBase)
@@ -64,7 +87,12 @@ export function resolveVoucherNetAmounts({
     }
   } else {
     usesRate = true
-    baseAmount = toNumber(grandTotal)
+    baseAmount = convertVoucherTotalToBase({
+      grandTotal,
+      voucherCurrency,
+      voucherDisplayRate,
+      baseCurrencyCode: base,
+    })
     uzsAmount = baseAmount * rate
   }
 
@@ -92,7 +120,15 @@ export function resolveVoucherSummaryNetAmounts({
     header,
     masterUzsPerBase: resolveMasterUzsPerBase(currencyOptions),
   })
-  return resolveVoucherNetAmounts({ isReceiptPayment, lineItems, grandTotal, baseCurrencyCode, uzsPerBase })
+  return resolveVoucherNetAmounts({
+    isReceiptPayment,
+    lineItems,
+    grandTotal,
+    baseCurrencyCode,
+    uzsPerBase,
+    voucherCurrency: header?.currCode,
+    voucherDisplayRate: header?.currRate,
+  })
 }
 
 const formatRate = (rate) => Number(rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })

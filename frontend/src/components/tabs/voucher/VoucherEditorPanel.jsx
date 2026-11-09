@@ -357,31 +357,31 @@ export default function VoucherEditorPanel({
           {!isSimpleMetalVoucher && isMetalVoucher && (
             <tr style={{ borderBottom: '1px solid #E8EAED' }}>
               <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Metal Amount :</td>
-              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.metalTotal, baseCurrencyCode)}</td>
+              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.metalTotal, header.currCode || baseCurrencyCode)}</td>
             </tr>
           )}
           {!isSimpleMetalVoucher && isMetalVoucher && (
             <tr style={{ borderBottom: '1px solid #E8EAED' }}>
               <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Making Charges :</td>
-              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.makingTotal, baseCurrencyCode)}</td>
+              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.makingTotal, header.currCode || baseCurrencyCode)}</td>
             </tr>
           )}
           {!isSimpleMetalVoucher && isMetalVoucher && (
             <tr style={{ borderBottom: '1px solid #E8EAED' }}>
               <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Premium Amount :</td>
-              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.premiumTotal, baseCurrencyCode)}</td>
+              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.premiumTotal, header.currCode || baseCurrencyCode)}</td>
             </tr>
           )}
           {!isSimpleMetalVoucher && isMetalVoucher && (
             <tr style={{ borderBottom: '1px solid #E8EAED' }}>
               <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>Gross Amount :</td>
-              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total, baseCurrencyCode)}</td>
+              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total, header.currCode || baseCurrencyCode)}</td>
             </tr>
           )}
           {!isSimpleMetalVoucher && isMetalVoucher && (
             <tr style={{ borderBottom: '1px solid #E8EAED' }}>
               <td style={{ padding: '0.08rem 0.55rem', color: '#374151' }}>VAT Amount :</td>
-              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount, baseCurrencyCode)}</td>
+              <td style={{ padding: '0.08rem 0.55rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount, header.currCode || baseCurrencyCode)}</td>
             </tr>
           )}
           {!isSimpleMetalVoucher && buildNetAmountRows({
