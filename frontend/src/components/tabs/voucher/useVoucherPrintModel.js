@@ -30,8 +30,10 @@ const upperCode = (value) => String(value || '').trim().toUpperCase()
 export function resolvePrintTotals({ voucherType, header, effectiveLineItems, totals, baseCurrencyCode = 'USD' }) {
   const base = upperCode(baseCurrencyCode) || 'USD'
   const headerCode = upperCode(header?.currCode) || base
+  // Metal voucher line totals are priced in the header currency (AED/USD/…),
+  // so print labels and amount-in-words must follow the header — not base USD.
   if (['purchase', 'sale', 'metal_receipt', 'metal_payment'].includes(voucherType)) {
-    return { totals, currency: base }
+    return { totals, currency: headerCode }
   }
   if (voucherType !== 'payment' && voucherType !== 'receipt') return { totals, currency: headerCode }
 

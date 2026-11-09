@@ -175,6 +175,33 @@ describe('buildVoucherPrintModel tenant layout routing', () => {
     expect(model.proMetalCopyLabel).toBe('ACCOUNTS COPY')
   })
 
+  it('prints AED metal purchase labels and amount-in-words in AED, not USD', () => {
+    const model = buildVoucherPrintModel({
+      ...baseArgs,
+      voucherType: 'purchase',
+      voucherLabel: 'Metal Purchase Voucher',
+      isMetalVoucher: true,
+      header: {
+        vocNo: 'Pur/2026/0001',
+        docDate: '2026-11-09',
+        currCode: 'AED',
+        currRate: '3.674',
+        fixingType: 'non-fixing',
+        metalRate: '15145',
+      },
+      effectiveLineItems: [{ metalRate: 15145, amountLC: 243461.83, amountWithVAT: 243461.83 }],
+      totals: { grandTotal: 243461.83 },
+      user: { company: 'vb', name: 'VB User', tenant: { key: 'vb' } },
+    })
+
+    expect(model.currencyLabel).toBe('AED')
+    expect(model.mgMetalRateLabel).toContain('(AED)')
+    expect(model.mgMetalRateLabel).not.toContain('(USD)')
+    expect(model.printAmountLabel).toBe('Amount (AED)')
+    expect(model.mgAmountWords).toMatch(/United Arab Emirates Dirham Only/i)
+    expect(model.mgAmountWords).not.toMatch(/United States Dollar/i)
+  })
+
   it('does not route to professional layout when tenant flag is disabled', () => {
     vi.spyOn(tenantBranding, 'isProfessionalVoucherPrintEnabled').mockReturnValue(false)
 
@@ -235,10 +262,12 @@ describe('resolvePrintTotals', () => {
     expect(result.totals.grandTotal).toBeCloseTo(13271.83, 2)
   })
 
-  it('keeps metal voucher amounts in the base currency when the header is UZS', () => {
-    const totals = { grandTotal: 500 }
-    expect(resolvePrintTotals({ voucherType: 'purchase', header: { currCode: 'UZS' }, effectiveLineItems: [uzsLine], totals }))
-      .toEqual({ totals, currency: 'USD' })
+  it('prints metal vouchers in the header currency (AED/UZS), not forced base USD', () => {
+    const totals = { grandTotal: 243461.83 }
+    expect(resolvePrintTotals({ voucherType: 'purchase', header: { currCode: 'AED' }, effectiveLineItems: [{ amountLC: 243461.83 }], totals }))
+      .toEqual({ totals, currency: 'AED' })
+    expect(resolvePrintTotals({ voucherType: 'sale', header: { currCode: 'UZS' }, effectiveLineItems: [uzsLine], totals: { grandTotal: 500 } }))
+      .toEqual({ totals: { grandTotal: 500 }, currency: 'UZS' })
   })
 })
 
