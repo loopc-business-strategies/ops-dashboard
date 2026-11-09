@@ -101,17 +101,12 @@ function calculateUnfixedPremiumAmount(lines = []) {
   }, 0)
 }
 
-function resolveVoucherForeignLineTotal(tx = {}) {
+function resolveVoucherLineMoneyTotal(tx = {}) {
   const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-  const fromLines = lines.reduce((sum, line) => {
+  return lines.reduce((sum, line) => {
     const value = Number(line?.amountWithVAT || line?.amountLC || line?.totalAmount || 0)
     return sum + (Number.isFinite(value) ? value : 0)
   }, 0)
-  if (fromLines > 0) return fromLines
-  const grandTotal = Number(tx?.voucherMeta?.grandTotal || 0)
-  if (Number.isFinite(grandTotal) && grandTotal > 0) return grandTotal
-  const amount = Number(tx?.amount || 0)
-  return Number.isFinite(amount) ? amount : 0
 }
 
 function resolveBackendFxRateFromVoucher(tx = {}, baseCurrencyCode = 'USD') {
@@ -138,7 +133,7 @@ function resolveBackendFxRateFromVoucher(tx = {}, baseCurrencyCode = 'USD') {
 /**
  * Indicative unfixed voucher value in base currency for Account Summary.
  * Metal line totals are in voucher currency; exchangeRate is base-per-1-foreign
- * when currency ≠ base. Prefer line totals so older metal saves that stored
+ * when currency ≠ base. Prefer line money so older metal saves that stored
  * amount = foreign × displayRate still convert to base (not raw foreign).
  */
 function resolveUnfixedIndicativeAmountInBase(tx = {}, baseCurrencyCode = 'USD') {
@@ -147,15 +142,24 @@ function resolveUnfixedIndicativeAmountInBase(tx = {}, baseCurrencyCode = 'USD')
   const lineCurrency = String(lines.find((line) => String(line?.currCode || '').trim())?.currCode || '').trim().toUpperCase()
   const currency = String(tx?.currency || lineCurrency || base).trim().toUpperCase() || base
   const rate = resolveBackendFxRateFromVoucher({ ...tx, currency }, base)
-  const foreignTotal = resolveVoucherForeignLineTotal(tx)
+  const lineMoneyTotal = resolveVoucherLineMoneyTotal(tx)
   const rawAmount = Number(tx?.amount || tx?.voucherMeta?.grandTotal || 0) || 0
 
   if (!currency || currency === base) {
-    return foreignTotal > 0 ? foreignTotal : rawAmount
+    return lineMoneyTotal > 0 ? lineMoneyTotal : rawAmount
   }
 
-  if (foreignTotal > 0) {
-    return foreignTotal * rate
+  if (lineMoneyTotal > 0) {
+    return lineMoneyTotal * rate
+  }
+
+  // No line money: older metal saves stored amount = foreign × displayRate, so
+  // amount × rate equals foreign face — convert that face with the same rate.
+  if (rate > 0 && rate < 1 && rawAmount > 0) {
+    const asForeignFace = rawAmount * rate
+    const asBaseFromPremultiplied = asForeignFace * rate
+    if (asForeignFace > asBaseFromPremultiplied * 1.5) return asBaseFromPremultiplied
+    return asForeignFace
   }
 
   return rawAmount * rate
@@ -390,7 +394,7 @@ module.exports = {
   computeVoucherFixingAmount,
   summarizeVoucherFixingState,
   calculateUnfixedPremiumAmount,
-  resolveVoucherForeignLineTotal,
+  resolveVoucherLineMoneyTotal,
   resolveUnfixedIndicativeAmountInBase,
   resolveOpenUnfixedVoucherAmount,
   assertVoucherFixable,

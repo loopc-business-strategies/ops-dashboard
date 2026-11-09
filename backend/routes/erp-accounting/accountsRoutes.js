@@ -553,7 +553,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { _id: { $in: referenceIds } },
       ],
     })
-      .select('_id journalEntryId type amount currency exchangeRate voucherMeta.grandTotal voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.fixings voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.premiumValue voucherMeta.lineItems.rateType voucherMeta.lineItems.weightInOz')
+      .select('_id journalEntryId type amount currency exchangeRate voucherMeta.grandTotal voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.fixings voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity voucherMeta.lineItems.premiumValue voucherMeta.lineItems.rateType voucherMeta.lineItems.weightInOz voucherMeta.lineItems.amountLC voucherMeta.lineItems.amountWithVAT voucherMeta.lineItems.totalAmount voucherMeta.lineItems.currCode voucherMeta.lineItems.currRate')
       .lean()
 
     const voucherFixingRefIds = ledgerEntries

@@ -114,6 +114,21 @@ describe('voucherFixingService helpers', () => {
     }, 'USD')).toBeCloseTo(66266.15, 2)
   })
 
+  test('unfixed indicative amount recovers when enquiry omitted line money fields', () => {
+    const aedTotal = 243461.83
+    const displayRate = 3.674
+    const backendRate = 1 / displayRate
+    // Old metal save: amount = AED × display; lines selected without amountLC.
+    expect(resolveUnfixedIndicativeAmountInBase({
+      currency: 'AED',
+      exchangeRate: backendRate,
+      amount: Math.round(aedTotal * displayRate * 100) / 100,
+      voucherMeta: {
+        lineItems: [{ stockCode: 'GOLD', pureWeight: 500, rateType: 'OZ' }],
+      },
+    }, 'USD')).toBeCloseTo(66266.15, 2)
+  })
+
   test('rejects fixed, unposted and fully fixed vouchers', () => {
     const fixed = buildUnfixedPurchase()
     fixed.voucherMeta.fixingType = 'fixing'
