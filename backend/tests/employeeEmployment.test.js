@@ -41,4 +41,9 @@ describe('employeeEmployment', () => {
     expect(filter.$and[0].joiningDate.$lte).toBeInstanceOf(Date)
     expect(filter.$and[0].joiningDate.$ne).toBeNull()
   })
+
+  test('buildEmployedAsOfFilter activeOnly excludes archived branch', () => {
+    const filter = buildEmployedAsOfFilter('2026-05-15', { activeOnly: true })
+    expect(filter.$and[1]).toEqual({ isDeleted: { $ne: true } })
+  })
 })

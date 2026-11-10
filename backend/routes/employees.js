@@ -181,9 +181,10 @@ router.get('/', protect, async (req, res) => {
     const skip  = (page - 1) * limit
 
     const asOf = parseAsOfQuery(req.query.asOf)
+    const activeOnly = String(req.query.activeOnly || '') === '1'
     let listFilter
     if (asOf) {
-      const asOfFilter = buildEmployedAsOfFilter(asOf)
+      const asOfFilter = buildEmployedAsOfFilter(asOf, { activeOnly })
       if (!asOfFilter) {
         return res.status(400).json({ success: false, message: 'Invalid asOf date. Use YYYY-MM-DD.' })
       }

@@ -39,28 +39,35 @@ function isEmployedOnDate(employee, dateKey) {
 
 /**
  * Mongo filter for employees employed on asOf (YYYY-MM-DD).
- * Requires a real joiningDate; includes archived rows whose deletedAt is after asOf.
+ * Requires a real joiningDate.
+ * - activeOnly: true → never include archived (Attendance Log marking roster)
+ * - activeOnly: false → include archived only when deletedAt is after asOf (historical payroll)
  */
-function buildEmployedAsOfFilter(asOfDateKey) {
+function buildEmployedAsOfFilter(asOfDateKey, { activeOnly = false } = {}) {
   if (!asOfDateKey || !/^\d{4}-\d{2}-\d{2}$/.test(asOfDateKey)) return null
 
   const asOfEnd = new Date(`${asOfDateKey}T23:59:59.999Z`)
   const asOfStartNext = new Date(`${asOfDateKey}T00:00:00.000Z`)
   asOfStartNext.setUTCDate(asOfStartNext.getUTCDate() + 1)
 
-  return {
-    $and: [
-      {
-        joiningDate: { $ne: null, $exists: true, $lte: asOfEnd },
-      },
-      {
-        $or: [
-          { isDeleted: { $ne: true } },
-          { isDeleted: true, deletedAt: { $gte: asOfStartNext } },
-        ],
-      },
-    ],
+  const clauses = [
+    {
+      joiningDate: { $ne: null, $exists: true, $lte: asOfEnd },
+    },
+  ]
+
+  if (activeOnly) {
+    clauses.push({ isDeleted: { $ne: true } })
+  } else {
+    clauses.push({
+      $or: [
+        { isDeleted: { $ne: true } },
+        { isDeleted: true, deletedAt: { $gte: asOfStartNext } },
+      ],
+    })
   }
+
+  return { $and: clauses }
 }
 
 function parseAsOfQuery(value) {

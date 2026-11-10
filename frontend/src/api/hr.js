@@ -8,6 +8,7 @@ const BASE = `${API_ORIGIN}/api/hr/employees`
 const getEmployees = async (_token, opts = {}) => {
   const params = {}
   if (opts.asOf) params.asOf = opts.asOf
+  if (opts.activeOnly) params.activeOnly = '1'
   if (opts.page) params.page = opts.page
   if (opts.limit) params.limit = opts.limit
   return (await axios.get(BASE, { params })).data

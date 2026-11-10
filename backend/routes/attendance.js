@@ -139,14 +139,15 @@ router.get('/summary', protect, async (req, res) => {
     const recordFilter = { date: new RegExp(`^${escapeRegex(date)}`) }
     if (deptScope) recordFilter.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
 
-    const asOfFilter = buildEmployedAsOfFilter(date) || { isDeleted: { $ne: true } }
+    // Attendance summary matches Attendance Log mark roster: active employees only.
+    const asOfFilter = buildEmployedAsOfFilter(date, { activeOnly: true }) || { isDeleted: { $ne: true } }
     const [employees, records] = await Promise.all([
       Employee.find({ ...employeeFilter, ...asOfFilter })
         .select('name department joiningDate isDeleted deletedAt')
         .lean(),
       AttendanceRecord.find(recordFilter).lean(),
     ])
-    let scopedEmployees = employees.filter((e) => isEmployedOnDate(e, date))
+    let scopedEmployees = employees.filter((e) => isEmployedOnDate(e, date) && e.isDeleted !== true)
     let scopedRecords = records
 
     if (!scopedEmployees.length) {

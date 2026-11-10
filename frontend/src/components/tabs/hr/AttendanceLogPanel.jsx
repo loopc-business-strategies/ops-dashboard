@@ -201,12 +201,13 @@ export default function AttendanceLogPanel({ token }) {
     setSelectedIds(new Set())
     try {
       const [empRes, recRes] = await Promise.all([
-        hrAPI.getEmployees(token, { asOf: date }),
+        // Active-only as-of roster: never re-surface archived/test employees in the mark UI.
+        hrAPI.getEmployees(token, { asOf: date, activeOnly: true }),
         attendanceAPI.getRecords(token, { date }),
       ])
       if (!isMounted()) return
 
-      // Backend asOf is source of truth; keep client filter as safety net.
+      // Backend asOf+activeOnly is source of truth; keep client filter as safety net.
       const list = (empRes.employees || []).filter((emp) => isEmployedOn(emp, date))
       setEmployees(list)
 
