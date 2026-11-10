@@ -153,7 +153,7 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
         checkOut: '18:00',
       })
     expect(blocked.status).toBe(400)
-    expect(blocked.body.message).toMatch(/joining date/i)
+    expect(blocked.body.message).toMatch(/employment period/i)
 
     const allowed = await request(app)
       .post('/api/attendance/records')

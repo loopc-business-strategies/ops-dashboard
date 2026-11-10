@@ -30,11 +30,17 @@ const {
 const { normalizeComponents } = require('../services/payroll/payrollCalculationService')
 const {
   applyEmployeeIdentityNormalizedFields,
-  findActiveEmployeeIdentityConflict,
+  findEmployeeIdentityConflict,
   duplicateEmployeeError,
+  archivedEmployeeError,
   isDuplicateKeyError,
   duplicateFieldFromMongoError,
 } = require('../utils/employeeIdentity')
+const { buildEmployedAsOfFilter, parseAsOfQuery } = require('../utils/employeeEmployment')
+const {
+  allocateNextEmployeeCode,
+  resolveEmployeeCodeForCreate,
+} = require('../utils/employeeCode')
 
 const router = express.Router()
 
@@ -70,7 +76,7 @@ const optionalProfileFields = {
 const createEmployeeSchema = Joi.object({
   name:         Joi.string().trim().min(2).max(120).required(),
   idNumber:     Joi.string().trim().min(1).max(60).required(),
-  employeeCode: Joi.string().trim().min(1).max(40).required(),
+  employeeCode: Joi.string().trim().allow('').max(40).optional(),
   ...optionalProfileFields,
 })
 
@@ -125,13 +131,17 @@ function pickEmployeePayload(body) {
 }
 
 async function rejectIfIdentityConflict(res, TenantEmployee, payload, excludeId = null) {
-  const conflict = await findActiveEmployeeIdentityConflict(TenantEmployee, {
+  const conflict = await findEmployeeIdentityConflict(TenantEmployee, {
     idNumberNormalized: payload.idNumberNormalized || '',
     phoneNormalized: payload.phoneNormalized || '',
     excludeId,
   })
   if (!conflict) return false
-  res.status(409).json(duplicateEmployeeError(conflict.field, conflict.employee._id))
+  if (conflict.archived) {
+    res.status(409).json(archivedEmployeeError(conflict.field, conflict.employee._id))
+  } else {
+    res.status(409).json(duplicateEmployeeError(conflict.field, conflict.employee._id))
+  }
   return true
 }
 
@@ -157,7 +167,7 @@ async function sendDuplicateKeyResponse(res, err, TenantEmployee = null) {
   return res.status(400).json({ success: false, message: 'An employee with this identity already exists.' })
 }
 
-// GET all employees
+// GET all employees (default: active only; ?asOf=YYYY-MM-DD = employed on that date)
 router.get('/', protect, async (req, res) => {
   try {
     const TenantEmployee = await Employee.getTenantModel(req.tenant)
@@ -170,18 +180,51 @@ router.get('/', protect, async (req, res) => {
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200))
     const skip  = (page - 1) * limit
 
-    const activeFilter = { $and: [filter, { isDeleted: { $ne: true } }] }
+    const asOf = parseAsOfQuery(req.query.asOf)
+    let listFilter
+    if (asOf) {
+      const asOfFilter = buildEmployedAsOfFilter(asOf)
+      if (!asOfFilter) {
+        return res.status(400).json({ success: false, message: 'Invalid asOf date. Use YYYY-MM-DD.' })
+      }
+      listFilter = { $and: [filter, asOfFilter] }
+    } else {
+      listFilter = { $and: [filter, { isDeleted: { $ne: true } }] }
+    }
+
     const [employees, total] = await Promise.all([
-      TenantEmployee.find(activeFilter).select('-__v').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      TenantEmployee.countDocuments(activeFilter),
+      TenantEmployee.find(listFilter).select('-__v').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      TenantEmployee.countDocuments(listFilter),
     ])
-    res.json({ success: true, count: employees.length, total, page, limit, employees })
+    res.json({
+      success: true,
+      count: employees.length,
+      total,
+      page,
+      limit,
+      asOf: asOf || null,
+      employees,
+    })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
 
-// GET one employee
+// Next EMP code (includes archived) — must be before /:id
+router.get('/next-code', protect, async (req, res) => {
+  try {
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
+    if (!canManageEmployees(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
+    }
+    const employeeCode = await allocateNextEmployeeCode(TenantEmployee)
+    res.json({ success: true, employeeCode })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// GET one employee (active by default; ?includeArchived=1 for archived)
 router.get('/:id', protect, validateParams(employeeIdParam), async (req, res) => {
   try {
     const TenantEmployee = await Employee.getTenantModel(req.tenant)
@@ -190,11 +233,11 @@ router.get('/:id', protect, validateParams(employeeIdParam), async (req, res) =>
       return res.status(403).json({ success: false, message: 'Access denied.' })
     }
 
-    const employee = await TenantEmployee.findOne({
-      _id: req.params.id,
-      isDeleted: { $ne: true },
-      ...filter,
-    }).lean()
+    const includeArchived = String(req.query.includeArchived || '') === '1'
+    const q = { _id: req.params.id, ...filter }
+    if (!includeArchived) q.isDeleted = { $ne: true }
+
+    const employee = await TenantEmployee.findOne(q).lean()
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
     res.json({ success: true, employee })
   } catch (err) {
@@ -211,19 +254,74 @@ router.post('/', protect, validateBody(createEmployeeSchema), async (req, res) =
     }
 
     const payload = pickEmployeePayload(req.body)
-    if (!payload.name || !payload.idNumber || !payload.employeeCode)
-      return res.status(400).json({ success: false, message: 'Name, ID number, and employee code are required.' })
+    if (!payload.name || !payload.idNumber) {
+      return res.status(400).json({ success: false, message: 'Name and ID number are required.' })
+    }
 
     payload.isDeleted = false
     if (await rejectIfIdentityConflict(res, TenantEmployee, payload)) return
 
-    const employee = await TenantEmployee.create(payload)
-    res.status(201).json({ success: true, employee })
+    const maxAttempts = 5
+    let lastErr = null
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      payload.employeeCode = await resolveEmployeeCodeForCreate(TenantEmployee, payload.employeeCode)
+      try {
+        const employee = await TenantEmployee.create(payload)
+        return res.status(201).json({ success: true, employee })
+      } catch (err) {
+        lastErr = err
+        if (isDuplicateKeyError(err) && duplicateFieldFromMongoError(err) === 'employeeCode') {
+          payload.employeeCode = ''
+          continue
+        }
+        if (isDuplicateKeyError(err)) {
+          return sendDuplicateKeyResponse(res, err, TenantEmployee)
+        }
+        throw err
+      }
+    }
+    if (isDuplicateKeyError(lastErr)) {
+      return sendDuplicateKeyResponse(res, lastErr, TenantEmployee)
+    }
+    res.status(500).json({ success: false, message: 'Server error.' })
   } catch (err) {
     if (isDuplicateKeyError(err)) {
       const TenantEmployee = await Employee.getTenantModel(req.tenant)
       return sendDuplicateKeyResponse(res, err, TenantEmployee)
     }
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// Reactivate archived employee
+router.post('/:id/reactivate', protect, validateParams(employeeIdParam), async (req, res) => {
+  try {
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
+    if (!canManageEmployees(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only super admin or HR department head can reactivate employees.' })
+    }
+
+    const employee = await TenantEmployee.findById(req.params.id)
+    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
+
+    if (req.user.role !== 'super_admin' && normalize(employee.department) !== 'hr') {
+      return res.status(403).json({ success: false, message: 'HR department head can only reactivate HR employees.' })
+    }
+
+    if (employee.isDeleted !== true) {
+      return res.status(400).json({ success: false, message: 'Employee is already active.' })
+    }
+
+    employee.isDeleted = false
+    employee.deletedAt = null
+    employee.deletedBy = null
+    employee.deletedByName = ''
+    employee.deletionReason = ''
+    if (employee.status === 'TERMINATED') employee.status = 'ACTIVE'
+    await employee.save()
+
+    res.json({ success: true, employee })
+  } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })

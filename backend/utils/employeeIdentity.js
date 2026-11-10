@@ -29,6 +29,9 @@ function applyEmployeeIdentityNormalizedFields(payload = {}) {
 const DUPLICATE_EMPLOYEE_MESSAGE =
   'This employee is already registered. Please check the existing employee record.'
 
+const ARCHIVED_EMPLOYEE_MESSAGE =
+  'This employee was previously archived. Reactivate the existing record instead of creating a duplicate.'
+
 function duplicateEmployeeError(field, existingEmployeeId) {
   return {
     success: false,
@@ -39,19 +42,36 @@ function duplicateEmployeeError(field, existingEmployeeId) {
   }
 }
 
+function archivedEmployeeError(field, existingEmployeeId) {
+  return {
+    success: false,
+    code: 'ARCHIVED_EMPLOYEE',
+    field,
+    existingEmployeeId: existingEmployeeId ? String(existingEmployeeId) : null,
+    message: ARCHIVED_EMPLOYEE_MESSAGE,
+  }
+}
+
+function conflictFieldFor(employee, idNumberNormalized, phoneNormalized) {
+  const empId = employee.idNumberNormalized || normalizeIdNumber(employee.idNumber)
+  const empPhone = employee.phoneNormalized || normalizePhoneNumber(employee.phoneNumber)
+  if (idNumberNormalized && empId === idNumberNormalized) return 'idNumber'
+  if (phoneNormalized && empPhone === phoneNormalized) return 'phoneNumber'
+  return idNumberNormalized ? 'idNumber' : 'phoneNumber'
+}
+
 /**
- * Find an active employee colliding on normalized ID or phone.
- * Includes legacy rows that never stored normalized fields.
- * @returns {{ field: 'idNumber'|'phoneNumber', employee }|null}
+ * Find any employee (active or archived) colliding on normalized ID or phone.
+ * @returns {{ field, employee, archived: boolean }|null}
  */
-async function findActiveEmployeeIdentityConflict(Model, {
+async function findEmployeeIdentityConflict(Model, {
   idNumberNormalized = '',
   phoneNormalized = '',
   excludeId = null,
 } = {}) {
   if (!idNumberNormalized && !phoneNormalized) return null
 
-  const query = { isDeleted: { $ne: true } }
+  const query = {}
   if (excludeId) query._id = { $ne: excludeId }
 
   const clauses = []
@@ -59,11 +79,10 @@ async function findActiveEmployeeIdentityConflict(Model, {
   if (phoneNormalized) clauses.push({ phoneNormalized })
 
   let employee = await Model.findOne({ ...query, $or: clauses })
-    .select('_id name idNumber phoneNumber idNumberNormalized phoneNormalized')
+    .select('_id name idNumber phoneNumber idNumberNormalized phoneNormalized isDeleted')
     .lean()
 
   if (!employee) {
-    // Legacy fallback: active rows missing/empty normalized fields
     const legacy = await Model.find({
       ...query,
       $or: [
@@ -73,7 +92,7 @@ async function findActiveEmployeeIdentityConflict(Model, {
         { phoneNormalized: { $exists: false } },
       ],
     })
-      .select('_id name idNumber phoneNumber idNumberNormalized phoneNormalized')
+      .select('_id name idNumber phoneNumber idNumberNormalized phoneNormalized isDeleted')
       .lean()
 
     for (const row of legacy) {
@@ -92,15 +111,18 @@ async function findActiveEmployeeIdentityConflict(Model, {
 
   if (!employee) return null
 
-  const empId = employee.idNumberNormalized || normalizeIdNumber(employee.idNumber)
-  const empPhone = employee.phoneNormalized || normalizePhoneNumber(employee.phoneNumber)
-  if (idNumberNormalized && empId === idNumberNormalized) {
-    return { field: 'idNumber', employee }
+  return {
+    field: conflictFieldFor(employee, idNumberNormalized, phoneNormalized),
+    employee,
+    archived: employee.isDeleted === true,
   }
-  if (phoneNormalized && empPhone === phoneNormalized) {
-    return { field: 'phoneNumber', employee }
-  }
-  return { field: idNumberNormalized ? 'idNumber' : 'phoneNumber', employee }
+}
+
+/** @deprecated use findEmployeeIdentityConflict — kept as alias for active-only callers that still import the name */
+async function findActiveEmployeeIdentityConflict(Model, opts) {
+  const conflict = await findEmployeeIdentityConflict(Model, opts)
+  if (!conflict || conflict.archived) return null
+  return { field: conflict.field, employee: conflict.employee }
 }
 
 function isDuplicateKeyError(err) {
@@ -124,7 +146,10 @@ module.exports = {
   normalizePhoneNumber,
   applyEmployeeIdentityNormalizedFields,
   DUPLICATE_EMPLOYEE_MESSAGE,
+  ARCHIVED_EMPLOYEE_MESSAGE,
   duplicateEmployeeError,
+  archivedEmployeeError,
+  findEmployeeIdentityConflict,
   findActiveEmployeeIdentityConflict,
   isDuplicateKeyError,
   duplicateFieldFromMongoError,

@@ -359,7 +359,7 @@ describe('HR employees routes', () => {
     expect(second.body.field).toBe('phoneNumber')
   })
 
-  test('allows reusing national ID after soft-delete', async () => {
+  test('blocks recreating archived identity and supports reactivate', async () => {
     const hrHead = await createUser({ role: 'department_head', department: 'hr' })
     const created = await request(app)
       .post('/api/hr/employees')
@@ -372,9 +372,10 @@ describe('HR employees routes', () => {
         department: 'hr',
       })
     expect(created.status).toBe(201)
+    const archivedId = created.body.employee._id
 
     const deleted = await request(app)
-      .delete(`/api/hr/employees/${created.body.employee._id}`)
+      .delete(`/api/hr/employees/${archivedId}`)
       .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
     expect(deleted.status).toBe(200)
 
@@ -388,8 +389,121 @@ describe('HR employees routes', () => {
         employeeCode: 'EMP-SOFT-2',
         department: 'hr',
       })
-    expect(recreated.status).toBe(201)
-    expect(recreated.body.employee.idNumberNormalized).toBe('IDSOFTDEL1')
+    expect(recreated.status).toBe(409)
+    expect(recreated.body.code).toBe('ARCHIVED_EMPLOYEE')
+    expect(recreated.body.existingEmployeeId).toBe(String(archivedId))
+
+    const reactivated = await request(app)
+      .post(`/api/hr/employees/${archivedId}/reactivate`)
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+    expect(reactivated.status).toBe(200)
+    expect(reactivated.body.employee.isDeleted).toBe(false)
+    expect(reactivated.body.employee.employeeCode).toBe('EMP-SOFT-1')
+  })
+
+  test('asOf list includes archived employees employed on that date', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const token = tokenFor(hrHead)
+
+    const early = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Early Hire',
+        idNumber: 'ID-ASOF-EARLY',
+        phoneNumber: '+998901010101',
+        employeeCode: 'EMP-ASOF-1',
+        department: 'hr',
+        joiningDate: '2026-05-01',
+      })
+    expect(early.status).toBe(201)
+
+    const late = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Late Hire',
+        idNumber: 'ID-ASOF-LATE',
+        phoneNumber: '+998902020202',
+        employeeCode: 'EMP-ASOF-2',
+        department: 'hr',
+        joiningDate: '2026-11-05',
+      })
+    expect(late.status).toBe(201)
+
+    const may = await request(app)
+      .get('/api/hr/employees')
+      .query({ asOf: '2026-05-15' })
+      .set('Authorization', `Bearer ${token}`)
+    expect(may.status).toBe(200)
+    const mayNames = (may.body.employees || []).map((e) => e.name)
+    expect(mayNames).toContain('Early Hire')
+    expect(mayNames).not.toContain('Late Hire')
+
+    await request(app)
+      .delete(`/api/hr/employees/${early.body.employee._id}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
+    await TenantEmployee.updateOne(
+      { _id: early.body.employee._id },
+      { $set: { deletedAt: new Date('2026-10-20T12:00:00.000Z'), isDeleted: true } },
+    )
+
+    const oct = await request(app)
+      .get('/api/hr/employees')
+      .query({ asOf: '2026-10-10' })
+      .set('Authorization', `Bearer ${token}`)
+    expect(oct.status).toBe(200)
+    const octNames = (oct.body.employees || []).map((e) => e.name)
+    expect(octNames).toContain('Early Hire')
+
+    const nov = await request(app)
+      .get('/api/hr/employees')
+      .query({ asOf: '2026-11-01' })
+      .set('Authorization', `Bearer ${token}`)
+    expect(nov.status).toBe(200)
+    const novNames = (nov.body.employees || []).map((e) => e.name)
+    expect(novNames).not.toContain('Early Hire')
+    expect(novNames).not.toContain('Late Hire')
+  })
+
+  test('next-code skips archived EMP numbers', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const token = tokenFor(hrHead)
+    const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
+    await TenantEmployee.create({
+      name: 'Archived Three',
+      idNumber: 'ID-CODE-3',
+      employeeCode: 'EMP-003',
+      department: 'hr',
+      isDeleted: true,
+      deletedAt: new Date('2026-09-01'),
+    })
+    await TenantEmployee.create({
+      name: 'Active Two',
+      idNumber: 'ID-CODE-2',
+      employeeCode: 'EMP-002',
+      department: 'hr',
+    })
+
+    const next = await request(app)
+      .get('/api/hr/employees/next-code')
+      .set('Authorization', `Bearer ${token}`)
+    expect(next.status).toBe(200)
+    expect(next.body.employeeCode).toBe('EMP-004')
+
+    const created = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Fresh Hire',
+        idNumber: 'ID-CODE-NEW',
+        phoneNumber: '+998909090909',
+        department: 'hr',
+      })
+    expect(created.status).toBe(201)
+    expect(created.body.employee.employeeCode).toBe('EMP-004')
   })
 
   test('parallel duplicate creates yield one success and one conflict', async () => {

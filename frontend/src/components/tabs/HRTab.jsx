@@ -319,6 +319,7 @@ function EmployeeForm({
   onSave,
   onCancel,
   onOpenExisting,
+  onReactivate,
   token,
   employees = [],
   initialEmployee = null,
@@ -330,12 +331,24 @@ function EmployeeForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [duplicateEmployee, setDuplicateEmployee] = useState(null)
+  const [archivedConflict, setArchivedConflict] = useState(null)
   const [entered, setEntered] = useState(false)
 
   const set = (field) => (e) => {
     setDuplicateEmployee(null)
+    setArchivedConflict(null)
     setForm((f) => ({ ...f, [field]: e.target.value }))
   }
+
+  useEffect(() => {
+    if (isEdit || !token) return
+    let mounted = true
+    hrAPI.getNextEmployeeCode(token).then((data) => {
+      if (!mounted || !data?.employeeCode) return
+      setForm((f) => (f.employeeCode ? f : { ...f, employeeCode: data.employeeCode }))
+    }).catch(() => {})
+    return () => { mounted = false }
+  }, [isEdit, token])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setEntered(true))
@@ -372,6 +385,7 @@ function EmployeeForm({
     setLoading(true)
     setError('')
     setDuplicateEmployee(null)
+    setArchivedConflict(null)
     try {
       const payload = buildEmployeePayload(form)
       if (isEdit) {
@@ -382,7 +396,10 @@ function EmployeeForm({
       onSave()
     } catch (err) {
       const data = err.response?.data
-      if (data?.code === 'DUPLICATE_EMPLOYEE' || err.response?.status === 409) {
+      if (data?.code === 'ARCHIVED_EMPLOYEE') {
+        setError(data?.message || t('hrErrArchivedEmployee'))
+        setArchivedConflict(data?.existingEmployeeId ? { _id: data.existingEmployeeId } : null)
+      } else if (data?.code === 'DUPLICATE_EMPLOYEE' || err.response?.status === 409) {
         setError(data?.message || t('hrErrDuplicateEmployee'))
         const existingId = data?.existingEmployeeId
         const existing = existingId
@@ -435,6 +452,15 @@ function EmployeeForm({
             {error && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
                 <p>{error}</p>
+                {archivedConflict && typeof onReactivate === 'function' && (
+                  <button
+                    type="button"
+                    className="mt-2 text-sm font-semibold text-orange-700 underline underline-offset-2 hover:text-orange-800"
+                    onClick={() => onReactivate(archivedConflict)}
+                  >
+                    {t('hrReactivateEmployee')}
+                  </button>
+                )}
                 {duplicateEmployee && typeof onOpenExisting === 'function' && (
                   <button
                     type="button"
@@ -702,6 +728,7 @@ function EmployeeList({ token, company }) {
   const now = useMemo(() => new Date(), [])
   const currentYear = now.getFullYear()
   const [employees, setEmployees] = useState([])
+  const [payrollEmployees, setPayrollEmployees] = useState([])
   const [monthMeta, setMonthMeta] = useState({ calendarDays: 31, statsById: {}, statsByName: {}, from: '', to: '' })
   const [filterYear, setFilterYear] = useState(currentYear)
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1)
@@ -754,6 +781,23 @@ function EmployeeList({ token, company }) {
     }
   }, [token, t])
 
+  const payrollAsOf = useMemo(() => {
+    const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
+    if (monthMeta.to && monthMeta.to <= monthEnd) return monthMeta.to
+    return monthEnd
+  }, [filterYear, filterMonth, monthMeta.to])
+
+  const loadPayrollEmployees = useCallback(async (asOf, isMounted = () => true) => {
+    if (!asOf) return
+    try {
+      const data = await hrAPI.getEmployees(token, { asOf })
+      if (!isMounted()) return
+      setPayrollEmployees(data.employees || [])
+    } catch {
+      if (isMounted()) setPayrollEmployees([])
+    }
+  }, [token])
+
   useEffect(() => {
     let mounted = true
     loadEmployees(() => mounted)
@@ -765,6 +809,12 @@ function EmployeeList({ token, company }) {
     loadMonthStats(filterYear, filterMonth, () => mounted)
     return () => { mounted = false }
   }, [filterYear, filterMonth, loadMonthStats])
+
+  useEffect(() => {
+    let mounted = true
+    loadPayrollEmployees(payrollAsOf, () => mounted)
+    return () => { mounted = false }
+  }, [payrollAsOf, loadPayrollEmployees])
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(interpolate(t('confirmDeleteNamed'), { name }))) return
@@ -877,7 +927,7 @@ function EmployeeList({ token, company }) {
     })
   }
 
-  const payrollRows = useMemo(() => employees.map((emp) => {
+  const payrollRows = useMemo(() => payrollEmployees.map((emp) => {
     const byId = monthMeta.statsById[String(emp._id)]
     const byName = monthMeta.statsByName[normalizeName(emp.name)]
     const workedDays = byId !== undefined ? byId : (byName !== undefined ? byName : 0)
@@ -907,7 +957,7 @@ function EmployeeList({ token, company }) {
       socialTax: tax.socialTax,
       netPayable: tax.netPayable,
     }
-  }), [employees, monthMeta, filterYear, filterMonth])
+  }), [payrollEmployees, monthMeta, filterYear, filterMonth])
 
   const filteredPayrollRows = useMemo(() => {
     const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
@@ -1044,6 +1094,7 @@ function EmployeeList({ token, company }) {
     let mounted = true
     loadEmployees(() => mounted)
     loadMonthStats(filterYear, filterMonth, () => mounted)
+    loadPayrollEmployees(payrollAsOf, () => mounted)
   }
 
   const countBadge = filteredPayrollRows.length !== employees.length
@@ -1203,6 +1254,16 @@ function EmployeeList({ token, company }) {
           nextEmployeeCode={formMode === 'create' ? nextEmployeeCode(employees) : ''}
           onSave={() => { setFormMode(null); handleRefresh() }}
           onCancel={() => setFormMode(null)}
+          onReactivate={async (emp) => {
+            try {
+              const data = await hrAPI.reactivateEmployee(token, emp._id)
+              setFormMode(null)
+              handleRefresh()
+              if (data?.employee) setFormMode(data.employee)
+            } catch (err) {
+              setError(err.response?.data?.message || t('hrErrSave'))
+            }
+          }}
           onOpenExisting={async (emp) => {
             const fromList = employees.find((e) => String(e._id) === String(emp?._id))
             if (fromList) {
@@ -1210,7 +1271,7 @@ function EmployeeList({ token, company }) {
               return
             }
             try {
-              const data = await hrAPI.getEmployee(token, emp._id)
+              const data = await hrAPI.getEmployee(token, emp._id, { includeArchived: true })
               setFormMode(data?.employee || emp)
             } catch {
               setFormMode(emp)

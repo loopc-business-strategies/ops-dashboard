@@ -16,6 +16,7 @@ const {
   escapeRegex,
 } = require('../services/permissions/moduleAccessPolicy')
 const { daysInMonth } = require('../services/payroll/payrollCalculationService')
+const { buildEmployedAsOfFilter, isEmployedOnDate } = require('../utils/employeeEmployment')
 
 const WORKED_STATUSES = ['present', 'late', 'wfh']
 
@@ -76,21 +77,6 @@ const toDateKey = (value) => {
   return dayKey(d)
 }
 
-/** Joining date as YYYY-MM-DD, or null when missing/invalid (legacy = always eligible). */
-const joiningDateKey = (value) => {
-  if (value === null || value === undefined || value === '') return null
-  const raw = String(value).trim()
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return dayKey(d)
-}
-
-const isEmployedOnDate = (joiningDate, dateKey) => {
-  const joinKey = joiningDateKey(joiningDate)
-  if (!joinKey) return true
-  return joinKey <= dateKey
-}
 
 const daysBetweenInclusive = (start, end) => {
   const ms = 24 * 60 * 60 * 1000
@@ -153,11 +139,14 @@ router.get('/summary', protect, async (req, res) => {
     const recordFilter = { date: new RegExp(`^${escapeRegex(date)}`) }
     if (deptScope) recordFilter.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
 
+    const asOfFilter = buildEmployedAsOfFilter(date) || { isDeleted: { $ne: true } }
     const [employees, records] = await Promise.all([
-      Employee.find({ ...employeeFilter, isDeleted: { $ne: true } }).select('name department joiningDate').lean(),
+      Employee.find({ ...employeeFilter, ...asOfFilter })
+        .select('name department joiningDate isDeleted deletedAt')
+        .lean(),
       AttendanceRecord.find(recordFilter).lean(),
     ])
-    let scopedEmployees = employees.filter((e) => isEmployedOnDate(e.joiningDate, date))
+    let scopedEmployees = employees.filter((e) => isEmployedOnDate(e, date))
     let scopedRecords = records
 
     if (!scopedEmployees.length) {
@@ -254,9 +243,9 @@ router.get('/month-stats', protect, async (req, res) => {
       .select('employeeId employeeName date status')
       .lean()
 
-    // Joining-date map so payroll worked days never include pre-hire attendance.
-    const joinById = new Map()
-    const joinByName = new Map()
+    // Employment window (join + archive) so payroll worked days match as-of eligibility.
+    const empById = new Map()
+    const empByName = new Map()
     try {
       const TenantEmployee = await Employee.getTenantModel(req.tenant)
       const employeeIds = [...new Set(
@@ -273,19 +262,13 @@ router.get('/month-stats', protect, async (req, res) => {
         or.push({ name: { $in: employeeNames } })
       }
       if (or.length) {
-        const employees = await TenantEmployee.find({
-          isDeleted: { $ne: true },
-          $or: or,
-        })
-          .select('_id name joiningDate')
+        const employees = await TenantEmployee.find({ $or: or })
+          .select('_id name joiningDate isDeleted deletedAt')
           .lean()
         for (const emp of employees) {
-          if (!emp?.joiningDate) continue
-          const joinKey = toDateKey(emp.joiningDate)
-          if (!joinKey || !/^\d{4}-\d{2}-\d{2}$/.test(joinKey)) continue
-          joinById.set(String(emp._id), joinKey)
+          empById.set(String(emp._id), emp)
           const nameKey = normalize(emp.name)
-          if (nameKey) joinByName.set(nameKey, joinKey)
+          if (nameKey) empByName.set(nameKey, emp)
         }
       }
     } catch {
@@ -303,9 +286,9 @@ router.get('/month-stats', protect, async (req, res) => {
       if (dateKey < monthStart || dateKey > endDate) continue
       const id = rec.employeeId ? String(rec.employeeId) : ''
       const nameKey = normalize(rec.employeeName)
-      const joinKey = (id && joinById.get(id)) || (nameKey && joinByName.get(nameKey)) || null
-      // Do not count attendance before the employee's joining date
-      if (joinKey && dateKey < joinKey) continue
+      const emp = (id && empById.get(id)) || (nameKey && empByName.get(nameKey)) || null
+      // Do not count attendance outside employment (pre-join or after archive)
+      if (emp && !isEmployedOnDate(emp, dateKey)) continue
       if (id) {
         if (!byId.has(id)) byId.set(id, { employeeId: id, employeeName: rec.employeeName || '', dates: new Set() })
         const entry = byId.get(id)
@@ -403,11 +386,13 @@ router.post('/records', protect, validateBody(attendanceRecordSchema), async (re
     if (employeeId) {
       try {
         const TenantEmployee = await Employee.getTenantModel(req.tenant)
-        const emp = await TenantEmployee.findById(employeeId).select('joiningDate isDeleted').lean()
-        if (emp && emp.isDeleted !== true && !isEmployedOnDate(emp.joiningDate, dateKey)) {
+        const emp = await TenantEmployee.findById(employeeId)
+          .select('joiningDate isDeleted deletedAt')
+          .lean()
+        if (emp && !isEmployedOnDate(emp, dateKey)) {
           return res.status(400).json({
             success: false,
-            message: 'Cannot mark attendance before the employee joining date.',
+            message: 'Cannot mark attendance for a date outside this employee employment period.',
           })
         }
       } catch {

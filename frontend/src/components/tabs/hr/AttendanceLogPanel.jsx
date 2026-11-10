@@ -29,11 +29,15 @@ function toDateKey(value) {
   return `${y}-${m}-${day}`
 }
 
-/** Legacy rows without joiningDate stay eligible; otherwise join must be on/before date. */
+/** Employed on date: joined on/before, and not archived on/before that date. */
 function isEmployedOn(employee, dateKey) {
   const joinKey = toDateKey(employee?.joiningDate)
-  if (!joinKey) return true
-  return joinKey <= dateKey
+  if (joinKey && joinKey > dateKey) return false
+  if (employee?.isDeleted === true) {
+    const endKey = toDateKey(employee?.deletedAt)
+    if (!endKey || endKey <= dateKey) return false
+  }
+  return true
 }
 
 function normalizeName(name) {
@@ -197,11 +201,12 @@ export default function AttendanceLogPanel({ token }) {
     setSelectedIds(new Set())
     try {
       const [empRes, recRes] = await Promise.all([
-        hrAPI.getEmployees(token),
+        hrAPI.getEmployees(token, { asOf: date }),
         attendanceAPI.getRecords(token, { date }),
       ])
       if (!isMounted()) return
 
+      // Backend asOf is source of truth; keep client filter as safety net.
       const list = (empRes.employees || []).filter((emp) => isEmployedOn(emp, date))
       setEmployees(list)
 
