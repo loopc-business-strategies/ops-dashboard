@@ -24,8 +24,8 @@ export function filterActiveAccounts(accounts = []) {
 
 /**
  * Chart accounts eligible as voucher Party Details entries when no customer/vendor master exists.
- * Keep this narrow: cash/bank/stock/P&L/control accounts belong on voucher lines, not as party.
- * Party-like = trade debtor/creditor naming, or AR/AP-style codes outside control accounts.
+ * Includes: debtors/creditors, party-like Asset/Liability, and Expense ledgers (e.g. Payroll Expense).
+ * Still excludes cash/bank/stock/income/control accounts (those stay on voucher lines).
  */
 export function isPartyEligibleChartAccount(account) {
   if (!isActiveChartAccount(account)) return false
@@ -41,9 +41,12 @@ export function isPartyEligibleChartAccount(account) {
     return true
   }
 
-  // Never treat operational / P&L / inventory / tax / equity / fixing GL as a party.
+  // Expense ledgers are allowed as party (payment to expense / payroll posting).
+  if (type === 'expense') return true
+
+  // Never treat operational / income / inventory / tax / equity / fixing GL as a party.
   if (
-    /\b(cash|bank|petty|inventory|stock|vat|tax|payroll|equity|retained|depreciation|revenue|sales|income|expense|cogs|rent|utilities|fixing|payable|receivable|equipment|property)\b/i.test(
+    /\b(cash|bank|petty|inventory|stock|vat|tax|equity|retained|depreciation|revenue|sales|income|cogs|rent|utilities|fixing|payable|receivable|equipment|property)\b/i.test(
       haystack,
     )
   ) {
