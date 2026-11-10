@@ -696,10 +696,6 @@ function hasRebateAmount(emp) {
   return Number.isFinite(n) && n > 0
 }
 
-function todayInputKey() {
-  return toDateInput(new Date())
-}
-
 const TH = 'sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600'
 const TH_RIGHT = `${TH} text-right`
 const TD = 'whitespace-nowrap align-middle text-sm text-slate-600'
@@ -762,7 +758,6 @@ function EmployeeList({ token, company }) {
   const [pdfBusy, setPdfBusy] = useState(false)
   const [excelBusy, setExcelBusy] = useState(false)
   const [rebateBusyId, setRebateBusyId] = useState(null)
-  const [rebateDrafts, setRebateDrafts] = useState({})
   const [rebateSort, setRebateSort] = useState(null) // null | 'asc' | 'desc'
   const structured = isStructuredPayrollEnabled(company)
 
@@ -846,83 +841,47 @@ function EmployeeList({ token, company }) {
     }
   }
 
-  const getRebateDraft = (emp) => {
-    const id = emp._id
-    if (rebateDrafts[id]) return rebateDrafts[id]
-    const resolved = resolveRebateCollection(emp, filterYear, filterMonth)
-    if (resolved.collected) {
-      return {
-        amount: resolved.amount === null || resolved.amount === undefined ? '' : String(resolved.amount),
-        collectedAt: resolved.collectedAt || todayInputKey(),
-      }
-    }
-    const agreed = Number(emp.rebate)
-    return {
-      amount: Number.isFinite(agreed) && agreed > 0 ? String(agreed) : '',
-      collectedAt: todayInputKey(),
-    }
-  }
-
-  const setRebateDraftField = (emp, field, value) => {
-    const id = emp._id
-    const base = rebateDrafts[id] || getRebateDraft(emp)
-    setRebateDrafts((prev) => ({
-      ...prev,
-      [id]: { ...base, [field]: value },
-    }))
-  }
-
-  const persistRebateCollection = async (emp, { collected, amount, collectedAt }) => {
+  const persistRebateCollection = async (emp, { collected }) => {
     if (!hasRebateAmount(emp) || rebateBusyId) return
     const id = emp._id
     const prevMonths = Array.isArray(emp.rebateCollectedMonths) ? emp.rebateCollectedMonths.map(String) : []
     const prevCollections = Array.isArray(emp.rebateCollections) ? emp.rebateCollections : []
     const key = payrollMonthKey(filterYear, filterMonth)
-    const amountN = Number(amount)
-    const payloadAmount = Number.isFinite(amountN) && amountN >= 0 ? amountN : Number(emp.rebate) || 0
-    const payloadDate = collectedAt || todayInputKey()
+    const agreed = Number(emp.rebate)
+    const defaultAmount = Number.isFinite(agreed) && agreed > 0 ? agreed : 0
 
     const optimisticCollections = collected
       ? [
         ...prevCollections.filter((c) => String(c?.month) !== key),
-        { month: key, amount: payloadAmount, collectedAt: payloadDate },
+        { month: key, amount: defaultAmount, collectedAt: new Date().toISOString() },
       ]
       : prevCollections.filter((c) => String(c?.month) !== key)
     const optimisticMonths = collected
       ? (prevMonths.includes(key) ? prevMonths : [...prevMonths, key])
       : prevMonths.filter((k) => k !== key)
 
+    const patchLocal = (list, patch) => list.map((e) => (e._id === id ? { ...e, ...patch } : e))
+    const optimisticPatch = { rebateCollectedMonths: optimisticMonths, rebateCollections: optimisticCollections }
+    const rollbackPatch = { rebateCollectedMonths: prevMonths, rebateCollections: prevCollections }
+
     setRebateBusyId(id)
     setError('')
-    setEmployees((list) => list.map((e) => (
-      e._id === id
-        ? { ...e, rebateCollectedMonths: optimisticMonths, rebateCollections: optimisticCollections }
-        : e
-    )))
+    setEmployees((list) => patchLocal(list, optimisticPatch))
+    setPayrollEmployees((list) => patchLocal(list, optimisticPatch))
     try {
+      // Omit amount/collectedAt so the API defaults to agreed rebate + today.
       const res = await hrAPI.setRebateCollected(token, id, {
         year: filterYear,
         month: filterMonth,
         collected,
-        amount: collected ? payloadAmount : undefined,
-        collectedAt: collected ? payloadDate : undefined,
       })
       if (res?.employee) {
-        setEmployees((list) => list.map((e) => (e._id === id ? { ...e, ...res.employee } : e)))
-      }
-      if (!collected) {
-        setRebateDrafts((prev) => {
-          const next = { ...prev }
-          delete next[id]
-          return next
-        })
+        setEmployees((list) => patchLocal(list, res.employee))
+        setPayrollEmployees((list) => patchLocal(list, res.employee))
       }
     } catch {
-      setEmployees((list) => list.map((e) => (
-        e._id === id
-          ? { ...e, rebateCollectedMonths: prevMonths, rebateCollections: prevCollections }
-          : e
-      )))
+      setEmployees((list) => patchLocal(list, rollbackPatch))
+      setPayrollEmployees((list) => patchLocal(list, rollbackPatch))
       setError(t('failedUpdateRebateCollected'))
     } finally {
       setRebateBusyId(null)
@@ -930,21 +889,7 @@ function EmployeeList({ token, company }) {
   }
 
   const handleToggleRebateCollected = async (emp, collected) => {
-    const draft = getRebateDraft(emp)
-    await persistRebateCollection(emp, {
-      collected,
-      amount: draft.amount,
-      collectedAt: draft.collectedAt,
-    })
-  }
-
-  const handleSaveRebateDetails = async (emp) => {
-    const draft = getRebateDraft(emp)
-    await persistRebateCollection(emp, {
-      collected: true,
-      amount: draft.amount,
-      collectedAt: draft.collectedAt,
-    })
+    await persistRebateCollection(emp, { collected })
   }
 
   const payrollRows = useMemo(() => payrollEmployees.map((emp) => {
@@ -1438,7 +1383,6 @@ function EmployeeList({ token, company }) {
                   const emp = row.emp
                   const rebateEnabled = hasRebateAmount(emp)
                   const collected = row.rebateCollected
-                  const draft = getRebateDraft(emp)
                   return (
                     <tr
                       key={row.id}
@@ -1475,52 +1419,19 @@ function EmployeeList({ token, company }) {
                           {collected ? t('rebateStatusCollected') : t('rebateStatusPending')}
                         </span>
                       </td>
-                      <td className="align-middle" style={CELL_PAD}>
-                        <div className="flex flex-col items-stretch gap-1.5">
-                          <label className="flex items-center justify-center gap-2 text-xs text-slate-600">
-                            <input
-                              type="checkbox"
-                              checked={collected}
-                              disabled={!rebateEnabled || rebateBusyId === emp._id}
-                              onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
-                              title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
-                              className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                              aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
-                            />
-                            {t('rebateCollected')}
-                          </label>
-                          {rebateEnabled && (
-                            <div className="flex flex-wrap items-center justify-center gap-1.5">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={draft.amount}
-                                disabled={rebateBusyId === emp._id}
-                                onChange={(e) => setRebateDraftField(emp, 'amount', e.target.value)}
-                                placeholder={t('rebateCollectedAmountPlaceholder')}
-                                className="h-8 w-[88px] rounded-lg border border-slate-200 bg-white px-2 text-xs tabular-nums text-slate-800 outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20 disabled:opacity-50"
-                                aria-label={interpolate(t('rebateAmountCollectedFor'), { name: emp.name })}
-                              />
-                              <input
-                                type="date"
-                                value={draft.collectedAt || ''}
-                                disabled={rebateBusyId === emp._id}
-                                onChange={(e) => setRebateDraftField(emp, 'collectedAt', e.target.value)}
-                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-800 outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20 disabled:opacity-50"
-                                aria-label={interpolate(t('rebateCollectedDateFor'), { name: emp.name })}
-                              />
-                              <button
-                                type="button"
-                                disabled={rebateBusyId === emp._id}
-                                onClick={() => handleSaveRebateDetails(emp)}
-                                className="h-8 rounded-full border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {t('save')}
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                      <td className="align-middle text-center" style={CELL_PAD}>
+                        <label className="inline-flex items-center justify-center gap-2 text-xs text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={collected}
+                            disabled={!rebateEnabled || rebateBusyId === emp._id}
+                            onChange={(e) => handleToggleRebateCollected(emp, e.target.checked)}
+                            title={rebateEnabled ? t('markRebateCollected') : t('noRebateAmount')}
+                            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[color:var(--brand-primary,#F4510B)] focus:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label={interpolate(t('rebateCollectedFor'), { name: emp.name })}
+                          />
+                          {t('rebateCollected')}
+                        </label>
                       </td>
                       <td className="align-middle" style={CELL_PAD}>
                         <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
