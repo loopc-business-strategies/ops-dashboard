@@ -39,12 +39,18 @@ const EMPTY_EMPLOYEE = {
   rebate: '',
 }
 
+/** Numeric suffix for EMP-NNN / bare digits; non-numeric codes sort last. */
+function employeeCodeNumericSuffix(code) {
+  const match = String(code || '').trim().match(/^(?:EMP-)?(\d+)$/i)
+  return match ? Number(match[1]) : Number.POSITIVE_INFINITY
+}
+
 /** Next EMP-NNN from employee count + highest existing EMP-N suffix. */
 function nextEmployeeCode(employees = []) {
   let maxSuffix = 0
   for (const emp of employees) {
-    const match = String(emp?.employeeCode || '').trim().match(/^(?:EMP-)?(\d+)$/i)
-    if (match) maxSuffix = Math.max(maxSuffix, Number(match[1]))
+    const suffix = employeeCodeNumericSuffix(emp?.employeeCode)
+    if (Number.isFinite(suffix)) maxSuffix = Math.max(maxSuffix, suffix)
   }
   const n = Math.max(employees.length, maxSuffix) + 1
   return `EMP-${String(n).padStart(3, '0')}`
@@ -979,6 +985,13 @@ function EmployeeList({ token, company }) {
         const av = a.rebateCollected ? Number(a.rebateCollectedAmount) || 0 : -1
         const bv = b.rebateCollected ? Number(b.rebateCollectedAmount) || 0 : -1
         return rebateSort === 'asc' ? av - bv : bv - av
+      })
+    } else {
+      // Default Employee List order: numeric EMP suffix ascending (EMP-001, EMP-002, EMP-004…).
+      rows = [...rows].sort((a, b) => {
+        const byCode = employeeCodeNumericSuffix(a.employeeCode) - employeeCodeNumericSuffix(b.employeeCode)
+        if (byCode !== 0) return byCode
+        return String(a.employeeCode || '').localeCompare(String(b.employeeCode || ''))
       })
     }
     return rows
