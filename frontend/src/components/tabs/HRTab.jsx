@@ -15,6 +15,7 @@ import EmployeeProfileDrawer from './hr/EmployeeProfileDrawer'
 import AttendanceLogPanel from './hr/AttendanceLogPanel'
 import RemarksPanel from './hr/RemarksPanel'
 import { downloadPayrollPdf } from './hr/payrollPdfExport'
+import { downloadPayrollExcel } from './hr/payrollExcelExport'
 
 function getHRSubTabs(t) {
   return [
@@ -502,10 +503,17 @@ function sumPayrollTotals(rows) {
   let socialTax = 0
   let netPayable = 0
   let pendingRebateCount = 0
+  let employeesWithRebate = 0
+  let employeesWithoutRebate = 0
   for (const row of rows) {
     const rebateN = Number(row.rebate)
-    if (Number.isFinite(rebateN)) rebate += rebateN
-    if (Number.isFinite(rebateN) && rebateN > 0 && !row.rebateCollected) pendingRebateCount += 1
+    if (Number.isFinite(rebateN) && rebateN > 0) {
+      employeesWithRebate += 1
+      rebate += rebateN
+      if (!row.rebateCollected) pendingRebateCount += 1
+    } else {
+      employeesWithoutRebate += 1
+    }
     const collectedN = Number(row.rebateCollectedAmount)
     if (row.rebateCollected && Number.isFinite(collectedN)) rebateCollectedTotal += collectedN
     if (row.accumulated === null || row.accumulated === undefined) continue
@@ -520,7 +528,7 @@ function sumPayrollTotals(rows) {
   const personalTaxR = round2(personalTax)
   const socialTaxR = round2(socialTax)
   const netPayableR = round2(netPayable)
-  // Net Expenses = Social Tax + Personal Tax + Accumulated − Total Rebate Collected
+  // Net Expenses = Gross + Social Tax − Total Rebates Collected
   return {
     employeeCount: rows.length,
     gross: grossR,
@@ -530,7 +538,9 @@ function sumPayrollTotals(rows) {
     rebate: rebateR,
     rebateCollected: rebateCollectedR,
     pendingRebateCount,
-    netExpense: round2(socialTaxR + personalTaxR + grossR - rebateCollectedR),
+    employeesWithRebate,
+    employeesWithoutRebate,
+    netExpense: round2(grossR + socialTaxR - rebateCollectedR),
   }
 }
 
@@ -602,6 +612,8 @@ const CELL_PAD = { padding: '0.875rem' }
 
 const KPI_ICONS = [
   IconUsers,
+  IconUsers,
+  IconUsers,
   IconCash,
   IconPercent,
   IconPercent,
@@ -650,6 +662,7 @@ function EmployeeList({ token, company }) {
   const [error, setError] = useState('')
   const [profileId, setProfileId] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [excelBusy, setExcelBusy] = useState(false)
   const [rebateBusyId, setRebateBusyId] = useState(null)
   const [rebateDrafts, setRebateDrafts] = useState({})
   const [rebateSort, setRebateSort] = useState(null) // null | 'asc' | 'desc'
@@ -880,6 +893,8 @@ function EmployeeList({ token, company }) {
 
   const summaryCards = [
     { label: t('totalEmployees'), value: payrollTotals.employeeCount, money: false },
+    { label: t('employeesWithRebate'), value: payrollTotals.employeesWithRebate, money: false },
+    { label: t('employeesWithoutRebate'), value: payrollTotals.employeesWithoutRebate, money: false },
     { label: t('grossTotalSalary'), value: payrollTotals.gross, money: true },
     { label: t('totalPersonalTax'), value: payrollTotals.personalTax, money: true },
     { label: t('totalSocialTax'), value: payrollTotals.socialTax, money: true },
@@ -893,8 +908,44 @@ function EmployeeList({ token, company }) {
     setRebateSort((prev) => (prev === null ? 'asc' : prev === 'asc' ? 'desc' : null))
   }
 
+  const exportLabels = useMemo(() => ({
+    title: t('monthlyPayrollReport'),
+    period: t('periodLabel'),
+    employees: t('employees'),
+    generated: t('generatedLabel'),
+    company: t('company') !== 'company' ? t('company') : 'Company',
+    name: t('name'),
+    code: t('employeeCode'),
+    phone: t('phone'),
+    workedDays: t('workedDays'),
+    salaryAgreed: t('salaryAgreed'),
+    rebate: t('rebate'),
+    rebatesCollectedAmount: t('rebatesCollectedAmount'),
+    rebateStatus: t('rebateStatus'),
+    collected: t('rebateStatusCollected'),
+    pending: t('rebateStatusPending'),
+    accumulatedMtd: t('accumulatedMtd'),
+    personalTax: t('personalTax'),
+    socialTax: t('socialTax'),
+    netPayable: t('netPayable'),
+    grandTotals: t('grandTotals'),
+    totalEmployees: t('totalEmployees'),
+    grossTotalSalary: t('grossTotalSalary'),
+    totalPersonalTax: t('totalPersonalTax'),
+    totalSocialTax: t('totalSocialTax'),
+    totalRebatesCollected: t('totalRebatesCollected'),
+    netExpense: t('netExpense'),
+    employeesWithRebate: t('employeesWithRebate'),
+    employeesWithoutRebate: t('employeesWithoutRebate'),
+    pendingRebates: t('pendingRebatesLabel'),
+    payrollSheet: t('payrollExcelSheet'),
+    summarySheet: t('summaryExcelSheet'),
+    yes: t('yes'),
+    no: t('no'),
+  }), [t])
+
   const handleDownloadPdf = async () => {
-    if (!filteredPayrollRows.length || pdfBusy) return
+    if (!filteredPayrollRows.length || pdfBusy || excelBusy) return
     setPdfBusy(true)
     setError('')
     try {
@@ -905,37 +956,33 @@ function EmployeeList({ token, company }) {
         month: filterMonth,
         companyName: company || '',
         langCode,
-        labels: {
-          title: t('monthlyPayrollReport'),
-          period: t('periodLabel'),
-          employees: t('employees'),
-          generated: t('generatedLabel'),
-          name: t('name'),
-          code: t('employeeCode'),
-          phone: t('phone'),
-          workedDays: t('workedDays'),
-          salaryAgreed: t('salaryAgreed'),
-          rebate: t('rebate'),
-          rebatesCollectedAmount: t('rebatesCollectedAmount'),
-          collected: t('collected'),
-          accumulatedMtd: t('accumulatedMtd'),
-          personalTax: t('personalTax'),
-          socialTax: t('socialTax'),
-          netPayable: t('netPayable'),
-          grandTotals: t('grandTotals'),
-          grossTotalSalary: t('grossTotalSalary'),
-          totalPersonalTax: t('totalPersonalTax'),
-          totalSocialTax: t('totalSocialTax'),
-          totalRebatesCollected: t('totalRebatesCollected'),
-          netExpense: t('netExpense'),
-          yes: t('yes'),
-          no: t('no'),
-        },
+        labels: exportLabels,
       })
     } catch {
       setError(t('failedGeneratePayrollPdf'))
     } finally {
       setPdfBusy(false)
+    }
+  }
+
+  const handleDownloadExcel = async () => {
+    if (!filteredPayrollRows.length || excelBusy || pdfBusy) return
+    setExcelBusy(true)
+    setError('')
+    try {
+      await downloadPayrollExcel({
+        rows: filteredPayrollRows,
+        totals: payrollTotals,
+        year: filterYear,
+        month: filterMonth,
+        companyName: company || '',
+        langCode,
+        labels: exportLabels,
+      })
+    } catch {
+      setError(t('failedGeneratePayrollExcel'))
+    } finally {
+      setExcelBusy(false)
     }
   }
 
@@ -983,12 +1030,22 @@ function EmployeeList({ token, company }) {
             <button
               type="button"
               onClick={handleDownloadPdf}
-              disabled={loading || filteredPayrollRows.length === 0 || pdfBusy}
+              disabled={loading || filteredPayrollRows.length === 0 || pdfBusy || excelBusy}
               className={BTN_SECONDARY}
               style={{ padding: '0 0.875rem' }}
             >
               <IconDownload />
               {pdfBusy ? t('preparingPdf') : t('downloadPdf')}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadExcel}
+              disabled={loading || filteredPayrollRows.length === 0 || excelBusy || pdfBusy}
+              className={BTN_SECONDARY}
+              style={{ padding: '0 0.875rem' }}
+            >
+              <IconDownload />
+              {excelBusy ? t('preparingExcel') : t('downloadExcel')}
             </button>
             <button
               type="button"
@@ -1126,7 +1183,7 @@ function EmployeeList({ token, company }) {
 
       {/* KPI cards */}
       {!loading && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5 xl:grid-cols-5">
           {summaryCards.map((card, i) => (
             <KpiCard
               key={card.label}

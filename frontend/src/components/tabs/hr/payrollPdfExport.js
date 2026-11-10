@@ -71,6 +71,9 @@ export async function downloadPayrollPdf({
     totalSocialTax: labels.totalSocialTax || 'Total social tax',
     totalRebatesCollected: labels.totalRebatesCollected || 'Total rebates collected',
     netExpense: labels.netExpense || 'Net expense',
+    totalEmployees: labels.totalEmployees || 'Total employees',
+    employeesWithRebate: labels.employeesWithRebate || 'Employees with rebate',
+    employeesWithoutRebate: labels.employeesWithoutRebate || 'Employees without rebate',
     yes: labels.yes || 'Yes',
     no: labels.no || 'No',
   }
@@ -147,13 +150,16 @@ export async function downloadPayrollPdf({
   pdf.setFontSize(10)
 
   const summaryLines = [
-    `1. ${L.grossTotalSalary}: ${formatPdfMoney(totals.gross)}`,
-    `2. ${L.totalPersonalTax}: ${formatPdfMoney(totals.personalTax)}`,
-    `3. ${L.totalSocialTax}: ${formatPdfMoney(totals.socialTax)}`,
-    `4. ${L.netPayable}: ${formatPdfMoney(totals.netPayable)}`,
-    `5. ${L.rebate}: ${formatPdfMoney(totals.rebate)}`,
-    `6. ${L.totalRebatesCollected}: ${formatPdfMoney(totals.rebateCollected)}`,
-    `7. ${L.netExpense}: ${formatPdfMoney(totals.netExpense)}`,
+    `1. ${L.totalEmployees || 'Total employees'}: ${totals.employeeCount ?? rows.length}`,
+    `2. ${L.employeesWithRebate || 'Employees with rebate'}: ${totals.employeesWithRebate ?? 0}`,
+    `3. ${L.employeesWithoutRebate || 'Employees without rebate'}: ${totals.employeesWithoutRebate ?? 0}`,
+    `4. ${L.grossTotalSalary}: ${formatPdfMoney(totals.gross)}`,
+    `5. ${L.totalPersonalTax}: ${formatPdfMoney(totals.personalTax)}`,
+    `6. ${L.totalSocialTax}: ${formatPdfMoney(totals.socialTax)}`,
+    `7. ${L.netPayable}: ${formatPdfMoney(totals.netPayable)}`,
+    `8. ${L.rebate}: ${formatPdfMoney(totals.rebate)}`,
+    `9. ${L.totalRebatesCollected}: ${formatPdfMoney(totals.rebateCollected)}`,
+    `10. ${L.netExpense}: ${formatPdfMoney(totals.netExpense)}`,
   ]
   summaryLines.forEach((line, i) => {
     pdf.text(line, 40, endY + 16 + i * 14)
