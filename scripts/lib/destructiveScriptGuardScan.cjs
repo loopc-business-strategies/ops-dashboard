@@ -51,6 +51,9 @@ const ALLOWLIST = Object.freeze({
   // HR operator role promote; intentional production use with I_UNDERSTAND + --apply (staging via --staging).
   'backend/scripts/promote-hr-operators.js':
     'Promote HR operators to department_head; gated by I_UNDERSTAND=PROMOTE-HR-OPERATORS + --apply.',
+  // Blank employeeCode backfill; optional --dry-run, otherwise assigns EMP-NNN only to blank rows.
+  'backend/scripts/backfill-blank-employee-codes.js':
+    'Backfill blank employeeCode values only; optional --dry-run preview, otherwise writes EMP codes.',
   // VB ops wipe; intentional production VB use with I_UNDERSTAND + --apply (staging via --staging).
   'backend/scripts/wipe-vb-ops-data.js':
     'VB ops hard-wipe (tx/ledgers/movements); gated by I_UNDERSTAND=WIPE-VB-OPS-DATA + --apply.',
