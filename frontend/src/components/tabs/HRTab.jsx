@@ -644,6 +644,21 @@ function payrollMonthKey(year, month) {
   return `${year}-${String(month).padStart(2, '0')}`
 }
 
+/**
+ * As-of date for a payroll/attendance month filter.
+ * Uses clipTo only when it falls inside the selected YYYY-MM (avoids stale prior-month MTD).
+ */
+function monthAsOfDate(year, month, clipTo = '') {
+  const prefix = payrollMonthKey(year, month)
+  const lastDay = new Date(year, month, 0).getDate()
+  const monthEnd = `${prefix}-${String(lastDay).padStart(2, '0')}`
+  const clip = String(clipTo || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clip) && clip.startsWith(`${prefix}-`) && clip <= monthEnd) {
+    return clip
+  }
+  return monthEnd
+}
+
 function _isRebateCollectedForMonth(emp, year, month) {
   const key = payrollMonthKey(year, month)
   const collections = Array.isArray(emp?.rebateCollections) ? emp.rebateCollections : []
@@ -787,11 +802,10 @@ function EmployeeList({ token, company }) {
     }
   }, [token, t])
 
-  const payrollAsOf = useMemo(() => {
-    const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
-    if (monthMeta.to && monthMeta.to <= monthEnd) return monthMeta.to
-    return monthEnd
-  }, [filterYear, filterMonth, monthMeta.to])
+  const payrollAsOf = useMemo(
+    () => monthAsOfDate(filterYear, filterMonth, monthMeta.to),
+    [filterYear, filterMonth, monthMeta.to],
+  )
 
   const loadPayrollEmployees = useCallback(async (asOf, isMounted = () => true) => {
     if (!asOf) return
@@ -966,9 +980,8 @@ function EmployeeList({ token, company }) {
   }), [payrollEmployees, monthMeta, filterYear, filterMonth])
 
   const filteredPayrollRows = useMemo(() => {
-    const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
     // Align with month-stats MTD clip: only show employees who have joined by the counted-through date.
-    const asOf = monthMeta.to && monthMeta.to <= monthEnd ? monthMeta.to : monthEnd
+    const asOf = monthAsOfDate(filterYear, filterMonth, monthMeta.to)
     const q = searchQuery.trim().toLowerCase()
     let rows = payrollRows.filter((row) => {
       const joinKey = toDateInput(row.emp?.joiningDate)

@@ -16,6 +16,43 @@ function todayKey() {
   return `${y}-${m}-${day}`
 }
 
+function monthBounds(year, month) {
+  const pad = String(month).padStart(2, '0')
+  const last = new Date(year, month, 0).getDate()
+  return {
+    start: `${year}-${pad}-01`,
+    end: `${year}-${pad}-${String(last).padStart(2, '0')}`,
+  }
+}
+
+/** Prefer today when inside the month; else month end (past) or month start (future). */
+function defaultDateInMonth(year, month) {
+  const { start, end } = monthBounds(year, month)
+  const today = todayKey()
+  if (today >= start && today <= end) return today
+  if (today < start) return start
+  return end
+}
+
+function parseYearMonth(dateKey) {
+  const m = String(dateKey || '').match(/^(\d{4})-(\d{2})/)
+  if (!m) {
+    const today = new Date()
+    return { year: today.getFullYear(), month: today.getMonth() + 1 }
+  }
+  return { year: Number(m[1]), month: Number(m[2]) }
+}
+
+function useMonthFilterOptions(langCode) {
+  return useMemo(() => {
+    const locale = langCode === 'ru' ? 'ru-RU' : langCode === 'uz' ? 'uz-UZ' : 'en-US'
+    return Array.from({ length: 12 }, (_, i) => {
+      const label = new Date(2020, i, 1).toLocaleString(locale, { month: 'long' })
+      return { value: i + 1, label: label.charAt(0).toUpperCase() + label.slice(1) }
+    })
+  }, [langCode])
+}
+
 /** YYYY-MM-DD for employment dates; empty/invalid → ''. Prefer ISO prefix / UTC parts. */
 function toDateKey(value) {
   if (!value) return ''
@@ -169,9 +206,12 @@ function SummaryCard({ label, value, icon: Icon }) {
  * Daily attendance mark UI for HR: date picker + per-employee status / check-in / check-out.
  */
 export default function AttendanceLogPanel({ token }) {
-  const { t } = useLanguage()
+  const { t, langCode } = useLanguage()
   const { canMarkAttendance } = usePermissions()
-  const [date, setDate] = useState(todayKey)
+  const initial = parseYearMonth(todayKey())
+  const [filterYear, setFilterYear] = useState(initial.year)
+  const [filterMonth, setFilterMonth] = useState(initial.month)
+  const [date, setDate] = useState(() => defaultDateInMonth(initial.year, initial.month))
   const [employees, setEmployees] = useState([])
   const [rows, setRows] = useState({})
   const [loading, setLoading] = useState(true)
@@ -184,6 +224,17 @@ export default function AttendanceLogPanel({ token }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
+  const monthOptions = useMonthFilterOptions(langCode)
+  const yearOptions = useMemo(() => {
+    const years = []
+    for (let y = initial.year; y >= initial.year - 10; y -= 1) years.push(y)
+    return years
+  }, [initial.year])
+  const { start: monthStart, end: monthEnd } = useMemo(
+    () => monthBounds(filterYear, filterMonth),
+    [filterYear, filterMonth],
+  )
+
   const statuses = useMemo(() => [
     { value: 'present', label: t('present') },
     { value: 'absent', label: t('absent') },
@@ -193,6 +244,27 @@ export default function AttendanceLogPanel({ token }) {
 
   const allSelected = employees.length > 0 && selectedIds.size === employees.length
   const someSelected = selectedIds.size > 0 && !allSelected
+
+  const setMonthFilter = (year, month) => {
+    setFilterYear(year)
+    setFilterMonth(month)
+    setDate(defaultDateInMonth(year, month))
+  }
+
+  const onDateChange = (next) => {
+    const value = String(next || '')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return
+    // Keep day inside the selected month (year/month controls own the range).
+    if (value < monthStart) {
+      setDate(monthStart)
+      return
+    }
+    if (value > monthEnd) {
+      setDate(monthEnd)
+      return
+    }
+    setDate(value)
+  }
 
   const load = useCallback(async (isMounted = () => true) => {
     setLoading(true)
@@ -419,16 +491,46 @@ export default function AttendanceLogPanel({ token }) {
           </p>
         </div>
         <div
-          className="shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm"
+          className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white shadow-sm"
           style={{ padding: '0.75rem 1rem' }}
         >
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
+            {t('year')}
+            <select
+              value={filterYear}
+              onChange={(e) => setMonthFilter(Number(e.target.value), filterMonth)}
+              className="border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+              style={PILL_SELECT}
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
+            {t('month')}
+            <select
+              value={filterMonth}
+              onChange={(e) => setMonthFilter(filterYear, Number(e.target.value))}
+              className="border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+              style={{ ...PILL_SELECT, minWidth: '150px' }}
+            >
+              {monthOptions.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </label>
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
             <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
             {t('date')}
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              min={monthStart}
+              max={monthEnd}
+              onChange={(e) => onDateChange(e.target.value)}
               className="border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
               style={PILL_CONTROL}
             />
