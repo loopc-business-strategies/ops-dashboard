@@ -698,10 +698,12 @@ function hasRebateAmount(emp) {
 
 const TH = 'sticky top-0 z-[1] whitespace-nowrap bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-600'
 const TH_RIGHT = `${TH} text-right`
+const TH_CENTER = `${TH} text-center`
 const TD = 'whitespace-nowrap align-middle text-sm text-slate-600'
 const TD_RIGHT = `${TD} text-right tabular-nums`
 const TD_MONEY = 'whitespace-nowrap align-middle text-right text-sm font-medium tabular-nums text-slate-800'
-const CELL_PAD = { padding: '0.875rem' }
+const CELL_PAD = { padding: '0.625rem 0.75rem' }
+const DEFAULT_TABLE_SORT = { key: 'employeeCode', dir: 'asc' }
 
 const KPI_ICONS = [
   IconUsers,
@@ -719,23 +721,99 @@ const KPI_ICONS = [
 function KpiCard({ label, value, money, icon: Icon }) {
   return (
     <div
-      className="flex min-h-[72px] flex-col justify-between rounded-xl border border-slate-200 bg-white shadow-sm"
-      style={{ padding: '0.75rem' }}
+      className="flex min-h-[52px] flex-col justify-between rounded-lg border border-slate-200 bg-white shadow-sm"
+      style={{ padding: '0.5rem 0.625rem' }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 text-[10px] font-semibold uppercase leading-snug tracking-[0.06em] text-slate-500">{label}</p>
+      <div className="flex items-start justify-between gap-1.5">
+        <p className="min-w-0 text-[9px] font-semibold uppercase leading-snug tracking-[0.05em] text-slate-500">{label}</p>
         <span
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
           style={{ background: 'color-mix(in srgb, var(--brand-primary, #F4510B) 12%, white)', color: 'var(--brand-primary, #F4510B)' }}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-3 w-3" />
         </span>
       </div>
-      <p className="text-lg font-semibold tabular-nums leading-none tracking-tight text-slate-900" style={{ marginTop: '0.5rem' }}>
+      <p className="text-base font-semibold tabular-nums leading-none tracking-tight text-slate-900">
         {money ? formatMoney(value) : value}
       </p>
     </div>
   )
+}
+
+function SortableTh({ label, sortKey, tableSort, onSort, align = 'left', title }) {
+  const active = tableSort.key === sortKey
+  const marker = active ? (tableSort.dir === 'asc' ? '↑' : '↓') : '↕'
+  const alignClass = align === 'right' ? TH_RIGHT : align === 'center' ? TH_CENTER : TH
+  const justify = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
+  return (
+    <th className={alignClass} style={CELL_PAD}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex w-full items-center gap-1 font-semibold uppercase tracking-[0.06em] text-slate-600 hover:text-slate-900 ${justify}`}
+        title={title || label}
+      >
+        <span className="truncate">{label}</span>
+        <span className="text-[10px] tabular-nums">{marker}</span>
+      </button>
+    </th>
+  )
+}
+
+function comparePayrollRows(a, b, key, dir) {
+  const mult = dir === 'desc' ? -1 : 1
+  const num = (v) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : 0
+  }
+  let cmp = 0
+  switch (key) {
+    case 'name':
+      cmp = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+      break
+    case 'employeeCode': {
+      cmp = employeeCodeNumericSuffix(a.employeeCode) - employeeCodeNumericSuffix(b.employeeCode)
+      if (cmp === 0) cmp = String(a.employeeCode || '').localeCompare(String(b.employeeCode || ''))
+      break
+    }
+    case 'joiningDate':
+      cmp = String(a.joiningDate || '').localeCompare(String(b.joiningDate || ''))
+      break
+    case 'salaryAgreed':
+      cmp = num(a.salaryAgreed) - num(b.salaryAgreed)
+      break
+    case 'rebate':
+      cmp = num(a.rebate) - num(b.rebate)
+      break
+    case 'rebateCollectedAmount': {
+      const av = a.rebateCollected ? num(a.rebateCollectedAmount) : -1
+      const bv = b.rebateCollected ? num(b.rebateCollectedAmount) : -1
+      cmp = av - bv
+      break
+    }
+    case 'workedDays':
+      cmp = num(a.workedDays) - num(b.workedDays)
+      break
+    case 'accumulated':
+      cmp = num(a.accumulated) - num(b.accumulated)
+      break
+    case 'personalTax':
+      cmp = num(a.personalTax) - num(b.personalTax)
+      break
+    case 'socialTax':
+      cmp = num(a.socialTax) - num(b.socialTax)
+      break
+    case 'netPayable':
+      cmp = num(a.netPayable) - num(b.netPayable)
+      break
+    case 'rebateStatus':
+      cmp = Number(Boolean(a.rebateCollected)) - Number(Boolean(b.rebateCollected))
+      break
+    default:
+      cmp = employeeCodeNumericSuffix(a.employeeCode) - employeeCodeNumericSuffix(b.employeeCode)
+  }
+  if (cmp !== 0) return cmp * mult
+  return (employeeCodeNumericSuffix(a.employeeCode) - employeeCodeNumericSuffix(b.employeeCode)) * mult
 }
 
 // ── Employee List sub-tab ────────────────────────
@@ -758,7 +836,7 @@ function EmployeeList({ token, company }) {
   const [pdfBusy, setPdfBusy] = useState(false)
   const [excelBusy, setExcelBusy] = useState(false)
   const [rebateBusyId, setRebateBusyId] = useState(null)
-  const [rebateSort, setRebateSort] = useState(null) // null | 'asc' | 'desc'
+  const [tableSort, setTableSort] = useState(DEFAULT_TABLE_SORT)
   const structured = isStructuredPayrollEnabled(company)
 
   const yearOptions = useMemo(() => {
@@ -938,22 +1016,9 @@ function EmployeeList({ token, company }) {
       const code = String(row.employeeCode || '').toLowerCase()
       return name.includes(q) || idNumber.includes(q) || phone.includes(q) || code.includes(q)
     })
-    if (rebateSort === 'asc' || rebateSort === 'desc') {
-      rows = [...rows].sort((a, b) => {
-        const av = a.rebateCollected ? Number(a.rebateCollectedAmount) || 0 : -1
-        const bv = b.rebateCollected ? Number(b.rebateCollectedAmount) || 0 : -1
-        return rebateSort === 'asc' ? av - bv : bv - av
-      })
-    } else {
-      // Default Employee List order: numeric EMP suffix ascending (EMP-001, EMP-002, EMP-004…).
-      rows = [...rows].sort((a, b) => {
-        const byCode = employeeCodeNumericSuffix(a.employeeCode) - employeeCodeNumericSuffix(b.employeeCode)
-        if (byCode !== 0) return byCode
-        return String(a.employeeCode || '').localeCompare(String(b.employeeCode || ''))
-      })
-    }
+    rows = [...rows].sort((a, b) => comparePayrollRows(a, b, tableSort.key, tableSort.dir))
     return rows
-  }, [payrollRows, searchQuery, filterYear, filterMonth, rebateSort, monthMeta.to])
+  }, [payrollRows, searchQuery, filterYear, filterMonth, tableSort, monthMeta.to])
 
   const payrollTotals = useMemo(
     () => sumPayrollTotals(filteredPayrollRows),
@@ -978,8 +1043,12 @@ function EmployeeList({ token, company }) {
     { label: t('netExpense'), value: payrollTotals.netExpense, money: true },
   ]
 
-  const cycleRebateSort = () => {
-    setRebateSort((prev) => (prev === null ? 'asc' : prev === 'asc' ? 'desc' : null))
+  const cycleTableSort = (key) => {
+    setTableSort((prev) => {
+      if (prev.key !== key) return { key, dir: 'asc' }
+      if (prev.dir === 'asc') return { key, dir: 'desc' }
+      return DEFAULT_TABLE_SORT
+    })
   }
 
   const exportLabels = useMemo(() => ({
@@ -1073,12 +1142,12 @@ function EmployeeList({ token, company }) {
     : interpolate(t('employeesOnRecord'), { count: employees.length })
 
   return (
-    <div className="flex flex-col gap-5" style={{ paddingTop: '0.5rem' }}>
+    <div className="flex flex-col gap-3" style={{ paddingTop: '0.5rem' }}>
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
+            <h3 className="text-xl font-semibold tracking-tight text-slate-900">
               {t('employeeList')}
             </h3>
             <span
@@ -1136,11 +1205,11 @@ function EmployeeList({ token, company }) {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Filters (above KPIs) */}
       {!formMode && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm" style={{ padding: '1rem' }}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center">
-            <div className="relative min-w-[240px] flex-1">
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm" style={{ padding: '0.625rem 0.75rem' }}>
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center">
+            <div className="relative min-w-[200px] flex-1">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
                 <IconSearch />
               </span>
@@ -1149,26 +1218,26 @@ function EmployeeList({ token, company }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchNameIdCode')}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                 style={{ paddingLeft: '2.25rem', paddingRight: '0.75rem' }}
                 aria-label={t('searchEmployees')}
               />
             </div>
             <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
-              <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
+              <IconCalendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
               {t('year')}
               <select
                 value={filterYear}
                 onChange={(e) => setFilterYear(Number(e.target.value))}
-                className="h-10 min-w-[120px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                className="min-w-[100px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                 style={{
                   boxSizing: 'border-box',
-                  height: '40px',
-                  minHeight: '40px',
-                  paddingTop: '8px',
-                  paddingBottom: '8px',
-                  paddingLeft: '0.875rem',
-                  paddingRight: '1.75rem',
+                  height: '36px',
+                  minHeight: '36px',
+                  paddingTop: '6px',
+                  paddingBottom: '6px',
+                  paddingLeft: '0.75rem',
+                  paddingRight: '1.5rem',
                   lineHeight: '1.25',
                   fontSize: '13px',
                   borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
@@ -1181,20 +1250,20 @@ function EmployeeList({ token, company }) {
               </select>
             </label>
             <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
-              <IconCalendar className="h-4 w-4 shrink-0 text-slate-400" />
+              <IconCalendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
               {t('month')}
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(Number(e.target.value))}
-                className="h-10 min-w-[150px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
+                className="min-w-[140px] rounded-full border bg-white text-sm font-medium text-slate-800 outline-none transition-colors focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
                 style={{
                   boxSizing: 'border-box',
-                  height: '40px',
-                  minHeight: '40px',
-                  paddingTop: '8px',
-                  paddingBottom: '8px',
-                  paddingLeft: '0.875rem',
-                  paddingRight: '1.75rem',
+                  height: '36px',
+                  minHeight: '36px',
+                  paddingTop: '6px',
+                  paddingBottom: '6px',
+                  paddingLeft: '0.75rem',
+                  paddingRight: '1.5rem',
                   lineHeight: '1.25',
                   fontSize: '13px',
                   borderColor: 'color-mix(in srgb, var(--brand-primary, #F4510B) 35%, white)',
@@ -1283,7 +1352,7 @@ function EmployeeList({ token, company }) {
 
       {/* KPI cards */}
       {!loading && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-5 xl:grid-cols-5">
           {summaryCards.map((card, i) => (
             <KpiCard
               key={card.label}
@@ -1342,40 +1411,35 @@ function EmployeeList({ token, company }) {
                 <col style={{ width: 110 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 100 }} />
-                <col style={{ width: 220 }} />
+                <col style={{ width: 130 }} />
                 <col style={{ width: 100 }} />
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className={TH} style={CELL_PAD}>{t('name')}</th>
+                  <SortableTh label={t('name')} sortKey="name" tableSort={tableSort} onSort={cycleTableSort} />
                   <th className={TH} style={CELL_PAD}>{t('idNumber')}</th>
-                  <th className={TH} style={CELL_PAD}>{t('employeeCode')}</th>
+                  <SortableTh label={t('employeeCode')} sortKey="employeeCode" tableSort={tableSort} onSort={cycleTableSort} />
                   <th className={TH} style={CELL_PAD}>{t('phone')}</th>
-                  <th className={TH} style={CELL_PAD}>{t('joiningDate')}</th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>{t('salaryAgreed')}</th>
+                  <SortableTh label={t('joiningDate')} sortKey="joiningDate" tableSort={tableSort} onSort={cycleTableSort} />
+                  <SortableTh label={t('salaryAgreed')} sortKey="salaryAgreed" tableSort={tableSort} onSort={cycleTableSort} align="right" />
                   <th className={TH} style={CELL_PAD}>{t('lastIncrement')}</th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>{t('rebate')}</th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>
-                    <button
-                      type="button"
-                      onClick={cycleRebateSort}
-                      className="inline-flex items-center gap-1 font-semibold uppercase tracking-[0.06em] text-slate-600 hover:text-slate-900"
-                      title={t('sortByRebatesCollected')}
-                    >
-                      {t('rebatesCollectedAmount')}
-                      <span className="text-[10px] tabular-nums">
-                        {rebateSort === 'asc' ? '↑' : rebateSort === 'desc' ? '↓' : '↕'}
-                      </span>
-                    </button>
-                  </th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>{t('workingDays')}</th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>{t('accumulated')}</th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>{t('personalTax')}</th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>{t('socialTax')}</th>
-                  <th className={TH_RIGHT} style={CELL_PAD}>{t('netPayable')}</th>
-                  <th className={`${TH} text-center`} style={CELL_PAD}>{t('rebateStatus')}</th>
-                  <th className={`${TH} text-center`} style={CELL_PAD}>{t('rebateCollected')}</th>
-                  <th className={`${TH} text-center`} style={CELL_PAD}>{t('actions')}</th>
+                  <SortableTh label={t('rebate')} sortKey="rebate" tableSort={tableSort} onSort={cycleTableSort} align="right" />
+                  <SortableTh
+                    label={t('rebatesCollectedAmount')}
+                    sortKey="rebateCollectedAmount"
+                    tableSort={tableSort}
+                    onSort={cycleTableSort}
+                    align="right"
+                    title={t('sortByRebatesCollected')}
+                  />
+                  <SortableTh label={t('workingDays')} sortKey="workedDays" tableSort={tableSort} onSort={cycleTableSort} align="right" />
+                  <SortableTh label={t('accumulated')} sortKey="accumulated" tableSort={tableSort} onSort={cycleTableSort} align="right" />
+                  <SortableTh label={t('personalTax')} sortKey="personalTax" tableSort={tableSort} onSort={cycleTableSort} align="right" />
+                  <SortableTh label={t('socialTax')} sortKey="socialTax" tableSort={tableSort} onSort={cycleTableSort} align="right" />
+                  <SortableTh label={t('netPayable')} sortKey="netPayable" tableSort={tableSort} onSort={cycleTableSort} align="right" />
+                  <SortableTh label={t('rebateStatus')} sortKey="rebateStatus" tableSort={tableSort} onSort={cycleTableSort} align="center" />
+                  <th className={TH_CENTER} style={CELL_PAD}>{t('rebateCollected')}</th>
+                  <th className={TH_CENTER} style={CELL_PAD}>{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
