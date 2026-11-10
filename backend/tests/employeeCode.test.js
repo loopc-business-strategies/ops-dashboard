@@ -1,6 +1,7 @@
 const {
   parseEmployeeCodeSuffix,
   formatEmployeeCode,
+  normalizeEmployeeCodeFormat,
 } = require('../utils/employeeCode')
 
 describe('employeeCode', () => {
@@ -14,5 +15,12 @@ describe('employeeCode', () => {
   test('formats padded codes', () => {
     expect(formatEmployeeCode(1)).toBe('EMP-001')
     expect(formatEmployeeCode(42)).toBe('EMP-042')
+  })
+
+  test('normalizeEmployeeCodeFormat upgrades bare digits', () => {
+    expect(normalizeEmployeeCodeFormat('001')).toBe('EMP-001')
+    expect(normalizeEmployeeCodeFormat('4')).toBe('EMP-004')
+    expect(normalizeEmployeeCodeFormat('EMP-007')).toBe('EMP-007')
+    expect(normalizeEmployeeCodeFormat('emp-008')).toBe('EMP-008')
   })
 })

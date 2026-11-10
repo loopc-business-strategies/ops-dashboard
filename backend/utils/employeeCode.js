@@ -38,10 +38,23 @@ async function employeeCodeExists(Model, code, excludeId = null) {
 }
 
 /**
+ * Normalize bare digits or EMP-N to canonical EMP-NNN; leave other codes alone.
+ */
+function normalizeEmployeeCodeFormat(code) {
+  const raw = String(code || '').trim()
+  if (!raw) return ''
+  if (/^(?:EMP-)?\d+$/i.test(raw)) {
+    return formatEmployeeCode(parseEmployeeCodeSuffix(raw))
+  }
+  return raw
+}
+
+/**
  * Prefer client code when unique; otherwise allocate next free EMP-N.
+ * Bare digits (e.g. 001) are normalized to EMP-001 before uniqueness check.
  */
 async function resolveEmployeeCodeForCreate(Model, requestedCode) {
-  const requested = String(requestedCode || '').trim()
+  const requested = normalizeEmployeeCodeFormat(String(requestedCode || '').trim())
   if (requested && !(await employeeCodeExists(Model, requested))) {
     return requested
   }
@@ -51,6 +64,7 @@ async function resolveEmployeeCodeForCreate(Model, requestedCode) {
 module.exports = {
   parseEmployeeCodeSuffix,
   formatEmployeeCode,
+  normalizeEmployeeCodeFormat,
   allocateNextEmployeeCode,
   employeeCodeExists,
   resolveEmployeeCodeForCreate,
