@@ -121,6 +121,100 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
     expect(accumulated).toBe(5000)
   })
 
+  it('rejects marking attendance before joiningDate', async () => {
+    const admin = await User.create({
+      name: 'hr-admin-prejoin',
+      email: 'hr-admin-prejoin@example.com',
+      password: 'password123',
+      role: 'super_admin',
+      department: 'hr',
+    })
+    const token = tokenFor(admin)
+
+    const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
+    const emp = await TenantEmployee.create({
+      name: 'Prejoin Block Emp',
+      idNumber: 'ID-PREJOIN-001',
+      employeeCode: 'EMP-PREJOIN-001',
+      department: 'hr',
+      joiningDate: new Date('2026-11-03T00:00:00.000Z'),
+    })
+
+    const blocked = await request(app)
+      .post('/api/attendance/records')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        employeeId: emp._id.toString(),
+        employeeName: emp.name,
+        department: 'hr',
+        date: '2026-11-01',
+        status: 'present',
+        checkIn: '09:00',
+        checkOut: '18:00',
+      })
+    expect(blocked.status).toBe(400)
+    expect(blocked.body.message).toMatch(/joining date/i)
+
+    const allowed = await request(app)
+      .post('/api/attendance/records')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        employeeId: emp._id.toString(),
+        employeeName: emp.name,
+        department: 'hr',
+        date: '2026-11-03',
+        status: 'present',
+        checkIn: '09:00',
+        checkOut: '18:00',
+      })
+    expect(allowed.status).toBe(200)
+    expect(allowed.body.record.date).toBe('2026-11-03')
+  })
+
+  it('summary only includes employees joined on or before the date', async () => {
+    const admin = await User.create({
+      name: 'hr-admin-summary-join',
+      email: 'hr-admin-summary-join@example.com',
+      password: 'password123',
+      role: 'super_admin',
+      department: 'hr',
+    })
+    const token = tokenFor(admin)
+
+    const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
+    await TenantEmployee.create({
+      name: 'Early Joiner',
+      idNumber: 'ID-SUM-EARLY',
+      employeeCode: 'EMP-SUM-EARLY',
+      department: 'hr',
+      joiningDate: new Date('2026-10-01T00:00:00.000Z'),
+    })
+    await TenantEmployee.create({
+      name: 'Late Joiner',
+      idNumber: 'ID-SUM-LATE',
+      employeeCode: 'EMP-SUM-LATE',
+      department: 'hr',
+      joiningDate: new Date('2026-11-10T00:00:00.000Z'),
+    })
+    await TenantEmployee.create({
+      name: 'Legacy No Join',
+      idNumber: 'ID-SUM-LEGACY',
+      employeeCode: 'EMP-SUM-LEGACY',
+      department: 'hr',
+    })
+
+    const res = await request(app)
+      .get('/api/attendance/summary')
+      .query({ date: '2026-11-01' })
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    const names = (res.body.rows || []).map((r) => r.name)
+    expect(names).toContain('Early Joiner')
+    expect(names).toContain('Legacy No Join')
+    expect(names).not.toContain('Late Joiner')
+  })
+
   it('excludes attendance before joiningDate from workedDays', async () => {
     const admin = await User.create({
       name: 'hr-admin-join',
@@ -141,8 +235,30 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
       joiningDate: new Date('2026-11-03T00:00:00.000Z'),
     })
 
-    const dates = ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05']
-    for (const date of dates) {
+    // Pre-join rows may already exist from older bulk marks; seed via DB to assert stats ignore them.
+    const TenantAttendance = await AttendanceRecord.getTenantModel(TEST_TENANT)
+    await TenantAttendance.create([
+      {
+        employeeId: emp._id,
+        employeeName: emp.name,
+        department: 'hr',
+        date: '2026-11-01',
+        status: 'present',
+        checkIn: '09:00',
+        checkOut: '18:00',
+      },
+      {
+        employeeId: emp._id,
+        employeeName: emp.name,
+        department: 'hr',
+        date: '2026-11-02',
+        status: 'present',
+        checkIn: '09:00',
+        checkOut: '18:00',
+      },
+    ])
+
+    for (const date of ['2026-11-03', '2026-11-04', '2026-11-05']) {
       const res = await request(app)
         .post('/api/attendance/records')
         .set('Authorization', `Bearer ${token}`)

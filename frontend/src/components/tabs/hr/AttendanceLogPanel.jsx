@@ -16,6 +16,26 @@ function todayKey() {
   return `${y}-${m}-${day}`
 }
 
+/** YYYY-MM-DD for joiningDate; empty/invalid → ''. */
+function toDateKey(value) {
+  if (!value) return ''
+  const s = String(value)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = `${d.getMonth() + 1}`.padStart(2, '0')
+  const day = `${d.getDate()}`.padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Legacy rows without joiningDate stay eligible; otherwise join must be on/before date. */
+function isEmployedOn(employee, dateKey) {
+  const joinKey = toDateKey(employee?.joiningDate)
+  if (!joinKey) return true
+  return joinKey <= dateKey
+}
+
 function normalizeName(name) {
   return String(name || '').trim().toLowerCase()
 }
@@ -182,7 +202,7 @@ export default function AttendanceLogPanel({ token }) {
       ])
       if (!isMounted()) return
 
-      const list = empRes.employees || []
+      const list = (empRes.employees || []).filter((emp) => isEmployedOn(emp, date))
       setEmployees(list)
 
       const byName = new Map(

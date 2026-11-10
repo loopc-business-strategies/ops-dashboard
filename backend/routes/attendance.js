@@ -76,6 +76,22 @@ const toDateKey = (value) => {
   return dayKey(d)
 }
 
+/** Joining date as YYYY-MM-DD, or null when missing/invalid (legacy = always eligible). */
+const joiningDateKey = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const raw = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return dayKey(d)
+}
+
+const isEmployedOnDate = (joiningDate, dateKey) => {
+  const joinKey = joiningDateKey(joiningDate)
+  if (!joinKey) return true
+  return joinKey <= dateKey
+}
+
 const daysBetweenInclusive = (start, end) => {
   const ms = 24 * 60 * 60 * 1000
   const a = new Date(start)
@@ -138,10 +154,10 @@ router.get('/summary', protect, async (req, res) => {
     if (deptScope) recordFilter.department = new RegExp(`^${escapeRegex(deptScope)}$`, 'i')
 
     const [employees, records] = await Promise.all([
-      Employee.find(employeeFilter).select('name department').lean(),
+      Employee.find({ ...employeeFilter, isDeleted: { $ne: true } }).select('name department joiningDate').lean(),
       AttendanceRecord.find(recordFilter).lean(),
     ])
-    let scopedEmployees = employees
+    let scopedEmployees = employees.filter((e) => isEmployedOnDate(e.joiningDate, date))
     let scopedRecords = records
 
     if (!scopedEmployees.length) {
@@ -383,6 +399,21 @@ router.post('/records', protect, validateBody(attendanceRecordSchema), async (re
     }
 
     const dateKey = toDateKey(date)
+
+    if (employeeId) {
+      try {
+        const TenantEmployee = await Employee.getTenantModel(req.tenant)
+        const emp = await TenantEmployee.findById(employeeId).select('joiningDate isDeleted').lean()
+        if (emp && emp.isDeleted !== true && !isEmployedOnDate(emp.joiningDate, dateKey)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot mark attendance before the employee joining date.',
+          })
+        }
+      } catch {
+        // If lookup fails, continue; upsert still proceeds for legacy name-only marks.
+      }
+    }
 
     const payload = {
       employeeId: employeeId || null,
