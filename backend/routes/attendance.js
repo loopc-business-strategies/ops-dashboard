@@ -238,6 +238,44 @@ router.get('/month-stats', protect, async (req, res) => {
       .select('employeeId employeeName date status')
       .lean()
 
+    // Joining-date map so payroll worked days never include pre-hire attendance.
+    const joinById = new Map()
+    const joinByName = new Map()
+    try {
+      const TenantEmployee = await Employee.getTenantModel(req.tenant)
+      const employeeIds = [...new Set(
+        records.map((r) => (r.employeeId ? String(r.employeeId) : '')).filter(Boolean),
+      )]
+      const employeeNames = [...new Set(
+        records.map((r) => String(r.employeeName || '').trim()).filter(Boolean),
+      )]
+      const or = []
+      if (employeeIds.length) {
+        or.push({ _id: { $in: employeeIds } })
+      }
+      if (employeeNames.length) {
+        or.push({ name: { $in: employeeNames } })
+      }
+      if (or.length) {
+        const employees = await TenantEmployee.find({
+          isDeleted: { $ne: true },
+          $or: or,
+        })
+          .select('_id name joiningDate')
+          .lean()
+        for (const emp of employees) {
+          if (!emp?.joiningDate) continue
+          const joinKey = toDateKey(emp.joiningDate)
+          if (!joinKey || !/^\d{4}-\d{2}-\d{2}$/.test(joinKey)) continue
+          joinById.set(String(emp._id), joinKey)
+          const nameKey = normalize(emp.name)
+          if (nameKey) joinByName.set(nameKey, joinKey)
+        }
+      }
+    } catch {
+      // If employee lookup fails, fall back to unfiltered date counts.
+    }
+
     // Unique worked dates per employee (prefer employeeId, fall back to name)
     const byId = new Map()
     const byName = new Map()
@@ -249,6 +287,9 @@ router.get('/month-stats', protect, async (req, res) => {
       if (dateKey < monthStart || dateKey > endDate) continue
       const id = rec.employeeId ? String(rec.employeeId) : ''
       const nameKey = normalize(rec.employeeName)
+      const joinKey = (id && joinById.get(id)) || (nameKey && joinByName.get(nameKey)) || null
+      // Do not count attendance before the employee's joining date
+      if (joinKey && dateKey < joinKey) continue
       if (id) {
         if (!byId.has(id)) byId.set(id, { employeeId: id, employeeName: rec.employeeName || '', dates: new Set() })
         const entry = byId.get(id)

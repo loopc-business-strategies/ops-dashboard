@@ -596,10 +596,15 @@ function applyMonthStats(monthData, year, month) {
     if (row.employeeId) statsById[String(row.employeeId)] = row.workedDays || 0
     if (row.employeeName) statsByName[normalizeName(row.employeeName)] = row.workedDays || 0
   }
+  const calendarDays = Number(monthData?.calendarDays) || new Date(year, month, 0).getDate()
+  const monthPad = `${month}`.padStart(2, '0')
+  const monthEnd = `${year}-${monthPad}-${String(calendarDays).padStart(2, '0')}`
   return {
-    calendarDays: Number(monthData?.calendarDays) || new Date(year, month, 0).getDate(),
+    calendarDays,
     statsById,
     statsByName,
+    from: monthData?.from || `${year}-${monthPad}-01`,
+    to: monthData?.to || monthEnd,
   }
 }
 
@@ -697,7 +702,7 @@ function EmployeeList({ token, company }) {
   const now = useMemo(() => new Date(), [])
   const currentYear = now.getFullYear()
   const [employees, setEmployees] = useState([])
-  const [monthMeta, setMonthMeta] = useState({ calendarDays: 31, statsById: {}, statsByName: {} })
+  const [monthMeta, setMonthMeta] = useState({ calendarDays: 31, statsById: {}, statsByName: {}, from: '', to: '' })
   const [filterYear, setFilterYear] = useState(currentYear)
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1)
   const [searchQuery, setSearchQuery] = useState('')
@@ -905,10 +910,12 @@ function EmployeeList({ token, company }) {
 
   const filteredPayrollRows = useMemo(() => {
     const monthEnd = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, '0')}`
+    // Align with month-stats MTD clip: only show employees who have joined by the counted-through date.
+    const asOf = monthMeta.to && monthMeta.to <= monthEnd ? monthMeta.to : monthEnd
     const q = searchQuery.trim().toLowerCase()
     let rows = payrollRows.filter((row) => {
       const joinKey = toDateInput(row.emp?.joiningDate)
-      if (joinKey && joinKey > monthEnd) return false
+      if (joinKey && joinKey > asOf) return false
       if (!q) return true
       const name = String(row.name || '').toLowerCase()
       const idNumber = String(row.idNumber || '').toLowerCase()
@@ -924,7 +931,7 @@ function EmployeeList({ token, company }) {
       })
     }
     return rows
-  }, [payrollRows, searchQuery, filterYear, filterMonth, rebateSort])
+  }, [payrollRows, searchQuery, filterYear, filterMonth, rebateSort, monthMeta.to])
 
   const payrollTotals = useMemo(
     () => sumPayrollTotals(filteredPayrollRows),

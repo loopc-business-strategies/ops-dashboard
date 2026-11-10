@@ -121,6 +121,59 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
     expect(accumulated).toBe(5000)
   })
 
+  it('excludes attendance before joiningDate from workedDays', async () => {
+    const admin = await User.create({
+      name: 'hr-admin-join',
+      email: 'hr-admin-join@example.com',
+      password: 'password123',
+      role: 'super_admin',
+      department: 'hr',
+    })
+    const token = tokenFor(admin)
+
+    const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
+    const emp = await TenantEmployee.create({
+      name: 'Late Joiner Emp',
+      idNumber: 'ID-JOIN-001',
+      employeeCode: 'EMP-JOIN-001',
+      department: 'hr',
+      salaryAgreed: 5650000,
+      joiningDate: new Date('2026-11-03T00:00:00.000Z'),
+    })
+
+    const dates = ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05']
+    for (const date of dates) {
+      const res = await request(app)
+        .post('/api/attendance/records')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          employeeId: emp._id.toString(),
+          employeeName: emp.name,
+          department: 'hr',
+          date,
+          status: 'present',
+          checkIn: '09:00',
+          checkOut: '18:00',
+        })
+      expect(res.status).toBe(200)
+    }
+
+    const statsRes = await request(app)
+      .get('/api/attendance/month-stats')
+      .query({ year: 2026, month: 11 })
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(statsRes.status).toBe(200)
+    const row = (statsRes.body.stats || []).find(
+      (s) => String(s.employeeId) === String(emp._id),
+    )
+    expect(row).toBeTruthy()
+    // Pre-join Nov 1–2 must not count; only Nov 3–5 (clipped by MTD endDate if earlier).
+    const endDate = statsRes.body.to
+    const expectedDates = ['2026-11-03', '2026-11-04', '2026-11-05'].filter((d) => d <= endDate)
+    expect(row.workedDays).toBe(expectedDates.length)
+  })
+
   it('GET /records returns legacy ISO same-day rows without deleting them', async () => {
     const admin = await User.create({
       name: 'hr-admin-iso',
