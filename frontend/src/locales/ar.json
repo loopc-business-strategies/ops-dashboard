@@ -759,6 +759,8 @@
   "hrErrPhoneNotId": "Phone number cannot be the same as ID number.",
   "hrErrCode": "Employee code is required.",
   "hrErrSave": "Failed to save employee.",
+  "hrErrDuplicateEmployee": "This employee is already registered. Please check the existing employee record.",
+  "hrOpenExistingEmployee": "Open existing employee record",
   "phonePlaceholder": "e.g. +27 82 123 4567",
   "editEmployee": "Edit Employee",
   "saveChanges": "Save Changes",

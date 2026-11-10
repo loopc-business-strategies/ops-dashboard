@@ -54,6 +54,8 @@ beforeAll(async () => {
   process.env.MONGO_URI = mongoUri
   process.env.MONGO_URI_LOOPC = mongoUri
   await mongoose.connect(mongoUri)
+  const TenantEmployee = await Employee.getTenantModel(TEST_TENANT)
+  await TenantEmployee.syncIndexes()
   app = createApp()
 })
 
@@ -293,5 +295,145 @@ describe('HR employees routes', () => {
     expect(listRes.status).toBe(200)
     expect(listRes.body.remarks).toHaveLength(1)
     expect(listRes.body.remarks[0].text).toBe('Completed probation review')
+  })
+
+  test('rejects create with duplicate national ID', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const first = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({
+        name: 'First Person',
+        idNumber: 'AC-2076035',
+        phoneNumber: '+998901111111',
+        employeeCode: 'EMP-DUP-ID-1',
+        department: 'hr',
+      })
+    expect(first.status).toBe(201)
+
+    const second = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({
+        name: 'Other Person',
+        idNumber: 'ac 2076035',
+        phoneNumber: '+998902222222',
+        employeeCode: 'EMP-DUP-ID-2',
+        department: 'hr',
+      })
+
+    expect(second.status).toBe(409)
+    expect(second.body.code).toBe('DUPLICATE_EMPLOYEE')
+    expect(second.body.field).toBe('idNumber')
+    expect(second.body.message).toMatch(/already registered/i)
+    expect(second.body.existingEmployeeId).toBe(String(first.body.employee._id))
+  })
+
+  test('rejects create with duplicate phone number', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const first = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({
+        name: 'Phone One',
+        idNumber: 'ID-PHONE-1',
+        phoneNumber: '+998 90 333-4444',
+        employeeCode: 'EMP-DUP-PH-1',
+        department: 'hr',
+      })
+    expect(first.status).toBe(201)
+
+    const second = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({
+        name: 'Phone Two',
+        idNumber: 'ID-PHONE-2',
+        phoneNumber: '998903334444',
+        employeeCode: 'EMP-DUP-PH-2',
+        department: 'hr',
+      })
+
+    expect(second.status).toBe(409)
+    expect(second.body.code).toBe('DUPLICATE_EMPLOYEE')
+    expect(second.body.field).toBe('phoneNumber')
+  })
+
+  test('allows reusing national ID after soft-delete', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const created = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({
+        name: 'Soft Delete Target',
+        idNumber: 'ID-SOFT-DEL-1',
+        phoneNumber: '+998905555555',
+        employeeCode: 'EMP-SOFT-1',
+        department: 'hr',
+      })
+    expect(created.status).toBe(201)
+
+    const deleted = await request(app)
+      .delete(`/api/hr/employees/${created.body.employee._id}`)
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+    expect(deleted.status).toBe(200)
+
+    const recreated = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({
+        name: 'Rehired Person',
+        idNumber: 'ID-SOFT-DEL-1',
+        phoneNumber: '+998906666666',
+        employeeCode: 'EMP-SOFT-2',
+        department: 'hr',
+      })
+    expect(recreated.status).toBe(201)
+    expect(recreated.body.employee.idNumberNormalized).toBe('IDSOFTDEL1')
+  })
+
+  test('parallel duplicate creates yield one success and one conflict', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const payloadA = {
+      name: 'Race A',
+      idNumber: 'ID-RACE-001',
+      phoneNumber: '+998907777001',
+      employeeCode: 'EMP-RACE-A',
+      department: 'hr',
+    }
+    const payloadB = {
+      name: 'Race B',
+      idNumber: 'ID-RACE-001',
+      phoneNumber: '+998907777002',
+      employeeCode: 'EMP-RACE-B',
+      department: 'hr',
+    }
+
+    const [a, b] = await Promise.all([
+      request(app).post('/api/hr/employees').set('Authorization', `Bearer ${tokenFor(hrHead)}`).send(payloadA),
+      request(app).post('/api/hr/employees').set('Authorization', `Bearer ${tokenFor(hrHead)}`).send(payloadB),
+    ])
+
+    const statuses = [a.status, b.status].sort()
+    expect(statuses).toEqual([201, 409])
+    const conflict = a.status === 409 ? a : b
+    expect(conflict.body.code).toBe('DUPLICATE_EMPLOYEE')
+  })
+
+  test('distinct national ID and phone still create successfully', async () => {
+    const hrHead = await createUser({ role: 'department_head', department: 'hr' })
+    const res = await request(app)
+      .post('/api/hr/employees')
+      .set('Authorization', `Bearer ${tokenFor(hrHead)}`)
+      .send({
+        name: 'Unique Person',
+        idNumber: 'ID-UNIQUE-99',
+        phoneNumber: '+998908888999',
+        employeeCode: 'EMP-UNIQUE-99',
+        department: 'hr',
+      })
+    expect(res.status).toBe(201)
+    expect(res.body.employee.idNumberNormalized).toBe('IDUNIQUE99')
+    expect(res.body.employee.phoneNormalized).toBe('998908888999')
   })
 })

@@ -28,6 +28,13 @@ const {
   normalize,
 } = require('../services/permissions/moduleAccessPolicy')
 const { normalizeComponents } = require('../services/payroll/payrollCalculationService')
+const {
+  applyEmployeeIdentityNormalizedFields,
+  findActiveEmployeeIdentityConflict,
+  duplicateEmployeeError,
+  isDuplicateKeyError,
+  duplicateFieldFromMongoError,
+} = require('../utils/employeeIdentity')
 
 const router = express.Router()
 
@@ -114,7 +121,40 @@ function pickEmployeePayload(body) {
       }
     }
   }
-  return out
+  return applyEmployeeIdentityNormalizedFields(out)
+}
+
+async function rejectIfIdentityConflict(res, TenantEmployee, payload, excludeId = null) {
+  const conflict = await findActiveEmployeeIdentityConflict(TenantEmployee, {
+    idNumberNormalized: payload.idNumberNormalized || '',
+    phoneNormalized: payload.phoneNormalized || '',
+    excludeId,
+  })
+  if (!conflict) return false
+  res.status(409).json(duplicateEmployeeError(conflict.field, conflict.employee._id))
+  return true
+}
+
+async function sendDuplicateKeyResponse(res, err, TenantEmployee = null) {
+  const field = duplicateFieldFromMongoError(err)
+  if (field === 'employeeCode') {
+    return res.status(400).json({ success: false, message: 'An employee with this code already exists.' })
+  }
+  if (field === 'idNumber' || field === 'phoneNumber') {
+    let existingId = null
+    const keyValue = err?.keyValue || {}
+    if (TenantEmployee) {
+      const q = { isDeleted: { $ne: true } }
+      if (keyValue.idNumberNormalized) q.idNumberNormalized = keyValue.idNumberNormalized
+      else if (keyValue.phoneNormalized) q.phoneNormalized = keyValue.phoneNormalized
+      if (q.idNumberNormalized || q.phoneNormalized) {
+        const found = await TenantEmployee.findOne(q).select('_id').lean()
+        existingId = found?._id || null
+      }
+    }
+    return res.status(409).json(duplicateEmployeeError(field, existingId))
+  }
+  return res.status(400).json({ success: false, message: 'An employee with this identity already exists.' })
 }
 
 // GET all employees
@@ -174,11 +214,16 @@ router.post('/', protect, validateBody(createEmployeeSchema), async (req, res) =
     if (!payload.name || !payload.idNumber || !payload.employeeCode)
       return res.status(400).json({ success: false, message: 'Name, ID number, and employee code are required.' })
 
+    payload.isDeleted = false
+    if (await rejectIfIdentityConflict(res, TenantEmployee, payload)) return
+
     const employee = await TenantEmployee.create(payload)
     res.status(201).json({ success: true, employee })
   } catch (err) {
-    if (err.code === 11000)
-      return res.status(400).json({ success: false, message: 'An employee with this code already exists.' })
+    if (isDuplicateKeyError(err)) {
+      const TenantEmployee = await Employee.getTenantModel(req.tenant)
+      return sendDuplicateKeyResponse(res, err, TenantEmployee)
+    }
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
@@ -199,11 +244,17 @@ router.put('/:id', protect, validateParams(employeeIdParam), validateBody(update
     }
 
     const payload = pickEmployeePayload(req.body)
+    if (await rejectIfIdentityConflict(res, TenantEmployee, payload, existingEmployee._id)) return
+
     const employee = await TenantEmployee.findByIdAndUpdate(req.params.id, payload, { returnDocument: 'after', runValidators: true })
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
 
     res.json({ success: true, employee })
   } catch (err) {
+    if (isDuplicateKeyError(err)) {
+      const TenantEmployee = await Employee.getTenantModel(req.tenant)
+      return sendDuplicateKeyResponse(res, err, TenantEmployee)
+    }
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })

@@ -760,6 +760,8 @@
   "hrErrPhoneNotId": "Telefon raqami ID raqami bilan bir xil bo'lishi mumkin emas.",
   "hrErrCode": "Xodim kodi majburiy.",
   "hrErrSave": "Xodimni saqlab bo'lmadi.",
+  "hrErrDuplicateEmployee": "Bu xodim allaqachon ro'yxatdan o'tgan. Mavjud xodim yozuvini tekshiring.",
+  "hrOpenExistingEmployee": "Mavjud xodim yozuvini ochish",
   "phonePlaceholder": "masalan, +998 90 123 45 67",
   "editEmployee": "Xodimni tahrirlash",
   "saveChanges": "O'zgarishlarni saqlash",

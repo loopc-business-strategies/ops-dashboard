@@ -20,6 +20,12 @@ const employeeSchema = new mongoose.Schema(
       required: [true, 'ID number is required'],
       trim: true,
     },
+    /** Uppercase ID with spaces/dashes stripped — used for duplicate detection */
+    idNumberNormalized: {
+      type: String,
+      trim: true,
+      default: '',
+    },
 
     employeeCode: {
       type: String,
@@ -35,6 +41,12 @@ const employeeSchema = new mongoose.Schema(
     },
 
     phoneNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    /** Digits-only phone — used for duplicate detection (empty skipped) */
+    phoneNormalized: {
       type: String,
       trim: true,
       default: '',
@@ -89,6 +101,13 @@ const employeeSchema = new mongoose.Schema(
       default: [],
     },
     remarks: { type: String, trim: true, default: '' },
+
+    // Soft-delete fields (set by softDeleteById)
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    deletedByName: { type: String, trim: true, default: '' },
+    deletionReason: { type: String, trim: true, default: '' },
   },
   {
     timestamps: true,
@@ -96,6 +115,22 @@ const employeeSchema = new mongoose.Schema(
 )
 
 employeeSchema.index({ department: 1 })
+// Mongo partial unique indexes require equality on isDeleted (not $ne).
+// Active rows must have isDeleted: false (schema default on create).
+employeeSchema.index(
+  { idNumberNormalized: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isDeleted: false, idNumberNormalized: { $gt: '' } },
+  },
+)
+employeeSchema.index(
+  { phoneNormalized: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isDeleted: false, phoneNormalized: { $gt: '' } },
+  },
+)
 
 const EmployeeModel = createTenantModel('Employee', employeeSchema)
 

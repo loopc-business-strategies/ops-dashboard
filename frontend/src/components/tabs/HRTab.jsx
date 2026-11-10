@@ -16,6 +16,7 @@ import AttendanceLogPanel from './hr/AttendanceLogPanel'
 import RemarksPanel from './hr/RemarksPanel'
 import { downloadPayrollPdf } from './hr/payrollPdfExport'
 import { downloadPayrollExcel } from './hr/payrollExcelExport'
+import { findLocalEmployeeIdentityConflict } from '../../utils/employeeIdentity'
 
 function getHRSubTabs(t) {
   return [
@@ -314,15 +315,27 @@ const ACTION_BTN =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors'
 
 // ── Add / Edit Employee — right-side drawer ──────
-function EmployeeForm({ onSave, onCancel, token, initialEmployee = null, nextEmployeeCode = '' }) {
+function EmployeeForm({
+  onSave,
+  onCancel,
+  onOpenExisting,
+  token,
+  employees = [],
+  initialEmployee = null,
+  nextEmployeeCode = '',
+}) {
   const { t } = useLanguage()
   const isEdit = Boolean(initialEmployee?._id)
   const [form, setForm] = useState(() => employeeToForm(initialEmployee, { nextCode: nextEmployeeCode }))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [duplicateEmployee, setDuplicateEmployee] = useState(null)
   const [entered, setEntered] = useState(false)
 
-  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+  const set = (field) => (e) => {
+    setDuplicateEmployee(null)
+    setForm((f) => ({ ...f, [field]: e.target.value }))
+  }
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setEntered(true))
@@ -344,8 +357,21 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null, nextEmp
     if (!form.idNumber.trim()) return setError(t('hrErrId'))
     if (looksLikeSameId(form.phoneNumber, form.idNumber)) return setError(t('hrErrPhoneNotId'))
     if (!form.employeeCode.trim()) return setError(t('hrErrCode'))
+
+    const localConflict = findLocalEmployeeIdentityConflict(employees, {
+      idNumber: form.idNumber,
+      phoneNumber: form.phoneNumber,
+      excludeId: isEdit ? initialEmployee._id : null,
+    })
+    if (localConflict) {
+      setDuplicateEmployee(localConflict.employee)
+      setError(t('hrErrDuplicateEmployee'))
+      return
+    }
+
     setLoading(true)
     setError('')
+    setDuplicateEmployee(null)
     try {
       const payload = buildEmployeePayload(form)
       if (isEdit) {
@@ -355,7 +381,17 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null, nextEmp
       }
       onSave()
     } catch (err) {
-      setError(err.response?.data?.message || t('hrErrSave'))
+      const data = err.response?.data
+      if (data?.code === 'DUPLICATE_EMPLOYEE' || err.response?.status === 409) {
+        setError(data?.message || t('hrErrDuplicateEmployee'))
+        const existingId = data?.existingEmployeeId
+        const existing = existingId
+          ? employees.find((emp) => String(emp._id) === String(existingId)) || { _id: existingId }
+          : null
+        setDuplicateEmployee(existing || null)
+      } else {
+        setError(data?.message || t('hrErrSave'))
+      }
     } finally {
       setLoading(false)
     }
@@ -398,7 +434,16 @@ function EmployeeForm({ onSave, onCancel, token, initialEmployee = null, nextEmp
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
             {error && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
-                {error}
+                <p>{error}</p>
+                {duplicateEmployee && typeof onOpenExisting === 'function' && (
+                  <button
+                    type="button"
+                    className="mt-2 text-sm font-semibold text-orange-700 underline underline-offset-2 hover:text-orange-800"
+                    onClick={() => onOpenExisting(duplicateEmployee)}
+                  >
+                    {t('hrOpenExistingEmployee')}
+                  </button>
+                )}
               </div>
             )}
 
@@ -1144,10 +1189,24 @@ function EmployeeList({ token, company }) {
       {formMode && (
         <EmployeeForm
           token={token}
+          employees={employees}
           initialEmployee={formMode === 'create' ? null : formMode}
           nextEmployeeCode={formMode === 'create' ? nextEmployeeCode(employees) : ''}
           onSave={() => { setFormMode(null); handleRefresh() }}
           onCancel={() => setFormMode(null)}
+          onOpenExisting={async (emp) => {
+            const fromList = employees.find((e) => String(e._id) === String(emp?._id))
+            if (fromList) {
+              setFormMode(fromList)
+              return
+            }
+            try {
+              const data = await hrAPI.getEmployee(token, emp._id)
+              setFormMode(data?.employee || emp)
+            } catch {
+              setFormMode(emp)
+            }
+          }}
         />
       )}
 
