@@ -66,15 +66,16 @@ describe('accountDropdownHelpers', () => {
     expect(filterPartyAccounts(rows).map((row) => row._id)).toEqual(['a1'])
   })
 
-  test('filterPartyAccounts keeps party ledgers and drops cash/stock/P&L', () => {
+  test('filterPartyAccounts keeps party ledgers and expense, drops cash/stock/income', () => {
     const rows = [
       { _id: 'party', accountCode: '1306', accountName: 'NEW BUYER', accountType: 'Asset', isActive: true },
       { _id: 'debtor', accountCode: '1310', accountName: 'Acme (Debtor)', accountType: 'Asset', isActive: true },
+      { _id: 'payroll', accountCode: '5105', accountName: 'Payroll Expense', accountType: 'Expense', isActive: true },
       { _id: 'cash', accountCode: '1000', accountName: 'Cash on Hand', accountType: 'Asset', isActive: true },
       { _id: 'stock', accountCode: '1200', accountName: 'Stock in Hand', accountType: 'Asset', isActive: true },
       { _id: 'sales', accountCode: '4000', accountName: 'Sales Revenue', accountType: 'Income', isActive: true },
       { _id: 'ar', accountCode: '1100', accountName: 'Accounts Receivable', accountType: 'Asset', isActive: true },
     ]
-    expect(filterPartyAccounts(rows).map((row) => row._id)).toEqual(['party', 'debtor'])
+    expect(filterPartyAccounts(rows).map((row) => row._id)).toEqual(['party', 'debtor', 'payroll'])
   })
 })
