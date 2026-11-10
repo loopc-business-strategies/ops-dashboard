@@ -2,27 +2,32 @@
  * Employment eligibility by calendar date (joiningDate + soft-delete deletedAt).
  */
 
+/**
+ * Timezone-safe YYYY-MM-DD: prefer ISO date prefix; else UTC calendar parts.
+ */
 function toEmploymentDateKey(value) {
   if (value === null || value === undefined || value === '') return null
   const raw = String(value).trim()
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return null
-  const y = d.getFullYear()
-  const m = `${d.getMonth() + 1}`.padStart(2, '0')
-  const day = `${d.getDate()}`.padStart(2, '0')
+  const y = d.getUTCFullYear()
+  const m = `${d.getUTCMonth() + 1}`.padStart(2, '0')
+  const day = `${d.getUTCDate()}`.padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
 /**
  * Employed on YYYY-MM-DD when:
- * - no joiningDate OR join <= date
+ * - parseable joiningDate exists AND joinKey <= date
  * - AND not (isDeleted and deletedAt date <= date)
+ *
+ * Missing / unparseable joiningDate → not eligible for as-of / Attendance Log.
  */
 function isEmployedOnDate(employee, dateKey) {
   if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false
   const joinKey = toEmploymentDateKey(employee?.joiningDate)
-  if (joinKey && joinKey > dateKey) return false
+  if (!joinKey || joinKey > dateKey) return false
   if (employee?.isDeleted === true) {
     const endKey = toEmploymentDateKey(employee?.deletedAt)
     if (endKey && endKey <= dateKey) return false
@@ -34,7 +39,7 @@ function isEmployedOnDate(employee, dateKey) {
 
 /**
  * Mongo filter for employees employed on asOf (YYYY-MM-DD).
- * Includes archived rows whose deletedAt is after asOf.
+ * Requires a real joiningDate; includes archived rows whose deletedAt is after asOf.
  */
 function buildEmployedAsOfFilter(asOfDateKey) {
   if (!asOfDateKey || !/^\d{4}-\d{2}-\d{2}$/.test(asOfDateKey)) return null
@@ -46,11 +51,7 @@ function buildEmployedAsOfFilter(asOfDateKey) {
   return {
     $and: [
       {
-        $or: [
-          { joiningDate: null },
-          { joiningDate: { $exists: false } },
-          { joiningDate: { $lte: asOfEnd } },
-        ],
+        joiningDate: { $ne: null, $exists: true, $lte: asOfEnd },
       },
       {
         $or: [

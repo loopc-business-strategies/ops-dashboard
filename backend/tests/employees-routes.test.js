@@ -466,6 +466,19 @@ describe('HR employees routes', () => {
     const novNames = (nov.body.employees || []).map((e) => e.name)
     expect(novNames).not.toContain('Early Hire')
     expect(novNames).not.toContain('Late Hire')
+
+    await TenantEmployee.create({
+      name: 'No Join Date',
+      idNumber: 'ID-ASOF-BLANK',
+      employeeCode: 'EMP-ASOF-BLANK',
+      department: 'hr',
+    })
+    const blankAsOf = await request(app)
+      .get('/api/hr/employees')
+      .query({ asOf: '2026-11-01' })
+      .set('Authorization', `Bearer ${token}`)
+    expect(blankAsOf.status).toBe(200)
+    expect((blankAsOf.body.employees || []).map((e) => e.name)).not.toContain('No Join Date')
   })
 
   test('next-code skips archived EMP numbers', async () => {

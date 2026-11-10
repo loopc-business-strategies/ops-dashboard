@@ -2,6 +2,7 @@ const {
   isEmployedOnDate,
   buildEmployedAsOfFilter,
   parseAsOfQuery,
+  toEmploymentDateKey,
 } = require('../utils/employeeEmployment')
 
 describe('employeeEmployment', () => {
@@ -10,7 +11,15 @@ describe('employeeEmployment', () => {
     expect(parseAsOfQuery('bad')).toBeNull()
   })
 
-  test('isEmployedOnDate respects joining and deletedAt', () => {
+  test('toEmploymentDateKey prefers ISO prefix and uses UTC for Date objects', () => {
+    expect(toEmploymentDateKey('2026-11-03T00:00:00.000Z')).toBe('2026-11-03')
+    expect(toEmploymentDateKey(new Date(Date.UTC(2026, 10, 3)))).toBe('2026-11-03')
+    expect(toEmploymentDateKey(null)).toBeNull()
+  })
+
+  test('isEmployedOnDate requires joiningDate and respects deletedAt', () => {
+    expect(isEmployedOnDate({ joiningDate: null }, '2026-11-01')).toBe(false)
+    expect(isEmployedOnDate({}, '2026-11-01')).toBe(false)
     expect(isEmployedOnDate({ joiningDate: '2026-11-03' }, '2026-11-01')).toBe(false)
     expect(isEmployedOnDate({ joiningDate: '2026-11-03' }, '2026-11-03')).toBe(true)
     expect(isEmployedOnDate({
@@ -25,9 +34,11 @@ describe('employeeEmployment', () => {
     }, '2026-11-05')).toBe(false)
   })
 
-  test('buildEmployedAsOfFilter returns mongo shape', () => {
+  test('buildEmployedAsOfFilter requires joiningDate and returns mongo shape', () => {
     const filter = buildEmployedAsOfFilter('2026-05-15')
     expect(filter).toBeTruthy()
     expect(filter.$and).toHaveLength(2)
+    expect(filter.$and[0].joiningDate.$lte).toBeInstanceOf(Date)
+    expect(filter.$and[0].joiningDate.$ne).toBeNull()
   })
 })

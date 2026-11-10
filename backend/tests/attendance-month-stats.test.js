@@ -66,6 +66,7 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
       employeeCode: 'EMP-MTD-001',
       department: 'hr',
       salaryAgreed: 31000,
+      joiningDate: new Date('2026-10-01T00:00:00.000Z'),
     })
 
     const dates = ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30']
@@ -211,7 +212,7 @@ describe('Attendance month-stats + MTD salary (5 worked days)', () => {
     expect(res.status).toBe(200)
     const names = (res.body.rows || []).map((r) => r.name)
     expect(names).toContain('Early Joiner')
-    expect(names).toContain('Legacy No Join')
+    expect(names).not.toContain('Legacy No Join')
     expect(names).not.toContain('Late Joiner')
   })
 
