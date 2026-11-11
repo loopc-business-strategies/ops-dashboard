@@ -129,14 +129,14 @@ export function FilterChip({ active, onClick, children }) {
 }
 
 export function KpiCard({ title, value, hint, onClick, href, loading }) {
-  const cardClass = `overview-kpi-card h-full min-h-[88px] text-left bg-white border border-gray-200 rounded-lg px-4 py-3 flex flex-col justify-center transition-colors ${onClick || href ? 'hover:border-gray-300' : 'cursor-default'}`
+  const cardClass = `h-full min-h-[88px] text-left bg-white border border-gray-200 rounded-lg px-4 py-3 flex flex-col justify-center transition-colors ${onClick || href ? 'hover:border-gray-300' : 'cursor-default'}`
   const content = (
     <>
-      <p className="overview-kpi-label text-[11px] text-gray-500 tracking-[0.08em] uppercase">{title}</p>
-      <p className="overview-kpi-value text-[28px] leading-tight font-semibold text-gray-900 mt-1 tabular-nums">
+      <p className="text-[11px] text-gray-500 tracking-[0.08em] uppercase">{title}</p>
+      <p className="text-[28px] leading-tight font-semibold text-gray-900 mt-1 tabular-nums">
         {loading ? '—' : value}
       </p>
-      {hint ? <p className="overview-kpi-hint text-xs text-gray-600 mt-1">{hint}</p> : null}
+      {hint ? <p className="text-xs text-gray-600 mt-1">{hint}</p> : null}
     </>
   )
 
