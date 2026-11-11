@@ -4574,37 +4574,46 @@
   }
 }
 
+/* 55″ FHD wall TV: scale the board for viewing distance (zoom used to start only at 2400px). */
+@media (min-width: 1920px) and (min-height: 1000px) {
+  .pd-fullscreen-page {
+    zoom: 1.25;
+    height: calc(var(--pd-vvh, 100dvh) / 1.25);
+    max-height: calc(var(--pd-vvh, 100dvh) / 1.25);
+  }
+}
+
 /* Big screens: scale the whole 1920×1080 layout up instead of leaving empty
    space. Height is divided by the zoom so the page still fits one screen.
    Height guards keep ultra-wide (e.g. 3440×1440) on the normal layout. */
 @media (min-width: 2400px) and (min-height: 1300px) {
   .pd-fullscreen-page {
     zoom: 1.3333;
-    height: calc(100vh / 1.3333);
-    height: calc(100dvh / 1.3333);
+    height: calc(var(--pd-vvh, 100dvh) / 1.3333);
+    max-height: calc(var(--pd-vvh, 100dvh) / 1.3333);
   }
 }
 
 @media (min-width: 3200px) and (min-height: 1700px) {
   .pd-fullscreen-page {
     zoom: 1.6667;
-    height: calc(100vh / 1.6667);
-    height: calc(100dvh / 1.6667);
+    height: calc(var(--pd-vvh, 100dvh) / 1.6667);
+    max-height: calc(var(--pd-vvh, 100dvh) / 1.6667);
   }
 }
 
 @media (min-width: 3800px) and (min-height: 2100px) {
   .pd-fullscreen-page {
     zoom: 2;
-    height: calc(100vh / 2);
-    height: calc(100dvh / 2);
+    height: calc(var(--pd-vvh, 100dvh) / 2);
+    max-height: calc(var(--pd-vvh, 100dvh) / 2);
   }
 }
 
 @media (min-width: 5000px) and (min-height: 2800px) {
   .pd-fullscreen-page {
     zoom: 2.6667;
-    height: calc(100vh / 2.6667);
-    height: calc(100dvh / 2.6667);
+    height: calc(var(--pd-vvh, 100dvh) / 2.6667);
+    max-height: calc(var(--pd-vvh, 100dvh) / 2.6667);
   }
 }
