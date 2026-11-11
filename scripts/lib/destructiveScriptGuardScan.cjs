@@ -57,6 +57,9 @@ const ALLOWLIST = Object.freeze({
   // Soft-delete junk HR names; intentional production use with I_UNDERSTAND + --apply (staging via --staging).
   'backend/scripts/soft-delete-junk-hr-employees.js':
     'Soft-delete confirmed junk HR employees by Mongo id; gated by I_UNDERSTAND=SOFT-DELETE-JUNK-HR-EMPLOYEES + --apply.',
+  // Normalize bare numeric employee codes; intentional production use with I_UNDERSTAND + --apply.
+  'backend/scripts/normalize-employee-codes.js':
+    'Normalize bare numeric employee codes to EMP-NNN; gated by I_UNDERSTAND=NORMALIZE-EMPLOYEE-CODES + --apply.',
   // VB ops wipe; intentional production VB use with I_UNDERSTAND + --apply (staging via --staging).
   'backend/scripts/wipe-vb-ops-data.js':
     'VB ops hard-wipe (tx/ledgers/movements); gated by I_UNDERSTAND=WIPE-VB-OPS-DATA + --apply.',
