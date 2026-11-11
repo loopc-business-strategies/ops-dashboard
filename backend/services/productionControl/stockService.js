@@ -217,20 +217,16 @@ async function listStock(query = {}) {
 
 async function getStockOverview() {
   const InventoryItem = require('../../models/InventoryItem')
-  const [rows, erpAgg, vaultLots, erpItems] = await Promise.all([
+  const [rows, vaultLots, erpItemsRaw] = await Promise.all([
     ProductionStockLot.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 }, weight: { $sum: '$netWeight' }, qty: { $sum: '$quantity' } } },
     ]),
-    InventoryItem.aggregate([
-      { $match: { isDeleted: { $ne: true }, quantity: { $gt: 0 } } },
-      { $group: { _id: null, weight: { $sum: '$quantity' }, count: { $sum: 1 } } },
-    ]).catch(() => []),
     ProductionStockLot.find({ status: { $in: ['NEW_STOCK', 'AVAILABLE'] } })
       .select('product productCode metalType purity netWeight status inventoryItemId category')
       .lean()
       .catch(() => []),
     InventoryItem.find({ isDeleted: { $ne: true }, quantity: { $gt: 0 } })
-      .select('name sku category quantity')
+      .select('name sku category quantity metalType')
       .lean()
       .catch(() => []),
   ])
@@ -245,9 +241,11 @@ async function getStockOverview() {
   const newStock = byStatus.NEW_STOCK
   const available = byStatus.AVAILABLE
   const pccVaultWeight = (Number(newStock.weight) || 0) + (Number(available.weight) || 0)
+  // Vault Available KPI is gold-only (exclude copper/cadmium/silver/etc.).
+  const erpItems = (erpItemsRaw || []).filter((it) => isGoldInventoryItem(it))
   const erpVault = {
-    count: erpAgg[0]?.count || 0,
-    weight: erpAgg[0]?.weight || 0,
+    count: erpItems.length,
+    weight: erpItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0),
   }
 
   const itemById = new Map((erpItems || []).map((it) => [String(it._id), it]))
@@ -306,13 +304,12 @@ async function getStockOverview() {
     })
   }
 
-  // ERP-only products with on-hand qty but no active vault lot row
+  // ERP-only gold products with on-hand qty but no active vault lot row
   for (const item of erpItems || []) {
     const itemId = String(item._id)
     const already = [...productMap.values()].some((p) => p.inventoryItemId === itemId)
     if (already) continue
     const meta = parseInventoryCategoryMeta(item.category || '')
-    // Skip pure stock-type masters without product recordType when qty is only mapping noise
     const metalType = titleCaseMetal(meta.metalType || meta.mainStock || inferMetalTypeFromItem(item))
     const purity = String(meta.productPurity || meta.purity || '').trim()
     const product = String(item.name || metalType).trim() || 'Stock'
@@ -327,8 +324,10 @@ async function getStockOverview() {
     })
   }
 
+  // KPI vault products: gold inventory only (Vault Room card still uses full ERP inventory separately).
   const vaultProducts = [...productMap.values()]
     .filter((p) => (Number(p.totalWeight) || 0) > 0)
+    .filter((p) => isGoldVaultProduct(p))
     .sort((a, b) => (Number(b.totalWeight) || 0) - (Number(a.totalWeight) || 0))
     .map((p) => ({
       product: p.product,
@@ -390,7 +389,10 @@ function titleCaseMetal(value) {
   const s = String(value || '').trim().toLowerCase()
   if (s.includes('silver') || s === 'ag') return 'Silver'
   if (s.includes('platinum') || s === 'pt' || s === 'plt') return 'Platinum'
-  if (s.includes('gold') || s === 'au' || !s) return 'Gold'
+  if (s.includes('copper') || s === 'cu') return 'Copper'
+  if (s.includes('cadmium') || s === 'cd') return 'Cadmium'
+  if (s.includes('gold') || s === 'au') return 'Gold'
+  if (!s) return 'Other'
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
@@ -398,12 +400,52 @@ function voucherStockIdempotencyKey(txId, inventoryItemId) {
   return `voucher-stock:${String(txId)}:${String(inventoryItemId)}`
 }
 
+const NON_GOLD_MAIN_STOCK = new Set([
+  'copper', 'cadmium', 'silver', 'platinum', 'ag', 'pt', 'plt', 'cu', 'cd',
+])
+
+/**
+ * True when an inventory item / lot should count toward Vault Available (Gold in Stock).
+ * Includes gold and karat/alloyed gold; excludes copper, cadmium, silver, platinum, etc.
+ */
+function isGoldInventoryItem(item = {}) {
+  const meta = parseInventoryCategoryMeta(item?.category || '')
+  const main = String(meta.mainStock || meta.metalType || item?.metalType || '').trim().toLowerCase()
+  const name = String(item?.name || item?.product || '').trim().toLowerCase()
+  const category = String(item?.category || '').toLowerCase()
+  const blob = `${main} ${name} ${category}`
+
+  // Name/mainStock win over a wrong metalType default of "Gold".
+  if (NON_GOLD_MAIN_STOCK.has(main)) return false
+  if (/\b(cadmium|copper|silver|platinum)\b/.test(name) && !/\bgold\b/.test(name) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(name)) {
+    return false
+  }
+  if (/\b(cadmium|copper|silver|platinum)\b/.test(blob) && !/\bgold\b/.test(blob) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(blob)) {
+    return false
+  }
+  if (main === 'gold' || main === 'au' || main === 'alloy') return true
+  if (/\bgold\b|\bau\b|\b\d{1,2}\s*k(?:arat)?\b|alloyed\s+gold/.test(blob)) return true
+  return false
+}
+
+function isGoldVaultProduct(row = {}) {
+  return isGoldInventoryItem({
+    name: row.product || row.name,
+    metalType: row.metalType,
+    category: row.category,
+    product: row.product,
+  })
+}
+
 function inferMetalTypeFromItem(item) {
   const raw = String(item?.metalType || item?.category || item?.name || '').toLowerCase()
-  if (raw.includes('silver')) return 'Silver'
-  if (raw.includes('platinum')) return 'Platinum'
+  if (raw.includes('silver') || raw === 'ag') return 'Silver'
+  if (raw.includes('platinum') || raw === 'pt' || raw === 'plt') return 'Platinum'
+  if (raw.includes('copper') || raw === 'cu') return 'Copper'
+  if (raw.includes('cadmium') || raw === 'cd') return 'Cadmium'
+  if (raw.includes('gold') || raw === 'au' || /\b\d{1,2}\s*k/.test(raw)) return 'Gold'
   if (METAL_TYPES.includes(item?.metalType)) return item.metalType
-  return 'Gold'
+  return 'Other'
 }
 
 /**
@@ -1004,6 +1046,10 @@ module.exports = {
   upsertVoucherAvailableLot,
   cancelVoucherAvailableLotsForTx,
   voucherStockIdempotencyKey,
+  isGoldInventoryItem,
+  isGoldVaultProduct,
+  inferMetalTypeFromItem,
+  titleCaseMetal,
   ProductionError,
   // re-export createBatch for callers that need it without circular issues
   createBatch,

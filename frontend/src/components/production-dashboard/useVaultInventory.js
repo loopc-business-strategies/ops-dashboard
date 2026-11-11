@@ -3,8 +3,10 @@ import { useAuth } from '../../context/AuthContext'
 import { inventoryApi } from '../../api/erp-accounting/inventory'
 import { buildVaultStockGroups } from './vaultInventory'
 
-/** Read-only company inventory for the Vault Room card. Reloads with the dashboard refresh. */
-export function useVaultInventory(lastUpdated) {
+/** Vault Room inventory: load on mount, then every 4 minutes (not on every floor soft refresh). */
+const VAULT_INVENTORY_REFRESH_MS = 240000
+
+export function useVaultInventory() {
   const { token } = useAuth()
   const [state, setState] = useState({ loading: Boolean(token), error: '', groups: [] })
 
@@ -14,26 +16,35 @@ export function useVaultInventory(lastUpdated) {
       return undefined
     }
     let cancelled = false
-    setState((prev) => ({ ...prev, loading: true, error: '' }))
-    inventoryApi.getInventoryProducts(token, { limit: 500 })
-      .then((data) => {
-        if (cancelled) return
-        setState({
-          loading: false,
-          error: '',
-          groups: buildVaultStockGroups(data?.products || []),
+
+    const load = () => {
+      setState((prev) => ({ ...prev, loading: true, error: '' }))
+      inventoryApi.getInventoryProducts(token, { limit: 500 })
+        .then((data) => {
+          if (cancelled) return
+          setState({
+            loading: false,
+            error: '',
+            groups: buildVaultStockGroups(data?.products || []),
+          })
         })
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setState({
-          loading: false,
-          error: err?.response?.data?.message || 'Could not load stock',
-          groups: [],
+        .catch((err) => {
+          if (cancelled) return
+          setState({
+            loading: false,
+            error: err?.response?.data?.message || 'Could not load stock',
+            groups: [],
+          })
         })
-      })
-    return () => { cancelled = true }
-  }, [token, lastUpdated])
+    }
+
+    load()
+    const id = setInterval(load, VAULT_INVENTORY_REFRESH_MS)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [token])
 
   return state
 }

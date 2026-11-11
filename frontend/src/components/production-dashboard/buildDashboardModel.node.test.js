@@ -136,4 +136,42 @@ describe('buildDashboardModel reference panels', () => {
     expect(model.compactKpis.underProduction).toBeNull()
     expect(model.header.status).toMatch(/Vault connected/i)
   })
+
+  test('Vault Available sums gold inventory only (excludes copper/cadmium)', () => {
+    const model = buildDashboardModel({
+      summaryRes: { kpis: { activeBatches: 0 } },
+      boardRes: { activeBatches: [] },
+      widgetsRes: {},
+      shiftRes: { shift: { name: 'Day' } },
+      floorSessions: { sessions: [] },
+      todayReport: { summary: {} },
+      yesterdayReport: { summary: {} },
+      employees: { employees: [] },
+      passes: [],
+      processes: [],
+      me: {},
+      stockOverview: {
+        overview: {
+          available: { weight: 0, count: 0 },
+          newStock: { weight: 0, count: 0 },
+          // Mixed ERP total (should not win over gold product sum)
+          erpVault: { weight: 9161.54, count: 3 },
+          vaultProducts: [
+            { product: 'Gold 99.5', metalType: 'Gold', purity: '99.5', availableWeight: 1461.54, totalWeight: 1461.54, inventoryItemId: 'g1' },
+            { product: 'cadmium', metalType: 'Cadmium', purity: '1', availableWeight: 6700, totalWeight: 6700, inventoryItemId: 'c1' },
+            { product: 'pure copper', metalType: 'Copper', purity: '1', availableWeight: 1000, totalWeight: 1000, inventoryItemId: 'cu1' },
+          ],
+        },
+      },
+      alertsRes: { alerts: [] },
+      weightVarianceRes: { rows: [] },
+      metalMovements: [],
+    })
+
+    expect(model.hasLiveProduction).toBe(false)
+    expect(model.vaultKpi.availableWeight).toBe(1461.54)
+    expect(model.vaultKpi.products).toHaveLength(1)
+    expect(model.vaultKpi.products[0].metalType).toBe('Gold')
+    expect(model.vaultKpi.products.every((p) => !/copper|cadmium/i.test(p.product))).toBe(true)
+  })
 })

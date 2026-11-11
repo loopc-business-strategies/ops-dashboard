@@ -9,6 +9,25 @@ import {
 } from './departmentConfig'
 
 const VAULT_KEYS = new Set(['vault', 'vault_return'])
+const NON_GOLD_METALS = new Set(['copper', 'cadmium', 'silver', 'platinum', 'ag', 'pt', 'plt', 'cu', 'cd'])
+
+/** Gold / karat alloy stock only — matches stockService isGoldInventoryItem for KPI. */
+export function isGoldVaultRow(row = {}) {
+  const metal = String(row.metalType || '').trim().toLowerCase()
+  const product = String(row.product || row.name || '').trim().toLowerCase()
+  const blob = `${metal} ${product}`
+  if (NON_GOLD_METALS.has(metal)) return false
+  // Product name wins over a wrong metalType default of "Gold".
+  if (/\b(cadmium|copper|silver|platinum)\b/.test(product) && !/\bgold\b/.test(product) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(product)) {
+    return false
+  }
+  if (/\b(cadmium|copper|silver|platinum)\b/.test(blob) && !/\bgold\b/.test(blob) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(blob)) {
+    return false
+  }
+  if (metal === 'gold' || metal === 'au' || metal === 'alloy') return true
+  if (/\bgold\b|\bau\b|\b\d{1,2}\s*k(?:arat)?\b|alloyed\s+gold/.test(blob)) return true
+  return false
+}
 
 const FALLBACK_STAGES = [
   { key: 'melting', label: 'Melting', process: 'melting' },
@@ -835,17 +854,11 @@ export function buildDashboardModel({
   const pccNew = numOrNull(vaultSource?.newStock?.weight)
   const pccAvail = numOrNull(vaultSource?.available?.weight)
   const erpVaultW = numOrNull(vaultSource?.erpVault?.weight)
-  // Prefer ERP vault until production floor is connected (avoid leftover PCC lots polluting headline).
-  const availableWeightResolved = !hasLiveProduction && erpVaultW != null
-    ? erpVaultW
-    : ((Number(pccAvail) || 0) > 0
-      ? pccAvail
-      : ((Number(pccNew) || 0) <= 0 && erpVaultW != null ? erpVaultW : pccAvail))
   const vaultProductsRaw = Array.isArray(vaultSource?.vaultProducts) ? vaultSource.vaultProducts : []
   const vaultProducts = vaultProductsRaw
     .map((row) => ({
       product: String(row?.product || '').trim() || 'Stock',
-      metalType: String(row?.metalType || '').trim() || 'Gold',
+      metalType: String(row?.metalType || '').trim() || 'Other',
       purity: String(row?.purity || '').trim(),
       newStockWeight: Number(row?.newStockWeight) || 0,
       availableWeight: Number(row?.availableWeight) || 0,
@@ -853,7 +866,22 @@ export function buildDashboardModel({
       inventoryItemId: row?.inventoryItemId || null,
     }))
     .filter((row) => row.availableWeight > 0 || row.totalWeight > 0)
+    .filter((row) => isGoldVaultRow(row))
     .sort((a, b) => (b.availableWeight || b.totalWeight) - (a.availableWeight || a.totalWeight))
+  const goldProductsWeight = vaultProducts.reduce(
+    (sum, row) => sum + (Number(row.availableWeight) || Number(row.totalWeight) || 0),
+    0,
+  )
+  // Prefer gold product sum / gold erpVault for "Gold in Stock" KPI.
+  const goldErpOrProducts = vaultProducts.length
+    ? goldProductsWeight
+    : (erpVaultW != null ? erpVaultW : null)
+  // Prefer ERP vault until production floor is connected (avoid leftover PCC lots polluting headline).
+  const availableWeightResolved = !hasLiveProduction && goldErpOrProducts != null
+    ? goldErpOrProducts
+    : ((Number(pccAvail) || 0) > 0
+      ? pccAvail
+      : ((Number(pccNew) || 0) <= 0 && goldErpOrProducts != null ? goldErpOrProducts : pccAvail))
   const vaultKpi = vaultSource
     ? {
         newStockWeight: hasLiveProduction ? pccNew : null,
@@ -861,7 +889,7 @@ export function buildDashboardModel({
         availableWeight: availableWeightResolved,
         availableCount: hasLiveProduction
           ? numOrNull(vaultSource.available?.count)
-          : numOrNull(vaultSource.erpVault?.count),
+          : (vaultProducts.length || numOrNull(vaultSource.erpVault?.count)),
         underProcessingWeight: hasLiveProduction ? numOrNull(vaultSource.underProcessing?.weight) : null,
         underProcessingCount: hasLiveProduction ? numOrNull(vaultSource.underProcessing?.count) : null,
         products: vaultProducts,

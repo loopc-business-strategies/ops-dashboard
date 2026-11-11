@@ -68,7 +68,7 @@ export default function ProductionDashboardTab() {
     deptDetail,
     actions,
   } = useProductionDashboard()
-  const vaultInventory = useVaultInventory(lastUpdated)
+  const vaultInventory = useVaultInventory()
 
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
