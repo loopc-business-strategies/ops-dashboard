@@ -1,6 +1,15 @@
 import { computeInventoryPureStockQty } from '../tabs/erp/inventoryFormDefaults'
 import { decodeInventoryCategoryMeta, decodeInventoryCategoryPairs, titleCaseWords } from '../tabs/erp/erpTabUtils'
 
+/** Vault Room section order: Gold, Silver, Copper, Alloy, then others A–Z. */
+const VAULT_CATEGORY_ORDER = ['Gold', 'Silver', 'Copper', 'Alloy']
+
+function vaultCategorySortIndex(category) {
+  const key = String(category || '').trim().toLowerCase()
+  const idx = VAULT_CATEGORY_ORDER.findIndex((c) => c.toLowerCase() === key)
+  return idx === -1 ? VAULT_CATEGORY_ORDER.length : idx
+}
+
 /** Same product set as All Inventory Items: products and legacy rows, not stock-type masters. */
 export function isInventoryReportProduct(category) {
   const raw = String(category || '')
@@ -42,6 +51,11 @@ export function buildVaultStockGroups(products) {
       groups.push(group)
     }
     byCategory.get(category).items.push(row)
+  })
+  groups.sort((a, b) => {
+    const byOrder = vaultCategorySortIndex(a.category) - vaultCategorySortIndex(b.category)
+    if (byOrder !== 0) return byOrder
+    return String(a.category || '').localeCompare(String(b.category || ''))
   })
   return groups
 }

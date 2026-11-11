@@ -9,23 +9,18 @@ import {
 } from './departmentConfig'
 
 const VAULT_KEYS = new Set(['vault', 'vault_return'])
-const NON_GOLD_METALS = new Set(['copper', 'cadmium', 'silver', 'platinum', 'ag', 'pt', 'plt', 'cu', 'cd'])
+const NON_GOLD_METALS = new Set(['copper', 'cadmium', 'silver', 'platinum', 'alloy', 'ag', 'pt', 'plt', 'cu', 'cd'])
 
-/** Gold / karat alloy stock only — matches stockService isGoldInventoryItem for KPI. */
+/** Gold main-stock products only — matches stockService isGoldInventoryItem (not Alloy). */
 export function isGoldVaultRow(row = {}) {
   const metal = String(row.metalType || '').trim().toLowerCase()
   const product = String(row.product || row.name || '').trim().toLowerCase()
-  const blob = `${metal} ${product}`
   if (NON_GOLD_METALS.has(metal)) return false
-  // Product name wins over a wrong metalType default of "Gold".
-  if (/\b(cadmium|copper|silver|platinum)\b/.test(product) && !/\bgold\b/.test(product) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(product)) {
-    return false
-  }
-  if (/\b(cadmium|copper|silver|platinum)\b/.test(blob) && !/\bgold\b/.test(blob) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(blob)) {
-    return false
-  }
-  if (metal === 'gold' || metal === 'au' || metal === 'alloy') return true
-  if (/\bgold\b|\bau\b|\b\d{1,2}\s*k(?:arat)?\b|alloyed\s+gold/.test(blob)) return true
+  if (/\b(cadmium|copper|silver|platinum)\b/.test(product) && !/\bgold\b/.test(product)) return false
+  // Bare alloy stock (e.g. "14K alloy") — not Inventory Gold category.
+  if (/\balloy\b/.test(product) && !/\bgold\b/.test(product)) return false
+  if (metal === 'gold' || metal === 'au') return true
+  if (/\bgold\b/.test(product)) return true
   return false
 }
 

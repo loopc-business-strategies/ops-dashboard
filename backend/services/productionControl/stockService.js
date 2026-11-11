@@ -401,30 +401,31 @@ function voucherStockIdempotencyKey(txId, inventoryItemId) {
 }
 
 const NON_GOLD_MAIN_STOCK = new Set([
-  'copper', 'cadmium', 'silver', 'platinum', 'ag', 'pt', 'plt', 'cu', 'cd',
+  'copper', 'cadmium', 'silver', 'platinum', 'alloy', 'ag', 'pt', 'plt', 'cu', 'cd',
 ])
 
 /**
- * True when an inventory item / lot should count toward Vault Available (Gold in Stock).
- * Includes gold and karat/alloyed gold; excludes copper, cadmium, silver, platinum, etc.
+ * True when an inventory item counts toward Vault Available (Gold in Stock).
+ * Only Gold main-stock products (Inventory "Gold" stock codes) — not Alloy/Copper/Silver/etc.
  */
 function isGoldInventoryItem(item = {}) {
   const meta = parseInventoryCategoryMeta(item?.category || '')
-  const main = String(meta.mainStock || meta.metalType || item?.metalType || '').trim().toLowerCase()
+  const main = String(meta.mainStock || '').trim().toLowerCase()
+  const metal = String(meta.metalType || item?.metalType || '').trim().toLowerCase()
   const name = String(item?.name || item?.product || '').trim().toLowerCase()
   const category = String(item?.category || '').toLowerCase()
-  const blob = `${main} ${name} ${category}`
 
-  // Name/mainStock win over a wrong metalType default of "Gold".
-  if (NON_GOLD_MAIN_STOCK.has(main)) return false
-  if (/\b(cadmium|copper|silver|platinum)\b/.test(name) && !/\bgold\b/.test(name) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(name)) {
-    return false
-  }
-  if (/\b(cadmium|copper|silver|platinum)\b/.test(blob) && !/\bgold\b/.test(blob) && !/\b\d{1,2}\s*k(?:arat)?\b/.test(blob)) {
-    return false
-  }
-  if (main === 'gold' || main === 'au' || main === 'alloy') return true
-  if (/\bgold\b|\bau\b|\b\d{1,2}\s*k(?:arat)?\b|alloyed\s+gold/.test(blob)) return true
+  if (main === 'alloy' || metal === 'alloy') return false
+  if (NON_GOLD_MAIN_STOCK.has(main) || NON_GOLD_MAIN_STOCK.has(metal)) return false
+  if (/\b(cadmium|copper|silver|platinum)\b/.test(name) && !/\bgold\b/.test(name)) return false
+  // Bare alloy stock (e.g. "14K alloy") under Alloy — not Gold category.
+  if (/\balloy\b/.test(name) && !/\bgold\b/.test(name)) return false
+
+  if (main === 'gold' || main === 'au') return true
+  if (/mainstock=gold\b/.test(category)) return true
+  // Named gold products with metalType Gold (already filtered away from Alloy above).
+  if ((metal === 'gold' || metal === 'au') && /\bgold\b/.test(name)) return true
+  if (/\bgold\b/.test(name) && main !== 'alloy' && metal !== 'alloy') return true
   return false
 }
 

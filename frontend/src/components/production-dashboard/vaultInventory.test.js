@@ -16,4 +16,16 @@ describe('buildVaultStockGroups', () => {
     expect(groups[1].items[0]).toMatchObject({ name: '14K alloy', grossQty: 1000, pureQty: 0, unit: 'grams' })
     expect(JSON.stringify(groups)).not.toContain('Gold Main Stock')
   })
+
+  test('orders categories Gold, Silver, Copper, Alloy', () => {
+    const groups = buildVaultStockGroups([
+      { _id: 'a', name: '14K alloy', category: 'mainStock=alloy;recordType=product', quantity: 10, unit: 'grams' },
+      { _id: 'c', name: 'pure copper', category: 'mainStock=copper;recordType=product', quantity: 20, unit: 'grams' },
+      { _id: 's', name: 'silver pure', category: 'mainStock=silver;recordType=product', quantity: 30, unit: 'grams' },
+      { _id: 'g', name: 'Gold Bar', category: 'mainStock=gold;recordType=product;productPurity=1', quantity: 40, unit: 'grams' },
+      { _id: 'o', name: 'Other item', category: 'mainStock=cadmium;recordType=product', quantity: 5, unit: 'grams' },
+    ])
+
+    expect(groups.map((group) => group.category)).toEqual(['Gold', 'Silver', 'Copper', 'Alloy', 'Cadmium'])
+  })
 })
