@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { formatAmount } from '../../../../utils/money'
@@ -40,6 +40,34 @@ const invFieldLabel = {
   marginBottom: '0.3rem',
 }
 
+const INVENTORY_VIEW_TABS = [
+  {
+    id: 'items',
+    label: 'Inventory Items',
+    icon: (
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <path d="M3.27 6.96 12 12.01l8.73-5.05" />
+        <path d="M12 22.08V12" />
+      </svg>
+    ),
+  },
+  {
+    id: 'movements',
+    label: 'Stock Movement History',
+    icon: (
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M8 6h13" />
+        <path d="M8 12h13" />
+        <path d="M8 18h13" />
+        <path d="M3 6h.01" />
+        <path d="M3 12h.01" />
+        <path d="M3 18h.01" />
+      </svg>
+    ),
+  },
+]
+
 export default function ERPInventoryTab({
   activeTab,
   C,
@@ -61,7 +89,7 @@ export default function ERPInventoryTab({
   inventoryTotalLiveValue,
   inventoryLowStockCount,
   inventoryMetalBreakdown,
-  inventoryTopProducts,
+  inventoryTopProducts: _inventoryTopProducts,
   legacyInventoryProducts,
   inventoryVatFilter,
   inventoryVatSortDir,
@@ -115,6 +143,7 @@ export default function ERPInventoryTab({
   handleInventoryModalDragStart: _handleInventoryModalDragStart,
 }) {
   const invColCount = 13
+  const [inventoryView, setInventoryView] = useState('items')
   const {
     scrollRef: invScrollRef,
     enabled: invVirtEnabled,
@@ -203,195 +232,302 @@ export default function ERPInventoryTab({
     setInventoryMappingForm,
   ])
 
+  const stockTypeByMetal = (() => {
+    const map = {}
+    for (const item of inventoryMappingProducts || []) {
+      const meta = decodeInventoryCategoryMeta(item.category)
+      const metal = titleCaseWords(meta.mainStock || meta.metalType || item.name || 'Unmapped')
+      if (!map[metal]) map[metal] = []
+      map[metal].push({ item, meta })
+    }
+    return map
+  })()
+
+  const inventoryGroupedSections = (() => {
+    const metalKeys = new Set([
+      ...Object.keys(stockTypeByMetal || {}),
+      ...Object.keys(inventoryProductsByMetal || {}),
+      ...(inventoryMetalBreakdown || []).map((row) => row.metal),
+    ])
+    const breakdownByMetal = Object.fromEntries(
+      (inventoryMetalBreakdown || []).map((row) => [row.metal, row]),
+    )
+    const preferredMetalOrder = ['Gold', 'Silver', 'Alloy', 'Copper', 'Cadmium', 'Platinum', 'Palladium']
+    const metalRank = (metal) => {
+      const idx = preferredMetalOrder.findIndex((name) => name.toLowerCase() === String(metal || '').toLowerCase())
+      return idx === -1 ? preferredMetalOrder.length : idx
+    }
+    return [...metalKeys]
+      .filter(Boolean)
+      .sort((a, b) => {
+        const rankDiff = metalRank(a) - metalRank(b)
+        if (rankDiff !== 0) return rankDiff
+        return String(a).localeCompare(String(b))
+      })
+      .map((metal) => {
+        const products = inventoryProductsByMetal?.[metal] || []
+        const stockTypes = stockTypeByMetal?.[metal] || []
+        const breakdown = breakdownByMetal[metal] || null
+        const totalOnHand = breakdown
+          ? Number(breakdown.totalQty || 0)
+          : products.reduce((sum, entry) => sum + Math.max(0, Number(entry?.row?.quantity ?? entry?.item?.quantity ?? 0)), 0)
+        const totalValue = breakdown
+          ? Number(breakdown.totalValue || 0)
+          : products.reduce((sum, entry) => sum + Number(entry?.row?.bookStockValue ?? entry?.row?.stockValue ?? 0), 0)
+        return {
+          metal,
+          stockTypes,
+          products,
+          totalOnHand,
+          totalValue,
+          productCount: breakdown?.productCount ?? products.length,
+          lowStockCount: breakdown?.lowStockCount ?? 0,
+        }
+      })
+  })()
+
+  const openCreateStockType = () => {
+    setEditingProductId('')
+    setInventoryMappingForm(createInventoryMappingForm(baseCurrencyCode))
+    setInventoryStockCodeManualOverride(false)
+    setInventoryModalOffset({ x: 0, y: 0 })
+    setShowInventoryMappingModal(true)
+  }
+
+  const openCreateProduct = () => {
+    setEditingInventoryProductId('')
+    setInventoryProductForm(createInventoryProductForm())
+    setInventoryProductModalOffset({ x: 0, y: 0 })
+    setShowInventoryProductModal(true)
+  }
+
+  const switchInventoryView = (nextView) => {
+    setInventoryView(nextView)
+    if (nextView === 'movements' && typeof loadStockLedger === 'function') {
+      loadStockLedger()
+    }
+  }
+
   return (
   <>
       {activeTab === 'inventory' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
             <div>
               <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory Workspace</h3>
-              <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>Rebuilt inventory area with separate cards for stock types, products, and reporting.</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>
+                {inventoryView === 'items'
+                  ? 'Stock types with their products and on-hand totals, grouped by metal.'
+                  : 'Every inventory change from posted sale/purchase vouchers — full audit trail.'}
+              </p>
             </div>
-            <button type="button" onClick={loadInventory} style={{ padding: '0.55rem 0.95rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>Refresh Inventory</button>
+            {inventoryView === 'items' ? (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={openCreateStockType}
+                  style={{ padding: '0.55rem 0.95rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}
+                >
+                  + Create Stock Type
+                </button>
+                <button
+                  type="button"
+                  onClick={openCreateProduct}
+                  style={{ padding: '0.55rem 0.95rem', background: '#B45309', color: '#fff', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}
+                >
+                  + Create Product
+                </button>
+                <button
+                  type="button"
+                  onClick={loadInventory}
+                  style={{ padding: '0.55rem 0.95rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}
+                >
+                  Refresh Inventory
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={loadStockLedger}
+                  style={{ padding: '0.55rem 0.95rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}
+                >
+                  {stockMovementsLoading ? 'Loading…' : 'Refresh History'}
+                </button>
+              </div>
+            )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', alignItems: 'start' }}>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.75rem', padding: '1rem', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Stock Type Creation</p>
-                  <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.8rem', lineHeight: 1.5 }}>Create the master stock types that define metal, material type, purity, and stock-code mapping.</p>
-                </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: C.softBg, color: C.link, fontWeight: '800', fontSize: '0.74rem' }}>{inventoryMappingProducts.length}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingProductId('')
-                  setInventoryMappingForm(createInventoryMappingForm(baseCurrencyCode))
-                  setInventoryStockCodeManualOverride(false)
-                  setInventoryModalOffset({ x: 0, y: 0 })
-                  setShowInventoryMappingModal(true)
-                }}
-                style={{ marginTop: '0.85rem', width: '100%', padding: '0.7rem 0.95rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700' }}
-              >
-                + Create Stock Type
-              </button>
-              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem' }}>
-                {inventoryMappingProducts.slice(0, 4).map((item) => {
-                  const meta = decodeInventoryCategoryMeta(item.category)
-                  const liveMetalKey = resolveLiveMetalKey(meta.mainStock || meta.metalType || item.name)
-                  return (
-                    <div key={item._id} style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.6rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
-                        <span style={{ fontWeight: '700', color: C.ink }}>{titleCaseWords(meta.mainStock || meta.metalType || item.name)}</span>
+          <div className="voucher-type-bar" role="tablist" aria-label="Inventory views" style={{ marginBottom: '1rem' }}>
+            {INVENTORY_VIEW_TABS.map((tab) => {
+              const active = inventoryView === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={active ? 'voucher-type-card active' : 'voucher-type-card'}
+                  onClick={() => switchInventoryView(tab.id)}
+                >
+                  <span className="voucher-type-card-icon">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {inventoryView === 'items' && (
+          <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.65rem', marginBottom: '1rem' }}>
+            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p>
+              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p>
+            </div>
+            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p>
+              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p>
+            </div>
+            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Gross Stock Left</p>
+              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+            </div>
+            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value (Book)</p>
+              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{formatAmount(inventoryTotalValue, { currencyCode: baseCurrencyCode })}</p>
+              {Number(inventoryTotalLiveValue || 0) > 0 && Math.abs(Number(inventoryTotalLiveValue) - Number(inventoryTotalValue || 0)) > 0.009 ? (
+                <p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>
+                  Live spot: {formatAmount(inventoryTotalLiveValue, { currencyCode: baseCurrencyCode })}
+                </p>
+              ) : null}
+            </div>
+            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Low / Zero Stock</p>
+              <p style={{ margin: '0.22rem 0 0', color: inventoryLowStockCount > 0 ? '#B45309' : C.ink, fontWeight: '800' }}>{inventoryLowStockCount}</p>
+            </div>
+          </div>
+
+          <div className="erp-inventory-metal-grid">
+            {inventoryGroupedSections.map((section) => {
+              const primaryStock = section.stockTypes[0] || null
+              const liveMetalKey = resolveLiveMetalKey(
+                primaryStock?.meta?.mainStock || primaryStock?.meta?.metalType || section.metal,
+              )
+              return (
+                <section
+                  key={section.metal}
+                  className="erp-inventory-metal-card"
+                  style={{ background: C.p1, border: `1px solid ${C.p2}` }}
+                >
+                  <div className="erp-inventory-metal-card__header">
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <h4 style={{ margin: 0, color: C.ink, fontSize: '0.95rem', fontWeight: '800' }}>{section.metal}</h4>
+                        <span style={{ padding: '0.12rem 0.4rem', borderRadius: '999px', background: C.softBg, color: C.link, fontWeight: '700', fontSize: '0.66rem' }}>
+                          {section.productCount} product{section.productCount === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div style={{ marginTop: '0.25rem', minHeight: '1.15rem' }}>
                         {liveMetalKey ? (
                           <StockTypeLivePrice
                             metalKey={liveMetalKey}
                             snapshot={liveMetalSnapshot}
                             error={liveMetalError}
                           />
-                        ) : (
-                          Number(item.unitCost || 0) > 0 && (
-                            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: C.link, background: C.softBg, padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>
-                              {formatAmount(item.unitCost, { currencyCode: item.currency || baseCurrencyCode })}
-                              {' '}
-                              {item.currency || baseCurrencyCode}
-                              /
-                              {meta.priceUnit || 'OZ'}
-                            </span>
-                          )
-                        )}
+                        ) : null}
                       </div>
-                      <div style={{ marginTop: '0.2rem', color: C.inkSoft, fontSize: '0.75rem' }}>Main Stock Mapping</div>
-                      <div style={{ marginTop: '0.45rem', display: 'flex', gap: '0.35rem' }}>
-                        <button onClick={() => handleEditProduct(item)} style={{ padding: '0.28rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem' }}>Edit</button>
-                        {(isSuperAdmin || isFinance) && <button onClick={() => handleDeleteProduct(item)} style={{ padding: '0.28rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.72rem' }}>Delete</button>}
-                      </div>
+                      <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.7rem' }}>
+                        Stock type{section.stockTypes.length === 1 ? '' : 's'}: {section.stockTypes.length || 'none'}
+                        {section.lowStockCount > 0 ? ` · Low ${section.lowStockCount}` : ''}
+                      </p>
                     </div>
-                  )
-                })}
-                {!inventoryMappingProducts.length && <div style={{ border: '1px dashed #BBF7D0', borderRadius: '0.5rem', padding: '0.75rem', color: '#166534', fontSize: '0.8rem' }}>No stock types yet. Create your first stock type to define mapping rules.</div>}
-              </div>
-            </div>
-
-            <div style={{ background: '#FFFDF8', border: '1px solid #F2DFC1', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(180, 83, 9, 0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: '#92400E', fontSize: '1rem' }}>Product Creation</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#7C5A12', fontSize: '0.8rem', lineHeight: 1.5 }}>Create products with Product Category, Name, Description, Weight, Gross Weight, Purity, Tax Type, VAT %, and Purity Weight.</p>
-                </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#FEF3C7', color: '#92400E', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryCatalogProducts.length}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingInventoryProductId('')
-                  setInventoryProductForm(createInventoryProductForm())
-                  setInventoryProductModalOffset({ x: 0, y: 0 })
-                  setShowInventoryProductModal(true)
-                }}
-                style={{ marginTop: '0.85rem', width: '100%', padding: '0.7rem 0.95rem', background: '#B45309', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700' }}
-              >
-                + Create Product
-              </button>
-              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem', maxHeight: '28rem', overflowY: 'auto' }}>
-                {Object.entries(inventoryProductsByMetal).map(([metal, entries]) => (
-                  <div key={metal} style={{ border: '1px solid #FDE68A', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                    <div style={{ fontWeight: '800', color: '#92400E', fontSize: '0.78rem', marginBottom: '0.35rem' }}>{metal}</div>
-                    <div style={{ display: 'grid', gap: '0.4rem' }}>
-                      {entries.map(({ item, meta }) => (
-                        <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', borderTop: '1px solid #FEF3C7', paddingTop: '0.35rem' }}>
-                          <div>
-                            <div style={{ fontWeight: '700', color: C.ink, fontSize: '0.76rem' }}>{item.name}</div>
-                            <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Category {meta.productCategory || metal} | Wt {Number(meta.weight || item.quantity || 0).toLocaleString()} g | Purity {meta.productPurity || meta.purity || '-'} | Tax {meta.taxType || '-'} | VAT {formatVatPercent(meta.vatPercent)} | Pure Wt {Number(meta.purityWeight || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
-                          </div>
-                          <div style={{ display: 'grid', justifyItems: 'end', gap: '0.35rem' }}>
-                            <div style={{ color: '#92400E', fontWeight: '700', fontSize: '0.74rem', maxWidth: '220px', textAlign: 'right' }}>{meta.productDescription || '-'}</div>
-                            <div style={{ display: 'flex', gap: '0.35rem' }}>
-                              <button type="button" onClick={() => handleEditInventoryCatalogProduct(item, meta)} style={{ padding: '0.24rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Edit</button>
-                              {(isSuperAdmin || isFinance) && <button type="button" onClick={() => handleDeleteInventoryCatalogProduct(item)} style={{ padding: '0.24rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Delete</button>}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ color: C.inkSoft, fontSize: '0.66rem', fontWeight: 600 }}>Total on hand</div>
+                      <div style={{ color: C.ink, fontWeight: '800', fontSize: '0.92rem' }}>
+                        {section.totalOnHand.toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                      </div>
+                      <div style={{ color: C.inkSoft, fontSize: '0.68rem', fontWeight: 700, marginTop: 1 }}>
+                        {formatAmount(section.totalValue, { currencyCode: baseCurrencyCode })}
+                      </div>
                     </div>
                   </div>
-                ))}
-                {!inventoryCatalogProducts.length && <div style={{ border: '1px dashed #FCD34D', borderRadius: '0.5rem', padding: '0.75rem', color: '#92400E', fontSize: '0.8rem' }}>No inventory products created yet. Use a stock type to start adding products.</div>}
-              </div>
-            </div>
 
-            <div style={{ background: '#FBFCFF', border: '1px solid #D9E6FB', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(29, 78, 216, 0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: '#1D4ED8', fontSize: '1rem' }}>Inventory Report</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#4B5E8B', fontSize: '0.8rem', lineHeight: 1.5 }}>Stock on hand by product and metal. Book value matches stock GL; live spot is shown as a secondary market view.</p>
-                </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DBEAFE', color: '#1D4ED8', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryReportProducts.length}</span>
-              </div>
-              <div style={{ marginTop: '0.85rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.55rem' }}>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Gross Stock Left</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                  <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value (Book)</p>
-                  <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{formatAmount(inventoryTotalValue, { currencyCode: baseCurrencyCode })}</p>
-                  <p style={{ margin: '0.15rem 0 0', color: C.inkSoft, fontSize: '0.68rem', fontWeight: '600' }}>Matches stock GL (qty × book unit cost)</p>
-                  {Number(inventoryTotalLiveValue || 0) > 0 && Math.abs(Number(inventoryTotalLiveValue) - Number(inventoryTotalValue || 0)) > 0.009 ? (
-                    <p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>
-                      Live spot: {formatAmount(inventoryTotalLiveValue, { currencyCode: baseCurrencyCode })}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-              <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
-                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Stock Left By Metal</span>
-                  <span style={{ color: inventoryLowStockCount > 0 ? '#B45309' : '#1D4ED8', fontWeight: '700', fontSize: '0.75rem' }}>Low/Zero Stock: {inventoryLowStockCount}</span>
-                </div>
-                <div style={{ display: 'grid', gap: '0.45rem' }}>
-                  {inventoryMetalBreakdown.map((row) => (
-                    <div key={row.metal} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.45rem', borderBottom: '1px solid #EFF6FF' }}>
-                      <div>
-                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{row.metal}</div>
-                        <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.productCount} product{row.productCount === 1 ? '' : 's'} | Gross Stock Left {row.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })} | Low/Zero Stock {row.lowStockCount}</div>
+                  <div className="erp-inventory-metal-card__mapping">
+                    {section.stockTypes.length > 0 ? section.stockTypes.map(({ item, meta }) => (
+                      <div
+                        key={item._id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          border: `1px solid ${C.p2}`,
+                          background: '#FFFFFF',
+                          borderRadius: '0.4rem',
+                          padding: '0.2rem 0.35rem',
+                          maxWidth: '100%',
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, color: C.ink, fontSize: '0.7rem' }}>
+                          {titleCaseWords(meta.mainStock || meta.metalType || item.name)}
+                        </span>
+                        <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--edit" onClick={() => handleEditProduct(item)}>Edit</button>
+                        {(isSuperAdmin || isFinance) && (
+                          <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--delete" onClick={() => handleDeleteProduct(item)}>Delete</button>
+                        )}
                       </div>
-                      <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>{formatAmount(row.totalValue, { currencyCode: baseCurrencyCode })}</div>
-                    </div>
-                  ))}
-                  {!inventoryMetalBreakdown.length && <div style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No metal/product breakdown available yet.</div>}
-                </div>
-              </div>
-              <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
-                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Top Inventory Items</span>
-                  <span style={{ color: '#1D4ED8', fontWeight: '700', fontSize: '0.75rem' }}>Showing highest value items</span>
-                </div>
-                <div style={{ display: 'grid', gap: '0.45rem' }}>
-                  {inventoryTopProducts.map((row) => {
-                    const { item, productMeta } = row
-                    return (
-                      <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid #EFF6FF' }}>
-                        <div>
-                          <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{item.name}</div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.metal} | Category {row.categoryName} | Gross Stock Left {row.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {row.stockUnit} | Book Value {formatAmount(row.bookStockValue ?? row.stockValue, { currencyCode: baseCurrencyCode })}</div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Gross Wt {row.weight.toLocaleString(undefined, { maximumFractionDigits: 4 })} g | Purity {row.purity || '-'} | Tax {productMeta.taxType || '-'} | VAT {formatVatPercent(productMeta.vatPercent)} | Pure Wt {row.purityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 })} | Pure Stock {row.pureStockQty.toLocaleString(undefined, { maximumFractionDigits: 4 })} g</div>
-                        </div>
-                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>
-                          <div>{formatAmount(row.bookStockValue ?? row.stockValue, { currencyCode: baseCurrencyCode })}</div>
-                          {row.usesLivePrice ? (
-                            <div style={{ color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>Live {formatAmount(row.liveStockValue, { currencyCode: baseCurrencyCode })}</div>
-                          ) : null}
-                          <div style={{ color: row.quantity <= 0 ? '#B91C1C' : row.isLowStock ? '#B45309' : C.inkSoft, fontSize: '0.7rem' }}>{row.quantity <= 0 ? 'Zero Stock' : row.isLowStock ? 'Low Stock' : 'In Stock'}</div>
-                        </div>
+                    )) : (
+                      <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>
+                        No stock type yet. Use + Create Stock Type.
                       </div>
-                    )
-                  })}
-                  {!inventoryTopProducts.length && <div style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No inventory movements or product records yet.</div>}
-                </div>
+                    )}
+                  </div>
+
+                  <div className="erp-inventory-metal-card__products">
+                    {section.products.length ? section.products.map(({ item, meta, row }) => {
+                      const qty = Number(row?.quantity ?? item.quantity ?? 0)
+                      const bookValue = Number(row?.bookStockValue ?? row?.stockValue ?? 0)
+                      return (
+                        <div key={item._id} className="erp-inventory-product-row">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem', alignItems: 'flex-start' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, color: C.ink, fontSize: '0.78rem', lineHeight: 1.25 }}>{item.name}</div>
+                              <div style={{ marginTop: 2, color: C.inkSoft, fontSize: '0.66rem', lineHeight: 1.35 }}>
+                                Purity {meta.productPurity || meta.purity || '-'}
+                                {' · '}VAT {formatVatPercent(meta.vatPercent)}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontWeight: 800, color: C.ink, fontSize: '0.76rem' }}>
+                                {qty.toLocaleString(undefined, { maximumFractionDigits: 3 })} {item.unit || 'g'}
+                              </div>
+                              <div style={{ color: C.inkSoft, fontSize: '0.64rem', fontWeight: 700 }}>
+                                {formatAmount(bookValue, { currencyCode: baseCurrencyCode })}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="erp-inventory-product-row__actions">
+                            <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--edit" onClick={() => handleEditInventoryCatalogProduct(item, meta)}>Edit</button>
+                            {(isSuperAdmin || isFinance) && (
+                              <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--delete" onClick={() => handleDeleteInventoryCatalogProduct(item)}>Delete</button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    }) : (
+                      <div style={{ border: '1px dashed #CBD5E1', borderRadius: '0.4rem', padding: '0.55rem', color: C.inkSoft, fontSize: '0.72rem' }}>
+                        No products yet.
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )
+            })}
+
+            {!inventoryGroupedSections.length && (
+              <div style={{ gridColumn: '1 / -1', border: `1px dashed ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', color: C.inkSoft, fontSize: '0.85rem' }}>
+                No stock types or products yet. Create a stock type, then add products under it.
               </div>
-            </div>
+            )}
           </div>
 
           {legacyInventoryProducts.length > 0 && (
@@ -405,7 +541,7 @@ export default function ERPInventoryTab({
             <div style={{ marginTop: '1.25rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>All Inventory Items</p>
+                  <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Inventory Items</p>
                   <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Book unit cost and value match stock GL. Live spot (blue) is market MTM only.</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -516,13 +652,15 @@ export default function ERPInventoryTab({
               </div>
             </div>
           )}
+          </div>
+          )}
 
-          {/* Stock Movements from Vouchers */}
-          <div style={{ marginTop: '1.25rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+          {inventoryView === 'movements' && (
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div>
                 <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Stock Movement History</p>
-                <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Every inventory change from posted sale/purchase vouchers — full audit trail.</p>
+                <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Filter by item, reason, or actor.</p>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
@@ -531,9 +669,6 @@ export default function ERPInventoryTab({
                   onChange={e => setStockMovementsFilter(e.target.value)}
                   style={{ padding: '0.4rem 0.7rem', border: '1px solid #D1D5DB', borderRadius: '0.4rem', fontSize: '0.82rem', minWidth: '180px' }}
                 />
-                <button type="button" onClick={loadStockLedger} style={{ padding: '0.4rem 0.8rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}>
-                  {stockMovementsLoading ? 'Loading…' : 'Refresh'}
-                </button>
                 <span style={{ padding: '0.3rem 0.6rem', background: '#F1F5F9', color: '#475569', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{stockMovements.length} entries</span>
               </div>
             </div>
@@ -603,6 +738,7 @@ export default function ERPInventoryTab({
                 })()
             }
           </div>
+          )}
 
           {showInventoryProductModal && (
             <div
