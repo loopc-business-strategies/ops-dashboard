@@ -54,6 +54,9 @@ const ALLOWLIST = Object.freeze({
   // Blank employeeCode backfill; optional --dry-run, otherwise assigns EMP-NNN only to blank rows.
   'backend/scripts/backfill-blank-employee-codes.js':
     'Backfill blank employeeCode values only; optional --dry-run preview, otherwise writes EMP codes.',
+  // Soft-delete junk HR names; intentional production use with I_UNDERSTAND + --apply (staging via --staging).
+  'backend/scripts/soft-delete-junk-hr-employees.js':
+    'Soft-delete confirmed junk HR employees by Mongo id; gated by I_UNDERSTAND=SOFT-DELETE-JUNK-HR-EMPLOYEES + --apply.',
   // VB ops wipe; intentional production VB use with I_UNDERSTAND + --apply (staging via --staging).
   'backend/scripts/wipe-vb-ops-data.js':
     'VB ops hard-wipe (tx/ledgers/movements); gated by I_UNDERSTAND=WIPE-VB-OPS-DATA + --apply.',

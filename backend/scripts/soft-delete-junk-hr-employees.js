@@ -6,9 +6,19 @@
  * Targets verified Mongo IDs (and optional exact names as secondary match), never
  * name-only mass deletes of genuine staff.
  *
- * Usage:
+ * Dry-run (default):
+ *   node backend/scripts/soft-delete-junk-hr-employees.js --tenant=mg
  *   node backend/scripts/soft-delete-junk-hr-employees.js --tenant=mg --dry-run
- *   node backend/scripts/soft-delete-junk-hr-employees.js --tenant=mg --apply
+ *
+ * Apply:
+ *   I_UNDERSTAND=SOFT-DELETE-JUNK-HR-EMPLOYEES \
+ *     node backend/scripts/soft-delete-junk-hr-employees.js --tenant=mg --apply \
+ *     --reason="Remove junk HR test employees from attendance log"
+ *
+ * Staging:
+ *   APP_ENV=staging STAGING_MONGO_URI_MG=… \
+ *     node backend/scripts/soft-delete-junk-hr-employees.js --tenant=mg --apply --staging \
+ *     --reason="Remove junk HR test employees (staging)"
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') })
 require('../utils/configureAtlasDns')
@@ -16,7 +26,11 @@ require('../utils/configureAtlasDns')
 const mongoose = require('mongoose')
 const { getTenantUri } = require('../config/tenants')
 const { getSoftDeleteFields } = require('../utils/softDelete')
-const { redactMongoUri } = require('../utils/migrationSafety')
+const {
+  mapStagingMongoToProcessEnv,
+  assertStagingMongoTargets,
+} = require('../utils/stagingMongoSafety')
+const { looksLikeNonProductionUri, redactMongoUri } = require('../utils/migrationSafety')
 
 /** Confirmed junk IDs from ops-dashboard (nan / raja / raja / john). */
 const CONFIRMED_JUNK_IDS = [
@@ -26,13 +40,18 @@ const CONFIRMED_JUNK_IDS = [
   '6ae454de5f2a8daf8bfe7500', // john
 ]
 
-const REASON = 'junk test data removed from attendance log'
+const DEFAULT_REASON = 'junk test data removed from attendance log'
 const LIVE_MG_DB = 'ops-dashboard'
+const I_UNDERSTAND_TOKEN = 'SOFT-DELETE-JUNK-HR-EMPLOYEES'
 
 function readArg(name) {
   const prefix = `${name}=`
   const hit = process.argv.find((a) => a.startsWith(prefix))
   return hit ? hit.slice(prefix.length) : ''
+}
+
+function hasFlag(name) {
+  return process.argv.includes(name)
 }
 
 /** Replace only the database path segment after host list (never touch mongodb://). */
@@ -61,10 +80,26 @@ function looksLikeJunkProfile(doc) {
 
 async function run() {
   const tenant = String(readArg('--tenant') || 'mg').trim().toLowerCase()
-  const apply = process.argv.includes('--apply')
-  if (apply && process.argv.includes('--dry-run')) {
+  const apply = hasFlag('--apply')
+  const staging = hasFlag('--staging')
+  const reason = String(readArg('--reason') || (apply ? '' : DEFAULT_REASON)).trim() || DEFAULT_REASON
+
+  if (apply && hasFlag('--dry-run')) {
     console.error('Use either --dry-run or --apply, not both.')
     process.exit(1)
+  }
+
+  if (apply) {
+    if (reason.length < 10) {
+      throw new Error('--reason with at least 10 characters is required for --apply')
+    }
+    if (staging) {
+      process.env.APP_ENV = 'staging'
+      assertStagingMongoTargets([tenant])
+      Object.assign(process.env, mapStagingMongoToProcessEnv(process.env))
+    } else if (String(process.env.I_UNDERSTAND || '').trim() !== I_UNDERSTAND_TOKEN) {
+      throw new Error(`Refusing production soft-delete without I_UNDERSTAND=${I_UNDERSTAND_TOKEN}`)
+    }
   }
 
   const baseUri = getTenantUri(tenant)
@@ -73,6 +108,13 @@ async function run() {
     process.exit(1)
   }
   const uri = tenant === 'mg' ? withDbName(baseUri, LIVE_MG_DB) : baseUri
+  if (apply && !staging) {
+    if (looksLikeNonProductionUri(uri)) {
+      console.warn(`[warn] URI for ${tenant} looks non-production: ${redactMongoUri(uri)}`)
+    } else {
+      console.log(`[prod] target ${tenant}: ${redactMongoUri(uri)}`)
+    }
+  }
   console.error(`[${tenant}] ${redactMongoUri(uri)} mode=${apply ? 'APPLY' : 'DRY-RUN'}`)
 
   const conn = await mongoose.createConnection(uri, { serverSelectionTimeoutMS: 20000 }).asPromise()
@@ -103,7 +145,7 @@ async function run() {
     if (apply) {
       const fields = getSoftDeleteFields(
         { user: { _id: null, name: 'soft-delete-junk-hr-employees' } },
-        REASON,
+        reason,
       )
       // Clear joiningDate so as-of eligibility can never resurrect them.
       await emp.updateOne(
@@ -128,6 +170,9 @@ async function run() {
     employees: results,
   }
   console.log(JSON.stringify(report, null, 2))
+  if (!apply) {
+    console.error(`Dry-run only. Pass --apply with I_UNDERSTAND=${I_UNDERSTAND_TOKEN} and --reason to write.`)
+  }
   await conn.close()
 }
 
