@@ -974,9 +974,10 @@
 
 .pd-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.55rem;
-  padding: 0 0.85rem;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .pd-kpi-compact {
@@ -1262,9 +1263,9 @@
 }
 
 .pd-fullscreen-page .pd-layout--control-center .pd-kpi-strip {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.3rem;
-  padding: 0 0.45rem;
+  padding: 0;
   flex-shrink: 0;
 }
 
@@ -1277,13 +1278,34 @@
 }
 
 .pd-fullscreen-page .pd-layout--control-center .pd-dept-row,
+.pd-fullscreen-page .pd-layout--control-center .pd-dept-row--vault-board,
 .pd-fullscreen-page .pd-layout--control-center .pd-dept-status {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.pd-fullscreen-page .pd-layout--control-center .pd-dept-grid {
+.pd-fullscreen-page .pd-layout--control-center .pd-vault-board {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  gap: 0.35rem;
+  padding: 0 0.45rem;
+}
+
+.pd-fullscreen-page .pd-layout--control-center .pd-dept-grid--production {
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem !important;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  align-content: stretch;
+  align-items: stretch;
+  padding: 0;
+}
+
+.pd-fullscreen-page .pd-layout--control-center .pd-dept-grid:not(.pd-dept-grid--production) {
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 0.35rem !important;
@@ -1517,6 +1539,118 @@
   align-items: stretch;
   align-content: stretch;
   padding: 0 0.45rem;
+}
+
+/* Tall Vault Room left + KPIs / production on the right */
+.pd-layout--vault-board {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.pd-dept-row--vault-board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pd-vault-board {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.15fr) minmax(0, 2.85fr);
+  gap: 0.55rem;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: 0 0.45rem;
+  align-items: stretch;
+}
+
+.pd-vault-sidebar {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.pd-vault-sidebar .pd-dept-card--vault-stock {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+}
+
+.pd-vault-sidebar .pd-dept-card--vault-stock .pd-vault-stock {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+}
+
+.pd-vault-board-main {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.pd-vault-board-main .pd-kpi-strip {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 0;
+}
+
+.pd-dept-grid--production {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Row 1: Melting, Rolling, Bangle Area */
+.pd-dept-grid--production > :nth-child(1),
+.pd-dept-grid--production > :nth-child(2),
+.pd-dept-grid--production > :nth-child(3) {
+  grid-column: span 4;
+}
+
+/* Row 2: Stamping, Pendent, Welding, Assembly */
+.pd-dept-grid--production > :nth-child(n + 4) {
+  grid-column: span 3;
+}
+
+@media (max-width: 1100px) {
+  .pd-vault-board {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(280px, 38vh) minmax(0, 1fr);
+  }
+
+  .pd-dept-grid--production {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+  }
+
+  .pd-dept-grid--production > :nth-child(1),
+  .pd-dept-grid--production > :nth-child(2),
+  .pd-dept-grid--production > :nth-child(3),
+  .pd-dept-grid--production > :nth-child(n + 4) {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .pd-vault-board-main .pd-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pd-dept-grid--production {
+    grid-template-columns: 1fr;
+  }
 }
 
 .pd-dept-card {
@@ -1900,6 +2034,10 @@
   max-height: 460px;
   overflow: auto;
   margin-top: 0.35rem;
+}
+
+.pd-vault-sidebar .pd-dept-card--vault-stock .pd-vault-stock {
+  max-height: none;
 }
 
 .pd-vault-stock-note {
@@ -2363,7 +2501,7 @@
   }
 
   .pd-layout--control-center .pd-kpi-strip {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.3rem;
   }
 
@@ -2534,7 +2672,7 @@
   }
 
   .pd-layout--control-center .pd-kpi-strip {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.3rem;
   }
 
@@ -3089,11 +3227,18 @@
 }
 
 .pd-layout--control-center {
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 0.4rem;
   overflow: hidden;
   min-height: 0;
+  flex: 1;
   padding-top: 0.4rem;
+}
+
+.pd-layout--control-center.pd-layout--vault-board {
+  flex: 1;
+  min-height: 0;
 }
 
 .pd-layout--control-center .pd-panel {
@@ -3659,7 +3804,7 @@
   }
 
   .pd-layout--control-center .pd-kpi-strip {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.3rem;
   }
 
@@ -3737,7 +3882,7 @@
   }
 
   .pd-layout--control-center .pd-kpi-strip {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.3rem;
   }
 

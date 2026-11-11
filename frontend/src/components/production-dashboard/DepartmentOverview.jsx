@@ -397,6 +397,41 @@ function DeptCard({
   )
 }
 
+function renderDeptCard(card, props) {
+  const {
+    batchMonitorRows,
+    employeeRatings,
+    selectedDeptKey,
+    onSelectDept,
+    suppressDemo,
+    loopcMode,
+    currentBatchTimes,
+    callingDepts,
+    breakdownDepts,
+    downDepts,
+    onMarkFixed,
+    vaultInventory,
+  } = props
+  return (
+    <DeptCard
+      key={card.key}
+      card={card}
+      batchMonitorRows={batchMonitorRows}
+      employeeRatings={employeeRatings}
+      selected={selectedDeptKey === card.key}
+      onSelect={onSelectDept}
+      suppressDemo={suppressDemo}
+      loopcMode={loopcMode}
+      currentBatchTimes={currentBatchTimes}
+      callCount={callingDepts[card.key] || 0}
+      breakdown={Boolean(breakdownDepts[card.key])}
+      down={downDepts[card.key] || null}
+      onMarkFixed={onMarkFixed}
+      vaultInventory={card.key === 'vault_room' ? vaultInventory : null}
+    />
+  )
+}
+
 export default function DepartmentOverview({
   cards,
   assemblyTables: _assemblyTables,
@@ -417,36 +452,61 @@ export default function DepartmentOverview({
   downDepts = {},
   onMarkFixed,
   vaultInventory = null,
+  kpi = null,
 }) {
   const list = cards || []
+  const cardProps = {
+    batchMonitorRows,
+    employeeRatings,
+    selectedDeptKey,
+    onSelectDept,
+    suppressDemo,
+    loopcMode,
+    currentBatchTimes,
+    callingDepts,
+    breakdownDepts,
+    downDepts,
+    onMarkFixed,
+    vaultInventory,
+  }
+  const vaultCard = list.find((card) => card.key === 'vault_room') || null
+  const productionCards = list.filter((card) => card.key !== 'vault_room')
+
+  if (!list.length) {
+    return (
+      <section className="pd-dept-row" aria-label="Department status">
+        <div className="pd-panel pd-dept-status">
+          <p className="pd-empty">No departments configured</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (vaultCard) {
+    return (
+      <section className="pd-dept-row pd-dept-row--vault-board" aria-label="Department status">
+        <div className="pd-vault-board">
+          <aside className="pd-vault-sidebar">
+            {renderDeptCard(vaultCard, cardProps)}
+          </aside>
+          <div className="pd-vault-board-main">
+            {kpi}
+            <div className="pd-dept-grid pd-dept-grid--production">
+              {productionCards.map((card) => renderDeptCard(card, cardProps))}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="pd-dept-row" aria-label="Department status">
       <div className="pd-panel pd-dept-status">
-        {!list.length ? (
-          <p className="pd-empty">No departments configured</p>
-        ) : (
-          <div className="pd-dept-grid">
-            {list.map((card) => (
-              <DeptCard
-                key={card.key}
-                card={card}
-                batchMonitorRows={batchMonitorRows}
-                employeeRatings={employeeRatings}
-                selected={selectedDeptKey === card.key}
-                onSelect={onSelectDept}
-                suppressDemo={suppressDemo}
-                loopcMode={loopcMode}
-                currentBatchTimes={currentBatchTimes}
-                callCount={callingDepts[card.key] || 0}
-                breakdown={Boolean(breakdownDepts[card.key])}
-                down={downDepts[card.key] || null}
-                onMarkFixed={onMarkFixed}
-                vaultInventory={card.key === 'vault_room' ? vaultInventory : null}
-              />
-            ))}
-          </div>
-        )}
+        {kpi}
+        <div className="pd-dept-grid">
+          {list.map((card) => renderDeptCard(card, cardProps))}
+        </div>
       </div>
     </section>
   )

@@ -255,9 +255,7 @@ export default function ProductionDashboardTab() {
       ) : null}
 
       {model ? (
-        <div className="pd-layout pd-layout--reference pd-layout--control-center">
-          <KpiRow model={model} hideDemoKpis={tenantKey === 'mg'} />
-
+        <div className="pd-layout pd-layout--reference pd-layout--control-center pd-layout--vault-board">
           <DepartmentOverview
             cards={model.deptCards}
             assemblyTables={model.assemblyTables}
@@ -281,6 +279,7 @@ export default function ProductionDashboardTab() {
             onViewDepartment={(key) => actions.viewDepartment(key)}
             vaultInventory={vaultInventory}
             onViewAll={() => actions.clearDepartment()}
+            kpi={<KpiRow model={model} hideDemoKpis={tenantKey === 'mg'} />}
           />
 
           {deptDetail ? (
