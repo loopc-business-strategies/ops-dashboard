@@ -26,7 +26,7 @@ jobs:
           node backend/scripts/audit-mg-account-enquiry-statements.js
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: audit-mg-enquiry-report
           path: ${{ runner.temp }}/audit-mg-enquiry-report.json
