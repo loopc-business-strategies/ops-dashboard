@@ -442,11 +442,11 @@ export default function ERPInventoryTab({
                       </p>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ color: C.inkSoft, fontSize: '0.66rem', fontWeight: 600 }}>Total on hand</div>
-                      <div style={{ color: C.ink, fontWeight: '800', fontSize: '0.92rem' }}>
+                      <div className="erp-inventory-metal-card__total-label">Total on hand</div>
+                      <div className="erp-inventory-metal-card__total-qty" style={{ color: C.ink }}>
                         {section.totalOnHand.toLocaleString(undefined, { maximumFractionDigits: 3 })} g
                       </div>
-                      <div style={{ color: C.inkSoft, fontSize: '0.68rem', fontWeight: 700, marginTop: 1 }}>
+                      <div className="erp-inventory-metal-card__total-value">
                         {formatAmount(section.totalValue, { currencyCode: baseCurrencyCode })}
                       </div>
                     </div>
@@ -486,30 +486,32 @@ export default function ERPInventoryTab({
                     {section.products.length ? section.products.map(({ item, meta, row }) => {
                       const qty = Number(row?.quantity ?? item.quantity ?? 0)
                       const bookValue = Number(row?.bookStockValue ?? row?.stockValue ?? 0)
+                      const unitRaw = String(item.unit || 'g').trim()
+                      const unitLabel = /^(grams?|gms?)$/i.test(unitRaw) ? 'g' : (unitRaw || 'g')
                       return (
                         <div key={item._id} className="erp-inventory-product-row">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem', alignItems: 'flex-start' }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontWeight: 700, color: C.ink, fontSize: '0.78rem', lineHeight: 1.25 }}>{item.name}</div>
-                              <div style={{ marginTop: 2, color: C.inkSoft, fontSize: '0.66rem', lineHeight: 1.35 }}>
-                                Purity {meta.productPurity || meta.purity || '-'}
-                                {' · '}VAT {formatVatPercent(meta.vatPercent)}
-                              </div>
+                          <div className="erp-inventory-product-row__main">
+                            <div className="erp-inventory-product-row__name" style={{ color: C.ink }} title={item.name}>{item.name}</div>
+                            <div className="erp-inventory-product-row__meta" title={`Purity ${meta.productPurity || meta.purity || '-'} · VAT ${formatVatPercent(meta.vatPercent)}`}>
+                              Purity {meta.productPurity || meta.purity || '-'}
+                              {' · '}VAT {formatVatPercent(meta.vatPercent)}
                             </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ fontWeight: 800, color: C.ink, fontSize: '0.76rem' }}>
-                                {qty.toLocaleString(undefined, { maximumFractionDigits: 3 })} {item.unit || 'g'}
+                          </div>
+                          <div className="erp-inventory-product-row__right">
+                            <div className="erp-inventory-product-row__qty">
+                              <div className="erp-inventory-product-row__qty-value" style={{ color: C.ink }}>
+                                {qty.toLocaleString(undefined, { maximumFractionDigits: 3 })} {unitLabel}
                               </div>
-                              <div style={{ color: C.inkSoft, fontSize: '0.64rem', fontWeight: 700 }}>
+                              <div className="erp-inventory-product-row__qty-book">
                                 {formatAmount(bookValue, { currencyCode: baseCurrencyCode })}
                               </div>
                             </div>
-                          </div>
-                          <div className="erp-inventory-product-row__actions">
-                            <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--edit" onClick={() => handleEditInventoryCatalogProduct(item, meta)}>Edit</button>
-                            {(isSuperAdmin || isFinance) && (
-                              <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--delete" onClick={() => handleDeleteInventoryCatalogProduct(item)}>Delete</button>
-                            )}
+                            <div className="erp-inventory-product-row__actions">
+                              <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--edit" onClick={() => handleEditInventoryCatalogProduct(item, meta)}>Edit</button>
+                              {(isSuperAdmin || isFinance) && (
+                                <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--delete" onClick={() => handleDeleteInventoryCatalogProduct(item)}>Delete</button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )
