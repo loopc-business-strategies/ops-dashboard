@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
-import { formatAmount } from '../../../../utils/money'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { createInventoryProductForm } from '../erpTabUtils'
 import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
@@ -72,27 +71,27 @@ export default function ERPInventoryTab({
   activeTab,
   C,
   modalInputStyle,
-  isSuperAdmin,
-  isFinance,
+  isSuperAdmin: _isSuperAdmin,
+  isFinance: _isFinance,
   saving,
   token: _token,
   tenantKey: _tenantKey,
   liveMetalSnapshot = null,
   liveMetalError = null,
   loadInventory,
-  inventoryMappingProducts,
-  inventoryCatalogProducts,
-  inventoryProductsByMetal,
-  inventoryReportProducts,
-  inventoryTotalQuantity,
-  inventoryTotalValue,
-  inventoryTotalLiveValue,
-  inventoryLowStockCount,
-  inventoryMetalBreakdown,
+  inventoryMappingProducts: _inventoryMappingProducts,
+  inventoryCatalogProducts: _inventoryCatalogProducts,
+  inventoryProductsByMetal: _inventoryProductsByMetal,
+  inventoryReportProducts: _inventoryReportProducts,
+  inventoryTotalQuantity: _inventoryTotalQuantity,
+  inventoryTotalValue: _inventoryTotalValue,
+  inventoryTotalLiveValue: _inventoryTotalLiveValue,
+  inventoryLowStockCount: _inventoryLowStockCount,
+  inventoryMetalBreakdown: _inventoryMetalBreakdown,
   inventoryTopProducts: _inventoryTopProducts,
   legacyInventoryProducts,
-  inventoryVatFilter,
-  inventoryVatSortDir,
+  inventoryVatFilter: _inventoryVatFilter,
+  inventoryVatSortDir: _inventoryVatSortDir,
   sortedInventoryTableRows,
   stockMovements,
   stockMovementsLoading,
@@ -120,20 +119,20 @@ export default function ERPInventoryTab({
   setEditingInventoryProductId,
   setInventoryProductModalOffset,
   setShowInventoryProductModal,
-  setInventoryVatFilter,
-  setInventoryVatSortDir,
+  setInventoryVatFilter: _setInventoryVatFilter,
+  setInventoryVatSortDir: _setInventoryVatSortDir,
   setStockMovementsFilter,
   setInventoryProductForm,
   setStockTypeModalTab: _setStockTypeModalTab,
   createInventoryMappingForm,
-  decodeInventoryCategoryMeta,
+  decodeInventoryCategoryMeta: _decodeInventoryCategoryMeta,
   titleCaseWords,
-  formatVatPercent,
+  formatVatPercent: _formatVatPercent,
   resolveMainStockValueFromForm: _resolveMainStockValueFromForm,
-  handleEditProduct,
-  handleDeleteProduct,
-  handleEditInventoryCatalogProduct,
-  handleDeleteInventoryCatalogProduct,
+  handleEditProduct: _handleEditProduct,
+  handleDeleteProduct: _handleDeleteProduct,
+  handleEditInventoryCatalogProduct: _handleEditInventoryCatalogProduct,
+  handleDeleteInventoryCatalogProduct: _handleDeleteInventoryCatalogProduct,
   loadStockLedger,
   resetInventoryProductForm,
   handleCreateInventoryCatalogProduct,
@@ -142,15 +141,201 @@ export default function ERPInventoryTab({
   handleCreateProduct,
   handleInventoryModalDragStart: _handleInventoryModalDragStart,
 }) {
-  const invColCount = 13
+  const invColCount = 6
   const [inventoryView, setInventoryView] = useState('items')
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('all')
+  const [inventoryItemSearch, setInventoryItemSearch] = useState('')
+  const [includeZeroQty, setIncludeZeroQty] = useState(false)
+  const [movementsCategoryFilter, setMovementsCategoryFilter] = useState('all')
   const {
     scrollRef: invScrollRef,
-    enabled: invVirtEnabled,
-    virtualItems: invVirtualItems,
-    paddingTop: invPadTop,
-    paddingBottom: invPadBottom,
   } = useVirtualTableRows(sortedInventoryTableRows.length, { estimateSize: 44 })
+
+  const preferredMetalOrder = ['Gold', 'Silver', 'Alloy', 'Copper', 'Cadmium', 'Platinum', 'Palladium']
+  const resolveRowMetal = (row) => {
+    const metalRaw = row?.reportRow?.metal
+      || row?.categoryMeta?.mainStock
+      || row?.categoryMeta?.metalType
+      || row?.productMeta?.mainStock
+      || row?.productMeta?.metalType
+      || row?.item?.category
+      || 'Unmapped'
+    return titleCaseWords(String(metalRaw).split(/[;|]/)[0].replace(/^mainStock=/i, '').trim() || 'Unmapped')
+  }
+  const inventoryCategoryOptions = (() => {
+    const known = new Set(preferredMetalOrder.map((name) => name.toLowerCase()))
+    const present = new Set()
+    let hasOther = false
+    for (const row of sortedInventoryTableRows || []) {
+      const metal = resolveRowMetal(row)
+      const key = String(metal || '').toLowerCase()
+      if (known.has(key)) present.add(metal)
+      else hasOther = true
+    }
+    const options = preferredMetalOrder
+      .filter((name) => present.has(name) || [...present].some((m) => m.toLowerCase() === name.toLowerCase()))
+      .map((name) => ({ value: name.toLowerCase(), label: name }))
+    if (hasOther) options.push({ value: 'other', label: 'Other' })
+    return options
+  })()
+
+  const inventoryCategoryGroups = (() => {
+    const metalRank = (metal) => {
+      const idx = preferredMetalOrder.findIndex((name) => name.toLowerCase() === String(metal || '').toLowerCase())
+      return idx === -1 ? preferredMetalOrder.length : idx
+    }
+    const search = String(inventoryItemSearch || '').trim().toLowerCase()
+    const known = new Set(preferredMetalOrder.map((name) => name.toLowerCase()))
+    const groups = new Map()
+    for (const row of sortedInventoryTableRows || []) {
+      const metalKey = resolveRowMetal(row)
+      const metalLower = String(metalKey || '').toLowerCase()
+      const isOther = !known.has(metalLower)
+      if (inventoryCategoryFilter === 'other') {
+        if (!isOther) continue
+      } else if (inventoryCategoryFilter !== 'all' && metalLower !== inventoryCategoryFilter) {
+        continue
+      }
+      const item = row?.item
+      const reportRow = row?.reportRow || {}
+      const grossQty = Math.max(0, Number(reportRow.quantity ?? item?.quantity ?? 0))
+      if (!includeZeroQty && grossQty <= 0) continue
+      if (search) {
+        const hay = `${item?.name || ''} ${item?.sku || ''} ${metalKey}`.toLowerCase()
+        if (!hay.includes(search)) continue
+      }
+      if (!groups.has(metalKey)) groups.set(metalKey, [])
+      groups.get(metalKey).push(row)
+    }
+    return [...groups.entries()]
+      .sort((a, b) => {
+        const rankDiff = metalRank(a[0]) - metalRank(b[0])
+        if (rankDiff !== 0) return rankDiff
+        return String(a[0]).localeCompare(String(b[0]))
+      })
+      .map(([metal, rows]) => {
+        const products = rows.map((entry) => {
+          const item = entry.item
+          const productMeta = entry.productMeta || {}
+          const reportRow = entry.reportRow || {}
+          const grossQty = Math.max(0, Number(reportRow.quantity ?? item?.quantity ?? 0))
+          const purityRaw = reportRow.purity || productMeta.productPurity || productMeta.purity || ''
+          const pureQty = Math.max(0, Number(reportRow.pureStockQty ?? 0))
+          const pcsRaw = productMeta.pcs ?? productMeta.pieces ?? item?.pcs ?? item?.pieces
+          const pcs = pcsRaw === '' || pcsRaw == null ? null : Number(pcsRaw)
+          return {
+            id: item?._id,
+            name: item?.name || '—',
+            pcs: Number.isFinite(pcs) ? pcs : null,
+            grossQty,
+            purity: purityRaw,
+            pureQty,
+          }
+        })
+        const totalGross = products.reduce((sum, p) => sum + p.grossQty, 0)
+        const totalPure = products.reduce((sum, p) => sum + p.pureQty, 0)
+        const pcsValues = products.map((p) => p.pcs).filter((n) => n != null && Number.isFinite(n))
+        const totalPcs = pcsValues.length
+          ? pcsValues.reduce((sum, n) => sum + n, 0)
+          : products.length
+        const totalPurity = totalGross > 0 ? totalPure / totalGross : null
+        return {
+          metal,
+          metalLabel: String(metal || '').toLowerCase(),
+          products,
+          totalPcs,
+          totalGross,
+          totalPurity,
+          totalPure,
+        }
+      })
+      .filter((group) => group.products.length > 0)
+  })()
+  const visibleInventoryItemCount = inventoryCategoryGroups.reduce((sum, group) => sum + group.products.length, 0)
+
+  const inventoryMetalByItemKey = (() => {
+    const byId = new Map()
+    const byName = new Map()
+    for (const row of sortedInventoryTableRows || []) {
+      const metal = resolveRowMetal(row)
+      const id = String(row?.item?._id || '').trim()
+      const name = String(row?.item?.name || '').trim().toLowerCase()
+      if (id) byId.set(id, metal)
+      if (name) byName.set(name, metal)
+    }
+    return { byId, byName }
+  })()
+
+  const resolveMovementMetal = (movement) => {
+    const id = String(movement?.itemId || '').trim()
+    if (id && inventoryMetalByItemKey.byId.has(id)) return inventoryMetalByItemKey.byId.get(id)
+    const name = String(movement?.itemName || '').trim().toLowerCase()
+    if (name && inventoryMetalByItemKey.byName.has(name)) return inventoryMetalByItemKey.byName.get(name)
+    return 'Unmapped'
+  }
+
+  const stockMovementCategoryGroups = (() => {
+    const metalRank = (metal) => {
+      const idx = preferredMetalOrder.findIndex((name) => name.toLowerCase() === String(metal || '').toLowerCase())
+      return idx === -1 ? preferredMetalOrder.length : idx
+    }
+    const known = new Set(preferredMetalOrder.map((name) => name.toLowerCase()))
+    const search = String(stockMovementsFilter || '').trim().toLowerCase()
+    const filtered = (stockMovements || []).filter((m) => {
+      const metal = resolveMovementMetal(m)
+      const metalLower = String(metal || '').toLowerCase()
+      const isOther = !known.has(metalLower)
+      if (movementsCategoryFilter === 'other') {
+        if (!isOther) return false
+      } else if (movementsCategoryFilter !== 'all' && metalLower !== movementsCategoryFilter) {
+        return false
+      }
+      if (!search) return true
+      return (
+        String(m.itemName || '').toLowerCase().includes(search)
+        || String(m.reason || '').toLowerCase().includes(search)
+        || String(m.actorName || '').toLowerCase().includes(search)
+        || metalLower.includes(search)
+      )
+    })
+
+    const byMetal = new Map()
+    for (const movement of filtered) {
+      const metal = resolveMovementMetal(movement)
+      if (!byMetal.has(metal)) byMetal.set(metal, new Map())
+      const byProduct = byMetal.get(metal)
+      const productName = String(movement.itemName || 'Unknown item').trim() || 'Unknown item'
+      if (!byProduct.has(productName)) byProduct.set(productName, [])
+      byProduct.get(productName).push(movement)
+    }
+
+    return [...byMetal.entries()]
+      .sort((a, b) => {
+        const rankDiff = metalRank(a[0]) - metalRank(b[0])
+        if (rankDiff !== 0) return rankDiff
+        return String(a[0]).localeCompare(String(b[0]))
+      })
+      .map(([metal, byProduct]) => {
+        const products = [...byProduct.entries()]
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+          .map(([name, movements]) => ({
+            name,
+            movements: [...movements].sort((a, b) => {
+              const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+              const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+              return bTime - aTime
+            }),
+          }))
+        return {
+          metal,
+          metalLabel: String(metal || '').toLowerCase(),
+          products,
+          movementCount: products.reduce((sum, p) => sum + p.movements.length, 0),
+        }
+      })
+      .filter((group) => group.products.length > 0)
+  })()
+  const visibleMovementCount = stockMovementCategoryGroups.reduce((sum, group) => sum + group.movementCount, 0)
 
   const productChrome = useFloatingModalChrome({
     open: showInventoryProductModal,
@@ -186,6 +371,31 @@ export default function ERPInventoryTab({
   void _inventoryProductModalDragging
   void _handleInventoryProductModalDragStart
   void _handleInventoryModalDragStart
+  void _inventoryMappingProducts
+  void _inventoryCatalogProducts
+  void _inventoryProductsByMetal
+  void _inventoryMetalBreakdown
+  void _inventoryReportProducts
+  void _inventoryTotalQuantity
+  void _inventoryTotalValue
+  void _inventoryTotalLiveValue
+  void _inventoryLowStockCount
+  void _handleEditProduct
+  void _handleDeleteProduct
+  void _handleEditInventoryCatalogProduct
+  void _handleDeleteInventoryCatalogProduct
+  void _isSuperAdmin
+  void _isFinance
+  void _decodeInventoryCategoryMeta
+  void _formatVatPercent
+  void _inventoryVatFilter
+  void _inventoryVatSortDir
+  void _setInventoryVatFilter
+  void _setInventoryVatSortDir
+
+  useEffect(() => {
+    if (typeof _setInventoryVatFilter === 'function') _setInventoryVatFilter('all')
+  }, [_setInventoryVatFilter])
 
   const inventoryCurrencyCodes = (() => {
     const rows = Array.isArray(currencies) && currencies.length
@@ -232,60 +442,6 @@ export default function ERPInventoryTab({
     setInventoryMappingForm,
   ])
 
-  const stockTypeByMetal = (() => {
-    const map = {}
-    for (const item of inventoryMappingProducts || []) {
-      const meta = decodeInventoryCategoryMeta(item.category)
-      const metal = titleCaseWords(meta.mainStock || meta.metalType || item.name || 'Unmapped')
-      if (!map[metal]) map[metal] = []
-      map[metal].push({ item, meta })
-    }
-    return map
-  })()
-
-  const inventoryGroupedSections = (() => {
-    const metalKeys = new Set([
-      ...Object.keys(stockTypeByMetal || {}),
-      ...Object.keys(inventoryProductsByMetal || {}),
-      ...(inventoryMetalBreakdown || []).map((row) => row.metal),
-    ])
-    const breakdownByMetal = Object.fromEntries(
-      (inventoryMetalBreakdown || []).map((row) => [row.metal, row]),
-    )
-    const preferredMetalOrder = ['Gold', 'Silver', 'Alloy', 'Copper', 'Cadmium', 'Platinum', 'Palladium']
-    const metalRank = (metal) => {
-      const idx = preferredMetalOrder.findIndex((name) => name.toLowerCase() === String(metal || '').toLowerCase())
-      return idx === -1 ? preferredMetalOrder.length : idx
-    }
-    return [...metalKeys]
-      .filter(Boolean)
-      .sort((a, b) => {
-        const rankDiff = metalRank(a) - metalRank(b)
-        if (rankDiff !== 0) return rankDiff
-        return String(a).localeCompare(String(b))
-      })
-      .map((metal) => {
-        const products = inventoryProductsByMetal?.[metal] || []
-        const stockTypes = stockTypeByMetal?.[metal] || []
-        const breakdown = breakdownByMetal[metal] || null
-        const totalOnHand = breakdown
-          ? Number(breakdown.totalQty || 0)
-          : products.reduce((sum, entry) => sum + Math.max(0, Number(entry?.row?.quantity ?? entry?.item?.quantity ?? 0)), 0)
-        const totalValue = breakdown
-          ? Number(breakdown.totalValue || 0)
-          : products.reduce((sum, entry) => sum + Number(entry?.row?.bookStockValue ?? entry?.row?.stockValue ?? 0), 0)
-        return {
-          metal,
-          stockTypes,
-          products,
-          totalOnHand,
-          totalValue,
-          productCount: breakdown?.productCount ?? products.length,
-          lowStockCount: breakdown?.lowStockCount ?? 0,
-        }
-      })
-  })()
-
   const openCreateStockType = () => {
     setEditingProductId('')
     setInventoryMappingForm(createInventoryMappingForm(baseCurrencyCode))
@@ -317,7 +473,7 @@ export default function ERPInventoryTab({
               <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory Workspace</h3>
               <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>
                 {inventoryView === 'items'
-                  ? 'Stock types with their products and on-hand totals, grouped by metal.'
+                  ? 'Book unit cost and value match stock GL. Live spot (blue) is market MTM only.'
                   : 'Every inventory change from posted sale/purchase vouchers — full audit trail.'}
               </p>
             </div>
@@ -379,300 +535,221 @@ export default function ERPInventoryTab({
 
           {inventoryView === 'items' && (
           <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.65rem', marginBottom: '1rem' }}>
-            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p>
-              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p>
-            </div>
-            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p>
-              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p>
-            </div>
-            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Gross Stock Left</p>
-              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
-            </div>
-            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value (Book)</p>
-              <p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{formatAmount(inventoryTotalValue, { currencyCode: baseCurrencyCode })}</p>
-              {Number(inventoryTotalLiveValue || 0) > 0 && Math.abs(Number(inventoryTotalLiveValue) - Number(inventoryTotalValue || 0)) > 0.009 ? (
-                <p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>
-                  Live spot: {formatAmount(inventoryTotalLiveValue, { currencyCode: baseCurrencyCode })}
-                </p>
-              ) : null}
-            </div>
-            <div style={{ border: `1px solid ${C.p2}`, background: C.p1, borderRadius: '0.5rem', padding: '0.65rem 0.75rem' }}>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Low / Zero Stock</p>
-              <p style={{ margin: '0.22rem 0 0', color: inventoryLowStockCount > 0 ? '#B45309' : C.ink, fontWeight: '800' }}>{inventoryLowStockCount}</p>
-            </div>
-          </div>
-
-          <div className="erp-inventory-metal-grid">
-            {inventoryGroupedSections.map((section) => {
-              const primaryStock = section.stockTypes[0] || null
-              const liveMetalKey = resolveLiveMetalKey(
-                primaryStock?.meta?.mainStock || primaryStock?.meta?.metalType || section.metal,
-              )
-              return (
-                <section
-                  key={section.metal}
-                  className="erp-inventory-metal-card"
-                  style={{ background: C.p1, border: `1px solid ${C.p2}` }}
-                >
-                  <div className="erp-inventory-metal-card__header">
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        <h4 style={{ margin: 0, color: C.ink, fontSize: '0.95rem', fontWeight: '800' }}>{section.metal}</h4>
-                        <span style={{ padding: '0.12rem 0.4rem', borderRadius: '999px', background: C.softBg, color: C.link, fontWeight: '700', fontSize: '0.66rem' }}>
-                          {section.productCount} product{section.productCount === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                      <div style={{ marginTop: '0.25rem', minHeight: '1.15rem' }}>
-                        {liveMetalKey ? (
-                          <StockTypeLivePrice
-                            metalKey={liveMetalKey}
-                            snapshot={liveMetalSnapshot}
-                            error={liveMetalError}
-                          />
-                        ) : null}
-                      </div>
-                      <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.7rem' }}>
-                        Stock type{section.stockTypes.length === 1 ? '' : 's'}: {section.stockTypes.length || 'none'}
-                        {section.lowStockCount > 0 ? ` · Low ${section.lowStockCount}` : ''}
-                      </p>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div className="erp-inventory-metal-card__total-label">Total on hand</div>
-                      <div className="erp-inventory-metal-card__total-qty" style={{ color: C.ink }}>
-                        {section.totalOnHand.toLocaleString(undefined, { maximumFractionDigits: 3 })} g
-                      </div>
-                      <div className="erp-inventory-metal-card__total-value">
-                        {formatAmount(section.totalValue, { currencyCode: baseCurrencyCode })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="erp-inventory-metal-card__mapping">
-                    {section.stockTypes.length > 0 ? section.stockTypes.map(({ item, meta }) => (
-                      <div
-                        key={item._id}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          border: `1px solid ${C.p2}`,
-                          background: '#FFFFFF',
-                          borderRadius: '0.4rem',
-                          padding: '0.2rem 0.35rem',
-                          maxWidth: '100%',
-                        }}
-                      >
-                        <span style={{ fontWeight: 700, color: C.ink, fontSize: '0.7rem' }}>
-                          {titleCaseWords(meta.mainStock || meta.metalType || item.name)}
-                        </span>
-                        <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--edit" onClick={() => handleEditProduct(item)}>Edit</button>
-                        {(isSuperAdmin || isFinance) && (
-                          <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--delete" onClick={() => handleDeleteProduct(item)}>Delete</button>
-                        )}
-                      </div>
-                    )) : (
-                      <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>
-                        No stock type yet. Use + Create Stock Type.
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="erp-inventory-metal-card__products">
-                    {section.products.length ? section.products.map(({ item, meta, row }) => {
-                      const qty = Number(row?.quantity ?? item.quantity ?? 0)
-                      const bookValue = Number(row?.bookStockValue ?? row?.stockValue ?? 0)
-                      const unitRaw = String(item.unit || 'g').trim()
-                      const unitLabel = /^(grams?|gms?)$/i.test(unitRaw) ? 'g' : (unitRaw || 'g')
-                      return (
-                        <div key={item._id} className="erp-inventory-product-row">
-                          <div className="erp-inventory-product-row__main">
-                            <div className="erp-inventory-product-row__name" style={{ color: C.ink }} title={item.name}>{item.name}</div>
-                            <div className="erp-inventory-product-row__meta" title={`Purity ${meta.productPurity || meta.purity || '-'} · VAT ${formatVatPercent(meta.vatPercent)}`}>
-                              Purity {meta.productPurity || meta.purity || '-'}
-                              {' · '}VAT {formatVatPercent(meta.vatPercent)}
-                            </div>
-                          </div>
-                          <div className="erp-inventory-product-row__right">
-                            <div className="erp-inventory-product-row__qty">
-                              <div className="erp-inventory-product-row__qty-value" style={{ color: C.ink }}>
-                                {qty.toLocaleString(undefined, { maximumFractionDigits: 3 })} {unitLabel}
-                              </div>
-                              <div className="erp-inventory-product-row__qty-book">
-                                {formatAmount(bookValue, { currencyCode: baseCurrencyCode })}
-                              </div>
-                            </div>
-                            <div className="erp-inventory-product-row__actions">
-                              <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--edit" onClick={() => handleEditInventoryCatalogProduct(item, meta)}>Edit</button>
-                              {(isSuperAdmin || isFinance) && (
-                                <button type="button" className="erp-inventory-action-btn erp-inventory-action-btn--delete" onClick={() => handleDeleteInventoryCatalogProduct(item)}>Delete</button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    }) : (
-                      <div style={{ border: '1px dashed #CBD5E1', borderRadius: '0.4rem', padding: '0.55rem', color: C.inkSoft, fontSize: '0.72rem' }}>
-                        No products yet.
-                      </div>
-                    )}
-                  </div>
-                </section>
-              )
-            })}
-
-            {!inventoryGroupedSections.length && (
-              <div style={{ gridColumn: '1 / -1', border: `1px dashed ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', color: C.inkSoft, fontSize: '0.85rem' }}>
-                No stock types or products yet. Create a stock type, then add products under it.
-              </div>
-            )}
-          </div>
-
           {legacyInventoryProducts.length > 0 && (
-            <p style={{ marginTop: '0.8rem', color: '#92400E', fontSize: '0.8rem' }}>
+            <p style={{ margin: '0 0 0.8rem', color: '#92400E', fontSize: '0.8rem' }}>
               Legacy inventory records still exist outside the new stock-type/product structure: {legacyInventoryProducts.length}
             </p>
           )}
 
-          {/* All Inventory Items Table */}
-          {inventoryReportProducts.length > 0 && (
-            <div style={{ marginTop: '1.25rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Inventory Items</p>
-                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Book unit cost and value match stock GL. Live spot (blue) is market MTM only.</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <select
-                    value={inventoryVatFilter}
-                    onChange={(e) => setInventoryVatFilter(e.target.value)}
-                    style={{ padding: '0.35rem 0.55rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.78rem', color: C.ink, background: '#FFFFFF' }}
-                  >
-                    <option value="all">VAT: All</option>
-                    <option value="with-vat">VAT: &gt; 0%</option>
-                    <option value="zero-or-blank">VAT: 0% / Blank</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none'))}
-                    style={{ padding: '0.35rem 0.55rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.78rem', color: C.ink, background: '#FFFFFF', cursor: 'pointer', fontWeight: '600' }}
-                  >
-                    VAT Sort: {inventoryVatSortDir === 'none' ? 'None' : inventoryVatSortDir === 'asc' ? 'Low-High' : 'High-Low'}
-                  </button>
-                  <span style={{ padding: '0.3rem 0.6rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{sortedInventoryTableRows.length} items</span>
-                </div>
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Inventory Items</p>
+                <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Grouped by metal category — products indented under each category with stock totals.</p>
               </div>
-              <div ref={invScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: invVirtEnabled ? 520 : undefined, border: 'none', borderRadius: 0 }}>
-                <table className="erp-table">
+              <span style={{ padding: '0.3rem 0.6rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>
+                {visibleInventoryItemCount} item{visibleInventoryItemCount === 1 ? '' : 's'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'nowrap' }}>
+              <select
+                value={inventoryCategoryFilter}
+                onChange={(e) => setInventoryCategoryFilter(e.target.value)}
+                aria-label="Category filter"
+                style={{
+                  padding: '0.35rem 0.5rem',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.78rem',
+                  color: C.ink,
+                  background: '#FFFFFF',
+                  width: '150px',
+                  flex: '0 0 auto',
+                }}
+              >
+                <option value="all">All Categories</option>
+                {inventoryCategoryOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={inventoryItemSearch}
+                onChange={(e) => setInventoryItemSearch(e.target.value)}
+                placeholder="Search item, SKU, category"
+                style={{
+                  padding: '0.35rem 0.6rem',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.78rem',
+                  color: C.ink,
+                  background: '#FFFFFF',
+                  width: '220px',
+                  flex: '0 0 auto',
+                }}
+              />
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.5rem',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.78rem',
+                  color: C.ink,
+                  background: '#FFFFFF',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  fontWeight: 600,
+                  flex: '0 0 auto',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeZeroQty}
+                  onChange={(e) => setIncludeZeroQty(e.target.checked)}
+                  style={{ margin: 0, width: 'auto' }}
+                />
+                Include 0
+              </label>
+            </div>
+            {inventoryCategoryGroups.length === 0 ? (
+              <div style={{ border: `1px dashed ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', color: C.inkSoft, fontSize: '0.85rem' }}>
+                {sortedInventoryTableRows.length === 0
+                  ? 'No inventory items yet. Create a stock type, then add products under it.'
+                  : includeZeroQty
+                    ? 'No items match the current filters.'
+                    : 'No non-zero items match. Tick “Include 0” to show zero-qty products.'}
+              </div>
+            ) : (
+              <div ref={invScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: 560, border: 'none', borderRadius: 0 }}>
+                <table className="erp-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
                   <thead>
                     <tr>
-                      {['SKU', 'Name', 'Category', 'Tax Type', 'VAT %', 'Qty On Hand (Gross)', 'Pure Qty', 'Unit', 'Unit Cost (Book)', 'Selling Price', 'Total Value (Book)', 'Min Stock', 'Status'].map(col => {
-                        const isVatCol = col === 'VAT %'
-                        const vatSortIndicator = inventoryVatSortDir === 'none' ? '' : inventoryVatSortDir === 'asc' ? ' ▲' : ' ▼'
-                        const isNum = col === 'VAT %' || col === 'Qty On Hand (Gross)' || col === 'Pure Qty' || col === 'Unit Cost (Book)' || col === 'Selling Price' || col === 'Total Value (Book)'
-                        return (
-                          <th
-                            key={col}
-                            className={isNum ? 'num' : undefined}
-                            onClick={isVatCol ? () => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none')) : undefined}
-                            title={isVatCol ? 'Click to sort VAT %' : undefined}
-                            style={{
-                              cursor: isVatCol ? 'pointer' : 'default',
-                              userSelect: isVatCol ? 'none' : 'auto',
-                            }}
-                          >
-                            {isVatCol ? `${col}${vatSortIndicator}` : col}
-                          </th>
-                        )
-                      })}
+                      <th style={{ textAlign: 'left', minWidth: '7rem' }}>Category</th>
+                      <th style={{ textAlign: 'left', minWidth: '12rem' }}>Item</th>
+                      <th className="num">pcs</th>
+                      <th className="num">gross qty</th>
+                      <th className="num">purity</th>
+                      <th className="num">pure qty</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {invVirtEnabled && invPadTop > 0 && (
-                      <tr><td colSpan={invColCount} style={{ height: invPadTop, padding: 0, border: 'none' }} /></tr>
-                    )}
-                    {(invVirtEnabled
-                      ? invVirtualItems.map((vi) => sortedInventoryTableRows[vi.index]).filter(Boolean)
-                      : sortedInventoryTableRows
-                    ).map(({ item, categoryMeta, productMeta, reportRow }) => {
-                      const displayQty = Math.max(0, Number(item.quantity || 0))
-                      const zeroStock = displayQty <= 0
-                      const lowStock = zeroStock || (Number(item.minThreshold || 0) > 0 && displayQty <= Number(item.minThreshold || 0))
-                      const bookUnitCost = Number(reportRow?.storedUnitCost ?? reportRow?.unitCost ?? item.unitCost ?? 0)
-                      const bookValue = Number(reportRow?.bookStockValue ?? (displayQty * bookUnitCost))
-                      const usesLivePrice = Boolean(reportRow?.usesLivePrice)
-                      const liveUnitCost = Number(reportRow?.liveUnitCost || 0)
-                      const liveValue = Number(reportRow?.liveStockValue || 0)
-                      return (
-                        <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined, contentVisibility: 'auto', containIntrinsicSize: 'auto 44px' }}>
-                          <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{item.name}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{item.category ? (categoryMeta.mainStock || item.category).slice(0, 30) : '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{productMeta.taxType || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft, fontSize: '0.78rem' }}>{formatVatPercent(productMeta.vatPercent)}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{displayQty.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(reportRow?.pureStockQty || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }} title="Book unit cost (matches stock GL)">
-                            <div>{bookUnitCost.toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
-                            {usesLivePrice ? (
-                              <div style={{ color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }} title="Live spot price">
-                                Live {liveUnitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                              </div>
-                            ) : null}
+                    {inventoryCategoryGroups.map((group, groupIndex) => (
+                      <Fragment key={group.metal}>
+                        <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '1px solid #E2E8F0' : undefined }}>
+                          <td style={{ padding: '0.55rem 0.7rem', fontWeight: 800, color: C.ink, textTransform: 'lowercase', verticalAlign: 'top' }}>
+                            {group.metalLabel}
                           </td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: C.ink }} title="Book value = qty × book unit cost">
-                            <div>{formatAmount(bookValue, { currencyCode: baseCurrencyCode })}</div>
-                            {usesLivePrice ? (
-                              <div style={{ color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>
-                                Live {formatAmount(liveValue, { currencyCode: baseCurrencyCode })}
-                              </div>
-                            ) : null}
+                          <td style={{ padding: '0.55rem 0.7rem' }} />
+                          <td style={{ padding: '0.55rem 0.7rem' }} />
+                          <td style={{ padding: '0.55rem 0.7rem' }} />
+                          <td style={{ padding: '0.55rem 0.7rem' }} />
+                          <td style={{ padding: '0.55rem 0.7rem' }} />
+                        </tr>
+                        {group.products.map((product) => {
+                          const isZero = product.grossQty <= 0
+                          return (
+                          <tr key={product.id} style={{ borderBottom: '1px solid #F8FAFC', background: isZero ? '#FFFBEB' : undefined }}>
+                            <td style={{ padding: '0.4rem 0.7rem' }} />
+                            <td style={{ padding: '0.4rem 0.7rem 0.4rem 1.6rem', fontWeight: 600, color: isZero ? '#92400E' : C.ink }}>
+                              {product.name}
+                              {isZero ? <span style={{ marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>0 stock</span> : null}
+                            </td>
+                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>
+                              {product.pcs == null ? '—' : product.pcs.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </td>
+                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: isZero ? '#B45309' : C.ink, fontWeight: 600 }}>
+                              {product.grossQty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                            </td>
+                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>
+                              {product.purity === '' || product.purity == null ? '—' : String(product.purity)}
+                            </td>
+                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: isZero ? '#B45309' : C.ink, fontWeight: 600 }}>
+                              {product.pureQty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                            </td>
+                          </tr>
+                          )
+                        })}
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                          <td style={{ padding: '0.45rem 0.7rem' }} />
+                          <td style={{ padding: '0.45rem 0.7rem 0.45rem 1.6rem', fontWeight: 700, color: C.inkSoft }}>total</td>
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 800, color: C.ink }}>
+                            {group.totalPcs.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(item.minThreshold || 0) || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem' }}>
-                            {zeroStock
-                              ? <span style={{ background: '#FEE2E2', color: '#B91C1C', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>Zero Stock</span>
-                              : lowStock
-                              ? <span style={{ background: '#FEF3C7', color: '#B45309', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>Low Stock</span>
-                              : <span style={{ background: '#DCFCE7', color: '#166534', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>OK</span>
-                            }
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 800, color: C.ink }}>
+                            {group.totalGross.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 700, color: C.inkSoft }}>
+                            {group.totalPurity == null ? '—' : group.totalPurity.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 800, color: C.ink }}>
+                            {group.totalPure.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           </td>
                         </tr>
-                      )
-                    })}
-                    {invVirtEnabled && invPadBottom > 0 && (
-                      <tr><td colSpan={invColCount} style={{ height: invPadBottom, padding: 0, border: 'none' }} /></tr>
-                    )}
+                        <tr aria-hidden="true">
+                          <td colSpan={invColCount} style={{ height: '0.55rem', padding: 0, border: 'none' }} />
+                        </tr>
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
+            )}
+          </div>
           </div>
           )}
 
           {inventoryView === 'movements' && (
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div>
                 <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Stock Movement History</p>
-                <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Filter by item, reason, or actor.</p>
+                <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Grouped by metal category — products listed under each category.</p>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  placeholder="Search item or reason..."
-                  value={stockMovementsFilter}
-                  onChange={e => setStockMovementsFilter(e.target.value)}
-                  style={{ padding: '0.4rem 0.7rem', border: '1px solid #D1D5DB', borderRadius: '0.4rem', fontSize: '0.82rem', minWidth: '180px' }}
-                />
-                <span style={{ padding: '0.3rem 0.6rem', background: '#F1F5F9', color: '#475569', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{stockMovements.length} entries</span>
-              </div>
+              <span style={{ padding: '0.3rem 0.6rem', background: '#F1F5F9', color: '#475569', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>
+                {visibleMovementCount} entr{visibleMovementCount === 1 ? 'y' : 'ies'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'nowrap' }}>
+              <select
+                value={movementsCategoryFilter}
+                onChange={(e) => setMovementsCategoryFilter(e.target.value)}
+                aria-label="Movement category filter"
+                style={{
+                  padding: '0.35rem 0.5rem',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.78rem',
+                  color: C.ink,
+                  background: '#FFFFFF',
+                  width: '150px',
+                  flex: '0 0 auto',
+                }}
+              >
+                <option value="all">All Categories</option>
+                {inventoryCategoryOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Search item or reason..."
+                value={stockMovementsFilter}
+                onChange={(e) => setStockMovementsFilter(e.target.value)}
+                style={{
+                  padding: '0.35rem 0.6rem',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.78rem',
+                  color: C.ink,
+                  background: '#FFFFFF',
+                  width: '220px',
+                  flex: '0 0 auto',
+                }}
+              />
             </div>
             {stockMovementsLoading
               ? <div style={{ textAlign: 'center', padding: '1.5rem', color: C.inkSoft }}>Loading stock movements…</div>
@@ -683,61 +760,87 @@ export default function ERPInventoryTab({
                     <p style={{ margin: '0.4rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Post a sale or purchase voucher with a product linked to an inventory item to see movements here.</p>
                   </div>
                 )
-                : (() => {
-                  const STOCK_MOVEMENTS_UI_CAP = 200
-                  const filtered = stockMovementsFilter.trim()
-                    ? stockMovements.filter(m =>
-                        String(m.itemName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase()) ||
-                        String(m.reason || '').toLowerCase().includes(stockMovementsFilter.toLowerCase()) ||
-                        String(m.actorName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase())
-                      )
-                    : stockMovements
-                  const shown = filtered.slice(0, STOCK_MOVEMENTS_UI_CAP)
-                  return (
-                    <div>
-                      {filtered.length > STOCK_MOVEMENTS_UI_CAP && (
-                        <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.82rem' }}>
-                          Showing first {STOCK_MOVEMENTS_UI_CAP} of {filtered.length} movements (UI cap). Refine filter to narrow results.
-                        </p>
-                      )}
-                    <div className="erp-table-wrap" style={{ overflowX: 'auto', borderRadius: '0.45rem' }}>
-                      <table className="erp-table">
+                : stockMovementCategoryGroups.length === 0
+                  ? (
+                    <div style={{ border: `1px dashed ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', color: C.inkSoft, fontSize: '0.85rem' }}>
+                      No movements match the current filters.
+                    </div>
+                  )
+                : (
+                    <div className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: 560, borderRadius: '0.45rem' }}>
+                      <table className="erp-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
                         <thead>
                           <tr>
-                            {['Date', 'Item', 'Change', 'Before', 'After', 'Reason (Voucher)', 'By'].map(col => (
-                              <th key={col} className={col === 'Change' || col === 'Before' || col === 'After' ? 'num' : undefined}>{col}</th>
-                            ))}
+                            <th style={{ textAlign: 'left', minWidth: '7rem' }}>Category</th>
+                            <th style={{ textAlign: 'left', minWidth: '11rem' }}>Item</th>
+                            <th style={{ textAlign: 'left' }}>Date</th>
+                            <th className="num">Change</th>
+                            <th className="num">Before</th>
+                            <th className="num">After</th>
+                            <th style={{ textAlign: 'left' }}>Reason (Voucher)</th>
+                            <th style={{ textAlign: 'left' }}>By</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {shown.map((m, i) => {
-                            const isIn = Number(m.change || 0) > 0
-                            return (
-                              <tr key={m._id || i} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, whiteSpace: 'nowrap' }}>
-                                  {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
+                          {stockMovementCategoryGroups.map((group, groupIndex) => (
+                            <Fragment key={group.metal}>
+                              <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '1px solid #E2E8F0' : undefined }}>
+                                <td style={{ padding: '0.55rem 0.7rem', fontWeight: 800, color: C.ink, textTransform: 'lowercase' }}>
+                                  {group.metalLabel}
                                 </td>
-                                <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{m.itemName}</td>
-                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: isIn ? '#166534' : '#B91C1C' }}>
-                                  {isIn ? '+' : ''}{Number(m.change || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                <td colSpan={7} style={{ padding: '0.55rem 0.7rem', color: C.inkSoft, fontSize: '0.74rem', fontWeight: 600 }}>
+                                  {group.products.length} product{group.products.length === 1 ? '' : 's'} · {group.movementCount} move{group.movementCount === 1 ? '' : 's'}
                                 </td>
-                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(m.quantityBefore || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '600', color: C.ink }}>{Number(m.quantityAfter || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                                <td style={{ padding: '0.5rem 0.7rem' }}>
-                                  <span style={{ background: isIn ? '#DCFCE7' : '#FEE2E2', color: isIn ? '#166534' : '#991B1B', borderRadius: '0.3rem', padding: '0.18rem 0.45rem', fontSize: '0.78rem', fontWeight: '600' }}>
-                                    {m.reason || '—'}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{m.actorName || '—'}</td>
                               </tr>
-                            )
-                          })}
+                              {group.products.map((product) => (
+                                <Fragment key={`${group.metal}-${product.name}`}>
+                                  <tr style={{ background: '#F8FAFC' }}>
+                                    <td style={{ padding: '0.35rem 0.7rem' }} />
+                                    <td colSpan={7} style={{ padding: '0.35rem 0.7rem 0.35rem 1.4rem', fontWeight: 700, color: C.ink }}>
+                                      {product.name}
+                                      <span style={{ marginLeft: '0.45rem', color: C.inkSoft, fontWeight: 600, fontSize: '0.72rem' }}>
+                                        {product.movements.length} move{product.movements.length === 1 ? '' : 's'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                  {product.movements.map((m, i) => {
+                                    const isIn = Number(m.change || 0) > 0
+                                    return (
+                                      <tr key={m._id || `${product.name}-${i}`} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                                        <td style={{ padding: '0.4rem 0.7rem' }} />
+                                        <td style={{ padding: '0.4rem 0.7rem' }} />
+                                        <td style={{ padding: '0.4rem 0.7rem', color: C.inkSoft, whiteSpace: 'nowrap' }}>
+                                          {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
+                                        </td>
+                                        <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', fontWeight: 700, color: isIn ? '#166534' : '#B91C1C' }}>
+                                          {isIn ? '+' : ''}{Number(m.change || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                        </td>
+                                        <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>
+                                          {Number(m.quantityBefore || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                        </td>
+                                        <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', fontWeight: 600, color: C.ink }}>
+                                          {Number(m.quantityAfter || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                        </td>
+                                        <td style={{ padding: '0.4rem 0.7rem' }}>
+                                          <span style={{ background: isIn ? '#DCFCE7' : '#FEE2E2', color: isIn ? '#166534' : '#991B1B', borderRadius: '0.3rem', padding: '0.18rem 0.45rem', fontSize: '0.78rem', fontWeight: 600 }}>
+                                            {m.reason || '—'}
+                                          </span>
+                                        </td>
+                                        <td style={{ padding: '0.4rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{m.actorName || '—'}</td>
+                                      </tr>
+                                    )
+                                  })}
+                                </Fragment>
+                              ))}
+                              <tr aria-hidden="true">
+                                <td colSpan={8} style={{ height: '0.55rem', padding: 0, border: 'none' }} />
+                              </tr>
+                            </Fragment>
+                          ))}
                         </tbody>
                       </table>
                     </div>
-                    </div>
                   )
-                })()
             }
           </div>
           )}
