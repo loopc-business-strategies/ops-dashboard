@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
-import { formatAmount } from '../../../../utils/money'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { createInventoryProductForm } from '../erpTabUtils'
 import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
