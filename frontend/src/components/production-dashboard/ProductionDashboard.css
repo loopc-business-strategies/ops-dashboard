@@ -1322,6 +1322,7 @@
 .pd-fullscreen-page .pd-layout--control-center .pd-vault-stock {
   flex: 1 1 auto;
   min-height: 0;
+  max-height: none;
 }
 
 .pd-fullscreen-page .pd-layout--control-center .pd-batch-progress {
@@ -1896,7 +1897,7 @@
 }
 
 .pd-dept-card--vault-stock .pd-vault-stock {
-  max-height: 280px;
+  max-height: 460px;
   overflow: auto;
   margin-top: 0.35rem;
 }

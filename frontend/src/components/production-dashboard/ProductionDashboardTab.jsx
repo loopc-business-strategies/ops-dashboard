@@ -210,6 +210,16 @@ export default function ProductionDashboardTab() {
         hasLiveProduction={model?.hasLiveProduction}
         vaultConnected={model?.vaultConnected}
         productionStatus={mgFloorStatus}
+        employeesLabel={
+          model?.employeeKpi?.active != null
+            ? String(model.employeeKpi.active)
+            : (model?.compactKpis?.employees != null ? String(model.compactKpis.employees) : '—')
+        }
+        floorManager={
+          model?.compactKpis?.floorManager
+          || model?.employeeKpi?.floorManager
+          || '—'
+        }
         onRefresh={() => refresh()}
         loading={loading}
         alarm={tenantKey === 'mg' ? (

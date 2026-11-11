@@ -1,9 +1,6 @@
 import { formatGrams, formatShiftClock } from './formatters'
 import {
-  IconEmployees,
-  IconManager,
   IconShift,
-  IconVault,
   IconProduction,
   IconUnderProduction,
   IconOutput,
@@ -12,12 +9,6 @@ import {
 
 /** Reference-style KPI strip when there is no live production data. */
 const DEMO_COMPACT_KPIS = {
-  employees: '24',
-  employeesHint: '28 Total',
-  floorManager: 'Mr. Suresh',
-  floorManagerHint: '● Online',
-  vaultDisplay: '12,450 g',
-  vaultHint: 'Gold in Stock',
   currentShift: 'Morning',
   shiftHint: '6:00 AM – 6:00 PM',
   totalProductionToday: '8,320 g',
@@ -28,7 +19,7 @@ const DEMO_COMPACT_KPIS = {
   yesterdayHint: '7,980 g vs 6,750 g',
 }
 
-function CompactKpi({ icon, label, value, hint, hintLines, className = '', iconTone = '' }) {
+function CompactKpi({ icon, label, value, hint, className = '', iconTone = '' }) {
   return (
     <article className={`pd-kpi-compact${className ? ` ${className}` : ''}`}>
       <div className={`pd-kpi-compact-icon${iconTone ? ` pd-kpi-compact-icon--${iconTone}` : ''}`} aria-hidden>
@@ -38,32 +29,9 @@ function CompactKpi({ icon, label, value, hint, hintLines, className = '', iconT
         <span className="pd-kpi-compact-label">{label}</span>
         <strong className="pd-kpi-compact-value">{value}</strong>
         {hint ? <span className="pd-kpi-compact-hint">{hint}</span> : null}
-        {Array.isArray(hintLines) && hintLines.length > 0 ? (
-          <ul className="pd-kpi-compact-lines">
-            {hintLines.map((line) => (
-              <li key={line.key}>{line.text}</li>
-            ))}
-          </ul>
-        ) : null}
       </div>
     </article>
   )
-}
-
-function formatPurity(purity) {
-  const raw = String(purity || '').trim()
-  if (!raw) return ''
-  const n = Number(raw)
-  if (Number.isFinite(n) && n > 0 && n <= 1) return n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-  return raw
-}
-
-function vaultProductLine(row) {
-  const grams = row.availableWeight > 0 ? row.availableWeight : row.totalWeight
-  const purity = formatPurity(row.purity)
-  const parts = [row.product, row.metalType]
-  if (purity) parts.push(purity)
-  return `${parts.join(' · ')} — ${formatGrams(grams)}`
 }
 
 function deltaLabel(n) {
@@ -81,28 +49,6 @@ export default function KpiRow({ model, hideDemoKpis = false }) {
     const d = DEMO_COMPACT_KPIS
     return (
       <section className="pd-kpi-strip" aria-label="Production KPIs">
-        <CompactKpi
-          icon={<IconEmployees />}
-          iconTone="blue"
-          label="Employees"
-          value={d.employees}
-          hint={d.employeesHint}
-        />
-        <CompactKpi
-          icon={<IconManager />}
-          iconTone="blue"
-          label="Floor Manager"
-          value={d.floorManager}
-          hint={d.floorManagerHint}
-        />
-        <CompactKpi
-          icon={<IconVault />}
-          iconTone="green"
-          label="Vault Available"
-          value={d.vaultDisplay}
-          hint={d.vaultHint}
-          className="pd-kpi-compact--vault"
-        />
         <CompactKpi
           icon={<IconShift />}
           iconTone="blue"
@@ -141,31 +87,11 @@ export default function KpiRow({ model, hideDemoKpis = false }) {
   }
 
   const k = model.compactKpis || {}
-  const vault = model.vaultKpi || {}
-  const emp = model.employeeKpi || {}
   const shift = model.shiftKpi || {}
   const under = model.underProductionKpi || {}
   const day = deltaLabel(k.yesterdayVsToday)
   const dayCmp = model.comparisons?.day
 
-  const availableWeight = vault.availableWeight ?? k.vaultAvailable
-  const vaultDisplay = availableWeight != null ? formatGrams(Number(availableWeight) || 0) : '—'
-  const vaultLines = (Array.isArray(vault.products) ? vault.products : [])
-    .slice(0, 2)
-    .map((row, idx) => ({
-      key: row.inventoryItemId || `${row.product}-${row.metalType}-${idx}`,
-      text: vaultProductLine(row),
-    }))
-
-  const onDuty = emp.active ?? k.employees
-  const totalEmp = emp.total
-  const empValue = onDuty != null ? String(onDuty) : '—'
-  const empHint = totalEmp != null
-    ? `${totalEmp} Total`
-    : (onDuty != null ? `${onDuty} On Duty` : null)
-
-  const manager = k.floorManager || emp.floorManager || '—'
-  const managerOnline = Boolean(manager !== '—')
   const shiftName = k.currentShift || shift.name || '—'
   const shiftHint = shift.startTime || shift.endTime
     ? `${formatShiftClock(shift.startTime)} – ${formatShiftClock(shift.endTime)}`
@@ -195,29 +121,6 @@ export default function KpiRow({ model, hideDemoKpis = false }) {
 
   return (
     <section className="pd-kpi-strip" aria-label="Production KPIs">
-      <CompactKpi
-        icon={<IconEmployees />}
-        iconTone="blue"
-        label="Employees"
-        value={empValue}
-        hint={empHint}
-      />
-      <CompactKpi
-        icon={<IconManager />}
-        iconTone="blue"
-        label="Floor Manager"
-        value={manager}
-        hint={managerOnline ? '● Online' : null}
-      />
-      <CompactKpi
-        icon={<IconVault />}
-        iconTone="green"
-        label="Vault Available"
-        value={vaultDisplay}
-        hint={vaultDisplay !== '—' ? 'Gold in Stock' : null}
-        hintLines={vaultLines}
-        className="pd-kpi-compact--vault"
-      />
       <CompactKpi
         icon={<IconShift />}
         iconTone="blue"

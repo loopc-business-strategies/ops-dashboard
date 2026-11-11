@@ -1,5 +1,5 @@
 import { formatClock, formatDateLong, formatShiftClock } from './formatters'
-import { IconCalendar, IconMarkCube, IconRefresh, IconChevronDown } from './PdIcons'
+import { IconCalendar, IconMarkCube, IconRefresh, IconChevronDown, IconEmployees, IconManager } from './PdIcons'
 
 export default function HeaderBar({
   header,
@@ -8,6 +8,8 @@ export default function HeaderBar({
   hasLiveProduction,
   vaultConnected,
   productionStatus,
+  employeesLabel,
+  floorManager,
   onRefresh,
   loading,
   alarm = null,
@@ -17,6 +19,12 @@ export default function HeaderBar({
   const shiftHint = h.shiftStart || h.shiftEnd
     ? ` (${formatShiftClock(h.shiftStart)} – ${formatShiftClock(h.shiftEnd)})`
     : ''
+  const employeesText = employeesLabel != null && String(employeesLabel).trim() !== ''
+    ? String(employeesLabel)
+    : '—'
+  const managerText = floorManager != null && String(floorManager).trim() !== ''
+    ? String(floorManager)
+    : '—'
 
   const production = productionStatus || (hasLiveProduction
     ? { label: 'Production connected', tone: 'ok' }
@@ -41,6 +49,14 @@ export default function HeaderBar({
           <IconCalendar size={14} />
           {h.dateLabel || formatDateLong()}
           {h.timeLabel ? ` | ${h.timeLabel}` : ''}
+        </span>
+        <span className="pd-header-chip" title="Employees on duty">
+          <IconEmployees size={14} />
+          Employees: {employeesText}
+        </span>
+        <span className="pd-header-chip" title="Floor manager">
+          <IconManager size={14} />
+          FM: {managerText}
         </span>
         <span className={`pd-conn ${vaultOk ? 'pd-conn--ok' : 'pd-conn--bad'}`}>
           <span className="pd-conn-dot" aria-hidden />
