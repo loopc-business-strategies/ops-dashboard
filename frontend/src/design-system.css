@@ -1346,6 +1346,130 @@ textarea       { resize: vertical; min-height: 70px; }
   padding: 16px 18px;
 }
 
+/* ─── ERP inventory metal cards (3-up on desktop) ─────── */
+.erp-inventory-metal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+  grid-auto-rows: 1fr;
+}
+.erp-inventory-metal-card {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 22.5rem;
+  max-height: 22.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 0.65rem;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+.erp-inventory-metal-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+  align-items: flex-start;
+  min-height: 4.25rem;
+  flex: 0 0 auto;
+}
+.erp-inventory-metal-card__mapping {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  min-height: 1.85rem;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.erp-inventory-metal-card__products {
+  border-top: 1px solid var(--brand-border, #E2E8F0);
+  padding-top: 0.5rem;
+  padding-right: 0.15rem;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: flex-start;
+  align-content: start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--brand-primary, #C2410C) 55%, #CBD5E1) transparent;
+}
+.erp-inventory-metal-card__products::-webkit-scrollbar {
+  width: 7px;
+}
+.erp-inventory-metal-card__products::-webkit-scrollbar-track {
+  background: transparent;
+}
+.erp-inventory-metal-card__products::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--brand-primary, #C2410C) 45%, #CBD5E1);
+  border-radius: 999px;
+}
+.erp-inventory-product-row {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.3rem;
+  background: #FFFFFF;
+  border: 1px solid var(--brand-border, #E2E8F0);
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.5rem;
+}
+.erp-inventory-product-row__actions {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+.erp-inventory-action-btn {
+  box-sizing: border-box;
+  width: 3.5rem;
+  height: 1.5rem;
+  padding: 0;
+  margin: 0;
+  border-radius: 0.28rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  align-self: center;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.erp-inventory-action-btn--edit {
+  background: #ECFDF5;
+  border: 1px solid #6EE7B7;
+  color: #065F46;
+}
+.erp-inventory-action-btn--delete {
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+}
+@media (max-width: 1100px) {
+  .erp-inventory-metal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .erp-inventory-metal-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+  .erp-inventory-metal-card {
+    height: auto;
+    max-height: 26rem;
+  }
+}
+
 /* ─── ERP register table (shared presentation) ───────── */
 .erp-table-wrap {
   width: 100%;

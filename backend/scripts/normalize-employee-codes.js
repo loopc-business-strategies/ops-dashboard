@@ -4,9 +4,19 @@
  *
  * Live MG DB: ops-dashboard on MONGO_URI_MG cluster.
  *
- * Usage:
+ * Dry-run (default):
+ *   node backend/scripts/normalize-employee-codes.js --tenant=mg
  *   node backend/scripts/normalize-employee-codes.js --tenant=mg --dry-run
- *   node backend/scripts/normalize-employee-codes.js --tenant=mg --apply
+ *
+ * Apply:
+ *   I_UNDERSTAND=NORMALIZE-EMPLOYEE-CODES \
+ *     node backend/scripts/normalize-employee-codes.js --tenant=mg --apply \
+ *     --reason="Normalize bare employee codes to EMP-NNN"
+ *
+ * Staging:
+ *   APP_ENV=staging STAGING_MONGO_URI_MG=… \
+ *     node backend/scripts/normalize-employee-codes.js --tenant=mg --apply --staging \
+ *     --reason="Normalize bare employee codes (staging)"
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') })
 require('../utils/configureAtlasDns')
@@ -14,14 +24,23 @@ require('../utils/configureAtlasDns')
 const mongoose = require('mongoose')
 const { getTenantUri } = require('../config/tenants')
 const { formatEmployeeCode, parseEmployeeCodeSuffix } = require('../utils/employeeCode')
-const { redactMongoUri } = require('../utils/migrationSafety')
+const {
+  mapStagingMongoToProcessEnv,
+  assertStagingMongoTargets,
+} = require('../utils/stagingMongoSafety')
+const { looksLikeNonProductionUri, redactMongoUri } = require('../utils/migrationSafety')
 
 const LIVE_MG_DB = 'ops-dashboard'
+const I_UNDERSTAND_TOKEN = 'NORMALIZE-EMPLOYEE-CODES'
 
 function readArg(name) {
   const prefix = `${name}=`
   const hit = process.argv.find((a) => a.startsWith(prefix))
   return hit ? hit.slice(prefix.length) : ''
+}
+
+function hasFlag(name) {
+  return process.argv.includes(name)
 }
 
 function withDbName(uri, dbName) {
@@ -43,10 +62,26 @@ function toCanonical(code) {
 
 async function run() {
   const tenant = String(readArg('--tenant') || 'mg').trim().toLowerCase()
-  const apply = process.argv.includes('--apply')
-  if (apply && process.argv.includes('--dry-run')) {
+  const apply = hasFlag('--apply')
+  const staging = hasFlag('--staging')
+  const reason = String(readArg('--reason') || '').trim()
+
+  if (apply && hasFlag('--dry-run')) {
     console.error('Use either --dry-run or --apply, not both.')
     process.exit(1)
+  }
+
+  if (apply) {
+    if (reason.length < 10) {
+      throw new Error('--reason with at least 10 characters is required for --apply')
+    }
+    if (staging) {
+      process.env.APP_ENV = 'staging'
+      assertStagingMongoTargets([tenant])
+      Object.assign(process.env, mapStagingMongoToProcessEnv(process.env))
+    } else if (String(process.env.I_UNDERSTAND || '').trim() !== I_UNDERSTAND_TOKEN) {
+      throw new Error(`Refusing production normalize without I_UNDERSTAND=${I_UNDERSTAND_TOKEN}`)
+    }
   }
 
   const baseUri = getTenantUri(tenant)
@@ -55,6 +90,13 @@ async function run() {
     process.exit(1)
   }
   const uri = tenant === 'mg' ? withDbName(baseUri, LIVE_MG_DB) : baseUri
+  if (apply && !staging) {
+    if (looksLikeNonProductionUri(uri)) {
+      console.warn(`[warn] URI for ${tenant} looks non-production: ${redactMongoUri(uri)}`)
+    } else {
+      console.log(`[prod] target ${tenant}: ${redactMongoUri(uri)}`)
+    }
+  }
   console.error(`[${tenant}] ${redactMongoUri(uri)} mode=${apply ? 'APPLY' : 'DRY-RUN'}`)
 
   const conn = await mongoose.createConnection(uri, { serverSelectionTimeoutMS: 20000 }).asPromise()
@@ -161,6 +203,7 @@ async function run() {
     tenant,
     database: conn.name,
     apply,
+    reason: apply ? reason : undefined,
     changedCount: changes.length,
     freedArchivedCount: freedArchived.length,
     skippedCount: skipped.length,
@@ -170,6 +213,9 @@ async function run() {
     activeEmployeeTotal: activeStrict,
     activeEmployeeTotalAlt: activeCount,
   }, null, 2))
+  if (!apply) {
+    console.error(`Dry-run only. Pass --apply with I_UNDERSTAND=${I_UNDERSTAND_TOKEN} and --reason to write.`)
+  }
 
   await conn.close()
 }
