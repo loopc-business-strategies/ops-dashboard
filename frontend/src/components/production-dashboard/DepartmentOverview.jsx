@@ -470,10 +470,7 @@ export default function DepartmentOverview({
     vaultInventory,
   }
   const vaultCard = list.find((card) => card.key === 'vault_room') || null
-  const stampingCard = list.find((card) => card.key === 'stamping') || null
-  const productionCards = list.filter(
-    (card) => card.key !== 'vault_room' && card.key !== 'stamping',
-  )
+  const productionCards = list.filter((card) => card.key !== 'vault_room')
 
   if (!list.length) {
     return (
@@ -491,7 +488,6 @@ export default function DepartmentOverview({
         <div className="pd-vault-board">
           <aside className="pd-vault-sidebar">
             {renderDeptCard(vaultCard, cardProps)}
-            {stampingCard ? renderDeptCard(stampingCard, cardProps) : null}
           </aside>
           <div className="pd-vault-board-main">
             {kpi}
