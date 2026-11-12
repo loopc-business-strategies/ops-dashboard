@@ -2,7 +2,6 @@ import { Fragment, useEffect, useState } from 'react'
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
-import { createInventoryProductForm } from '../erpTabUtils'
 import { downloadXlsxRows } from '../exportHelpers'
 import { buildInventoryExportPayload, exportInventoryPdf } from '../inventoryExportHelpers'
 import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
@@ -115,20 +114,20 @@ export default function ERPInventoryTab({
   inventoryProductForm,
   inventoryStockTypeOptions,
   inventoryProductPurityWeight,
-  setEditingProductId,
+  setEditingProductId: _setEditingProductId,
   setInventoryMappingForm,
-  setInventoryStockCodeManualOverride,
-  setInventoryModalOffset,
-  setShowInventoryMappingModal,
-  setEditingInventoryProductId,
-  setInventoryProductModalOffset,
-  setShowInventoryProductModal,
+  setInventoryStockCodeManualOverride: _setInventoryStockCodeManualOverride,
+  setInventoryModalOffset: _setInventoryModalOffset,
+  setShowInventoryMappingModal: _setShowInventoryMappingModal,
+  setEditingInventoryProductId: _setEditingInventoryProductId,
+  setInventoryProductModalOffset: _setInventoryProductModalOffset,
+  setShowInventoryProductModal: _setShowInventoryProductModal,
   setInventoryVatFilter: _setInventoryVatFilter,
   setInventoryVatSortDir: _setInventoryVatSortDir,
   setStockMovementsFilter,
   setInventoryProductForm,
   setStockTypeModalTab: _setStockTypeModalTab,
-  createInventoryMappingForm,
+  createInventoryMappingForm: _createInventoryMappingForm,
   decodeInventoryCategoryMeta: _decodeInventoryCategoryMeta,
   titleCaseWords,
   formatVatPercent: _formatVatPercent,
