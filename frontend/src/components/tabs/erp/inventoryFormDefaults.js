@@ -27,6 +27,18 @@ export function mappingProductToFormState(product, baseCurrencyCode = 'USD') {
   }
 }
 
+/** Rewrite mainStock / metalType / productCategory keys when a stock type is renamed. */
+export function rewriteInventoryCategoryMetalKey(category = '', fromKey = '', toKey = '') {
+  const from = String(fromKey || '').trim().toLowerCase()
+  const to = String(toKey || '').trim().toLowerCase()
+  if (!from || !to || from === to) return String(category || '')
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return String(category || '')
+    .replace(new RegExp(`(mainStock=)${escaped}(?=;|$)`, 'gi'), `$1${to}`)
+    .replace(new RegExp(`(metalType=)${escaped}(?=;|$)`, 'gi'), `$1${to}`)
+    .replace(new RegExp(`(productCategory=)${escaped}(?=;|$)`, 'gi'), `$1${to}`)
+}
+
 export function buildInventoryMappingPayload({
   form,
   includeOpeningQty = true,

@@ -8,6 +8,7 @@ import {
   mappingProductToFormState,
   resolveInventoryPurityFactor,
   resolveProductLinePurity,
+  rewriteInventoryCategoryMetalKey,
 } from './inventoryFormDefaults'
 
 describe('inventoryFormDefaults', () => {
@@ -24,6 +25,18 @@ describe('inventoryFormDefaults', () => {
     expect(form.mainStock).toBe('gold')
     expect(form.currentPrice).toBe('2500')
     expect(form.priceUnit).toBe('OZ')
+  })
+
+  test('rewriteInventoryCategoryMetalKey renames mainStock and metalType', () => {
+    const next = rewriteInventoryCategoryMetalKey(
+      'mainStock=cadmiun;metalType=cadmiun;recordType=product;productCategory=cadmiun;productPurity=1',
+      'cadmiun',
+      'cadmium',
+    )
+    expect(next).toContain('mainStock=cadmium')
+    expect(next).toContain('metalType=cadmium')
+    expect(next).toContain('productCategory=cadmium')
+    expect(next).not.toMatch(/cadmiun/i)
   })
 
   test('buildInventoryMappingPayload resolves sku for non-admin', () => {
