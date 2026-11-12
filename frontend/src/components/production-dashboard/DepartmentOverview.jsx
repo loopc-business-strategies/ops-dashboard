@@ -494,11 +494,11 @@ export default function DepartmentOverview({
           <div className="pd-vault-slot">
             {renderDeptCard(vaultCard, cardProps)}
           </div>
-          <div className="pd-vault-board-top">
+          <div className="pd-vault-board-kpi">
             {kpi}
-            <div className="pd-dept-grid pd-dept-grid--top3">
-              {topProduction.map((card) => renderDeptCard(card, cardProps))}
-            </div>
+          </div>
+          <div className="pd-dept-grid pd-dept-grid--top3">
+            {topProduction.map((card) => renderDeptCard(card, cardProps))}
           </div>
           <div className="pd-stamp-slot">
             {stampingCard ? renderDeptCard(stampingCard, cardProps) : null}
