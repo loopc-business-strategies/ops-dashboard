@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import {
   createInventoryProductForm,
   decodeInventoryCategoryMeta,
@@ -63,15 +64,41 @@ export default function ERPStockMasterTab({
     }
   })
 
+  const preferredMetalOrder = ['Gold', 'Silver', 'Alloy', 'Copper', 'Cadmium', 'Platinum', 'Palladium']
   const products = (inventoryCatalogProducts || []).map((item) => {
     const meta = decodeInventoryCategoryPairs(item.category)
+    const metal = titleCaseWords(meta.mainStock || meta.metalType || meta.productCategory || 'Unmapped')
     return {
       item,
       meta,
-      metal: titleCaseWords(meta.mainStock || meta.metalType || meta.productCategory || 'Unmapped'),
+      metal,
+      metalLabel: String(metal || '').toLowerCase(),
       qty: Math.max(0, Number(item.quantity || 0)),
     }
   })
+  const productCategoryGroups = (() => {
+    const metalRank = (metal) => {
+      const idx = preferredMetalOrder.findIndex((name) => name.toLowerCase() === String(metal || '').toLowerCase())
+      return idx === -1 ? preferredMetalOrder.length : idx
+    }
+    const groups = new Map()
+    products.forEach((product) => {
+      const key = product.metal || 'Unmapped'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(product)
+    })
+    return [...groups.entries()]
+      .sort((a, b) => {
+        const rankDiff = metalRank(a[0]) - metalRank(b[0])
+        if (rankDiff !== 0) return rankDiff
+        return String(a[0]).localeCompare(String(b[0]))
+      })
+      .map(([metal, rows]) => ({
+        metal,
+        metalLabel: String(metal || '').toLowerCase(),
+        products: rows,
+      }))
+  })()
 
   const actionBtn = (kind) => ({
     padding: '0.22rem 0.55rem',
@@ -172,7 +199,9 @@ export default function ERPStockMasterTab({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.5rem' }}>
             <div>
               <p style={{ margin: 0, fontWeight: 800, color: C.ink, fontSize: '1rem' }}>Products</p>
-              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.78rem' }}>Catalog items under each stock type.</p>
+              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.78rem' }}>
+                Grouped by metal category — products listed under each category.
+              </p>
             </div>
             <span style={{ padding: '0.25rem 0.55rem', background: '#FFEDD5', color: '#9A3412', borderRadius: '999px', fontWeight: 700, fontSize: '0.72rem' }}>
               {products.length}
@@ -188,7 +217,6 @@ export default function ERPStockMasterTab({
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Name</th>
-                    <th style={{ textAlign: 'left' }}>Category</th>
                     <th className="num">Qty</th>
                     <th style={{ textAlign: 'left' }}>Purity</th>
                     <th style={{ textAlign: 'left' }}>VAT</th>
@@ -196,28 +224,45 @@ export default function ERPStockMasterTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map(({ item, meta, metal, qty }) => (
-                    <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: qty <= 0 ? '#FFFBEB' : undefined }}>
-                      <td style={{ padding: '0.45rem 0.6rem', fontWeight: 600, color: C.ink }}>{item.name}</td>
-                      <td style={{ padding: '0.45rem 0.6rem', color: C.inkSoft, fontSize: '0.78rem', textTransform: 'lowercase' }}>{metal}</td>
-                      <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', fontWeight: 700, color: qty <= 0 ? '#B45309' : '#065F46' }}>
-                        {qty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-                      </td>
-                      <td style={{ padding: '0.45rem 0.6rem', color: C.inkSoft, fontSize: '0.78rem' }}>
-                        {meta.productPurity || meta.purity || '—'}
-                      </td>
-                      <td style={{ padding: '0.45rem 0.6rem', color: C.inkSoft, fontSize: '0.78rem' }}>
-                        {formatVatPercent(meta.vatPercent)}
-                      </td>
-                      <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.3rem' }}>
-                          <button type="button" style={actionBtn('edit')} onClick={() => handleEditInventoryCatalogProduct(item, meta)}>Edit</button>
-                          {canDelete && (
-                            <button type="button" style={actionBtn('delete')} onClick={() => handleDeleteInventoryCatalogProduct(item)}>Delete</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                  {productCategoryGroups.map((group, groupIndex) => (
+                    <Fragment key={group.metal}>
+                      <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '2px solid #F1F5F9' : undefined }}>
+                        <td
+                          colSpan={5}
+                          style={{
+                            padding: '0.45rem 0.6rem',
+                            fontWeight: 800,
+                            color: C.ink,
+                            textTransform: 'lowercase',
+                            borderRight: 'none',
+                          }}
+                        >
+                          {group.metalLabel}
+                        </td>
+                      </tr>
+                      {group.products.map(({ item, meta, qty }) => (
+                        <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: qty <= 0 ? '#FFFBEB' : undefined }}>
+                          <td style={{ padding: '0.45rem 0.6rem 0.45rem 1.15rem', fontWeight: 600, color: C.ink }}>{item.name}</td>
+                          <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', fontWeight: 700, color: qty <= 0 ? '#B45309' : '#065F46' }}>
+                            {qty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.6rem', color: C.inkSoft, fontSize: '0.78rem' }}>
+                            {meta.productPurity || meta.purity || '—'}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.6rem', color: C.inkSoft, fontSize: '0.78rem' }}>
+                            {formatVatPercent(meta.vatPercent)}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '0.3rem' }}>
+                              <button type="button" style={actionBtn('edit')} onClick={() => handleEditInventoryCatalogProduct(item, meta)}>Edit</button>
+                              {canDelete && (
+                                <button type="button" style={actionBtn('delete')} onClick={() => handleDeleteInventoryCatalogProduct(item)}>Delete</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
