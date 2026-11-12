@@ -4,11 +4,17 @@ const {
   isMongooseConnected,
   disconnectMongooseIfConnected,
 } = require('./mongoMemoryTestServer')
-const { createAlloyMixService } = require('../services/erpAccounting/alloyMixService')
+const {
+  createAlloyMixService,
+  ALLOY_METAL_LOSS_MAPPING_TYPE,
+} = require('../services/erpAccounting/alloyMixService')
 const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
 const User = require('../models/User')
 const ChartOfAccount = require('../models/ChartOfAccount')
+const AccountMapping = require('../models/AccountMapping')
+const Ledger = require('../models/Ledger')
+const Transaction = require('../models/Transaction')
 
 let mongo
 
@@ -28,6 +34,9 @@ afterEach(async () => {
     InventoryItem.deleteMany({}),
     StockMovement.deleteMany({}),
     ChartOfAccount.deleteMany({}),
+    AccountMapping.deleteMany({}),
+    Ledger.deleteMany({}),
+    Transaction.deleteMany({}),
     User.deleteMany({}),
   ])
 })
@@ -302,5 +311,118 @@ describe('alloy mix inventory', () => {
       finishedProductId: finished._id,
       lines: [{ itemId: fineGold._id, gross: 100, role: 'gold' }],
     })).rejects.toMatchObject({ status: 400 })
+  })
+
+  test('posts oxidation metal loss when input gross exceeds finished', async () => {
+    const user = await User.create({
+      name: 'alloy-loss-user',
+      email: 'alloy-loss@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const invAcct = await ChartOfAccount.create({
+      accountName: 'Metal Inventory',
+      accountCode: '1300',
+      accountType: 'Asset',
+      createdBy: user._id,
+    })
+    const lossAcct = await ChartOfAccount.create({
+      accountName: 'Metal Loss',
+      accountCode: '5500',
+      accountType: 'Expense',
+      createdBy: user._id,
+    })
+    await AccountMapping.create({
+      mappingType: ALLOY_METAL_LOSS_MAPPING_TYPE,
+      debitAccountId: lossAcct._id,
+      creditAccountId: invAcct._id,
+      description: 'Alloy oxidation loss',
+      isActive: true,
+    })
+
+    const fineGold = await InventoryItem.create({
+      name: 'Gold 24K Bar',
+      category: 'mainStock=gold;recordType=product;productPurity=1',
+      quantity: 200,
+      unit: 'grams',
+      unitCost: 100,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: fineGold._id,
+      itemName: fineGold.name,
+      change: 200,
+      quantityBefore: 0,
+      quantityAfter: 200,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+    const finished = await InventoryItem.create({
+      name: '18K Alloyed Gold',
+      category: 'mainStock=alloy;recordType=product;productPurity=0.75',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+
+    const svc = createAlloyMixService({
+      InventoryItem,
+      StockMovement,
+      Ledger,
+      AccountMapping,
+      Transaction,
+      ChartOfAccount,
+      assertAccountingPeriodOpen: async () => {},
+    })
+
+    // Consume 100 g gold into 96 g finished → 4 g oxidation loss.
+    const result = await svc.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 18,
+      targetGross: 96,
+      finishedProductId: finished._id,
+      lines: [{
+        itemId: fineGold._id,
+        gross: 100,
+        remainGross: 96,
+        role: 'gold',
+        label: 'gold',
+      }],
+      description: 'Gold alloy mix (18K 96 g · updated)',
+    })
+
+    expect(result.metalLossGross).toBeCloseTo(4, 3)
+    expect(result.metalLossBookValue).toBeCloseTo(400, 1)
+    expect(result.bookValue).toBeCloseTo(9600, 1)
+    expect(Number((await InventoryItem.findById(fineGold._id)).quantity)).toBeCloseTo(100, 3)
+    expect(Number((await InventoryItem.findById(finished._id)).quantity)).toBeCloseTo(96, 3)
+
+    const lossLedgers = await Ledger.find({
+      isDeleted: { $ne: true },
+      debitAccountId: lossAcct._id,
+    })
+    expect(lossLedgers.length).toBeGreaterThanOrEqual(1)
+    const lossSum = lossLedgers.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    expect(lossSum).toBeCloseTo(400, 1)
+
+    const positionTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.partyAccountId': lossAcct._id,
+    }).lean()
+    expect(positionTxs).toHaveLength(1)
+    expect(positionTxs[0].status).toBe('posted')
+    expect(Number(positionTxs[0].amount)).toBe(0)
+    expect(positionTxs[0].voucherMeta?.fixingType).toBe('non-fixing')
+    expect(positionTxs[0].voucherMeta?.lineItems).toHaveLength(1)
+    expect(Number(positionTxs[0].voucherMeta?.lineItems?.[0]?.pureWeight)).toBeCloseTo(4, 3)
+    expect(String(positionTxs[0].voucherMeta?.lineItems?.[0]?.stockCode || '')).toBe('XAU')
   })
 })

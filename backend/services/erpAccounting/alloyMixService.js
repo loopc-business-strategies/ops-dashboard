@@ -1,6 +1,7 @@
 /**
  * Atomic gold-alloy mix: consume input catalog products, receive finished alloy product.
  * Cost rolls from inputs onto finished (metal_transfer-style), no COGS.
+ * When input gross > finished gross (oxidation), the gap posts to mapping alloy_metal_loss.
  */
 
 const { withSession, writeOpts, runInTransaction } = require('../../utils/mongoTransaction')
@@ -14,6 +15,8 @@ const { assertAndConsumeVaultLotsForStockOut } = require('./voucherProductionSto
 
 const GROSS_EPS = 0.0005
 const QTY_EPS = 1e-9
+/** AccountMapping.mappingType for oxidation / melting metal loss on alloy Update. */
+const ALLOY_METAL_LOSS_MAPPING_TYPE = 'alloy_metal_loss'
 
 function toQty(n) {
   return Math.round(Number(n || 0) * 1000) / 1000
@@ -50,16 +53,147 @@ function httpError(status, message) {
   return err
 }
 
+function resolveLossMetalStockCode({ role = '', label = '', name = '', category = '' } = {}) {
+  const blob = `${role} ${label} ${name} ${category}`.toLowerCase()
+  if (/\b(silv|xag|ag)\b/.test(blob) || blob.includes('silver')) return 'XAG'
+  if (/\b(plat|xpt)\b/.test(blob) || blob.includes('platinum')) return 'XPT'
+  if (/\b(pall|xpd)\b/.test(blob) || blob.includes('palladium')) return 'XPD'
+  // Copper / base alloy — still tracked as gold bucket unless clearly silver.
+  return 'XAU'
+}
+
+function alloyMetalLossPositionRef(reasonBase = '') {
+  return `alloy-metal-loss:${String(reasonBase || '').trim()}`
+}
+
 function createAlloyMixService({
   InventoryItem,
   StockMovement,
   Ledger,
+  AccountMapping,
+  Transaction,
+  ChartOfAccount,
   assertAccountingPeriodOpen,
   allowedTenants = ['mg'],
 } = {}) {
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
     ? assertAccountingPeriodOpen
     : async () => {}
+
+  async function resolveAlloyMetalLossMapping(session = null) {
+    if (!AccountMapping) return null
+    return withSession(
+      AccountMapping.findOne({ mappingType: ALLOY_METAL_LOSS_MAPPING_TYPE, isActive: true })
+        .select('debitAccountId creditAccountId mappingType description')
+        .lean(),
+      session,
+    )
+  }
+
+  async function postMetalLossPositionVoucher({
+    user,
+    session,
+    stockDate,
+    reasonBase,
+    metalLossMapping,
+    lossLines = [],
+  }) {
+    if (!Transaction || !(metalLossMapping?.debitAccountId) || !lossLines.length) return null
+
+    let party = null
+    if (ChartOfAccount) {
+      party = await withSession(
+        ChartOfAccount.findById(metalLossMapping.debitAccountId)
+          .select('accountCode accountName')
+          .lean(),
+        session,
+      )
+    }
+
+    const weightedLines = lossLines
+      .filter((row) => Number(row.lossGross) > GROSS_EPS)
+      .map((row) => {
+        const lossGross = toQty(row.lossGross)
+        const stockCode = resolveLossMetalStockCode(row)
+        return {
+          inventoryItemId: row.itemId || null,
+          stockCode,
+          productType: row.name || row.label || '',
+          grossWeight: lossGross,
+          purity: 1,
+          pureWeight: lossGross,
+          narration: `Alloy metal loss ${lossGross} g ${row.name || row.label || stockCode}`,
+          currCode: 'USD',
+          currRate: 1,
+        }
+      })
+    if (!weightedLines.length) return null
+
+    // One metal_payment per metal so Gold/Silver statements never share a voucher row.
+    const createdIds = []
+    for (let i = 0; i < weightedLines.length; i += 1) {
+      const line = weightedLines[i]
+      const vocSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}${i}`
+      const [created] = await Transaction.create([{
+        type: 'metal_payment',
+        amount: 0,
+        date: stockDate,
+        description: `${reasonBase}: metal loss position (${line.stockCode})`,
+        currency: 'USD',
+        exchangeRate: 1,
+        debitAccountId: metalLossMapping.debitAccountId,
+        creditAccountId: metalLossMapping.creditAccountId || null,
+        mappingId: metalLossMapping._id || null,
+        status: 'posted',
+        createdBy: user._id,
+        updatedBy: user._id,
+        postedBy: user._id,
+        voucherMeta: {
+          partyAccountId: metalLossMapping.debitAccountId,
+          partyCode: String(party?.accountCode || '').trim(),
+          partyName: String(party?.accountName || 'Metal Loss').trim(),
+          vocNo: `AML-${vocSuffix}`,
+          refNo: alloyMetalLossPositionRef(reasonBase),
+          fixingType: 'non-fixing',
+          hedge: false,
+          docDate: stockDate,
+          valueDate: stockDate,
+          postedDate: stockDate,
+          lineItems: [line],
+        },
+        auditTrail: [{
+          action: 'posted',
+          fromStatus: 'draft',
+          toStatus: 'posted',
+          comment: `Alloy oxidation metal-loss position ${line.stockCode} (unfixed grams, no cash)`,
+          actorId: user._id,
+        }],
+      }], writeOpts(session))
+      if (created?._id) createdIds.push(String(created._id))
+    }
+
+    return createdIds.length ? { _id: createdIds[0], ids: createdIds } : null
+  }
+
+  async function reverseMetalLossPositionVouchers({ user, session, reasonBase, deletedAt }) {
+    if (!Transaction) return 0
+    const refNo = alloyMetalLossPositionRef(reasonBase)
+    const txs = await withSession(
+      Transaction.find({
+        isDeleted: { $ne: true },
+        type: 'metal_payment',
+        'voucherMeta.refNo': refNo,
+      }),
+      session,
+    )
+    for (const tx of txs || []) {
+      tx.isDeleted = true
+      tx.deletedAt = deletedAt
+      tx.updatedBy = user._id
+      await tx.save(writeOpts(session))
+    }
+    return (txs || []).length
+  }
 
   async function postAlloyMix({
     user,
@@ -89,23 +223,52 @@ function createAlloyMixService({
     }
 
     const inputLines = (Array.isArray(lines) ? lines : [])
-      .map((line) => ({
-        itemId: String(line?.itemId || line?.stockId || '').trim(),
-        gross: Number(line?.gross || 0),
-        role: String(line?.role || '').trim().toLowerCase(),
-        label: String(line?.label || line?.role || '').trim(),
-      }))
+      .map((line) => {
+        const gross = Number(line?.gross || 0)
+        const remainRaw = line?.remainGross
+        const remainGross = remainRaw === '' || remainRaw == null
+          ? null
+          : Number(remainRaw)
+        return {
+          itemId: String(line?.itemId || line?.stockId || '').trim(),
+          gross,
+          remainGross: Number.isFinite(remainGross) ? remainGross : null,
+          role: String(line?.role || '').trim().toLowerCase(),
+          label: String(line?.label || line?.role || '').trim(),
+        }
+      })
       .filter((line) => line.itemId && line.gross > GROSS_EPS)
+
+    for (const line of inputLines) {
+      if (line.remainGross == null) continue
+      if (line.remainGross < -GROSS_EPS) {
+        throw httpError(400, `Remaining gross cannot be negative (${line.label || line.itemId})`)
+      }
+      if (line.remainGross > line.gross + GROSS_EPS) {
+        throw httpError(
+          400,
+          `Remaining ${toQty(line.remainGross)} g exceeds consume ${toQty(line.gross)} g`
+          + ` (${line.label || line.itemId})`,
+        )
+      }
+    }
 
     if (inputLines.length < 1) {
       throw httpError(400, 'At least one input stock line with gross weight is required')
     }
 
     const totalInputGross = inputLines.reduce((sum, line) => sum + line.gross, 0)
-    if (Math.abs(totalInputGross - target) > GROSS_EPS) {
+    const metalLossGross = toQty(totalInputGross - target)
+    if (totalInputGross + GROSS_EPS < target) {
       throw httpError(
         400,
-        `Mix not balanced. Input gross ${toQty(totalInputGross)} g vs target ${toQty(target)} g`,
+        `Mix not balanced. Input gross ${toQty(totalInputGross)} g is less than finished ${toQty(target)} g`,
+      )
+    }
+    if (metalLossGross > GROSS_EPS && !AccountMapping) {
+      throw httpError(
+        400,
+        `Metal loss ${metalLossGross} g needs AccountMapping type "${ALLOY_METAL_LOSS_MAPPING_TYPE}"`,
       )
     }
 
@@ -126,6 +289,18 @@ function createAlloyMixService({
     await assertPeriod({ tenant: tenantKey, date: stockDate })
 
     return runInTransaction(async (session) => {
+      let metalLossMapping = null
+      if (metalLossGross > GROSS_EPS) {
+        metalLossMapping = await resolveAlloyMetalLossMapping(session)
+        if (!metalLossMapping?.debitAccountId || !metalLossMapping?.creditAccountId) {
+          throw httpError(
+            400,
+            `Metal loss ${metalLossGross} g: create active mapping "${ALLOY_METAL_LOSS_MAPPING_TYPE}" `
+            + '(debit = Metal Loss expense, credit = Metal Inventory)',
+          )
+        }
+      }
+
       const finished = await withSession(InventoryItem.findById(finishedId), session)
       if (!finished || finished.isDeleted) {
         throw httpError(404, 'Finished product not found')
@@ -204,14 +379,38 @@ function createAlloyMixService({
           actorName: user.name,
         }], writeOpts(session))
 
+        const remainGross = line.remainGross != null
+          ? toQty(Math.max(0, line.remainGross))
+          : null
+        const lossGross = remainGross != null
+          ? toQty(Math.max(0, need - remainGross))
+          : null
         consumed.push({
           itemId: String(item._id),
           name: item.name,
+          category: item.category || '',
+          role: line.role,
+          label: line.label,
           gross: need,
+          remainGross,
+          lossGross,
           unitCost,
           bookValue,
           ledgerAccountId: item.ledgerAccountId || null,
         })
+      }
+
+      const hasPerLineRemain = consumed.some((row) => row.remainGross != null)
+      if (hasPerLineRemain) {
+        const remainSum = toQty(consumed.reduce((sum, row) => (
+          sum + (row.remainGross != null ? Number(row.remainGross) : Number(row.gross))
+        ), 0))
+        if (Math.abs(remainSum - target) > GROSS_EPS) {
+          throw httpError(
+            400,
+            `Remaining metals ${remainSum} g must equal finished target ${toQty(target)} g`,
+          )
+        }
       }
 
       const beforeOut = await catalogOnHandFromMovements(StockMovement, finished._id)
@@ -219,7 +418,25 @@ function createAlloyMixService({
       const outQty = toQty(target)
       const nextOut = toQty(beforeOut + outQty)
       const currentValue = beforeOut * Number(finished.unitCost || 0)
-      const incomingValue = totalBookValue
+      // Oxidation: inputs leave vault in full; only the remaining weight rolls into finished.
+      // Prefer per-line remainGross (e.g. gold 80% / silver 20% of loss); else proportional.
+      const lossRatio = totalInputGross > 0 && metalLossGross > GROSS_EPS
+        ? (metalLossGross / totalInputGross)
+        : 0
+      for (const row of consumed) {
+        if (row.lossGross == null && metalLossGross > GROSS_EPS) {
+          row.lossGross = toQty(row.gross * lossRatio)
+          row.remainGross = toQty(row.gross - row.lossGross)
+        } else if (row.lossGross == null) {
+          row.lossGross = 0
+          row.remainGross = row.gross
+        }
+        row.lineLossRatio = row.gross > GROSS_EPS ? (row.lossGross / row.gross) : 0
+      }
+      const lossBookValue = toMoney(
+        consumed.reduce((sum, row) => sum + (row.bookValue * (row.lineLossRatio || 0)), 0),
+      )
+      const incomingValue = toMoney(totalBookValue - lossBookValue)
       finished.quantity = nextOut
       finished.lastRestockedAt = stockDate
       finished.updatedBy = user._id
@@ -236,23 +453,77 @@ function createAlloyMixService({
         quantityAfter: nextOut,
         valueDelta: incomingValue,
         carriesValue: incomingValue > 0,
-        reason: `${reasonBase} — receive ${finished.name}`,
+        reason: metalLossGross > GROSS_EPS
+          ? `${reasonBase} — receive ${finished.name} (metal loss ${metalLossGross} g)`
+          : `${reasonBase} — receive ${finished.name}`,
         actorId: user._id,
         actorName: user.name,
       }], writeOpts(session))
 
-      // Inventory-to-inventory GL when accounts differ; same account → movements only.
-      if (Ledger && incomingValue > 0 && finished.ledgerAccountId) {
+      // Inventory-to-inventory GL for the finished share; metal loss GL for oxidation.
+      if (Ledger && totalBookValue > 0) {
+        let postedLossValue = 0
         for (const row of consumed) {
-          if (!(row.bookValue > 0) || !row.ledgerAccountId) continue
-          if (String(row.ledgerAccountId) === String(finished.ledgerAccountId)) continue
+          if (!(row.bookValue > 0)) continue
+          const rowLoss = toMoney(row.bookValue * (row.lineLossRatio || 0))
+          const rowFinished = toMoney(row.bookValue - rowLoss)
+
+          if (
+            rowFinished > 0
+            && finished.ledgerAccountId
+            && row.ledgerAccountId
+            && String(row.ledgerAccountId) !== String(finished.ledgerAccountId)
+          ) {
+            await Ledger.create([{
+              date: stockDate,
+              debitAccountId: finished.ledgerAccountId,
+              creditAccountId: row.ledgerAccountId,
+              amount: rowFinished,
+              description: `${reasonBase}: ${row.name} → ${finished.name}`,
+              referenceType: 'inventory',
+              createdBy: user._id,
+              updatedBy: user._id,
+              department: user.department || '',
+              currency: 'USD',
+              exchangeRate: 1,
+            }], writeOpts(session))
+          }
+
+          if (rowLoss > 0 && metalLossMapping?.debitAccountId) {
+            const creditId = row.ledgerAccountId || metalLossMapping.creditAccountId
+            if (creditId) {
+              await Ledger.create([{
+                date: stockDate,
+                debitAccountId: metalLossMapping.debitAccountId,
+                creditAccountId: creditId,
+                amount: rowLoss,
+                description: `${reasonBase}: metal loss ${toQty(row.lossGross || 0)} g ${row.name}`,
+                referenceType: 'inventory',
+                createdBy: user._id,
+                updatedBy: user._id,
+                department: user.department || '',
+                currency: 'USD',
+                exchangeRate: 1,
+              }], writeOpts(session))
+              postedLossValue = toMoney(postedLossValue + rowLoss)
+            }
+          }
+        }
+
+        // No per-input ledger account: one loss entry vs mapped inventory credit.
+        if (
+          lossBookValue > 0
+          && postedLossValue + 0.005 < lossBookValue
+          && metalLossMapping?.debitAccountId
+          && metalLossMapping?.creditAccountId
+        ) {
           await Ledger.create([{
             date: stockDate,
-            debitAccountId: finished.ledgerAccountId,
-            creditAccountId: row.ledgerAccountId,
-            amount: row.bookValue,
-            description: `${reasonBase}: ${row.name} → ${finished.name}`,
-              referenceType: 'inventory',
+            debitAccountId: metalLossMapping.debitAccountId,
+            creditAccountId: metalLossMapping.creditAccountId,
+            amount: toMoney(lossBookValue - postedLossValue),
+            description: `${reasonBase}: metal loss ${metalLossGross} g`,
+            referenceType: 'inventory',
             createdBy: user._id,
             updatedBy: user._id,
             department: user.department || '',
@@ -262,10 +533,35 @@ function createAlloyMixService({
         }
       }
 
+      let metalLossPositionId = null
+      if (metalLossGross > GROSS_EPS && metalLossMapping?.debitAccountId) {
+        const positionTx = await postMetalLossPositionVoucher({
+          user,
+          session,
+          stockDate,
+          reasonBase,
+          metalLossMapping,
+          lossLines: consumed.filter((row) => Number(row.lossGross) > GROSS_EPS),
+        })
+        metalLossPositionId = positionTx?._id ? String(positionTx._id) : null
+      }
+
       return {
         success: true,
         karat: karatNum,
         targetGross: outQty,
+        metalLossGross: metalLossGross > GROSS_EPS ? metalLossGross : 0,
+        metalLossBookValue: lossBookValue,
+        metalLossPositionId,
+        metalLossByMetal: consumed
+          .filter((row) => Number(row.lossGross) > GROSS_EPS)
+          .map((row) => ({
+            itemId: row.itemId,
+            name: row.name,
+            stockCode: resolveLossMetalStockCode(row),
+            lossGross: toQty(row.lossGross),
+            remainGross: toQty(row.remainGross),
+          })),
         finishedProduct: {
           id: String(finished._id),
           name: finished.name,
@@ -390,6 +686,13 @@ function createAlloyMixService({
         }
       }
 
+      await reverseMetalLossPositionVouchers({
+        user,
+        session,
+        reasonBase,
+        deletedAt,
+      })
+
       // Recompute qty from the in-txn movement set (aggregate outside the
       // session would miss uncommitted soft-deletes), then rebuild before/after
       // on remaining rows so history matches on-hand after soft-delete.
@@ -430,4 +733,5 @@ function createAlloyMixService({
 module.exports = {
   createAlloyMixService,
   GROSS_EPS,
+  ALLOY_METAL_LOSS_MAPPING_TYPE,
 }

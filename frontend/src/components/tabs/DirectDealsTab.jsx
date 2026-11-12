@@ -103,6 +103,7 @@ const DEAL_HISTORY_COLORS = { confirmed: '#065F46', reopened: '#B45309', edited:
 
 const makeLine = () => ({
   customerId: '',
+  partyAccountId: '',
   customerCode: '',
   customerName: '',
   direction: 'buy',
@@ -114,6 +115,31 @@ const makeLine = () => ({
   amount: '',
   notes: '',
 })
+
+const partyOptionValue = (party) => {
+  if (String(party?.partyKind || '') === 'account') {
+    return `account:${String(party?.partyAccountId || party?._id || '')}`
+  }
+  return String(party?._id || '')
+}
+
+const resolvePartySelection = (party) => {
+  if (!party) return { customerId: '', partyAccountId: '', customerCode: '', customerName: '' }
+  if (String(party.partyKind || '') === 'account') {
+    return {
+      customerId: '',
+      partyAccountId: String(party.partyAccountId || party._id || ''),
+      customerCode: customerAccountCode(party),
+      customerName: party.name || '',
+    }
+  }
+  return {
+    customerId: String(party._id || ''),
+    partyAccountId: '',
+    customerCode: customerAccountCode(party),
+    customerName: party.name || '',
+  }
+}
 
 const IMPORT_TEMPLATE_HEADERS = [
   'CustomerCode',
@@ -209,6 +235,7 @@ export default function DirectDealsTab({
   const [deletingId, setDeletingId] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [partyOptions, setPartyOptions] = useState(() => (Array.isArray(customers) ? customers : []))
 
   const [deals, setDeals] = useState([])
   const [summary, setSummary] = useState({ totalQty: 0, totalAmount: 0, fixing: 0, nonFixing: 0 })
@@ -277,6 +304,25 @@ export default function DirectDealsTab({
   }, [token, filters, t])
 
   useEffect(() => { loadDeals() }, [loadDeals])
+
+  useEffect(() => {
+    setPartyOptions(Array.isArray(customers) ? customers : [])
+  }, [customers])
+
+  useEffect(() => {
+    if (!token) return undefined
+    let cancelled = false
+    erpAccountingAPI.getDirectDealParties(token)
+      .then((res) => {
+        if (cancelled) return
+        const parties = Array.isArray(res?.parties) ? res.parties : []
+        if (parties.length) setPartyOptions(parties)
+      })
+      .catch(() => {
+        // Keep customers prop fallback when parties endpoint is unavailable.
+      })
+    return () => { cancelled = true }
+  }, [token])
 
   useEffect(() => {
     const fromProp = (Array.isArray(currenciesProp) ? currenciesProp : []).find((c) => c.baseCurrency)
@@ -349,7 +395,7 @@ export default function DirectDealsTab({
   const normalizePreviewRow = (row, idx) => {
     const customerCode = String(row.customerCode || '').trim()
     const customerName = String(row.customerName || '').trim()
-    const matchedCustomer = customers.find((c) => {
+    const matchedCustomer = partyOptions.find((c) => {
       const byCode = customerCode && customerAccountCode(c).toLowerCase() === customerCode.toLowerCase()
       const byName = customerName && String(c.name || '').trim().toLowerCase() === customerName.toLowerCase()
       const byId = row.customerId && String(c._id) === String(row.customerId)
@@ -362,11 +408,23 @@ export default function DirectDealsTab({
     const amount = Number(row.amount || (eqOz * price) || 0)
     const moneyCur = String(form.currency || row.currency || baseCurrencyCode || 'USD').toUpperCase()
 
+    const partyFields = matchedCustomer
+      ? resolvePartySelection(matchedCustomer)
+      : {
+        customerId: row.customerId || '',
+        partyAccountId: row.partyAccountId || '',
+        customerCode,
+        customerName,
+      }
+    if (matchedCustomer && String(matchedCustomer.partyKind || '') === 'account') {
+      partyFields.customerId = partyOptionValue(matchedCustomer)
+    }
+
     const normalized = {
       rowNo: row.rowNo || idx + 2,
-      customerId: matchedCustomer?._id || row.customerId || '',
-      customerCode: customerCode || customerAccountCode(matchedCustomer) || '',
-      customerName: customerName || matchedCustomer?.name || '',
+      ...partyFields,
+      customerCode: customerCode || partyFields.customerCode || '',
+      customerName: customerName || partyFields.customerName || '',
       direction: String(row.direction || '').toLowerCase(),
       metal: String(row.metal || 'XAU').toUpperCase(),
       qty: String(row.qty || ''),
@@ -406,10 +464,12 @@ export default function DirectDealsTab({
         if (i !== idx) return line
         const updated = { ...line, [key]: value }
         if (key === 'customerId') {
-          const customer = customers.find((c) => String(c._id) === String(value))
-          if (customer) {
-            updated.customerCode = customerAccountCode(customer)
-            updated.customerName = customer.name || ''
+          const party = partyOptions.find((c) => partyOptionValue(c) === String(value))
+            || partyOptions.find((c) => String(c._id) === String(value))
+          Object.assign(updated, resolvePartySelection(party))
+          // Keep select value stable for account parties until save resolves a customer id.
+          if (String(party?.partyKind || '') === 'account') {
+            updated.customerId = partyOptionValue(party)
           }
         }
         if (key === 'qty' || key === 'price' || key === 'stockCode') {
@@ -529,6 +589,7 @@ export default function DirectDealsTab({
 
     const parsedLines = importPreviewRows.map((row) => ({
       customerId: row.customerId,
+      partyAccountId: row.partyAccountId || '',
       customerCode: row.customerCode,
       customerName: row.customerName,
       direction: row.direction,
@@ -820,10 +881,10 @@ export default function DirectDealsTab({
       },
     ]
 
-    const customerRefRows = customers.map((c) => ({
-      CustomerCode: c.code || '',
+    const customerRefRows = partyOptions.map((c) => ({
+      CustomerCode: customerAccountCode(c) || c.code || '',
       CustomerName: c.name || '',
-      CustomerId: c._id || '',
+      CustomerId: partyOptionValue(c) || '',
     }))
 
     const instructionsRows = [
@@ -863,6 +924,7 @@ export default function DirectDealsTab({
       remarks: deal.remarks || '',
       lineItems: (deal.lineItems || []).map((line) => ({
         customerId: line.customerId?._id || line.customerId || '',
+        partyAccountId: line.partyAccountId || '',
         customerCode: line.customerCode || '',
         customerName: line.customerName || '',
         direction: line.direction || 'buy',
@@ -898,7 +960,8 @@ export default function DirectDealsTab({
     if (!form.lineItems.length) return 'At least one line item is required'
 
     for (const [idx, line] of form.lineItems.entries()) {
-      if (!line.customerId) return `Line ${idx + 1}: customer is required`
+      const hasParty = Boolean(String(line.customerId || '').trim() || String(line.partyAccountId || '').trim())
+      if (!hasParty) return `Line ${idx + 1}: customer is required`
       if (!line.direction || !['buy', 'sell'].includes(line.direction)) return `Line ${idx + 1}: direction must be Buy or Sell`
       if (!line.metal) return `Line ${idx + 1}: metal is required`
       if (toNumber(line.qty) <= 0) return `Line ${idx + 1}: quantity must be greater than zero`
@@ -959,14 +1022,21 @@ export default function DirectDealsTab({
       const payload = {
         ...form,
         status: statusOverride || form.status,
-        lineItems: form.lineItems.map((line) => ({
-          ...line,
-          qty: toNumber(line.qty),
-          stockCode: normalizeStockCode(line.stockCode),
-          price: toNumber(line.price),
-          eqOz: toNumber(line.eqOz || calcEqOzFromQtyAndStock(toNumber(line.qty), normalizeStockCode(line.stockCode))),
-          amount: toNumber(line.amount || calcAmountFromWeightAndPrice(toNumber(line.qty), normalizeStockCode(line.stockCode), toNumber(line.price))),
-        })),
+        lineItems: form.lineItems.map((line) => {
+          const rawCustomerId = String(line.customerId || '').trim()
+          const isAccountParty = rawCustomerId.startsWith('account:')
+          const partyAccountId = String(line.partyAccountId || (isAccountParty ? rawCustomerId.slice('account:'.length) : '')).trim()
+          return {
+            ...line,
+            customerId: isAccountParty ? '' : rawCustomerId,
+            partyAccountId: partyAccountId || undefined,
+            qty: toNumber(line.qty),
+            stockCode: normalizeStockCode(line.stockCode),
+            price: toNumber(line.price),
+            eqOz: toNumber(line.eqOz || calcEqOzFromQtyAndStock(toNumber(line.qty), normalizeStockCode(line.stockCode))),
+            amount: toNumber(line.amount || calcAmountFromWeightAndPrice(toNumber(line.qty), normalizeStockCode(line.stockCode), toNumber(line.price))),
+          }
+        }),
       }
 
       if (editingId) {
@@ -1320,8 +1390,10 @@ export default function DirectDealsTab({
                               disabled={viewMode !== 'EDIT' || !hasManage || saving}
                             >
                               <option value="">Select customer</option>
-                              {customers.map((customer) => (
-                                <option key={customer._id} value={customer._id}>{customerDisplayLabel(customer)}</option>
+                              {partyOptions.map((customer) => (
+                                <option key={partyOptionValue(customer)} value={partyOptionValue(customer)}>
+                                  {customerDisplayLabel(customer)}
+                                </option>
                               ))}
                             </select>
                           </td>

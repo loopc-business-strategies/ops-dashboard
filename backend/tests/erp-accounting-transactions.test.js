@@ -988,6 +988,74 @@ describe('ERP accounting transactions workflow', () => {
     expect(ledgers).toHaveLength(0)
   })
 
+  test('account enquiry splits mixed metal_payment lines by metal on the statement', async () => {
+    const financeUser = await createUser({ name: 'Finance Mixed Metal Payment Enquiry' })
+    const partyAccount = await ChartOfAccount.create({
+      accountName: 'Metal Loss Mixed',
+      accountCode: '5599',
+      accountType: 'Expense',
+      createdBy: financeUser._id,
+    })
+
+    // Alloy oxidation posts a zero-amount metal_payment with mixed lines (no stock bridge).
+    await Transaction.create({
+      type: 'metal_payment',
+      amount: 0,
+      description: 'Alloy oxidation mixed metal loss',
+      currency: 'USD',
+      exchangeRate: 1,
+      debitAccountId: partyAccount._id,
+      status: 'posted',
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+      postedBy: financeUser._id,
+      voucherMeta: {
+        vocNo: 'MPay/2026/0199',
+        partyAccountId: partyAccount._id,
+        partyCode: '5599',
+        partyName: 'Metal Loss Mixed',
+        fixingType: 'non-fixing',
+        lineItems: [
+          {
+            stockCode: 'XAU',
+            productType: 'Gold 24K Bar',
+            grossWeight: 15.336,
+            purity: 1,
+            pureWeight: 15.336,
+            narration: 'Alloy metal loss 15.336 g Gold 24K Bar',
+          },
+          {
+            stockCode: 'XAG',
+            productType: 'Fine Silver',
+            grossWeight: 3.834,
+            purity: 1,
+            pureWeight: 3.834,
+            narration: 'Alloy metal loss 3.834 g Fine Silver',
+          },
+        ],
+      },
+    })
+
+    const enquiryRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '5599', includeStatement: 'true' })
+      .set(authHeader(financeUser))
+
+    expect(enquiryRes.status).toBe(200)
+    expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(15.336, 3)
+    expect(Number(enquiryRes.body.metals?.silverBalance || 0)).toBeCloseTo(3.834, 3)
+
+    const transferRows = (enquiryRes.body.statement?.entries || []).filter(
+      (entry) => String(entry.sourceTransactionNumber || '').includes('MPay/2026/0199'),
+    )
+    expect(transferRows).toHaveLength(2)
+    const goldRow = transferRows.find((row) => String(row.metalCode || '').toUpperCase() === 'XAU')
+    const silverRow = transferRows.find((row) => String(row.metalCode || '').toUpperCase() === 'XAG')
+    expect(Number(goldRow?.metalSignedWeight || 0)).toBeCloseTo(15.336, 3)
+    expect(Number(silverRow?.metalSignedWeight || 0)).toBeCloseTo(3.834, 3)
+    expect(String(silverRow?.lineNarration || '')).toMatch(/3\.834 g Fine Silver/)
+  })
+
   test('voiding posted purchase soft-deletes ledgers and reverses inventory', async () => {
     const financeUser = await createUser({ name: 'Finance Void Purchase' })
     const payableAccount = await ChartOfAccount.create({

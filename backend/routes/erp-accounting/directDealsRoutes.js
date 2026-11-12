@@ -12,6 +12,8 @@ const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
 const directDealLineSchema = Joi.object({
   customerId: objectId.allow('', null).optional(),
+  /** Chart account id when selecting an expense party (e.g. Metal Loss 5500). */
+  partyAccountId: objectId.allow('', null).optional(),
   customerCode: Joi.string().trim().allow('').max(80).optional(),
   customerName: Joi.string().trim().allow('').max(200).optional(),
   direction: Joi.string().valid('buy', 'sell').required(),
@@ -47,6 +49,8 @@ function registerDirectDealsRoutes(deps) {
     protect,
     DirectDeal,
     Ledger,
+    Customer,
+    ChartOfAccount,
     _canAccessDirectDeals,
     canReadDirectDeals,
     canManageDirectDeals,
@@ -65,6 +69,75 @@ function registerDirectDealsRoutes(deps) {
   const assertPeriod = typeof assertAccountingPeriodOpen === 'function'
     ? assertAccountingPeriodOpen
     : async () => {}
+
+  /** Customers plus expense chart accounts (e.g. Metal Loss 5500) for the party dropdown. */
+  router.get('/direct-deals/parties', protect, async (req, res) => {
+    try {
+      if (!canReadDirectDeals(req.user)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
+      if (!Customer || !ChartOfAccount) {
+        return res.status(500).json({ success: false, message: 'Party lookup is not configured' })
+      }
+
+      const [customers, expenseAccounts] = await Promise.all([
+        Customer.find({ isActive: true })
+          .populate('ledgerAccountId', 'accountCode accountName accountType isActive')
+          .sort({ name: 1 })
+          .lean(),
+        ChartOfAccount.find({
+          isActive: true,
+          accountType: { $regex: /^expense$/i },
+        })
+          .select('_id accountCode accountName accountType currency isActive')
+          .sort({ accountCode: 1 })
+          .lean(),
+      ])
+
+      const byLedgerId = new Map()
+      for (const customer of customers) {
+        const ledgerId = String(customer?.ledgerAccountId?._id || customer?.ledgerAccountId || '').trim()
+        if (ledgerId) byLedgerId.set(ledgerId, customer)
+      }
+
+      const parties = customers.map((customer) => ({
+        ...customer,
+        partyKind: 'customer',
+      }))
+
+      for (const account of expenseAccounts) {
+        const accountId = String(account._id)
+        if (byLedgerId.has(accountId)) continue
+        parties.push({
+          _id: accountId,
+          name: account.accountName,
+          partyKind: 'account',
+          partyAccountId: accountId,
+          ledgerAccountId: {
+            _id: account._id,
+            accountCode: account.accountCode,
+            accountName: account.accountName,
+            accountType: account.accountType,
+            isActive: account.isActive !== false,
+          },
+        })
+      }
+
+      parties.sort((left, right) => {
+        const leftCode = String(left?.ledgerAccountId?.accountCode || '').trim()
+        const rightCode = String(right?.ledgerAccountId?.accountCode || '').trim()
+        if (leftCode && rightCode && leftCode !== rightCode) {
+          return leftCode.localeCompare(rightCode, undefined, { numeric: true })
+        }
+        return String(left?.name || '').localeCompare(String(right?.name || ''))
+      })
+
+      res.json({ success: true, parties })
+    } catch (error) {
+      console.error('[direct-deals/parties] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+  })
 
   router.get('/direct-deals', protect, async (req, res) => {
     try {
@@ -153,7 +226,9 @@ function registerDirectDealsRoutes(deps) {
       const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
       const resolvedCurrency = String(currency || baseCurrencyCode).trim().toUpperCase() || baseCurrencyCode
 
-      const normalizedLines = await Promise.all(lineItems.map((line, index) => normalizeDirectDealLine(line, index)))
+      const normalizedLines = await Promise.all(
+        lineItems.map((line, index) => normalizeDirectDealLine(line, index, req.user)),
+      )
 
       const totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
       const totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))
@@ -239,7 +314,9 @@ function registerDirectDealsRoutes(deps) {
         if (!Array.isArray(lineItems) || !lineItems.length) {
           return res.status(400).json({ success: false, message: 'At least one line item is required' })
         }
-        const normalizedLines = await Promise.all(lineItems.map((line, index) => normalizeDirectDealLine(line, index)))
+        const normalizedLines = await Promise.all(
+          lineItems.map((line, index) => normalizeDirectDealLine(line, index, req.user)),
+        )
         deal.lineItems = normalizedLines
         deal.totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
         deal.totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))

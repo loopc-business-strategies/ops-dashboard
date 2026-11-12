@@ -485,6 +485,11 @@ export function validateAlloyMixPost({
   }
 }
 
+/**
+ * Build alloy-mix API body.
+ * When a line has originalGross > gross (Update oxidation), consume originalGross
+ * so vault still loses the burned metal; finished target stays at the new gross sum.
+ */
 export function buildAlloyMixPayload({
   karat,
   targetGross,
@@ -496,15 +501,30 @@ export function buildAlloyMixPayload({
     karat: Number(karat),
     targetGross: Number(targetGross),
     finishedProductId: String(finishedProductId || ''),
-    lines: activeAlloyMixLines(lines).map((line) => ({
-      itemId: String(line.stockId),
-      gross: Number(line.gross),
-      role: line.role || '',
-      label: line.label || '',
-    })),
+    lines: activeAlloyMixLines(lines).map((line) => {
+      const remain = Number(line.gross) || 0
+      const original = Number(line.originalGross)
+      const consume = Number.isFinite(original) && original > remain + 0.0005
+        ? original
+        : remain
+      const payload = {
+        itemId: String(line.stockId),
+        gross: consume,
+        role: line.role || '',
+        label: line.label || '',
+      }
+      // Tell the server how much of each metal remains in finished (loss = consume − remain).
+      if (consume > remain + 0.0005) {
+        payload.remainGross = remain
+      }
+      return payload
+    }),
     ...(description ? { description: String(description) } : {}),
   }
 }
+
+/** Mapping type for Gold Alloy Update metal-loss GL (debit expense / credit inventory). */
+export const ALLOY_METAL_LOSS_MAPPING_TYPE = 'alloy_metal_loss'
 
 function alloyMixReasonBase(reason = '') {
   const text = String(reason || '')
