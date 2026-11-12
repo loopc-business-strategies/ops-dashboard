@@ -699,13 +699,6 @@ export default function ERPGoldAlloyTab({
       }
       return
     }
-    const originalMetalGross = roundAlloyGrams(
-      active.reduce((sum, line) => {
-        const original = Number(line.originalGross)
-        const gross = Number(line.gross) || 0
-        return sum + (Number.isFinite(original) && original > 0 ? original : gross)
-      }, 0),
-    )
     const historyOnly = Boolean(updatePosted.isHistory)
     for (const line of active) {
       const option = stockOptions.find((row) => row.id === line.stockId)
