@@ -1,3 +1,10 @@
+const {
+  METAL_STOCK_TYPES,
+  isMetalStockInType,
+  isMetalStockOutType,
+  isMetalProductTransferType,
+} = require('./metalStockVoucherTypes')
+
 function isCatalogInventoryProduct(category) {
   return /(?:^|;)recordType=product(?:;|$)/i.test(String(category || ''))
 }
@@ -6,6 +13,33 @@ function catalogQuantityFromMovements(movementSum) {
   const qty = Number(movementSum || 0)
   if (!Number.isFinite(qty)) return 0
   return Math.max(0, Number(qty.toFixed(4)))
+}
+
+function catalogPcsFromSignedSum(pcsSum) {
+  const pcs = Number(pcsSum || 0)
+  if (!Number.isFinite(pcs)) return 0
+  return Math.max(0, Math.round(pcs))
+}
+
+/** Signed PCS delta for one voucher line against inventory (+ in, − out). */
+function resolveVoucherLinePcsSign(transactionType, line = {}) {
+  const type = String(transactionType || '').toLowerCase()
+  if (isMetalStockInType(type)) return 1
+  if (isMetalStockOutType(type)) return -1
+  if (isMetalProductTransferType(type)) {
+    const side = String(line?.transferSide || '').toLowerCase()
+    if (side === 'from') return -1
+    if (side === 'to') return 1
+  }
+  return 0
+}
+
+function resolveVoucherLinePcsDelta(transactionType, line = {}) {
+  const pcs = Number(line?.pcs || 0)
+  if (!(pcs > 0)) return 0
+  const sign = resolveVoucherLinePcsSign(transactionType, line)
+  if (!sign) return 0
+  return sign * pcs
 }
 
 async function catalogOnHandFromMovements(StockMovement, itemId) {
@@ -42,6 +76,73 @@ async function applyCatalogOnHandQuantities({ InventoryItem, StockMovement, prod
     if (Math.abs(stored - nextQty) <= 0.0001) continue
     product.quantity = nextQty
     updates.push(InventoryItem.updateOne({ _id: product._id }, { $set: { quantity: nextQty } }))
+  }
+
+  if (updates.length) await Promise.all(updates)
+  return list
+}
+
+/**
+ * Catalog product PCS is the signed sum of posted metal voucher line PCS
+ * (purchase/receipt +, sale/payment −, product transfer by transferSide).
+ */
+async function applyCatalogOnHandPcs({ InventoryItem, Transaction, products }) {
+  const list = Array.isArray(products) ? products : []
+  const catalog = list.filter((product) => isCatalogInventoryProduct(product?.category))
+  if (!catalog.length || !Transaction || !InventoryItem) return list
+
+  const byId = new Map()
+  const bySku = new Map()
+  for (const product of catalog) {
+    byId.set(String(product._id), product)
+    const sku = String(product.sku || '').trim().toLowerCase()
+    if (sku && !bySku.has(sku)) bySku.set(sku, product)
+  }
+
+  const txs = await Transaction.find({
+    isDeleted: { $ne: true },
+    status: 'posted',
+    type: { $in: METAL_STOCK_TYPES },
+  })
+    .select('type voucherMeta.lineItems')
+    .lean()
+
+  const pcsById = new Map()
+  for (const tx of txs) {
+    const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+    for (const line of lines) {
+      const delta = resolveVoucherLinePcsDelta(tx.type, line)
+      if (!delta) continue
+      const directId = line?.inventoryItemId || line?.itemId
+      let product = directId ? byId.get(String(directId)) : null
+      if (!product) {
+        const stock = String(line?.stockCode || '').trim().toLowerCase()
+        if (stock) product = bySku.get(stock) || null
+      }
+      if (!product) {
+        const productType = String(line?.productType || '').trim().toLowerCase()
+        if (productType) {
+          product = bySku.get(productType)
+            || catalog.find((row) => String(row.name || '').trim().toLowerCase() === productType)
+            || null
+        }
+      }
+      if (!product?._id) continue
+      const key = String(product._id)
+      pcsById.set(key, (pcsById.get(key) || 0) + delta)
+    }
+  }
+
+  const updates = []
+  for (const product of catalog) {
+    const nextPcs = catalogPcsFromSignedSum(pcsById.get(String(product._id)) || 0)
+    const stored = Number(product.pcs || 0)
+    if (stored === nextPcs) {
+      product.pcs = nextPcs
+      continue
+    }
+    product.pcs = nextPcs
+    updates.push(InventoryItem.updateOne({ _id: product._id }, { $set: { pcs: nextPcs } }))
   }
 
   if (updates.length) await Promise.all(updates)
@@ -87,8 +188,12 @@ async function rebuildStockMovementQuantityChain(StockMovement, itemId, { sessio
 module.exports = {
   isCatalogInventoryProduct,
   catalogQuantityFromMovements,
+  catalogPcsFromSignedSum,
+  resolveVoucherLinePcsSign,
+  resolveVoucherLinePcsDelta,
   catalogOnHandFromMovements,
   applyCatalogOnHandQuantities,
+  applyCatalogOnHandPcs,
   rebuildStockMovementQuantityChain,
   roundMovementQty,
 }

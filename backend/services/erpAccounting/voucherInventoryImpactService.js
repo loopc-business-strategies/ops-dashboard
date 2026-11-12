@@ -180,11 +180,13 @@ function createVoucherInventoryImpactService({
       const transferSide = String(line?.transferSide || '').toLowerCase()
       const isOutPlan = isMetalStockOutType(transactionType)
         || (isMetalProductTransferType(transactionType) && transferSide === 'from')
+      const linePcs = Math.max(0, Number(line?.pcs || 0))
 
       return {
         line,
         item,
         quantity,
+        pcs: Number.isFinite(linePcs) ? linePcs : 0,
         lineAmount,
         inventoryAccountId,
         transferSide: transferSide || null,
@@ -225,6 +227,9 @@ function createVoucherInventoryImpactService({
     const beforeQty = Number(item.quantity || 0)
     const movementQty = Number(plan.quantity || 0)
     const nextQty = toQty(beforeQty + movementQty)
+    const movementPcs = Math.max(0, Number(plan.pcs || 0))
+    const beforePcs = Math.max(0, Number(item.pcs || 0))
+    const nextPcs = Math.max(0, beforePcs + movementPcs)
     const currentValue = beforeQty * Number(item.unitCost || 0)
     // Party metal_receipt: dilute with 0 value. Product Metal Transfer: carry From costAmount.
     const isPartyTransfer = isMetalTransferType(transactionType)
@@ -236,6 +241,7 @@ function createVoucherInventoryImpactService({
         ? toMoney(Number(plan.incomingValue || 0))
         : Number(plan.lineAmount || 0)
     item.quantity = nextQty
+    item.pcs = nextPcs
     item.lastRestockedAt = tx.date || new Date()
     item.updatedBy = user._id
     if (isPartyTransfer) {
@@ -254,6 +260,7 @@ function createVoucherInventoryImpactService({
       itemId: item._id,
       itemName: item.name,
       change: movementQty,
+      pcsChange: movementPcs,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
       // Remember the book value this stock-in added so an edit or void can
@@ -274,6 +281,8 @@ function createVoucherInventoryImpactService({
 
     const beforeQty = Number(item.quantity || 0)
     const movementQty = Number(plan.quantity || 0)
+    const movementPcs = Math.max(0, Number(plan.pcs || 0))
+    const beforePcs = Math.max(0, Number(item.pcs || 0))
 
     // Check inventory before touching vault lots so a failed stock-out cannot
     // leave production lots consumed while the voucher stays unposted.
@@ -294,7 +303,9 @@ function createVoucherInventoryImpactService({
     })
 
     const nextQty = toQty(beforeQty - movementQty)
+    const nextPcs = Math.max(0, beforePcs - movementPcs)
     item.quantity = nextQty
+    item.pcs = nextPcs
     item.updatedBy = user._id
     await item.save(writeOpts(session))
 
@@ -302,6 +313,7 @@ function createVoucherInventoryImpactService({
       itemId: item._id,
       itemName: item.name,
       change: -movementQty,
+      pcsChange: -movementPcs,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
       reason: buildStockMovementReason(tx, transactionType),

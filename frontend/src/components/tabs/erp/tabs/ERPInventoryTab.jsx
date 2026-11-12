@@ -9,7 +9,11 @@ import {
   exportInventoryPdf,
   exportStockMovementPdf,
 } from '../inventoryExportHelpers'
-import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
+import {
+  resolveInventoryPcs,
+  sumInventoryPcs,
+  sanitizeCatalogProductPurity,
+} from '../inventoryFormDefaults'
 import {
   FLOATING_MODAL_FOOTER_END_PAD,
   FloatingModalResizeHandle,
@@ -232,12 +236,11 @@ export default function ERPInventoryTab({
           const grossQty = Math.max(0, Number(reportRow.quantity ?? item?.quantity ?? 0))
           const purityRaw = reportRow.purity || productMeta.productPurity || productMeta.purity || ''
           const pureQty = Math.max(0, Number(reportRow.pureStockQty ?? 0))
-          const pcsRaw = productMeta.pcs ?? productMeta.pieces ?? item?.pcs ?? item?.pieces
-          const pcs = pcsRaw === '' || pcsRaw == null ? null : Number(pcsRaw)
+          const pcs = resolveInventoryPcs({ productMeta, item, reportRow })
           return {
             id: item?._id,
             name: item?.name || '—',
-            pcs: Number.isFinite(pcs) ? pcs : null,
+            pcs,
             grossQty,
             purity: purityRaw,
             pureQty,
@@ -245,10 +248,7 @@ export default function ERPInventoryTab({
         })
         const totalGross = products.reduce((sum, p) => sum + p.grossQty, 0)
         const totalPure = products.reduce((sum, p) => sum + p.pureQty, 0)
-        const pcsValues = products.map((p) => p.pcs).filter((n) => n != null && Number.isFinite(n))
-        const totalPcs = pcsValues.length
-          ? pcsValues.reduce((sum, n) => sum + n, 0)
-          : products.length
+        const totalPcs = sumInventoryPcs(products)
         const totalPurity = totalGross > 0 ? totalPure / totalGross : null
         return {
           metal,
@@ -799,7 +799,7 @@ export default function ERPInventoryTab({
                         <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                           <td style={{ padding: '0.45rem 0.7rem 0.45rem 1.15rem', fontWeight: 700, color: C.inkSoft }}>total</td>
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 800, color: C.ink }}>
-                            {group.totalPcs.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {group.totalPcs == null ? '—' : group.totalPcs.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 800, color: C.ink }}>
                             {group.totalGross.toLocaleString(undefined, { maximumFractionDigits: 3 })}

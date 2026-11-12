@@ -37,6 +37,12 @@ const inventoryItemSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    /** On-hand piece count from posted metal voucher lines (separate from weight quantity). */
+    pcs: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     unit: {
       type: String,
       trim: true,
