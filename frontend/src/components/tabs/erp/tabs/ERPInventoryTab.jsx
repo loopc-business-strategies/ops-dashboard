@@ -3,7 +3,12 @@ import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { downloadXlsxRows } from '../exportHelpers'
-import { buildInventoryExportPayload, exportInventoryPdf } from '../inventoryExportHelpers'
+import {
+  buildInventoryExportPayload,
+  buildStockMovementExportPayload,
+  exportInventoryPdf,
+  exportStockMovementPdf,
+} from '../inventoryExportHelpers'
 import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
 import {
   FLOATING_MODAL_FOOTER_END_PAD,
@@ -152,6 +157,7 @@ export default function ERPInventoryTab({
   const [includeZeroQty, setIncludeZeroQty] = useState(false)
   const [movementsCategoryFilter, setMovementsCategoryFilter] = useState('all')
   const [exportingInventory, setExportingInventory] = useState(false)
+  const [exportingMovements, setExportingMovements] = useState(false)
   const {
     scrollRef: invScrollRef,
   } = useVirtualTableRows(sortedInventoryTableRows.length, { estimateSize: 44 })
@@ -377,6 +383,41 @@ export default function ERPInventoryTab({
   })()
   const visibleMovementCount = stockMovementCategoryGroups.reduce((sum, group) => sum + group.movementCount, 0)
 
+  const handleExportMovementsExcel = async () => {
+    const payload = buildStockMovementExportPayload(stockMovementCategoryGroups)
+    if (!payload) {
+      setError?.('No stock movements available to export')
+      return
+    }
+    try {
+      setExportingMovements(true)
+      await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
+      showNotification?.('✅ Movement history Excel exported')
+    } catch (err) {
+      console.error('Movement history Excel export failed:', err)
+      setError?.('Failed to export movement history Excel')
+    } finally {
+      setExportingMovements(false)
+    }
+  }
+
+  const handleExportMovementsPdf = async () => {
+    if (!stockMovementCategoryGroups.length) {
+      setError?.('No stock movements available to export')
+      return
+    }
+    try {
+      setExportingMovements(true)
+      await exportStockMovementPdf(stockMovementCategoryGroups)
+      showNotification?.('✅ Movement history PDF exported')
+    } catch (err) {
+      console.error('Movement history PDF export failed:', err)
+      setError?.('Failed to export movement history PDF')
+    } finally {
+      setExportingMovements(false)
+    }
+  }
+
   const productChrome = useFloatingModalChrome({
     open: showInventoryProductModal,
     persistKey: 'erp-inventory-product',
@@ -548,6 +589,40 @@ export default function ERPInventoryTab({
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleExportMovementsPdf}
+                  disabled={exportingMovements || stockMovementCategoryGroups.length === 0}
+                  style={{
+                    padding: '0.55rem 0.95rem',
+                    background: '#FEF2F2',
+                    color: '#991B1B',
+                    border: '1px solid #EF4444',
+                    borderRadius: '0.45rem',
+                    cursor: exportingMovements || stockMovementCategoryGroups.length === 0 ? 'not-allowed' : 'pointer',
+                    fontWeight: '700',
+                    opacity: exportingMovements || stockMovementCategoryGroups.length === 0 ? 0.65 : 1,
+                  }}
+                >
+                  {exportingMovements ? 'Exporting…' : 'Export PDF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportMovementsExcel}
+                  disabled={exportingMovements || stockMovementCategoryGroups.length === 0}
+                  style={{
+                    padding: '0.55rem 0.95rem',
+                    background: '#ECFDF5',
+                    color: '#065F46',
+                    border: '1px solid #10B981',
+                    borderRadius: '0.45rem',
+                    cursor: exportingMovements || stockMovementCategoryGroups.length === 0 ? 'not-allowed' : 'pointer',
+                    fontWeight: '700',
+                    opacity: exportingMovements || stockMovementCategoryGroups.length === 0 ? 0.65 : 1,
+                  }}
+                >
+                  {exportingMovements ? 'Exporting…' : 'Export Excel'}
+                </button>
                 <button
                   type="button"
                   onClick={loadStockLedger}
