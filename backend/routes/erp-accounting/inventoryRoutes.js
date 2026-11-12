@@ -50,6 +50,8 @@ const alloyMixSchema = Joi.object({
   lines: Joi.array().items(Joi.object({
     itemId: objectId.required(),
     gross: Joi.number().positive().required(),
+    /** Remaining grams in finished after oxidation; omit for proportional loss. */
+    remainGross: Joi.number().min(0).optional(),
     role: Joi.string().trim().allow('').max(40).optional(),
     label: Joi.string().trim().allow('').max(80).optional(),
   })).min(1).required(),
@@ -85,6 +87,7 @@ function registerInventoryRoutes(deps) {
     InventoryItem,
     StockMovement,
     Transaction,
+    AccountMapping,
     Vendor,
     Ledger,
     ChartOfAccount,
@@ -399,6 +402,9 @@ function registerInventoryRoutes(deps) {
     InventoryItem,
     StockMovement,
     Ledger,
+    AccountMapping,
+    Transaction,
+    ChartOfAccount,
     assertAccountingPeriodOpen: assertPeriod,
   })
 

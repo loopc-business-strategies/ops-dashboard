@@ -26,6 +26,7 @@ import {
   alloyPercentToPurityFraction,
   alloyMixStatusFromReason,
   buildAlloyMixReasonBase,
+  buildAlloyMixPayload,
   computeCalculatedGrossFromGoldWeight,
   computeAlloyMetalLoss,
   computeAlloyMixShare,
@@ -484,5 +485,24 @@ describe('goldAlloyCalculator', () => {
     expect(sum).toBe(9.5)
     expect(computeAlloyMetalLoss(9.5, 10)).toBe(-0.5)
     expect(computeAlloyMixShare(scaled.find((l) => l.key === 'gold').gross, 9.5)).toBe('0.75')
+  })
+
+  test('buildAlloyMixPayload consumes originalGross when oxidation reduced the line', () => {
+    const payload = buildAlloyMixPayload({
+      karat: 18,
+      targetGross: 261.18,
+      finishedProductId: 'fin18',
+      lines: [
+        { stockId: 'au', gross: 198.45, originalGross: 199.05, role: 'gold', label: 'gold' },
+        { stockId: 'ag', gross: 43.5, originalGross: 47.12, role: 'alloy', label: 'silver' },
+        { stockId: 'cu', gross: 19.23, originalGross: 19.23, role: 'extra', label: 'copper' },
+      ],
+    })
+    expect(payload.targetGross).toBe(261.18)
+    expect(payload.lines.find((l) => l.itemId === 'au').gross).toBe(199.05)
+    expect(payload.lines.find((l) => l.itemId === 'ag').gross).toBe(47.12)
+    expect(payload.lines.find((l) => l.itemId === 'cu').gross).toBe(19.23)
+    const consumeSum = payload.lines.reduce((s, l) => s + l.gross, 0)
+    expect(consumeSum - payload.targetGross).toBeCloseTo(4.22, 2)
   })
 })

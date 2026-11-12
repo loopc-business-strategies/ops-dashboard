@@ -1041,6 +1041,7 @@ export default function ERPTabPanels({
             activeTab={activeTab}
             C={C}
             inventoryProducts={inventoryProducts}
+            mappings={mappings}
             loadInventory={loadInventory}
             token={token}
             tenantKey={inventoryTenantKey}

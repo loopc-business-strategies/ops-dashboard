@@ -3,6 +3,7 @@ import erpAccountingAPI from '../../../../api/erp-accounting'
 import {
   GOLD_ALLOY_KARAT_RECIPES,
   addAlloyLineByKey,
+  ALLOY_METAL_LOSS_MAPPING_TYPE,
   buildAlloyMixPayload,
   buildAlloyInputStockOptionsForLine,
   buildAlloyStockOptions,
@@ -70,6 +71,7 @@ export default function ERPGoldAlloyTab({
   activeTab,
   C = {},
   inventoryProducts = [],
+  mappings = [],
   loadInventory,
   token,
   tenantKey = '',
@@ -500,7 +502,7 @@ export default function ERPGoldAlloyTab({
     }
   }, [updateFinishedGross, updateOriginalFinishedGross, updateMetalLines])
 
-  // Inventory requires metals OUT = finished IN. Metal loss = lower Allowed wt (metals rebalance with it).
+  // Remaining metals in the bar must equal Allowed wt. Oxidation = original − remaining.
   const updateMixBalance = useMemo(() => {
     const target = Number(updateFinishedGross) || 0
     const shareSum = roundAlloyGrams(
@@ -510,22 +512,42 @@ export default function ERPGoldAlloyTab({
     const metalGross = roundAlloyGrams(
       (updateMetalLines || []).reduce((sum, line) => sum + (Number(line.gross) || 0), 0),
     )
+    const originalMetalGross = roundAlloyGrams(
+      (updateMetalLines || []).reduce((sum, line) => {
+        const original = Number(line.originalGross)
+        const gross = Number(line.gross) || 0
+        return sum + (Number.isFinite(original) && original > 0 ? original : gross)
+      }, 0),
+    )
     const diff = target > 0 ? roundAlloyGrams(metalGross - target) : 0
+    const oxidationLoss = roundAlloyGrams(originalMetalGross - metalGross)
     const balanced = target > 0 && Math.abs(diff) <= 0.0005
     return {
       target,
       shareSum,
       metalGross,
+      originalMetalGross,
+      oxidationLoss,
       diff,
       balanced,
       message: !target
         ? 'Enter allowed gross weight'
         : balanced
           ? ''
-          : `Need metals = finished for inventory (now ${metalGross} g vs ${target} g). `
-            + `For metal loss, lower Allowed wt to ${metalGross} g — or raise shares so they total 1 (now ${shareSum}).`,
+          : metalGross + 0.0005 < target
+            ? `Metals remaining ${metalGross} g are below Allowed wt ${target} g. `
+              + `For oxidation, set Allowed wt to ${metalGross} g — loss posts to Metal Loss.`
+            : `Need metals = finished (now ${metalGross} g vs ${target} g). `
+              + `Lower shares or raise Allowed wt (share sum ${shareSum}).`,
     }
   }, [updateFinishedGross, updateMetalLines])
+
+  const alloyMetalLossMapping = useMemo(() => (
+    (Array.isArray(mappings) ? mappings : []).find((row) => (
+      row?.isActive !== false
+      && String(row?.mappingType || '').trim().toLowerCase() === ALLOY_METAL_LOSS_MAPPING_TYPE
+    )) || null
+  ), [mappings])
 
   const updateAchievedKarat = useMemo(() => {
     const frac = normalizeAlloyPurity(updateFinishedPurityPct)
@@ -671,12 +693,19 @@ export default function ERPGoldAlloyTab({
     if (Math.abs(balanceDiff) > 0.0005) {
       if (typeof setError === 'function') {
         setError(
-          `Metals must equal finished (${metalGross} g vs ${nextTarget} g). `
-          + `For metal loss, set Allowed wt to ${metalGross} g.`,
+          `Metals remaining must equal Allowed wt (${metalGross} g vs ${nextTarget} g). `
+          + `For oxidation, set Allowed wt to ${metalGross} g.`,
         )
       }
       return
     }
+    const originalMetalGross = roundAlloyGrams(
+      active.reduce((sum, line) => {
+        const original = Number(line.originalGross)
+        const gross = Number(line.gross) || 0
+        return sum + (Number.isFinite(original) && original > 0 ? original : gross)
+      }, 0),
+    )
     const historyOnly = Boolean(updatePosted.isHistory)
     for (const line of active) {
       const option = stockOptions.find((row) => row.id === line.stockId)
@@ -687,7 +716,9 @@ export default function ERPGoldAlloyTab({
           (updatePosted.consumed || []).find((row) => String(row.itemId) === String(line.stockId))?.gross || 0,
         )
       const onHand = Number(option?.quantity || 0) + postedGross
-      const need = Number(line.gross || 0)
+      const remain = Number(line.gross || 0)
+      const original = Number(line.originalGross)
+      const need = Number.isFinite(original) && original > remain + 0.0005 ? original : remain
       if (onHand + 0.0005 < need) {
         if (typeof setError === 'function') {
           setError(`Insufficient stock for ${option?.name || line.label}. Available ~${onHand} g, need ${need} g`)
@@ -734,8 +765,11 @@ export default function ERPGoldAlloyTab({
       })
       const result = await erpAccountingAPI.postAlloyMix(token, payload)
       if (typeof showNotification === 'function') {
+        const lossPart = Number(result?.metalLossGross) > 0
+          ? ` · metal loss ${result.metalLossGross} g → ${ALLOY_METAL_LOSS_MAPPING_TYPE}`
+          : ''
         showNotification(
-          `✅ Mix updated: ${result?.finishedProduct?.name || updatePosted.finishedName} → ${result?.targetGross || nextTarget} g · purity ${finishedFrac}`,
+          `✅ Mix updated: ${result?.finishedProduct?.name || updatePosted.finishedName} → ${result?.targetGross || nextTarget} g · purity ${finishedFrac}${lossPart}`,
         )
       }
       if (typeof loadInventory === 'function') await loadInventory()
@@ -1806,11 +1840,13 @@ export default function ERPGoldAlloyTab({
           >
             <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#111827' }}>Update posted mix</h3>
             <p style={{ margin: '0.45rem 0 0.75rem', fontSize: '0.84rem', color: '#475569', lineHeight: 1.5 }}>
-              <strong>Update</strong> adjusts finished weight / metal loss and posts a new <strong>Updated</strong> version
-              (keeps the original as linked history). Not the same as <strong>Edit</strong> (full mix form).
+              <strong>Update</strong> adjusts finished weight / oxidation loss and posts a new <strong>Updated</strong> version
+              (keeps the original as linked history). Remaining metals must equal <strong>Allowed wt</strong>.
               {' '}
-              <strong>Metals must equal finished</strong>. For metal loss, lower <strong>Allowed wt</strong>
-              — metals rebalance; loss = new − original. <strong>Purity</strong> = mix share on gold / silver / copper only.
+              Loss vs original (oxidation) posts automatically to mapping <strong>{ALLOY_METAL_LOSS_MAPPING_TYPE}</strong>
+              {alloyMetalLossMapping ? ' ✓' : ' (create in Mappings first)'}.
+              {' '}
+              Remelt and Update again anytime — loss revises with the voucher. <strong>Purity</strong> = mix share.
             </p>
 
             <div style={{
@@ -2008,8 +2044,27 @@ export default function ERPGoldAlloyTab({
               </tfoot>
             </table>
             {!updateMixBalance.balanced ? (
+              <div style={{ margin: '0 0 0.65rem' }}>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#B45309', fontWeight: 600 }}>
+                  {updateMixBalance.message}
+                </p>
+                {updateMixBalance.metalGross > 0 && updateMixBalance.metalGross + 0.0005 < updateMixBalance.target ? (
+                  <button
+                    type="button"
+                    onClick={() => onUpdateFinishedGrossChange(String(updateMixBalance.metalGross))}
+                    style={{ ...secondaryBtnStyle, marginTop: '0.45rem', borderColor: '#F59E0B', color: '#92400E' }}
+                  >
+                    Set Allowed wt to {updateMixBalance.metalGross} g (metals remaining)
+                  </button>
+                ) : null}
+              </div>
+            ) : updateMixBalance.oxidationLoss > 0.0005 ? (
               <p style={{ margin: '0 0 0.65rem', fontSize: '0.78rem', color: '#B45309', fontWeight: 600 }}>
-                {updateMixBalance.message}
+                Oxidation loss {updateMixBalance.oxidationLoss} g will post to{' '}
+                {alloyMetalLossMapping
+                  ? `mapping ${ALLOY_METAL_LOSS_MAPPING_TYPE}`
+                  : `mapping ${ALLOY_METAL_LOSS_MAPPING_TYPE} (create in Mappings first)`}
+                . Remelt later → Update again to revise.
               </p>
             ) : null}
             <div style={{ display: 'flex', gap: '0.55rem', justifyContent: 'flex-end' }}>

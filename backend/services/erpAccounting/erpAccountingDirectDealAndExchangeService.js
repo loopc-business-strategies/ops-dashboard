@@ -113,24 +113,61 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
     return code || 'Metal'
   }
 
-  const resolveDirectDealCustomer = async (line, lineNumber) => {
-    const customerId = sanitizeOptionalRef(line.customerId)
-    if (!customerId) {
-      throw new Error(`Line ${lineNumber}: customer selection is required`)
+  const ensureCustomerForLedgerAccount = async (accountId, user, lineNumber) => {
+    const account = await ChartOfAccount.findOne({ _id: accountId, isActive: true })
+      .select('_id accountCode accountName accountType currency isActive')
+      .lean()
+    if (!account) {
+      throw new Error(`Line ${lineNumber}: party account not found or inactive`)
     }
 
-    const customer = await Customer.findOne({ _id: customerId, isActive: true })
+    let customer = await Customer.findOne({ ledgerAccountId: account._id, isActive: true })
       .populate('ledgerAccountId', 'accountCode accountName accountType isActive')
+    if (customer) return customer
 
-    if (!customer) throw new Error(`Line ${lineNumber}: customer not found or inactive`)
-    if (!customer.ledgerAccountId) throw new Error(`Line ${lineNumber}: customer ledger account is not configured`)
+    if (!user?._id) {
+      throw new Error(`Line ${lineNumber}: cannot link party account without a signed-in user`)
+    }
 
-    return customer
+    customer = await Customer.create({
+      name: String(account.accountName || account.accountCode || 'Party').trim(),
+      notes: 'Fixing Deals party linked to chart account',
+      currency: String(account.currency || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase() || 'USD',
+      ledgerAccountId: account._id,
+      isActive: true,
+      createdBy: user._id,
+    })
+    return Customer.findById(customer._id)
+      .populate('ledgerAccountId', 'accountCode accountName accountType isActive')
   }
 
-  const normalizeDirectDealLine = async (line, idx) => {
+  const resolveDirectDealCustomer = async (line, lineNumber, user = null) => {
+    const customerId = sanitizeOptionalRef(line.customerId)
+    const partyAccountId = sanitizeOptionalRef(line.partyAccountId)
+
+    if (customerId) {
+      const customer = await Customer.findOne({ _id: customerId, isActive: true })
+        .populate('ledgerAccountId', 'accountCode accountName accountType isActive')
+      if (customer) {
+        if (!customer.ledgerAccountId) {
+          throw new Error(`Line ${lineNumber}: customer ledger account is not configured`)
+        }
+        return customer
+      }
+      // Dropdown may send a Chart of Account id for expense parties (e.g. Metal Loss 5500).
+      return ensureCustomerForLedgerAccount(customerId, user, lineNumber)
+    }
+
+    if (partyAccountId) {
+      return ensureCustomerForLedgerAccount(partyAccountId, user, lineNumber)
+    }
+
+    throw new Error(`Line ${lineNumber}: customer selection is required`)
+  }
+
+  const normalizeDirectDealLine = async (line, idx, user = null) => {
     const lineNumber = idx + 1
-    const customer = await resolveDirectDealCustomer(line, lineNumber)
+    const customer = await resolveDirectDealCustomer(line, lineNumber, user)
 
     const qty = Number(line.qty || 0)
     const price = Number(line.price || 0)
@@ -304,18 +341,19 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
       : { debitAccountId: loss._id, creditAccountId: arApAccountId }
   }
 
-  return {
-    ensureExchangeDifferenceAccounts,
-    nextDirectDealDocNo,
-    getMappedAccountIds,
-    getAccountSummaryScope,
-    metalDisplayName,
-    resolveDirectDealCustomer,
-    normalizeDirectDealLine,
-    syncDirectDealLedger,
-    nextVendorCode,
-    resolveExchangeAdjustmentAccounts,
+    return {
+      ensureExchangeDifferenceAccounts,
+      nextDirectDealDocNo,
+      getMappedAccountIds,
+      getAccountSummaryScope,
+      metalDisplayName,
+      ensureCustomerForLedgerAccount,
+      resolveDirectDealCustomer,
+      normalizeDirectDealLine,
+      syncDirectDealLedger,
+      nextVendorCode,
+      resolveExchangeAdjustmentAccounts,
+    }
   }
-}
 
 module.exports = { createErpAccountingDirectDealAndExchangeService }

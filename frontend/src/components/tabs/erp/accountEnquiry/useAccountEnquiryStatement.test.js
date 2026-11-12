@@ -51,6 +51,48 @@ describe('combineVoucherStatementRows', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].creditAmount).toBe(26313.23)
   })
+
+  test('keeps mixed metal_payment lines as separate gold and silver rows', () => {
+    const rows = combineVoucherStatementRows([
+      {
+        _id: 'transfer:tx-aml:0',
+        referenceType: 'metal_payment',
+        sourceTransactionId: 'tx-aml',
+        sourceTransactionType: 'metal_payment',
+        metalDealType: 'metal_payment',
+        metalCode: 'XAU',
+        isMetalTrade: true,
+        isMetalTransfer: true,
+        lineNarration: 'Alloy metal loss 15.336 g Gold 24K Bar',
+        metalSignedWeight: 15.336,
+        debitAmount: 0,
+        creditAmount: 0,
+        signedAmount: 0,
+      },
+      {
+        _id: 'transfer:tx-aml:1',
+        referenceType: 'metal_payment',
+        sourceTransactionId: 'tx-aml',
+        sourceTransactionType: 'metal_payment',
+        metalDealType: 'metal_payment',
+        metalCode: 'XAG',
+        isMetalTrade: true,
+        isMetalTransfer: true,
+        lineNarration: 'Alloy metal loss 3.834 g Fine Silver',
+        metalSignedWeight: 3.834,
+        debitAmount: 0,
+        creditAmount: 0,
+        signedAmount: 0,
+      },
+    ])
+    expect(rows).toHaveLength(2)
+    const gold = rows.find((row) => row.metalCode === 'XAU')
+    const silver = rows.find((row) => row.metalCode === 'XAG')
+    expect(Number(gold?.metalSignedWeight)).toBeCloseTo(15.336, 3)
+    expect(Number(silver?.metalSignedWeight)).toBeCloseTo(3.834, 3)
+    expect(String(gold?.lineNarration || '')).toMatch(/15\.336 g Gold/)
+    expect(String(silver?.lineNarration || '')).toMatch(/3\.834 g Fine Silver/)
+  })
 })
 
 describe('resolveBreakEvenPricePerGram', () => {

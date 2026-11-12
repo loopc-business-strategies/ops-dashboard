@@ -80,7 +80,13 @@ export function combineVoucherStatementRows(entries = []) {
     // Each fixing-deal line is its own buy or sell, so deal lines are never merged.
     const isDirectDealLine = String(entry?.referenceType || '').toLowerCase() === 'direct_deal'
     const canGroup = sourceId && !isDirectDealLine && ['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(dealSide)
-    const key = canGroup ? `tx:${sourceId}` : `row:${entry?._id || index}`
+    // Mixed metal_payment/receipt lines (e.g. alloy loss gold+silver) must stay separate —
+    // grouping only by voucher id re-sums Pure WT (15.336 + 3.834 → 19.17).
+    const metalCodeKey = String(entry?.metalCode || '').trim().toUpperCase()
+    const isMetalTransferDeal = dealSide === 'metal_receipt' || dealSide === 'metal_payment'
+    const key = canGroup
+      ? (isMetalTransferDeal && metalCodeKey ? `tx:${sourceId}:${metalCodeKey}` : `tx:${sourceId}`)
+      : `row:${entry?._id || index}`
     if (!grouped.has(key)) {
       grouped.set(key, {
         ...entry,
@@ -404,8 +410,11 @@ export function useAccountEnquiryStatement({
   const statementUnfixedMetalBalances = deriveStatementUnfixedMetalBalances(statementEntries)
   const apiGoldBal = accountEnquiryData ? Number(accountEnquiryData.metals?.goldBalance || 0) : 0
   const apiSilverBal = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
-  const xauBalance = apiGoldBal !== 0 ? apiGoldBal : statementUnfixedMetalBalances.gold
-  const xagBalance = apiSilverBal !== 0 ? apiSilverBal : statementUnfixedMetalBalances.silver
+  // 0 is a valid closed position (e.g. alloy loss offset by a fixing deal). Do not
+  // fall back to statement-unfixed grams when the enquiry API already returned metals.
+  const hasApiMetalBalances = Boolean(accountEnquiryData?.metals)
+  const xauBalance = hasApiMetalBalances ? apiGoldBal : statementUnfixedMetalBalances.gold
+  const xagBalance = hasApiMetalBalances ? apiSilverBal : statementUnfixedMetalBalances.silver
   const { gold: xauValuationBalance, silver: xagValuationBalance } = resolveEnquiryValuationBalances(
     accountEnquiryData?.metals,
     { gold: xauBalance, silver: xagBalance },

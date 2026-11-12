@@ -502,20 +502,23 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       for (const tx of metalTxs) {
         const txType = String(tx.type || '').toLowerCase()
         const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-        const signedWeight = resolveTransferSignedPureWeight(txType, lines)
-        if (!signedWeight) continue
-        const metalCode = resolveMetalCodeFromLines(lines)
-        const isSilver = metalCode === 'XAG' || lines.some((line) => {
+        // Per-line so mixed gold+silver metal payments (e.g. alloy oxidation) split correctly.
+        for (const line of lines) {
+          const signedWeight = resolveTransferSignedPureWeight(txType, [line])
+          if (!signedWeight) continue
+          const metalCode = resolveLineMetalCode(line)
           const sc = String(line?.stockCode || '').toUpperCase()
-          return sc.includes('XAG') || sc.includes('SILV')
-        })
-        // Like unfixed vouchers: a receipt (Cr) is metal the party is owed, a payment (Dr) settles it.
-        if (isSilver) {
-          silverBalance += signedWeight
-          silverValuationBalance -= signedWeight
-        } else {
-          goldBalance += signedWeight
-          goldValuationBalance -= signedWeight
+          const isSilver = metalCode === 'XAG'
+            || sc.includes('XAG')
+            || sc.includes('SILV')
+          // Like unfixed vouchers: a receipt (Cr) is metal the party is owed, a payment (Dr) settles it.
+          if (isSilver) {
+            silverBalance += signedWeight
+            silverValuationBalance -= signedWeight
+          } else {
+            goldBalance += signedWeight
+            goldValuationBalance -= signedWeight
+          }
         }
       }
     }
@@ -1027,43 +1030,60 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
     }
 
-    const transferStatementEntries = transferMetalTxsForStatement.map((tx) => {
+    // One statement row per metal line so mixed gold+silver payments (e.g. alloy loss)
+    // filter correctly — never sum all metals onto a single Silver/Gold row.
+    const transferStatementEntries = transferMetalTxsForStatement.flatMap((tx) => {
       const txType = String(tx.type || '').toLowerCase()
       const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-      const metalCode = resolveMetalCodeFromLines(lines)
       const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || '').trim()
-      const lineNarration = String(lines.find((line) => String(line?.narration || '').trim())?.narration || '').trim()
-      return {
-        _id: `transfer:${tx._id}`,
-        date: tx.voucherMeta?.valueDate || tx.date || new Date(),
-        description: lineNarration || `${txType.replace('_', ' ')} transfer`,
-        notes: '',
-        lineNarration,
-        referenceType: txType,
-        department: '',
-        currency: accountCurrencyCode,
-        exchangeRate: 1,
-        debitAmount: 0,
-        creditAmount: 0,
-        signedAmount: 0,
-        originalCurrency: baseCurrencyCode,
-        originalAmount: 0,
-        currentValue: 0,
-        limitValue: Number(account.openingBalance || 0),
-        offsetAccountCode: '',
-        offsetAccountName: '',
-        createdBy: '',
-        sourceTransactionId: String(tx._id),
-        sourceTransactionNumber: txNumber,
-        sourceTransactionType: txType,
-        metalDealType: txType,
-        metalFixStatus: '',
-        metalCode,
-        isMetalTrade: true,
-        isMetalTransfer: true,
-        metalSignedWeight: resolveTransferSignedPureWeight(txType, lines),
-        unfixedVoucherAmount: 0,
-      }
+      const weightedLines = lines
+        .map((line, lineIndex) => ({ line, lineIndex }))
+        .filter(({ line }) => resolveTransferSignedPureWeight(txType, [line]))
+
+      const rowsSource = weightedLines.length
+        ? weightedLines
+        : [{ line: null, lineIndex: 0 }]
+
+      return rowsSource.map(({ line, lineIndex }) => {
+        const lineNarration = String(line?.narration || '').trim()
+        const metalCode = line
+          ? (resolveLineMetalCode(line) || resolveMetalCodeFromLines([line]) || '')
+          : resolveMetalCodeFromLines(lines)
+        const metalSignedWeight = line
+          ? resolveTransferSignedPureWeight(txType, [line])
+          : resolveTransferSignedPureWeight(txType, lines)
+        return {
+          _id: `transfer:${tx._id}:${lineIndex}`,
+          date: tx.voucherMeta?.valueDate || tx.date || new Date(),
+          description: lineNarration || `${txType.replace('_', ' ')} transfer`,
+          notes: '',
+          lineNarration,
+          referenceType: txType,
+          department: '',
+          currency: accountCurrencyCode,
+          exchangeRate: 1,
+          debitAmount: 0,
+          creditAmount: 0,
+          signedAmount: 0,
+          originalCurrency: baseCurrencyCode,
+          originalAmount: 0,
+          currentValue: 0,
+          limitValue: Number(account.openingBalance || 0),
+          offsetAccountCode: '',
+          offsetAccountName: '',
+          createdBy: '',
+          sourceTransactionId: String(tx._id),
+          sourceTransactionNumber: txNumber,
+          sourceTransactionType: txType,
+          metalDealType: txType,
+          metalFixStatus: '',
+          metalCode,
+          isMetalTrade: true,
+          isMetalTransfer: true,
+          metalSignedWeight,
+          unfixedVoucherAmount: 0,
+        }
+      })
     })
 
     const combinedStatementRows = [
@@ -1077,7 +1097,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     })
 
     const matchingStatementCount = includeCount && matchingLedgerCount != null
-      ? matchingLedgerCount + transferMetalTxsForStatement.length
+      ? matchingLedgerCount + transferStatementEntries.length
       : null
     const truncated = includeStatement
       ? (matchingStatementCount != null
