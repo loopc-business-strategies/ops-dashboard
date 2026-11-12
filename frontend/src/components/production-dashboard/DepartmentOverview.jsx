@@ -470,12 +470,7 @@ export default function DepartmentOverview({
     vaultInventory,
   }
   const vaultCard = list.find((card) => card.key === 'vault_room') || null
-  const stampingCard = list.find((card) => card.key === 'stamping') || null
-  const productionCards = list.filter(
-    (card) => card.key !== 'vault_room' && card.key !== 'stamping',
-  )
-  const topProduction = productionCards.slice(0, 3)
-  const bottomProduction = productionCards.slice(3)
+  const productionCards = list.filter((card) => card.key !== 'vault_room')
 
   if (!list.length) {
     return (
@@ -491,20 +486,14 @@ export default function DepartmentOverview({
     return (
       <section className="pd-dept-row pd-dept-row--vault-board" aria-label="Department status">
         <div className="pd-vault-board">
-          <div className="pd-vault-slot">
+          <aside className="pd-vault-sidebar">
             {renderDeptCard(vaultCard, cardProps)}
-          </div>
-          <div className="pd-vault-board-top">
+          </aside>
+          <div className="pd-vault-board-main">
             {kpi}
-            <div className="pd-dept-grid pd-dept-grid--top3">
-              {topProduction.map((card) => renderDeptCard(card, cardProps))}
+            <div className="pd-dept-grid pd-dept-grid--production">
+              {productionCards.map((card) => renderDeptCard(card, cardProps))}
             </div>
-          </div>
-          <div className="pd-stamp-slot">
-            {stampingCard ? renderDeptCard(stampingCard, cardProps) : null}
-          </div>
-          <div className="pd-dept-grid pd-dept-grid--bottom3">
-            {bottomProduction.map((card) => renderDeptCard(card, cardProps))}
           </div>
         </div>
       </section>
