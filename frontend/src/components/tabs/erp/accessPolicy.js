@@ -61,7 +61,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canAccessVendors: ['vendors', 'supplier-margin'],
   canManageVendors: ['vendors'],
   canUpdateVendorOperational: ['vendors'],
-  canAccessInventory: ['inventory', 'gold-alloy'],
+  canAccessInventory: ['inventory', 'stock-master', 'gold-alloy'],
   canAccessVouchers: ['vouchers'],
   canAccessDirectDeals: ['direct-deals'],
   canManageDirectDeals: ['direct-deals'],

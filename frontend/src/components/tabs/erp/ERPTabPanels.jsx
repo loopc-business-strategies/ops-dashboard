@@ -24,6 +24,7 @@ const loadErpEditRecordModal = () => import('./ErpEditRecordModal')
 const loadChartOfAccountsTree = () => import('../ChartOfAccountsTree')
 const loadDirectDealsTab = () => import('../DirectDealsTab')
 const loadErpInventoryTab = () => import('./tabs/ERPInventoryTab')
+const loadErpStockMasterTab = () => import('./tabs/ERPStockMasterTab')
 const loadErpGoldAlloyTab = () => import('./tabs/ERPGoldAlloyTab')
 const loadErpVendorsTab = () => import('./tabs/ERPVendorsTab')
 const loadErpLedgerTab = () => import('./tabs/ERPLedgerTab')
@@ -45,6 +46,7 @@ const ErpEditRecordModal = lazy(loadErpEditRecordModal)
 const ChartOfAccountsTree = lazy(loadChartOfAccountsTree)
 const DirectDealsTab = lazy(loadDirectDealsTab)
 const ERPInventoryTab = lazy(loadErpInventoryTab)
+const ERPStockMasterTab = lazy(loadErpStockMasterTab)
 const ERPGoldAlloyTab = lazy(loadErpGoldAlloyTab)
 const ERPVendorsTab = lazy(loadErpVendorsTab)
 const ERPLedgerTab = lazy(loadErpLedgerTab)
@@ -75,6 +77,7 @@ const ERP_MENU_CHUNK_LOADERS = [
   loadErpEnquiryTab,
   loadErpDashboardTab,
   loadErpInventoryTab,
+  loadErpStockMasterTab,
   loadErpGoldAlloyTab,
   loadDirectDealsTab,
   loadErpPeriodClosingTab,
@@ -1047,8 +1050,8 @@ export default function ERPTabPanels({
         </Suspense>
       </div>
       )}
-      {keepTab('inventory') && (
-      <div style={activeTab === 'inventory' ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'inventory'}>
+      {(keepTab('inventory') || keepTab('stock-master')) && (
+      <div style={(activeTab === 'inventory' || activeTab === 'stock-master') ? undefined : hiddenTabStyle} aria-hidden={activeTab !== 'inventory' && activeTab !== 'stock-master'}>
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPInventoryTab
         activeTab={activeTab}
@@ -1064,6 +1067,8 @@ export default function ERPTabPanels({
         liveMetalSnapshot={erpLiveMetalSnapshot}
         liveMetalError={liveMetalFetchError}
         loadInventory={loadInventory}
+        showNotification={showNotification}
+        setError={setError}
         inventoryMappingProducts={inventoryMappingProducts}
         inventoryCatalogProducts={inventoryCatalogProducts}
         inventoryProductsByMetal={inventoryProductsByMetal}
@@ -1124,6 +1129,32 @@ export default function ERPTabPanels({
         handleCreateProduct={handleCreateProduct}
         handleInventoryModalDragStart={handleInventoryModalDragStart}
           />
+          {keepTab('stock-master') && (
+            <ERPStockMasterTab
+              activeTab={activeTab}
+              C={C}
+              isSuperAdmin={isSuperAdmin}
+              isFinance={isFinance}
+              loadInventory={loadInventory}
+              inventoryMappingProducts={inventoryMappingProducts}
+              inventoryCatalogProducts={inventoryCatalogProducts}
+              createInventoryMappingForm={createInventoryMappingForm}
+              baseCurrencyCode={baseCurrencyCode}
+              setEditingProductId={setEditingProductId}
+              setInventoryMappingForm={setInventoryMappingForm}
+              setInventoryStockCodeManualOverride={setInventoryStockCodeManualOverride}
+              setInventoryModalOffset={setInventoryModalOffset}
+              setShowInventoryMappingModal={setShowInventoryMappingModal}
+              setEditingInventoryProductId={setEditingInventoryProductId}
+              setInventoryProductForm={setInventoryProductForm}
+              setInventoryProductModalOffset={setInventoryProductModalOffset}
+              setShowInventoryProductModal={setShowInventoryProductModal}
+              handleEditProduct={handleEditProduct}
+              handleDeleteProduct={handleDeleteProduct}
+              handleEditInventoryCatalogProduct={handleEditInventoryCatalogProduct}
+              handleDeleteInventoryCatalogProduct={handleDeleteInventoryCatalogProduct}
+            />
+          )}
         </Suspense>
       </div>
       )}

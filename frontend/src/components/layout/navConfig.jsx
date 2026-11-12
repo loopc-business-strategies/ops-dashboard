@@ -161,6 +161,7 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'erp-activity-log', label: t('erpActivityLog'), group: 'erp', erpSub: 'activity-log', show: canShowErpSubTab('activity-log') },
     { id: 'erp-vendors', label: t('erpVendors'), group: 'erp', erpSub: 'vendors', show: canShowErpSubTab('vendors') },
     { id: 'erp-inventory', label: t('erpInventory'), group: 'erp', erpSub: 'inventory', show: canShowErpSubTab('inventory') },
+    { id: 'erp-stock-master', label: t('erpStockMaster'), group: 'erp', erpSub: 'stock-master', show: canShowErpSubTab('stock-master') },
     { id: 'erp-gold-alloy', label: t('erpGoldAlloy'), group: 'erp', erpSub: 'gold-alloy', show: canShowErpSubTab('gold-alloy') },
     { id: 'erp-vouchers', label: t('erpVouchers'), group: 'erp', erpSub: 'vouchers', show: canShowErpSubTab('vouchers') },
     { id: 'erp-direct-deals', label: t('erpDirectDeals'), group: 'erp', erpSub: 'direct-deals', show: canShowErpSubTab('direct-deals') },

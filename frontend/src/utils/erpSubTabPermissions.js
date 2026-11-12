@@ -15,6 +15,7 @@ export const ERP_SUB_TABS = [
   'activity-log',
   'vendors',
   'inventory',
+  'stock-master',
   'gold-alloy',
   'vouchers',
   'direct-deals',
