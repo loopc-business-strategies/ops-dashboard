@@ -1573,11 +1573,11 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
 }
 
 .pd-vault-sidebar .pd-dept-card--vault-stock {
-  flex: 1 1 auto;
+  flex: 1;
+  height: 100%;
   min-height: 0;
 }
 
@@ -1586,12 +1586,6 @@
   min-height: 0;
   max-height: none;
   overflow: auto;
-}
-
-/* Stamping sits under Vault at natural card height */
-.pd-vault-sidebar > .pd-dept-card:not(.pd-dept-card--vault-stock) {
-  flex: 0 0 auto;
-  min-height: 0;
 }
 
 .pd-vault-board-main {
@@ -1618,9 +1612,16 @@
   height: 100%;
 }
 
-/* 3×2: Melting/Rolling/Bangle then Pendent/Welding/Assembly */
-.pd-dept-grid--production > * {
+/* Row 1: Melting, Rolling, Bangle Area */
+.pd-dept-grid--production > :nth-child(1),
+.pd-dept-grid--production > :nth-child(2),
+.pd-dept-grid--production > :nth-child(3) {
   grid-column: span 4;
+}
+
+/* Row 2: Stamping, Pendent, Welding, Assembly */
+.pd-dept-grid--production > :nth-child(n + 4) {
+  grid-column: span 3;
 }
 
 @media (max-width: 1100px) {
@@ -1634,7 +1635,10 @@
     grid-template-rows: none;
   }
 
-  .pd-dept-grid--production > * {
+  .pd-dept-grid--production > :nth-child(1),
+  .pd-dept-grid--production > :nth-child(2),
+  .pd-dept-grid--production > :nth-child(3),
+  .pd-dept-grid--production > :nth-child(n + 4) {
     grid-column: auto;
   }
 }
