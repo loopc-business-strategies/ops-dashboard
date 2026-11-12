@@ -1293,6 +1293,25 @@
   padding: 0 0.45rem;
 }
 
+.pd-fullscreen-page .pd-layout--control-center .pd-dept-grid--top3,
+.pd-fullscreen-page .pd-layout--control-center .pd-dept-grid--bottom3 {
+  gap: 0.35rem !important;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  align-content: stretch;
+  align-items: stretch;
+  padding: 0;
+}
+
+.pd-fullscreen-page .pd-layout--control-center .pd-vault-board .pd-dept-card-body {
+  overflow: hidden;
+}
+
+.pd-fullscreen-page .pd-layout--control-center .pd-vault-slot .pd-vault-stock {
+  overflow: auto;
+}
+
 .pd-fullscreen-page .pd-layout--control-center .pd-dept-grid--production {
   grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
   grid-template-rows: repeat(2, minmax(0, 1fr));
@@ -1541,7 +1560,7 @@
   padding: 0 0.45rem;
 }
 
-/* Tall Vault Room left + KPIs / production on the right */
+/* Vault + Stamping left aligned with top/bottom production bands */
 .pd-layout--vault-board {
   display: flex;
   flex-direction: column;
@@ -1559,49 +1578,97 @@
 .pd-vault-board {
   display: grid;
   grid-template-columns: minmax(260px, 1.15fr) minmax(0, 2.85fr);
+  grid-template-rows: minmax(0, 1.55fr) minmax(0, 1fr);
+  grid-template-areas:
+    "vault top"
+    "stamp bottom";
   gap: 0.55rem;
   flex: 1;
   min-height: 0;
   height: 100%;
   padding: 0 0.45rem;
   align-items: stretch;
+  overflow: hidden;
 }
 
-.pd-vault-sidebar {
+.pd-vault-slot {
+  grid-area: vault;
   min-width: 0;
   min-height: 0;
-  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-.pd-vault-sidebar .pd-dept-card--vault-stock {
-  flex: 1;
-  height: 100%;
+.pd-vault-slot .pd-dept-card--vault-stock {
+  flex: 1 1 auto;
   min-height: 0;
+  height: auto;
+  overflow: hidden;
 }
 
-.pd-vault-sidebar .pd-dept-card--vault-stock .pd-vault-stock {
+/* Only Vault inventory scrolls */
+.pd-vault-slot .pd-dept-card--vault-stock .pd-vault-stock {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
   overflow: auto;
 }
 
-.pd-vault-board-main {
+.pd-vault-board-top {
+  grid-area: top;
   min-width: 0;
   min-height: 0;
-  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  overflow: hidden;
 }
 
-.pd-vault-board-main .pd-kpi-strip {
+.pd-vault-board-top .pd-kpi-strip {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 0;
 }
 
+.pd-stamp-slot {
+  grid-area: stamp;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pd-stamp-slot > .pd-dept-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pd-vault-board .pd-dept-card-body {
+  overflow: hidden;
+}
+
+.pd-dept-grid--top3,
+.pd-dept-grid--bottom3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  align-content: stretch;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.pd-dept-grid--bottom3 {
+  grid-area: bottom;
+}
+
+/* Legacy production grid (fallback / non-aligned layouts) */
 .pd-dept-grid--production {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
@@ -1612,14 +1679,12 @@
   height: 100%;
 }
 
-/* Row 1: Melting, Rolling, Bangle Area */
 .pd-dept-grid--production > :nth-child(1),
 .pd-dept-grid--production > :nth-child(2),
 .pd-dept-grid--production > :nth-child(3) {
   grid-column: span 4;
 }
 
-/* Row 2: Stamping, Pendent, Welding, Assembly */
 .pd-dept-grid--production > :nth-child(n + 4) {
   grid-column: span 3;
 }
@@ -1627,7 +1692,22 @@
 @media (max-width: 1100px) {
   .pd-vault-board {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(280px, 38vh) minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      "vault"
+      "top"
+      "stamp"
+      "bottom";
+  }
+
+  .pd-vault-slot {
+    min-height: 220px;
+    max-height: 38vh;
+  }
+
+  .pd-dept-grid--top3,
+  .pd-dept-grid--bottom3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pd-dept-grid--production {
@@ -1644,10 +1724,12 @@
 }
 
 @media (max-width: 720px) {
-  .pd-vault-board-main .pd-kpi-strip {
+  .pd-vault-board-top .pd-kpi-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .pd-dept-grid--top3,
+  .pd-dept-grid--bottom3,
   .pd-dept-grid--production {
     grid-template-columns: 1fr;
   }
@@ -2036,7 +2118,7 @@
   margin-top: 0.35rem;
 }
 
-.pd-vault-sidebar .pd-dept-card--vault-stock .pd-vault-stock {
+.pd-vault-slot .pd-dept-card--vault-stock .pd-vault-stock {
   max-height: none;
 }
 
