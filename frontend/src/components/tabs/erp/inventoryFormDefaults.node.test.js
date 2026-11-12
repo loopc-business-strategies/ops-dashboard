@@ -47,6 +47,7 @@ describe('inventoryFormDefaults', () => {
     expect(payload.sku).toBeTruthy()
     expect(payload.quantity).toBe(5)
     expect(payload.name).toContain('Gold')
+    expect(payload).not.toHaveProperty('description')
   })
 
   test('mapping and payload fall through to tenant base when currency missing', () => {

@@ -56,6 +56,8 @@ export function buildInventoryMappingPayload({
     ? (String(form.stockCode || '').trim().toUpperCase() || autoSku)
     : autoSku
   const priceValue = parseFloat(form.currentPrice) || 0
+  // Do not send `description` — InventoryItem has no such field and PUT
+  // /inventory/products/:id uses validateBodyStrict (unknown keys → 400).
   const payload = {
     sku: resolvedSku,
     name: `${label} Main Stock`,
@@ -64,7 +66,6 @@ export function buildInventoryMappingPayload({
     unitCost: priceValue,
     sellingPrice: priceValue,
     currency: priceCurrency,
-    description: priceValue > 0 ? `${priceValue} ${priceCurrency}/${form.priceUnit || 'OZ'}` : undefined,
   }
   if (includeOpeningQty) {
     payload.quantity = Number(form.openingQty || 0)
