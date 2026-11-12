@@ -117,10 +117,10 @@ export function useErpTabRouter({
         loadVendorComplianceSummary(),
         loadVendorOverdueQueue(),
       ]))
-    } else if (activeTab === 'inventory') {
+    } else if (activeTab === 'inventory' || activeTab === 'stock-master') {
       refresh('inventory', () => {
         loadInventory()
-        loadStockLedger()
+        if (activeTab === 'inventory') loadStockLedger()
         loadVendors()
       })
     } else if (activeTab === 'gold-alloy') {

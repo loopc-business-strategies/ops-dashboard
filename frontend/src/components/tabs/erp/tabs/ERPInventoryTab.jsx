@@ -3,6 +3,8 @@ import StockTypeLivePrice from '../../../StockTypeLivePrice'
 import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { createInventoryProductForm } from '../erpTabUtils'
+import { downloadXlsxRows } from '../exportHelpers'
+import { buildInventoryExportPayload, exportInventoryPdf } from '../inventoryExportHelpers'
 import { sanitizeCatalogProductPurity } from '../inventoryFormDefaults'
 import {
   FLOATING_MODAL_FOOTER_END_PAD,
@@ -79,6 +81,8 @@ export default function ERPInventoryTab({
   liveMetalSnapshot = null,
   liveMetalError = null,
   loadInventory,
+  showNotification,
+  setError,
   inventoryMappingProducts: _inventoryMappingProducts,
   inventoryCatalogProducts: _inventoryCatalogProducts,
   inventoryProductsByMetal: _inventoryProductsByMetal,
@@ -141,12 +145,14 @@ export default function ERPInventoryTab({
   handleCreateProduct,
   handleInventoryModalDragStart: _handleInventoryModalDragStart,
 }) {
-  const invColCount = 6
+  const invItemColCount = 5
+  const invMovementColCount = 6
   const [inventoryView, setInventoryView] = useState('items')
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('all')
   const [inventoryItemSearch, setInventoryItemSearch] = useState('')
   const [includeZeroQty, setIncludeZeroQty] = useState(false)
   const [movementsCategoryFilter, setMovementsCategoryFilter] = useState('all')
+  const [exportingInventory, setExportingInventory] = useState(false)
   const {
     scrollRef: invScrollRef,
   } = useVirtualTableRows(sortedInventoryTableRows.length, { estimateSize: 44 })
@@ -252,6 +258,41 @@ export default function ERPInventoryTab({
       .filter((group) => group.products.length > 0)
   })()
   const visibleInventoryItemCount = inventoryCategoryGroups.reduce((sum, group) => sum + group.products.length, 0)
+
+  const handleExportInventoryExcel = async () => {
+    const payload = buildInventoryExportPayload(inventoryCategoryGroups)
+    if (!payload) {
+      setError?.('No inventory items available to export')
+      return
+    }
+    try {
+      setExportingInventory(true)
+      await downloadXlsxRows(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
+      showNotification?.('✅ Inventory Excel exported')
+    } catch (err) {
+      console.error('Inventory Excel export failed:', err)
+      setError?.('Failed to export inventory Excel')
+    } finally {
+      setExportingInventory(false)
+    }
+  }
+
+  const handleExportInventoryPdf = async () => {
+    if (!inventoryCategoryGroups.length) {
+      setError?.('No inventory items available to export')
+      return
+    }
+    try {
+      setExportingInventory(true)
+      await exportInventoryPdf(inventoryCategoryGroups)
+      showNotification?.('✅ Inventory PDF exported')
+    } catch (err) {
+      console.error('Inventory PDF export failed:', err)
+      setError?.('Failed to export inventory PDF')
+    } finally {
+      setExportingInventory(false)
+    }
+  }
 
   const inventoryMetalByItemKey = (() => {
     const byId = new Map()
@@ -442,21 +483,6 @@ export default function ERPInventoryTab({
     setInventoryMappingForm,
   ])
 
-  const openCreateStockType = () => {
-    setEditingProductId('')
-    setInventoryMappingForm(createInventoryMappingForm(baseCurrencyCode))
-    setInventoryStockCodeManualOverride(false)
-    setInventoryModalOffset({ x: 0, y: 0 })
-    setShowInventoryMappingModal(true)
-  }
-
-  const openCreateProduct = () => {
-    setEditingInventoryProductId('')
-    setInventoryProductForm(createInventoryProductForm())
-    setInventoryProductModalOffset({ x: 0, y: 0 })
-    setShowInventoryProductModal(true)
-  }
-
   const switchInventoryView = (nextView) => {
     setInventoryView(nextView)
     if (nextView === 'movements' && typeof loadStockLedger === 'function') {
@@ -473,7 +499,7 @@ export default function ERPInventoryTab({
               <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory Workspace</h3>
               <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>
                 {inventoryView === 'items'
-                  ? 'Book unit cost and value match stock GL. Live spot (blue) is market MTM only.'
+                  ? 'Book unit cost and value match stock GL. Live spot (blue) is market MTM only. Manage stock types and products in Stock Master.'
                   : 'Every inventory change from posted sale/purchase vouchers — full audit trail.'}
               </p>
             </div>
@@ -481,17 +507,37 @@ export default function ERPInventoryTab({
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   type="button"
-                  onClick={openCreateStockType}
-                  style={{ padding: '0.55rem 0.95rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}
+                  onClick={handleExportInventoryPdf}
+                  disabled={exportingInventory || inventoryCategoryGroups.length === 0}
+                  style={{
+                    padding: '0.55rem 0.95rem',
+                    background: '#FEF2F2',
+                    color: '#991B1B',
+                    border: '1px solid #EF4444',
+                    borderRadius: '0.45rem',
+                    cursor: exportingInventory || inventoryCategoryGroups.length === 0 ? 'not-allowed' : 'pointer',
+                    fontWeight: '700',
+                    opacity: exportingInventory || inventoryCategoryGroups.length === 0 ? 0.65 : 1,
+                  }}
                 >
-                  + Create Stock Type
+                  {exportingInventory ? 'Exporting…' : 'Export PDF'}
                 </button>
                 <button
                   type="button"
-                  onClick={openCreateProduct}
-                  style={{ padding: '0.55rem 0.95rem', background: '#B45309', color: '#fff', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}
+                  onClick={handleExportInventoryExcel}
+                  disabled={exportingInventory || inventoryCategoryGroups.length === 0}
+                  style={{
+                    padding: '0.55rem 0.95rem',
+                    background: '#ECFDF5',
+                    color: '#065F46',
+                    border: '1px solid #10B981',
+                    borderRadius: '0.45rem',
+                    cursor: exportingInventory || inventoryCategoryGroups.length === 0 ? 'not-allowed' : 'pointer',
+                    fontWeight: '700',
+                    opacity: exportingInventory || inventoryCategoryGroups.length === 0 ? 0.65 : 1,
+                  }}
                 >
-                  + Create Product
+                  {exportingInventory ? 'Exporting…' : 'Export Excel'}
                 </button>
                 <button
                   type="button"
@@ -628,7 +674,6 @@ export default function ERPInventoryTab({
                 <table className="erp-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left', minWidth: '7rem' }}>Category</th>
                       <th style={{ textAlign: 'left', minWidth: '12rem' }}>Item</th>
                       <th className="num">pcs</th>
                       <th className="num">gross qty</th>
@@ -639,22 +684,26 @@ export default function ERPInventoryTab({
                   <tbody>
                     {inventoryCategoryGroups.map((group, groupIndex) => (
                       <Fragment key={group.metal}>
-                        <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '1px solid #E2E8F0' : undefined }}>
-                          <td style={{ padding: '0.55rem 0.7rem', fontWeight: 800, color: C.ink, textTransform: 'lowercase', verticalAlign: 'top' }}>
+                        <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '2px solid #F1F5F9' : undefined }}>
+                          <td
+                            colSpan={invItemColCount}
+                            style={{
+                              padding: '0.45rem 0.7rem',
+                              fontWeight: 800,
+                              color: C.ink,
+                              textTransform: 'lowercase',
+                              borderRight: 'none',
+                              letterSpacing: '0.01em',
+                            }}
+                          >
                             {group.metalLabel}
                           </td>
-                          <td style={{ padding: '0.55rem 0.7rem' }} />
-                          <td style={{ padding: '0.55rem 0.7rem' }} />
-                          <td style={{ padding: '0.55rem 0.7rem' }} />
-                          <td style={{ padding: '0.55rem 0.7rem' }} />
-                          <td style={{ padding: '0.55rem 0.7rem' }} />
                         </tr>
                         {group.products.map((product) => {
                           const isZero = product.grossQty <= 0
                           return (
                           <tr key={product.id} style={{ borderBottom: '1px solid #F8FAFC', background: isZero ? '#FFFBEB' : undefined }}>
-                            <td style={{ padding: '0.4rem 0.7rem' }} />
-                            <td style={{ padding: '0.4rem 0.7rem 0.4rem 1.6rem', fontWeight: 600, color: isZero ? '#92400E' : C.ink }}>
+                            <td style={{ padding: '0.4rem 0.7rem 0.4rem 1.15rem', fontWeight: 600, color: isZero ? '#92400E' : C.ink }}>
                               {product.name}
                               {isZero ? <span style={{ marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>0 stock</span> : null}
                             </td>
@@ -674,8 +723,7 @@ export default function ERPInventoryTab({
                           )
                         })}
                         <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                          <td style={{ padding: '0.45rem 0.7rem' }} />
-                          <td style={{ padding: '0.45rem 0.7rem 0.45rem 1.6rem', fontWeight: 700, color: C.inkSoft }}>total</td>
+                          <td style={{ padding: '0.45rem 0.7rem 0.45rem 1.15rem', fontWeight: 700, color: C.inkSoft }}>total</td>
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 800, color: C.ink }}>
                             {group.totalPcs.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
@@ -688,9 +736,6 @@ export default function ERPInventoryTab({
                           <td style={{ padding: '0.45rem 0.7rem', textAlign: 'right', fontWeight: 800, color: C.ink }}>
                             {group.totalPure.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           </td>
-                        </tr>
-                        <tr aria-hidden="true">
-                          <td colSpan={invColCount} style={{ height: '0.55rem', padding: 0, border: 'none' }} />
                         </tr>
                       </Fragment>
                     ))}
@@ -771,8 +816,6 @@ export default function ERPInventoryTab({
                       <table className="erp-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
                         <thead>
                           <tr>
-                            <th style={{ textAlign: 'left', minWidth: '7rem' }}>Category</th>
-                            <th style={{ textAlign: 'left', minWidth: '11rem' }}>Item</th>
                             <th style={{ textAlign: 'left' }}>Date</th>
                             <th className="num">Change</th>
                             <th className="num">Before</th>
@@ -784,19 +827,35 @@ export default function ERPInventoryTab({
                         <tbody>
                           {stockMovementCategoryGroups.map((group, groupIndex) => (
                             <Fragment key={group.metal}>
-                              <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '1px solid #E2E8F0' : undefined }}>
-                                <td style={{ padding: '0.55rem 0.7rem', fontWeight: 800, color: C.ink, textTransform: 'lowercase' }}>
+                              <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '2px solid #F1F5F9' : undefined }}>
+                                <td
+                                  colSpan={invMovementColCount}
+                                  style={{
+                                    padding: '0.45rem 0.7rem',
+                                    fontWeight: 800,
+                                    color: C.ink,
+                                    textTransform: 'lowercase',
+                                    borderRight: 'none',
+                                  }}
+                                >
                                   {group.metalLabel}
-                                </td>
-                                <td colSpan={7} style={{ padding: '0.55rem 0.7rem', color: C.inkSoft, fontSize: '0.74rem', fontWeight: 600 }}>
-                                  {group.products.length} product{group.products.length === 1 ? '' : 's'} · {group.movementCount} move{group.movementCount === 1 ? '' : 's'}
+                                  <span style={{ marginLeft: '0.55rem', color: C.inkSoft, fontSize: '0.74rem', fontWeight: 600, textTransform: 'none' }}>
+                                    {group.products.length} product{group.products.length === 1 ? '' : 's'} · {group.movementCount} move{group.movementCount === 1 ? '' : 's'}
+                                  </span>
                                 </td>
                               </tr>
                               {group.products.map((product) => (
                                 <Fragment key={`${group.metal}-${product.name}`}>
                                   <tr style={{ background: '#F8FAFC' }}>
-                                    <td style={{ padding: '0.35rem 0.7rem' }} />
-                                    <td colSpan={7} style={{ padding: '0.35rem 0.7rem 0.35rem 1.4rem', fontWeight: 700, color: C.ink }}>
+                                    <td
+                                      colSpan={invMovementColCount}
+                                      style={{
+                                        padding: '0.35rem 0.7rem 0.35rem 1.15rem',
+                                        fontWeight: 700,
+                                        color: C.ink,
+                                        borderRight: 'none',
+                                      }}
+                                    >
                                       {product.name}
                                       <span style={{ marginLeft: '0.45rem', color: C.inkSoft, fontWeight: 600, fontSize: '0.72rem' }}>
                                         {product.movements.length} move{product.movements.length === 1 ? '' : 's'}
@@ -807,9 +866,7 @@ export default function ERPInventoryTab({
                                     const isIn = Number(m.change || 0) > 0
                                     return (
                                       <tr key={m._id || `${product.name}-${i}`} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                        <td style={{ padding: '0.4rem 0.7rem' }} />
-                                        <td style={{ padding: '0.4rem 0.7rem' }} />
-                                        <td style={{ padding: '0.4rem 0.7rem', color: C.inkSoft, whiteSpace: 'nowrap' }}>
+                                        <td style={{ padding: '0.4rem 0.7rem 0.4rem 1.15rem', color: C.inkSoft, whiteSpace: 'nowrap' }}>
                                           {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
                                         </td>
                                         <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', fontWeight: 700, color: isIn ? '#166534' : '#B91C1C' }}>
@@ -832,9 +889,6 @@ export default function ERPInventoryTab({
                                   })}
                                 </Fragment>
                               ))}
-                              <tr aria-hidden="true">
-                                <td colSpan={8} style={{ height: '0.55rem', padding: 0, border: 'none' }} />
-                              </tr>
                             </Fragment>
                           ))}
                         </tbody>
@@ -844,7 +898,11 @@ export default function ERPInventoryTab({
             }
           </div>
           )}
+        </div>
+      )}
 
+      {(activeTab === 'inventory' || activeTab === 'stock-master') && (
+        <>
           {showInventoryProductModal && (
             <div
               style={{
@@ -1366,7 +1424,7 @@ export default function ERPInventoryTab({
               </form>
             </div>
           )}
-        </div>
+        </>
       )}
     </>
   )
