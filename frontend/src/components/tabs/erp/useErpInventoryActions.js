@@ -6,6 +6,7 @@ import {
   buildUniqueStockCode,
   createInventoryMappingForm,
   createInventoryProductForm,
+  decodeInventoryCategoryMeta,
   resolveMainStockValueFromForm,
 } from './erpTabUtils'
 import {
@@ -14,6 +15,7 @@ import {
   computeInventoryProductPurityWeight,
   mappingProductToFormState,
   resolveCatalogProductEditForm,
+  rewriteInventoryCategoryMetalKey,
 } from './inventoryFormDefaults'
 
 function useModalDrag({
@@ -181,6 +183,14 @@ export function useErpInventoryActions({
     }
     try {
       setSaving(true)
+      const previousMapping = editingProductId
+        ? inventoryMappingProducts.find((item) => item._id === editingProductId)
+        : null
+      const previousMeta = previousMapping
+        ? decodeInventoryCategoryMeta(previousMapping.category)
+        : null
+      const previousMain = String(previousMeta?.mainStock || previousMeta?.metalType || '').trim().toLowerCase()
+      const nextMain = String(mainStockValue || '').trim().toLowerCase()
       const payload = buildInventoryMappingPayload({
         form: inventoryMappingForm,
         includeOpeningQty: !editingProductId,
@@ -192,6 +202,19 @@ export function useErpInventoryActions({
       })
       if (editingProductId) {
         await erpAccountingAPI.updateInventoryProduct(token, editingProductId, payload)
+        if (previousMain && nextMain && previousMain !== nextMain) {
+          const linkedProducts = (inventoryCatalogProducts || []).filter((item) => {
+            if (!String(item?.category || '').includes('recordType=product')) return false
+            const meta = decodeInventoryCategoryMeta(item.category)
+            const main = String(meta.mainStock || meta.metalType || '').trim().toLowerCase()
+            return main === previousMain
+          })
+          await Promise.all(linkedProducts.map((item) => (
+            erpAccountingAPI.updateInventoryProduct(token, item._id, {
+              category: rewriteInventoryCategoryMetalKey(item.category, previousMain, nextMain),
+            })
+          )))
+        }
         showNotification('✅ Stock mapping updated')
       } else {
         await erpAccountingAPI.createInventoryProduct(token, payload)
@@ -209,6 +232,7 @@ export function useErpInventoryActions({
     token,
     inventoryMappingForm,
     inventoryMappingProducts,
+    inventoryCatalogProducts,
     editingProductId,
     inventoryStockCodeSettings,
     isSuperAdmin,
