@@ -17,6 +17,11 @@ const stockMovementSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    /** Signed piece-count delta for this movement (0 when the voucher line had no PCS). */
+    pcsChange: {
+      type: Number,
+      default: 0,
+    },
     quantityBefore: {
       type: Number,
       required: true,

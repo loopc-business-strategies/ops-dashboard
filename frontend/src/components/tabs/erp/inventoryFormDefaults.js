@@ -106,6 +106,35 @@ export function computeInventoryPureStockQty(quantity, purity) {
   return qty * factor
 }
 
+/**
+ * Real piece count for Inventory Items.
+ * Prefer stored/on-hand pcs from the API; never invent a product-row count.
+ */
+export function resolveInventoryPcs({ productMeta = {}, item = {}, reportRow = {} } = {}) {
+  const candidates = [
+    reportRow?.pcs,
+    item?.pcs,
+    item?.pieces,
+    productMeta?.pcs,
+    productMeta?.pieces,
+  ]
+  for (const raw of candidates) {
+    if (raw === '' || raw == null) continue
+    const n = Number(raw)
+    if (Number.isFinite(n) && n >= 0) return n
+  }
+  return null
+}
+
+/** Category PCS total = sum of real piece counts only (null when none). */
+export function sumInventoryPcs(products = []) {
+  const values = (Array.isArray(products) ? products : [])
+    .map((p) => p?.pcs)
+    .filter((n) => n != null && Number.isFinite(n))
+  if (!values.length) return null
+  return values.reduce((sum, n) => sum + n, 0)
+}
+
 /** Inventory value: use pure qty when purity is set, otherwise gross qty. */
 export function computeInventoryStockValue(quantity, unitCost, purity) {
   const cost = Number(unitCost || 0)

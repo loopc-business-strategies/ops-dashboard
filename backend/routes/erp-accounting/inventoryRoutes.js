@@ -4,6 +4,7 @@ const { Joi, validateBody, validateBodyStrict, validateParams } = require('../..
 const { sanitizeInventoryCategoryPurity } = require('../../utils/catalogProductPurity')
 const {
   applyCatalogOnHandQuantities,
+  applyCatalogOnHandPcs,
   catalogOnHandFromMovements,
   catalogQuantityFromMovements,
   isCatalogInventoryProduct,
@@ -83,6 +84,7 @@ function registerInventoryRoutes(deps) {
     protect,
     InventoryItem,
     StockMovement,
+    Transaction,
     Vendor,
     Ledger,
     ChartOfAccount,
@@ -144,6 +146,7 @@ function registerInventoryRoutes(deps) {
         InventoryItem.countDocuments(query),
       ])
       await applyCatalogOnHandQuantities({ InventoryItem, StockMovement, products })
+      await applyCatalogOnHandPcs({ InventoryItem, Transaction, products })
       res.json({ success: true, products, total, page, limit })
     } catch (err) {
       respondRouteError(res, err, { tag: 'erp-accounting/inventoryRoutes' })

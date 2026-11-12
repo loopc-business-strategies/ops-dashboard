@@ -611,6 +611,7 @@ function registerErpAccountingRoutes(router) {
     protect,
     InventoryItem,
     StockMovement,
+    Transaction,
     Vendor,
     Ledger,
     ChartOfAccount,

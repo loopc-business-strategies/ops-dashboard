@@ -6,9 +6,11 @@ import {
   computeInventoryBookStockValue,
   computeInventoryStockValue,
   mappingProductToFormState,
+  resolveInventoryPcs,
   resolveInventoryPurityFactor,
   resolveProductLinePurity,
   rewriteInventoryCategoryMetalKey,
+  sumInventoryPcs,
 } from './inventoryFormDefaults'
 
 describe('inventoryFormDefaults', () => {
@@ -25,6 +27,14 @@ describe('inventoryFormDefaults', () => {
     expect(form.mainStock).toBe('gold')
     expect(form.currentPrice).toBe('2500')
     expect(form.priceUnit).toBe('OZ')
+  })
+
+  test('resolveInventoryPcs uses stored piece count and never invents product counts', () => {
+    expect(resolveInventoryPcs({ item: { pcs: 4 } })).toBe(4)
+    expect(resolveInventoryPcs({ productMeta: { pieces: 2 } })).toBe(2)
+    expect(resolveInventoryPcs({ item: {}, productMeta: {} })).toBeNull()
+    expect(sumInventoryPcs([{ pcs: 2 }, { pcs: null }, { pcs: 1 }])).toBe(3)
+    expect(sumInventoryPcs([{ pcs: null }, { pcs: null }])).toBeNull()
   })
 
   test('rewriteInventoryCategoryMetalKey renames mainStock and metalType', () => {

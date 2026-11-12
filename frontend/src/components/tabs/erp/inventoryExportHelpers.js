@@ -66,7 +66,7 @@ export function buildInventoryExportPayload(categoryGroups = []) {
 
     rows.push([
       '  TOTAL',
-      Number(group.totalPcs || 0),
+      group.totalPcs == null ? '' : Number(group.totalPcs),
       Number(group.totalGross || 0),
       group.totalPurity == null ? '' : Number(group.totalPurity),
       Number(group.totalPure || 0),
@@ -79,7 +79,7 @@ export function buildInventoryExportPayload(categoryGroups = []) {
         styles: { fontStyle: 'bold', fillColor: [248, 250, 252] },
       },
       {
-        content: String(Number(group.totalPcs || 0)),
+        content: group.totalPcs == null ? '—' : String(group.totalPcs),
         styles: { fontStyle: 'bold', fillColor: [248, 250, 252], halign: 'right' },
       },
       {
