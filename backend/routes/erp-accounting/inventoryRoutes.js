@@ -60,6 +60,10 @@ const alloyMixSchema = Joi.object({
 const alloyMixReverseSchema = Joi.object({
   reason: Joi.string().trim().min(1).max(1000).required(),
 })
+const alloyMixClearHistorySchema = Joi.object({
+  reason: Joi.string().trim().min(1).max(1000).optional(),
+  karat: Joi.number().integer().min(1).max(24).optional(),
+}).or('reason', 'karat')
 
 /** Pure candidate pick for stock-in/out ledger currency (before Currency master validate). */
 function pickStockMovementCurrencyCandidate({
@@ -467,22 +471,32 @@ function registerInventoryRoutes(deps) {
   })
 
   /** Hard-delete soft-deleted alloy mix movements (clears prior Posted history clutter). */
-  router.post('/inventory/alloy-mix/clear-history', protect, async (req, res) => {
+  router.post('/inventory/alloy-mix/clear-history', protect, validateBody(alloyMixClearHistorySchema), async (req, res) => {
     try {
-      if (!canManageInventorySettings(req.user)) {
+      // Same write gate as reverse — Delete on a history row must be able to purge it.
+      if (!canWriteInventory(req.user)) {
         return res.status(403).json({ success: false, message: 'Forbidden' })
       }
+      const reasonBase = String(req.body?.reason || '').trim()
       const karatNum = Number(req.body?.karat)
-      const reason = Number.isFinite(karatNum) && karatNum > 0
-        ? new RegExp(`Gold alloy mix\\s*\\(${karatNum}\\s*K|alloy mix\\s*\\(${karatNum}\\s*K`, 'i')
-        : /Gold alloy mix|alloy mix/i
+      let reasonFilter
+      if (reasonBase) {
+        const escaped = reasonBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        // Posted list reason is the base; movements are `${base} — consume|receive …`.
+        reasonFilter = new RegExp(`^${escaped}(?:\\s*[—\\-]\\s*(?:consume|receive)\\b|$)`, 'i')
+      } else if (Number.isFinite(karatNum) && karatNum > 0) {
+        reasonFilter = new RegExp(`Gold alloy mix\\s*\\(${karatNum}\\s*K|alloy mix\\s*\\(${karatNum}\\s*K`, 'i')
+      } else {
+        reasonFilter = /Gold alloy mix|alloy mix/i
+      }
       const result = await StockMovement.deleteMany({
         isDeleted: true,
-        reason,
+        reason: reasonFilter,
       })
       res.json({
         success: true,
         deletedCount: result.deletedCount || 0,
+        reason: reasonBase || null,
         karat: Number.isFinite(karatNum) && karatNum > 0 ? karatNum : null,
       })
     } catch (err) {

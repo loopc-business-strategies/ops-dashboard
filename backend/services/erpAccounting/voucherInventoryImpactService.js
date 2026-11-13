@@ -22,6 +22,7 @@ const { calculateUnfixedPremiumAmount } = require('./voucherFixingService')
 const {
   createLotsFromPurchasePlans,
   assertAndConsumeVaultLotsForStockOut,
+  allowNegativeVaultStock,
 } = require('./voucherProductionStockBridge')
 const {
   resolveVoucherMetalCode,
@@ -284,9 +285,12 @@ function createVoucherInventoryImpactService({
     const movementPcs = Math.max(0, Number(plan.pcs || 0))
     const beforePcs = Math.max(0, Number(item.pcs || 0))
 
+    const allowNegative = allowNegativeVaultStock()
+
     // Check inventory before touching vault lots so a failed stock-out cannot
     // leave production lots consumed while the voucher stays unposted.
-    if (beforeQty + 1e-9 < movementQty) {
+    // MG local (or ALLOW_NEGATIVE_VAULT_STOCK) may post short and go negative.
+    if (!allowNegative && beforeQty + 1e-9 < movementQty) {
       const shown = Math.round(beforeQty * 1000) / 1000
       const need = Math.round(movementQty * 1000) / 1000
       throw new Error(`Insufficient vault stock. Available: ${shown} g, requested: ${need} g.`)
@@ -297,6 +301,7 @@ function createVoucherInventoryImpactService({
       item,
       quantity: movementQty,
       session,
+      allowNegative,
       reason: isMetalProductTransferType(transactionType)
         ? `Metal transfer OUT ${tx.voucherMeta?.vocNo || tx._id}`
         : `Customer metal OUT ${tx.voucherMeta?.vocNo || tx._id}`,

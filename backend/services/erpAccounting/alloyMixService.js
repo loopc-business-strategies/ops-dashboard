@@ -1,7 +1,8 @@
 /**
  * Atomic gold-alloy mix: consume input catalog products, receive finished alloy product.
  * Cost rolls from inputs onto finished (metal_transfer-style), no COGS.
- * When input gross > finished gross (oxidation), the gap posts to mapping alloy_metal_loss.
+ * Oxidation (input gross > finished): AML metal_payment rows update Metal Loss grams only
+ * ($0 amount). Currency on Metal Loss is entered manually — never auto-posted.
  */
 
 const { withSession, writeOpts, runInTransaction } = require('../../utils/mongoTransaction')
@@ -292,11 +293,12 @@ function createAlloyMixService({
       let metalLossMapping = null
       if (metalLossGross > GROSS_EPS) {
         metalLossMapping = await resolveAlloyMetalLossMapping(session)
-        if (!metalLossMapping?.debitAccountId || !metalLossMapping?.creditAccountId) {
+        // Debit = Metal Loss party for AML gram position only (no auto USD expense).
+        if (!metalLossMapping?.debitAccountId) {
           throw httpError(
             400,
             `Metal loss ${metalLossGross} g: create active mapping "${ALLOY_METAL_LOSS_MAPPING_TYPE}" `
-            + '(debit = Metal Loss expense, credit = Metal Inventory)',
+            + '(debit = Metal Loss account for metal balance)',
           )
         }
       }
@@ -368,35 +370,27 @@ function createAlloyMixService({
         item.updatedBy = user._id
         await item.save(writeOpts(session))
 
-        await StockMovement.create([{
-          itemId: item._id,
-          itemName: item.name,
-          change: -need,
-          quantityBefore: beforeQty,
-          quantityAfter: nextQty,
-          reason: `${reasonBase} — consume ${line.label || item.name}`,
-          actorId: user._id,
-          actorName: user.name,
-        }], writeOpts(session))
-
+        // Optional UI remain — validated below; Metal Loss grams use input-share split, not this delta.
         const remainGross = line.remainGross != null
           ? toQty(Math.max(0, line.remainGross))
           : null
-        const lossGross = remainGross != null
-          ? toQty(Math.max(0, need - remainGross))
-          : null
+        const consumeLabel = line.label || item.name
+
         consumed.push({
           itemId: String(item._id),
           name: item.name,
           category: item.category || '',
           role: line.role,
           label: line.label,
+          consumeLabel,
           gross: need,
           remainGross,
-          lossGross,
+          lossGross: null,
           unitCost,
           bookValue,
           ledgerAccountId: item.ledgerAccountId || null,
+          quantityBefore: beforeQty,
+          quantityAfter: nextQty,
         })
       }
 
@@ -413,26 +407,51 @@ function createAlloyMixService({
         }
       }
 
+      // Metal Loss AML: always input-share × total loss (e.g. gold 50/85.715 × 4 = 2.333),
+      // not UI per-metal remain deltas. Last line absorbs rounding.
+      const lossRatio = totalInputGross > 0 && metalLossGross > GROSS_EPS
+        ? (metalLossGross / totalInputGross)
+        : 0
+      let allocatedLoss = 0
+      for (let i = 0; i < consumed.length; i += 1) {
+        const row = consumed[i]
+        const isLast = i === consumed.length - 1
+        if (metalLossGross > GROSS_EPS) {
+          const shareLoss = isLast
+            ? toQty(metalLossGross - allocatedLoss)
+            : toQty(Number(row.gross) * lossRatio)
+          if (!isLast) allocatedLoss = toQty(allocatedLoss + shareLoss)
+          row.lossGross = shareLoss
+          row.remainGross = toQty(Number(row.gross) - shareLoss)
+        } else {
+          row.lossGross = 0
+          if (row.remainGross == null) row.remainGross = row.gross
+        }
+        row.lineLossRatio = row.gross > GROSS_EPS ? (row.lossGross / row.gross) : 0
+      }
+
+      // Vault consume movements (remain encoded after proportional split for Inputs OUT).
+      for (const row of consumed) {
+        const consumeReason = row.remainGross != null && Number(row.lossGross) > GROSS_EPS
+          ? `${reasonBase} — consume ${row.consumeLabel} (remain ${toQty(row.remainGross)} g)`
+          : `${reasonBase} — consume ${row.consumeLabel}`
+        await StockMovement.create([{
+          itemId: row.itemId,
+          itemName: row.name,
+          change: -Number(row.gross),
+          quantityBefore: row.quantityBefore,
+          quantityAfter: row.quantityAfter,
+          reason: consumeReason,
+          actorId: user._id,
+          actorName: user.name,
+        }], writeOpts(session))
+      }
+
       const beforeOut = await catalogOnHandFromMovements(StockMovement, finished._id)
       finished.quantity = beforeOut
       const outQty = toQty(target)
       const nextOut = toQty(beforeOut + outQty)
       const currentValue = beforeOut * Number(finished.unitCost || 0)
-      // Oxidation: inputs leave vault in full; only the remaining weight rolls into finished.
-      // Prefer per-line remainGross (e.g. gold 80% / silver 20% of loss); else proportional.
-      const lossRatio = totalInputGross > 0 && metalLossGross > GROSS_EPS
-        ? (metalLossGross / totalInputGross)
-        : 0
-      for (const row of consumed) {
-        if (row.lossGross == null && metalLossGross > GROSS_EPS) {
-          row.lossGross = toQty(row.gross * lossRatio)
-          row.remainGross = toQty(row.gross - row.lossGross)
-        } else if (row.lossGross == null) {
-          row.lossGross = 0
-          row.remainGross = row.gross
-        }
-        row.lineLossRatio = row.gross > GROSS_EPS ? (row.lossGross / row.gross) : 0
-      }
       const lossBookValue = toMoney(
         consumed.reduce((sum, row) => sum + (row.bookValue * (row.lineLossRatio || 0)), 0),
       )
@@ -460,9 +479,9 @@ function createAlloyMixService({
         actorName: user.name,
       }], writeOpts(session))
 
-      // Inventory-to-inventory GL for the finished share; metal loss GL for oxidation.
+      // Inventory-to-inventory GL for the finished share only.
+      // Never auto-post USD to Metal Loss — grams go via AML metal_payment; cash is manual.
       if (Ledger && totalBookValue > 0) {
-        let postedLossValue = 0
         for (const row of consumed) {
           if (!(row.bookValue > 0)) continue
           const rowLoss = toMoney(row.bookValue * (row.lineLossRatio || 0))
@@ -488,48 +507,6 @@ function createAlloyMixService({
               exchangeRate: 1,
             }], writeOpts(session))
           }
-
-          if (rowLoss > 0 && metalLossMapping?.debitAccountId) {
-            const creditId = row.ledgerAccountId || metalLossMapping.creditAccountId
-            if (creditId) {
-              await Ledger.create([{
-                date: stockDate,
-                debitAccountId: metalLossMapping.debitAccountId,
-                creditAccountId: creditId,
-                amount: rowLoss,
-                description: `${reasonBase}: metal loss ${toQty(row.lossGross || 0)} g ${row.name}`,
-                referenceType: 'inventory',
-                createdBy: user._id,
-                updatedBy: user._id,
-                department: user.department || '',
-                currency: 'USD',
-                exchangeRate: 1,
-              }], writeOpts(session))
-              postedLossValue = toMoney(postedLossValue + rowLoss)
-            }
-          }
-        }
-
-        // No per-input ledger account: one loss entry vs mapped inventory credit.
-        if (
-          lossBookValue > 0
-          && postedLossValue + 0.005 < lossBookValue
-          && metalLossMapping?.debitAccountId
-          && metalLossMapping?.creditAccountId
-        ) {
-          await Ledger.create([{
-            date: stockDate,
-            debitAccountId: metalLossMapping.debitAccountId,
-            creditAccountId: metalLossMapping.creditAccountId,
-            amount: toMoney(lossBookValue - postedLossValue),
-            description: `${reasonBase}: metal loss ${metalLossGross} g`,
-            referenceType: 'inventory',
-            createdBy: user._id,
-            updatedBy: user._id,
-            department: user.department || '',
-            currency: 'USD',
-            exchangeRate: 1,
-          }], writeOpts(session))
         }
       }
 

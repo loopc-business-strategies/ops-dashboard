@@ -91,7 +91,7 @@ export default function FixingRegisterPanel({
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', width: '2rem', height: '2rem', borderRadius: '0.4rem', border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#1E3A5F', fontSize: '1rem', cursor: 'pointer' }}
           >←</button>
           {/* Filter card */}
-          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: 'min(1200px, 100%)', marginBottom: '1.25rem', position: 'relative', transform: `translate(${fixingRegPanelOffset.x}px, ${fixingRegPanelOffset.y}px)`, transition: fixingRegPanelDrag.active ? 'none' : 'transform 120ms ease-out' }}>
+          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', width: '100%', maxWidth: '100%', boxSizing: 'border-box', marginBottom: '1.25rem', position: 'relative', transform: `translate(${fixingRegPanelOffset.x}px, ${fixingRegPanelOffset.y}px)`, transition: fixingRegPanelDrag.active ? 'none' : 'transform 120ms ease-out' }}>
             {/* Header */}
             <div onMouseDown={beginFixingRegPanelDrag} style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'sticky', top: 0, zIndex: 3, cursor: fixingRegPanelDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}>
               <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>Net Position</span>
@@ -248,7 +248,7 @@ export default function FixingRegisterPanel({
           </div>
 
           {fixingRegLoading && (
-            <div style={{ maxWidth: 'min(1200px, 100%)', marginBottom: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.45rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', fontSize: '0.88rem', fontWeight: '600' }}>
+            <div style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', marginBottom: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.45rem', border: '1px solid var(--brand-border)', background: 'var(--brand-soft)', color: 'var(--purple)', fontSize: '0.88rem', fontWeight: '600' }}>
               Loading net position…
             </div>
           )}
@@ -338,7 +338,7 @@ export default function FixingRegisterPanel({
             })()
 
             return (
-              <div style={{ marginTop: '1rem', borderRadius: '0.5rem', border: '1px solid #CBD5E1', background: '#FFFFFF', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', overflow: 'hidden', maxWidth: 'min(1200px, 100%)' }}>
+              <div style={{ marginTop: '1rem', borderRadius: '0.5rem', border: '1px solid #CBD5E1', background: '#FFFFFF', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflow: 'visible' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', gap: '0.75rem', flexWrap: 'wrap', borderBottom: '1px solid #E5E7EB', background: '#FFFBF0' }}>
                   <div>
                     <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem', fontWeight: '700' }}>Net Position</h4>
@@ -357,7 +357,7 @@ export default function FixingRegisterPanel({
                   </div>
                 </div>
 
-                <div style={{ padding: '1rem' }}>
+                <div style={{ padding: '1rem', width: '100%', boxSizing: 'border-box' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
                     {[
                       { label: 'Total Buy', value: `${fixingRegFmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#15803D' },
@@ -372,21 +372,42 @@ export default function FixingRegisterPanel({
                     ))}
                   </div>
 
-                  <div ref={fixingScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: 'min(70vh, 720px)', borderRadius: '0.24rem' }}>
-                    <table className="erp-table" style={{ minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif' }}>
+                  <div
+                    ref={fixingScrollRef}
+                    className="erp-table-wrap"
+                    style={{
+                      overflowX: 'auto',
+                      overflowY: 'auto',
+                      maxHeight: 'min(70vh, 720px)',
+                      borderRadius: '0.24rem',
+                      width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      WebkitOverflowScrolling: 'touch',
+                    }}
+                  >
+                    <table
+                      className="erp-table"
+                      style={{
+                        width: 'max(100%, 1180px)',
+                        minWidth: '1180px',
+                        tableLayout: 'fixed',
+                        fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif',
+                      }}
+                    >
                       <colgroup>
-                        <col style={{ width: '40px' }} />
-                        <col style={{ width: '110px' }} />
-                        <col style={{ width: '110px' }} />
-                        <col style={{ width: '120px' }} />
-                        <col style={{ width: '360px' }} />
-                        <col style={{ width: '90px' }} />
-                        <col style={{ width: '90px' }} />
-                        <col style={{ width: '110px' }} />
-                        <col style={{ width: '110px' }} />
+                        <col style={{ width: '44px' }} />
+                        <col style={{ width: '100px' }} />
+                        <col style={{ width: '100px' }} />
                         <col style={{ width: '130px' }} />
-                        <col style={{ width: '130px' }} />
-                        <col style={{ width: '95px' }} />
+                        <col style={{ width: '220px' }} />
+                        <col style={{ width: '88px' }} />
+                        <col style={{ width: '88px' }} />
+                        <col style={{ width: '100px' }} />
+                        <col style={{ width: '100px' }} />
+                        <col style={{ width: '110px' }} />
+                        <col style={{ width: '110px' }} />
+                        <col style={{ width: '90px' }} />
                       </colgroup>
                       <thead>
                         <tr style={{ background: '#EBC788' }}>
@@ -432,7 +453,7 @@ export default function FixingRegisterPanel({
                             <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
                             <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
                             <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
-                            <td style={{ ...legacyCell, color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <td style={{ ...legacyCell, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}>
                               <span
                                 style={{
                                   display: 'inline-block',
