@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 /**
- * Void a metal purchase or sale voucher by document number (voucherMeta.vocNo), matching
+ * Void a metal voucher by document number (voucherMeta.vocNo), matching
  * POST /transactions/:id/void: soft-delete ledgers, reverse stock movements, soft-delete transaction.
+ * Types: purchase, sale, metal_receipt, metal_payment.
  *
  * Dry-run (default): prints what would happen; no writes.
  * Apply: requires destructive guard (same as other maintenance scripts).
+ * Apply-dev: local/staging cleanup without confirm token (non-production URI only).
  *
  *   node scripts/void-metal-voucher-by-voc-no.js --tenant=mg --voc-no=Pur/2026/0001
  *
  *   node scripts/void-metal-voucher-by-voc-no.js --tenant=mg --apply --voc-no=Pur/2026/0001 \
  *     --reason="Void erroneous metal purchase Pur/2026/0001" --confirm="$DESTRUCTIVE_ADMIN_CONFIRM_TOKEN"
+ *
+ *   node scripts/void-metal-voucher-by-voc-no.js --tenant=mg --apply-dev --voc-no=MRec/2026/0001 \
+ *     --reason="Remove Metal Loss metal receipt demo"
  */
 
 require('dotenv').config()
@@ -21,8 +26,11 @@ const { reverseMetalVoucherStockForVoid, escapeRegExp } = require('../utils/meta
 const { toQty } = require('../routes/erp-accounting/transactionHelpers')
 const { appendTransactionAudit } = require('../utils/transactionWorkflowHelpers')
 const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
+const { looksLikeNonProductionUri } = require('../utils/migrationSafety')
 
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
+
+const METAL_VOID_TYPES = ['purchase', 'sale', 'metal_receipt', 'metal_payment']
 
 function readArgValue(name) {
   const exactPrefix = `${name}=`
@@ -74,12 +82,13 @@ async function main() {
     process.exit(1)
   }
 
-  const apply = process.argv.includes('--apply')
-  assertStagingOnlyScript({
-    scriptName: path.basename(__filename),
-    tenants: [tenant],
-  })
-  if (apply) {
+  const applyDev = process.argv.includes('--apply-dev')
+  const apply = process.argv.includes('--apply') || applyDev
+  if (apply && !applyDev) {
+    assertStagingOnlyScript({
+      scriptName: path.basename(__filename),
+      tenants: [tenant],
+    })
     if (!readArgValue('--confirm')) {
       const fromEnv = String(
         process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN || process.env.CLEANUP_CONFIRM_TOKEN || '',
@@ -89,8 +98,10 @@ async function main() {
     require(path.join(__dirname, 'destructive', '_destructive-guard'))({
       scriptName: path.basename(__filename),
     })
-  } else {
-    console.log('--- DRY-RUN (no writes). Re-run with --apply and destructive guard args to commit. ---\n')
+  } else if (!apply) {
+    console.log('--- DRY-RUN (no writes). Re-run with --apply / --apply-dev to commit. ---\n')
+  } else if (applyDev) {
+    console.log('--- APPLY-DEV (local/staging cleanup; no production guard token) ---\n')
   }
 
   const vocNoArg = String(readArgValue('--voc-no') || process.env.VOID_VOC_NO || 'Pur/2026/0001').trim()
@@ -101,13 +112,17 @@ async function main() {
 
   const deleteReason = String(readArgValue('--reason') || process.env.VOID_REASON || '').trim()
   if (apply && deleteReason.length < 10) {
-    console.error('With --apply, pass --reason with at least 10 characters (audit / guard).')
+    console.error('With --apply / --apply-dev, pass --reason with at least 10 characters (audit / guard).')
     process.exit(1)
   }
 
   const uri = getTenantUri(tenant)
   if (!uri) {
     console.error(`Missing Mongo URI for tenant ${tenant}`)
+    process.exit(1)
+  }
+  if (applyDev && !looksLikeNonProductionUri(uri)) {
+    console.error('Refusing --apply-dev against a production-looking Mongo URI')
     process.exit(1)
   }
 
@@ -131,7 +146,7 @@ async function main() {
   const vocRx = new RegExp(`^${escapeRegExp(vocNoArg)}$`, 'i')
   const txs = await Transaction.find({
     isDeleted: { $ne: true },
-    type: { $in: ['purchase', 'sale'] },
+    type: { $in: METAL_VOID_TYPES },
     'voucherMeta.vocNo': vocRx,
   })
     .sort({ createdAt: -1 })
@@ -139,7 +154,7 @@ async function main() {
     .lean()
 
   if (!txs.length) {
-    console.log(`No active purchase/sale transactions matched voc-no (case-insensitive): ${vocNoArg}`)
+    console.log(`No active metal transactions matched voc-no (case-insensitive): ${vocNoArg}`)
     await mongoose.disconnect()
     return
   }

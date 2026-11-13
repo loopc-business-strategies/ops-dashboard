@@ -33,6 +33,9 @@ import {
   patchInventoryCategoryPurity,
   buildFinishedUpdateFormFromPosted,
   buildAlloyLinesForFinishedGrossUpdate,
+  rebalanceAlloyUpdateLinesAfterShareChange,
+  applyOxidationRemainToConsumedDisplay,
+  resolveAlloyUpdateOriginalGross,
 } from './goldAlloyCalculator'
 
 describe('goldAlloyCalculator', () => {
@@ -504,5 +507,119 @@ describe('goldAlloyCalculator', () => {
     expect(payload.lines.find((l) => l.itemId === 'cu').gross).toBe(19.23)
     const consumeSum = payload.lines.reduce((s, l) => s + l.gross, 0)
     expect(consumeSum - payload.targetGross).toBeCloseTo(4.22, 2)
+  })
+
+  test('resolveAlloyUpdateOriginalGross keeps first consume so 2nd Update is cumulative', () => {
+    // After 1st Update, display gross is remain (99); vault take stays on consumeGross (100).
+    expect(resolveAlloyUpdateOriginalGross({ gross: 99, consumeGross: 100 })).toBe(100)
+    expect(resolveAlloyUpdateOriginalGross({ gross: 99 })).toBe(99)
+    // 2nd Update: remain 98.5 vs original consume 100 → total loss 1.5 (not only +0.5).
+    const payload = buildAlloyMixPayload({
+      karat: 14,
+      targetGross: 98.5,
+      finishedProductId: 'fin14',
+      lines: [
+        { stockId: 'au', gross: 70, originalGross: resolveAlloyUpdateOriginalGross({ gross: 70.5, consumeGross: 71 }), role: 'gold', label: 'gold' },
+        { stockId: 'ag', gross: 28.5, originalGross: resolveAlloyUpdateOriginalGross({ gross: 28.5, consumeGross: 29 }), role: 'alloy', label: 'silver' },
+      ],
+    })
+    const consumeSum = payload.lines.reduce((s, l) => s + l.gross, 0)
+    expect(consumeSum).toBeCloseTo(100, 3)
+    expect(consumeSum - payload.targetGross).toBeCloseTo(1.5, 3)
+    expect(payload.lines.find((l) => l.itemId === 'au').remainGross).toBe(70)
+  })
+
+  test('buildPostedAlloyMixEntryFromResult keeps consumeGross when remain is encoded', () => {
+    const entry = buildPostedAlloyMixEntryFromResult({
+      karat: 14,
+      targetGross: 99,
+      finishedProduct: { id: 'fin', name: '14k', quantity: 99 },
+      reason: 'Gold alloy mix (14K 99 g · updated)',
+      consumed: [
+        { itemId: 'au', name: 'Gold 24K Bar', label: 'gold', gross: 71, remainGross: 70.5, lossGross: 0.5 },
+      ],
+    })
+    expect(entry.consumed[0].consumeGross).toBe(71)
+    expect(entry.consumed[0].gross).toBe(70.5)
+    expect(resolveAlloyUpdateOriginalGross(entry.consumed[0])).toBe(71)
+  })
+
+  test('changing gold mix share rebalances silver/copper so metals still equal finished', () => {
+    const lines = [
+      { key: 'gold', stockId: 'au', metalPurity: '1', purityPercent: '0.75', gross: 199.05, pure: 199.05 },
+      { key: 'silver', stockId: 'ag', metalPurity: '1', purityPercent: '0.177543', gross: 47.12, pure: 47.12 },
+      { key: 'copper', stockId: 'cu', metalPurity: '1', purityPercent: '0.072457', gross: 19.23, pure: 19.23 },
+    ]
+    const next = rebalanceAlloyUpdateLinesAfterShareChange(lines, {
+      changedKey: 'gold',
+      nextShare: '0.70',
+      finishedGross: 265.4,
+    })
+    const gold = next.find((l) => l.key === 'gold')
+    const silver = next.find((l) => l.key === 'silver')
+    const copper = next.find((l) => l.key === 'copper')
+    const shareSum = Number(gold.purityPercent) + Number(silver.purityPercent) + Number(copper.purityPercent)
+    const metalSum = Number(gold.gross) + Number(silver.gross) + Number(copper.gross)
+
+    expect(Number(gold.purityPercent)).toBeCloseTo(0.7, 5)
+    expect(Number(gold.gross)).toBeCloseTo(185.78, 2)
+    expect(shareSum).toBeCloseTo(1, 5)
+    expect(metalSum).toBeCloseTo(265.4, 2)
+    // Remaining 0.30 split in prior silver:copper ratio (~0.177543:0.072457).
+    expect(Number(silver.purityPercent) / Number(copper.purityPercent)).toBeCloseTo(0.177543 / 0.072457, 3)
+  })
+
+  test('Inputs OUT scales consume→remain when finished is lower (oxidation update)', () => {
+    const displayed = applyOxidationRemainToConsumedDisplay(
+      [
+        { itemId: 'au', name: 'Gold 24K Bar', gross: 50 },
+        { itemId: 'ag', name: 'Fine Silver', gross: 35.715 },
+      ],
+      81.715,
+    )
+    const gold = displayed.find((r) => r.itemId === 'au')
+    const silver = displayed.find((r) => r.itemId === 'ag')
+    expect(gold.consumeGross).toBe(50)
+    expect(silver.consumeGross).toBe(35.715)
+    expect(Number(gold.gross) + Number(silver.gross)).toBeCloseTo(81.715, 3)
+    expect(Number(gold.gross)).toBeCloseTo(50 * (81.715 / 85.715), 2)
+    expect(Number(silver.gross)).toBeCloseTo(35.715 * (81.715 / 85.715), 2)
+  })
+
+  test('posted list Inputs OUT uses remain grams after oxidation update', () => {
+    const rows = buildPostedAlloyMixListFromMovements([
+      {
+        itemId: 'au',
+        itemName: 'Gold 24K Bar',
+        change: -50,
+        reason: 'Gold alloy mix (14K 81.715 g · updated) — consume gold',
+        createdAt: '2026-11-13T07:19:21.690Z',
+        isDeleted: false,
+      },
+      {
+        itemId: 'ag',
+        itemName: 'Fine Silver',
+        change: -35.715,
+        reason: 'Gold alloy mix (14K 81.715 g · updated) — consume silver',
+        createdAt: '2026-11-13T07:19:21.921Z',
+        isDeleted: false,
+      },
+      {
+        itemId: 'fin',
+        itemName: '14k alloyed gold',
+        change: 81.715,
+        quantityAfter: 81.715,
+        reason: 'Gold alloy mix (14K 81.715 g · updated) — receive 14k alloyed gold (metal loss 4 g)',
+        createdAt: '2026-11-13T07:19:22.059Z',
+        isDeleted: false,
+      },
+    ])
+    expect(rows).toHaveLength(1)
+    const gold = rows[0].consumed.find((c) => c.name === 'Gold 24K Bar')
+    const silver = rows[0].consumed.find((c) => c.name === 'Fine Silver')
+    expect(rows[0].targetGross).toBe(81.715)
+    expect(Number(gold.gross) + Number(silver.gross)).toBeCloseTo(81.715, 3)
+    expect(Number(gold.gross)).not.toBe(50)
+    expect(Number(silver.gross)).not.toBe(35.715)
   })
 })

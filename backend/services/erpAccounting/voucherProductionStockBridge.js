@@ -577,9 +577,20 @@ function lotFreeGrossWeight(lot = {}) {
 }
 
 /**
+ * MG local / explicit env: allow metal stock-out when vault qty is short (inventory may go negative).
+ * Production stays strict unless ALLOW_NEGATIVE_VAULT_STOCK is set.
+ */
+function allowNegativeVaultStock() {
+  const flag = String(process.env.ALLOW_NEGATIVE_VAULT_STOCK || '').trim().toLowerCase()
+  if (flag === '1' || flag === 'true' || flag === 'yes') return true
+  if (String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production') return false
+  return String(process.env.DEFAULT_TENANT || '').trim().toLowerCase() === 'mg'
+}
+
+/**
  * Ensure vault/lot (or inventory) weight covers metal stock-out, then soft-consume unused lots FIFO.
  * Requested quantity and availability use inventory/gross grams (not pure/net).
- * Throws with the product message when insufficient.
+ * Throws with the product message when insufficient (unless allowNegative / MG local).
  */
 async function assertAndConsumeVaultLotsForStockOut({
   user,
@@ -587,6 +598,7 @@ async function assertAndConsumeVaultLotsForStockOut({
   quantity,
   session = null,
   reason = '',
+  allowNegative = allowNegativeVaultStock(),
 } = {}) {
   const requested = Number(quantity || 0)
   if (!(requested > 0) || !item?._id) return { consumed: [], available: 0 }
@@ -606,14 +618,19 @@ async function assertAndConsumeVaultLotsForStockOut({
   const inventoryAvailable = Math.max(0, Number(item.quantity || 0))
 
   // Prefer lot free weight when lots exist; otherwise inventory qty (legacy / pre-bridge).
-  const effectiveAvailable = (lots.length && lotAvailable > 0)
-    ? Math.min(lotAvailable, inventoryAvailable)
-    : inventoryAvailable
+  // When allowing negative, use lot free weight alone so we can still drain what exists.
+  const effectiveAvailable = allowNegative
+    ? (lots.length ? lotAvailable : inventoryAvailable)
+    : ((lots.length && lotAvailable > 0)
+      ? Math.min(lotAvailable, inventoryAvailable)
+      : inventoryAvailable)
 
   if (effectiveAvailable + 1e-9 < requested) {
-    const shown = Math.round(effectiveAvailable * 1000) / 1000
-    const need = Math.round(requested * 1000) / 1000
-    throw new Error(`Insufficient vault stock. Available: ${shown} g, requested: ${need} g.`)
+    if (!allowNegative) {
+      const shown = Math.round(effectiveAvailable * 1000) / 1000
+      const need = Math.round(requested * 1000) / 1000
+      throw new Error(`Insufficient vault stock. Available: ${shown} g, requested: ${need} g.`)
+    }
   }
 
   let remaining = requested
@@ -673,6 +690,7 @@ module.exports = {
   restoreLotsForVoidedMetalStockOut,
   restoreLotsForVoidedProductTransferOut,
   assertAndConsumeVaultLotsForStockOut,
+  allowNegativeVaultStock,
   idempotencyKeyForLine,
   deriveMetalType,
   purchaseRefForTx,

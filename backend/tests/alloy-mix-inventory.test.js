@@ -404,13 +404,12 @@ describe('alloy mix inventory', () => {
     expect(Number((await InventoryItem.findById(fineGold._id)).quantity)).toBeCloseTo(100, 3)
     expect(Number((await InventoryItem.findById(finished._id)).quantity)).toBeCloseTo(96, 3)
 
+    // Metal Loss gets grams only (AML); no auto USD expense — cash is posted manually.
     const lossLedgers = await Ledger.find({
       isDeleted: { $ne: true },
       debitAccountId: lossAcct._id,
     })
-    expect(lossLedgers.length).toBeGreaterThanOrEqual(1)
-    const lossSum = lossLedgers.reduce((sum, row) => sum + Number(row.amount || 0), 0)
-    expect(lossSum).toBeCloseTo(400, 1)
+    expect(lossLedgers).toHaveLength(0)
 
     const positionTxs = await Transaction.find({
       isDeleted: { $ne: true },
@@ -424,5 +423,132 @@ describe('alloy mix inventory', () => {
     expect(positionTxs[0].voucherMeta?.lineItems).toHaveLength(1)
     expect(Number(positionTxs[0].voucherMeta?.lineItems?.[0]?.pureWeight)).toBeCloseTo(4, 3)
     expect(String(positionTxs[0].voucherMeta?.lineItems?.[0]?.stockCode || '')).toBe('XAU')
+  })
+
+  test('splits metal loss by input share (gold 50/85.715 × 4 = 2.333)', async () => {
+    const user = await User.create({
+      name: 'alloy-share-user',
+      email: 'alloy-share@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const invAcct = await ChartOfAccount.create({
+      accountName: 'Metal Inventory Share',
+      accountCode: '1301',
+      accountType: 'Asset',
+      createdBy: user._id,
+    })
+    const lossAcct = await ChartOfAccount.create({
+      accountName: 'Metal Loss Share',
+      accountCode: '5501',
+      accountType: 'Expense',
+      createdBy: user._id,
+    })
+    await AccountMapping.create({
+      mappingType: ALLOY_METAL_LOSS_MAPPING_TYPE,
+      debitAccountId: lossAcct._id,
+      creditAccountId: invAcct._id,
+      description: 'Alloy oxidation loss',
+      isActive: true,
+    })
+
+    const fineGold = await InventoryItem.create({
+      name: 'Gold 24K Bar',
+      category: 'mainStock=gold;recordType=product;productPurity=1',
+      quantity: 200,
+      unit: 'grams',
+      unitCost: 100,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    const fineSilver = await InventoryItem.create({
+      name: 'Fine Silver',
+      category: 'mainStock=silver;recordType=product;productPurity=1',
+      quantity: 200,
+      unit: 'grams',
+      unitCost: 2,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    for (const item of [fineGold, fineSilver]) {
+      await StockMovement.create({
+        itemId: item._id,
+        itemName: item.name,
+        change: 200,
+        quantityBefore: 0,
+        quantityAfter: 200,
+        reason: 'seed',
+        actorId: user._id,
+        actorName: user.name,
+      })
+    }
+    const finished = await InventoryItem.create({
+      name: '14K Alloyed Gold',
+      category: 'mainStock=alloy;recordType=product;productPurity=0.585',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+
+    const svc = createAlloyMixService({
+      InventoryItem,
+      StockMovement,
+      Ledger,
+      AccountMapping,
+      Transaction,
+      ChartOfAccount,
+      assertAccountingPeriodOpen: async () => {},
+    })
+
+    // UI remain skewed toward silver loss — AML must still use input-share split.
+    const result = await svc.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 81.715,
+      finishedProductId: finished._id,
+      lines: [
+        {
+          itemId: fineGold._id,
+          gross: 50,
+          remainGross: 48.805,
+          role: 'gold',
+          label: 'gold',
+        },
+        {
+          itemId: fineSilver._id,
+          gross: 35.715,
+          remainGross: 32.91,
+          role: 'alloy',
+          label: 'silver',
+        },
+      ],
+      description: 'Gold alloy mix (14K 81.715 g · updated)',
+    })
+
+    expect(result.metalLossGross).toBeCloseTo(4, 3)
+    const byMetal = Object.fromEntries(
+      (result.metalLossByMetal || []).map((row) => [row.stockCode, Number(row.lossGross)]),
+    )
+    expect(byMetal.XAU).toBeCloseTo(2.333, 3)
+    expect(byMetal.XAG).toBeCloseTo(1.667, 3)
+
+    const positionTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.partyAccountId': lossAcct._id,
+    }).lean()
+    expect(positionTxs).toHaveLength(2)
+    const weights = Object.fromEntries(positionTxs.map((tx) => {
+      const line = tx.voucherMeta?.lineItems?.[0] || {}
+      return [String(line.stockCode || ''), Number(line.pureWeight)]
+    }))
+    expect(weights.XAU).toBeCloseTo(2.333, 3)
+    expect(weights.XAG).toBeCloseTo(1.667, 3)
   })
 })

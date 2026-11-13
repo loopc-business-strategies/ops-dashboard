@@ -219,8 +219,50 @@ describe('voucherProductionStockBridge', () => {
         item,
         quantity: 500,
         reason: 'unit insufficient',
+        allowNegative: false,
       }),
     ).rejects.toThrow(/Insufficient vault stock\. Available: 300 g, requested: 500 g\./)
+  })
+
+  test('allowNegative drains available lots without throwing when short', async () => {
+    const user = await User.create({
+      name: 'neg-user',
+      email: 'neg@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const item = await InventoryItem.create({
+      name: 'Gold bar short',
+      sku: 'AU-NEG',
+      category: 'gold',
+      quantity: 2,
+      unit: 'grams',
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await ProductionStockLot.create({
+      stockCode: 'STK-NEG-1',
+      product: 'Gold bar short',
+      status: 'NEW_STOCK',
+      inventoryItemId: item._id,
+      netWeight: 2,
+      grossWeight: 2,
+      metalType: 'Gold',
+      createdById: user._id,
+      createdByName: user.name,
+    })
+
+    const result = await assertAndConsumeVaultLotsForStockOut({
+      user,
+      item,
+      quantity: 2.333,
+      reason: 'allow negative short',
+      allowNegative: true,
+    })
+    expect(result.consumed).toHaveLength(1)
+    expect(result.consumed[0].weight).toBeCloseTo(2, 3)
+    const lot = await ProductionStockLot.findById(result.consumed[0].lotId)
+    expect(lot.status).toBe('CANCELLED')
   })
 
   test('consumes vault lots on metal OUT without exceeding available', async () => {

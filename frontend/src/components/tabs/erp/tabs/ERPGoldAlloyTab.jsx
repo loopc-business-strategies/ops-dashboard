@@ -24,7 +24,9 @@ import {
   listFinishedAlloyOptionsForKarat,
   normalizeAlloyPurity,
   patchInventoryCategoryPurity,
+  rebalanceAlloyUpdateLinesAfterShareChange,
   removeAlloyExtraLine,
+  resolveAlloyUpdateOriginalGross,
   resolveKaratRecipe,
   roundAlloyGrams,
   summarizeAlloyLines,
@@ -467,12 +469,12 @@ export default function ERPGoldAlloyTab({
         row.key === line.key || String(row.stockId) === String(line.stockId)
       ))
       const option = stockOptions.find((row) => String(row.id) === String(line.stockId))
-      const originalFromPosted = Number(
-        consumed.find((row) => (
-          String(row.itemId) === String(line.stockId)
-          || String(row.key || '') === String(line.key)
-        ))?.gross || 0,
-      )
+      const postedConsumed = consumed.find((row) => (
+        String(row.itemId) === String(line.stockId)
+        || String(row.key || '') === String(line.key)
+      ))
+      // Prefer consumeGross so a 2nd Update keeps total loss (1 + 0.5 → 1.5), not only the last delta.
+      const originalFromPosted = resolveAlloyUpdateOriginalGross(postedConsumed)
       const gross = line.gross !== '' && line.gross != null ? line.gross : (prev?.gross || '')
       // Update-voucher "purity" = mix share (gross ÷ allowed wt), e.g. 0.75 / 0.13 / 0.11
       const share = computeAlloyMixShare(gross, targetGross)
@@ -536,7 +538,7 @@ export default function ERPGoldAlloyTab({
           ? ''
           : metalGross + 0.0005 < target
             ? `Metals remaining ${metalGross} g are below Allowed wt ${target} g. `
-              + `For oxidation, set Allowed wt to ${metalGross} g — loss posts to Metal Loss.`
+              + `For oxidation, set Allowed wt to ${metalGross} g — loss updates Metal Loss grams only (USD is manual).`
             : `Need metals = finished (now ${metalGross} g vs ${target} g). `
               + `Lower shares or raise Allowed wt (share sum ${shareSum}).`,
     }
@@ -564,26 +566,25 @@ export default function ERPGoldAlloyTab({
   const patchUpdateMetalLine = (key, patch) => {
     const finished = Number(updateFinishedGross)
     setUpdateMetalLines((prev) => {
-      const nextLines = prev.map((line) => {
+      // Mix-share ("purity") edits must rebalance the other metals so shares stay at 1.0
+      // and Update stays enabled — otherwise Inputs (OUT) never change after save.
+      if (Object.prototype.hasOwnProperty.call(patch, 'purityPercent') && finished > 0) {
+        return rebalanceAlloyUpdateLinesAfterShareChange(prev, {
+          changedKey: key,
+          nextShare: patch.purityPercent,
+          finishedGross: finished,
+        })
+      }
+      return prev.map((line) => {
         if (line.key !== key) return line
         const next = { ...line, ...patch }
-        const purityPercent = Object.prototype.hasOwnProperty.call(patch, 'purityPercent')
-          ? patch.purityPercent
-          : next.purityPercent
-        next.purityPercent = purityPercent
-        // Mix share drives metal gross: share × finished allowed wt.
-        if (Object.prototype.hasOwnProperty.call(patch, 'purityPercent')) {
-          const share = Number(purityPercent)
-          if (share > 0 && finished > 0) {
-            next.gross = roundAlloyGrams(share * finished)
-          }
-        } else if (Object.prototype.hasOwnProperty.call(patch, 'gross')) {
+        if (Object.prototype.hasOwnProperty.call(patch, 'gross')) {
           next.gross = patch.gross
+          next.purityPercent = computeAlloyMixShare(next.gross, finished) || next.purityPercent
         }
         next.pure = computeAlloyPure(next.gross, next.metalPurity || '1')
         return next
       })
-      return nextLines
     })
   }
 
@@ -759,7 +760,7 @@ export default function ERPGoldAlloyTab({
       const result = await erpAccountingAPI.postAlloyMix(token, payload)
       if (typeof showNotification === 'function') {
         const lossPart = Number(result?.metalLossGross) > 0
-          ? ` · metal loss ${result.metalLossGross} g → ${ALLOY_METAL_LOSS_MAPPING_TYPE}`
+          ? ` · metal loss ${result.metalLossGross} g (Metal Loss grams; USD manual)`
           : ''
         showNotification(
           `✅ Mix updated: ${result?.finishedProduct?.name || updatePosted.finishedName} → ${result?.targetGross || nextTarget} g · purity ${finishedFrac}${lossPart}`,
@@ -783,19 +784,57 @@ export default function ERPGoldAlloyTab({
     }
   }
 
+  const purgePostedMixHistory = async (posted) => {
+    const reason = String(posted?.reason || '').trim()
+    if (!reason) {
+      if (typeof setError === 'function') setError('Cannot remove mix history: missing reason')
+      return false
+    }
+    try {
+      setMixActionId(posted.id)
+      await erpAccountingAPI.clearAlloyMixHistory(token, {
+        reason,
+        ...(posted?.karat ? { karat: Number(posted.karat) } : {}),
+      })
+      await reloadPostedMixes()
+      return true
+    } catch (err) {
+      if (typeof setError === 'function') {
+        setError(err.response?.data?.message || err.message || 'Failed to remove alloy mix history')
+      }
+      return false
+    } finally {
+      setMixActionId('')
+    }
+  }
+
   const onDeletePostedMix = async (posted) => {
     if (!postingEnabled) {
       if (typeof setError === 'function') setError('Gold alloy posting is MG-only')
       return
     }
+    const label = `${posted?.karat ? `${posted.karat}K ` : ''}${posted?.targetGross || ''} g → ${posted?.finishedName || 'finished'}`
     if (posted?.isHistory) {
-      if (typeof showNotification === 'function') {
-        showNotification('ℹ️ Prior history is already reversed — inventory was restored. Use Edit / Update to post again.')
+      const ok = window.confirm(
+        `Remove this prior mix from the list?\n\n${label}\n\nInventory was already restored.`,
+      )
+      if (!ok) return
+      const purged = await purgePostedMixHistory(posted)
+      if (purged && typeof showNotification === 'function') {
+        showNotification('🗑️ Prior mix removed from list')
       }
       return
     }
-    const removed = await reversePostedMix(posted, { skipConfirm: false })
-    if (removed && typeof showNotification === 'function') {
+    const ok = window.confirm(
+      `Delete this posted mix, restore inventory, and remove it from the list?\n\n${label}`,
+    )
+    if (!ok) return
+    const removed = await reversePostedMix(posted, { skipConfirm: true })
+    if (!removed) return
+    const purged = await purgePostedMixHistory(posted)
+    if (purged && typeof showNotification === 'function') {
+      showNotification('🗑️ Mix deleted, inventory restored, and removed from list')
+    } else if (typeof showNotification === 'function') {
       showNotification('🗑️ Mix deleted and inventory restored')
     }
   }
@@ -1293,7 +1332,9 @@ export default function ERPGoldAlloyTab({
                                       borderColor: '#FECACA',
                                       opacity: mixActionId && !busy ? 0.55 : 1,
                                     }}
-                                    title={isHistory ? 'Already reversed from inventory' : 'Delete and restore inventory'}
+                                    title={isHistory
+                                      ? 'Remove this prior history from the list'
+                                      : 'Delete mix, restore inventory, and remove from list'}
                                   >
                                     {busy ? '…' : 'Delete'}
                                   </button>
@@ -1836,10 +1877,11 @@ export default function ERPGoldAlloyTab({
               <strong>Update</strong> adjusts finished weight / oxidation loss and posts a new <strong>Updated</strong> version
               (keeps the original as linked history). Remaining metals must equal <strong>Allowed wt</strong>.
               {' '}
-              Loss vs original (oxidation) posts automatically to mapping <strong>{ALLOY_METAL_LOSS_MAPPING_TYPE}</strong>
-              {alloyMetalLossMapping ? ' ✓' : ' (create in Mappings first)'}.
+              Loss vs original inputs (oxidation) updates <strong>Metal Loss metal balance only</strong>
+              {' '}(AML grams via mapping <strong>{ALLOY_METAL_LOSS_MAPPING_TYPE}</strong>
+              {alloyMetalLossMapping ? ' ✓' : ' — create in Mappings first'}; USD is entered manually).
               {' '}
-              Remelt and Update again anytime — loss revises with the voucher. <strong>Purity</strong> = mix share.
+              Further Updates keep <strong>cumulative</strong> loss from the first consume (e.g. 1 g then +0.5 g → 1.5 g), not only the last delta. Currency does not auto-post. <strong>Purity</strong> = mix share.
             </p>
 
             <div style={{
@@ -1960,12 +2002,15 @@ export default function ERPGoldAlloyTab({
                         style={{
                           padding: '0.45rem 0.5rem',
                           textAlign: 'right',
+                          fontWeight: 700,
                           fontSize: '0.82rem',
-                          color: '#CBD5E1',
+                          color: '#0F172A',
                         }}
-                        title="Gross is only shown on finished alloy — metals rebalance from Allowed wt"
+                        title="Metal gross = mix share × Allowed wt (updates when purity/share changes)"
                       >
-                        —
+                        {Number(line.gross) > 0
+                          ? Number(line.gross).toLocaleString(undefined, { maximumFractionDigits: 3 })
+                          : '—'}
                       </td>
                       <td style={{ padding: '0.35rem 0.5rem' }}>
                         <input
@@ -2053,11 +2098,11 @@ export default function ERPGoldAlloyTab({
               </div>
             ) : updateMixBalance.oxidationLoss > 0.0005 ? (
               <p style={{ margin: '0 0 0.65rem', fontSize: '0.78rem', color: '#B45309', fontWeight: 600 }}>
-                Oxidation loss {updateMixBalance.oxidationLoss} g will post to{' '}
-                {alloyMetalLossMapping
+                Cumulative oxidation {updateMixBalance.oxidationLoss} g (from first consume) will update Metal Loss grams
+                {' '}({alloyMetalLossMapping
                   ? `mapping ${ALLOY_METAL_LOSS_MAPPING_TYPE}`
-                  : `mapping ${ALLOY_METAL_LOSS_MAPPING_TYPE} (create in Mappings first)`}
-                . Remelt later → Update again to revise.
+                  : `mapping ${ALLOY_METAL_LOSS_MAPPING_TYPE} — create in Mappings first`}
+                ; USD manual).
               </p>
             ) : null}
             <div style={{ display: 'flex', gap: '0.55rem', justifyContent: 'flex-end' }}>

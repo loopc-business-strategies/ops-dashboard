@@ -570,6 +570,17 @@ function inferAlloyLineMeta(nameOrLabel = '') {
   return { key: '', label: String(nameOrLabel || '').trim(), role: 'extra' }
 }
 
+/**
+ * Vault consume for Update originalGross. Prefer consumeGross — after oxidation,
+ * display `gross` is remain-in-bar; using it would reset loss to the last delta only.
+ */
+export function resolveAlloyUpdateOriginalGross(postedConsumedRow = {}) {
+  const consume = Number(postedConsumedRow?.consumeGross)
+  if (Number.isFinite(consume) && consume > 0) return roundAlloyGrams(consume)
+  const gross = Number(postedConsumedRow?.gross)
+  return Number.isFinite(gross) && gross > 0 ? roundAlloyGrams(gross) : 0
+}
+
 /** Build one posted-mix row from a successful postAlloyMix API result. */
 export function buildPostedAlloyMixEntryFromResult(result = {}, { at = new Date().toISOString() } = {}) {
   const karat = Number(result?.karat) || null
@@ -579,10 +590,22 @@ export function buildPostedAlloyMixEntryFromResult(result = {}, { at = new Date(
   const reason = String(result?.reason || '').trim()
   const consumed = (Array.isArray(result?.consumed) ? result.consumed : []).map((row) => {
     const meta = inferAlloyLineMeta(row.label || row.name || '')
+    const consumeGross = Number(row.gross) || 0
+    const remainRaw = row.remainGross != null ? Number(row.remainGross) : null
+    const remainGross = Number.isFinite(remainRaw) ? remainRaw : null
+    const displayGross = (
+      remainGross != null && remainGross >= 0 && remainGross <= consumeGross + 0.0005
+    )
+      ? roundAlloyGrams(remainGross)
+      : consumeGross
     return {
       itemId: String(row.itemId || ''),
       name: row.name || row.label || '',
-      gross: Number(row.gross) || 0,
+      // Display remain-in-bar when oxidation encoded remain; keep vault take separately.
+      gross: displayGross,
+      consumeGross,
+      remainGross,
+      lossGross: row.lossGross != null ? Number(row.lossGross) : null,
       key: meta.key,
       label: meta.label || row.label || '',
       role: meta.role,
@@ -601,6 +624,54 @@ export function buildPostedAlloyMixEntryFromResult(result = {}, { at = new Date(
     status: alloyMixStatusFromReason(reason),
     actorName: '',
   }
+}
+
+/**
+ * Oxidation Update vaults the full consume, but Inputs (OUT) should show metals
+ * remaining in the finished bar. When remain was not encoded on the movement,
+ * scale consume → remain so sum(inputs) = finished target.
+ */
+export function applyOxidationRemainToConsumedDisplay(consumed = [], targetGross) {
+  const list = (Array.isArray(consumed) ? consumed : []).map((row) => ({ ...row }))
+  const target = Number(targetGross)
+  if (!(target > 0) || !list.length) return list
+
+  const hasEncodedRemain = list.every((row) => (
+    row.remainGross != null && Number.isFinite(Number(row.remainGross))
+  ))
+  if (hasEncodedRemain) {
+    return list.map((row) => ({
+      ...row,
+      consumeGross: Number(row.consumeGross != null ? row.consumeGross : row.gross) || 0,
+      gross: roundAlloyGrams(Number(row.remainGross)),
+    })).filter((row) => Number(row.gross) > 0 || Number(row.consumeGross) > 0)
+  }
+
+  const consumeSum = roundAlloyGrams(list.reduce((sum, row) => (
+    sum + Number(row.consumeGross != null ? row.consumeGross : row.gross || 0)
+  ), 0))
+  if (!(consumeSum > target + 0.0005)) {
+    return list.map((row) => ({
+      ...row,
+      consumeGross: Number(row.consumeGross != null ? row.consumeGross : row.gross) || 0,
+    }))
+  }
+
+  let allocated = 0
+  return list.map((row, index) => {
+    const consumeGross = Number(row.consumeGross != null ? row.consumeGross : row.gross) || 0
+    const isLast = index === list.length - 1
+    const remain = isLast
+      ? roundAlloyGrams(target - allocated)
+      : roundAlloyGrams(consumeGross * (target / consumeSum))
+    if (!isLast) allocated = roundAlloyGrams(allocated + remain)
+    return {
+      ...row,
+      consumeGross,
+      remainGross: remain,
+      gross: remain,
+    }
+  }).filter((row) => Number(row.gross) > 0 || Number(row.consumeGross) > 0)
 }
 
 /**
@@ -658,20 +729,37 @@ export function buildPostedAlloyMixListFromMovements(movements = []) {
         ? Number(move.quantityAfter)
         : entry.finishedQtyAfter
     } else if (change < 0 || /—\s*consume/i.test(reason)) {
+      const remainMatch = reason.match(/\(\s*remain\s+([\d.]+)\s*g\s*\)/i)
+      const remainGross = remainMatch ? Number(remainMatch[1]) : null
       const labelMatch = reason.match(/—\s*consume\s+(.+)$/i)
-      const labelHint = labelMatch ? labelMatch[1].trim() : (move.itemName || '')
+      const rawLabel = labelMatch ? labelMatch[1].trim() : (move.itemName || '')
+      const labelHint = rawLabel.replace(/\(\s*remain\s+[\d.]+\s*g\s*\)/i, '').trim()
       const meta = inferAlloyLineMeta(labelHint || move.itemName || '')
       const itemId = String(move.itemId || '')
-      const gross = Math.abs(change)
+      const consumeGross = Math.abs(change)
+      // Inputs (OUT) prefer remaining metal in the bar when oxidation Update encoded remain.
+      const displayGross = (
+        Number.isFinite(remainGross) && remainGross >= 0 && remainGross <= consumeGross + 0.0005
+      )
+        ? roundAlloyGrams(remainGross)
+        : consumeGross
       // One consume line per input item within a batch (avoid dupes if ledger noise).
       const existing = entry.consumed.find((row) => String(row.itemId) === itemId)
       if (existing) {
-        existing.gross = roundAlloyGrams(Number(existing.gross || 0) + gross)
+        existing.consumeGross = roundAlloyGrams(Number(existing.consumeGross || existing.gross || 0) + consumeGross)
+        existing.gross = roundAlloyGrams(Number(existing.gross || 0) + displayGross)
+        if (Number.isFinite(remainGross)) {
+          existing.remainGross = roundAlloyGrams(
+            Number(existing.remainGross || 0) + roundAlloyGrams(remainGross),
+          )
+        }
       } else {
         entry.consumed.push({
           itemId,
           name: move.itemName || '',
-          gross,
+          gross: displayGross,
+          consumeGross,
+          remainGross: Number.isFinite(remainGross) ? roundAlloyGrams(remainGross) : null,
           key: meta.key,
           label: meta.label || labelHint,
           role: meta.role,
@@ -689,6 +777,10 @@ export function buildPostedAlloyMixListFromMovements(movements = []) {
     .map((entry) => {
       const isHistory = entry.activeMoveCount === 0 && entry.deletedMoveCount > 0
       const status = entry.status || alloyMixStatusFromReason(entry.reason)
+      const consumed = applyOxidationRemainToConsumedDisplay(
+        entry.consumed.filter((row) => Number(row.gross || row.consumeGross || 0) > 0),
+        entry.targetGross,
+      )
       return {
         id: entry.id,
         reason: entry.reason,
@@ -698,7 +790,7 @@ export function buildPostedAlloyMixListFromMovements(movements = []) {
         finishedName: entry.finishedName,
         finishedProductId: entry.finishedProductId,
         finishedQtyAfter: isHistory ? null : entry.finishedQtyAfter,
-        consumed: entry.consumed.filter((row) => row.gross > 0),
+        consumed,
         status,
         isHistory,
         deletedAt: entry.deletedAt,
@@ -922,4 +1014,79 @@ export function computeAlloyMixShare(lineGross, finishedGross) {
   const t = Number(finishedGross)
   if (!(g > 0) || !(t > 0)) return ''
   return String(roundAlloyGrams(g / t, 6))
+}
+
+/**
+ * After one metal's mix-share (Update "purity") changes, redistribute the remaining
+ * share across the other metals so totals stay 1.0 and metal gross = finished wt.
+ * Without this, changing gold/silver alone leaves the form unbalanced and Update disabled —
+ * so Inputs (OUT) never change.
+ */
+export function rebalanceAlloyUpdateLinesAfterShareChange(lines = [], {
+  changedKey,
+  nextShare,
+  finishedGross,
+} = {}) {
+  const finished = Number(finishedGross)
+  const list = Array.isArray(lines) ? lines.map((row) => ({ ...row })) : []
+  if (!(finished > 0) || !changedKey || !list.length) return list
+
+  const editedRaw = Number(nextShare)
+  const editedShare = Number.isFinite(editedRaw)
+    ? Math.max(0, Math.min(1, editedRaw))
+    : 0
+  const others = list.filter((row) => row.key !== changedKey)
+  const otherSum = others.reduce((sum, row) => sum + (Number(row.purityPercent) || 0), 0)
+  const remain = Math.max(0, 1 - editedShare)
+
+  const next = list.map((line) => {
+    let share
+    if (line.key === changedKey) {
+      share = editedShare
+    } else if (!others.length) {
+      share = Number(line.purityPercent) || 0
+    } else if (otherSum > 0.0000001) {
+      share = remain * ((Number(line.purityPercent) || 0) / otherSum)
+    } else {
+      share = remain / others.length
+    }
+    share = roundAlloyGrams(share, 6)
+    const gross = share > 0 ? roundAlloyGrams(share * finished) : 0
+    const metalPurity = line.metalPurity || line.purity || '1'
+    return {
+      ...line,
+      purityPercent: share > 0 || line.key === changedKey
+        ? String(share || (line.key === changedKey ? editedShare : 0))
+        : '',
+      gross: gross > 0 ? gross : '',
+      pure: computeAlloyPure(gross, metalPurity),
+    }
+  })
+
+  const metalSum = roundAlloyGrams(next.reduce((sum, row) => sum + (Number(row.gross) || 0), 0))
+  const diff = roundAlloyGrams(finished - metalSum)
+  if (Math.abs(diff) <= 0.0005) return next
+
+  let adjustIdx = -1
+  for (let i = next.length - 1; i >= 0; i -= 1) {
+    if (next[i].key !== changedKey && Number(next[i].gross) > 0) {
+      adjustIdx = i
+      break
+    }
+  }
+  if (adjustIdx < 0) {
+    adjustIdx = next.findIndex((row) => row.key === changedKey)
+  }
+  if (adjustIdx < 0) return next
+
+  const line = next[adjustIdx]
+  const newGross = roundAlloyGrams(Number(line.gross || 0) + diff)
+  const newShare = finished > 0 ? roundAlloyGrams(newGross / finished, 6) : 0
+  next[adjustIdx] = {
+    ...line,
+    gross: newGross > 0 ? newGross : '',
+    purityPercent: newShare > 0 ? String(newShare) : '',
+    pure: computeAlloyPure(newGross, line.metalPurity || line.purity || '1'),
+  }
+  return next
 }
