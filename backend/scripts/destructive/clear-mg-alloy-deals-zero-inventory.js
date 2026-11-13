@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+require('./_destructive-guard')({ scriptName: __filename })
 /**
  * MG staging cleanup:
  * - soft-delete all gold alloy stock movements + related inventory ledgers + AML metal_payment txs

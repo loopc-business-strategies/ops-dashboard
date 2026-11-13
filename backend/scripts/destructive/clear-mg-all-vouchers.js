@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+require('./_destructive-guard')({ scriptName: __filename })
 /**
  * MG staging: soft-delete all voucher transactions + their ledger rows.
  * Keeps chart of accounts, users, inventory product masters, customers/vendors.
