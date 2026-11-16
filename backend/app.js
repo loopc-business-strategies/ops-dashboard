@@ -295,7 +295,8 @@ function createApp() {
             url.hostname === '127.0.0.1' ||
             url.hostname === '::1' ||
             url.hostname.endsWith('.localhost')
-          const isDevPort = url.port === '5173' || url.port === '5174' || url.port === '5175'
+          // 5173–5175 = Vite; 8081 = Expo web (mg-floor `npm run web`)
+          const isDevPort = url.port === '5173' || url.port === '5174' || url.port === '5175' || url.port === '8081'
           if (isLocalHost && isDevPort) return callback(null, true)
         } catch {
           // Ignore malformed origins and continue allowlist checks.
