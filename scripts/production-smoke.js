@@ -384,6 +384,36 @@ async function verifyTenantExpenseRegister(tenant) {
   return `${response.status} items=${body.items.length} total=${body.total ?? body.items.length}`
 }
 
+/** Read-only MG Gold Alloy ↔ Floor bridge probe (list open mix jobs). */
+async function verifyTenantAlloyMixJobs(tenant) {
+  if (String(tenant).toLowerCase() !== 'mg') {
+    return 'skipped: alloy-mix jobs probe is MG-only'
+  }
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !getTenantSmokeCredentials(tenant)) {
+    return `skipped: no smoke login for ${tenant} (set SMOKE_AUTH_NAME_${String(tenant).toUpperCase()})`
+  }
+  const headers = await buildTenantSmokeHeaders(tenant)
+  if (!headers) {
+    throw new Error(`alloy-mix jobs probe requires credentials for ${tenant}`)
+  }
+
+  const response = await fetchWithTimeout(
+    `${API_BASE}/api/erp-accounting/inventory/alloy-mix/jobs?department=vault_room`,
+    { headers },
+  )
+  const body = await response.json().catch(() => ({}))
+  if (response.status === 403) {
+    return 'skipped: smoke user lacks inventory read for alloy-mix jobs'
+  }
+  if (!response.ok || body.success !== true) {
+    throw new Error(`alloy-mix/jobs returned ${response.status}: ${body.message || 'unexpected response'}`)
+  }
+  if (!Array.isArray(body.jobs)) {
+    throw new Error('alloy-mix/jobs response missing jobs array')
+  }
+  return `${response.status} jobs=${body.jobs.length}`
+}
+
 async function run() {
   console.log(`${SMOKE_ENV_LABEL} smoke report`)
   console.log(`API: ${API_BASE}`)
@@ -412,6 +442,7 @@ async function run() {
       checks.push(check(`railway:${tenant}:erp-readonly`, () => verifyTenantReadOnlyErpPath(tenant)))
       checks.push(check(`railway:${tenant}:metal-rates-live`, () => verifyTenantMetalRatesLive(tenant)))
       checks.push(check(`railway:${tenant}:expense-register`, () => verifyTenantExpenseRegister(tenant)))
+      checks.push(check(`railway:${tenant}:alloy-mix-jobs`, () => verifyTenantAlloyMixJobs(tenant)))
     }
   }
 

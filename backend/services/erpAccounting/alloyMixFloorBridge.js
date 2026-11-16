@@ -329,35 +329,61 @@ async function createJobFromPostedMix({
   }
 }
 
-/**
- * Before / during reverse: require in_vault (or already closed), cancel lot, delete ops, close job.
- */
-async function closeJobForReverse({
-  user,
-  session = null,
-  reasonBase,
-  allowMissing = true,
-  force = false,
-} = {}) {
-  const reason = String(reasonBase || '').trim()
-  if (!reason) return null
-
-  const job = await withSession(
-    AlloyMixJob.findOne({ reasonBase: reason, isDeleted: { $ne: true } }),
-    session,
+function jobInVaultCustody(job) {
+  return Boolean(
+    job
+    && !job.isDeleted
+    && job.status === 'in_vault'
+    && job.currentDepartment === VAULT,
   )
-  if (!job) {
-    if (allowMissing) return null
-    throw httpError(404, 'Alloy mix job not found for this posted mix')
-  }
+}
 
-  if (!force && job.status !== 'in_vault' && job.status !== 'closed') {
+/** BFS open (non-closed) descendants for partial-allocate child trees. */
+async function listOpenDescendantJobs(rootId, session = null) {
+  if (!rootId) return []
+  const out = []
+  let frontier = [rootId]
+  while (frontier.length) {
+    const kids = await withSession(
+      AlloyMixJob.find({
+        parentJobId: { $in: frontier },
+        isDeleted: { $ne: true },
+        status: { $ne: 'closed' },
+      }),
+      session,
+    )
+    const list = Array.isArray(kids) ? kids : []
+    if (!list.length) break
+    out.push(...list)
+    frontier = list.map((row) => row._id)
+  }
+  return out
+}
+
+async function assertDescendantsInVault(job, session = null) {
+  const descendants = await listOpenDescendantJobs(job?._id, session)
+  const onFloor = descendants.filter((row) => !jobInVaultCustody(row))
+  if (onFloor.length) {
+    const sample = onFloor
+      .slice(0, 3)
+      .map((row) => `${row.mixCode}@${row.currentDepartment}`)
+      .join(', ')
     throw httpError(
       400,
-      `Cannot reverse/update mix ${job.mixCode}: currently in ${job.currentDepartment}. `
-      + 'Allocate back to Vault Room first.',
+      `Cannot reverse/update mix ${job.mixCode}: split portion still on floor (${sample}). `
+      + 'Allocate child mix(es) back to Vault Room first.',
     )
   }
+  return descendants
+}
+
+async function closeSingleJobRecord(job, {
+  user,
+  session = null,
+  reason = '',
+  note = 'Reversed / closed for update',
+} = {}) {
+  if (!job || job.isDeleted || job.status === 'closed') return job
 
   if (job.stockLotId) {
     const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
@@ -387,7 +413,7 @@ async function closeJobForReverse({
     session,
     mixCode: job.mixCode,
     actor: user,
-    reason: `Reversed ${reason}`,
+    reason: reason || `Reversed ${job.mixCode}`,
   })
 
   job.status = 'closed'
@@ -395,7 +421,7 @@ async function closeJobForReverse({
   job.isDeleted = true
   job.deletedAt = new Date()
   job.deletedBy = user?._id || null
-  job.deleteReason = `Reversed: ${reason}`
+  job.deleteReason = reason ? `Reversed: ${reason}` : `Reversed: ${job.mixCode}`
   job.updatedById = user?._id || null
   job.updatedByName = user?.name || ''
   job.history.push({
@@ -403,11 +429,65 @@ async function closeJobForReverse({
     action: 'close',
     fromDepartment: job.currentDepartment,
     toDepartment: '',
-    note: 'Reversed / closed for update',
+    note,
     actorId: user?._id || null,
     actorName: user?.name || '',
   })
   await job.save(writeOpts(session))
+  return job
+}
+
+/**
+ * Before / during reverse: require in_vault (or already closed), cancel lot, delete ops, close job.
+ * Also closes in-vault partial-allocate descendants so ERP reverse cannot orphan floor/vault splits.
+ */
+async function closeJobForReverse({
+  user,
+  session = null,
+  reasonBase,
+  allowMissing = true,
+  force = false,
+} = {}) {
+  const reason = String(reasonBase || '').trim()
+  if (!reason) return null
+
+  const job = await withSession(
+    AlloyMixJob.findOne({ reasonBase: reason, isDeleted: { $ne: true } }),
+    session,
+  )
+  if (!job) {
+    if (allowMissing) return null
+    throw httpError(404, 'Alloy mix job not found for this posted mix')
+  }
+
+  if (!force && job.status !== 'in_vault' && job.status !== 'closed') {
+    throw httpError(
+      400,
+      `Cannot reverse/update mix ${job.mixCode}: currently in ${job.currentDepartment}. `
+      + 'Allocate back to Vault Room first.',
+    )
+  }
+
+  const descendants = force
+    ? await listOpenDescendantJobs(job._id, session)
+    : await assertDescendantsInVault(job, session)
+
+  // Deepest-first so child lots/ops clear before parent.
+  for (const child of [...descendants].reverse()) {
+    await closeSingleJobRecord(child, {
+      user,
+      session,
+      reason,
+      note: `Reversed with parent ${job.mixCode}`,
+    })
+  }
+
+  await closeSingleJobRecord(job, {
+    user,
+    session,
+    reason,
+    note: 'Reversed / closed for update',
+  })
   return job
 }
 
@@ -431,6 +511,7 @@ async function assertJobUpdatableByReason(reasonBase, session = null) {
       `Mix ${job.mixCode} is in ${job.currentDepartment}. Return it to Vault Room before Update mix.`,
     )
   }
+  await assertDescendantsInVault(job, session)
   return job
 }
 
