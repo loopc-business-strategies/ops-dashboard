@@ -18,12 +18,12 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env') })
 require('../utils/configureAtlasDns')
 
 const mongoose = require('mongoose')
+const { assertStagingOnlyScript } = require('../utils/assertStagingOnlyScript')
 const {
   mapStagingMongoToProcessEnv,
-  assertStagingMongoTargets,
   resolveStagingMongoUri,
 } = require('../utils/stagingMongoSafety')
-const { looksLikeNonProductionUri, redactMongoUri } = require('../utils/migrationSafety')
+const { redactMongoUri } = require('../utils/migrationSafety')
 
 const KARATS = [9, 10, 14, 18, 21, 22, 24]
 
@@ -65,13 +65,12 @@ async function main() {
 
   if (!process.env.APP_ENV) process.env.APP_ENV = 'staging'
   Object.assign(process.env, mapStagingMongoToProcessEnv(process.env))
-  assertStagingMongoTargets([tenant])
+  assertStagingOnlyScript({
+    scriptName: 'dedupe-mg-alloyed-gold-skus.js',
+    tenants: [tenant],
+  })
 
   const uri = resolveStagingMongoUri(tenant)
-  if (!looksLikeNonProductionUri(uri)) {
-    throw new Error(`Refusing non-staging URI ${redactMongoUri(uri)}`)
-  }
-
   console.log(`Target: ${redactMongoUri(uri)}`)
   console.log(`Mode: ${apply ? 'APPLY' : 'DRY-RUN'}`)
 
