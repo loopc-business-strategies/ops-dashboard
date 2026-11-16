@@ -820,9 +820,51 @@ async function listMixJobs({
 
 const ALLOY_MIX_JOB_STATUSES_SAFE = ['in_vault', 'in_department', 'closed']
 
-function serializeJob(job) {
+/** Build parentId → open children map for custody annotations. */
+async function loadOpenChildrenByParent(session = null) {
+  const rows = await withSession(
+    AlloyMixJob.find({
+      parentJobId: { $ne: null },
+      isDeleted: { $ne: true },
+      status: { $ne: 'closed' },
+    }).select('_id parentJobId status currentDepartment isDeleted mixCode').lean(),
+    session,
+  )
+  const byParent = new Map()
+  for (const row of rows || []) {
+    const key = String(row.parentJobId)
+    if (!byParent.has(key)) byParent.set(key, [])
+    byParent.get(key).push(row)
+  }
+  return byParent
+}
+
+function hasOpenFloorDescendant(rootId, childrenByParent) {
+  if (!rootId || !childrenByParent) return false
+  const stack = [String(rootId)]
+  const seen = new Set()
+  while (stack.length) {
+    const id = stack.pop()
+    if (seen.has(id)) continue
+    seen.add(id)
+    for (const kid of childrenByParent.get(id) || []) {
+      if (!jobInVaultCustody(kid)) return true
+      stack.push(String(kid._id))
+    }
+  }
+  return false
+}
+
+function serializeJob(job, {
+  hasOpenFloorDescendants = false,
+  childrenByParent = null,
+} = {}) {
   if (!job) return null
   const row = typeof job.toObject === 'function' ? job.toObject() : job
+  const floorDescendants = childrenByParent
+    ? hasOpenFloorDescendant(row._id, childrenByParent)
+    : Boolean(hasOpenFloorDescendants)
+  const inVault = row.status === 'in_vault' && row.currentDepartment === VAULT && !row.isDeleted
   return {
     id: String(row._id),
     mixCode: row.mixCode,
@@ -838,20 +880,29 @@ function serializeJob(job) {
     parentJobId: row.parentJobId ? String(row.parentJobId) : '',
     status: row.status,
     currentDepartment: row.currentDepartment,
-    canUpdateMix: row.status === 'in_vault' && row.currentDepartment === VAULT && !row.isDeleted,
+    hasOpenFloorDescendants: floorDescendants,
+    canUpdateMix: inVault && !floorDescendants,
     history: row.history || [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
 }
 
-function serializeAllocateResult(result) {
+async function serializeJobs(jobs, session = null) {
+  const list = Array.isArray(jobs) ? jobs : []
+  if (!list.length) return []
+  const childrenByParent = await loadOpenChildrenByParent(session)
+  return list.map((job) => serializeJob(job, { childrenByParent }))
+}
+
+async function serializeAllocateResult(result, session = null) {
   if (result?.partial && result.parent && result.child) {
+    const childrenByParent = await loadOpenChildrenByParent(session)
     return {
       partial: true,
-      job: serializeJob(result.child),
-      parentJob: serializeJob(result.parent),
-      childJob: serializeJob(result.child),
+      job: serializeJob(result.child, { childrenByParent }),
+      parentJob: serializeJob(result.parent, { childrenByParent }),
+      childJob: serializeJob(result.child, { childrenByParent }),
     }
   }
   return {
@@ -869,7 +920,10 @@ module.exports = {
   allocateMixJob,
   listMixJobs,
   serializeJob,
+  serializeJobs,
   serializeAllocateResult,
+  jobInVaultCustody,
+  hasOpenFloorDescendant,
   dubaiDateKey,
   normalizeDept,
   PRODUCTION_DEPARTMENT_KEYS,

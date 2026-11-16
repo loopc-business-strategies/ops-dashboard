@@ -756,7 +756,7 @@ router.get(
     try {
       const {
         listMixJobs,
-        serializeJob,
+        serializeJobs,
         normalizeDept,
         PRODUCTION_DEPARTMENT_KEYS,
       } = require('../services/erpAccounting/alloyMixFloorBridge')
@@ -768,7 +768,7 @@ router.get(
         success: true,
         department: dept || null,
         departments: PRODUCTION_DEPARTMENT_KEYS,
-        jobs: jobs.map(serializeJob),
+        jobs: await serializeJobs(jobs),
       })
     } catch (err) {
       handleError(res, err)
@@ -801,7 +801,7 @@ router.post(
         weight: req.body.weight,
         session,
       }))
-      const payload = serializeAllocateResult(result)
+      const payload = await serializeAllocateResult(result)
       emitWorkbookUpdate(req, 'alloy-mix-allocate', {
         mixCode: payload.job?.mixCode,
         department: payload.job?.currentDepartment,

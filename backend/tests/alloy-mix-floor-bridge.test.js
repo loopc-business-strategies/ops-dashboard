@@ -257,6 +257,12 @@ describe('alloy mix floor bridge', () => {
     const meltJobs = await listMixJobs({ department: 'melting' })
     expect(vaultJobs.some((j) => String(j._id) === String(split.parent._id))).toBe(true)
     expect(meltJobs.some((j) => String(j._id) === String(split.child._id))).toBe(true)
+
+    const { serializeJobs } = require('../services/erpAccounting/alloyMixFloorBridge')
+    const annotated = await serializeJobs(vaultJobs)
+    const parentRow = annotated.find((j) => j.id === String(split.parent._id))
+    expect(parentRow.hasOpenFloorDescendants).toBe(true)
+    expect(parentRow.canUpdateMix).toBe(false)
   })
 
   test('partial allocate blocks ERP reverse until child returns to vault', async () => {

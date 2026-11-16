@@ -329,8 +329,11 @@ export default function ERPGoldAlloyTab({
     if (job && !job.canUpdateMix && !posted.isHistory) {
       if (typeof setError === 'function') {
         setError(
-          `Mix ${job.mixCode} is in ${job.currentDepartment}. `
-          + 'Allocate back to Vault Room on MG Floor before Edit.',
+          job.hasOpenFloorDescendants
+            ? `Mix ${job.mixCode} has a split portion still on the floor. `
+              + 'Allocate child mix(es) back to Vault Room on MG Floor before Edit.'
+            : `Mix ${job.mixCode} is in ${job.currentDepartment}. `
+              + 'Allocate back to Vault Room on MG Floor before Edit.',
         )
       }
       return
@@ -673,8 +676,11 @@ export default function ERPGoldAlloyTab({
     if (job && !job.canUpdateMix) {
       if (typeof setError === 'function') {
         setError(
-          `Mix ${job.mixCode} is in ${job.currentDepartment}. `
-          + 'Allocate back to Vault Room on MG Floor before Update mix.',
+          job.hasOpenFloorDescendants
+            ? `Mix ${job.mixCode} has a split portion still on the floor. `
+              + 'Allocate child mix(es) back to Vault Room on MG Floor before Update mix.'
+            : `Mix ${job.mixCode} is in ${job.currentDepartment}. `
+              + 'Allocate back to Vault Room on MG Floor before Update mix.',
         )
       }
       return
