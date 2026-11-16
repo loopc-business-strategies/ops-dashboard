@@ -488,14 +488,14 @@ function registerInventoryRoutes(deps) {
     try {
       const {
         listMixJobs,
-        serializeJob,
+        serializeJobs,
       } = require('../../services/erpAccounting/alloyMixFloorBridge')
       const jobs = await listMixJobs({
         department: req.query.department,
         status: req.query.status,
         includeClosed: req.query.includeClosed === true || req.query.includeClosed === 'true',
       })
-      res.json({ success: true, jobs: jobs.map(serializeJob) })
+      res.json({ success: true, jobs: await serializeJobs(jobs) })
     } catch (error) {
       respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/jobs' })
     }
@@ -524,7 +524,7 @@ function registerInventoryRoutes(deps) {
           weight: req.body.weight,
           session,
         }))
-        const payload = serializeAllocateResult(result)
+        const payload = await serializeAllocateResult(result)
         emitAlloyMixProductionUpdate(req, 'alloy-mix-allocate', {
           mixCode: payload.job?.mixCode || null,
           department: payload.job?.currentDepartment || null,

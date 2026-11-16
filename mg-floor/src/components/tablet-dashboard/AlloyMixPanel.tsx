@@ -159,8 +159,13 @@ export function AlloyMixPanel({
                 {job.finishedProductName || 'Alloy'}
               </Text>
               <Text style={styles.meta}>
-                {job.status === 'in_vault' ? 'In vault — Update Mix allowed in ERP' : 'On floor'}
-                {job.canUpdateMix ? ' · can update' : ''}
+                {job.hasOpenFloorDescendants
+                  ? 'In vault — split still on floor (ERP update blocked)'
+                  : job.canUpdateMix
+                    ? 'In vault — Update Mix allowed in ERP · can update'
+                    : job.status === 'in_vault'
+                      ? 'In vault'
+                      : 'On floor'}
               </Text>
               <Pressable
                 accessibilityRole="button"

@@ -12,6 +12,7 @@ export type AlloyMixJob = {
   stockCode: string
   status: 'in_vault' | 'in_department' | 'closed'
   currentDepartment: string
+  hasOpenFloorDescendants?: boolean
   canUpdateMix: boolean
   updatedAt?: string
 }
