@@ -245,4 +245,80 @@ describe('alloy-mix HTTP routes', () => {
       })
     expect(post.status).toBe(403)
   })
+
+  test('clear-history is reason-scoped and skips active movements', async () => {
+    const { user, fineGold, silver, finished } = await seedHttpFixture()
+    const headers = authHeader(user)
+
+    const postRes = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix')
+      .set(headers)
+      .send({
+        karat: 14,
+        targetGross: 80,
+        finishedProductId: String(finished._id),
+        lines: [
+          { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+          { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+        ],
+      })
+    expect(postRes.status).toBe(201)
+    const reason = postRes.body.reason
+
+    const activeBefore = await StockMovement.countDocuments({
+      isDeleted: { $ne: true },
+      reason: new RegExp(String(reason).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+    })
+    expect(activeBefore).toBeGreaterThan(0)
+
+    const clearActive = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/clear-history')
+      .set(headers)
+      .send({ reason })
+    expect(clearActive.status).toBe(200)
+    expect(clearActive.body.deletedCount).toBe(0)
+
+    const reverseRes = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/reverse')
+      .set(headers)
+      .send({ reason })
+    expect(reverseRes.status).toBe(200)
+
+    const softDeleted = await StockMovement.countDocuments({
+      isDeleted: true,
+      reason: new RegExp(String(reason).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+    })
+    expect(softDeleted).toBeGreaterThan(0)
+
+    const clearHist = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/clear-history')
+      .set(headers)
+      .send({ reason })
+    expect(clearHist.status).toBe(200)
+    expect(Number(clearHist.body.deletedCount)).toBe(softDeleted)
+
+    const leftover = await StockMovement.countDocuments({
+      isDeleted: true,
+      reason: new RegExp(String(reason).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+    })
+    expect(leftover).toBe(0)
+
+    const missing = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/clear-history')
+      .set(headers)
+      .send({})
+    expect(missing.status).toBe(400)
+
+    const forbidden = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/clear-history')
+      .set(authHeader(await User.create({
+        name: 'alloy-clear-viewer',
+        email: 'alloy-clear-viewer@example.com',
+        password: 'password123',
+        role: 'department_user',
+        department: 'hr',
+      })))
+      .send({ reason: 'x' })
+    expect(forbidden.status).toBe(403)
+  })
 })
