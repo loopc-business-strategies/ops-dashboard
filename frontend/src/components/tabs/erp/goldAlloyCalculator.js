@@ -215,12 +215,29 @@ function formatAlloyStockLabel({ name, mainStock, purity, quantity, includeQty =
   return `${name || ''}${mainStock ? ` (${mainStock})` : ''}${purity ? ` · p ${purity}` : ''}${qtyPart}`
 }
 
+function isSoftDeletedInventoryProduct(item = {}) {
+  if (item?.isDeleted === true || item?.deleted === true) return true
+  const name = String(item?.name || '')
+  // Staging soft-deleted duplicates are renamed e.g. "14K Alloyed Gold (duplicate — …)".
+  if (/\(duplicate\b/i.test(name)) return true
+  return false
+}
+
+function normalizeAlloyProductKey(name = '') {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\(duplicate[^)]*\)/gi, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
 export function buildAlloyStockOptions(inventoryProducts = []) {
   const list = Array.isArray(inventoryProducts) ? inventoryProducts : []
   return list
     .map((item) => {
-      const id = String(item?._id || '')
+      const id = String(item?._id || item?.id || '')
       if (!id) return null
+      if (isSoftDeletedInventoryProduct(item)) return null
       const category = String(item?.category || '')
       const pairs = Object.fromEntries(
         category.split(';').map((part) => {
@@ -341,40 +358,57 @@ function formatAlloyPurityLabel(raw) {
   return String(roundAlloyGrams(p, 4))
 }
 
+function scoreFinishedAlloyOption(row, karatNum) {
+  const key = normalizeAlloyProductKey(row?.name)
+  const canonical = normalizeAlloyProductKey(`${karatNum}k alloyed gold`)
+  let score = 0
+  if (key === canonical) score += 100
+  if (key === normalizeAlloyProductKey(`${karatNum}k alloy`)) score += 80
+  if (new RegExp(`^${karatNum}\\s*k\\b`, 'i').test(String(row?.name || ''))) score += 20
+  if (/alloyed/i.test(String(row?.name || ''))) score += 10
+  // Prefer lowercase catalog names used as the live MG finished product.
+  if (String(row?.name || '') === String(row?.name || '').toLowerCase()) score += 5
+  score += Math.min(10, Number(row?.quantity || 0) > 0 ? 5 : 0)
+  return score
+}
+
+/** Collapse same-karat duplicates (e.g. "14K Alloyed Gold" vs "14k alloyed gold"). */
+export function dedupeFinishedAlloyOptions(options = [], karat = '') {
+  const karatNum = Number(karat)
+  const list = Array.isArray(options) ? options : []
+  const byKey = new Map()
+  for (const row of list) {
+    const key = normalizeAlloyProductKey(row?.name) || String(row?.id || '')
+    if (!key) continue
+    const prev = byKey.get(key)
+    if (!prev) {
+      byKey.set(key, row)
+      continue
+    }
+    const prevScore = scoreFinishedAlloyOption(prev, karatNum)
+    const nextScore = scoreFinishedAlloyOption(row, karatNum)
+    if (nextScore > prevScore) byKey.set(key, row)
+  }
+  return [...byKey.values()].sort((a, b) => (
+    scoreFinishedAlloyOption(b, karatNum) - scoreFinishedAlloyOption(a, karatNum)
+    || String(a.name || '').localeCompare(String(b.name || ''))
+  ))
+}
+
 /** Finished alloyed-gold catalog hint for the selected karat (e.g. 22k Alloyed Gold). */
 export function findFinishedAlloyProductHint(karat, stockOptions = []) {
   const recipe = resolveKaratRecipe(karat)
-  const list = Array.isArray(stockOptions) ? stockOptions : []
   const karatNum = Number(karat)
   const targetPurity = recipe ? normalizeAlloyPurity(recipe.goldRatio) : 0
   const targetPurityLabel = formatAlloyPurityLabel(targetPurity)
-  const byName = list.find((row) => {
-    const text = `${row.name} ${row.mainStock}`.toLowerCase()
-    const mentionsAlloy = /alloy|alloyed/.test(text)
-    const mentionsKarat = new RegExp(`${karatNum}\\s*k`).test(text)
-    return mentionsAlloy && mentionsKarat
-  })
-  if (byName) {
-    const purityLabel = byName.purity || targetPurityLabel
+  const preferred = listFinishedAlloyOptionsForKarat(karat, stockOptions)[0] || null
+  if (preferred) {
+    const purityLabel = preferred.purity || targetPurityLabel
     return {
-      id: byName.id,
-      name: byName.name,
+      id: preferred.id,
+      name: preferred.name,
       purity: purityLabel,
-      message: `Finished product available: ${byName.name}${purityLabel ? ` (purity ${purityLabel})` : ''}. Ready to post mix when confirmed.`,
-    }
-  }
-  const byPurity = list.find((row) => {
-    if (!/alloy|alloyed/i.test(`${row.name} ${row.mainStock}`)) return false
-    const p = optionPurityScore(row)
-    return targetPurity > 0 && Math.abs(p - targetPurity) <= 0.01
-  })
-  if (byPurity) {
-    const purityLabel = byPurity.purity || targetPurityLabel
-    return {
-      id: byPurity.id,
-      name: byPurity.name,
-      purity: purityLabel,
-      message: `Finished product available: ${byPurity.name}${purityLabel ? ` (purity ${purityLabel})` : ''}. Ready to post mix when confirmed.`,
+      message: `Finished product available: ${preferred.name}${purityLabel ? ` (purity ${purityLabel})` : ''}. Ready to post mix when confirmed.`,
     }
   }
   const label = recipe?.label || `${karatNum}K`
@@ -390,9 +424,10 @@ export function findFinishedAlloyProductHint(karat, stockOptions = []) {
 export function listFinishedAlloyOptionsForKarat(karat, stockOptions = []) {
   const list = catalogProductOptions(stockOptions).filter((row) => (
     /alloy|alloyed/i.test(`${row.name} ${row.mainStock}`)
+    && !/\(duplicate\b/i.test(String(row.name || ''))
   ))
   const karatNum = Number(karat)
-  if (!(karatNum > 0)) return list
+  if (!(karatNum > 0)) return dedupeFinishedAlloyOptions(list, karat)
   const recipe = resolveKaratRecipe(karatNum)
   const targetPurity = recipe ? normalizeAlloyPurity(recipe.goldRatio) : 0
   const karatRe = new RegExp(`${karatNum}\\s*k`, 'i')
@@ -403,7 +438,7 @@ export function listFinishedAlloyOptionsForKarat(karat, stockOptions = []) {
     return Math.abs(optionPurityScore(row) - targetPurity) <= 0.01
   })
   // Prefer karat-matched products so Post/Update always hit the right inventory SKU.
-  return matched.length ? matched : list
+  return dedupeFinishedAlloyOptions(matched.length ? matched : list, karatNum)
 }
 
 export function isAlloyExtraLineActive(line = {}) {
