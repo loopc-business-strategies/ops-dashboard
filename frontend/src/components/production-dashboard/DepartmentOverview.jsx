@@ -227,13 +227,14 @@ function AlloyMixList({
       })
       setAllocating(null)
       setWeight('')
+      const wait = result?.pendingReceive ? ' — waiting for receive Approve on tablet' : ''
       if (result?.partial && result?.childJob) {
         setSuccess(
           `Split ${moveWeight} g → ${destLabel} as ${result.childJob.mixCode}`
-          + ` · ${fromCode} keeps ${result.parentJob?.targetGross ?? '—'} g`,
+          + ` · ${fromCode} keeps ${result.parentJob?.targetGross ?? '—'} g${wait}`,
         )
       } else {
-        setSuccess(`Allocated ${fromCode} (${moveWeight} g) → ${destLabel}`)
+        setSuccess(`Allocated ${fromCode} (${moveWeight} g) → ${destLabel}${wait}`)
       }
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Allocate failed')
@@ -246,17 +247,26 @@ function AlloyMixList({
     <div className="pd-alloy-mix-panel" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       {jobs.length ? (
         <ul className="pd-alloy-mix-list" aria-label="Open alloy mixes">
-          {jobs.map((job) => (
+          {jobs.map((job) => {
+            const awaitingReceive = job.status === 'pending_receive' || job.pendingReceive
+            const canAlloc = typeof onAllocateMix === 'function'
+              && !awaitingReceive
+              && job.canAllocate !== false
+            return (
             <li key={job.id || job.mixCode}>
               <span>
                 {job.mixCode || 'MIX'}
-                {job.hasOpenFloorDescendants ? ' · split on floor' : ''}
+                {awaitingReceive
+                  ? ' · awaiting receive'
+                  : job.hasOpenFloorDescendants
+                    ? ' · split on floor'
+                    : ''}
               </span>
               <strong>
                 {job.karat ? `${job.karat}K ` : ''}
                 {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
               </strong>
-              {typeof onAllocateMix === 'function' ? (
+              {canAlloc ? (
                 <button
                   type="button"
                   className="pd-btn pd-btn--sm pd-alloy-mix-alloc"
@@ -267,7 +277,8 @@ function AlloyMixList({
                 </button>
               ) : null}
             </li>
-          ))}
+            )
+          })}
         </ul>
       ) : null}
       {success ? <p className="pd-alloy-mix-toast pd-alloy-mix-toast--ok" role="status">{success}</p> : null}

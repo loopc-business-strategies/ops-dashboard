@@ -129,7 +129,12 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact, idle = f
               <View key={`${row.entryDate}|${row.batchLabel}`} style={styles.batchBlock}>
                 <View style={styles.batchGroup}>
                   <View style={styles.batchLabelCol}>
-                    <Text style={[styles.batchText, compact && { fontSize: 13 }]}>{row.batchLabel}</Text>
+                    <Text
+                      style={[styles.batchText, compact && styles.batchTextCompact]}
+                      numberOfLines={3}
+                    >
+                      {row.batchLabel}
+                    </Text>
                     {row.dayTag ? (
                       <Text style={styles.dayTag} numberOfLines={1} adjustsFontSizeToFit>
                         {row.dayTag}
@@ -296,16 +301,28 @@ const styles = StyleSheet.create({
   },
   fixText: { color: td.white, fontWeight: '800', fontSize: 11, letterSpacing: 0.4 },
   batchLabelCol: {
-    width: 48,
+    // Wide enough for AMX-YYMMDD-####; keep text inside the cell.
+    width: 102,
     borderRightWidth: 1,
     borderRightColor: td.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: td.cream,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    overflow: 'hidden',
   },
-  batchText: { color: td.text, fontWeight: '800', fontSize: 14 },
+  batchText: {
+    color: td.text,
+    fontWeight: '800',
+    fontSize: 11,
+    lineHeight: 13,
+    textAlign: 'center',
+    width: '100%',
+  },
+  batchTextCompact: { fontSize: 10, lineHeight: 12 },
   dayTag: { color: td.orange, fontWeight: '700', fontSize: 9, marginTop: 1, paddingHorizontal: 2 },
-  batchLines: { flex: 1 },
+  batchLines: { flex: 1, minWidth: 0 },
   lineRow: {
     flexDirection: 'row',
     height: LINE_HEIGHT,
@@ -330,9 +347,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: td.textMuted,
   },
-  colBatch: { width: 48 },
-  colMetal: { flex: 1.1, textAlign: 'left' },
-  colQty: { flex: 1 },
-  colPurity: { flex: 1 },
-  colTime: { flex: 1 },
+  colBatch: { width: 102 },
+  colMetal: { flex: 1.1, textAlign: 'left', minWidth: 0 },
+  colQty: { flex: 1, minWidth: 0 },
+  colPurity: { flex: 1, minWidth: 0 },
+  colTime: { flex: 1, minWidth: 0 },
 })

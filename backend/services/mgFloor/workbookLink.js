@@ -123,12 +123,16 @@ async function applyApprovedEntryToWorkbook(entry) {
   const key = floorBatchKey(entry)
   const sums = summarizeLines(entry.lines)
   const at = entryTimestamp(entry)
+  const batchNumber = String(entry.batchLabel || '').trim()
+  // Alloy mix batches use AMX-… as the label so Ops can match Gold Alloy / Floor allocate.
+  const alloyMixCode = /^AMX-/i.test(batchNumber) ? batchNumber.toUpperCase() : ''
   const set = {
     source: 'mg_floor',
     departmentKey,
     date: entry.entryDate,
-    batchNumber: String(entry.batchLabel || '').trim(),
+    batchNumber,
     departmentManagerName: entry.decidedByName || '',
+    ...(alloyMixCode ? { alloyMixCode } : {}),
   }
   const setOnInsert = {
     createdById: entry.decidedById || null,

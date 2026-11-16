@@ -3,6 +3,8 @@ import { apiRequest } from '@/src/api/client'
 export type AlloyMixJob = {
   id: string
   mixCode: string
+  /** Same as mixCode — canonical batch id for Floor / Ops. */
+  batchNumber?: string
   reasonBase: string
   karat: number
   targetGross: number
@@ -10,10 +12,13 @@ export type AlloyMixJob = {
   finishedProductName: string
   purity: number | null
   stockCode: string
-  status: 'in_vault' | 'in_department' | 'closed'
+  status: 'in_vault' | 'pending_receive' | 'in_department' | 'closed'
   currentDepartment: string
+  pendingFromDepartment?: string
+  pendingReceive?: boolean
   hasOpenFloorDescendants?: boolean
   canUpdateMix: boolean
+  canAllocate?: boolean
   updatedAt?: string
 }
 
@@ -45,6 +50,7 @@ export async function allocateAlloyMixJob(opts: {
   return apiRequest<{
     success: boolean
     partial?: boolean
+    pendingReceive?: boolean
     job: AlloyMixJob
     parentJob?: AlloyMixJob
     childJob?: AlloyMixJob
@@ -57,6 +63,30 @@ export async function allocateAlloyMixJob(opts: {
         toDepartment: opts.toDepartment,
         note: opts.note || '',
         ...(opts.weight != null && Number.isFinite(opts.weight) ? { weight: opts.weight } : {}),
+      },
+    },
+  )
+}
+
+export async function receiveAlloyMixJob(opts: {
+  token: string
+  mixId: string
+  decision: 'APPROVED' | 'REJECTED'
+  note?: string
+}) {
+  return apiRequest<{
+    success: boolean
+    decision: 'APPROVED' | 'REJECTED'
+    job: AlloyMixJob
+    metalInEntryId?: string | null
+  }>(
+    `/api/mg-floor/alloy-mix-jobs/${encodeURIComponent(opts.mixId)}/receive`,
+    {
+      method: 'POST',
+      token: opts.token,
+      body: {
+        decision: opts.decision,
+        note: opts.note || '',
       },
     },
   )

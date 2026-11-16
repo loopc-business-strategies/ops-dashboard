@@ -8,6 +8,7 @@ import {
   editableBatch,
   latestEntries,
   localDateKey,
+  metalInChoices,
   metalOptionsFor,
   metalOutChoices,
   nextBatchLabel,
@@ -180,6 +181,26 @@ describe('batch numbers', () => {
       { metal: 'Alloy', qty: null, purity: null, time: '' },
       copper,
     ])
+  })
+})
+
+describe('metalInChoices', () => {
+  it('offers each open alloy mix as its own batch before numeric fallback', () => {
+    expect(metalInChoices(['AMX-261116-0001', 'AMX-261116-0002'], [], D1)).toEqual([
+      { entryDate: D1, batchLabel: 'AMX-261116-0001' },
+      { entryDate: D1, batchLabel: 'AMX-261116-0002' },
+    ])
+  })
+
+  it('skips mixes that already have a Metal In and falls back to next number', () => {
+    expect(
+      metalInChoices(
+        ['AMX-261116-0001'],
+        [{ entryDate: D1, batchLabel: 'AMX-261116-0001' }],
+        D1,
+      ),
+    ).toEqual([{ entryDate: D1, batchLabel: '1' }])
+    expect(nextBatchLabel(['AMX-261116-0001', '2'])).toBe('3')
   })
 })
 
