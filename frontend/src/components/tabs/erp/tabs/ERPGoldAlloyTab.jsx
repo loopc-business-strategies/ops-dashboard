@@ -852,21 +852,24 @@ export default function ERPGoldAlloyTab({
     const reason = String(posted?.reason || '').trim()
     if (!reason) {
       if (typeof setError === 'function') setError('Cannot remove mix history: missing reason')
-      return false
+      return { ok: false, deletedCount: 0 }
     }
     try {
       setMixActionId(posted.id)
-      await erpAccountingAPI.clearAlloyMixHistory(token, {
+      const result = await erpAccountingAPI.clearAlloyMixHistory(token, {
         reason,
         ...(posted?.karat ? { karat: Number(posted.karat) } : {}),
       })
       await reloadPostedMixes()
-      return true
+      return {
+        ok: true,
+        deletedCount: Number(result?.deletedCount) || 0,
+      }
     } catch (err) {
       if (typeof setError === 'function') {
         setError(err.response?.data?.message || err.message || 'Failed to remove alloy mix history')
       }
-      return false
+      return { ok: false, deletedCount: 0 }
     } finally {
       setMixActionId('')
     }
@@ -884,8 +887,12 @@ export default function ERPGoldAlloyTab({
       )
       if (!ok) return
       const purged = await purgePostedMixHistory(posted)
-      if (purged && typeof showNotification === 'function') {
-        showNotification('🗑️ Prior mix removed from list')
+      if (purged.ok && typeof showNotification === 'function') {
+        showNotification(
+          purged.deletedCount > 0
+            ? `🗑️ Prior mix removed from list (${purged.deletedCount} history row${purged.deletedCount === 1 ? '' : 's'})`
+            : '🗑️ Prior mix removed from list (no history rows left)',
+        )
       }
       return
     }
@@ -896,8 +903,11 @@ export default function ERPGoldAlloyTab({
     const removed = await reversePostedMix(posted, { skipConfirm: true })
     if (!removed) return
     const purged = await purgePostedMixHistory(posted)
-    if (purged && typeof showNotification === 'function') {
-      showNotification('🗑️ Mix deleted, inventory restored, and removed from list')
+    if (purged.ok && typeof showNotification === 'function') {
+      const purgePart = purged.deletedCount > 0
+        ? ` · purged ${purged.deletedCount} history row${purged.deletedCount === 1 ? '' : 's'}`
+        : ''
+      showNotification(`🗑️ Mix deleted, inventory restored, and removed from list${purgePart}`)
     } else if (typeof showNotification === 'function') {
       showNotification('🗑️ Mix deleted and inventory restored')
     }
@@ -1121,6 +1131,13 @@ export default function ERPGoldAlloyTab({
                       const canAct = postingEnabled
                       const floorJob = mixJobsByReason[String(row.reason || '').trim()] || null
                       const updateBlockedByFloor = Boolean(floorJob && !floorJob.canUpdateMix && !isHistory)
+                      const floorBlockTitle = floorJob?.hasOpenFloorDescendants
+                        ? `Split portion still on floor (${floorJob.mixCode}). Allocate child mix(es) back to Vault Room first.`
+                        : (
+                          floorJob
+                            ? `On floor in ${floorJob.currentDepartment}${floorJob.mixCode ? ` (${floorJob.mixCode})` : ''}. Allocate to Vault Room first.`
+                            : ''
+                        )
                       const linkNote = row.isGroupHead
                         ? (isHistory ? 'Latest history' : (isUpdated ? 'Current updated' : 'Current posted'))
                         : (isUpdated ? 'Prior update · linked' : 'Original post · linked')
@@ -1378,7 +1395,7 @@ export default function ERPGoldAlloyTab({
                                     }}
                                     title={
                                       updateBlockedByFloor
-                                        ? `On floor in ${floorJob.currentDepartment}. Allocate to Vault Room first.`
+                                        ? floorBlockTitle
                                         : (isHistory ? 'Edit this prior mix (inventory already restored)' : 'Edit and replace this active mix')
                                     }
                                   >
@@ -1403,7 +1420,7 @@ export default function ERPGoldAlloyTab({
                                     }}
                                     title={
                                       updateBlockedByFloor
-                                        ? `On floor in ${floorJob.currentDepartment} (${floorJob.mixCode}). Allocate to Vault Room first.`
+                                        ? floorBlockTitle
                                         : (isHistory
                                           ? 'Post a new updated mix from this prior (inventory already restored)'
                                           : (floorJob
@@ -1432,7 +1449,7 @@ export default function ERPGoldAlloyTab({
                                     }}
                                     title={
                                       updateBlockedByFloor
-                                        ? `On floor in ${floorJob.currentDepartment}. Allocate to Vault Room first.`
+                                        ? floorBlockTitle
                                         : (isHistory
                                           ? 'Remove this prior history from the list'
                                           : 'Delete mix, restore inventory, and remove from list')
