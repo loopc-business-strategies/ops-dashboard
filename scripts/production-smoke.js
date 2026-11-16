@@ -5,6 +5,11 @@ const {
   getTenantSmokeCredentials,
   listTenantSmokeCredentialCandidates,
 } = require('./smoke-credentials')
+const {
+  isProductionAlloyMixApiBase,
+  isStagingAlloyMixMutateContext,
+  pickVaultMixForRoundTrip,
+} = require('./lib/alloyMixSmokeMutate.cjs')
 const TENANTS = Object.keys(
   JSON.parse(fs.readFileSync(path.join(__dirname, '../shared/tenant-catalog.json'), 'utf8')).tenants || {},
 ).sort()
@@ -29,6 +34,8 @@ const smokeAuthExplicit = String(process.env.SMOKE_REQUIRE_AUTH || '').trim().to
 const SMOKE_REQUIRE_AUTH = smokeAuthExplicit !== 'false'
 const SMOKE_REQUIRE_REPORTS = String(process.env.SMOKE_REQUIRE_REPORTS || '').trim().toLowerCase() === 'true'
 const SMOKE_REQUIRE_REDIS = String(process.env.SMOKE_REQUIRE_REDIS || 'true').trim().toLowerCase() !== 'false'
+/** Opt-in mutate: vault → melting → vault round-trip (staging only; never production API). */
+const SMOKE_ALLOY_MIX_MUTATE = String(process.env.SMOKE_ALLOY_MIX_MUTATE || '').trim().toLowerCase() === 'true'
 
 function vercelProtectionHeaders() {
   if (!SMOKE_VERCEL_PROTECTION_BYPASS) return {}
@@ -384,6 +391,14 @@ async function verifyTenantExpenseRegister(tenant) {
   return `${response.status} items=${body.items.length} total=${body.total ?? body.items.length}`
 }
 
+function alloyMixMutateEnabled() {
+  return isStagingAlloyMixMutateContext({
+    apiBase: API_BASE,
+    envLabel: SMOKE_ENV_LABEL,
+    mutate: SMOKE_ALLOY_MIX_MUTATE,
+  })
+}
+
 /** Read-only MG Gold Alloy ↔ Floor bridge probe (list open mix jobs). */
 async function verifyTenantAlloyMixJobs(tenant) {
   if (String(tenant).toLowerCase() !== 'mg') {
@@ -414,6 +429,100 @@ async function verifyTenantAlloyMixJobs(tenant) {
   return `${response.status} jobs=${body.jobs.length}`
 }
 
+/**
+ * Staging-only mutate: full allocate vault → melting → vault on an existing open vault job.
+ * Soft-skips when mutate is off, no suitable job, or missing write permission.
+ * Always returns the job to vault_room when the outbound allocate succeeded.
+ */
+async function verifyTenantAlloyMixAllocateRoundTrip(tenant) {
+  if (String(tenant).toLowerCase() !== 'mg') {
+    return 'skipped: alloy-mix allocate mutate is MG-only'
+  }
+  if (isProductionAlloyMixApiBase(API_BASE)) {
+    throw new Error('Refusing alloy-mix allocate mutate against production API')
+  }
+  if (!alloyMixMutateEnabled()) {
+    return 'skipped: set SMOKE_ALLOY_MIX_MUTATE=true on staging (non-prod API)'
+  }
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !getTenantSmokeCredentials(tenant)) {
+    return `skipped: no smoke login for ${tenant}`
+  }
+
+  const headers = await buildTenantSmokeHeaders(tenant)
+  if (!headers) {
+    throw new Error(`alloy-mix allocate mutate requires credentials for ${tenant}`)
+  }
+  const jsonHeaders = {
+    ...headers,
+    'content-type': 'application/json',
+  }
+
+  const listRes = await fetchWithTimeout(
+    `${API_BASE}/api/erp-accounting/inventory/alloy-mix/jobs?department=vault_room`,
+    { headers },
+  )
+  const listBody = await listRes.json().catch(() => ({}))
+  if (listRes.status === 403) {
+    return 'skipped: smoke user lacks inventory read for alloy-mix jobs'
+  }
+  if (!listRes.ok || listBody.success !== true || !Array.isArray(listBody.jobs)) {
+    throw new Error(`alloy-mix/jobs returned ${listRes.status}: ${listBody.message || 'unexpected response'}`)
+  }
+
+  const job = pickVaultMixForRoundTrip(listBody.jobs)
+  if (!job) {
+    return 'skipped: no open vault mix safe to allocate (post mix in ERP Gold Alloy first)'
+  }
+
+  const allocateUrl = `${API_BASE}/api/erp-accounting/inventory/alloy-mix/jobs/${encodeURIComponent(job.id)}/allocate`
+  let movedOffVault = false
+  try {
+    const outRes = await fetchWithTimeout(allocateUrl, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ toDepartment: 'melting', note: 'staging-smoke allocate round-trip' }),
+    })
+    const outBody = await outRes.json().catch(() => ({}))
+    if (outRes.status === 403) {
+      return 'skipped: smoke user lacks inventory write for alloy-mix allocate'
+    }
+    if (!outRes.ok || outBody.success !== true) {
+      throw new Error(`allocate→melting returned ${outRes.status}: ${outBody.message || 'unexpected response'}`)
+    }
+    movedOffVault = true
+    if (String(outBody.job?.currentDepartment || '').toLowerCase() !== 'melting') {
+      throw new Error(`allocate→melting left department=${outBody.job?.currentDepartment || '?'}`)
+    }
+
+    const backRes = await fetchWithTimeout(allocateUrl, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ toDepartment: 'vault_room', note: 'staging-smoke allocate teardown' }),
+    })
+    const backBody = await backRes.json().catch(() => ({}))
+    if (!backRes.ok || backBody.success !== true) {
+      throw new Error(`allocate→vault returned ${backRes.status}: ${backBody.message || 'unexpected response'}`)
+    }
+    if (String(backBody.job?.currentDepartment || '').toLowerCase() !== 'vault_room') {
+      throw new Error(`allocate→vault left department=${backBody.job?.currentDepartment || '?'}`)
+    }
+    movedOffVault = false
+    return `ok round-trip ${job.mixCode || job.id} vault→melting→vault`
+  } finally {
+    if (movedOffVault) {
+      try {
+        await fetchWithTimeout(allocateUrl, {
+          method: 'POST',
+          headers: jsonHeaders,
+          body: JSON.stringify({ toDepartment: 'vault_room', note: 'staging-smoke allocate emergency teardown' }),
+        })
+      } catch {
+        // Best-effort restore; original error already thrown above.
+      }
+    }
+  }
+}
+
 async function run() {
   console.log(`${SMOKE_ENV_LABEL} smoke report`)
   console.log(`API: ${API_BASE}`)
@@ -425,6 +534,13 @@ async function run() {
   console.log(`ERP auth required: ${SMOKE_REQUIRE_AUTH ? 'yes' : 'no'}`)
   console.log(`Redis required on /api/ready: ${SMOKE_REQUIRE_REDIS ? 'yes' : 'no'}`)
   console.log(`Reports probe hard-fail: ${SMOKE_REQUIRE_REPORTS ? 'yes' : 'no (403 soft-skip)'}`)
+  console.log(
+    `Alloy-mix allocate mutate: ${
+      SMOKE_ALLOY_MIX_MUTATE
+        ? (alloyMixMutateEnabled() ? 'enabled (staging)' : 'flag set but not staging context')
+        : 'off'
+    }`,
+  )
 
   assertSmokeAuthConfigured()
 
@@ -443,6 +559,13 @@ async function run() {
       checks.push(check(`railway:${tenant}:metal-rates-live`, () => verifyTenantMetalRatesLive(tenant)))
       checks.push(check(`railway:${tenant}:expense-register`, () => verifyTenantExpenseRegister(tenant)))
       checks.push(check(`railway:${tenant}:alloy-mix-jobs`, () => verifyTenantAlloyMixJobs(tenant)))
+    }
+    // Mutate is independently gated (flag + non-prod); soft-skips without creds / open vault mix.
+    if (SMOKE_ALLOY_MIX_MUTATE || SMOKE_REQUIRE_AUTH) {
+      checks.push(check(
+        `railway:${tenant}:alloy-mix-allocate-roundtrip`,
+        () => verifyTenantAlloyMixAllocateRoundTrip(tenant),
+      ))
     }
   }
 
