@@ -67,6 +67,8 @@ const alloyMixClearHistorySchema = Joi.object({
 const alloyMixAllocateSchema = Joi.object({
   toDepartment: Joi.string().trim().required(),
   note: Joi.string().trim().allow('').max(500).optional(),
+  /** Grams to move; omit for full mix. Less than remaining → split child job. */
+  weight: Joi.number().positive().optional(),
 })
 const alloyMixJobsQuerySchema = Joi.object({
   department: Joi.string().trim().allow('').optional(),
@@ -484,16 +486,20 @@ function registerInventoryRoutes(deps) {
         if (!canWriteInventory(req.user)) {
           return res.status(403).json({ success: false, message: 'Forbidden' })
         }
-        const { allocateMixJob, serializeJob } = require('../../services/erpAccounting/alloyMixFloorBridge')
+        const {
+          allocateMixJob,
+          serializeAllocateResult,
+        } = require('../../services/erpAccounting/alloyMixFloorBridge')
         const { runInTransaction } = require('../../utils/mongoTransaction')
-        const job = await runInTransaction(async (session) => allocateMixJob({
+        const result = await runInTransaction(async (session) => allocateMixJob({
           user: req.user,
           mixId: req.params.id,
           toDepartment: req.body.toDepartment,
           note: req.body.note,
+          weight: req.body.weight,
           session,
         }))
-        res.json({ success: true, job: serializeJob(job) })
+        res.json({ success: true, ...serializeAllocateResult(result) })
       } catch (error) {
         respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/jobs/allocate' })
       }

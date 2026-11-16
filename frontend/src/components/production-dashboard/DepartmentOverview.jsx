@@ -153,6 +153,46 @@ function VaultStock({ inventory }) {
   )
 }
 
+function AlloyMixChip({ jobs = [] }) {
+  if (!jobs.length) return null
+  const grams = jobs.reduce((sum, j) => sum + (Number(j.targetGross) || 0), 0)
+  const title = jobs
+    .map((j) => `${j.mixCode || 'MIX'} · ${j.karat || '?'}K · ${j.targetGross ?? '—'} g`)
+    .join('\n')
+  return (
+    <span
+      className="pd-status-pill pd-status-pill--alloy"
+      title={title}
+    >
+      MIX ×{jobs.length}
+      {grams > 0 ? ` · ${Number(grams).toLocaleString(undefined, { maximumFractionDigits: 1 })}g` : ''}
+    </span>
+  )
+}
+
+function AlloyMixList({ jobs = [] }) {
+  if (!jobs.length) return null
+  return (
+    <ul className="pd-alloy-mix-list" aria-label="Open alloy mixes">
+      {jobs.slice(0, 4).map((job) => (
+        <li key={job.id || job.mixCode}>
+          <span>{job.mixCode || 'MIX'}</span>
+          <strong>
+            {job.karat ? `${job.karat}K ` : ''}
+            {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+          </strong>
+        </li>
+      ))}
+      {jobs.length > 4 ? (
+        <li className="pd-alloy-mix-more">
+          <span>+{jobs.length - 4} more</span>
+          <strong />
+        </li>
+      ) : null}
+    </ul>
+  )
+}
+
 function DeptCard({
   card,
   batchMonitorRows,
@@ -167,6 +207,7 @@ function DeptCard({
   down = null,
   onMarkFixed,
   vaultInventory = null,
+  alloyMixJobs = [],
 }) {
   const calling = !breakdown && callCount > 0
   const machineDown = !breakdown && !calling && Boolean(down)
@@ -178,6 +219,7 @@ function DeptCard({
   const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
     ? `EMPLOYEES (${ui.employeeCount})`
     : (suppressDemo ? 'EMPLOYEES (—)' : 'EMPLOYEES')
+  const mixes = Array.isArray(alloyMixJobs) ? alloyMixJobs : []
 
   return (
     <article
@@ -230,6 +272,7 @@ function DeptCard({
             {ui.status || 'Idle'}
           </span>
         )}
+        <AlloyMixChip jobs={mixes} />
       </div>
 
       {down ? (
@@ -253,6 +296,7 @@ function DeptCard({
 
       {/* Scrollable mid section — keeps footer (batch / vault balance) from being clipped */}
       <div className="pd-dept-card-body">
+      <AlloyMixList jobs={mixes} />
       <div className="pd-dept-people">
         <div className="pd-dept-people-side">
           <span className="pd-dept-people-ico" aria-hidden>
@@ -411,6 +455,7 @@ function renderDeptCard(card, props) {
     downDepts,
     onMarkFixed,
     vaultInventory,
+    alloyMixByDept,
   } = props
   return (
     <DeptCard
@@ -428,6 +473,7 @@ function renderDeptCard(card, props) {
       down={downDepts[card.key] || null}
       onMarkFixed={onMarkFixed}
       vaultInventory={card.key === 'vault_room' ? vaultInventory : null}
+      alloyMixJobs={alloyMixByDept?.[card.key] || []}
     />
   )
 }
@@ -452,6 +498,7 @@ export default function DepartmentOverview({
   downDepts = {},
   onMarkFixed,
   vaultInventory = null,
+  alloyMixByDept = {},
   kpi = null,
 }) {
   const list = cards || []
@@ -468,6 +515,7 @@ export default function DepartmentOverview({
     downDepts,
     onMarkFixed,
     vaultInventory,
+    alloyMixByDept,
   }
   const vaultCard = list.find((card) => card.key === 'vault_room') || null
   const stampingCard = list.find((card) => card.key === 'stamping') || null

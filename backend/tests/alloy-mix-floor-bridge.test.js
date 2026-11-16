@@ -226,4 +226,36 @@ describe('alloy mix floor bridge', () => {
     expect(reversed.success).toBe(true)
     expect(reversed.mixJobClosed).toBe(result.mixJob.mixCode)
   })
+
+  test('partial allocate splits child job and leaves remainder', async () => {
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const result = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+      ],
+    })
+
+    const split = await allocateMixJob({
+      user,
+      mixId: result.mixJob.id,
+      toDepartment: 'melting',
+      weight: 30,
+    })
+    expect(split.partial).toBe(true)
+    expect(Number(split.parent.targetGross)).toBe(50)
+    expect(split.parent.currentDepartment).toBe('vault_room')
+    expect(Number(split.child.targetGross)).toBe(30)
+    expect(split.child.currentDepartment).toBe('melting')
+
+    const vaultJobs = await listMixJobs({ department: 'vault_room' })
+    const meltJobs = await listMixJobs({ department: 'melting' })
+    expect(vaultJobs.some((j) => String(j._id) === String(split.parent._id))).toBe(true)
+    expect(meltJobs.some((j) => String(j._id) === String(split.child._id))).toBe(true)
+  })
 })

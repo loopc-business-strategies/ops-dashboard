@@ -16,7 +16,7 @@ const clearAlloyMixHistory = async (token, payload) => (
 const listAlloyMixJobs = async (token, params = {}) => (
   await axios.get(`${BASE}/inventory/alloy-mix/jobs`, getAuthConfig(token, params))
 ).data
-const allocateAlloyMixJob = async (token, id, payload) => (
+const allocateAlloyMixJob = async (token, id, payload = {}) => (
   await axios.post(`${BASE}/inventory/alloy-mix/jobs/${id}/allocate`, payload, getAuthConfig(token))
 ).data
 const getStockLedger = async (token, params = {}) => (
