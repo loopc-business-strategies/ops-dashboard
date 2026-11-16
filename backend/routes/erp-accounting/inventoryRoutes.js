@@ -1,6 +1,6 @@
 const { respondRouteError } = require('../../utils/routeErrorHelpers')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
-const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
+const { Joi, validateBody, validateBodyStrict, validateParams, validateQuery } = require('../../middleware/validate')
 const { sanitizeInventoryCategoryPurity } = require('../../utils/catalogProductPurity')
 const {
   applyCatalogOnHandQuantities,
@@ -64,6 +64,15 @@ const alloyMixClearHistorySchema = Joi.object({
   reason: Joi.string().trim().min(1).max(1000).optional(),
   karat: Joi.number().integer().min(1).max(24).optional(),
 }).or('reason', 'karat')
+const alloyMixAllocateSchema = Joi.object({
+  toDepartment: Joi.string().trim().required(),
+  note: Joi.string().trim().allow('').max(500).optional(),
+})
+const alloyMixJobsQuerySchema = Joi.object({
+  department: Joi.string().trim().allow('').optional(),
+  status: Joi.string().trim().allow('').optional(),
+  includeClosed: Joi.boolean().optional(),
+})
 
 /** Pure candidate pick for stock-in/out ledger currency (before Currency master validate). */
 function pickStockMovementCurrencyCandidate({
@@ -447,6 +456,49 @@ function registerInventoryRoutes(deps) {
       respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/reverse' })
     }
   })
+
+  router.get('/inventory/alloy-mix/jobs', protect, validateQuery(alloyMixJobsQuerySchema), async (req, res) => {
+    try {
+      const {
+        listMixJobs,
+        serializeJob,
+      } = require('../../services/erpAccounting/alloyMixFloorBridge')
+      const jobs = await listMixJobs({
+        department: req.query.department,
+        status: req.query.status,
+        includeClosed: req.query.includeClosed === true || req.query.includeClosed === 'true',
+      })
+      res.json({ success: true, jobs: jobs.map(serializeJob) })
+    } catch (error) {
+      respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/jobs' })
+    }
+  })
+
+  router.post(
+    '/inventory/alloy-mix/jobs/:id/allocate',
+    protect,
+    validateParams(Joi.object({ id: Joi.string().trim().min(1).max(40).required() })),
+    validateBody(alloyMixAllocateSchema),
+    async (req, res) => {
+      try {
+        if (!canWriteInventory(req.user)) {
+          return res.status(403).json({ success: false, message: 'Forbidden' })
+        }
+        const { allocateMixJob, serializeJob } = require('../../services/erpAccounting/alloyMixFloorBridge')
+        const { runInTransaction } = require('../../utils/mongoTransaction')
+        const job = await runInTransaction(async (session) => allocateMixJob({
+          user: req.user,
+          mixId: req.params.id,
+          toDepartment: req.body.toDepartment,
+          note: req.body.note,
+          session,
+        }))
+        res.json({ success: true, job: serializeJob(job) })
+      } catch (error) {
+        respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/jobs/allocate' })
+      }
+    },
+  )
 
   router.get('/inventory/stock-ledger', protect, async (req, res) => {
     try {

@@ -540,7 +540,7 @@ export function mapEntryToRow(entry) {
     purityOut,
     id: entry?._id || entry?.id,
     deptKey,
-    fromFloor: entry?.source === 'mg_floor',
+    fromFloor: entry?.source === 'mg_floor' || entry?.source === 'gold_alloy',
     employee: String(entry?.employeeName || '').trim() || '—',
     departmentManager: String(entry?.departmentManagerName || '').trim() || '—',
     batch: String(entry?.batchNumber || '').trim() || '—',

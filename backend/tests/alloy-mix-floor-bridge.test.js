@@ -1,0 +1,229 @@
+const mongoose = require('mongoose')
+const {
+  startMongoMemoryServer,
+  isMongooseConnected,
+  disconnectMongooseIfConnected,
+} = require('./mongoMemoryTestServer')
+const { createAlloyMixService } = require('../services/erpAccounting/alloyMixService')
+const {
+  allocateMixJob,
+  listMixJobs,
+  serializeJob,
+} = require('../services/erpAccounting/alloyMixFloorBridge')
+const InventoryItem = require('../models/InventoryItem')
+const StockMovement = require('../models/StockMovement')
+const User = require('../models/User')
+const ChartOfAccount = require('../models/ChartOfAccount')
+const AccountMapping = require('../models/AccountMapping')
+const Ledger = require('../models/Ledger')
+const Transaction = require('../models/Transaction')
+const AlloyMixJob = require('../models/AlloyMixJob')
+const ProductionStockLot = require('../models/ProductionStockLot')
+const ProductionStockStatusEvent = require('../models/ProductionStockStatusEvent')
+const OperationsProductionEntry = require('../models/OperationsProductionEntry')
+const { ALLOY_METAL_LOSS_MAPPING_TYPE } = require('../services/erpAccounting/alloyMixService')
+
+let mongo
+
+beforeAll(async () => {
+  mongo = await startMongoMemoryServer()
+  await mongoose.connect(mongo.getUri())
+})
+
+afterAll(async () => {
+  await disconnectMongooseIfConnected(mongoose)
+  if (mongo) await mongo.stop()
+})
+
+afterEach(async () => {
+  if (!isMongooseConnected(mongoose)) return
+  await Promise.all([
+    InventoryItem.deleteMany({}),
+    StockMovement.deleteMany({}),
+    ChartOfAccount.deleteMany({}),
+    AccountMapping.deleteMany({}),
+    Ledger.deleteMany({}),
+    Transaction.deleteMany({}),
+    User.deleteMany({}),
+    AlloyMixJob.deleteMany({}),
+    ProductionStockLot.deleteMany({}),
+    ProductionStockStatusEvent.deleteMany({}),
+    OperationsProductionEntry.deleteMany({}),
+  ])
+})
+
+async function seedMixFixture() {
+  const user = await User.create({
+    name: 'alloy-floor-user',
+    email: 'alloy-floor@example.com',
+    password: 'password123',
+    role: 'super_admin',
+  })
+  const invAcct = await ChartOfAccount.create({
+    accountName: 'Metal Inventory',
+    accountCode: '1300',
+    accountType: 'Asset',
+    createdBy: user._id,
+  })
+  const lossParty = await ChartOfAccount.create({
+    accountName: 'Metal Loss',
+    accountCode: 'AML',
+    accountType: 'Expense',
+    createdBy: user._id,
+  })
+  await AccountMapping.create({
+    mappingType: ALLOY_METAL_LOSS_MAPPING_TYPE,
+    debitAccountId: lossParty._id,
+    creditAccountId: invAcct._id,
+    isActive: true,
+    description: 'alloy loss',
+  })
+
+  const fineGold = await InventoryItem.create({
+    name: 'Gold 24K Bar',
+    sku: 'AU-24K',
+    category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=1',
+    quantity: 100,
+    unit: 'grams',
+    unitCost: 50,
+    ledgerAccountId: invAcct._id,
+    createdBy: user._id,
+    updatedBy: user._id,
+  })
+  await StockMovement.create({
+    itemId: fineGold._id,
+    itemName: fineGold.name,
+    change: 100,
+    quantityBefore: 0,
+    quantityAfter: 100,
+    reason: 'seed',
+    actorId: user._id,
+    actorName: user.name,
+  })
+
+  const silver = await InventoryItem.create({
+    name: 'Fine Silver',
+    sku: 'AG-FINE',
+    category: 'mainStock=silver;metalType=silver;recordType=product;productPurity=0.999',
+    quantity: 100,
+    unit: 'grams',
+    unitCost: 1,
+    ledgerAccountId: invAcct._id,
+    createdBy: user._id,
+    updatedBy: user._id,
+  })
+  await StockMovement.create({
+    itemId: silver._id,
+    itemName: silver.name,
+    change: 100,
+    quantityBefore: 0,
+    quantityAfter: 100,
+    reason: 'seed',
+    actorId: user._id,
+    actorName: user.name,
+  })
+
+  const finished = await InventoryItem.create({
+    name: '14k alloyed gold',
+    sku: 'AU-14K',
+    category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=0.585',
+    quantity: 0,
+    unit: 'grams',
+    unitCost: 0,
+    ledgerAccountId: invAcct._id,
+    createdBy: user._id,
+    updatedBy: user._id,
+  })
+
+  const service = createAlloyMixService({
+    InventoryItem,
+    StockMovement,
+    Ledger,
+    AccountMapping,
+    Transaction,
+    ChartOfAccount,
+  })
+
+  return { user, fineGold, silver, finished, service }
+}
+
+describe('alloy mix floor bridge', () => {
+  test('post mix creates Mix Job in vault + lot + Ops vault IN', async () => {
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const result = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+      ],
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.mixJob?.mixCode).toMatch(/^AMX-/)
+    expect(result.mixJob?.status).toBe('in_vault')
+    expect(result.mixJob?.currentDepartment).toBe('vault_room')
+
+    const jobs = await listMixJobs({ department: 'vault_room' })
+    expect(jobs).toHaveLength(1)
+    expect(serializeJob(jobs[0]).canUpdateMix).toBe(true)
+
+    const lots = await ProductionStockLot.find({ inventoryItemId: finished._id })
+    expect(lots).toHaveLength(1)
+    expect(lots[0].status).toBe('NEW_STOCK')
+    expect(Number(lots[0].grossWeight)).toBe(80)
+
+    const ops = await OperationsProductionEntry.find({ source: 'gold_alloy' })
+    expect(ops.length).toBeGreaterThanOrEqual(1)
+    expect(ops.some((r) => r.departmentKey === 'vault_room' && Number(r.metalIn) === 80)).toBe(true)
+  })
+
+  test('allocate to melting then back to vault; update blocked while on floor', async () => {
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const result = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+      ],
+    })
+
+    const jobId = result.mixJob.id
+    const onFloor = await allocateMixJob({
+      user,
+      mixId: jobId,
+      toDepartment: 'melting',
+    })
+    expect(onFloor.currentDepartment).toBe('melting')
+    expect(onFloor.status).toBe('in_department')
+    expect(serializeJob(onFloor).canUpdateMix).toBe(false)
+
+    await expect(
+      service.reverseAlloyMix({ user, tenant: 'mg', reason: result.reason }),
+    ).rejects.toMatchObject({ status: 400 })
+
+    const back = await allocateMixJob({
+      user,
+      mixId: jobId,
+      toDepartment: 'vault_room',
+    })
+    expect(back.currentDepartment).toBe('vault_room')
+    expect(back.status).toBe('in_vault')
+    expect(serializeJob(back).canUpdateMix).toBe(true)
+
+    const reversed = await service.reverseAlloyMix({
+      user,
+      tenant: 'mg',
+      reason: result.reason,
+    })
+    expect(reversed.success).toBe(true)
+    expect(reversed.mixJobClosed).toBe(result.mixJob.mixCode)
+  })
+})

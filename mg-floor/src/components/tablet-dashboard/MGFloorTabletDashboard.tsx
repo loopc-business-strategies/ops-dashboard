@@ -21,6 +21,7 @@ import { CallFMButton } from './CallFMButton'
 import { DepartmentBadge } from './DepartmentBadge'
 import { effectiveFloorDepartment, floorDepartmentLabel } from '@/src/config/floorDepartments'
 import { MetalProcessPanel, type MetalBatchEdit, type MetalPanelRow } from './MetalProcessPanel'
+import { AlloyMixPanel } from './AlloyMixPanel'
 import { MetalEntryModal } from './MetalEntryModal'
 import {
   batchStatusView,
@@ -268,6 +269,13 @@ export function MGFloorTabletDashboard() {
             <View style={styles.divider} />
 
             <View style={[styles.col, styles.colMid, { gap }]}>
+              <AlloyMixPanel
+                token={token}
+                department={dept}
+                idle={idle}
+                onIdlePress={openLogin}
+                refreshKey={approvedKey}
+              />
               <MetalProcessPanel
                 title="Metal In"
                 rows={panelRows(metalIn, 'IN')}

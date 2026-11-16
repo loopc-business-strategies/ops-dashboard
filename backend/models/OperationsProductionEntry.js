@@ -34,12 +34,17 @@ const operationsProductionEntrySchema = new mongoose.Schema(
     date: { type: String, required: true, trim: true, index: true },
     createdById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     createdByName: { type: String, trim: true, default: '' },
-    /** 'mg_floor' rows are written by Floor Manager approvals; their metal fields are read-only. */
-    source: { type: String, enum: ['manual', 'mg_floor'], default: 'manual' },
+    /**
+     * 'mg_floor' — Floor Manager approvals (metal fields read-only).
+     * 'gold_alloy' — Gold Alloy Post/Update Mix + Floor Allocate-to bridge.
+     */
+    source: { type: String, enum: ['manual', 'mg_floor', 'gold_alloy'], default: 'manual' },
     /** entryDate|department|batchLabel of the MG Floor batch (mg_floor rows only). */
     floorBatchKey: { type: String, trim: true },
     floorInEntryId: { type: String, trim: true, default: '' },
     floorOutEntryId: { type: String, trim: true, default: '' },
+    /** Alloy mix code when source is gold_alloy (e.g. AMX-261116-0001). */
+    alloyMixCode: { type: String, trim: true, uppercase: true, default: '' },
   },
   { timestamps: true },
 )
@@ -47,6 +52,7 @@ const operationsProductionEntrySchema = new mongoose.Schema(
 operationsProductionEntrySchema.index({ departmentKey: 1, date: -1 })
 operationsProductionEntrySchema.index({ date: 1, createdAt: -1 })
 operationsProductionEntrySchema.index({ floorBatchKey: 1 }, { unique: true, sparse: true })
+operationsProductionEntrySchema.index({ alloyMixCode: 1, departmentKey: 1 })
 
 operationsProductionEntrySchema.statics.DEPARTMENT_KEYS = DEPARTMENT_KEYS
 
