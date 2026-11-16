@@ -183,12 +183,23 @@ function createAlloyMixService({
 
   async function reverseMetalLossPositionVouchers({ user, session, reasonBase, deletedAt }) {
     if (!Transaction) return 0
-    const refNo = alloyMetalLossPositionRef(reasonBase)
+    const base = String(reasonBase || '').trim()
+    if (!base) return 0
+    const refNo = alloyMetalLossPositionRef(base)
+    const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Prefer exact refNo; also catch AML rows keyed only by description prefix
+    // (legacy / whitespace drift) so Update reverse never leaves orphan Metal Loss grams.
     const txs = await withSession(
       Transaction.find({
         isDeleted: { $ne: true },
         type: 'metal_payment',
-        'voucherMeta.refNo': refNo,
+        $or: [
+          { 'voucherMeta.refNo': refNo },
+          {
+            'voucherMeta.vocNo': { $regex: /^AML-/i },
+            description: { $regex: `^${escaped}(?:\\s*:\\s*metal loss|$)`, $options: 'i' },
+          },
+        ],
       }),
       session,
     )
@@ -622,12 +633,19 @@ function createAlloyMixService({
       // Block reverse/update while mix is out on the floor.
       await assertJobUpdatableByReason(reasonBase, session)
 
+      const escapedReason = reasonBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const reasonPrefixRe = new RegExp(
+        `^${escapedReason}(?:\\s*[—\\-]\\s*(?:consume|receive)\\b|$)`,
+        'i',
+      )
+
       const allMoves = await withSession(
         StockMovement.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }),
         session,
       )
       const moves = (allMoves || []).filter((move) => {
         const text = String(move.reason || '')
+        if (reasonPrefixRe.test(text)) return true
         return isAlloyMixMovementReason(text) && alloyMixReasonBase(text) === reasonBase
       })
       if (!moves.length) {
@@ -638,13 +656,15 @@ function createAlloyMixService({
         Number(m.change) > 0 || /—\s*receive\b/i.test(String(m.reason || ''))
       ))
 
-      // Guard: finished product must still hold the received qty.
+      // Guard: finished product must still hold the received qty (in-session sum).
       for (const receive of receiveMoves) {
         const finished = await withSession(InventoryItem.findById(receive.itemId), session)
         if (!finished || finished.isDeleted) {
           throw httpError(404, 'Finished product for this mix was not found')
         }
-        const onHand = await catalogOnHandFromMovements(StockMovement, finished._id)
+        const onHand = (allMoves || [])
+          .filter((move) => String(move.itemId) === String(receive.itemId) && !move.isDeleted)
+          .reduce((acc, move) => acc + Number(move.change || 0), 0)
         const removeQty = Math.abs(Number(receive.change) || 0)
         if (onHand + QTY_EPS < removeQty) {
           throw httpError(
@@ -658,7 +678,9 @@ function createAlloyMixService({
       for (const receive of receiveMoves) {
         const finished = await withSession(InventoryItem.findById(receive.itemId), session)
         if (!finished || finished.isDeleted) continue
-        const onHand = await catalogOnHandFromMovements(StockMovement, finished._id)
+        const onHand = (allMoves || [])
+          .filter((move) => String(move.itemId) === String(receive.itemId) && !move.isDeleted)
+          .reduce((acc, move) => acc + Number(move.change || 0), 0)
         const removeQty = Math.abs(Number(receive.change) || 0)
         const nextQty = toQty(onHand - removeQty)
         if (receive.carriesValue || Number(receive.valueDelta) > 0) {
@@ -682,12 +704,11 @@ function createAlloyMixService({
       }
 
       if (Ledger) {
-        const escaped = reasonBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         const ledgers = await withSession(
           Ledger.find({
             isDeleted: { $ne: true },
             referenceType: 'inventory',
-            description: { $regex: `^${escaped}` },
+            description: { $regex: `^${escapedReason}` },
           }),
           session,
         )
@@ -699,12 +720,26 @@ function createAlloyMixService({
         }
       }
 
-      await reverseMetalLossPositionVouchers({
+      const metalLossVoided = await reverseMetalLossPositionVouchers({
         user,
         session,
         reasonBase,
         deletedAt,
       })
+
+      // Fail closed: no active consume/receive for this mix may remain after reverse.
+      const leftover = (allMoves || []).filter((move) => {
+        if (move.isDeleted) return false
+        const text = String(move.reason || '')
+        return reasonPrefixRe.test(text)
+          || (isAlloyMixMovementReason(text) && alloyMixReasonBase(text) === reasonBase)
+      })
+      if (leftover.length) {
+        throw httpError(
+          500,
+          `Alloy reverse incomplete: ${leftover.length} stock movement(s) still active for this mix`,
+        )
+      }
 
       // Recompute qty from the in-txn movement set (aggregate outside the
       // session would miss uncommitted soft-deletes), then rebuild before/after
@@ -731,22 +766,19 @@ function createAlloyMixService({
         })
       }
 
-      let closedJob = null
-      try {
-        closedJob = await closeJobForReverse({
-          user,
-          session,
-          reasonBase,
-          allowMissing: true,
-        })
-      } catch (bridgeErr) {
-        console.warn('[alloy-mix] close job bridge failed:', bridgeErr?.message || bridgeErr)
-      }
+      // Close Mix Job / vault lot / Ops rows — surface hard failures (do not leave orphans).
+      const closedJob = await closeJobForReverse({
+        user,
+        session,
+        reasonBase,
+        allowMissing: true,
+      })
 
       return {
         success: true,
         reason: reasonBase,
         reversedMovements: moves.length,
+        metalLossVoided,
         products: refreshed,
         mixJobClosed: closedJob?.mixCode || null,
       }
