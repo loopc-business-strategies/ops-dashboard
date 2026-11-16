@@ -28,6 +28,20 @@ function settlementBaseParts(line, exchangeRate) {
   }
 }
 
+function settlementNeedsSplit(lines) {
+  const codes = (Array.isArray(lines) ? lines : [])
+    .map((line) => String(line?.acCode || '').trim())
+    .filter(Boolean)
+  return new Set(codes.map((code) => code.toUpperCase())).size >= 2
+}
+
+function purchaseNeedsSplit(plans) {
+  const ids = (Array.isArray(plans) ? plans : [])
+    .map((plan) => String(plan?.inventoryAccountId?._id || plan?.inventoryAccountId || '').trim())
+    .filter(Boolean)
+  return new Set(ids).size >= 2
+}
+
 function planSettlementSplit({ type, lines, exchangeRate, mainAmount }) {
   const normalizedType = String(type || '').toLowerCase()
   if (!['receipt', 'payment'].includes(normalizedType)) return null
@@ -123,6 +137,13 @@ async function applySlices({
   return true
 }
 
+function splitRequiredError(type, detail) {
+  return new Error(
+    `Cannot post ${type}: multi-account lines must split to each cash/bank/stock account `
+    + `(${detail}). Fix line amounts so they equal the voucher total, then post again.`,
+  )
+}
+
 async function applyVoucherLedgerSplit({
   tx,
   ledgerEntry,
@@ -138,9 +159,15 @@ async function applyVoucherLedgerSplit({
   if (!(mainAmount > 0)) return false
 
   if (type === 'purchase') {
+    const needsSplit = purchaseNeedsSplit(inventoryPlans)
     const plan = planPurchaseInventorySplit({ plans: inventoryPlans, mainAmount })
-    if (!plan) return false
-    return applySlices({
+    if (!plan) {
+      if (needsSplit) {
+        throw splitRequiredError('purchase', 'stock line amounts do not match the posted total')
+      }
+      return false
+    }
+    const applied = await applySlices({
       ledgerEntry,
       slices: plan.slices,
       matchAccountId: String(ledgerEntry.debitAccountId?._id || ledgerEntry.debitAccountId || ''),
@@ -150,22 +177,43 @@ async function applyVoucherLedgerSplit({
       session,
       writeOpts,
     })
+    if (needsSplit && !applied) {
+      throw splitRequiredError('purchase', 'could not map stock lines to ledger accounts')
+    }
+    return applied
   }
 
   if (type !== 'receipt' && type !== 'payment') return false
 
+  const lines = tx?.voucherMeta?.lineItems
+  const needsSplit = settlementNeedsSplit(lines)
   const plan = planSettlementSplit({
     type,
-    lines: tx?.voucherMeta?.lineItems,
+    lines,
     exchangeRate: Number(tx.exchangeRate || 1),
     mainAmount,
   })
-  if (!plan || typeof resolveAccountId !== 'function') return false
+  if (!plan || typeof resolveAccountId !== 'function') {
+    if (needsSplit) {
+      throw splitRequiredError(
+        type,
+        !plan
+          ? 'cash/bank line amounts do not match the posted total'
+          : 'account lookup is unavailable',
+      )
+    }
+    return false
+  }
 
   const slices = []
   for (const slice of plan.slices) {
     const accountId = await resolveAccountId(slice.accountCode)
-    if (!accountId) return false
+    if (!accountId) {
+      if (needsSplit) {
+        throw splitRequiredError(type, `missing chart account for ${slice.accountCode}`)
+      }
+      return false
+    }
     slices.push({ ...slice, accountId: String(accountId) })
   }
 
@@ -179,7 +227,7 @@ async function applyVoucherLedgerSplit({
     ? (ledgerEntry.creditAccountId?._id || ledgerEntry.creditAccountId)
     : (ledgerEntry.debitAccountId?._id || ledgerEntry.debitAccountId)
 
-  return applySlices({
+  const applied = await applySlices({
     ledgerEntry,
     slices,
     matchAccountId,
@@ -189,10 +237,16 @@ async function applyVoucherLedgerSplit({
     session,
     writeOpts,
   })
+  if (needsSplit && !applied) {
+    throw splitRequiredError(type, 'could not map cash/bank lines to ledger accounts')
+  }
+  return applied
 }
 
 module.exports = {
   planSettlementSplit,
   planPurchaseInventorySplit,
+  settlementNeedsSplit,
+  purchaseNeedsSplit,
   applyVoucherLedgerSplit,
 }

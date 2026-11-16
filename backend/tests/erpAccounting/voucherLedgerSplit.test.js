@@ -60,6 +60,50 @@ describe('voucherLedgerSplit', () => {
     })).toBeNull()
   })
 
+  test('fail-closed: multi-account payment with mismatched totals throws instead of posting one row', async () => {
+    const ledgerEntry = {
+      amount: 100,
+      debitAccountId: 'vendor',
+      creditAccountId: 'cash',
+      save: async function save() { this.saved = true },
+    }
+
+    await expect(applyVoucherLedgerSplit({
+      tx: {
+        type: 'payment',
+        exchangeRate: 1,
+        voucherMeta: {
+          lineItems: [
+            { acCode: 'CASH1000', amountLC: 40 },
+            { acCode: 'BANK1010', amountLC: 40 },
+          ],
+        },
+      },
+      ledgerEntry,
+      resolveAccountId: async (code) => (code === 'CASH1000' ? 'cash' : 'bank'),
+      Ledger: { create: async () => [] },
+    })).rejects.toThrow(/multi-account lines must split/)
+
+    expect(ledgerEntry.saved).toBeUndefined()
+  })
+
+  test('fail-closed: multi-stock purchase with mismatched totals throws', async () => {
+    await expect(applyVoucherLedgerSplit({
+      tx: { type: 'purchase' },
+      ledgerEntry: {
+        amount: 100,
+        debitAccountId: 'stock24',
+        creditAccountId: 'vendor',
+        save: async function save() { this.saved = true },
+      },
+      inventoryPlans: [
+        { inventoryAccountId: 'stock24', lineAmount: 40 },
+        { inventoryAccountId: 'stock22', lineAmount: 40 },
+      ],
+      Ledger: { create: async () => [] },
+    })).rejects.toThrow(/Cannot post purchase/)
+  })
+
   test('splits a purchase by stock account', () => {
     const plan = planPurchaseInventorySplit({
       mainAmount: 2112.58,

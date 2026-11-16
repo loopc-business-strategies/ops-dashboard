@@ -2921,4 +2921,116 @@ describe('ERP accounting transactions workflow', () => {
     expect(await Ledger.countDocuments({ referenceType: 'voucher_fixing', isDeleted: { $ne: true } })).toBe(0)
     expect(Number((await readGoldBalance()).body.metals?.goldBalance || 0)).toBeCloseTo(-311.034768, 4)
   })
+
+  test('payment with two cash/bank codes splits ledger rows; mismatched multi-account amounts fail closed', async () => {
+    const financeUser = await createUser({ name: 'Ledger Split HTTP Tester', role: 'super_admin' })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const payable = await ChartOfAccount.create({
+      accountName: 'Split Vendor Payable',
+      accountCode: '2499',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const cash = await ChartOfAccount.create({
+      accountName: 'Split Cash',
+      accountCode: 'CASH1000',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const bank = await ChartOfAccount.create({
+      accountName: 'Split Bank',
+      accountCode: 'BANK1010',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+
+    const vendor = await Vendor.create({
+      name: 'Split Ledger Vendor',
+      vendorCode: 'VEN-SPLIT',
+      ledgerAccountId: payable._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const submitPayment = async (payload) => {
+      const createRes = await request(app)
+        .post('/api/erp-accounting/transactions')
+        .set(authHeader(financeUser))
+        .send(payload)
+      expect(createRes.status).toBe(201)
+      const txId = createRes.body.transaction._id
+      let postRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/submit`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Post split payment' })
+      if (postRes.status === 409 && postRes.body?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED') {
+        postRes = await request(app)
+          .post(`/api/erp-accounting/transactions/${txId}/submit`)
+          .set(authHeader(financeUser))
+          .send({ comment: 'Post split payment', confirmVendorAdvance: true })
+      }
+      return { txId, postRes }
+    }
+
+    const happy = await submitPayment({
+      type: 'payment',
+      amount: 750,
+      description: 'payment split happy path',
+      currency: 'USD',
+      vendorId: vendor._id.toString(),
+      voucherMeta: {
+        partyCode: payable.accountCode,
+        partyAccountId: payable._id.toString(),
+        lineItems: [
+          { type: 'cash', acCode: 'CASH1000', amountLC: 500, amountFC: 500 },
+          { type: 'TT', acCode: 'BANK1010', amountLC: 250, amountFC: 250 },
+        ],
+      },
+    })
+    expect(happy.postRes.status).toBe(200)
+    expect(happy.postRes.body.transaction.status).toBe('posted')
+
+    const happyLedgers = await Ledger.find({
+      referenceId: happy.txId,
+      isDeleted: { $ne: true },
+    }).lean()
+    expect(happyLedgers).toHaveLength(2)
+    const byCredit = Object.fromEntries(
+      happyLedgers.map((row) => [String(row.creditAccountId), Number(row.amount)]),
+    )
+    expect(byCredit[String(cash._id)]).toBe(500)
+    expect(byCredit[String(bank._id)]).toBe(250)
+
+    const sad = await submitPayment({
+      type: 'payment',
+      amount: 100,
+      description: 'payment split mismatch fail-closed',
+      currency: 'USD',
+      vendorId: vendor._id.toString(),
+      voucherMeta: {
+        partyCode: payable.accountCode,
+        partyAccountId: payable._id.toString(),
+        lineItems: [
+          { type: 'cash', acCode: 'CASH1000', amountLC: 40, amountFC: 40 },
+          { type: 'TT', acCode: 'BANK1010', amountLC: 40, amountFC: 40 },
+        ],
+      },
+    })
+    expect(sad.postRes.status).toBeGreaterThanOrEqual(400)
+    expect(String(sad.postRes.body?.message || '')).toMatch(/multi-account lines must split/i)
+    expect(await Transaction.findById(sad.txId).then((tx) => tx.status)).not.toBe('posted')
+    expect(await Ledger.countDocuments({
+      referenceId: sad.txId,
+      isDeleted: { $ne: true },
+    })).toBe(0)
+  })
 })
