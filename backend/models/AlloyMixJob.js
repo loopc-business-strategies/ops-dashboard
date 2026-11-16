@@ -41,6 +41,13 @@ const alloyMixJobSchema = new mongoose.Schema(
       default: null,
     },
     stockCode: { type: String, trim: true, default: '' },
+    /** When this job was split from a partial Allocate. */
+    parentJobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'AlloyMixJob',
+      default: null,
+      index: true,
+    },
     status: {
       type: String,
       enum: ALLOY_MIX_JOB_STATUSES,

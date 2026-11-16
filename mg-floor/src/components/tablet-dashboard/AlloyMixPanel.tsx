@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { buttonShadow, tabletDashboard as td } from '@/src/theme'
@@ -38,6 +39,7 @@ export function AlloyMixPanel({
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
   const [allocating, setAllocating] = useState<AlloyMixJob | null>(null)
+  const [allocWeight, setAllocWeight] = useState('')
 
   const load = useCallback(async () => {
     if (!token || !department) {
@@ -69,8 +71,20 @@ export function AlloyMixPanel({
     [department],
   )
 
+  const openAllocate = (job: AlloyMixJob) => {
+    setAllocating(job)
+    setAllocWeight(String(job.targetGross ?? ''))
+  }
+
   const onAllocate = async (toDepartment: string) => {
     if (!token || !allocating) return
+    const available = Number(allocating.targetGross) || 0
+    const typed = Number(allocWeight)
+    const weight = Number.isFinite(typed) && typed > 0 ? typed : available
+    if (weight > available + 0.0005) {
+      setError(`Only ${available} g available`)
+      return
+    }
     setBusyId(allocating.id)
     setError('')
     try {
@@ -78,8 +92,10 @@ export function AlloyMixPanel({
         token,
         mixId: allocating.id,
         toDepartment,
+        ...(weight + 0.0005 < available ? { weight } : {}),
       })
       setAllocating(null)
+      setAllocWeight('')
       await load()
     } catch (err: unknown) {
       const message = err && typeof err === 'object' && 'message' in err
@@ -127,7 +143,7 @@ export function AlloyMixPanel({
                 accessibilityRole="button"
                 accessibilityLabel={`Allocate ${job.mixCode}`}
                 disabled={Boolean(busyId) || idle}
-                onPress={() => (idle ? onIdlePress?.() : setAllocating(job))}
+                onPress={() => (idle ? onIdlePress?.() : openAllocate(job))}
                 style={({ pressed }) => [
                   styles.allocBtn,
                   pressed && styles.allocBtnPressed,
@@ -153,9 +169,17 @@ export function AlloyMixPanel({
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Allocate to</Text>
             <Text style={styles.modalSub}>
-              {allocating?.mixCode} · {allocating?.targetGross} g
+              {allocating?.mixCode} · available {allocating?.targetGross} g
             </Text>
-            <ScrollView style={{ maxHeight: 320 }}>
+            <Text style={styles.weightLabel}>Weight (g) — less than available splits a new mix</Text>
+            <TextInput
+              value={allocWeight}
+              onChangeText={setAllocWeight}
+              keyboardType="decimal-pad"
+              placeholder={String(allocating?.targetGross ?? '')}
+              style={styles.weightInput}
+            />
+            <ScrollView style={{ maxHeight: 280 }}>
               {destOptions.map((d) => (
                 <Pressable
                   key={d.key}
@@ -173,7 +197,13 @@ export function AlloyMixPanel({
                 </Pressable>
               ))}
             </ScrollView>
-            <Pressable onPress={() => setAllocating(null)} style={styles.cancelBtn}>
+            <Pressable
+              onPress={() => {
+                setAllocating(null)
+                setAllocWeight('')
+              }}
+              style={styles.cancelBtn}
+            >
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
           </Pressable>
@@ -267,7 +297,20 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
-  modalSub: { color: '#64748B', marginBottom: 10, marginTop: 2 },
+  modalSub: { color: '#64748B', marginBottom: 8, marginTop: 2 },
+  weightLabel: { fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 },
+  weightInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 10,
+    backgroundColor: '#F8FAFC',
+  },
   destRow: {
     paddingVertical: 12,
     paddingHorizontal: 10,

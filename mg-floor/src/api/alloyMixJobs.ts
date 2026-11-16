@@ -38,8 +38,16 @@ export async function allocateAlloyMixJob(opts: {
   mixId: string
   toDepartment: string
   note?: string
+  /** Grams to move; omit for full mix. */
+  weight?: number
 }) {
-  return apiRequest<{ success: boolean; job: AlloyMixJob }>(
+  return apiRequest<{
+    success: boolean
+    partial?: boolean
+    job: AlloyMixJob
+    parentJob?: AlloyMixJob
+    childJob?: AlloyMixJob
+  }>(
     `/api/mg-floor/alloy-mix-jobs/${encodeURIComponent(opts.mixId)}/allocate`,
     {
       method: 'POST',
@@ -47,6 +55,7 @@ export async function allocateAlloyMixJob(opts: {
       body: {
         toDepartment: opts.toDepartment,
         note: opts.note || '',
+        ...(opts.weight != null && Number.isFinite(opts.weight) ? { weight: opts.weight } : {}),
       },
     },
   )

@@ -10,6 +10,7 @@ import DepartmentOverview from './DepartmentOverview'
 import ActionModal from './ActionModal'
 import { useProductionDashboard } from './useProductionDashboard'
 import { useVaultInventory } from './useVaultInventory'
+import { useAlloyMixJobs } from './useAlloyMixJobs'
 import { formatMinutes, minutesDown, useUnfixedBreakdowns } from './useUnfixedBreakdowns'
 import { DASHBOARD_DEPARTMENTS, matchDashboardDeptKey } from './departmentConfig'
 import './ProductionDashboard.css'
@@ -69,6 +70,7 @@ export default function ProductionDashboardTab() {
     actions,
   } = useProductionDashboard()
   const vaultInventory = useVaultInventory()
+  const alloyMixJobs = useAlloyMixJobs({ enabled: tenantKey === 'mg' })
 
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
@@ -278,6 +280,7 @@ export default function ProductionDashboardTab() {
             onOperatorInOut={() => openModal('operator-in', { employeeId: '' })}
             onViewDepartment={(key) => actions.viewDepartment(key)}
             vaultInventory={vaultInventory}
+            alloyMixByDept={alloyMixJobs.byDepartment}
             onViewAll={() => actions.clearDepartment()}
             kpi={<KpiRow model={model} hideDemoKpis={tenantKey === 'mg'} />}
           />

@@ -784,23 +784,30 @@ router.post(
   validateBody(Joi.object({
     toDepartment: Joi.string().trim().required(),
     note: Joi.string().trim().allow('').max(500).optional(),
+    weight: Joi.number().positive().optional(),
   })),
   async (req, res) => {
     try {
-      const { allocateMixJob, serializeJob } = require('../services/erpAccounting/alloyMixFloorBridge')
+      const {
+        allocateMixJob,
+        serializeAllocateResult,
+      } = require('../services/erpAccounting/alloyMixFloorBridge')
       const { runInTransaction } = require('../utils/mongoTransaction')
-      const job = await runInTransaction(async (session) => allocateMixJob({
+      const result = await runInTransaction(async (session) => allocateMixJob({
         user: req.user,
         mixId: req.params.id,
         toDepartment: req.body.toDepartment,
         note: req.body.note,
+        weight: req.body.weight,
         session,
       }))
+      const payload = serializeAllocateResult(result)
       emitWorkbookUpdate(req, 'alloy-mix-allocate', {
-        mixCode: job.mixCode,
-        department: job.currentDepartment,
+        mixCode: payload.job?.mixCode,
+        department: payload.job?.currentDepartment,
+        partial: payload.partial,
       })
-      res.json({ success: true, job: serializeJob(job) })
+      res.json({ success: true, ...payload })
     } catch (err) {
       handleError(res, err)
     }
