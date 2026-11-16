@@ -1,6 +1,8 @@
+import { useMemo, useState } from 'react'
 import { formatGrams } from './formatters'
 import { resolveDeptCardDisplay } from './deptCardDisplay'
 import { minutesDown } from './useUnfixedBreakdowns'
+import { DASHBOARD_DEPARTMENTS } from './departmentConfig'
 import {
   DeptIcon,
   IconEmployees,
@@ -170,26 +172,142 @@ function AlloyMixChip({ jobs = [] }) {
   )
 }
 
-function AlloyMixList({ jobs = [] }) {
-  if (!jobs.length) return null
+function AlloyMixList({
+  jobs = [],
+  departmentKey = '',
+  onAllocateMix = null,
+}) {
+  const [allocating, setAllocating] = useState(null)
+  const [weight, setWeight] = useState('')
+  const [busyId, setBusyId] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const destOptions = useMemo(
+    () => DASHBOARD_DEPARTMENTS.filter((d) => d.key !== departmentKey),
+    [departmentKey],
+  )
+
+  if (!jobs.length && !success && !error) return null
+
+  const openAllocate = (job, event) => {
+    event?.stopPropagation?.()
+    setAllocating(job)
+    setWeight(String(job.targetGross ?? ''))
+    setError('')
+    setSuccess('')
+  }
+
+  const closeAllocate = (event) => {
+    event?.stopPropagation?.()
+    if (busyId) return
+    setAllocating(null)
+    setWeight('')
+    setError('')
+  }
+
+  const submitAllocate = async (toDepartment, event) => {
+    event?.stopPropagation?.()
+    if (!allocating || !onAllocateMix || !toDepartment) return
+    const available = Number(allocating.targetGross) || 0
+    const typed = Number(weight)
+    const moveWeight = Number.isFinite(typed) && typed > 0 ? typed : available
+    if (moveWeight > available + 0.0005) {
+      setError(`Only ${available} g available`)
+      return
+    }
+    const fromCode = allocating.mixCode || 'MIX'
+    const destLabel = destOptions.find((d) => d.key === toDepartment)?.label || toDepartment
+    setBusyId(allocating.id)
+    setError('')
+    try {
+      const result = await onAllocateMix(allocating.id, {
+        toDepartment,
+        ...(moveWeight + 0.0005 < available ? { weight: moveWeight } : {}),
+      })
+      setAllocating(null)
+      setWeight('')
+      if (result?.partial && result?.childJob) {
+        setSuccess(
+          `Split ${moveWeight} g → ${destLabel} as ${result.childJob.mixCode}`
+          + ` · ${fromCode} keeps ${result.parentJob?.targetGross ?? '—'} g`,
+        )
+      } else {
+        setSuccess(`Allocated ${fromCode} (${moveWeight} g) → ${destLabel}`)
+      }
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Allocate failed')
+    } finally {
+      setBusyId('')
+    }
+  }
+
   return (
-    <ul className="pd-alloy-mix-list" aria-label="Open alloy mixes">
-      {jobs.slice(0, 4).map((job) => (
-        <li key={job.id || job.mixCode}>
-          <span>{job.mixCode || 'MIX'}</span>
-          <strong>
-            {job.karat ? `${job.karat}K ` : ''}
-            {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
-          </strong>
-        </li>
-      ))}
-      {jobs.length > 4 ? (
-        <li className="pd-alloy-mix-more">
-          <span>+{jobs.length - 4} more</span>
-          <strong />
-        </li>
+    <div className="pd-alloy-mix-panel" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      {jobs.length ? (
+        <ul className="pd-alloy-mix-list" aria-label="Open alloy mixes">
+          {jobs.map((job) => (
+            <li key={job.id || job.mixCode}>
+              <span>
+                {job.mixCode || 'MIX'}
+                {job.hasOpenFloorDescendants ? ' · split on floor' : ''}
+              </span>
+              <strong>
+                {job.karat ? `${job.karat}K ` : ''}
+                {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+              </strong>
+              {typeof onAllocateMix === 'function' ? (
+                <button
+                  type="button"
+                  className="pd-btn pd-btn--sm pd-alloy-mix-alloc"
+                  disabled={Boolean(busyId)}
+                  onClick={(e) => openAllocate(job, e)}
+                >
+                  Allocate
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       ) : null}
-    </ul>
+      {success ? <p className="pd-alloy-mix-toast pd-alloy-mix-toast--ok" role="status">{success}</p> : null}
+      {error && !allocating ? <p className="pd-alloy-mix-toast pd-alloy-mix-toast--err" role="alert">{error}</p> : null}
+      {allocating ? (
+        <div className="pd-alloy-mix-alloc-modal" role="dialog" aria-label={`Allocate ${allocating.mixCode || 'mix'}`}>
+          <div className="pd-alloy-mix-alloc-head">
+            <strong>{allocating.mixCode || 'MIX'}</strong>
+            <button type="button" className="pd-btn pd-btn--ghost pd-btn--sm" onClick={closeAllocate} disabled={Boolean(busyId)}>
+              Close
+            </button>
+          </div>
+          <label className="pd-alloy-mix-alloc-weight">
+            <span>Weight (g)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.001"
+              value={weight}
+              disabled={Boolean(busyId)}
+              onChange={(e) => setWeight(e.target.value)}
+            />
+          </label>
+          {error ? <p className="pd-alloy-mix-toast pd-alloy-mix-toast--err" role="alert">{error}</p> : null}
+          <div className="pd-alloy-mix-dests">
+            {destOptions.map((dest) => (
+              <button
+                key={dest.key}
+                type="button"
+                className="pd-btn pd-btn--sm"
+                disabled={Boolean(busyId)}
+                onClick={(e) => submitAllocate(dest.key, e)}
+              >
+                {busyId === allocating.id ? '…' : dest.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -208,6 +326,7 @@ function DeptCard({
   onMarkFixed,
   vaultInventory = null,
   alloyMixJobs = [],
+  onAllocateMix = null,
 }) {
   const calling = !breakdown && callCount > 0
   const machineDown = !breakdown && !calling && Boolean(down)
@@ -296,7 +415,11 @@ function DeptCard({
 
       {/* Scrollable mid section — keeps footer (batch / vault balance) from being clipped */}
       <div className="pd-dept-card-body">
-      <AlloyMixList jobs={mixes} />
+      <AlloyMixList
+        jobs={mixes}
+        departmentKey={ui.key}
+        onAllocateMix={onAllocateMix}
+      />
       <div className="pd-dept-people">
         <div className="pd-dept-people-side">
           <span className="pd-dept-people-ico" aria-hidden>
@@ -456,6 +579,7 @@ function renderDeptCard(card, props) {
     onMarkFixed,
     vaultInventory,
     alloyMixByDept,
+    onAllocateMix,
   } = props
   return (
     <DeptCard
@@ -474,6 +598,7 @@ function renderDeptCard(card, props) {
       onMarkFixed={onMarkFixed}
       vaultInventory={card.key === 'vault_room' ? vaultInventory : null}
       alloyMixJobs={alloyMixByDept?.[card.key] || []}
+      onAllocateMix={onAllocateMix}
     />
   )
 }
@@ -499,6 +624,7 @@ export default function DepartmentOverview({
   onMarkFixed,
   vaultInventory = null,
   alloyMixByDept = {},
+  onAllocateMix = null,
   kpi = null,
 }) {
   const list = cards || []
@@ -516,6 +642,7 @@ export default function DepartmentOverview({
     onMarkFixed,
     vaultInventory,
     alloyMixByDept,
+    onAllocateMix,
   }
   const vaultCard = list.find((card) => card.key === 'vault_room') || null
   const stampingCard = list.find((card) => card.key === 'stamping') || null
