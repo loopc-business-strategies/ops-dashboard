@@ -550,5 +550,26 @@ describe('alloy mix inventory', () => {
     }))
     expect(weights.XAU).toBeCloseTo(2.333, 3)
     expect(weights.XAG).toBeCloseTo(1.667, 3)
+
+    const reversed = await svc.reverseAlloyMix({
+      user,
+      tenant: 'mg',
+      reason: result.reason,
+    })
+    expect(reversed.success).toBe(true)
+    expect(reversed.metalLossVoided).toBe(2)
+
+    const activeAml = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.partyAccountId': lossAcct._id,
+    }).lean()
+    expect(activeAml).toHaveLength(0)
+
+    const activeMixMoves = await StockMovement.find({
+      isDeleted: { $ne: true },
+      reason: { $regex: /^Gold alloy mix \(14K 81\.715 g · updated\)/i },
+    }).lean()
+    expect(activeMixMoves).toHaveLength(0)
   })
 })
