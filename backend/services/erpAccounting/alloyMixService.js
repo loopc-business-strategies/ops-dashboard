@@ -13,6 +13,11 @@ const {
   rebuildStockMovementQuantityChain,
 } = require('../../utils/catalogOnHandQuantity')
 const { assertAndConsumeVaultLotsForStockOut } = require('./voucherProductionStockBridge')
+const {
+  createJobFromPostedMix,
+  closeJobForReverse,
+  assertJobUpdatableByReason,
+} = require('./alloyMixFloorBridge')
 
 const GROSS_EPS = 0.0005
 const QTY_EPS = 1e-9
@@ -523,7 +528,7 @@ function createAlloyMixService({
         metalLossPositionId = positionTx?._id ? String(positionTx._id) : null
       }
 
-      return {
+      const erpResult = {
         success: true,
         karat: karatNum,
         targetGross: outQty,
@@ -549,6 +554,34 @@ function createAlloyMixService({
         bookValue: incomingValue,
         reason: reasonBase,
       }
+
+      // Vault lot + Mix Job + Ops Production vault IN (Floor / Operations bridge).
+      let mixJob = null
+      try {
+        const bridged = await createJobFromPostedMix({
+          user,
+          session,
+          postResult: erpResult,
+          karat: karatNum,
+          finishedPurity,
+        })
+        if (bridged?.job) {
+          mixJob = {
+            id: String(bridged.job._id),
+            mixCode: bridged.mixCode,
+            status: bridged.job.status,
+            currentDepartment: bridged.job.currentDepartment,
+            stockLotId: bridged.lot?._id ? String(bridged.lot._id) : '',
+            stockCode: bridged.lot?.stockCode || bridged.job.stockCode || '',
+          }
+        }
+      } catch (bridgeErr) {
+        // Soft-fail bridge so ERP stock post is not blocked by lot/ops issues.
+        console.warn('[alloy-mix] floor bridge failed:', bridgeErr?.message || bridgeErr)
+        erpResult.mixJobWarning = String(bridgeErr?.message || 'Mix job bridge failed')
+      }
+      if (mixJob) erpResult.mixJob = mixJob
+      return erpResult
     })
   }
 
@@ -586,6 +619,9 @@ function createAlloyMixService({
     await assertPeriod({ tenant: tenantKey, date: stockDate })
 
     return runInTransaction(async (session) => {
+      // Block reverse/update while mix is out on the floor.
+      await assertJobUpdatableByReason(reasonBase, session)
+
       const allMoves = await withSession(
         StockMovement.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }),
         session,
@@ -695,11 +731,24 @@ function createAlloyMixService({
         })
       }
 
+      let closedJob = null
+      try {
+        closedJob = await closeJobForReverse({
+          user,
+          session,
+          reasonBase,
+          allowMissing: true,
+        })
+      } catch (bridgeErr) {
+        console.warn('[alloy-mix] close job bridge failed:', bridgeErr?.message || bridgeErr)
+      }
+
       return {
         success: true,
         reason: reasonBase,
         reversedMovements: moves.length,
         products: refreshed,
+        mixJobClosed: closedJob?.mixCode || null,
       }
     })
   }

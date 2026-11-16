@@ -13,6 +13,12 @@ const reverseAlloyMix = async (token, payload) => (await axios.post(`${BASE}/inv
 const clearAlloyMixHistory = async (token, payload) => (
   await axios.post(`${BASE}/inventory/alloy-mix/clear-history`, payload, getAuthConfig(token))
 ).data
+const listAlloyMixJobs = async (token, params = {}) => (
+  await axios.get(`${BASE}/inventory/alloy-mix/jobs`, getAuthConfig(token, params))
+).data
+const allocateAlloyMixJob = async (token, id, payload) => (
+  await axios.post(`${BASE}/inventory/alloy-mix/jobs/${id}/allocate`, payload, getAuthConfig(token))
+).data
 const getStockLedger = async (token, params = {}) => (
   await axios.get(`${BASE}/inventory/stock-ledger`, getAuthConfig(token, params))
 ).data
@@ -27,5 +33,7 @@ export const inventoryApi = {
   postAlloyMix,
   reverseAlloyMix,
   clearAlloyMixHistory,
+  listAlloyMixJobs,
+  allocateAlloyMixJob,
   getStockLedger,
 }

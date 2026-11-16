@@ -744,4 +744,67 @@ router.post('/corrections/weight', ...mgProtect, requireProductionPermission('ad
   }
 })
 
+// ── Gold Alloy mix jobs (Post Mix → Vault → Allocate to dept) ──
+router.get(
+  '/alloy-mix-jobs',
+  ...mgProtect,
+  requireProductionPermission('view'),
+  validateQuery(Joi.object({
+    department: Joi.string().trim().allow('').optional(),
+  })),
+  async (req, res) => {
+    try {
+      const {
+        listMixJobs,
+        serializeJob,
+        normalizeDept,
+        PRODUCTION_DEPARTMENT_KEYS,
+      } = require('../services/erpAccounting/alloyMixFloorBridge')
+      const dept = normalizeDept(req.query.department)
+        || normalizeFloorDepartment(req.user?.floorDepartment)
+        || ''
+      const jobs = await listMixJobs({ department: dept || undefined })
+      res.json({
+        success: true,
+        department: dept || null,
+        departments: PRODUCTION_DEPARTMENT_KEYS,
+        jobs: jobs.map(serializeJob),
+      })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
+router.post(
+  '/alloy-mix-jobs/:id/allocate',
+  ...mgProtect,
+  requireProductionPermission('createPass'),
+  validateParams(Joi.object({ id: Joi.string().trim().min(1).max(40).required() })),
+  validateBody(Joi.object({
+    toDepartment: Joi.string().trim().required(),
+    note: Joi.string().trim().allow('').max(500).optional(),
+  })),
+  async (req, res) => {
+    try {
+      const { allocateMixJob, serializeJob } = require('../services/erpAccounting/alloyMixFloorBridge')
+      const { runInTransaction } = require('../utils/mongoTransaction')
+      const job = await runInTransaction(async (session) => allocateMixJob({
+        user: req.user,
+        mixId: req.params.id,
+        toDepartment: req.body.toDepartment,
+        note: req.body.note,
+        session,
+      }))
+      emitWorkbookUpdate(req, 'alloy-mix-allocate', {
+        mixCode: job.mixCode,
+        department: job.currentDepartment,
+      })
+      res.json({ success: true, job: serializeJob(job) })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
 module.exports = router

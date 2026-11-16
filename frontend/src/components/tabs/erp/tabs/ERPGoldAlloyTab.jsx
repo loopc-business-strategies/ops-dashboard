@@ -102,12 +102,32 @@ export default function ERPGoldAlloyTab({
   const [updating, setUpdating] = useState(false)
   const [editingPosted, setEditingPosted] = useState(null)
   const [viewPosted, setViewPosted] = useState(null)
+  /** Open Floor/Ops mix jobs keyed by ERP reasonBase (Update Mix only in vault). */
+  const [mixJobsByReason, setMixJobsByReason] = useState({})
   const postingEnabled = String(tenantKey || '').toLowerCase() === 'mg'
 
   useEffect(() => {
     if (activeTab !== 'gold-alloy' || !token || typeof loadInventory !== 'function') return
     Promise.resolve(loadInventory()).catch(() => {})
   }, [activeTab, token, loadInventory])
+
+  const reloadMixJobs = async () => {
+    if (!token || !postingEnabled) {
+      setMixJobsByReason({})
+      return
+    }
+    try {
+      const data = await erpAccountingAPI.listAlloyMixJobs(token, {})
+      const map = {}
+      for (const job of data?.jobs || []) {
+        const key = String(job.reasonBase || '').trim()
+        if (key) map[key] = job
+      }
+      setMixJobsByReason(map)
+    } catch {
+      setMixJobsByReason({})
+    }
+  }
 
   const reloadPostedMixes = async () => {
     if (!token) return
@@ -120,6 +140,7 @@ export default function ERPGoldAlloyTab({
         limit: 200,
       })
       setPostedMixes(buildPostedAlloyMixListFromMovements(data?.movements || []))
+      await reloadMixJobs()
     } catch {
       setPostedMixes([])
     } finally {
@@ -131,23 +152,37 @@ export default function ERPGoldAlloyTab({
     if (activeTab !== 'gold-alloy' || !token) return
     let cancelled = false
     setPostedMixesLoading(true)
-    erpAccountingAPI.getStockLedger(token, {
-      includeDeleted: 1,
-      alloyOnly: 1,
-      limit: 200,
-    })
-      .then((data) => {
+    Promise.all([
+      erpAccountingAPI.getStockLedger(token, {
+        includeDeleted: 1,
+        alloyOnly: 1,
+        limit: 200,
+      }),
+      postingEnabled
+        ? erpAccountingAPI.listAlloyMixJobs(token, {}).catch(() => ({ jobs: [] }))
+        : Promise.resolve({ jobs: [] }),
+    ])
+      .then(([data, jobsData]) => {
         if (cancelled) return
         setPostedMixes(buildPostedAlloyMixListFromMovements(data?.movements || []))
+        const map = {}
+        for (const job of jobsData?.jobs || []) {
+          const key = String(job.reasonBase || '').trim()
+          if (key) map[key] = job
+        }
+        setMixJobsByReason(map)
       })
       .catch(() => {
-        if (!cancelled) setPostedMixes([])
+        if (!cancelled) {
+          setPostedMixes([])
+          setMixJobsByReason({})
+        }
       })
       .finally(() => {
         if (!cancelled) setPostedMixesLoading(false)
       })
     return () => { cancelled = true }
-  }, [activeTab, token])
+  }, [activeTab, token, postingEnabled])
 
   const stockOptions = useMemo(
     () => buildAlloyStockOptions(inventoryProducts),
@@ -288,6 +323,16 @@ export default function ERPGoldAlloyTab({
     }
     if (!posted?.reason) {
       if (typeof setError === 'function') setError('This mix cannot be edited (missing reason)')
+      return
+    }
+    const job = mixJobsByReason[String(posted.reason || '').trim()]
+    if (job && !job.canUpdateMix && !posted.isHistory) {
+      if (typeof setError === 'function') {
+        setError(
+          `Mix ${job.mixCode} is in ${job.currentDepartment}. `
+          + 'Allocate back to Vault Room on MG Floor before Edit.',
+        )
+      }
       return
     }
     // Always open the Edit dialog for Edit — never fall through to New mix.
@@ -622,6 +667,16 @@ export default function ERPGoldAlloyTab({
     }
     if (!posted?.reason || !posted?.finishedProductId) {
       if (typeof setError === 'function') setError('This mix cannot be updated (missing finished product or reason)')
+      return
+    }
+    const job = mixJobsByReason[String(posted.reason || '').trim()]
+    if (job && !job.canUpdateMix) {
+      if (typeof setError === 'function') {
+        setError(
+          `Mix ${job.mixCode} is in ${job.currentDepartment}. `
+          + 'Allocate back to Vault Room on MG Floor before Update mix.',
+        )
+      }
       return
     }
     // Update only — close View / Edit so the correct popup is alone.
@@ -1052,6 +1107,8 @@ export default function ERPGoldAlloyTab({
                       const isHistory = Boolean(row.isHistory)
                       const statusLabel = isUpdated ? 'Updated' : 'Posted'
                       const canAct = postingEnabled
+                      const floorJob = mixJobsByReason[String(row.reason || '').trim()] || null
+                      const updateBlockedByFloor = Boolean(floorJob && !floorJob.canUpdateMix && !isHistory)
                       const linkNote = row.isGroupHead
                         ? (isHistory ? 'Latest history' : (isUpdated ? 'Current updated' : 'Current posted'))
                         : (isUpdated ? 'Prior update · linked' : 'Original post · linked')
@@ -1291,50 +1348,83 @@ export default function ERPGoldAlloyTab({
                                   <button
                                     type="button"
                                     onClick={() => openEditPostedMix(row)}
-                                    disabled={Boolean(mixActionId) || posting || updating || updateOpen}
+                                    disabled={
+                                      Boolean(mixActionId)
+                                      || posting
+                                      || updating
+                                      || updateOpen
+                                      || updateBlockedByFloor
+                                    }
                                     style={{
                                       ...secondaryBtnStyle,
                                       padding: '0.28rem 0.55rem',
                                       fontSize: '0.75rem',
                                       marginRight: '0.35rem',
-                                      opacity: mixActionId && !busy ? 0.55 : 1,
+                                      opacity: (mixActionId && !busy) || updateBlockedByFloor ? 0.55 : 1,
                                       borderColor: editingPosted?.id === row.id ? '#F59E0B' : secondaryBtnStyle.border,
                                       color: editingPosted?.id === row.id ? '#B45309' : secondaryBtnStyle.color,
                                     }}
-                                    title={isHistory ? 'Edit this prior mix (inventory already restored)' : 'Edit and replace this active mix'}
+                                    title={
+                                      updateBlockedByFloor
+                                        ? `On floor in ${floorJob.currentDepartment}. Allocate to Vault Room first.`
+                                        : (isHistory ? 'Edit this prior mix (inventory already restored)' : 'Edit and replace this active mix')
+                                    }
                                   >
                                     {editingPosted?.id === row.id ? 'Editing…' : 'Edit'}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => openUpdatePostedMix(row)}
-                                    disabled={Boolean(mixActionId) || posting || updating || updateOpen}
+                                    disabled={
+                                      Boolean(mixActionId)
+                                      || posting
+                                      || updating
+                                      || updateOpen
+                                      || updateBlockedByFloor
+                                    }
                                     style={{
                                       ...secondaryBtnStyle,
                                       padding: '0.28rem 0.55rem',
                                       fontSize: '0.75rem',
                                       marginRight: '0.35rem',
-                                      opacity: mixActionId && !busy ? 0.55 : 1,
+                                      opacity: (mixActionId && !busy) || updateBlockedByFloor ? 0.55 : 1,
                                     }}
-                                    title={isHistory ? 'Post a new updated mix from this prior (inventory already restored)' : 'Update finished weight / metal loss'}
+                                    title={
+                                      updateBlockedByFloor
+                                        ? `On floor in ${floorJob.currentDepartment} (${floorJob.mixCode}). Allocate to Vault Room first.`
+                                        : (isHistory
+                                          ? 'Post a new updated mix from this prior (inventory already restored)'
+                                          : (floorJob
+                                            ? `Update mix (${floorJob.mixCode} in vault)`
+                                            : 'Update finished weight / metal loss'))
+                                    }
                                   >
                                     {busy ? '…' : 'Update'}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => onDeletePostedMix(row)}
-                                    disabled={Boolean(mixActionId) || posting || updating}
+                                    disabled={
+                                      Boolean(mixActionId)
+                                      || posting
+                                      || updating
+                                      || updateBlockedByFloor
+                                    }
                                     style={{
                                       ...secondaryBtnStyle,
                                       padding: '0.28rem 0.55rem',
                                       fontSize: '0.75rem',
                                       color: '#B91C1C',
                                       borderColor: '#FECACA',
-                                      opacity: mixActionId && !busy ? 0.55 : 1,
+                                      opacity: (mixActionId && !busy) || updateBlockedByFloor ? 0.55 : 1,
                                     }}
-                                    title={isHistory
-                                      ? 'Remove this prior history from the list'
-                                      : 'Delete mix, restore inventory, and remove from list'}
+                                    title={
+                                      updateBlockedByFloor
+                                        ? `On floor in ${floorJob.currentDepartment}. Allocate to Vault Room first.`
+                                        : (isHistory
+                                          ? 'Remove this prior history from the list'
+                                          : 'Delete mix, restore inventory, and remove from list')
+                                    }
                                   >
                                     {busy ? '…' : 'Delete'}
                                   </button>
