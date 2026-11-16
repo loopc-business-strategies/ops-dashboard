@@ -2,6 +2,7 @@ const {
   isMetalProductTransferType,
   isMetalStockType,
   isMetalTransferType,
+  skipsMainCashLedger,
   isMetalLotBridgeInType,
   buildStockMovementReason,
   stockMovementReasonPattern,
@@ -12,6 +13,14 @@ describe('metalStockVoucherTypes product transfer', () => {
     expect(isMetalProductTransferType('metal_transfer')).toBe(true)
     expect(isMetalStockType('metal_transfer')).toBe(true)
     expect(isMetalTransferType('metal_transfer')).toBe(false)
+  })
+
+  test('skipsMainCashLedger matches posting policy for party + product metal', () => {
+    expect(skipsMainCashLedger('metal_receipt')).toBe(true)
+    expect(skipsMainCashLedger('metal_payment')).toBe(true)
+    expect(skipsMainCashLedger('metal_transfer')).toBe(true)
+    expect(skipsMainCashLedger('purchase')).toBe(false)
+    expect(skipsMainCashLedger('payment')).toBe(false)
   })
 
   test('metal_transfer bridges production lots like purchase stock-in', () => {

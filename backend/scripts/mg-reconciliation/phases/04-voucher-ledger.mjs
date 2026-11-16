@@ -1,4 +1,4 @@
-import { isMetalTransferType } from '../lib/money.mjs'
+import { skipsMainCashLedger } from '../lib/money.mjs'
 
 export function phase04VoucherLedger(ctx, findings) {
   const phase = '04-voucher-ledger'
@@ -10,7 +10,7 @@ export function phase04VoucherLedger(ctx, findings) {
     const entity = { txId: String(tx._id), vocNo: tx?.voucherMeta?.vocNo || '', type: tx.type }
     const type = String(tx.type || '').toLowerCase()
 
-    if (isMetalTransferType(type)) {
+    if (skipsMainCashLedger(type)) {
       findings.add({
         domain: 'ledger', phase, severity: 'PASS', code: 'TRANSFER_LEDGER_POLICY',
         message: 'Metal transfer: main cash ledger skipped by design (stock-only)', entity,

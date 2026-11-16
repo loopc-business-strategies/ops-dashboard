@@ -1,5 +1,5 @@
 import {
-  toMoney, withinMoneyTol, resolveLinePureWeight, resolveLineInventoryQty, isMetalTransferType, isUnfixed,
+  toMoney, withinMoneyTol, resolveLinePureWeight, resolveLineInventoryQty, skipsMainCashLedger, isUnfixed,
 } from '../lib/money.mjs'
 
 export function phase02Vouchers(ctx, findings) {
@@ -42,17 +42,17 @@ export function phase02Vouchers(ctx, findings) {
 
     if (status === 'posted') {
       const ledgers = ledgersByRef.get(String(tx._id)) || []
-      if (!isMetalTransferType(type) && ledgers.length === 0) {
+      if (!skipsMainCashLedger(type) && ledgers.length === 0) {
         findings.add({
           domain: 'vouchers', phase, severity: 'CRITICAL', code: 'POSTED_NO_LEDGER',
           message: 'Posted non-transfer voucher has no ledger rows', entity,
         })
-      } else if (isMetalTransferType(type)) {
+      } else if (skipsMainCashLedger(type)) {
         const mainLike = ledgers.filter((l) => {
           const rt = String(l.referenceType || '').toLowerCase()
           return rt === type || rt === 'purchase' || rt === 'sale'
         })
-        // transfers should skip main cash ledger; inventory/cogs/vat may still appear incorrectly
+        // party + product metal transfers skip main cash ledger by design
         if (mainLike.length > 0) {
           findings.add({
             domain: 'vouchers', phase, severity: 'WARNING', code: 'TRANSFER_HAS_MAIN_LEDGER',
@@ -71,8 +71,8 @@ export function phase02Vouchers(ctx, findings) {
         })
       }
 
-      // stock movement presence for metal stock types
-      if (['purchase', 'sale', 'metal_receipt', 'metal_payment'].includes(type)) {
+      // stock movement presence for metal stock types (incl. product metal_transfer)
+      if (['purchase', 'sale', 'metal_receipt', 'metal_payment', 'metal_transfer'].includes(type)) {
         const relatedMoves = stockMovements.filter((m) => {
           const reason = String(m.reason || '')
           return reason.includes(vocNo) || reason.includes(String(tx._id))

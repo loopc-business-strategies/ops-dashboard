@@ -1,4 +1,4 @@
-import { baseAmount, toMoney, withinMoneyTol, isMetalTransferType } from '../lib/money.mjs'
+import { baseAmount, toMoney, withinMoneyTol, skipsMainCashLedger } from '../lib/money.mjs'
 
 /** Each ledger row is double-entry (debitAccount + creditAccount + amount). Sum Dr should equal sum Cr globally and per balanced voucher group. */
 export function phase03DoubleEntry(ctx, findings) {
@@ -32,7 +32,7 @@ export function phase03DoubleEntry(ctx, findings) {
   }
 
   for (const tx of postedTx) {
-    if (isMetalTransferType(tx.type)) continue
+    if (skipsMainCashLedger(tx.type)) continue
     const rows = ledgersByRef.get(String(tx._id)) || []
     let dr = 0
     let cr = 0

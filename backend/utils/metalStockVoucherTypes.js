@@ -14,6 +14,8 @@ const isMetalStockOutType = (type) => METAL_STOCK_OUT_TYPES.includes(String(type
 const isMetalStockType = (type) => METAL_STOCK_TYPES.includes(String(type || '').toLowerCase())
 const isMetalTransferType = (type) => METAL_TRANSFER_TYPES.includes(String(type || '').toLowerCase())
 const isMetalProductTransferType = (type) => METAL_PRODUCT_TRANSFER_TYPES.includes(String(type || '').toLowerCase())
+/** Matches transactionPostingService skipMainLedger — party metal + product metal_transfer. */
+const skipsMainCashLedger = (type) => isMetalTransferType(type) || isMetalProductTransferType(type)
 /** Purchase/receipt stock-in OR product Metal Transfer To-side — create/cancel production vault lots. */
 const isMetalLotBridgeInType = (type) => isMetalStockInType(type) || isMetalProductTransferType(type)
 
@@ -99,6 +101,7 @@ module.exports = {
   isMetalStockType,
   isMetalTransferType,
   isMetalProductTransferType,
+  skipsMainCashLedger,
   isMetalLotBridgeInType,
   stockMovementReferenceType,
   buildStockMovementReason,

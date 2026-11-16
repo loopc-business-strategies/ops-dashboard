@@ -1,5 +1,11 @@
 import {
-  toQty, resolveLinePureWeight, resolveLineInventoryQty, resolvePurityRatio, isUnfixed, isMetalTransferType,
+  toQty,
+  resolveLinePureWeight,
+  resolveLineInventoryQty,
+  resolvePurityRatio,
+  isUnfixed,
+  isMetalTransferType,
+  isMetalProductTransferType,
 } from '../lib/money.mjs'
 
 /**
@@ -93,18 +99,66 @@ export function phase10MetalTransfer(ctx, findings) {
   const { postedTx, stockMovements } = ctx
   let mismatches = 0
 
-  for (const tx of postedTx.filter((t) => isMetalTransferType(t.type))) {
+  const transferTx = postedTx.filter((t) => (
+    isMetalTransferType(t.type) || isMetalProductTransferType(t.type)
+  ))
+
+  for (const tx of transferTx) {
     const vocNo = String(tx?.voucherMeta?.vocNo || '')
     const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+    const type = String(tx.type || '').toLowerCase()
+    const moves = stockMovements.filter((m) => String(m.reason || '').includes(vocNo))
+    const entity = { txId: String(tx._id), vocNo, type }
+
+    if (isMetalProductTransferType(type)) {
+      const fromQty = toQty(lines
+        .filter((l) => String(l.transferSide || '').toLowerCase() === 'from')
+        .reduce((s, l) => s + resolveLineInventoryQty(l), 0))
+      const toQtyExpected = toQty(lines
+        .filter((l) => String(l.transferSide || '').toLowerCase() === 'to')
+        .reduce((s, l) => s + resolveLineInventoryQty(l), 0))
+      const expectedAbs = toQty(fromQty + toQtyExpected)
+      const outQty = toQty(Math.abs(moves
+        .filter((m) => Number(m.change || 0) < 0)
+        .reduce((s, m) => s + Number(m.change || 0), 0)))
+      const inQty = toQty(moves
+        .filter((m) => Number(m.change || 0) > 0)
+        .reduce((s, m) => s + Number(m.change || 0), 0))
+
+      if (moves.length === 0 && expectedAbs > 0) {
+        mismatches += 1
+        findings.add({
+          domain: 'metal', phase, severity: 'CRITICAL', code: 'TRANSFER_NO_STOCK',
+          message: 'Product metal_transfer missing stock movements', entity,
+          expected: expectedAbs, actual: 0,
+        })
+        continue
+      }
+
+      if (Math.abs(outQty - fromQty) > 0.001 || Math.abs(inQty - toQtyExpected) > 0.001) {
+        mismatches += 1
+        findings.add({
+          domain: 'metal', phase, severity: 'ERROR', code: 'TRANSFER_QTY_MISMATCH',
+          message: 'Product metal_transfer from/to stock changes do not match line weights',
+          entity,
+          expected: { from: fromQty, to: toQtyExpected },
+          actual: { fromOut: outQty, toIn: inQty },
+        })
+      } else {
+        findings.add({
+          domain: 'metal', phase, severity: 'PASS', code: 'TRANSFER_QTY_OK',
+          message: 'Product metal_transfer stock qty matches from/to lines', entity,
+          expected: { from: fromQty, to: toQtyExpected },
+          actual: { fromOut: outQty, toIn: inQty },
+        })
+      }
+      continue
+    }
+
     const expectedQty = toQty(lines.reduce((s, l) => s + resolveLineInventoryQty(l), 0))
     const expectedPure = toQty(lines.reduce((s, l) => s + resolveLinePureWeight(l), 0))
-    const type = String(tx.type || '').toLowerCase()
     const sign = type === 'metal_receipt' ? 1 : -1
-
-    const moves = stockMovements.filter((m) => String(m.reason || '').includes(vocNo))
     const moveQty = toQty(moves.reduce((s, m) => s + Number(m.change || 0), 0))
-
-    const entity = { txId: String(tx._id), vocNo, type }
 
     if (moves.length === 0 && expectedQty > 0) {
       mismatches += 1
@@ -133,7 +187,6 @@ export function phase10MetalTransfer(ctx, findings) {
       })
     }
 
-    // Transfers must not create revenue/expense main ledger (checked elsewhere); flag money ledgers
     findings.add({
       domain: 'metal', phase, severity: 'INFORMATIONAL', code: 'TRANSFER_PURE',
       message: 'Transfer pure weight (party position)', entity, actual: expectedPure,

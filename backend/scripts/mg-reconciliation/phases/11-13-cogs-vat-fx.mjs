@@ -1,4 +1,4 @@
-import { toMoney, baseAmount, isMetalTransferType } from '../lib/money.mjs'
+import { toMoney, baseAmount, skipsMainCashLedger } from '../lib/money.mjs'
 
 export function phase11Cogs(ctx, findings) {
   const phase = '11-cogs'
@@ -79,7 +79,7 @@ export function phase12Vat(ctx, findings) {
 
   for (const tx of postedTx) {
     const type = String(tx.type || '').toLowerCase()
-    if (isMetalTransferType(type)) continue
+    if (skipsMainCashLedger(type)) continue
 
     const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
     let lineVat = 0

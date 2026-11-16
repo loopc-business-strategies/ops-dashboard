@@ -2,10 +2,18 @@ import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
 const shared = require('../../../shared/money.js')
+const metalTypes = require('../../../utils/metalStockVoucherTypes.js')
 
 export const toMoney = shared.toMoney
 export const MONEY_TOL = 0.01
 export const QTY_TOL = 0.000001
+
+/** Party metal receipt/payment (grams-only main ledger skip). */
+export const isMetalTransferType = metalTypes.isMetalTransferType
+/** Product-to-product reclass voucher (`metal_transfer`). */
+export const isMetalProductTransferType = metalTypes.isMetalProductTransferType
+/** Same rule as transactionPostingService skipMainLedger. */
+export const skipsMainCashLedger = metalTypes.skipsMainCashLedger
 
 export function toQty(value) {
   return Number(Number(value || 0).toFixed(6))
@@ -52,11 +60,6 @@ export function resolveLineInventoryQty(line = {}) {
   const pcs = Number(line.pcs || 0)
   if (pcs > 0) return toQty(pcs)
   return 0
-}
-
-export function isMetalTransferType(type) {
-  const t = String(type || '').toLowerCase()
-  return t === 'metal_receipt' || t === 'metal_payment'
 }
 
 export function isUnfixed(tx) {
