@@ -40,13 +40,14 @@ export function AlloyMixPanel({
   const [busyId, setBusyId] = useState('')
   const [allocating, setAllocating] = useState<AlloyMixJob | null>(null)
   const [allocWeight, setAllocWeight] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
     if (!token || !department) {
       setJobs([])
       return
     }
-    setLoading(true)
+    if (!opts?.soft) setLoading(true)
     setError('')
     try {
       const res = await listAlloyMixJobs({ token, department })
@@ -66,6 +67,12 @@ export function AlloyMixPanel({
     load()
   }, [load, refreshKey])
 
+  useEffect(() => {
+    if (!successMsg) return undefined
+    const id = setTimeout(() => setSuccessMsg(''), 3500)
+    return () => clearTimeout(id)
+  }, [successMsg])
+
   const destOptions = useMemo(
     () => FLOOR_DEPARTMENTS.filter((d) => d.key !== department),
     [department],
@@ -74,6 +81,8 @@ export function AlloyMixPanel({
   const openAllocate = (job: AlloyMixJob) => {
     setAllocating(job)
     setAllocWeight(String(job.targetGross ?? ''))
+    setSuccessMsg('')
+    setError('')
   }
 
   const onAllocate = async (toDepartment: string) => {
@@ -85,10 +94,12 @@ export function AlloyMixPanel({
       setError(`Only ${available} g available`)
       return
     }
+    const fromCode = allocating.mixCode
+    const destLabel = floorDepartmentLabel(toDepartment) || toDepartment
     setBusyId(allocating.id)
     setError('')
     try {
-      await allocateAlloyMixJob({
+      const res = await allocateAlloyMixJob({
         token,
         mixId: allocating.id,
         toDepartment,
@@ -96,7 +107,14 @@ export function AlloyMixPanel({
       })
       setAllocating(null)
       setAllocWeight('')
-      await load()
+      await load({ soft: true })
+      if (res.partial && res.childJob) {
+        setSuccessMsg(
+          `Split ${weight} g → ${destLabel} as ${res.childJob.mixCode} · ${fromCode} keeps ${res.parentJob?.targetGross ?? '—'} g`,
+        )
+      } else {
+        setSuccessMsg(`Allocated ${fromCode} (${weight} g) → ${destLabel}`)
+      }
     } catch (err: unknown) {
       const message = err && typeof err === 'object' && 'message' in err
         ? String((err as { message?: string }).message || 'Allocate failed')
@@ -118,6 +136,11 @@ export function AlloyMixPanel({
       <IdleFade idle={idle} style={styles.body}>
         {loading ? (
           <ActivityIndicator color={td.accent || '#B45309'} style={{ marginVertical: 12 }} />
+        ) : null}
+        {successMsg ? (
+          <Pressable accessibilityRole="button" onPress={() => setSuccessMsg('')} style={styles.successBanner}>
+            <Text style={styles.successText}>{successMsg}</Text>
+          </Pressable>
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {!loading && jobs.length === 0 ? (
@@ -254,6 +277,21 @@ const styles = StyleSheet.create({
     color: '#991B1B',
     fontSize: 12,
     marginBottom: 6,
+  },
+  successBanner: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    marginBottom: 8,
+  },
+  successText: {
+    color: '#166534',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
   },
   card: {
     borderWidth: 1,
