@@ -84,5 +84,12 @@ export function useAlloyMixJobs({ enabled = true, tenantKey = 'mg' } = {}) {
     return map
   }, [jobs])
 
-  return { jobs, byDepartment, loading, error, refresh: load }
+  const allocate = useCallback(async (mixId, payload = {}) => {
+    if (!token) throw new Error('Sign in to allocate alloy mixes')
+    const data = await inventoryApi.allocateAlloyMixJob(token, mixId, payload)
+    await load({ soft: true })
+    return data
+  }, [token, load])
+
+  return { jobs, byDepartment, loading, error, refresh: load, allocate }
 }

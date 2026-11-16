@@ -151,3 +151,39 @@ describe('DepartmentOverview loss limit', () => {
     expect(melting.querySelector('.pd-dept-loss-limit').textContent).toBe('Limit 5%')
   })
 })
+
+describe('DepartmentOverview alloy mix allocate', () => {
+  test('Allocate opens dest picker and does not select the card', async () => {
+    const onSelectDept = vi.fn()
+    const onAllocateMix = vi.fn().mockResolvedValue({
+      partial: false,
+      job: { mixCode: 'AMX-1', currentDepartment: 'melting' },
+    })
+    render(
+      <DepartmentOverview
+        cards={cards}
+        suppressDemo
+        onSelectDept={onSelectDept}
+        onAllocateMix={onAllocateMix}
+        alloyMixByDept={{
+          melting: [{
+            id: 'mix-1',
+            mixCode: 'AMX-1',
+            karat: 14,
+            targetGross: 80,
+            currentDepartment: 'melting',
+          }],
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allocate' }))
+    expect(onSelectDept).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: /Allocate AMX-1/i })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Vault Room' }))
+    expect(onAllocateMix).toHaveBeenCalledWith('mix-1', { toDepartment: 'vault_room' })
+    const toast = await screen.findByRole('status')
+    expect(toast.textContent).toMatch(/Allocated AMX-1/)
+  })
+})
