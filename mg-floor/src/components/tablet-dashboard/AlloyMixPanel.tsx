@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  AppState,
+  type AppStateStatus,
   Modal,
   Pressable,
   ScrollView,
@@ -17,6 +19,9 @@ import {
 } from '@/src/api/alloyMixJobs'
 import { FLOOR_DEPARTMENTS, floorDepartmentLabel } from '@/src/config/floorDepartments'
 import { IdleFade } from './IdleFade'
+
+/** Soft refresh so ERP Post / PD allocate appear without remount (no socket on tablet). */
+const MIX_JOBS_POLL_MS = 60000
 
 type Props = {
   token: string | null
@@ -41,31 +46,56 @@ export function AlloyMixPanel({
   const [allocating, setAllocating] = useState<AlloyMixJob | null>(null)
   const [allocWeight, setAllocWeight] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+  const requestRef = useRef(0)
 
   const load = useCallback(async (opts?: { soft?: boolean }) => {
     if (!token || !department) {
       setJobs([])
       return
     }
+    const request = ++requestRef.current
     if (!opts?.soft) setLoading(true)
-    setError('')
+    if (!opts?.soft) setError('')
     try {
       const res = await listAlloyMixJobs({ token, department })
+      if (request !== requestRef.current) return
       setJobs(Array.isArray(res.jobs) ? res.jobs : [])
+      if (!opts?.soft) setError('')
     } catch (err: unknown) {
+      if (request !== requestRef.current) return
       const message = err && typeof err === 'object' && 'message' in err
         ? String((err as { message?: string }).message || 'Failed to load mixes')
         : 'Failed to load mixes'
-      setError(message)
-      setJobs([])
+      // Soft poll failures keep the last list so a blip does not blank the panel.
+      if (!opts?.soft) {
+        setError(message)
+        setJobs([])
+      }
     } finally {
-      setLoading(false)
+      if (request === requestRef.current) setLoading(false)
     }
   }, [token, department])
 
   useEffect(() => {
     load()
   }, [load, refreshKey])
+
+  useEffect(() => {
+    if (!token || !department) return undefined
+    const id = setInterval(() => {
+      load({ soft: true })
+    }, MIX_JOBS_POLL_MS)
+    return () => clearInterval(id)
+  }, [token, department, load])
+
+  useEffect(() => {
+    if (!token || !department) return undefined
+    const onChange = (state: AppStateStatus) => {
+      if (state === 'active') load({ soft: true })
+    }
+    const sub = AppState.addEventListener('change', onChange)
+    return () => sub.remove()
+  }, [token, department, load])
 
   useEffect(() => {
     if (!successMsg) return undefined
