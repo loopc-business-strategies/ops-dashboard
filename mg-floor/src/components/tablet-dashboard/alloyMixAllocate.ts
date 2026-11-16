@@ -21,17 +21,19 @@ export function buildAllocateWeightPayload(available: number, weight: number): {
 
 export function formatAllocateSuccess(opts: {
   partial?: boolean
+  pendingReceive?: boolean
   fromCode: string
   destLabel: string
   weight: number
   childMixCode?: string
   parentRemaining?: number | string
 }): string {
+  const wait = opts.pendingReceive ? ' — waiting for receive Approve' : ''
   if (opts.partial && opts.childMixCode) {
     return (
       `Split ${opts.weight} g → ${opts.destLabel} as ${opts.childMixCode}`
-      + ` · ${opts.fromCode} keeps ${opts.parentRemaining ?? '—'} g`
+      + ` · ${opts.fromCode} keeps ${opts.parentRemaining ?? '—'} g${wait}`
     )
   }
-  return `Allocated ${opts.fromCode} (${opts.weight} g) → ${opts.destLabel}`
+  return `Allocated ${opts.fromCode} (${opts.weight} g) → ${opts.destLabel}${wait}`
 }

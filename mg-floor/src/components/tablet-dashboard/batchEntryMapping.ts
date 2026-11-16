@@ -180,6 +180,30 @@ export function nextBatchLabel(labels: string[]) {
   return String(max + 1)
 }
 
+const sameLabel = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase()
+
+/**
+ * Metal In batch choices: each open alloy mix on this department is its own batch (AMX-…),
+ * then a numeric fallback for non-alloy metal.
+ */
+export function metalInChoices(
+  openMixCodes: string[],
+  metalIn: BatchChoice[],
+  today: string,
+): BatchChoice[] {
+  const used = metalIn.map((b) => b.batchLabel)
+  const mixChoices = openMixCodes
+    .map((code) => String(code || '').trim().toUpperCase())
+    .filter(Boolean)
+    .filter((code, i, all) => all.indexOf(code) === i)
+    .filter((code) => !used.some((label) => sameLabel(label, code)))
+    .map((batchLabel) => ({ entryDate: today, batchLabel }))
+    .sort(compareBatches)
+  if (mixChoices.length) return mixChoices
+  const todayLabels = metalIn.filter((b) => b.entryDate === today).map((b) => b.batchLabel)
+  return [{ entryDate: today, batchLabel: nextBatchLabel(todayLabels) }]
+}
+
 /**
  * Batches a Metal Out can close: Metal In batches (today's, or yesterday's still open) with no
  * Metal Out yet. The workbook pairs IN and OUT by day and batch number, so with none open today's

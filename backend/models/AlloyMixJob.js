@@ -2,14 +2,22 @@ const mongoose = require('mongoose')
 const { createTenantModel } = require('../db/tenantModelProxy')
 const { PRODUCTION_DEPARTMENT_KEYS } = require('../constants/productionDepartments')
 
-const ALLOY_MIX_JOB_STATUSES = ['in_vault', 'in_department', 'closed']
+const ALLOY_MIX_JOB_STATUSES = ['in_vault', 'pending_receive', 'in_department', 'closed']
 
 const historyEntrySchema = new mongoose.Schema(
   {
     at: { type: Date, default: Date.now },
     action: {
       type: String,
-      enum: ['post', 'update', 'allocate', 'return_vault', 'close'],
+      enum: [
+        'post',
+        'update',
+        'allocate',
+        'return_vault',
+        'receive_approve',
+        'receive_reject',
+        'close',
+      ],
       required: true,
     },
     fromDepartment: { type: String, trim: true, default: '' },
@@ -59,6 +67,12 @@ const alloyMixJobSchema = new mongoose.Schema(
       enum: PRODUCTION_DEPARTMENT_KEYS,
       default: 'vault_room',
       index: true,
+    },
+    /** Set while status=pending_receive — department the mix was offered from (usually vault). */
+    pendingFromDepartment: {
+      type: String,
+      trim: true,
+      default: '',
     },
     history: { type: [historyEntrySchema], default: [] },
     createdById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

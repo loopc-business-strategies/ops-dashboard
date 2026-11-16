@@ -148,7 +148,8 @@ async function submitBatchEntry(req, body = {}) {
     entryId,
     direction,
     department,
-    batchLabel: String(body.batchLabel || '').trim().slice(0, 20),
+    // AMX-YYMMDD-#### (+ optional split suffix) needs more than the old 20-char cap.
+    batchLabel: String(body.batchLabel || '').trim().slice(0, 40),
     entryDate,
     lines,
     employeeId: user?._id || null,
@@ -335,6 +336,7 @@ async function decideBatchEntry(req, id, decision, reason = '') {
   }).catch((err) => console.warn('[mg-floor] batch entry audit failed', err?.message || err))
 
   let workbookEntryId = null
+  let alloyReturnedToVault = null
   if (approve) {
     try {
       const row = await applyApprovedEntryToWorkbook(updated)
@@ -342,9 +344,126 @@ async function decideBatchEntry(req, id, decision, reason = '') {
     } catch (err) {
       console.warn('[mg-floor] workbook update failed (use "Sync MG Floor batches" to retry)', err?.message || err)
     }
+    if (updated.direction === 'OUT' && /^AMX-/i.test(String(updated.batchLabel || ''))) {
+      try {
+        alloyReturnedToVault = await returnAlloyMixToVaultAfterMetalOut({
+          user,
+          batchLabel: updated.batchLabel,
+          department: updated.department,
+        })
+      } catch (err) {
+        console.warn('[mg-floor] alloy return-to-vault after Metal Out failed', err?.message || err)
+      }
+    }
   }
 
-  return { entry: updated, workbookEntryId }
+  return { entry: updated, workbookEntryId, alloyReturnedToVault }
+}
+
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+function clockNow(d = new Date()) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+/**
+ * Seed a PENDING Metal In for an approved alloy receive (AMX batch).
+ * Skips operator tablet perms; still needs Floor Manager approve into workbook.
+ */
+async function createSystemPendingMetalIn({
+  department,
+  batchLabel,
+  entryDate,
+  qty,
+  purity = null,
+  employeeId = null,
+  employeeName = '',
+  mixCode = '',
+} = {}) {
+  const dept = normalizeFloorDepartment(department)
+  const label = String(batchLabel || mixCode || '').trim().slice(0, 40)
+  const date = String(entryDate || '').trim()
+  const weight = Number(qty)
+  if (!dept) throw new ProductionError('department is required to seed Metal In', 400)
+  if (!label) throw new ProductionError('batchLabel is required to seed Metal In', 400)
+  if (!ENTRY_DATE_PATTERN.test(date)) throw new ProductionError('entryDate must be YYYY-MM-DD', 400)
+  if (!(weight > 0)) throw new ProductionError('qty must be greater than 0', 400)
+
+  const stamp = Date.now().toString(36)
+  const codePart = label.replace(/[^A-Za-z0-9]/g, '').slice(0, 24) || 'AMX'
+  const entryId = `amxin${codePart}${stamp}`.slice(0, 120)
+  const doc = {
+    entryId,
+    direction: 'IN',
+    department: dept,
+    batchLabel: label,
+    entryDate: date,
+    lines: [{
+      metal: 'Alloy',
+      qty: weight,
+      purity: purity != null && Number.isFinite(Number(purity)) ? Number(purity) : null,
+      time: clockNow(),
+    }],
+    employeeId: employeeId || null,
+    employeeName: employeeName || 'Alloy receive',
+    deviceId: 'alloy-mix-receive',
+    tzOffsetMinutes: null,
+    status: 'PENDING',
+    submittedAt: new Date(),
+  }
+  doc.activeKey = activeKeyFor(doc)
+
+  if (await FloorBatchEntry.exists({ activeKey: doc.activeKey })) {
+    const existing = await FloorBatchEntry.findOne({ activeKey: doc.activeKey }).lean()
+    return { entry: existing, reused: true }
+  }
+
+  try {
+    const created = await FloorBatchEntry.create(doc)
+    return { entry: created.toObject(), reused: false }
+  } catch (err) {
+    if (err?.code === 11000) {
+      const again = await FloorBatchEntry.findOne({
+        $or: [{ entryId }, { activeKey: doc.activeKey }],
+      }).lean()
+      if (again) return { entry: again, reused: true }
+      throw batchExistsError(doc)
+    }
+    throw err
+  }
+}
+
+/** After AMX Metal Out is FM-approved, return the mix job to Vault Room (immediate, no receive gate). */
+async function returnAlloyMixToVaultAfterMetalOut({ user, batchLabel, department }) {
+  const code = String(batchLabel || '').trim().toUpperCase()
+  if (!/^AMX-/.test(code)) return null
+  const {
+    allocateMixJob,
+    serializeJob,
+    serializeAllocateResult,
+  } = require('../erpAccounting/alloyMixFloorBridge')
+  const AlloyMixJob = require('../../models/AlloyMixJob')
+  const job = await AlloyMixJob.findOne({
+    mixCode: code,
+    isDeleted: { $ne: true },
+    status: 'in_department',
+    currentDepartment: normalizeFloorDepartment(department) || department,
+  })
+  if (!job) return null
+  const returned = await allocateMixJob({
+    user,
+    mixId: job._id,
+    toDepartment: 'vault_room',
+    note: 'Auto return after Metal Out approved',
+  })
+  // Full allocate returns the job doc; partial would return { parent, child }.
+  if (returned?.partial) {
+    const payload = await serializeAllocateResult(returned)
+    return payload.job || null
+  }
+  return serializeJob(returned)
 }
 
 /**
@@ -452,6 +571,8 @@ module.exports = {
   listBatchEntries,
   decideBatchEntry,
   undoApproval,
+  createSystemPendingMetalIn,
+  returnAlloyMixToVaultAfterMetalOut,
   UNDO_WINDOW_HOURS,
   activeKeyFor,
   departmentFilter,

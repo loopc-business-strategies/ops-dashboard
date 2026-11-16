@@ -44,4 +44,23 @@ describe('formatAllocateSuccess', () => {
       parentRemaining: 50,
     })).toBe('Split 30 g → Melting as AMX-1A · AMX-1 keeps 50 g')
   })
+
+  it('notes when destination must Approve receive', () => {
+    expect(formatAllocateSuccess({
+      pendingReceive: true,
+      fromCode: 'AMX-1',
+      destLabel: 'Melting',
+      weight: 80,
+    })).toBe('Allocated AMX-1 (80 g) → Melting — waiting for receive Approve')
+
+    expect(formatAllocateSuccess({
+      partial: true,
+      pendingReceive: true,
+      fromCode: 'AMX-1',
+      destLabel: 'Melting',
+      weight: 30,
+      childMixCode: 'AMX-1A',
+      parentRemaining: 50,
+    })).toBe('Split 30 g → Melting as AMX-1A · AMX-1 keeps 50 g — waiting for receive Approve')
+  })
 })

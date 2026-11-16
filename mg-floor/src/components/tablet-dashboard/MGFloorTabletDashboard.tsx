@@ -28,14 +28,15 @@ import {
   dayTag,
   editableBatch,
   localDateKey,
+  metalInChoices,
   metalOptionsFor,
   metalOutChoices,
-  nextBatchLabel,
   sentBatchesFor,
   withDefaultMetals,
   type BatchChoice,
   type SentBatch,
 } from './batchEntryMapping'
+import type { AlloyMixJob } from '@/src/api/alloyMixJobs'
 import { useBatchApprovals } from './useBatchApprovals'
 import { useBatchStats } from './useBatchStats'
 import { BatchTimeCard, MetalLossCard } from './BatchStatsCards'
@@ -87,6 +88,7 @@ export function MGFloorTabletDashboard() {
   const [entryForm, setEntryForm] = useState<EntryForm | null>(null)
   const [limitOpen, setLimitOpen] = useState(false)
   const [fullSize, setFullSize] = useState({ width: 0, height: 0 })
+  const [openMixJobs, setOpenMixJobs] = useState<AlloyMixJob[]>([])
 
   useEffect(() => {
     getSelectedDepartment().then((d) => setSelectedDept(d || ''))
@@ -135,9 +137,13 @@ export function MGFloorTabletDashboard() {
     [approvals.states],
   )
   const batchStats = useBatchStats({ token, department: dept, refreshKey: approvedKey })
-  const nextIn = useMemo<BatchChoice>(
-    () => ({ entryDate: today, batchLabel: nextBatchLabel(metalIn.filter((b) => b.entryDate === today).map((b) => b.batchLabel)) }),
-    [metalIn, today],
+  const openMixCodes = useMemo(
+    () => openMixJobs.map((job) => job.mixCode || job.batchNumber || '').filter(Boolean),
+    [openMixJobs],
+  )
+  const nextInChoices = useMemo(
+    () => metalInChoices(openMixCodes, metalIn, today),
+    [openMixCodes, metalIn, today],
   )
 
   const batchOptions = useMemo((): BatchChoice[] => {
@@ -145,8 +151,8 @@ export function MGFloorTabletDashboard() {
     if (entryForm.fixing) {
       return [{ entryDate: entryForm.initial.entryDate || today, batchLabel: entryForm.initial.batchLabel }]
     }
-    return entryForm.direction === 'IN' ? [nextIn] : metalOutChoices(metalIn, metalOut, today)
-  }, [entryForm, nextIn, metalIn, metalOut, today])
+    return entryForm.direction === 'IN' ? nextInChoices : metalOutChoices(metalIn, metalOut, today)
+  }, [entryForm, nextInChoices, metalIn, metalOut, today])
 
   const sendHint = !token
     ? 'Log in to send for Floor Manager approval'
@@ -155,7 +161,10 @@ export function MGFloorTabletDashboard() {
       : undefined
 
   const openNew = (direction: BatchDirection) => {
-    const choice = direction === 'IN' ? nextIn : metalOutChoices(metalIn, metalOut, today)[0]
+    const choice = direction === 'IN'
+      ? nextInChoices[0]
+      : metalOutChoices(metalIn, metalOut, today)[0]
+    if (!choice) return
     setEntryForm({ direction, initial: editableBatch(choice, undefined, direction), fixing: false })
   }
 
@@ -253,7 +262,17 @@ export function MGFloorTabletDashboard() {
               <IdleFade idle={idle}>
                 <EmployeeTable employees={employees} onLogout={(id) => logoutUser(id).catch(() => {})} />
               </IdleFade>
-              <View style={styles.leftSpacer} />
+              <View style={styles.alloyMixSlot}>
+                <AlloyMixPanel
+                  token={token}
+                  department={dept}
+                  idle={idle}
+                  onIdlePress={openLogin}
+                  refreshKey={approvedKey}
+                  onJobsChange={setOpenMixJobs}
+                  onReceiveDone={approvals.reload}
+                />
+              </View>
               <BreakdownButton
                 idle={idle}
                 status={breakdownButtonStatus(breakdown.phase)}
@@ -269,13 +288,6 @@ export function MGFloorTabletDashboard() {
             <View style={styles.divider} />
 
             <View style={[styles.col, styles.colMid, { gap }]}>
-              <AlloyMixPanel
-                token={token}
-                department={dept}
-                idle={idle}
-                onIdlePress={openLogin}
-                refreshKey={approvedKey}
-              />
               <MetalProcessPanel
                 title="Metal In"
                 rows={panelRows(metalIn, 'IN')}
@@ -425,7 +437,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   metalOutBlock: {},
-  leftSpacer: { flex: 1 },
+  /** Fills the former empty gap between Employees and BREAKDOWN. */
+  alloyMixSlot: { flex: 1, minHeight: 160 },
   idleBanner: {
     borderWidth: 1,
     borderColor: td.orange,

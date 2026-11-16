@@ -106,6 +106,9 @@ describe('ERPGoldAlloyTab custody + purge', () => {
     expect(del.disabled).toBe(true)
     expect(edit.getAttribute('title')).toMatch(/Split portion still on floor/i)
     expect(update.getAttribute('title')).toMatch(/Allocate child mix/i)
+    expect(await screen.findByText('AMX-1')).toBeTruthy()
+    expect(screen.getByText('Batch')).toBeTruthy()
+    expect(listAlloyMixJobs).toHaveBeenCalledWith('t', expect.objectContaining({ includeClosed: true }))
   })
 
   test('history purge toast includes deletedCount', async () => {

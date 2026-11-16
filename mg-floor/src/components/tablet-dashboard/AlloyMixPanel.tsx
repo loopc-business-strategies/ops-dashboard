@@ -15,6 +15,7 @@ import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 import {
   allocateAlloyMixJob,
   listAlloyMixJobs,
+  receiveAlloyMixJob,
   type AlloyMixJob,
 } from '@/src/api/alloyMixJobs'
 import { FLOOR_DEPARTMENTS, floorDepartmentLabel } from '@/src/config/floorDepartments'
@@ -35,6 +36,10 @@ type Props = {
   onIdlePress?: () => void
   /** Bump to force reload (e.g. after FM workbook sync). */
   refreshKey?: string
+  /** Open mixes in this department — used so Metal In/Out can reuse AMX as batch no. */
+  onJobsChange?: (jobs: AlloyMixJob[]) => void
+  /** After Approve seeds Metal In — refresh batch approval list immediately. */
+  onReceiveDone?: () => void
 }
 
 export function AlloyMixPanel({
@@ -43,6 +48,8 @@ export function AlloyMixPanel({
   idle = false,
   onIdlePress,
   refreshKey = '',
+  onJobsChange,
+  onReceiveDone,
 }: Props) {
   const [jobs, setJobs] = useState<AlloyMixJob[]>([])
   const [loading, setLoading] = useState(false)
@@ -84,6 +91,20 @@ export function AlloyMixPanel({
   useEffect(() => {
     load()
   }, [load, refreshKey])
+
+  const incoming = useMemo(
+    () => jobs.filter((j) => j.status === 'pending_receive' || j.pendingReceive),
+    [jobs],
+  )
+  const activeJobs = useMemo(
+    () => jobs.filter((j) => j.status !== 'pending_receive' && !j.pendingReceive),
+    [jobs],
+  )
+
+  useEffect(() => {
+    // Metal In batch choices only use accepted (in_department / vault) mixes.
+    onJobsChange?.(activeJobs)
+  }, [activeJobs, onJobsChange])
 
   useEffect(() => {
     if (!token || !department) return undefined
@@ -146,6 +167,7 @@ export function AlloyMixPanel({
       await load({ soft: true })
       setSuccessMsg(formatAllocateSuccess({
         partial: res.partial,
+        pendingReceive: res.pendingReceive ?? res.job?.pendingReceive ?? res.job?.status === 'pending_receive',
         fromCode,
         destLabel,
         weight,
@@ -162,6 +184,33 @@ export function AlloyMixPanel({
     }
   }
 
+  const onReceive = async (job: AlloyMixJob, decision: 'APPROVED' | 'REJECTED') => {
+    if (!token) return
+    if (idle) {
+      onIdlePress?.()
+      return
+    }
+    setBusyId(job.id)
+    setError('')
+    try {
+      const res = await receiveAlloyMixJob({ token, mixId: job.id, decision })
+      await load({ soft: true })
+      if (decision === 'APPROVED') onReceiveDone?.()
+      setSuccessMsg(
+        decision === 'APPROVED'
+          ? `Approved ${res.job.mixCode} — Metal In queued for F.M`
+          : `Rejected ${job.mixCode} — returned to ${floorDepartmentLabel(job.pendingFromDepartment) || 'Vault Room'}`,
+      )
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message?: string }).message || 'Receive failed')
+        : 'Receive failed'
+      setError(message)
+    } finally {
+      setBusyId('')
+    }
+  }
+
   return (
     <View style={styles.wrap}>
       <View style={[styles.header, idle && styles.headerIdle]}>
@@ -172,7 +221,7 @@ export function AlloyMixPanel({
       </View>
       <IdleFade idle={idle} style={styles.body}>
         {loading ? (
-          <ActivityIndicator color={td.accent || '#B45309'} style={{ marginVertical: 12 }} />
+          <ActivityIndicator color={td.orange} style={{ marginVertical: 12 }} />
         ) : null}
         {successMsg ? (
           <Pressable accessibilityRole="button" onPress={() => setSuccessMsg('')} style={styles.successBanner}>
@@ -180,24 +229,81 @@ export function AlloyMixPanel({
           </Pressable>
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!loading && jobs.length === 0 ? (
+        {incoming.length ? (
+          <View style={styles.incomingBlock}>
+            <Text style={styles.incomingTitle}>Incoming — Approve or Reject</Text>
+            {incoming.map((job) => (
+              <View key={`in-${job.id}`} style={styles.incomingCard}>
+                <View style={styles.cardTop}>
+                  <Text style={styles.code} numberOfLines={2}>{job.mixCode}</Text>
+                  <Text style={styles.karat} numberOfLines={1}>
+                    {job.karat}K · {job.targetGross} g
+                  </Text>
+                </View>
+                <Text style={styles.name} numberOfLines={1}>
+                  {job.finishedProductName || 'Alloy'}
+                </Text>
+                <Text style={styles.meta}>
+                  From {floorDepartmentLabel(job.pendingFromDepartment) || 'Vault Room'} · waiting
+                </Text>
+                <View style={styles.receiveRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Approve ${job.mixCode}`}
+                    disabled={Boolean(busyId) || idle}
+                    onPress={() => onReceive(job, 'APPROVED')}
+                    style={({ pressed }) => [
+                      styles.approveBtn,
+                      pressed && styles.allocBtnPressed,
+                      (busyId === job.id || idle) && styles.allocBtnDisabled,
+                    ]}
+                  >
+                    <Text style={styles.allocBtnText}>
+                      {busyId === job.id ? '…' : 'Approve'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reject ${job.mixCode}`}
+                    disabled={Boolean(busyId) || idle}
+                    onPress={() => onReceive(job, 'REJECTED')}
+                    style={({ pressed }) => [
+                      styles.rejectBtn,
+                      pressed && styles.allocBtnPressed,
+                      (busyId === job.id || idle) && styles.allocBtnDisabled,
+                    ]}
+                  >
+                    <Text style={styles.rejectBtnText}>Reject</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {!loading && incoming.length === 0 && activeJobs.length === 0 ? (
           <Text style={styles.empty}>
             No alloy mix in this department. Post Mix in ERP Gold Alloy lands in Vault Room.
           </Text>
         ) : null}
         <ScrollView style={styles.list} nestedScrollEnabled>
-          {jobs.map((job) => (
+          {activeJobs.map((job) => (
             <View key={job.id} style={styles.card}>
               <View style={styles.cardTop}>
-                <Text style={styles.code}>{job.mixCode}</Text>
-                <Text style={styles.karat}>{job.karat}K · {job.targetGross} g</Text>
+                <Text style={styles.code} numberOfLines={2}>
+                  {job.mixCode}
+                </Text>
+                <Text style={styles.karat} numberOfLines={1}>
+                  {job.karat}K · {job.targetGross} g
+                </Text>
               </View>
               <Text style={styles.name} numberOfLines={1}>
                 {job.finishedProductName || 'Alloy'}
               </Text>
               <Text style={styles.meta}>
                 {job.hasOpenFloorDescendants
-                  ? 'In vault — split still on floor (ERP update blocked)'
+                  ? (job.status === 'in_vault'
+                    ? 'In vault — split still on floor (ERP update blocked)'
+                    : 'On floor — split still open (ERP update blocked)')
                   : job.canUpdateMix
                     ? 'In vault — Update Mix allowed in ERP · can update'
                     : job.status === 'in_vault'
@@ -207,12 +313,12 @@ export function AlloyMixPanel({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Allocate ${job.mixCode}`}
-                disabled={Boolean(busyId) || idle}
+                disabled={Boolean(busyId) || idle || job.canAllocate === false}
                 onPress={() => (idle ? onIdlePress?.() : openAllocate(job))}
                 style={({ pressed }) => [
                   styles.allocBtn,
                   pressed && styles.allocBtnPressed,
-                  (busyId === job.id || idle) && styles.allocBtnDisabled,
+                  (busyId === job.id || idle || job.canAllocate === false) && styles.allocBtnDisabled,
                 ]}
               >
                 <Text style={styles.allocBtnText}>
@@ -280,6 +386,7 @@ export function AlloyMixPanel({
 
 const styles = StyleSheet.create({
   wrap: {
+    flex: 1,
     borderWidth: 1,
     borderColor: td.border || '#E5E7EB',
     borderRadius: 8,
@@ -307,8 +414,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  body: { padding: 8, flexGrow: 1 },
-  list: { maxHeight: 200 },
+  body: { padding: 8, flex: 1, minHeight: 0 },
+  list: { flex: 1, minHeight: 0 },
   empty: {
     color: '#64748B',
     fontSize: 12,
@@ -335,6 +442,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 16,
   },
+  incomingBlock: { marginBottom: 8 },
+  incomingTitle: {
+    color: '#9A3412',
+    fontWeight: '800',
+    fontSize: 12,
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+  incomingCard: {
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    backgroundColor: '#FFF7ED',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 8,
+  },
+  receiveRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  approveBtn: {
+    flex: 1,
+    backgroundColor: '#15803D',
+    borderRadius: 6,
+    paddingVertical: 8,
+    alignItems: 'center',
+    ...buttonShadow,
+  },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#B91C1C',
+    borderRadius: 6,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  rejectBtnText: { color: '#B91C1C', fontWeight: '800', fontSize: 13 },
   card: {
     borderWidth: 1,
     borderColor: '#FDE68A',
@@ -346,10 +488,23 @@ const styles = StyleSheet.create({
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 8,
   },
-  code: { fontWeight: '800', color: '#78350F', fontSize: 13 },
-  karat: { fontWeight: '700', color: '#92400E', fontSize: 12 },
+  code: {
+    flex: 1,
+    minWidth: 0,
+    fontWeight: '800',
+    color: '#78350F',
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  karat: {
+    flexShrink: 0,
+    fontWeight: '700',
+    color: '#92400E',
+    fontSize: 12,
+  },
   name: { color: '#334155', fontSize: 12, marginTop: 2 },
   meta: { color: '#64748B', fontSize: 11, marginTop: 2, marginBottom: 6 },
   allocBtn: {

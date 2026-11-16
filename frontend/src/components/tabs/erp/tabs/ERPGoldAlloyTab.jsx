@@ -117,11 +117,17 @@ export default function ERPGoldAlloyTab({
       return
     }
     try {
-      const data = await erpAccountingAPI.listAlloyMixJobs(token, {})
+      // includeClosed so Posted-mix history rows still resolve Batch (AMX) after reverse/update.
+      const data = await erpAccountingAPI.listAlloyMixJobs(token, { includeClosed: true })
       const map = {}
       for (const job of data?.jobs || []) {
         const key = String(job.reasonBase || '').trim()
-        if (key) map[key] = job
+        if (!key) continue
+        const existing = map[key]
+        // Prefer the live job when a closed/deleted twin shares the same reason.
+        if (!existing || (existing.status === 'closed' && job.status !== 'closed')) {
+          map[key] = job
+        }
       }
       setMixJobsByReason(map)
     } catch {
@@ -159,7 +165,7 @@ export default function ERPGoldAlloyTab({
         limit: 200,
       }),
       postingEnabled
-        ? erpAccountingAPI.listAlloyMixJobs(token, {}).catch(() => ({ jobs: [] }))
+        ? erpAccountingAPI.listAlloyMixJobs(token, { includeClosed: true }).catch(() => ({ jobs: [] }))
         : Promise.resolve({ jobs: [] }),
     ])
       .then(([data, jobsData]) => {
@@ -168,7 +174,11 @@ export default function ERPGoldAlloyTab({
         const map = {}
         for (const job of jobsData?.jobs || []) {
           const key = String(job.reasonBase || '').trim()
-          if (key) map[key] = job
+          if (!key) continue
+          const existing = map[key]
+          if (!existing || (existing.status === 'closed' && job.status !== 'closed')) {
+            map[key] = job
+          }
         }
         setMixJobsByReason(map)
       })
@@ -823,8 +833,9 @@ export default function ERPGoldAlloyTab({
         const lossPart = Number(result?.metalLossGross) > 0
           ? ` · metal loss ${result.metalLossGross} g (Metal Loss grams; USD manual)`
           : ''
+        const batchPart = result?.mixJob?.mixCode ? ` · batch ${result.mixJob.mixCode}` : ''
         showNotification(
-          `✅ Mix updated: ${result?.finishedProduct?.name || updatePosted.finishedName} → ${result?.targetGross || nextTarget} g · purity ${finishedFrac}${lossPart}`,
+          `✅ Mix updated: ${result?.finishedProduct?.name || updatePosted.finishedName} → ${result?.targetGross || nextTarget} g · purity ${finishedFrac}${lossPart}${batchPart}`,
         )
         if (result?.mixJobWarning) {
           showNotification(`⚠️ Mix job bridge: ${result.mixJobWarning}`)
@@ -948,10 +959,11 @@ export default function ERPGoldAlloyTab({
       })
       const result = await erpAccountingAPI.postAlloyMix(token, payload)
       if (typeof showNotification === 'function') {
+        const batchPart = result?.mixJob?.mixCode ? ` · batch ${result.mixJob.mixCode}` : ''
         showNotification(
           editingPosted
-            ? `✅ Mix edited: ${result?.finishedProduct?.name || 'finished'} → ${result?.targetGross || payload.targetGross} g`
-            : `✅ Alloy mix posted: ${result?.finishedProduct?.name || 'finished'} +${result?.targetGross || payload.targetGross} g`,
+            ? `✅ Mix edited: ${result?.finishedProduct?.name || 'finished'} → ${result?.targetGross || payload.targetGross} g${batchPart}`
+            : `✅ Alloy mix posted: ${result?.finishedProduct?.name || 'finished'} +${result?.targetGross || payload.targetGross} g${batchPart}`,
         )
         if (result?.mixJobWarning) {
           showNotification(`⚠️ Mix job bridge: ${result.mixJobWarning}`)
@@ -1068,6 +1080,7 @@ export default function ERPGoldAlloyTab({
             <thead>
               <tr style={{ background: '#F8FAFC', textAlign: 'left' }}>
                 <th style={{ padding: '0.55rem 0.75rem', fontSize: '0.75rem', color: '#64748B' }}>When</th>
+                <th style={{ padding: '0.55rem 0.75rem', fontSize: '0.75rem', color: '#64748B' }}>Batch</th>
                 <th style={{ padding: '0.55rem 0.75rem', fontSize: '0.75rem', color: '#64748B' }}>Status</th>
                 <th style={{ padding: '0.55rem 0.75rem', fontSize: '0.75rem', color: '#64748B' }}>Karat</th>
                 <th style={{ padding: '0.55rem 0.75rem', fontSize: '0.75rem', color: '#64748B', textAlign: 'right' }}>Target</th>
@@ -1083,7 +1096,7 @@ export default function ERPGoldAlloyTab({
             <tbody>
               {!postedMixesLoading && !postedMixes.length ? (
                 <tr>
-                  <td colSpan={postingEnabled ? 9 : 8} style={{ padding: '1rem 0.75rem', textAlign: 'center', color: '#94A3B8', fontSize: '0.85rem' }}>
+                  <td colSpan={postingEnabled ? 10 : 9} style={{ padding: '1rem 0.75rem', textAlign: 'center', color: '#94A3B8', fontSize: '0.85rem' }}>
                     No posted mixes yet. Click + New mix to create one.
                   </td>
                 </tr>
@@ -1099,7 +1112,7 @@ export default function ERPGoldAlloyTab({
                     {versionCount > 1 ? (
                       <tr style={{ background: '#FFF7ED' }}>
                         <td
-                          colSpan={postingEnabled ? 9 : 8}
+                          colSpan={postingEnabled ? 10 : 9}
                           style={{
                             padding: '0.45rem 0.75rem',
                             fontSize: '0.75rem',
@@ -1230,6 +1243,20 @@ export default function ERPGoldAlloyTab({
                               </div>
                             ) : null}
                             <div>{whenLabel}</div>
+                          </td>
+                          <td style={{
+                            padding: '0.6rem 0.75rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            color: isHistory ? '#94A3B8' : '#0F172A',
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={floorJob?.mixCode
+                            ? `Batch ${floorJob.mixCode} — same id on MG Floor and Operations Production`
+                            : 'Batch assigned when the mix job bridges to Floor / Ops'}
+                          >
+                            {floorJob?.mixCode || floorJob?.batchNumber || '—'}
                           </td>
                           <td style={{ padding: '0.6rem 0.75rem' }}>
                             <span style={{

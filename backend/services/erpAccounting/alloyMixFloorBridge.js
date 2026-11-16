@@ -228,6 +228,7 @@ async function createJobFromPostedMix({
           {
             stockCode,
             purchaseRef: mixCode,
+            batchNumber: mixCode,
             supplier: 'Gold Alloy',
             purchaseDate: new Date(),
             product: finishedName || 'Alloy mix',
@@ -580,6 +581,13 @@ async function allocateMixJob({
     session,
   )
   if (!job) throw httpError(404, 'Alloy mix job not found')
+  if (job.status === 'pending_receive') {
+    throw httpError(
+      409,
+      `Mix ${job.mixCode} is waiting for receive approval in ${job.currentDepartment}. `
+        + 'Approve or reject it on that department tablet first.',
+    )
+  }
 
   const from = job.currentDepartment
   if (from === dest) {
@@ -614,6 +622,9 @@ async function allocateMixJob({
   ].filter(Boolean).join(' · ')
 
   const action = dest === VAULT ? 'return_vault' : 'allocate'
+  /** Floor dests wait for receive Approve/Reject; vault return is immediate. */
+  const offerReceive = dest !== VAULT
+  const childStatus = dest === VAULT ? 'in_vault' : 'pending_receive'
 
   if (isPartial) {
     const childCode = await nextMixCode(session)
@@ -639,6 +650,7 @@ async function allocateMixJob({
             {
               stockCode: childStockCode,
               purchaseRef: childCode,
+              batchNumber: childCode,
               supplier: 'Gold Alloy split',
               purchaseDate: new Date(),
               product: job.finishedProductName || parentLot.product || 'Alloy mix',
@@ -682,8 +694,9 @@ async function allocateMixJob({
           stockLotId: childLot?._id || null,
           stockCode: childLot?.stockCode || '',
           parentJobId: job._id,
-          status: dest === VAULT ? 'in_vault' : 'in_department',
+          status: childStatus,
           currentDepartment: dest,
+          pendingFromDepartment: offerReceive ? from : '',
           history: [{
             at: new Date(),
             action,
@@ -715,19 +728,22 @@ async function allocateMixJob({
       actor: user,
       stamp,
     })
-    await upsertOpsRow({
-      session,
-      mixCode: child.mixCode,
-      departmentKey: dest,
-      date,
-      batchNumber: child.mixCode,
-      side: 'in',
-      weight: moveWeight,
-      purity: purityPct,
-      fineGold,
-      actor: user,
-      stamp,
-    })
+    // Dest Metal IN / lot touch wait until receive Approve (except vault).
+    if (!offerReceive) {
+      await upsertOpsRow({
+        session,
+        mixCode: child.mixCode,
+        departmentKey: dest,
+        date,
+        batchNumber: child.mixCode,
+        side: 'in',
+        weight: moveWeight,
+        purity: purityPct,
+        fineGold,
+        actor: user,
+        stamp,
+      })
+    }
 
     job.targetGross = remainWeight
     job.history.push({
@@ -743,7 +759,7 @@ async function allocateMixJob({
     job.updatedByName = user.name || ''
     await job.save(writeOpts(session))
 
-    return { parent: job, child, partial: true }
+    return { parent: job, child, partial: true, pendingReceive: offerReceive }
   }
 
   await upsertOpsRow({
@@ -759,19 +775,21 @@ async function allocateMixJob({
     actor: user,
     stamp,
   })
-  await upsertOpsRow({
-    session,
-    mixCode: job.mixCode,
-    departmentKey: dest,
-    date,
-    batchNumber: job.mixCode,
-    side: 'in',
-    weight: moveWeight,
-    purity: purityPct,
-    fineGold,
-    actor: user,
-    stamp,
-  })
+  if (!offerReceive) {
+    await upsertOpsRow({
+      session,
+      mixCode: job.mixCode,
+      departmentKey: dest,
+      date,
+      batchNumber: job.mixCode,
+      side: 'in',
+      weight: moveWeight,
+      purity: purityPct,
+      fineGold,
+      actor: user,
+      stamp,
+    })
+  }
 
   job.history.push({
     at: new Date(),
@@ -783,7 +801,123 @@ async function allocateMixJob({
     actorName: user.name || '',
   })
   job.currentDepartment = dest
-  job.status = dest === VAULT ? 'in_vault' : 'in_department'
+  job.status = dest === VAULT ? 'in_vault' : 'pending_receive'
+  job.pendingFromDepartment = offerReceive ? from : ''
+  job.updatedById = user._id
+  job.updatedByName = user.name || ''
+  await job.save(writeOpts(session))
+
+  if (!offerReceive) {
+    await touchLotDepartment({
+      session,
+      lotId: job.stockLotId,
+      mixCode: job.mixCode,
+      dest,
+      actorId: user._id,
+      actorName: user.name || '',
+    })
+  }
+
+  return job
+}
+
+/**
+ * Destination department Accept/Reject an offered alloy mix (pending_receive).
+ * Approve → in_department + Ops IN + seed Metal In for FM approval.
+ * Reject → return to pendingFromDepartment (usually vault).
+ */
+async function receiveMixJob({
+  user,
+  mixId,
+  decision,
+  note = '',
+  actorDepartment = '',
+  session = null,
+} = {}) {
+  if (!user?._id) throw httpError(401, 'Unauthorized')
+  const decided = String(decision || '').trim().toUpperCase()
+  if (decided !== 'APPROVED' && decided !== 'REJECTED') {
+    throw httpError(400, 'decision must be APPROVED or REJECTED')
+  }
+
+  const job = await withSession(
+    AlloyMixJob.findOne({
+      $or: [
+        { _id: mixId },
+        { mixCode: String(mixId || '').toUpperCase() },
+      ],
+      isDeleted: { $ne: true },
+      status: 'pending_receive',
+    }),
+    session,
+  )
+  if (!job) throw httpError(404, 'No pending alloy mix receive found')
+
+  const dest = job.currentDepartment
+  const actorDept = normalizeDept(actorDepartment)
+  if (actorDept && actorDept !== dest && user.role !== 'super_admin') {
+    throw httpError(403, `Only ${dest} operators can approve or reject this receive`)
+  }
+  const from = normalizeDept(job.pendingFromDepartment) || VAULT
+  const purityPct = job.purity != null ? Number(job.purity) : null
+  const weight = toQty(job.targetGross)
+  const fineGold = purityPct != null ? toQty((weight * purityPct) / 100) : null
+  const date = dubaiDateKey()
+  const stamp = `recv-${Date.now()}`
+  const noteText = String(note || '').trim()
+
+  if (decided === 'REJECTED') {
+    job.history.push({
+      at: new Date(),
+      action: 'receive_reject',
+      fromDepartment: dest,
+      toDepartment: from,
+      note: noteText || 'Receive rejected',
+      actorId: user._id,
+      actorName: user.name || '',
+    })
+    job.currentDepartment = from
+    job.status = from === VAULT ? 'in_vault' : 'in_department'
+    job.pendingFromDepartment = ''
+    job.updatedById = user._id
+    job.updatedByName = user.name || ''
+    await job.save(writeOpts(session))
+    await touchLotDepartment({
+      session,
+      lotId: job.stockLotId,
+      mixCode: job.mixCode,
+      dest: from,
+      actorId: user._id,
+      actorName: user.name || '',
+    })
+    return { job, decision: decided, metalInEntry: null }
+  }
+
+  await upsertOpsRow({
+    session,
+    mixCode: job.mixCode,
+    departmentKey: dest,
+    date,
+    batchNumber: job.mixCode,
+    side: 'in',
+    weight,
+    purity: purityPct,
+    fineGold,
+    actor: user,
+    stamp,
+  })
+
+  job.history.push({
+    at: new Date(),
+    action: 'receive_approve',
+    fromDepartment: from,
+    toDepartment: dest,
+    note: noteText || 'Receive approved',
+    actorId: user._id,
+    actorName: user.name || '',
+  })
+  job.status = 'in_department'
+  job.pendingFromDepartment = ''
   job.updatedById = user._id
   job.updatedByName = user.name || ''
   await job.save(writeOpts(session))
@@ -797,7 +931,26 @@ async function allocateMixJob({
     actorName: user.name || '',
   })
 
-  return job
+  let metalInEntry = null
+  try {
+    const { createSystemPendingMetalIn } = require('../mgFloor/batchEntries')
+    const seeded = await createSystemPendingMetalIn({
+      department: dest,
+      batchLabel: job.mixCode,
+      entryDate: date,
+      qty: weight,
+      purity: purityPct,
+      employeeId: user._id,
+      employeeName: user.name || '',
+      mixCode: job.mixCode,
+    })
+    metalInEntry = seeded?.entry || null
+  } catch (err) {
+    // Receive still succeeds; operator can open Metal In manually with the AMX batch.
+    console.warn('[alloy-mix] seed Metal In failed:', err?.message || err)
+  }
+
+  return { job, decision: decided, metalInEntry }
 }
 
 async function listMixJobs({
@@ -818,7 +971,7 @@ async function listMixJobs({
   return AlloyMixJob.find(filter).sort({ updatedAt: -1 }).limit(200).lean()
 }
 
-const ALLOY_MIX_JOB_STATUSES_SAFE = ['in_vault', 'in_department', 'closed']
+const ALLOY_MIX_JOB_STATUSES_SAFE = ['in_vault', 'pending_receive', 'in_department', 'closed']
 
 /** Build parentId → open children map for custody annotations. */
 async function loadOpenChildrenByParent(session = null) {
@@ -865,9 +1018,12 @@ function serializeJob(job, {
     ? hasOpenFloorDescendant(row._id, childrenByParent)
     : Boolean(hasOpenFloorDescendants)
   const inVault = row.status === 'in_vault' && row.currentDepartment === VAULT && !row.isDeleted
+  const pendingReceive = row.status === 'pending_receive' && !row.isDeleted
   return {
     id: String(row._id),
     mixCode: row.mixCode,
+    /** Canonical batch id for Floor / Ops — same as mixCode for every alloy mix. */
+    batchNumber: row.mixCode,
     reasonBase: row.reasonBase,
     karat: row.karat,
     targetGross: row.targetGross,
@@ -880,8 +1036,12 @@ function serializeJob(job, {
     parentJobId: row.parentJobId ? String(row.parentJobId) : '',
     status: row.status,
     currentDepartment: row.currentDepartment,
+    pendingFromDepartment: row.pendingFromDepartment || '',
+    pendingReceive,
     hasOpenFloorDescendants: floorDescendants,
     canUpdateMix: inVault && !floorDescendants,
+    /** Operator may Allocate only when mix is active on this dept (not waiting receive). */
+    canAllocate: !pendingReceive && !row.isDeleted && row.status !== 'closed',
     history: row.history || [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -900,6 +1060,7 @@ async function serializeAllocateResult(result, session = null) {
     const childrenByParent = await loadOpenChildrenByParent(session)
     return {
       partial: true,
+      pendingReceive: Boolean(result.pendingReceive),
       job: serializeJob(result.child, { childrenByParent }),
       parentJob: serializeJob(result.parent, { childrenByParent }),
       childJob: serializeJob(result.child, { childrenByParent }),
@@ -907,7 +1068,20 @@ async function serializeAllocateResult(result, session = null) {
   }
   return {
     partial: false,
+    pendingReceive: result?.status === 'pending_receive',
     job: serializeJob(result),
+  }
+}
+
+async function serializeReceiveResult(result, session = null) {
+  return {
+    decision: result?.decision || null,
+    job: serializeJob(result?.job, {
+      childrenByParent: await loadOpenChildrenByParent(session),
+    }),
+    metalInEntryId: result?.metalInEntry?.entryId || result?.metalInEntry?._id
+      ? String(result.metalInEntry.entryId || result.metalInEntry._id)
+      : null,
   }
 }
 
@@ -918,10 +1092,12 @@ module.exports = {
   assertJobUpdatableByReason,
   findOpenJobByReason,
   allocateMixJob,
+  receiveMixJob,
   listMixJobs,
   serializeJob,
   serializeJobs,
   serializeAllocateResult,
+  serializeReceiveResult,
   jobInVaultCustody,
   hasOpenFloorDescendant,
   dubaiDateKey,

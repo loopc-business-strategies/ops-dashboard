@@ -7,6 +7,7 @@ const {
 const { createAlloyMixService } = require('../services/erpAccounting/alloyMixService')
 const {
   allocateMixJob,
+  receiveMixJob,
   listMixJobs,
   serializeJob,
 } = require('../services/erpAccounting/alloyMixFloorBridge')
@@ -21,6 +22,7 @@ const AlloyMixJob = require('../models/AlloyMixJob')
 const ProductionStockLot = require('../models/ProductionStockLot')
 const ProductionStockStatusEvent = require('../models/ProductionStockStatusEvent')
 const OperationsProductionEntry = require('../models/OperationsProductionEntry')
+const FloorBatchEntry = require('../models/FloorBatchEntry')
 const { ALLOY_METAL_LOSS_MAPPING_TYPE } = require('../services/erpAccounting/alloyMixService')
 
 let mongo
@@ -49,6 +51,7 @@ afterEach(async () => {
     ProductionStockLot.deleteMany({}),
     ProductionStockStatusEvent.deleteMany({}),
     OperationsProductionEntry.deleteMany({}),
+    FloorBatchEntry.deleteMany({}),
   ])
 })
 
@@ -196,10 +199,21 @@ describe('alloy mix floor bridge', () => {
     })
 
     const jobId = result.mixJob.id
-    const onFloor = await allocateMixJob({
+    const offered = await allocateMixJob({
       user,
       mixId: jobId,
       toDepartment: 'melting',
+    })
+    expect(offered.currentDepartment).toBe('melting')
+    expect(offered.status).toBe('pending_receive')
+    expect(serializeJob(offered).canUpdateMix).toBe(false)
+    expect(serializeJob(offered).pendingReceive).toBe(true)
+
+    const { job: onFloor } = await receiveMixJob({
+      user,
+      mixId: jobId,
+      decision: 'APPROVED',
+      actorDepartment: 'melting',
     })
     expect(onFloor.currentDepartment).toBe('melting')
     expect(onFloor.status).toBe('in_department')
@@ -252,6 +266,8 @@ describe('alloy mix floor bridge', () => {
     expect(split.parent.currentDepartment).toBe('vault_room')
     expect(Number(split.child.targetGross)).toBe(30)
     expect(split.child.currentDepartment).toBe('melting')
+    expect(split.child.status).toBe('pending_receive')
+    expect(split.pendingReceive).toBe(true)
 
     const vaultJobs = await listMixJobs({ department: 'vault_room' })
     const meltJobs = await listMixJobs({ department: 'melting' })
@@ -290,6 +306,12 @@ describe('alloy mix floor bridge', () => {
       service.reverseAlloyMix({ user, tenant: 'mg', reason: result.reason }),
     ).rejects.toMatchObject({ status: 400 })
 
+    await receiveMixJob({
+      user,
+      mixId: String(split.child._id),
+      decision: 'APPROVED',
+      actorDepartment: 'melting',
+    })
     await allocateMixJob({
       user,
       mixId: String(split.child._id),

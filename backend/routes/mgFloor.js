@@ -806,6 +806,45 @@ router.post(
         mixCode: payload.job?.mixCode,
         department: payload.job?.currentDepartment,
         partial: payload.partial,
+        pendingReceive: payload.pendingReceive,
+      })
+      res.json({ success: true, ...payload })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
+router.post(
+  '/alloy-mix-jobs/:id/receive',
+  ...mgProtect,
+  requireProductionPermission('receivePass'),
+  validateParams(Joi.object({ id: Joi.string().trim().min(1).max(40).required() })),
+  validateBody(Joi.object({
+    decision: Joi.string().valid('APPROVED', 'REJECTED').required(),
+    note: Joi.string().trim().allow('').max(500).optional(),
+  })),
+  async (req, res) => {
+    try {
+      const {
+        receiveMixJob,
+        serializeReceiveResult,
+        normalizeDept,
+      } = require('../services/erpAccounting/alloyMixFloorBridge')
+      const { runInTransaction } = require('../utils/mongoTransaction')
+      const result = await runInTransaction(async (session) => receiveMixJob({
+        user: req.user,
+        mixId: req.params.id,
+        decision: req.body.decision,
+        note: req.body.note,
+        actorDepartment: normalizeDept(req.user?.floorDepartment),
+        session,
+      }))
+      const payload = await serializeReceiveResult(result)
+      emitWorkbookUpdate(req, 'alloy-mix-receive', {
+        mixCode: payload.job?.mixCode,
+        department: payload.job?.currentDepartment,
+        decision: payload.decision,
       })
       res.json({ success: true, ...payload })
     } catch (err) {

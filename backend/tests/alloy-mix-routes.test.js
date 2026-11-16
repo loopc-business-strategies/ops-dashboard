@@ -18,6 +18,7 @@ const AlloyMixJob = require('../models/AlloyMixJob')
 const ProductionStockLot = require('../models/ProductionStockLot')
 const ProductionStockStatusEvent = require('../models/ProductionStockStatusEvent')
 const OperationsProductionEntry = require('../models/OperationsProductionEntry')
+const FloorBatchEntry = require('../models/FloorBatchEntry')
 const { ALLOY_METAL_LOSS_MAPPING_TYPE } = require('../services/erpAccounting/alloyMixService')
 
 let mongo
@@ -63,6 +64,7 @@ afterEach(async () => {
     ProductionStockLot.deleteMany({}),
     ProductionStockStatusEvent.deleteMany({}),
     OperationsProductionEntry.deleteMany({}),
+    FloorBatchEntry.deleteMany({}),
   ])
 })
 
@@ -196,6 +198,15 @@ describe('alloy-mix HTTP routes', () => {
     expect(allocRes.status).toBe(200)
     expect(allocRes.body.success).toBe(true)
     expect(allocRes.body.job.currentDepartment).toBe('melting')
+    expect(allocRes.body.job.status).toBe('pending_receive')
+    expect(allocRes.body.pendingReceive).toBe(true)
+
+    const recvRes = await request(app)
+      .post(`/api/mg-floor/alloy-mix-jobs/${jobId}/receive`)
+      .set(headers)
+      .send({ decision: 'APPROVED' })
+    expect(recvRes.status).toBe(200)
+    expect(recvRes.body.job.status).toBe('in_department')
 
     const blocked = await request(app)
       .post('/api/erp-accounting/inventory/alloy-mix/reverse')
@@ -257,9 +268,18 @@ describe('alloy-mix HTTP routes', () => {
     expect(splitRes.body.parentJob?.currentDepartment).toBe('vault_room')
     expect(Number(splitRes.body.childJob?.targetGross)).toBe(30)
     expect(splitRes.body.childJob?.currentDepartment).toBe('melting')
+    expect(splitRes.body.childJob?.status).toBe('pending_receive')
+    expect(splitRes.body.pendingReceive).toBe(true)
     expect(splitRes.body.childJob?.mixCode).toBeTruthy()
 
     const childId = splitRes.body.childJob.id
+    const recvChild = await request(app)
+      .post(`/api/mg-floor/alloy-mix-jobs/${childId}/receive`)
+      .set(headers)
+      .send({ decision: 'APPROVED' })
+    expect(recvChild.status).toBe(200)
+    expect(recvChild.body.job.status).toBe('in_department')
+
     const backChild = await request(app)
       .post(`/api/erp-accounting/inventory/alloy-mix/jobs/${childId}/allocate`)
       .set(headers)
