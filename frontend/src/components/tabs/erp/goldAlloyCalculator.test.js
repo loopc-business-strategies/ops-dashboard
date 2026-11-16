@@ -9,6 +9,7 @@ import {
   buildAlloyInputStockOptionsForLine,
   matchesAlloyLineMetal,
   createBlankAlloyMixLines,
+  buildAlloyStockOptions,
   findFinishedAlloyProductHint,
   listAvailableAlloyLineTemplates,
   listFinishedAlloyOptionsForKarat,
@@ -133,6 +134,35 @@ describe('goldAlloyCalculator', () => {
     expect(listFinishedAlloyOptionsForKarat(18, options).map((r) => r.id)).toEqual(['18'])
     expect(findFinishedAlloyProductHint(14, options).id).toBe('14')
     expect(findFinishedAlloyProductHint(14, options).name).toMatch(/14K alloy/i)
+  })
+
+  test('hides soft-deleted / duplicate finished products and prefers canonical 14k', () => {
+    const products = [
+      {
+        _id: 'title',
+        name: '14K Alloyed Gold (duplicate — use 14k alloyed gold)',
+        category: 'mainStock=gold;recordType=product;productPurity=0.585',
+        quantity: 0,
+        isDeleted: true,
+      },
+      {
+        _id: 'keep',
+        name: '14k alloyed gold',
+        category: 'mainStock=gold;recordType=product;productPurity=0.585',
+        quantity: 0,
+      },
+      {
+        _id: 'alt',
+        name: '14K Alloyed Gold',
+        category: 'mainStock=gold;recordType=product;productPurity=0.585',
+        quantity: 0,
+      },
+    ]
+    const options = buildAlloyStockOptions(products)
+    expect(options.map((r) => r.id).sort()).toEqual(['alt', 'keep'])
+    // Same normalized name collapses to the canonical lowercase SKU.
+    expect(listFinishedAlloyOptionsForKarat(14, options).map((r) => r.id)).toEqual(['keep'])
+    expect(findFinishedAlloyProductHint(14, options).id).toBe('keep')
   })
 
   test('blank mix starts empty; user picks which row to add', () => {
