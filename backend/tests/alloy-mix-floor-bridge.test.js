@@ -258,4 +258,49 @@ describe('alloy mix floor bridge', () => {
     expect(vaultJobs.some((j) => String(j._id) === String(split.parent._id))).toBe(true)
     expect(meltJobs.some((j) => String(j._id) === String(split.child._id))).toBe(true)
   })
+
+  test('partial allocate blocks ERP reverse until child returns to vault', async () => {
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const result = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+      ],
+    })
+
+    const split = await allocateMixJob({
+      user,
+      mixId: result.mixJob.id,
+      toDepartment: 'melting',
+      weight: 30,
+    })
+
+    await expect(
+      service.reverseAlloyMix({ user, tenant: 'mg', reason: result.reason }),
+    ).rejects.toMatchObject({ status: 400 })
+
+    await allocateMixJob({
+      user,
+      mixId: String(split.child._id),
+      toDepartment: 'vault_room',
+    })
+
+    const reversed = await service.reverseAlloyMix({
+      user,
+      tenant: 'mg',
+      reason: result.reason,
+    })
+    expect(reversed.success).toBe(true)
+
+    const openJobs = await AlloyMixJob.find({
+      isDeleted: { $ne: true },
+      status: { $ne: 'closed' },
+    }).lean()
+    expect(openJobs).toHaveLength(0)
+  })
 })

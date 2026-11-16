@@ -820,6 +820,9 @@ export default function ERPGoldAlloyTab({
         showNotification(
           `✅ Mix updated: ${result?.finishedProduct?.name || updatePosted.finishedName} → ${result?.targetGross || nextTarget} g · purity ${finishedFrac}${lossPart}`,
         )
+        if (result?.mixJobWarning) {
+          showNotification(`⚠️ Mix job bridge: ${result.mixJobWarning}`)
+        }
       }
       if (typeof loadInventory === 'function') await loadInventory()
       await reloadPostedMixes()
@@ -934,6 +937,9 @@ export default function ERPGoldAlloyTab({
             ? `✅ Mix edited: ${result?.finishedProduct?.name || 'finished'} → ${result?.targetGross || payload.targetGross} g`
             : `✅ Alloy mix posted: ${result?.finishedProduct?.name || 'finished'} +${result?.targetGross || payload.targetGross} g`,
         )
+        if (result?.mixJobWarning) {
+          showNotification(`⚠️ Mix job bridge: ${result.mixJobWarning}`)
+        }
       }
       if (typeof loadInventory === 'function') await loadInventory()
       await reloadPostedMixes()
