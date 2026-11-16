@@ -226,6 +226,60 @@ describe('alloy-mix HTTP routes', () => {
     expect(Number(clearRes.body.deletedCount)).toBeGreaterThanOrEqual(0)
   })
 
+  test('allocate with weight splits child job via HTTP', async () => {
+    const { user, fineGold, silver, finished } = await seedHttpFixture()
+    const headers = authHeader(user)
+
+    const postRes = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix')
+      .set(headers)
+      .send({
+        karat: 14,
+        targetGross: 80,
+        finishedProductId: String(finished._id),
+        lines: [
+          { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+          { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+        ],
+      })
+    expect(postRes.status).toBe(201)
+    const jobId = postRes.body.mixJob.id
+    const reason = postRes.body.reason
+
+    const splitRes = await request(app)
+      .post(`/api/erp-accounting/inventory/alloy-mix/jobs/${jobId}/allocate`)
+      .set(headers)
+      .send({ toDepartment: 'melting', weight: 30 })
+    expect(splitRes.status).toBe(200)
+    expect(splitRes.body.success).toBe(true)
+    expect(splitRes.body.partial).toBe(true)
+    expect(Number(splitRes.body.parentJob?.targetGross)).toBe(50)
+    expect(splitRes.body.parentJob?.currentDepartment).toBe('vault_room')
+    expect(Number(splitRes.body.childJob?.targetGross)).toBe(30)
+    expect(splitRes.body.childJob?.currentDepartment).toBe('melting')
+    expect(splitRes.body.childJob?.mixCode).toBeTruthy()
+
+    const childId = splitRes.body.childJob.id
+    const backChild = await request(app)
+      .post(`/api/erp-accounting/inventory/alloy-mix/jobs/${childId}/allocate`)
+      .set(headers)
+      .send({ toDepartment: 'vault_room' })
+    expect(backChild.status).toBe(200)
+    expect(backChild.body.job.currentDepartment).toBe('vault_room')
+
+    const reverseRes = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/reverse')
+      .set(headers)
+      .send({ reason })
+    expect(reverseRes.status).toBe(200)
+
+    const clearRes = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/clear-history')
+      .set(headers)
+      .send({ reason })
+    expect(clearRes.status).toBe(200)
+  })
+
   test('forbidden without inventory write role', async () => {
     const viewer = await User.create({
       name: 'alloy-viewer',

@@ -18,6 +18,11 @@ import {
   type AlloyMixJob,
 } from '@/src/api/alloyMixJobs'
 import { FLOOR_DEPARTMENTS, floorDepartmentLabel } from '@/src/config/floorDepartments'
+import {
+  buildAllocateWeightPayload,
+  formatAllocateSuccess,
+  resolveAllocateWeight,
+} from './alloyMixAllocate'
 import { IdleFade } from './IdleFade'
 
 /** Soft refresh so ERP Post / PD allocate appear without remount (no socket on tablet). */
@@ -117,11 +122,12 @@ export function AlloyMixPanel({
 
   const onAllocate = async (toDepartment: string) => {
     if (!token || !allocating) return
-    const available = Number(allocating.targetGross) || 0
-    const typed = Number(allocWeight)
-    const weight = Number.isFinite(typed) && typed > 0 ? typed : available
-    if (weight > available + 0.0005) {
-      setError(`Only ${available} g available`)
+    const { available, weight, error: weightError } = resolveAllocateWeight(
+      allocating.targetGross,
+      allocWeight,
+    )
+    if (weightError) {
+      setError(weightError)
       return
     }
     const fromCode = allocating.mixCode
@@ -133,18 +139,19 @@ export function AlloyMixPanel({
         token,
         mixId: allocating.id,
         toDepartment,
-        ...(weight + 0.0005 < available ? { weight } : {}),
+        ...buildAllocateWeightPayload(available, weight),
       })
       setAllocating(null)
       setAllocWeight('')
       await load({ soft: true })
-      if (res.partial && res.childJob) {
-        setSuccessMsg(
-          `Split ${weight} g → ${destLabel} as ${res.childJob.mixCode} · ${fromCode} keeps ${res.parentJob?.targetGross ?? '—'} g`,
-        )
-      } else {
-        setSuccessMsg(`Allocated ${fromCode} (${weight} g) → ${destLabel}`)
-      }
+      setSuccessMsg(formatAllocateSuccess({
+        partial: res.partial,
+        fromCode,
+        destLabel,
+        weight,
+        childMixCode: res.childJob?.mixCode,
+        parentRemaining: res.parentJob?.targetGross,
+      }))
     } catch (err: unknown) {
       const message = err && typeof err === 'object' && 'message' in err
         ? String((err as { message?: string }).message || 'Allocate failed')

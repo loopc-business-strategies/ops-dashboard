@@ -186,4 +186,39 @@ describe('DepartmentOverview alloy mix allocate', () => {
     const toast = await screen.findByRole('status')
     expect(toast.textContent).toMatch(/Allocated AMX-1/)
   })
+
+  test('partial weight sends weight and shows split toast', async () => {
+    const onAllocateMix = vi.fn().mockResolvedValue({
+      partial: true,
+      childJob: { mixCode: 'AMX-1A', currentDepartment: 'vault_room', targetGross: 30 },
+      parentJob: { mixCode: 'AMX-1', currentDepartment: 'melting', targetGross: 50 },
+      job: { mixCode: 'AMX-1A', currentDepartment: 'vault_room', targetGross: 30 },
+    })
+    render(
+      <DepartmentOverview
+        cards={cards}
+        suppressDemo
+        onAllocateMix={onAllocateMix}
+        alloyMixByDept={{
+          melting: [{
+            id: 'mix-1',
+            mixCode: 'AMX-1',
+            karat: 14,
+            targetGross: 80,
+            currentDepartment: 'melting',
+          }],
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allocate' }))
+    const weightInput = screen.getByLabelText(/Weight \(g\)/i)
+    fireEvent.change(weightInput, { target: { value: '30' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Vault Room' }))
+
+    expect(onAllocateMix).toHaveBeenCalledWith('mix-1', { toDepartment: 'vault_room', weight: 30 })
+    const toast = await screen.findByRole('status')
+    expect(toast.textContent).toMatch(/Split 30 g → Vault Room as AMX-1A/)
+    expect(toast.textContent).toMatch(/AMX-1 keeps 50 g/)
+  })
 })

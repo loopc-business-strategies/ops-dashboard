@@ -28,6 +28,8 @@ jobs:
       SMOKE_WAIT_SECONDS: ${{ vars.STAGING_SMOKE_WAIT_SECONDS || '180' }}
       SMOKE_REQUIRE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_AUTH || 'false' }}
       SMOKE_SKIP_FRONTEND: ${{ vars.STAGING_SMOKE_SKIP_FRONTEND || 'true' }}
+      # Guarded vault→melting→vault when auth + an open vault mix exist (soft-skips otherwise).
+      SMOKE_ALLOY_MIX_MUTATE: ${{ vars.STAGING_SMOKE_ALLOY_MIX_MUTATE || 'true' }}
       STAGING_SMOKE_REQUIRE_MOBILE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_MOBILE_AUTH || 'false' }}
 
     steps:
