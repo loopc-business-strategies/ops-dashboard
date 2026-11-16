@@ -70,7 +70,7 @@ export default function ProductionDashboardTab() {
     actions,
   } = useProductionDashboard()
   const vaultInventory = useVaultInventory()
-  const alloyMixJobs = useAlloyMixJobs({ enabled: tenantKey === 'mg' })
+  const alloyMixJobs = useAlloyMixJobs({ enabled: tenantKey === 'mg', tenantKey })
 
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})

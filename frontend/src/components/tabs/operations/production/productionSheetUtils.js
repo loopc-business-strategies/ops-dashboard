@@ -535,15 +535,23 @@ export function mapEntryToRow(entry) {
     fineGoldOut: toNumOrBlank(entry?.fineGoldOut),
   })
 
+  const source = String(entry?.source || 'manual').trim()
+  const alloyMixCode = String(entry?.alloyMixCode || '').trim().toUpperCase()
+  const batchNumber = String(entry?.batchNumber || '').trim()
+  const batchLabel = batchNumber || alloyMixCode || '—'
+
   return {
     ...figures,
     purityOut,
     id: entry?._id || entry?.id,
     deptKey,
-    fromFloor: entry?.source === 'mg_floor' || entry?.source === 'gold_alloy',
+    source,
+    fromFloor: source === 'mg_floor' || source === 'gold_alloy',
+    fromGoldAlloy: source === 'gold_alloy',
+    alloyMixCode,
     employee: String(entry?.employeeName || '').trim() || '—',
     departmentManager: String(entry?.departmentManagerName || '').trim() || '—',
-    batch: String(entry?.batchNumber || '').trim() || '—',
+    batch: batchLabel,
     title: '—',
     metalIn: inn,
     metalOut: out,

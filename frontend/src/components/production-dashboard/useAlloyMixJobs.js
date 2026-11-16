@@ -1,15 +1,41 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { inventoryApi } from '../../api/erp-accounting/inventory'
+import { subscribeRealtimeEvents } from '../../utils/realtimeEventsBus'
 
 /** Open alloy mixes for Production Dashboard dept cards (MG). */
 const MIX_JOBS_REFRESH_MS = 60000
+const REALTIME_DEBOUNCE_MS = 350
 
-export function useAlloyMixJobs({ enabled = true } = {}) {
+export function useAlloyMixJobs({ enabled = true, tenantKey = 'mg' } = {}) {
   const { token } = useAuth()
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const softTimerRef = useRef(null)
+
+  const load = useCallback((opts = {}) => {
+    const soft = Boolean(opts.soft)
+    if (!token) {
+      setJobs([])
+      setLoading(false)
+      setError('')
+      return Promise.resolve()
+    }
+    if (!soft) setLoading(true)
+    return inventoryApi.listAlloyMixJobs(token, {})
+      .then((data) => {
+        setJobs(Array.isArray(data?.jobs) ? data.jobs : [])
+        setError('')
+      })
+      .catch((err) => {
+        setJobs([])
+        setError(err?.response?.data?.message || 'Could not load alloy mixes')
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [token])
 
   useEffect(() => {
     if (!enabled || !token) {
@@ -19,32 +45,33 @@ export function useAlloyMixJobs({ enabled = true } = {}) {
       return undefined
     }
     let cancelled = false
-
-    const load = () => {
-      setLoading(true)
-      inventoryApi.listAlloyMixJobs(token, {})
-        .then((data) => {
-          if (cancelled) return
-          setJobs(Array.isArray(data?.jobs) ? data.jobs : [])
-          setError('')
-        })
-        .catch((err) => {
-          if (cancelled) return
-          setJobs([])
-          setError(err?.response?.data?.message || 'Could not load alloy mixes')
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false)
-        })
-    }
-
-    load()
-    const id = setInterval(load, MIX_JOBS_REFRESH_MS)
+    load().finally(() => {
+      if (cancelled) return
+    })
+    const id = setInterval(() => {
+      if (!cancelled) load({ soft: true })
+    }, MIX_JOBS_REFRESH_MS)
     return () => {
       cancelled = true
       clearInterval(id)
     }
-  }, [token, enabled])
+  }, [token, enabled, load])
+
+  // Floor allocate / ERP post mix emit production:update — refresh Mix Jobs immediately.
+  useEffect(() => {
+    if (!enabled || !token || !tenantKey) return undefined
+    const unsubscribe = subscribeRealtimeEvents(tenantKey, 'production:update', () => {
+      if (softTimerRef.current) clearTimeout(softTimerRef.current)
+      softTimerRef.current = setTimeout(() => {
+        softTimerRef.current = null
+        load({ soft: true })
+      }, REALTIME_DEBOUNCE_MS)
+    })
+    return () => {
+      unsubscribe()
+      if (softTimerRef.current) clearTimeout(softTimerRef.current)
+    }
+  }, [enabled, token, tenantKey, load])
 
   const byDepartment = useMemo(() => {
     const map = {}
@@ -57,5 +84,5 @@ export function useAlloyMixJobs({ enabled = true } = {}) {
     return map
   }, [jobs])
 
-  return { jobs, byDepartment, loading, error }
+  return { jobs, byDepartment, loading, error, refresh: load }
 }

@@ -62,6 +62,41 @@ describe('Production workbook purity and MG Floor rows', () => {
     expect(rowToEntryPayload(manual, 'melting')).toMatchObject({ purity: 93.48, metalIn: 1330.7, departmentKey: 'melting' })
   })
 
+  test('Gold Alloy rows map mix code and Gold Alloy flags', () => {
+    const row = mapEntryToRow({
+      ...floorEntry,
+      source: 'gold_alloy',
+      batchNumber: 'AMX-261116-0001',
+      alloyMixCode: 'AMX-261116-0001',
+    })
+    expect(row).toMatchObject({
+      fromFloor: true,
+      fromGoldAlloy: true,
+      alloyMixCode: 'AMX-261116-0001',
+      batch: 'AMX-261116-0001',
+    })
+  })
+
+  test('table shows the Gold Alloy badge for gold_alloy source rows', () => {
+    const row = mapEntryToRow({
+      ...floorEntry,
+      source: 'gold_alloy',
+      batchNumber: 'AMX-261116-0001',
+      alloyMixCode: 'AMX-261116-0001',
+    })
+    render(
+      <DepartmentTable
+        rows={[row]}
+        editable
+        onSaveRow={vi.fn()}
+        onDeleteRow={() => {}}
+        onAddRow={() => {}}
+      />,
+    )
+    expect(screen.getByText('Gold Alloy')).toBeTruthy()
+    expect(screen.getByText('AMX-261116-0001')).toBeTruthy()
+  })
+
   test('table shows the MG Floor badge, blocks delete and keeps metal read-only while editing', () => {
     const onSaveRow = vi.fn()
     const onDeleteRow = vi.fn()

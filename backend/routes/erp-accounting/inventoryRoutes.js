@@ -95,6 +95,24 @@ function pickStockMovementCurrencyCandidate({
   ).trim().toUpperCase() || base
 }
 
+function emitAlloyMixProductionUpdate(req, event, payload = {}) {
+  try {
+    const tenant = String(req.tenant || 'mg').trim().toLowerCase() || 'mg'
+    const rt = req.app?.get?.('realtimeServer')
+    if (rt && typeof rt.broadcastProductionUpdate === 'function') {
+      rt.broadcastProductionUpdate(tenant, event, payload)
+    }
+    const { publishRealtimeEvent } = require('../../utils/realtimeBus')
+    publishRealtimeEvent({
+      type: 'production:update',
+      tenant,
+      data: { event, ...payload },
+    })
+  } catch (err) {
+    console.warn('[inventory] alloy-mix realtime emit failed', err?.message || err)
+  }
+}
+
 function registerInventoryRoutes(deps) {
   const {
     router,
@@ -437,6 +455,10 @@ function registerInventoryRoutes(deps) {
         lines: req.body.lines,
         description: req.body.description,
       })
+      emitAlloyMixProductionUpdate(req, 'alloy-mix-post', {
+        mixCode: result?.mixJob?.mixCode || null,
+        department: result?.mixJob?.currentDepartment || 'vault_room',
+      })
       res.status(201).json(result)
     } catch (error) {
       respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix' })
@@ -452,6 +474,9 @@ function registerInventoryRoutes(deps) {
         user: req.user,
         tenant: req.tenant,
         reason: req.body.reason,
+      })
+      emitAlloyMixProductionUpdate(req, 'alloy-mix-reverse', {
+        mixCode: result?.mixJobClosed || null,
       })
       res.json(result)
     } catch (error) {
@@ -499,7 +524,13 @@ function registerInventoryRoutes(deps) {
           weight: req.body.weight,
           session,
         }))
-        res.json({ success: true, ...serializeAllocateResult(result) })
+        const payload = serializeAllocateResult(result)
+        emitAlloyMixProductionUpdate(req, 'alloy-mix-allocate', {
+          mixCode: payload.job?.mixCode || null,
+          department: payload.job?.currentDepartment || null,
+          partial: payload.partial,
+        })
+        res.json({ success: true, ...payload })
       } catch (error) {
         respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/jobs/allocate' })
       }

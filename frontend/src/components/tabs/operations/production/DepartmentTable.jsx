@@ -120,6 +120,13 @@ const floorBadge = {
   fontWeight: 800,
 }
 
+const alloyBadge = {
+  ...floorBadge,
+  background: '#FFFBEB',
+  border: '1px solid #F59E0B',
+  color: '#92400E',
+}
+
 const totalTd = {
   ...tdBase,
   position: 'sticky',
@@ -198,6 +205,15 @@ function cellDisplay(row, key, lossLimitPct = null) {
   if (key === 'lossPct') return lossPctCell(row.lossPct, lossLimitPct)
   if (key === 'fineLoss') return fineLossCell(row.fineLoss)
   if (key === 'batch' && row.fromFloor) {
+    if (row.fromGoldAlloy) {
+      const mixLabel = row.alloyMixCode || row.batch || '—'
+      return (
+        <span title={`Gold Alloy mix ${mixLabel} — metal fields are read-only`}>
+          {mixLabel}
+          <span style={alloyBadge}>Gold Alloy</span>
+        </span>
+      )
+    }
     return (
       <span title="From an approved MG Floor batch — metal, times and names are read-only">
         {row.batch ?? '—'}
