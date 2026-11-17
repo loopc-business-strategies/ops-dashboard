@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 import type { BatchEntryLine } from '@/src/api/batchEntries'
+import { formatBatchTotalLabel, sumBatchLineQty } from './batchEntryMapping'
 import { IdleFade } from './IdleFade'
 
 export type MetalLineEdit = {
@@ -49,7 +50,8 @@ type Props = {
 const LINE_HEIGHT = 30
 const STATUS_ROW_HEIGHT = 26
 const BATCH_BORDER = 1
-const METAL_IN_LINES = 2
+/** Room for Gold / Alloy / Silver / Copper (or mix product lines) across two batches. */
+const METAL_IN_LINES = 4
 const LIST_HEIGHT = 2 * (METAL_IN_LINES * LINE_HEIGHT + STATUS_ROW_HEIGHT + BATCH_BORDER)
 
 const TONES: Record<BatchStatusTone, { bg: string; fg: string }> = {
@@ -125,6 +127,7 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact, idle = f
           ) : null}
           {rows.map((row) => {
             const tone = row.status ? TONES[row.status.tone] : null
+            const totalLabel = formatBatchTotalLabel(sumBatchLineQty(row.lines))
             return (
               <View key={`${row.entryDate}|${row.batchLabel}`} style={styles.batchBlock}>
                 <View style={styles.batchGroup}>
@@ -135,6 +138,11 @@ export function MetalProcessPanel({ title, rows, onAdd, onFix, compact, idle = f
                     >
                       {row.batchLabel}
                     </Text>
+                    {totalLabel ? (
+                      <Text style={styles.batchTotal} numberOfLines={1}>
+                        {totalLabel}
+                      </Text>
+                    ) : null}
                     {row.dayTag ? (
                       <Text style={styles.dayTag} numberOfLines={1} adjustsFontSizeToFit>
                         {row.dayTag}
@@ -321,6 +329,15 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   batchTextCompact: { fontSize: 10, lineHeight: 12 },
+  batchTotal: {
+    color: td.orange,
+    fontWeight: '800',
+    fontSize: 10,
+    lineHeight: 12,
+    marginTop: 2,
+    textAlign: 'center',
+    paddingHorizontal: 2,
+  },
   dayTag: { color: td.orange, fontWeight: '700', fontSize: 9, marginTop: 1, paddingHorizontal: 2 },
   batchLines: { flex: 1, minWidth: 0 },
   lineRow: {

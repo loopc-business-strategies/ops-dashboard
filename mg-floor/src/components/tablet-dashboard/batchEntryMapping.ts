@@ -115,7 +115,8 @@ export function stateFromEntry(entry: BatchEntryRow): BatchApprovalState {
 
 /** Metals offered in the Metal In / Out popup; the backend keeps up to 8 lines per batch. */
 export const METAL_OPTIONS = ['Gold', 'Alloy', 'Silver', 'Copper', 'Platinum', 'Palladium']
-export const DEFAULT_METALS = ['Gold', 'Alloy']
+/** Metal In always starts with gold / alloy / silver / copper rows. */
+export const DEFAULT_METALS = ['Gold', 'Alloy', 'Silver', 'Copper']
 export const MAX_BATCH_LINES = 8
 
 /** Alloy is added when metal goes in, so Metal Out never asks for it. */
@@ -127,6 +128,41 @@ export function metalOptionsFor(direction: BatchDirection) {
 
 export function defaultMetalsFor(direction: BatchDirection) {
   return direction === 'OUT' ? DEFAULT_METALS.filter((m) => !IN_ONLY_METALS.includes(m)) : DEFAULT_METALS
+}
+
+/** Prefill Metal In/Out from Post Mix Inputs (OUT) product + grams. */
+export function linesFromMixInputComponents(
+  components: Array<{ name?: string; label?: string; gross?: number }> | null | undefined,
+): BatchEntryLine[] {
+  if (!Array.isArray(components) || !components.length) return []
+  return components
+    .map((row) => {
+      const metal = String(row?.name || row?.label || '').trim()
+      const qty = Number(row?.gross)
+      if (!metal || !(qty > 0)) return null
+      return {
+        metal,
+        qty: Math.round(qty * 1000) / 1000,
+        purity: null,
+        time: '',
+      } satisfies BatchEntryLine
+    })
+    .filter((row): row is BatchEntryLine => Boolean(row))
+}
+
+/** Sum of Metal In / Out line quantities (grams). */
+export function sumBatchLineQty(lines: Array<{ qty?: number | null }> | null | undefined): number {
+  if (!Array.isArray(lines) || !lines.length) return 0
+  return Math.round(
+    lines.reduce((sum, row) => sum + (Number(row?.qty) || 0), 0) * 1000,
+  ) / 1000
+}
+
+/** e.g. 256 → "256 g total" */
+export function formatBatchTotalLabel(grams: number | null | undefined): string {
+  const n = Number(grams)
+  if (!Number.isFinite(n) || !(n > 0)) return ''
+  return `${Math.round(n * 1000) / 1000} g total`
 }
 
 /** A batch number on the day it belongs to. */
@@ -220,10 +256,23 @@ export function metalOutChoices(metalIn: BatchChoice[], metalOut: BatchChoice[],
 }
 
 /**
- * The direction's default metals always first (Gold and Alloy for Metal In, Gold for Metal Out),
- * empty when not sent, then any other metals that were sent.
+ * The direction's default metals always first (Gold/Alloy/Silver/Copper for Metal In,
+ * Gold/Silver/Copper for Metal Out), empty when not sent, then any other metals that were sent.
+ * When `preferSeedOnly` is set (alloy mix product lines), show those rows as-is.
  */
-export function withDefaultMetals(lines: BatchEntryLine[] = [], direction: BatchDirection = 'IN'): BatchEntryLine[] {
+export function withDefaultMetals(
+  lines: BatchEntryLine[] = [],
+  direction: BatchDirection = 'IN',
+  preferSeedOnly = false,
+): BatchEntryLine[] {
+  if (preferSeedOnly && lines.length) {
+    return lines.map((l) => ({
+      metal: l.metal,
+      qty: l.qty ?? null,
+      purity: l.purity ?? null,
+      time: l.time || '',
+    }))
+  }
   const defaultMetals = defaultMetalsFor(direction)
   const defaults = defaultMetals.map(
     (metal) => lines.find((l) => l.metal === metal) || { metal, qty: null, purity: null, time: '' },
@@ -236,11 +285,12 @@ export function editableBatch(
   { entryDate, batchLabel }: BatchChoice,
   lines?: BatchEntryLine[],
   direction: BatchDirection = 'IN',
+  opts: { preferSeedOnly?: boolean } = {},
 ): MetalBatchEdit {
   return {
     batchLabel,
     entryDate,
-    lines: withDefaultMetals(lines, direction).map((l) => ({
+    lines: withDefaultMetals(lines, direction, Boolean(opts.preferSeedOnly)).map((l) => ({
       metal: l.metal,
       qty: show(l.qty),
       purity: show(l.purity),

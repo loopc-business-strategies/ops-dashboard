@@ -11,14 +11,25 @@ import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyb
 import { tabletDashboard as td } from '@/src/theme'
 import { PURITY_MAX_LENGTH, QTY_MAX_LENGTH, cleanNumberInput } from './fieldInput'
 import type { BatchEntryLine } from '@/src/api/batchEntries'
-import { MAX_BATCH_LINES, METAL_OPTIONS, clockNow, dayTag, localDateKey, type BatchChoice } from './batchEntryMapping'
+import {
+  MAX_BATCH_LINES,
+  METAL_OPTIONS,
+  clockNow,
+  dayTag,
+  editableBatch,
+  formatBatchTotalLabel,
+  localDateKey,
+  type BatchChoice,
+} from './batchEntryMapping'
 import { checkMetalOut, type MetalOutCheck } from './batchLoss'
 import type { MetalBatchEdit, MetalLineEdit } from './MetalProcessPanel'
 import { formatGrams, formatPct } from './statsFormat'
+import type { BatchDirection } from '@/src/api/batchEntries'
 
 type Props = {
   visible: boolean
   title: string
+  direction?: BatchDirection
   /** Batches to choose from; a single entry is shown without a choice. */
   batchOptions: BatchChoice[]
   /** Starting rows (default metals, or the rejected batch being fixed). */
@@ -35,6 +46,9 @@ type Props = {
   onClose: () => void
   /** Metal Out only: the chosen batch's Metal In lines (null when it has none) for the live loss check. */
   metalInFor?: (choice: BatchChoice) => BatchEntryLine[] | null
+  /** Prefill when the batch chip changes (alloy mix inputs / Metal In lines). */
+  resolveLines?: (choice: BatchChoice) => { lines?: BatchEntryLine[]; preferSeedOnly?: boolean } | null
+  fixing?: boolean
   lossLimitPct?: number | null
 }
 
@@ -96,6 +110,7 @@ function LossCheck({ check, batchLabel, lossLimitPct }: { check: MetalOutCheck |
 export function MetalEntryModal({
   visible,
   title,
+  direction = 'IN',
   batchOptions,
   initial,
   metalOptions = METAL_OPTIONS,
@@ -105,6 +120,8 @@ export function MetalEntryModal({
   onSend,
   onClose,
   metalInFor,
+  resolveLines,
+  fixing = false,
   lossLimitPct = null,
 }: Props) {
   const [choice, setChoice] = useState<BatchChoice>(() => choiceOf(initial))
@@ -150,6 +167,17 @@ export function MetalEntryModal({
     }
   }, [visible, batchOptions, choice])
 
+  useEffect(() => {
+    if (!visible || fixing || !resolveLines) return
+    if (sameChoice(choice, choiceOf(initial))) return
+    const resolved = resolveLines(choice)
+    setLines(
+      editableBatch(choice, resolved?.lines, direction, {
+        preferSeedOnly: Boolean(resolved?.preferSeedOnly),
+      }).lines,
+    )
+  }, [visible, fixing, resolveLines, choice, direction, initial])
+
   const setField = (idx: number, key: keyof MetalLineEdit, value: string) =>
     setLines((current) => current.map((line, i) => (i === idx ? { ...line, [key]: value } : line)))
 
@@ -185,6 +213,9 @@ export function MetalEntryModal({
   }
 
   const sendDisabled = !canSend || busy || (pickSender && !effectiveSender)
+  const linesTotal = formatBatchTotalLabel(
+    lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0),
+  )
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -193,7 +224,12 @@ export function MetalEntryModal({
         <View style={styles.sheet}>
           <View style={styles.titleBar}>
             <Text style={styles.title}>{title}</Text>
-            {batchOptions.length <= 1 ? <Text style={styles.batchBadge}>{choiceTitle(choice)}</Text> : null}
+            {batchOptions.length <= 1 ? (
+              <View style={styles.batchBadgeWrap}>
+                <Text style={styles.batchBadge}>{choiceTitle(choice)}</Text>
+                {linesTotal ? <Text style={styles.batchTotalBadge}>{linesTotal}</Text> : null}
+              </View>
+            ) : null}
           </View>
           <KeyboardAwareScrollView
             keyboardShouldPersistTaps="handled"
@@ -242,6 +278,7 @@ export function MetalEntryModal({
                     )
                   })}
                 </View>
+                {linesTotal ? <Text style={styles.batchTotalInline}>{linesTotal}</Text> : null}
               </View>
             ) : null}
 
@@ -387,6 +424,7 @@ const styles = StyleSheet.create({
   },
   titleBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   title: { color: td.text, fontWeight: '800', fontSize: 20 },
+  batchBadgeWrap: { alignItems: 'flex-end', gap: 2 },
   batchBadge: {
     color: td.orange,
     fontWeight: '800',
@@ -396,6 +434,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     overflow: 'hidden',
+  },
+  batchTotalBadge: {
+    color: '#9A3412',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  batchTotalInline: {
+    marginTop: 8,
+    color: '#9A3412',
+    fontWeight: '800',
+    fontSize: 14,
   },
   content: { paddingBottom: 4 },
   batchPick: { marginBottom: 12 },

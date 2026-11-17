@@ -6,6 +6,7 @@ import {
   carriedOverEntries,
   dayTag,
   editableBatch,
+  formatBatchTotalLabel,
   latestEntries,
   localDateKey,
   metalInChoices,
@@ -15,6 +16,7 @@ import {
   prepareBatchLines,
   previousDateKey,
   sentBatchesFor,
+  sumBatchLineQty,
   withDefaultMetals,
 } from './batchEntryMapping'
 import type { MetalBatchEdit } from './MetalProcessPanel'
@@ -147,40 +149,72 @@ describe('batch numbers', () => {
     expect(nextBatchLabel(['A', '2'])).toBe('3')
   })
 
-  it('starts the popup with Gold and Alloy, or the lines of the batch being fixed', () => {
+  it('starts the popup with Gold, Alloy, Silver, Copper, or the lines of the batch being fixed', () => {
     expect(editableBatch({ entryDate: D1, batchLabel: '4' })).toEqual({
       batchLabel: '4',
       entryDate: D1,
       lines: [
         { metal: 'Gold', qty: '', purity: '', time: '' },
         { metal: 'Alloy', qty: '', purity: '', time: '' },
+        { metal: 'Silver', qty: '', purity: '', time: '' },
+        { metal: 'Copper', qty: '', purity: '', time: '' },
       ],
     })
     expect(editableBatch({ entryDate: D1, batchLabel: '2' }, [{ metal: 'Silver', qty: 12.5, purity: null, time: '09:10' }]).lines).toEqual([
       { metal: 'Gold', qty: '', purity: '', time: '' },
       { metal: 'Alloy', qty: '', purity: '', time: '' },
       { metal: 'Silver', qty: '12.5', purity: '', time: '09:10' },
+      { metal: 'Copper', qty: '', purity: '', time: '' },
     ])
   })
 
-  it('Metal Out starts with Gold only and never offers Alloy', () => {
+  it('Metal Out starts with Gold, Silver, Copper and never offers Alloy', () => {
     expect(editableBatch({ entryDate: D1, batchLabel: '4' }, undefined, 'OUT').lines).toEqual([
       { metal: 'Gold', qty: '', purity: '', time: '' },
+      { metal: 'Silver', qty: '', purity: '', time: '' },
+      { metal: 'Copper', qty: '', purity: '', time: '' },
     ])
     expect(metalOptionsFor('OUT')).not.toContain('Alloy')
     expect(metalOptionsFor('IN')).toContain('Alloy')
     const copper = { metal: 'Copper', qty: 5, purity: null, time: '00:03' }
-    expect(withDefaultMetals([copper], 'OUT')).toEqual([{ metal: 'Gold', qty: null, purity: null, time: '' }, copper])
+    expect(withDefaultMetals([copper], 'OUT')).toEqual([
+      { metal: 'Gold', qty: null, purity: null, time: '' },
+      { metal: 'Silver', qty: null, purity: null, time: '' },
+      copper,
+    ])
   })
 
-  it('always lists Gold and Alloy first, keeping sent values and extra metals', () => {
+  it('always lists Gold, Alloy, Silver, Copper first, keeping sent values and extra metals', () => {
     const gold = { metal: 'Gold', qty: 480, purity: null, time: '00:03' }
     const copper = { metal: 'Copper', qty: 5, purity: null, time: '00:03' }
     expect(withDefaultMetals([copper, gold])).toEqual([
       gold,
       { metal: 'Alloy', qty: null, purity: null, time: '' },
+      { metal: 'Silver', qty: null, purity: null, time: '' },
       copper,
     ])
+  })
+
+  it('prefers alloy mix product lines as-is when seeding Metal In', () => {
+    const mixLines = [
+      { metal: 'Gold 24K Bar', qty: 199.05, purity: null, time: '' },
+      { metal: 'silver pure', qty: 47.12, purity: null, time: '' },
+      { metal: 'pure copper', qty: 19.23, purity: null, time: '' },
+    ]
+    expect(editableBatch({ entryDate: D1, batchLabel: 'AMX-1' }, mixLines, 'IN', { preferSeedOnly: true }).lines).toEqual([
+      { metal: 'Gold 24K Bar', qty: '199.05', purity: '', time: '' },
+      { metal: 'silver pure', qty: '47.12', purity: '', time: '' },
+      { metal: 'pure copper', qty: '19.23', purity: '', time: '' },
+    ])
+  })
+
+  it('sums line qty into a total label under the batch', () => {
+    expect(sumBatchLineQty([
+      { qty: 199.05 },
+      { qty: 47.12 },
+      { qty: 19.23 },
+    ])).toBe(265.4)
+    expect(formatBatchTotalLabel(265.4)).toBe('265.4 g total')
   })
 })
 
