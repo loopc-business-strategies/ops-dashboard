@@ -206,25 +206,6 @@ export function resolveBreakEvenPricePerGram(ledgerNet, valuationGrams) {
   return Number.isFinite(price) && price > 0 ? price : null
 }
 
-function summarizeMetalDealRows(rows) {
-  return rows.reduce((acc, row) => {
-    if (row.dealSide === 'sale') {
-      acc.saleCount += 1
-      acc.saleAmount += row.amount
-    }
-    if (row.dealSide === 'purchase') {
-      acc.purchaseCount += 1
-      acc.purchaseAmount += row.amount
-    }
-    return acc
-  }, {
-    saleCount: 0,
-    purchaseCount: 0,
-    saleAmount: 0,
-    purchaseAmount: 0,
-  })
-}
-
 /** Cash on Hand statement keeps real cash movements; FX gain/loss posts stay off the grid. */
 const STRICT_CASH_STATEMENT_TYPES = new Set([
   'payment',
@@ -633,11 +614,7 @@ export function useAccountEnquiryStatement({
     })
     .filter(Boolean)
 
-  const fixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'fixed')
   const unfixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unfixed' && entry.openWeight > 0.000001)
-  const unknownFixMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unknown')
-  const fixedMetalSummary = summarizeMetalDealRows(fixedMetalEntries)
-  const unfixedMetalSummary = summarizeMetalDealRows(unfixedMetalEntries)
 
   const formatStatementDate = (value) => {
     if (!value) return '-'
@@ -678,9 +655,6 @@ export function useAccountEnquiryStatement({
     formatStatementDate,
     recentPaymentReceiptEntry,
     unfixedMetalEntries,
-    fixedMetalSummary,
-    unfixedMetalSummary,
-    unknownFixMetalEntries,
     modalTotalFundsDisplay: modalTotalFundsInDisplayCurrency,
     modalRevaluationDisplay,
     modalNetEquityDisplay,
