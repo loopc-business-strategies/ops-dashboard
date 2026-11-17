@@ -331,4 +331,68 @@ describe('alloy mix floor bridge', () => {
     }).lean()
     expect(openJobs).toHaveLength(0)
   })
+
+  test('FM approve of seeded AMX Metal In does not create a second Melting Ops Metal IN', async () => {
+    const { applyApprovedEntryToWorkbook } = require('../services/mgFloor/workbookLink')
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const result = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+      ],
+    })
+    const mixCode = result.mixJob.mixCode
+    await allocateMixJob({ user, mixId: result.mixJob.id, toDepartment: 'melting' })
+    const { metalInEntry } = await receiveMixJob({
+      user,
+      mixId: result.mixJob.id,
+      decision: 'APPROVED',
+      actorDepartment: 'melting',
+    })
+    expect(metalInEntry).toBeTruthy()
+    expect(metalInEntry.status).toBe('PENDING')
+
+    const meltingBefore = await OperationsProductionEntry.find({
+      departmentKey: 'melting',
+      alloyMixCode: mixCode,
+      metalIn: { $ne: null },
+    }).lean()
+    expect(meltingBefore).toHaveLength(1)
+    expect(meltingBefore[0].source).toBe('gold_alloy')
+    expect(Number(meltingBefore[0].metalIn)).toBe(80)
+
+    const approved = {
+      ...metalInEntry,
+      status: 'APPROVED',
+      decidedByName: 'Floor Manager',
+      decidedById: user._id,
+      entryId: metalInEntry.entryId,
+    }
+    const linked = await applyApprovedEntryToWorkbook(approved)
+    expect(linked).toBeTruthy()
+    expect(linked.source).toBe('gold_alloy')
+    expect(linked.floorInEntryId).toBe(metalInEntry.entryId)
+
+    const meltingAfter = await OperationsProductionEntry.find({
+      departmentKey: 'melting',
+      $or: [
+        { alloyMixCode: mixCode },
+        { batchNumber: mixCode },
+        { floorBatchKey: { $regex: mixCode } },
+      ],
+      metalIn: { $ne: null },
+    }).lean()
+    expect(meltingAfter).toHaveLength(1)
+    expect(meltingAfter[0].source).toBe('gold_alloy')
+    expect(Number(meltingAfter[0].metalIn)).toBe(80)
+    expect(meltingAfter.every((r) => r.source !== 'mg_floor')).toBe(true)
+
+    const totalMetalIn = meltingAfter.reduce((s, r) => s + Number(r.metalIn || 0), 0)
+    expect(totalMetalIn).toBe(80)
+  })
 })
