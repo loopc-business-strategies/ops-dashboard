@@ -45,9 +45,6 @@ export default function AccountEnquiryModal({
   formatDirectionalBalance,
   unfixedMetalEntries,
   formatStatementDate,
-  fixedMetalSummary,
-  unfixedMetalSummary,
-  unknownFixMetalEntries,
   modalTotalFundsDisplay,
   modalRevaluationDisplay,
   modalNetEquityDisplay,
@@ -302,10 +299,10 @@ export default function AccountEnquiryModal({
                 </div>
               ) : (
                 <>
-                  {/* 2-Column Layout */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                  {/* 2-Column Layout: account + position (left) align with totals (right) on one top line */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
                     {/* LEFT COLUMN - Account Details Box with Position Table */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
                       {/* Account Details Panel */}
                       <div style={{ border: `2px solid ${AS.cardBorder}`, borderRadius: '0.6rem', background: AS.cardBg, padding: '1rem', position: 'relative' }}>
                         <div style={{ borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
@@ -435,32 +432,9 @@ export default function AccountEnquiryModal({
                           </table>
                         </div>
                       </div>
-                      <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', background: '#F8FAFC', padding: '0.85rem 0.95rem' }}>
-                        <p style={{ margin: 0, color: '#111827', fontWeight: '800', fontSize: '0.92rem' }}>Fixing / Unfixing Metal Sales & Purchases</p>
-                        <p style={{ margin: '0.3rem 0 0', color: '#475569', fontSize: '0.8rem', lineHeight: 1.45 }}>
-                          Fixed means price locked and finalized. Unfixed means price is still pending; those flows are included in the Position balance and listed above under unfixed activity.
-                        </p>
-                        <div style={{ marginTop: '0.65rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
-                          <div style={{ border: '1px solid #BBF7D0', background: '#ECFDF5', borderRadius: '0.45rem', padding: '0.55rem' }}>
-                            <p style={{ margin: 0, color: '#166534', fontWeight: '800', fontSize: '0.8rem' }}>Fixed</p>
-                            <p style={{ margin: '0.2rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Sales: {fixedMetalSummary.saleCount} ({formatStatementValue(convertStatementDisplayAmount(fixedMetalSummary.saleAmount), 2)})</p>
-                            <p style={{ margin: '0.15rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Purchases: {fixedMetalSummary.purchaseCount} ({formatStatementValue(convertStatementDisplayAmount(fixedMetalSummary.purchaseAmount), 2)})</p>
-                          </div>
-                          <div style={{ border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: '0.45rem', padding: '0.55rem' }}>
-                            <p style={{ margin: 0, color: '#92400E', fontWeight: '800', fontSize: '0.8rem' }}>Unfixed</p>
-                            <p style={{ margin: '0.2rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Sales: {unfixedMetalSummary.saleCount} ({formatStatementValue(convertStatementDisplayAmount(unfixedMetalSummary.saleAmount), 2)})</p>
-                            <p style={{ margin: '0.15rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Purchases: {unfixedMetalSummary.purchaseCount} ({formatStatementValue(convertStatementDisplayAmount(unfixedMetalSummary.purchaseAmount), 2)})</p>
-                          </div>
-                        </div>
-                        {unknownFixMetalEntries.length > 0 && (
-                          <p style={{ margin: '0.55rem 0 0', color: '#6B7280', fontSize: '0.75rem' }}>
-                            {unknownFixMetalEntries.length} metal sale/purchase entries are missing explicit fixing keywords.
-                          </p>
-                        )}
-                      </div>
                     </div>
-                    {/* RIGHT COLUMN - Financial Metrics */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB' }}>
+                    {/* RIGHT COLUMN - Financial Metrics (same top line as account name card) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB', alignSelf: 'start' }}>
                       {enquiryLiveRecalcEnabled && hasMetalExposure && (
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.15rem' }}>
                           <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#059669', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Live MTM</span>
@@ -572,8 +546,8 @@ export default function AccountEnquiryModal({
                       </p>
                     </div>
                   </div>
-                  {/* Full Statement Table */}
-                  <div style={{ marginTop: '1.25rem', border: '1px solid #CBD5E0', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
+                  {/* Full Statement Table — sits closer after removing Fixing/Unfixing card */}
+                  <div style={{ marginTop: '0.75rem', border: '1px solid #CBD5E0', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
                     <div style={{ padding: '0.85rem 1rem', background: AS.softPanelBg, borderBottom: `1px solid ${AS.softPanelBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                       <div>
                         <p style={{ margin: 0, fontSize: '0.95rem', color: '#111827', fontWeight: '800' }}>Full Statement of Account</p>

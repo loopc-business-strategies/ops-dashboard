@@ -38,9 +38,6 @@ export default function ERPTabModals({
   formatDirectionalBalance,
   unfixedMetalEntries,
   formatStatementDate,
-  fixedMetalSummary,
-  unfixedMetalSummary,
-  unknownFixMetalEntries,
   modalTotalFundsDisplay,
   modalRevaluationDisplay,
   modalNetEquityDisplay,
@@ -132,9 +129,6 @@ export default function ERPTabModals({
         formatDirectionalBalance={formatDirectionalBalance}
         unfixedMetalEntries={unfixedMetalEntries}
         formatStatementDate={formatStatementDate}
-        fixedMetalSummary={fixedMetalSummary}
-        unfixedMetalSummary={unfixedMetalSummary}
-        unknownFixMetalEntries={unknownFixMetalEntries}
         modalTotalFundsDisplay={modalTotalFundsDisplay}
         modalRevaluationDisplay={modalRevaluationDisplay}
         modalNetEquityDisplay={modalNetEquityDisplay}
