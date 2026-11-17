@@ -1,5 +1,23 @@
 /** Pure allocate helpers shared by AlloyMixPanel UI + unit tests. */
 
+export function roundGrams(n: number) {
+  return Math.round(Number(n || 0) * 1000) / 1000
+}
+
+/** e.g. 256 → "256 g total" */
+export function formatTotalGramsLabel(grams: number | null | undefined): string {
+  const n = Number(grams)
+  if (!Number.isFinite(n) || !(n > 0)) return ''
+  return `${roundGrams(n)} g total`
+}
+
+export function sumInputComponentGrams(
+  components: Array<{ gross?: number }> | null | undefined,
+): number {
+  if (!Array.isArray(components) || !components.length) return 0
+  return roundGrams(components.reduce((sum, row) => sum + (Number(row?.gross) || 0), 0))
+}
+
 export function formatInputComponents(
   components: Array<{ name?: string; label?: string; gross?: number }> | null | undefined,
 ): string {
@@ -9,8 +27,7 @@ export function formatInputComponents(
       const name = String(row?.name || row?.label || '').trim()
       const gross = Number(row?.gross)
       if (!name || !(gross > 0)) return ''
-      const g = Math.round(gross * 1000) / 1000
-      return `${name}: ${g} g`
+      return `${name}: ${roundGrams(gross)} g`
     })
     .filter(Boolean)
     .join(' · ')

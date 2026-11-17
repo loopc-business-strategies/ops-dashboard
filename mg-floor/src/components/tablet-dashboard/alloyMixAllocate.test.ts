@@ -3,7 +3,9 @@ import {
   buildAllocateWeightPayload,
   formatAllocateSuccess,
   formatInputComponents,
+  formatTotalGramsLabel,
   resolveAllocateWeight,
+  sumInputComponentGrams,
 } from './alloyMixAllocate'
 
 describe('formatInputComponents', () => {
@@ -18,6 +20,18 @@ describe('formatInputComponents', () => {
   it('returns empty for missing or zero rows', () => {
     expect(formatInputComponents(null)).toBe('')
     expect(formatInputComponents([{ name: 'x', gross: 0 }])).toBe('')
+  })
+})
+
+describe('formatTotalGramsLabel', () => {
+  it('sums inputs and labels total grams', () => {
+    expect(formatTotalGramsLabel(256)).toBe('256 g total')
+    expect(formatTotalGramsLabel(sumInputComponentGrams([
+      { gross: 199.05 },
+      { gross: 47.12 },
+      { gross: 19.23 },
+    ]))).toBe('265.4 g total')
+    expect(formatTotalGramsLabel(0)).toBe('')
   })
 })
 

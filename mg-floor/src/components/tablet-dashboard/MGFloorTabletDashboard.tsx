@@ -27,6 +27,7 @@ import {
   batchStatusView,
   dayTag,
   editableBatch,
+  linesFromMixInputComponents,
   localDateKey,
   metalInChoices,
   metalOptionsFor,
@@ -68,7 +69,8 @@ function panelRows(batches: SentBatch[], direction: BatchDirection): MetalPanelR
     batchLabel: b.batchLabel,
     entryDate: b.entryDate,
     dayTag: dayTag(b.entryDate),
-    lines: withDefaultMetals(b.lines, direction),
+    // Sent batches show exactly what was submitted (mix products), not empty Gold/Alloy defaults.
+    lines: b.lines?.length ? b.lines : withDefaultMetals([], direction),
     status: batchStatusView(b.state),
     canFix: b.state.status === 'REJECTED',
   }))
@@ -160,19 +162,38 @@ export function MGFloorTabletDashboard() {
       ? 'No floor department is assigned to your account. Ask an admin.'
       : undefined
 
-  const openNew = (direction: BatchDirection) => {
-    const choice = direction === 'IN'
-      ? nextInChoices[0]
-      : metalOutChoices(metalIn, metalOut, today)[0]
-    if (!choice) return
-    setEntryForm({ direction, initial: editableBatch(choice, undefined, direction), fixing: false })
-  }
+  const sameMixLabel = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase()
 
   const metalInLines = (choice: BatchChoice) => {
     const batch = metalIn.find(
       (b) => b.entryDate === choice.entryDate && b.batchLabel === choice.batchLabel && b.state.status !== 'REJECTED',
     )
     return batch ? batch.lines : null
+  }
+
+  /** Alloy mix product grams, or Metal In lines when closing Metal Out. */
+  const resolveLinesForChoice = (choice: BatchChoice, direction: BatchDirection) => {
+    if (direction === 'OUT') {
+      const inLines = metalInLines(choice)
+      if (inLines?.length) return { lines: inLines, preferSeedOnly: true }
+    }
+    const job = openMixJobs.find((j) => sameMixLabel(j.mixCode || j.batchNumber || '', choice.batchLabel))
+    const mixLines = linesFromMixInputComponents(job?.inputComponents)
+    if (mixLines.length) return { lines: mixLines, preferSeedOnly: true }
+    return { lines: undefined, preferSeedOnly: false }
+  }
+
+  const openNew = (direction: BatchDirection) => {
+    const choice = direction === 'IN'
+      ? nextInChoices[0]
+      : metalOutChoices(metalIn, metalOut, today)[0]
+    if (!choice) return
+    const seed = resolveLinesForChoice(choice, direction)
+    setEntryForm({
+      direction,
+      initial: editableBatch(choice, seed.lines, direction, { preferSeedOnly: seed.preferSeedOnly }),
+      fixing: false,
+    })
   }
 
   const openFix = (direction: BatchDirection, row: MetalPanelRow) => {
@@ -361,6 +382,7 @@ export function MGFloorTabletDashboard() {
         <MetalEntryModal
           visible
           title={entryForm.direction === 'IN' ? 'Metal In' : 'Metal Out'}
+          direction={entryForm.direction}
           batchOptions={batchOptions}
           initial={entryForm.initial}
           metalOptions={metalOptionsFor(entryForm.direction)}
@@ -370,6 +392,8 @@ export function MGFloorTabletDashboard() {
           onSend={(batch, senderId) => sendBatch(entryForm.direction, batch, senderId)}
           onClose={() => setEntryForm(null)}
           metalInFor={entryForm.direction === 'OUT' ? metalInLines : undefined}
+          resolveLines={(choice) => resolveLinesForChoice(choice, entryForm.direction)}
+          fixing={entryForm.fixing}
           lossLimitPct={batchStats.stats?.lossLimitPct ?? null}
         />
       ) : null}

@@ -23,7 +23,9 @@ import {
   buildAllocateWeightPayload,
   formatAllocateSuccess,
   formatInputComponents,
+  formatTotalGramsLabel,
   resolveAllocateWeight,
+  sumInputComponentGrams,
 } from './alloyMixAllocate'
 import { IdleFade } from './IdleFade'
 
@@ -244,6 +246,15 @@ export function AlloyMixPanel({
                 <Text style={styles.name} numberOfLines={1}>
                   {job.finishedProductName || 'Alloy'}
                 </Text>
+                {formatTotalGramsLabel(
+                  sumInputComponentGrams(job.inputComponents) || job.targetGross,
+                ) ? (
+                  <Text style={styles.total}>
+                    {formatTotalGramsLabel(
+                      sumInputComponentGrams(job.inputComponents) || job.targetGross,
+                    )}
+                  </Text>
+                ) : null}
                 {formatInputComponents(job.inputComponents) ? (
                   <Text style={styles.inputs} numberOfLines={4}>
                     {formatInputComponents(job.inputComponents)}
@@ -305,6 +316,15 @@ export function AlloyMixPanel({
               <Text style={styles.name} numberOfLines={1}>
                 {job.finishedProductName || 'Alloy'}
               </Text>
+              {formatTotalGramsLabel(
+                sumInputComponentGrams(job.inputComponents) || job.targetGross,
+              ) ? (
+                <Text style={styles.total}>
+                  {formatTotalGramsLabel(
+                    sumInputComponentGrams(job.inputComponents) || job.targetGross,
+                  )}
+                </Text>
+              ) : null}
               {formatInputComponents(job.inputComponents) ? (
                 <Text style={styles.inputs} numberOfLines={4}>
                   {formatInputComponents(job.inputComponents)}
@@ -352,6 +372,13 @@ export function AlloyMixPanel({
             <Text style={styles.modalTitle}>Allocate to</Text>
             <Text style={styles.modalSub}>
               {allocating?.mixCode} · available {allocating?.targetGross} g
+              {formatTotalGramsLabel(
+                sumInputComponentGrams(allocating?.inputComponents) || allocating?.targetGross,
+              )
+                ? ` · ${formatTotalGramsLabel(
+                  sumInputComponentGrams(allocating?.inputComponents) || allocating?.targetGross,
+                )}`
+                : ''}
             </Text>
             {formatInputComponents(allocating?.inputComponents) ? (
               <Text style={styles.modalInputs}>
@@ -522,6 +549,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   name: { color: '#334155', fontSize: 12, marginTop: 2 },
+  total: {
+    color: '#9A3412',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 3,
+  },
   inputs: {
     color: '#C2410C',
     fontSize: 11,
