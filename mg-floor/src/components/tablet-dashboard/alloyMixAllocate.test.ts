@@ -2,8 +2,24 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAllocateWeightPayload,
   formatAllocateSuccess,
+  formatInputComponents,
   resolveAllocateWeight,
 } from './alloyMixAllocate'
+
+describe('formatInputComponents', () => {
+  it('joins product names and grams', () => {
+    expect(formatInputComponents([
+      { name: 'pure copper', gross: 19.23 },
+      { name: 'silver pure', gross: 47.12 },
+      { name: 'Gold Bar', gross: 199.05 },
+    ])).toBe('pure copper: 19.23 g · silver pure: 47.12 g · Gold Bar: 199.05 g')
+  })
+
+  it('returns empty for missing or zero rows', () => {
+    expect(formatInputComponents(null)).toBe('')
+    expect(formatInputComponents([{ name: 'x', gross: 0 }])).toBe('')
+  })
+})
 
 describe('resolveAllocateWeight', () => {
   it('uses typed weight when valid and within available', () => {

@@ -291,6 +291,13 @@ function AlloyMixList({
               Close
             </button>
           </div>
+          {Array.isArray(allocating.inputComponents) && allocating.inputComponents.length ? (
+            <p className="pd-alloy-mix-inputs">
+              {allocating.inputComponents
+                .map((c) => `${c.name || c.label}: ${Number(c.gross || 0)} g`)
+                .join(' · ')}
+            </p>
+          ) : null}
           <label className="pd-alloy-mix-alloc-weight">
             <span>Weight (g)</span>
             <input

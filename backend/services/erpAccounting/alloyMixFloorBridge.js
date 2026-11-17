@@ -24,6 +24,44 @@ function toQty(n) {
   return Math.round(Number(n || 0) * 1000) / 1000
 }
 
+/** Normalize Post Mix consumed rows into AlloyMixJob.inputComponents. */
+function buildInputComponents(consumed = []) {
+  return (Array.isArray(consumed) ? consumed : [])
+    .map((row) => {
+      const gross = toQty(row?.gross)
+      if (!(gross > QTY_EPS)) return null
+      const name = String(row?.name || row?.consumeLabel || row?.label || '').trim()
+      if (!name) return null
+      return {
+        itemId: row?.itemId || null,
+        name,
+        role: String(row?.role || '').trim().toLowerCase(),
+        label: String(row?.label || row?.consumeLabel || '').trim(),
+        gross,
+      }
+    })
+    .filter(Boolean)
+}
+
+/** Scale input grams when a mix is partially allocated (ratio = move / available). */
+function scaleInputComponents(components = [], ratio = 1) {
+  const r = Number(ratio)
+  if (!(r > 0) || !Number.isFinite(r)) return []
+  return (Array.isArray(components) ? components : [])
+    .map((row) => {
+      const gross = toQty(Number(row?.gross || 0) * r)
+      if (!(gross > QTY_EPS)) return null
+      return {
+        itemId: row?.itemId || null,
+        name: String(row?.name || '').trim(),
+        role: String(row?.role || '').trim(),
+        label: String(row?.label || '').trim(),
+        gross,
+      }
+    })
+    .filter(Boolean)
+}
+
 function dubaiDateKey(d = new Date()) {
   try {
     return new Intl.DateTimeFormat('en-CA', {
@@ -195,6 +233,7 @@ async function createJobFromPostedMix({
   const metalLossGross = toQty(postResult.metalLossGross || 0)
   const finishedId = postResult.finishedProduct.id
   const finishedName = postResult.finishedProduct.name || ''
+  const inputComponents = buildInputComponents(postResult.consumed)
   const actorId = user?._id || null
   const actorName = user?.name || ''
 
@@ -285,6 +324,7 @@ async function createJobFromPostedMix({
         metalLossGross,
         finishedProductId: finishedId,
         finishedProductName: finishedName,
+        inputComponents,
         purity: purityPct,
         stockLotId: lot?._id || null,
         stockCode: lot?.stockCode || stockCode,
@@ -680,6 +720,10 @@ async function allocateMixJob({
       }
     }
 
+    const splitRatio = available > QTY_EPS ? moveWeight / available : 1
+    const childInputs = scaleInputComponents(job.inputComponents, splitRatio)
+    const remainInputs = scaleInputComponents(job.inputComponents, remainWeight / available)
+
     const [child] = await AlloyMixJob.create(
       [
         {
@@ -690,6 +734,7 @@ async function allocateMixJob({
           metalLossGross: 0,
           finishedProductId: job.finishedProductId,
           finishedProductName: job.finishedProductName,
+          inputComponents: childInputs,
           purity: job.purity,
           stockLotId: childLot?._id || null,
           stockCode: childLot?.stockCode || '',
@@ -746,6 +791,7 @@ async function allocateMixJob({
     }
 
     job.targetGross = remainWeight
+    job.inputComponents = remainInputs
     job.history.push({
       at: new Date(),
       action: 'allocate',
@@ -935,6 +981,13 @@ async function receiveMixJob({
   let metalInEntry = null
   try {
     const { createSystemPendingMetalIn } = require('../mgFloor/batchEntries')
+    const inputLines = (Array.isArray(job.inputComponents) ? job.inputComponents : [])
+      .map((c) => ({
+        metal: String(c.name || c.label || '').trim(),
+        qty: toQty(c.gross),
+        purity: null,
+      }))
+      .filter((line) => line.metal && line.qty > QTY_EPS)
     const seeded = await createSystemPendingMetalIn({
       department: dest,
       batchLabel: job.mixCode,
@@ -944,6 +997,9 @@ async function receiveMixJob({
       employeeId: user._id,
       employeeName: user.name || '',
       mixCode: job.mixCode,
+      lines: inputLines.length
+        ? inputLines
+        : undefined,
     })
     metalInEntry = seeded?.entry || null
   } catch (err) {
@@ -1031,6 +1087,15 @@ function serializeJob(job, {
     metalLossGross: row.metalLossGross,
     finishedProductId: row.finishedProductId ? String(row.finishedProductId) : '',
     finishedProductName: row.finishedProductName || '',
+    inputComponents: (Array.isArray(row.inputComponents) ? row.inputComponents : [])
+      .map((c) => ({
+        itemId: c.itemId ? String(c.itemId) : '',
+        name: String(c.name || '').trim(),
+        role: String(c.role || '').trim(),
+        label: String(c.label || '').trim(),
+        gross: toQty(c.gross),
+      }))
+      .filter((c) => c.name && c.gross > QTY_EPS),
     purity: row.purity,
     stockLotId: row.stockLotId ? String(row.stockLotId) : '',
     stockCode: row.stockCode || '',
@@ -1049,9 +1114,75 @@ function serializeJob(job, {
   }
 }
 
+/**
+ * Backfill inputComponents for jobs posted before that field existed,
+ * using StockMovement consume rows for the mix reasonBase.
+ */
+async function backfillInputComponents(jobs, session = null) {
+  const list = Array.isArray(jobs) ? jobs : []
+  const need = list.filter((job) => {
+    const row = typeof job?.toObject === 'function' ? job.toObject() : job
+    return row && !(Array.isArray(row.inputComponents) && row.inputComponents.length)
+      && String(row.reasonBase || '').trim()
+  })
+  if (!need.length) return list
+
+  const StockMovement = require('../../models/StockMovement')
+  const reasons = [...new Set(need.map((j) => String(j.reasonBase || '').trim()).filter(Boolean))]
+  const reasonMatchers = reasons.map((base) => {
+    const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp(`^${escaped}\\s*—\\s*consume\\b`, 'i')
+  })
+  const consumeMoves = reasonMatchers.length
+    ? await withSession(
+      StockMovement.find({
+        isDeleted: { $ne: true },
+        change: { $lt: 0 },
+        $or: reasonMatchers.map((rx) => ({ reason: rx })),
+      }).select('itemId itemName change reason').lean(),
+      session,
+    ).catch(() => [])
+    : []
+
+  const byReason = new Map()
+  for (const move of consumeMoves || []) {
+    const text = String(move.reason || '')
+    const base = reasons.find((r) => text.toLowerCase().startsWith(r.toLowerCase()))
+    if (!base) continue
+    if (!byReason.has(base)) byReason.set(base, [])
+    byReason.get(base).push({
+      itemId: move.itemId || null,
+      name: String(move.itemName || '').trim(),
+      role: '',
+      label: '',
+      gross: toQty(Math.abs(Number(move.change) || 0)),
+    })
+  }
+
+  const updates = []
+  for (const job of need) {
+    const base = String(job.reasonBase || '').trim()
+    const components = (byReason.get(base) || []).filter((c) => c.name && c.gross > QTY_EPS)
+    if (!components.length) continue
+    job.inputComponents = components
+    if (job._id) {
+      updates.push(
+        AlloyMixJob.updateOne(
+          { _id: job._id },
+          { $set: { inputComponents: components } },
+          writeOpts(session),
+        ).catch(() => null),
+      )
+    }
+  }
+  if (updates.length) await Promise.all(updates)
+  return list
+}
+
 async function serializeJobs(jobs, session = null) {
   const list = Array.isArray(jobs) ? jobs : []
   if (!list.length) return []
+  await backfillInputComponents(list, session)
   const childrenByParent = await loadOpenChildrenByParent(session)
   return list.map((job) => serializeJob(job, { childrenByParent }))
 }
@@ -1099,6 +1230,8 @@ module.exports = {
   serializeJobs,
   serializeAllocateResult,
   serializeReceiveResult,
+  buildInputComponents,
+  scaleInputComponents,
   jobInVaultCustody,
   hasOpenFloorDescendant,
   dubaiDateKey,

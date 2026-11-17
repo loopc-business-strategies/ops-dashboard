@@ -10,6 +10,14 @@ export type AlloyMixJob = {
   targetGross: number
   metalLossGross?: number
   finishedProductName: string
+  /** Post Mix Inputs (OUT) — product + grams for Allocate / Metal In. */
+  inputComponents?: Array<{
+    itemId?: string
+    name: string
+    role?: string
+    label?: string
+    gross: number
+  }>
   purity: number | null
   stockCode: string
   status: 'in_vault' | 'pending_receive' | 'in_department' | 'closed'
