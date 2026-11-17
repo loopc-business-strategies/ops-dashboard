@@ -547,7 +547,7 @@ export function mapEntryToRow(entry) {
     deptKey,
     source,
     fromFloor: source === 'mg_floor' || source === 'gold_alloy',
-    fromGoldAlloy: source === 'gold_alloy',
+    fromGoldAlloy: source === 'gold_alloy' || Boolean(alloyMixCode),
     alloyMixCode,
     employee: String(entry?.employeeName || '').trim() || '—',
     departmentManager: String(entry?.departmentManagerName || '').trim() || '—',

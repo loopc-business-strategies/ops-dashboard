@@ -111,6 +111,43 @@ function batchOverAfterStart(startedAt, overAt) {
 }
 
 /**
+ * AMX Metal In is already written as gold_alloy on Incoming Approve (receiveMixJob).
+ * FM approve of the seeded Floor batch must attach to that custody row — never create a
+ * parallel mg_floor Melting Metal IN/OUT (that double-counts Ops / Production Dashboard totals).
+ * Metal Out weight still comes from allocate→vault (gold_alloy OUT); we only stamp floorOutEntryId.
+ */
+async function linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode) {
+  if (!alloyMixCode || !departmentKey) return null
+
+  if (entry.direction === 'IN') {
+    const row = await OperationsProductionEntry.findOne({
+      alloyMixCode,
+      departmentKey,
+      source: 'gold_alloy',
+      metalIn: { $ne: null },
+    }).sort({ updatedAt: -1 })
+    if (!row) return null
+    row.floorInEntryId = entry.entryId
+    row.departmentManagerName = entry.decidedByName || row.departmentManagerName
+    if (entry.employeeName) row.employeeName = entry.employeeName
+    await row.save()
+    return row
+  }
+
+  const inRow = await OperationsProductionEntry.findOne({
+    alloyMixCode,
+    departmentKey,
+    source: 'gold_alloy',
+    metalIn: { $ne: null },
+  }).sort({ updatedAt: -1 })
+  if (!inRow) return null
+  inRow.floorOutEntryId = entry.entryId
+  inRow.departmentManagerName = entry.decidedByName || inRow.departmentManagerName
+  await inRow.save()
+  return inRow
+}
+
+/**
  * Writes an APPROVED MG Floor batch into the Operations → Production workbook.
  * IN fills Metal IN, Purity, Fine Gold and Batch Start; OUT fills Metal OUT, Purity OUT, Fine Gold OUT
  * and Batch Over.
@@ -126,6 +163,13 @@ async function applyApprovedEntryToWorkbook(entry) {
   const batchNumber = String(entry.batchLabel || '').trim()
   // Alloy mix batches use AMX-… as the label so Ops can match Gold Alloy / Floor allocate.
   const alloyMixCode = /^AMX-/i.test(batchNumber) ? batchNumber.toUpperCase() : ''
+
+  // Prefer existing gold_alloy custody row for AMX — one Melting Metal IN per mix.
+  if (alloyMixCode) {
+    const linked = await linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode)
+    if (linked) return linked
+  }
+
   const set = {
     source: 'mg_floor',
     departmentKey,
@@ -186,12 +230,26 @@ const OUT_FIELDS = { metalOut: null, purityOut: null, fineGoldOut: null, batchOv
  * Takes an undone batch back out of its workbook row: clears the Metal In or Metal Out side it
  * filled, and removes the row when nothing else is left on it (no other side, rating, breakdown
  * or requests). Returns 'cleared', 'removed', or null when the row no longer carries this entry.
+ * AMX gold_alloy custody rows only drop the floor link — Metal IN stayed from Incoming Approve.
  */
 async function removeEntryFromWorkbook(entry) {
-  const row = await OperationsProductionEntry.findOne({ floorBatchKey: floorBatchKey(entry) })
-  if (!row) return null
   const isIn = entry.direction === 'IN'
+  let row = await OperationsProductionEntry.findOne({ floorBatchKey: floorBatchKey(entry) })
+  if (!row) {
+    row = await OperationsProductionEntry.findOne(
+      isIn ? { floorInEntryId: entry.entryId } : { floorOutEntryId: entry.entryId },
+    )
+  }
+  if (!row) return null
   if ((isIn ? row.floorInEntryId : row.floorOutEntryId) !== entry.entryId) return null
+
+  // Alloy receive already owns Metal IN; undoing FM only unlinks the floor stamp.
+  if (row.source === 'gold_alloy' && String(row.alloyMixCode || '').trim()) {
+    if (isIn) row.floorInEntryId = ''
+    else row.floorOutEntryId = ''
+    await row.save()
+    return 'cleared'
+  }
 
   Object.assign(row, isIn ? IN_FIELDS : OUT_FIELDS, { metalLoss: null })
   const hasOtherSide = isIn ? row.metalOut != null || Boolean(row.floorOutEntryId) : row.metalIn != null || Boolean(row.floorInEntryId)
@@ -202,6 +260,33 @@ async function removeEntryFromWorkbook(entry) {
   }
   await row.save()
   return 'cleared'
+}
+
+/**
+ * Drop leftover mg_floor Ops rows for AMX batches that already have gold_alloy custody Metal IN
+ * (pre-fix double Melting Metal IN). Safe to repeat.
+ */
+async function removeDuplicateAlloyMgFloorRows() {
+  const mgRows = await OperationsProductionEntry.find({
+    source: 'mg_floor',
+    alloyMixCode: { $regex: /^AMX-/i },
+  }).lean()
+  let removed = 0
+  for (const row of mgRows || []) {
+    const code = String(row.alloyMixCode || '').toUpperCase()
+    if (!code) continue
+    const hasGoldIn = await OperationsProductionEntry.exists({
+      source: 'gold_alloy',
+      alloyMixCode: code,
+      departmentKey: row.departmentKey,
+      metalIn: { $ne: null },
+      _id: { $ne: row._id },
+    })
+    if (!hasGoldIn) continue
+    await OperationsProductionEntry.deleteOne({ _id: row._id })
+    removed += 1
+  }
+  return removed
 }
 
 /**
@@ -222,13 +307,22 @@ async function syncApprovedEntriesToWorkbook() {
       skippedDepartments[dept] = (skippedDepartments[dept] || 0) + 1
     }
   }
-  return { approved: entries.length, linked, skipped: entries.length - linked, skippedDepartments }
+  const duplicatesRemoved = await removeDuplicateAlloyMgFloorRows()
+  return {
+    approved: entries.length,
+    linked,
+    skipped: entries.length - linked,
+    skippedDepartments,
+    duplicatesRemoved,
+  }
 }
 
 module.exports = {
   applyApprovedEntryToWorkbook,
   removeEntryFromWorkbook,
   syncApprovedEntriesToWorkbook,
+  linkAlloyMixFloorApproval,
+  removeDuplicateAlloyMgFloorRows,
   floorBatchKey,
   lineTimestamp,
   summarizeLines,

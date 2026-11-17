@@ -823,7 +823,8 @@ async function allocateMixJob({
 
 /**
  * Destination department Accept/Reject an offered alloy mix (pending_receive).
- * Approve → in_department + Ops IN + seed Metal In for FM approval.
+ * Approve → in_department + gold_alloy Ops IN + seed Metal In for FM approval
+ * (FM approve attaches to that Ops row — does not create a second Melting Metal IN).
  * Reject → return to pendingFromDepartment (usually vault).
  */
 async function receiveMixJob({
