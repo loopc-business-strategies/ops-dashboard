@@ -28,6 +28,8 @@ const { ALLOY_METAL_LOSS_MAPPING_TYPE } = require('../services/erpAccounting/all
 let mongo
 
 beforeAll(async () => {
+  process.env.NODE_ENV = 'test'
+  process.env.DEFAULT_TENANT = 'mg'
   mongo = await startMongoMemoryServer()
   await mongoose.connect(mongo.getUri())
 })
@@ -166,7 +168,7 @@ describe('alloy mix floor bridge', () => {
     })
 
     expect(result.success).toBe(true)
-    expect(result.mixJob?.mixCode).toMatch(/^AMX-/)
+    expect(result.mixJob?.mixCode).toMatch(/^BMG-\d{4}$/)
     expect(result.mixJob?.status).toBe('in_vault')
     expect(result.mixJob?.currentDepartment).toBe('vault_room')
 

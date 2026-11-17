@@ -148,7 +148,7 @@ async function submitBatchEntry(req, body = {}) {
     entryId,
     direction,
     department,
-    // AMX-YYMMDD-#### (+ optional split suffix) needs more than the old 20-char cap.
+    // BMG-#### / legacy AMX-… (+ optional split suffix) needs more than the old 20-char cap.
     batchLabel: String(body.batchLabel || '').trim().slice(0, 40),
     entryDate,
     lines,
@@ -344,7 +344,8 @@ async function decideBatchEntry(req, id, decision, reason = '') {
     } catch (err) {
       console.warn('[mg-floor] workbook update failed (use "Sync MG Floor batches" to retry)', err?.message || err)
     }
-    if (updated.direction === 'OUT' && /^AMX-/i.test(String(updated.batchLabel || ''))) {
+    const { isAlloyMixBatchCode } = require('../erpAccounting/alloyMixBatchCode')
+    if (updated.direction === 'OUT' && isAlloyMixBatchCode(updated.batchLabel)) {
       try {
         alloyReturnedToVault = await returnAlloyMixToVaultAfterMetalOut({
           user,
@@ -459,7 +460,8 @@ async function createSystemPendingMetalIn({
 /** After AMX Metal Out is FM-approved, return the mix job to Vault Room (immediate, no receive gate). */
 async function returnAlloyMixToVaultAfterMetalOut({ user, batchLabel, department }) {
   const code = String(batchLabel || '').trim().toUpperCase()
-  if (!/^AMX-/.test(code)) return null
+  const { isAlloyMixBatchCode } = require('../erpAccounting/alloyMixBatchCode')
+  if (!isAlloyMixBatchCode(code)) return null
   const {
     allocateMixJob,
     serializeJob,

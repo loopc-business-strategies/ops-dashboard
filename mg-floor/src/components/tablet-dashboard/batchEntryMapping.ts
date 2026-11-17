@@ -219,7 +219,7 @@ export function nextBatchLabel(labels: string[]) {
 const sameLabel = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase()
 
 /**
- * Metal In batch choices: each open alloy mix on this department is its own batch (AMX-…),
+ * Metal In batch choices: each open alloy mix on this department is its own batch (BMG-…),
  * then a numeric fallback for non-alloy metal.
  */
 export function metalInChoices(

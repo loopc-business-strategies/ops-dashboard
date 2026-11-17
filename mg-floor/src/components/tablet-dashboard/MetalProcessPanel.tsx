@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   },
   fixText: { color: td.white, fontWeight: '800', fontSize: 11, letterSpacing: 0.4 },
   batchLabelCol: {
-    // Wide enough for AMX-YYMMDD-####; keep text inside the cell.
+    // Wide enough for BMG-#### / legacy AMX-…; keep text inside the cell.
     width: 102,
     borderRightWidth: 1,
     borderRightColor: td.borderLight,
