@@ -135,19 +135,19 @@ export function linesFromMixInputComponents(
   components: Array<{ name?: string; label?: string; gross?: number }> | null | undefined,
 ): BatchEntryLine[] {
   if (!Array.isArray(components) || !components.length) return []
-  return components
-    .map((row) => {
-      const metal = String(row?.name || row?.label || '').trim()
-      const qty = Number(row?.gross)
-      if (!metal || !(qty > 0)) return null
-      return {
-        metal,
-        qty: Math.round(qty * 1000) / 1000,
-        purity: null,
-        time: '',
-      } satisfies BatchEntryLine
+  const lines: BatchEntryLine[] = []
+  for (const row of components) {
+    const metal = String(row?.name || row?.label || '').trim()
+    const qty = Number(row?.gross)
+    if (!metal || !(qty > 0)) continue
+    lines.push({
+      metal,
+      qty: Math.round(qty * 1000) / 1000,
+      purity: null,
+      time: '',
     })
-    .filter((row): row is BatchEntryLine => Boolean(row))
+  }
+  return lines
 }
 
 /** Sum of Metal In / Out line quantities (grams). */
