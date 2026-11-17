@@ -22,6 +22,7 @@ import { FLOOR_DEPARTMENTS, floorDepartmentLabel } from '@/src/config/floorDepar
 import {
   buildAllocateWeightPayload,
   formatAllocateSuccess,
+  formatInputComponents,
   resolveAllocateWeight,
 } from './alloyMixAllocate'
 import { IdleFade } from './IdleFade'
@@ -243,6 +244,11 @@ export function AlloyMixPanel({
                 <Text style={styles.name} numberOfLines={1}>
                   {job.finishedProductName || 'Alloy'}
                 </Text>
+                {formatInputComponents(job.inputComponents) ? (
+                  <Text style={styles.inputs} numberOfLines={4}>
+                    {formatInputComponents(job.inputComponents)}
+                  </Text>
+                ) : null}
                 <Text style={styles.meta}>
                   From {floorDepartmentLabel(job.pendingFromDepartment) || 'Vault Room'} · waiting
                 </Text>
@@ -299,6 +305,11 @@ export function AlloyMixPanel({
               <Text style={styles.name} numberOfLines={1}>
                 {job.finishedProductName || 'Alloy'}
               </Text>
+              {formatInputComponents(job.inputComponents) ? (
+                <Text style={styles.inputs} numberOfLines={4}>
+                  {formatInputComponents(job.inputComponents)}
+                </Text>
+              ) : null}
               <Text style={styles.meta}>
                 {job.hasOpenFloorDescendants
                   ? (job.status === 'in_vault'
@@ -342,6 +353,11 @@ export function AlloyMixPanel({
             <Text style={styles.modalSub}>
               {allocating?.mixCode} · available {allocating?.targetGross} g
             </Text>
+            {formatInputComponents(allocating?.inputComponents) ? (
+              <Text style={styles.modalInputs}>
+                Inputs: {formatInputComponents(allocating?.inputComponents)}
+              </Text>
+            ) : null}
             <Text style={styles.weightLabel}>Weight (g) — less than available splits a new mix</Text>
             <TextInput
               value={allocWeight}
@@ -506,6 +522,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   name: { color: '#334155', fontSize: 12, marginTop: 2 },
+  inputs: {
+    color: '#C2410C',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 3,
+    lineHeight: 15,
+  },
   meta: { color: '#64748B', fontSize: 11, marginTop: 2, marginBottom: 6 },
   allocBtn: {
     backgroundColor: '#B45309',
@@ -532,7 +555,14 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
-  modalSub: { color: '#64748B', marginBottom: 8, marginTop: 2 },
+  modalSub: { color: '#64748B', marginBottom: 4, marginTop: 2 },
+  modalInputs: {
+    color: '#C2410C',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginBottom: 8,
+  },
   weightLabel: { fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 },
   weightInput: {
     borderWidth: 1,

@@ -29,6 +29,18 @@ const historyEntrySchema = new mongoose.Schema(
   { _id: false },
 )
 
+/** Stock lines consumed on Post Mix (Inputs OUT) — shown on Floor Allocate / Metal In. */
+const inputComponentSchema = new mongoose.Schema(
+  {
+    itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem', default: null },
+    name: { type: String, trim: true, default: '' },
+    role: { type: String, trim: true, default: '' },
+    label: { type: String, trim: true, default: '' },
+    gross: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false },
+)
+
 const alloyMixJobSchema = new mongoose.Schema(
   {
     mixCode: { type: String, required: true, trim: true, uppercase: true },
@@ -42,6 +54,8 @@ const alloyMixJobSchema = new mongoose.Schema(
       required: true,
     },
     finishedProductName: { type: String, trim: true, default: '' },
+    /** Snapshot of Post Mix Inputs (OUT): product name + grams. */
+    inputComponents: { type: [inputComponentSchema], default: [] },
     purity: { type: Number, default: null },
     stockLotId: {
       type: mongoose.Schema.Types.ObjectId,

@@ -1,5 +1,21 @@
 /** Pure allocate helpers shared by AlloyMixPanel UI + unit tests. */
 
+export function formatInputComponents(
+  components: Array<{ name?: string; label?: string; gross?: number }> | null | undefined,
+): string {
+  if (!Array.isArray(components) || !components.length) return ''
+  return components
+    .map((row) => {
+      const name = String(row?.name || row?.label || '').trim()
+      const gross = Number(row?.gross)
+      if (!name || !(gross > 0)) return ''
+      const g = Math.round(gross * 1000) / 1000
+      return `${name}: ${g} g`
+    })
+    .filter(Boolean)
+    .join(' · ')
+}
+
 export function resolveAllocateWeight(availableRaw: unknown, typedRaw: unknown): {
   available: number
   weight: number

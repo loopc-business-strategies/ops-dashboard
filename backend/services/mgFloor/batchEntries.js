@@ -381,6 +381,7 @@ async function createSystemPendingMetalIn({
   employeeId = null,
   employeeName = '',
   mixCode = '',
+  lines = null,
 } = {}) {
   const dept = normalizeFloorDepartment(department)
   const label = String(batchLabel || mixCode || '').trim().slice(0, 40)
@@ -394,18 +395,38 @@ async function createSystemPendingMetalIn({
   const stamp = Date.now().toString(36)
   const codePart = label.replace(/[^A-Za-z0-9]/g, '').slice(0, 24) || 'AMX'
   const entryId = `amxin${codePart}${stamp}`.slice(0, 120)
+  const nowTime = clockNow()
+  const purityVal = purity != null && Number.isFinite(Number(purity)) ? Number(purity) : null
+  const customLines = (Array.isArray(lines) ? lines : [])
+    .map((row) => {
+      const metal = String(row?.metal || '').trim()
+      const lineQty = Number(row?.qty)
+      if (!metal || !(lineQty > 0)) return null
+      const linePurity = row?.purity != null && Number.isFinite(Number(row.purity))
+        ? Number(row.purity)
+        : null
+      return {
+        metal,
+        qty: Math.round(lineQty * 1000) / 1000,
+        purity: linePurity,
+        time: nowTime,
+      }
+    })
+    .filter(Boolean)
   const doc = {
     entryId,
     direction: 'IN',
     department: dept,
     batchLabel: label,
     entryDate: date,
-    lines: [{
-      metal: 'Alloy',
-      qty: weight,
-      purity: purity != null && Number.isFinite(Number(purity)) ? Number(purity) : null,
-      time: clockNow(),
-    }],
+    lines: customLines.length
+      ? customLines
+      : [{
+          metal: 'Alloy',
+          qty: weight,
+          purity: purityVal,
+          time: nowTime,
+        }],
     employeeId: employeeId || null,
     employeeName: employeeName || 'Alloy receive',
     deviceId: 'alloy-mix-receive',
