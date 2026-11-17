@@ -83,25 +83,39 @@ const applyVoucherMetaFixingTypeAlias = (voucherMeta) => {
   }
 }
 
-const normalizeMoneyValue = (value, field = 'amount') => {
+/** Cap is on base-currency (USD) size: amount × exchangeRate (rate = USD per 1 FC unit). */
+const toBaseCurrencyAmount = (amount, exchangeRate = 1) => {
+  const rate = Number(exchangeRate)
+  const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1
+  return Math.abs(Number(amount || 0)) * safeRate
+}
+
+const assertWithinTransactionAmountMax = (amount, field = 'amount', exchangeRate = 1) => {
+  const base = toBaseCurrencyAmount(amount, exchangeRate)
+  if (!Number.isFinite(base) || base > MAX_TRANSACTION_AMOUNT) {
+    throw new Error(`${field} exceeds allowed maximum`)
+  }
+}
+
+const normalizeMoneyValue = (value, field = 'amount', exchangeRate = 1) => {
   const coerced = typeof value === 'number' ? value : (parseAmount(value) ?? Number(value))
   const num = coerced
   if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}`)
-  if (num > MAX_TRANSACTION_AMOUNT) throw new Error(`${field} exceeds allowed maximum`)
+  assertWithinTransactionAmountMax(num, field, exchangeRate)
   return num
 }
 
 /** Sale/purchase may be signed (unfixed premium discount can net below zero). */
 const SIGNED_AMOUNT_TRANSACTION_TYPES = new Set(['sale', 'purchase'])
 
-const normalizeTransactionAmount = (value, type, field = 'amount') => {
+const normalizeTransactionAmount = (value, type, field = 'amount', exchangeRate = 1) => {
   if (!SIGNED_AMOUNT_TRANSACTION_TYPES.has(String(type || '').toLowerCase())) {
-    return normalizeMoneyValue(value, field)
+    return normalizeMoneyValue(value, field, exchangeRate)
   }
   const coerced = typeof value === 'number' ? value : (parseAmount(value) ?? Number(value))
   const num = coerced
   if (!Number.isFinite(num) || num === 0) throw new Error(`Invalid ${field}`)
-  if (Math.abs(num) > MAX_TRANSACTION_AMOUNT) throw new Error(`${field} exceeds allowed maximum`)
+  assertWithinTransactionAmountMax(num, field, exchangeRate)
   return num
 }
 
@@ -193,6 +207,8 @@ module.exports = {
   normalizeMetalFixStatus,
   normalizeVoucherMetaFixingType,
   applyVoucherMetaFixingTypeAlias,
+  toBaseCurrencyAmount,
+  assertWithinTransactionAmountMax,
   normalizeMoneyValue,
   normalizeTransactionAmount,
   SIGNED_AMOUNT_TRANSACTION_TYPES,
