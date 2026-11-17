@@ -795,16 +795,18 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
     if (exists)
       return res.status(400).json({ success: false, message: 'A user with this name already exists.' })
 
+    const username = name.trim()
+    const displayName = String(fullName || '').trim() || username
     const user = await TenantUser.create({
-      name:           name.trim(),
-      email:          `${name.trim().toLowerCase().replace(/\s+/g, '.')}@system.local`,
+      name:           username,
+      email:          `${username.toLowerCase().replace(/\s+/g, '.')}@system.local`,
       password,
       role:           role           || 'department_user',
       department:     department     || '',
       floorDepartment: floorDepartment || '',
       allowedModules: allowedModules || [],
       assignedTasks:  assignedTasks  || [],
-      fullName:       fullName       || '',
+      fullName:       displayName,
       title:          title          || '',
       phone:          phone          || '',
       location:       location       || '',
@@ -848,7 +850,7 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
     if (floorDepartment !== undefined) user.floorDepartment = floorDepartment
     user.allowedModules = allowedModules || []
     user.assignedTasks = assignedTasks || []
-    user.fullName = fullName || ''
+    user.fullName = String(fullName || '').trim() || user.name
     user.title = title || ''
     user.phone = phone || ''
     user.location = location || ''

@@ -1015,6 +1015,12 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px var(--brand-focus-ring, rgba(var(--purple-rgb), 0.15));
 }
 input::placeholder, textarea::placeholder { color: var(--text-muted); }
+/* Admin user form: keep empty-field hints clearly distinct from saved values */
+.admin-user-input::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+  font-weight: 400;
+}
 select option  { background: var(--bg-dropdown); }
 textarea       { resize: vertical; min-height: 70px; }
 .form-grid-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

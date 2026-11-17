@@ -257,7 +257,7 @@ function FieldLabel({ children }) {
   return <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: ADMIN.inkSoft, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{children}</label>
 }
 
-function AdminInput({ value, onChange, type = 'text', placeholder = '', style, ...rest }) {
+function AdminInput({ value, onChange, type = 'text', placeholder = '', style, autoComplete, ...rest }) {
   return (
     <input
       {...rest}
@@ -265,6 +265,8 @@ function AdminInput({ value, onChange, type = 'text', placeholder = '', style, .
       value={value}
       onChange={onChange}
       placeholder={placeholder}
+      autoComplete={autoComplete || 'off'}
+      className="admin-user-input"
       style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#F8FAFC', fontSize: '0.875rem', color: ADMIN.ink, outline: 'none', ...style }}
     />
   )
@@ -334,14 +336,23 @@ function UserFormFields({ form, setForm, isEdit = false }) {
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-        <div><FieldLabel>Username *</FieldLabel><AdminInput value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. john.smith" /></div>
-        <div><FieldLabel>Full Name</FieldLabel><AdminInput value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} placeholder="John Smith" /></div>
-        <div><FieldLabel>{isEdit ? 'Reset Password' : 'Password *'}</FieldLabel><AdminInput type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={isEdit ? 'Leave blank to keep current' : 'Min. 8 characters'} /></div>
-        <div><FieldLabel>Job Title</FieldLabel><AdminInput value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Operations Supervisor" /></div>
-        <div><FieldLabel>Phone</FieldLabel><AdminInput value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+27 82 555 1234" /></div>
-        <div><FieldLabel>Location</FieldLabel><AdminInput value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="Johannesburg HQ" /></div>
-        <div><FieldLabel>Timezone</FieldLabel><AdminInput value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))} placeholder="Africa/Johannesburg" /></div>
-        <div><FieldLabel>Employee Code</FieldLabel><AdminInput value={form.employeeCode} onChange={(e) => setForm((f) => ({ ...f, employeeCode: e.target.value }))} placeholder="EMP-021" /></div>
+        <div>
+          <FieldLabel>Username (login) *</FieldLabel>
+          <AdminInput value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. john.smith" autoComplete="username" />
+        </div>
+        <div>
+          <FieldLabel>Full Name (display)</FieldLabel>
+          <AdminInput value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} placeholder="e.g. John Smith — leave blank to use username" autoComplete="name" />
+        </div>
+        <div>
+          <FieldLabel>{isEdit ? 'Reset Password' : 'Password *'}</FieldLabel>
+          <AdminInput type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={isEdit ? 'Leave blank to keep current' : 'Min. 8 characters'} autoComplete="new-password" />
+        </div>
+        <div><FieldLabel>Job Title</FieldLabel><AdminInput value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Operations Supervisor" /></div>
+        <div><FieldLabel>Phone</FieldLabel><AdminInput value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="e.g. +27 82 555 1234" /></div>
+        <div><FieldLabel>Location</FieldLabel><AdminInput value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="e.g. Johannesburg HQ" /></div>
+        <div><FieldLabel>Timezone</FieldLabel><AdminInput value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))} placeholder="e.g. Africa/Johannesburg" /></div>
+        <div><FieldLabel>Employee Code</FieldLabel><AdminInput value={form.employeeCode} onChange={(e) => setForm((f) => ({ ...f, employeeCode: e.target.value }))} placeholder="e.g. EMP-021" /></div>
       </div>
 
       <div>
@@ -393,10 +404,20 @@ function UserFormFields({ form, setForm, isEdit = false }) {
       )}
 
       {form.role === 'department_user' && (
-        <div><FieldLabel>Assigned Task IDs</FieldLabel><AdminInput value={form.assignedTasks} onChange={(e) => setForm((f) => ({ ...f, assignedTasks: e.target.value }))} placeholder="task-001, task-002" /></div>
+        <div><FieldLabel>Assigned Task IDs</FieldLabel><AdminInput value={form.assignedTasks} onChange={(e) => setForm((f) => ({ ...f, assignedTasks: e.target.value }))} placeholder="e.g. task-001, task-002" /></div>
       )}
 
-      <div><FieldLabel>Access Notes</FieldLabel><textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Onboarding notes, escalation owner, special access considerations" style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#F8FAFC', fontSize: '0.875rem', resize: 'vertical' }} /></div>
+      <div>
+        <FieldLabel>Access Notes</FieldLabel>
+        <textarea
+          value={form.notes}
+          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+          rows={3}
+          placeholder="Optional notes"
+          className="admin-user-input"
+          style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#F8FAFC', fontSize: '0.875rem', color: ADMIN.ink, resize: 'vertical' }}
+        />
+      </div>
     </div>
   )
 }
@@ -414,9 +435,10 @@ function CreateUserForm({ token, onCreated, onCancel }) {
     setLoading(true)
     setError('')
     try {
+      const username = form.name.trim()
       await authAPI.createUser(token, {
-        name: form.name.trim(),
-        fullName: form.fullName.trim(),
+        name: username,
+        fullName: form.fullName.trim() || username,
         password: form.password,
         role: form.role,
         department: form.department,
@@ -481,9 +503,10 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
     setSaving(true)
     setError('')
     try {
+      const username = form.name.trim()
       await authAPI.updateUserRole(token, u._id, {
-        name: form.name.trim(),
-        fullName: form.fullName.trim(),
+        name: username,
+        fullName: form.fullName.trim() || username,
         password: form.password.trim(),
         role: form.role,
         department: form.department,

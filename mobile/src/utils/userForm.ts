@@ -21,9 +21,10 @@ export function userToForm(user: AdminUser): UserFormState {
 }
 
 export function formToPayload(form: UserFormState, isEdit: boolean): UserPayload {
+  const username = form.name.trim()
   const payload: UserPayload = {
-    name: form.name.trim(),
-    fullName: form.fullName.trim(),
+    name: username,
+    fullName: form.fullName.trim() || username,
     role: form.role,
     department: form.department,
     allowedModules: form.allowedModules,
