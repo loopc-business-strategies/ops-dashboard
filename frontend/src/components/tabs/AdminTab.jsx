@@ -617,13 +617,20 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
         <MetricCard label="External Users" value={summary.external} tone="purple" icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>} />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
           <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: ADMIN.ink }}>Users & Access</h2>
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.84rem', color: ADMIN.inkSoft }}>Manage user accounts, departments, role profiles, and access metadata.</p>
         </div>
         {!showCreate && (
-          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">+ Add User</button>
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="btn btn-primary"
+            style={{ flex: '0 0 auto', width: 'auto', alignSelf: 'center', padding: '0.45rem 0.9rem', whiteSpace: 'nowrap' }}
+          >
+            + Add User
+          </button>
         )}
       </div>
 
