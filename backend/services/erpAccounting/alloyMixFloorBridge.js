@@ -11,6 +11,8 @@ const ProductionStockLot = require('../../models/ProductionStockLot')
 const ProductionStockStatusEvent = require('../../models/ProductionStockStatusEvent')
 const OperationsProductionEntry = require('../../models/OperationsProductionEntry')
 
+const { MIX_CODE_PREFIX, isAlloyMixBatchCode } = require('./alloyMixBatchCode')
+
 const VAULT = 'vault_room'
 const QTY_EPS = 1e-9
 
@@ -78,13 +80,6 @@ function dubaiDateKey(d = new Date()) {
 function normalizeDept(raw) {
   const key = String(raw || '').trim().toLowerCase()
   return PRODUCTION_DEPARTMENT_KEYS.includes(key) ? key : ''
-}
-
-function sanitizeToken(value) {
-  return String(value || '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '')
-    .slice(0, 12) || 'MIX'
 }
 
 function opsKey(mixCode, departmentKey, side, stamp) {
@@ -195,11 +190,11 @@ async function softDeleteOpsForMix({ session, mixCode, actor, reason }) {
   return n
 }
 
+/** Next mix/batch code: BMG-0001, BMG-0002, … continuing in order across days. */
 async function nextMixCode(session) {
-  const day = dubaiDateKey().replace(/-/g, '').slice(2)
-  const prefix = `AMX-${day}-`
+  const prefix = MIX_CODE_PREFIX
   const last = await withSession(
-    AlloyMixJob.findOne({ mixCode: new RegExp(`^${prefix}`) })
+    AlloyMixJob.findOne({ mixCode: new RegExp(`^${prefix}\\d+$`, 'i') })
       .sort({ mixCode: -1 })
       .select('mixCode')
       .lean(),
@@ -246,7 +241,7 @@ async function createJobFromPostedMix({
     : null
   const fineGold = purityPct != null ? toQty((targetGross * purityPct) / 100) : null
 
-  let stockCode = `AMX-${sanitizeToken(mixCode)}`
+  let stockCode = mixCode
   const clash = await withSession(
     ProductionStockLot.findOne({ stockCode }).select('_id').lean(),
     session,
@@ -1219,6 +1214,7 @@ async function serializeReceiveResult(result, session = null) {
 
 module.exports = {
   VAULT,
+  MIX_CODE_PREFIX,
   createJobFromPostedMix,
   closeJobForReverse,
   assertJobUpdatableByReason,
@@ -1234,6 +1230,7 @@ module.exports = {
   scaleInputComponents,
   jobInVaultCustody,
   hasOpenFloorDescendant,
+  isAlloyMixBatchCode,
   dubaiDateKey,
   normalizeDept,
   PRODUCTION_DEPARTMENT_KEYS,

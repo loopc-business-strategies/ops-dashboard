@@ -161,8 +161,9 @@ async function applyApprovedEntryToWorkbook(entry) {
   const sums = summarizeLines(entry.lines)
   const at = entryTimestamp(entry)
   const batchNumber = String(entry.batchLabel || '').trim()
-  // Alloy mix batches use AMX-… as the label so Ops can match Gold Alloy / Floor allocate.
-  const alloyMixCode = /^AMX-/i.test(batchNumber) ? batchNumber.toUpperCase() : ''
+  // Alloy mix batches use BMG-… (legacy AMX-…) so Ops can match Gold Alloy / Floor allocate.
+  const { isAlloyMixBatchCode } = require('../erpAccounting/alloyMixBatchCode')
+  const alloyMixCode = isAlloyMixBatchCode(batchNumber) ? batchNumber.toUpperCase() : ''
 
   // Prefer existing gold_alloy custody row for AMX — one Melting Metal IN per mix.
   if (alloyMixCode) {
@@ -269,7 +270,7 @@ async function removeEntryFromWorkbook(entry) {
 async function removeDuplicateAlloyMgFloorRows() {
   const mgRows = await OperationsProductionEntry.find({
     source: 'mg_floor',
-    alloyMixCode: { $regex: /^AMX-/i },
+    alloyMixCode: { $regex: /^(?:BMG|AMX)-/i },
   }).lean()
   let removed = 0
   for (const row of mgRows || []) {

@@ -43,7 +43,7 @@ const operationsProductionEntrySchema = new mongoose.Schema(
     floorBatchKey: { type: String, trim: true },
     floorInEntryId: { type: String, trim: true, default: '' },
     floorOutEntryId: { type: String, trim: true, default: '' },
-    /** Alloy mix code when source is gold_alloy (e.g. AMX-261116-0001). */
+    /** Alloy mix code when source is gold_alloy (e.g. BMG-0001). */
     alloyMixCode: { type: String, trim: true, uppercase: true, default: '' },
   },
   { timestamps: true },

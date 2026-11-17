@@ -179,7 +179,7 @@ describe('alloy-mix HTTP routes', () => {
 
     expect(postRes.status).toBe(201)
     expect(postRes.body.success).toBe(true)
-    expect(postRes.body.mixJob?.mixCode).toMatch(/^AMX-/)
+    expect(postRes.body.mixJob?.mixCode).toBe('BMG-0001')
     const reason = postRes.body.reason
     const jobId = postRes.body.mixJob.id
 
