@@ -836,13 +836,15 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
 
-    if (name && name.trim().toLowerCase() !== user.name.toLowerCase()) {
-      const safeName = escapeRegex(name.trim())
+    // Allow case-only username edits (mo → MO). Uniqueness stays case-insensitive vs other users.
+    if (name && name.trim() !== user.name) {
+      const nextName = name.trim()
+      const safeName = escapeRegex(nextName)
       const exists = await TenantUser.findOne({ _id: { $ne: user._id }, name: { $regex: new RegExp(`^${safeName}$`, 'i') } })
       if (exists)
         return res.status(400).json({ success: false, message: 'A user with this name already exists.' })
-      user.name = name.trim()
-      user.email = `${name.trim().toLowerCase().replace(/\s+/g, '.')}@system.local`
+      user.name = nextName
+      user.email = `${nextName.toLowerCase().replace(/\s+/g, '.')}@system.local`
     }
 
     user.role = role
