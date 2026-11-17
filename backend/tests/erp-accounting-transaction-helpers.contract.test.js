@@ -116,6 +116,13 @@ describe('transactionHelpers – normalization', () => {
     expect(() => normalizeMoneyValue(MAX_TRANSACTION_AMOUNT + 1)).toThrow('exceeds allowed maximum')
   })
 
+  test('normalizeMoneyValue caps base-currency size (UZS FC × rate), not raw FC', () => {
+    const uzsFc = 1_485_804_600
+    const usdPerUzs = 1 / 12_100
+    expect(normalizeMoneyValue(uzsFc, 'amount', usdPerUzs)).toBe(uzsFc)
+    expect(() => normalizeMoneyValue(uzsFc, 'amount', 1)).toThrow('exceeds allowed maximum')
+  })
+
   test('normalizeTransactionAmount allows signed sale/purchase nets', () => {
     expect(normalizeTransactionAmount(-3.22, 'purchase')).toBe(-3.22)
     expect(normalizeTransactionAmount(-10, 'sale')).toBe(-10)
@@ -125,6 +132,12 @@ describe('transactionHelpers – normalization', () => {
   test('normalizeTransactionAmount keeps receipt/payment strictly positive', () => {
     expect(() => normalizeTransactionAmount(-5, 'receipt')).toThrow('Invalid amount')
     expect(() => normalizeTransactionAmount(0, 'purchase')).toThrow('Invalid amount')
+  })
+
+  test('normalizeTransactionAmount allows large UZS payment when USD equivalent is under max', () => {
+    const uzsFc = 1_485_804_600
+    const usdPerUzs = 1 / 12_100
+    expect(normalizeTransactionAmount(uzsFc, 'payment', 'amount', usdPerUzs)).toBe(uzsFc)
   })
 
   test('validateTransactionPayload allows negative purchase amount', () => {

@@ -398,7 +398,7 @@ function createTransactionAccountResolutionService({
     const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     const txCurrency = await withSession(Currency.findOne({ code: currencyCode, isActive: true }), session)
     const exchangeRate = normalizeExchangeRateValue(transaction.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
-    const transactionAmount = normalizeMoneyValue(transaction.amount, 'amount')
+    const transactionAmount = normalizeMoneyValue(transaction.amount, 'amount', exchangeRate)
     const voucherNetAmount = resolveVoucherNetLineAmount(transaction)
     const voucherVatAmount = resolveVoucherVatAmount(transaction)
     const voucherGrossAmount = toMoney(voucherNetAmount + voucherVatAmount)
@@ -569,7 +569,7 @@ function createVendorAdvanceConfirmationHelpers({
     const txCurrency = await withSession(Currency.findOne({ code: String(tx.currency || BASE_CURRENCY_CODE || 'USD').toUpperCase(), isActive: true }).select('exchangeRate').lean(), session)
     const baseCurrency = await withSession(Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(), session)
     const exchangeRate = normalizeExchangeRateValue(tx.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
-    const paymentAmount = normalizeMoneyValue(tx.amount, 'amount') * exchangeRate
+    const paymentAmount = normalizeMoneyValue(tx.amount, 'amount', exchangeRate) * exchangeRate
     const outstandingBefore = Number(await getOutstandingForAccount(resolvedAccounts.debitAccountId, session) || 0)
     const projectedBalance = outstandingBefore + paymentAmount
 

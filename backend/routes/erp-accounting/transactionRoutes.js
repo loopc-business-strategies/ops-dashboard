@@ -449,8 +449,8 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
       return res.status(403).json({ success: false, message: disabledTypeMessage })
     }
 
-    const normalizedAmount = normalizeTransactionAmount(amount, type, 'amount')
     const normalizedExchangeRate = normalizeExchangeRateValue(exchangeRate ?? 1)
+    const normalizedAmount = normalizeTransactionAmount(amount, type, 'amount', normalizedExchangeRate)
 
     const validationMessage = validateTransactionPayload({
       type,
@@ -655,11 +655,16 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     }
 
     if (req.body.type !== undefined) tx.type = req.body.type
-    if (req.body.amount !== undefined) tx.amount = normalizeTransactionAmount(req.body.amount, nextType || tx.type, 'amount')
     if (req.body.date !== undefined) tx.date = req.body.date ? new Date(req.body.date) : tx.date
     if (req.body.description !== undefined) tx.description = req.body.description
     if (req.body.currency !== undefined) tx.currency = String(req.body.currency || baseCurrencyCode).toUpperCase()
     if (req.body.exchangeRate !== undefined) tx.exchangeRate = normalizeExchangeRateValue(req.body.exchangeRate ?? 1)
+    if (req.body.amount !== undefined) {
+      const amountRate = normalizeExchangeRateValue(
+        req.body.exchangeRate !== undefined ? (req.body.exchangeRate ?? 1) : (tx.exchangeRate ?? 1),
+      )
+      tx.amount = normalizeTransactionAmount(req.body.amount, nextType || tx.type, 'amount', amountRate)
+    }
     if (req.body.customerId !== undefined) tx.customerId = sanitizeOptionalRef(req.body.customerId)
     if (req.body.vendorId !== undefined) tx.vendorId = sanitizeOptionalRef(req.body.vendorId)
     if (req.body.inventoryItemId !== undefined) tx.inventoryItemId = sanitizeOptionalRef(req.body.inventoryItemId)
