@@ -281,7 +281,7 @@ export default function ProductionDashboardTab() {
             onViewDepartment={(key) => actions.viewDepartment(key)}
             vaultInventory={vaultInventory}
             alloyMixByDept={alloyMixJobs.byDepartment}
-            onAllocateMix={tenantKey === 'mg' ? alloyMixJobs.allocate : null}
+            onAllocateMix={null}
             onViewAll={() => actions.clearDepartment()}
             kpi={<KpiRow model={model} hideDemoKpis={tenantKey === 'mg'} />}
           />

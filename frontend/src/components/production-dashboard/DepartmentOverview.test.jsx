@@ -153,6 +153,32 @@ describe('DepartmentOverview loss limit', () => {
 })
 
 describe('DepartmentOverview alloy mix allocate', () => {
+  test('without onAllocateMix shows mix + alloy loss only (no Allocate control)', () => {
+    render(
+      <DepartmentOverview
+        cards={cards}
+        suppressDemo
+        alloyMixByDept={{
+          melting: [{
+            id: 'mix-1',
+            mixCode: 'BMG-0001',
+            karat: 22,
+            targetGross: 551.6,
+            currentDepartment: 'melting',
+            metalLossGross: 0.703,
+            metalLossByMetal: [
+              { stockCode: 'XAU', name: 'Gold Bar', lossGross: 0.644 },
+              { stockCode: 'XCU', name: 'pure copper', lossGross: 0.059 },
+            ],
+          }],
+        }}
+      />,
+    )
+    expect(screen.getByText(/BMG-0001/)).toBeTruthy()
+    expect(screen.getByText(/Alloy loss 0\.703 g · Au 0\.644 · Cu 0\.059/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Allocate' })).toBeNull()
+  })
+
   test('Allocate opens dest picker and does not select the card', async () => {
     const onSelectDept = vi.fn()
     const onAllocateMix = vi.fn().mockResolvedValue({
