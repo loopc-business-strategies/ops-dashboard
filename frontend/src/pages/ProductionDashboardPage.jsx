@@ -92,8 +92,8 @@ export default function ProductionDashboardPage() {
   return (
     <div className="pd-fullscreen-page">
       <div className="pd-fullscreen-nav" role="navigation" aria-label="Production dashboard navigation">
-        <button type="button" className="pd-fullscreen-back" onClick={goBack} title="Back to Ops Dashboard">
-          ← Ops
+        <button type="button" className="pd-fullscreen-back" onClick={goBack} title="Back">
+          ← Back
         </button>
       </div>
       <div className="pd-fullscreen-body">
