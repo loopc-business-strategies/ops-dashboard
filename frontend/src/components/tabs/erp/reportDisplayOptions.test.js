@@ -8,6 +8,7 @@ import {
   reportMoneyColumns,
   buildClosingStockTrialRow,
   buildManualClosingStockRow,
+  resolveTrialClosingStockRow,
   buildManualGoldClosingStockRow,
   filterTrialMetalGramOptions,
   filterTrialRowsByGroup,
@@ -118,6 +119,49 @@ describe('report display options', () => {
       silverNet: 0,
       alloyNet: 31.1034768,
     })
+  })
+
+  it('resolves closing stock Net from live vs manual price options', () => {
+    const revaluation = {
+      marketValue: 26000,
+      metals: [
+        { metal: 'gold', netGrams: 200 },
+        { metal: 'silver', netGrams: 1000 },
+      ],
+    }
+    const apiRow = {
+      accountName: 'Closing stock (open metal at live price)',
+      net: 26000,
+      unposted: true,
+    }
+    expect(resolveTrialClosingStockRow({
+      calculateClosingStock: true,
+      useLiveClosingPrice: true,
+      revaluation,
+      apiUnpostedRow: apiRow,
+    })).toMatchObject({ net: 26000, unposted: true })
+    expect(resolveTrialClosingStockRow({
+      calculateClosingStock: true,
+      useLiveClosingPrice: true,
+      revaluation,
+      apiUnpostedRow: null,
+    })).toMatchObject({
+      accountName: 'Closing stock (open metal at live price)',
+      net: 26000,
+    })
+    expect(resolveTrialClosingStockRow({
+      calculateClosingStock: true,
+      useLiveClosingPrice: false,
+      revaluation,
+      metalCode: 'XAU',
+      price: 3100,
+      label: 'Gold',
+    })).toMatchObject({
+      accountName: 'Closing stock (open gold at entered price)',
+      net: Math.round((200 / 31.1034768) * 3100 * 100) / 100,
+      goldNet: 200,
+    })
+    expect(resolveTrialClosingStockRow({ calculateClosingStock: false, useLiveClosingPrice: true, revaluation })).toBeNull()
   })
 
   it('keeps one trial group from the account name', () => {

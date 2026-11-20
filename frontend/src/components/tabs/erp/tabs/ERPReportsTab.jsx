@@ -14,7 +14,7 @@ import {
   reportDisplayPerUsd,
   reportSelectableCurrencies,
   reportMoneyColumns,
-  buildManualClosingStockRow,
+  resolveTrialClosingStockRow,
   filterTrialMetalGramOptions,
   filterTrialRowsByGroup,
   formatReportGrams,
@@ -23,6 +23,8 @@ import {
 import { reportsApi } from '../../../../api/erp-accounting/reports'
 import { loadSharedCurrencies } from '../../../../utils/erpSharedCurrencies'
 import { buildErpReportDateRange } from '../useErpReportsController'
+import { useErpLiveMetalSpotPrices } from '../useErpLiveMetalSpotPrices'
+import { resolveLiveInventoryUnitCost, resolveLiveMetalKey } from '../../../../utils/liveMetalRates'
 
 function formatClosingStockPrice(price) {
   return Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -72,17 +74,17 @@ export default function ERPReportsTab({
   loadInventory,
 }) {
   const [reportOptionsOpen, setReportOptionsOpen] = useState(false)
-  const [closingPriceOpen, setClosingPriceOpen] = useState(false)
-  const [closingStockInput, setClosingStockInput] = useState('')
-  const [closingPriceInput, setClosingPriceInput] = useState('')
   const [closingStocksLoading, setClosingStocksLoading] = useState(false)
+  const { snapshot: liveMetalSnapshot } = useErpLiveMetalSpotPrices()
   const closingStockOptions = (fixingRegisterStockTypeOptions || []).filter((option) => (
     option?.metalCode && !String(option.id || '').startsWith('metal-') && !String(option.value || '').startsWith('ALL::')
   ))
   const trialMetalFilterOptions = filterTrialMetalGramOptions(closingStockOptions)
-  const selectedClosingStock = closingStockOptions.find((option) => option.value === closingStockInput) || closingStockOptions[0] || null
   const [reportDisplay, setReportDisplay] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
   const [reportDisplayDraft, setReportDisplayDraft] = useState(() => defaultReportDisplayOptions(baseCurrencyCode))
+  const selectedClosingStock = closingStockOptions.find((option) => option.value === reportDisplayDraft.closingStockValue)
+    || closingStockOptions[0]
+    || null
   const [loadedCurrencies, setLoadedCurrencies] = useState(currencies)
   const [closingStockFallback, setClosingStockFallback] = useState(null)
   const {
@@ -169,18 +171,21 @@ export default function ERPReportsTab({
   })
   const moneyColumns = reportMoneyColumns(reportDisplay)
   const perUsd = reportDisplayPerUsd(displayCurrency, loadedCurrencies, baseCurrencyCode)
-  const apiHasClosingStock = (reports.trialBalance?.trialBalance || []).some((row) => row.unposted)
+  const apiUnpostedClosingRow = (reports.trialBalance?.trialBalance || []).find((row) => row.unposted) || null
+  const apiHasClosingStock = Boolean(apiUnpostedClosingRow)
   const closingStockSource = apiHasClosingStock
     ? reports.trialBalance?.closingStock
     : closingStockFallback
   const postedTrialRows = (reports.trialBalance?.trialBalance || []).filter((row) => !row.unposted)
-  const closingStockRow = reportDisplay.calculateClosingStock
-    ? buildManualClosingStockRow(closingStockSource, {
-      metalCode: reportDisplay.closingStockMetalCode,
-      price: reportDisplay.closingStockPriceOz,
-      label: reportDisplay.closingStockLabel,
-    })
-    : null
+  const closingStockRow = resolveTrialClosingStockRow({
+    calculateClosingStock: reportDisplay.calculateClosingStock,
+    useLiveClosingPrice: reportDisplay.useLiveClosingPrice !== false,
+    revaluation: closingStockSource,
+    apiUnpostedRow: apiUnpostedClosingRow,
+    metalCode: reportDisplay.closingStockMetalCode,
+    price: reportDisplay.closingStockPriceOz,
+    label: reportDisplay.closingStockLabel,
+  })
   const trialSourceRows = filterTrialRowsByGroup(
     closingStockRow ? [...postedTrialRows, closingStockRow] : (reportDisplay.calculateClosingStock ? postedTrialRows : (reports.trialBalance?.trialBalance || [])),
     reportDisplay.selectedGroup,
@@ -649,7 +654,9 @@ export default function ERPReportsTab({
                 <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
                   {closingStockSource?.omitted
                     ? 'A period that has already ended stays on the posted books, so closing stock is left off.'
-                    : `Closing stock is the open ${reportDisplay.closingStockLabel || 'stock'} position at ${formatClosingStockPrice(reportDisplay.closingStockPriceOz || 0)} USD per troy ounce. This amount is not posted and is left out of the trial debit and credit totals.`}
+                    : reportDisplay.useLiveClosingPrice !== false
+                      ? `Closing stock Net uses the open metal position at live system price${closingStockSource?.priceSource ? ` (${closingStockSource.priceSource})` : ''}. Not posted — left out of debit/credit totals.`
+                      : `Closing stock Net is the open ${reportDisplay.closingStockLabel || 'stock'} position at ${formatClosingStockPrice(reportDisplay.closingStockPriceOz || 0)} USD per troy ounce (manual). Not posted — left out of debit/credit totals.`}
                 </p>
               )}
             </div>
@@ -1111,16 +1118,16 @@ export default function ERPReportsTab({
                 ) : null}
               </>
             ) : null}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.55rem', fontWeight: '600' }}>
               <input
                 type="checkbox"
                 checked={Boolean(reportDisplayDraft.calculateClosingStock)}
                 onChange={(event) => {
                   if (!event.target.checked) {
-                    setClosingPriceOpen(false)
                     setReportDisplayDraft((prev) => ({
                       ...prev,
                       calculateClosingStock: false,
+                      useLiveClosingPrice: true,
                       closingStockValue: '',
                       closingStockMetalCode: '',
                       closingStockLabel: '',
@@ -1129,9 +1136,14 @@ export default function ERPReportsTab({
                     return
                   }
                   const current = closingStockOptions.find((option) => option.value === reportDisplayDraft.closingStockValue) || closingStockOptions[0]
-                  setClosingStockInput(current?.value || '')
-                  setClosingPriceInput(reportDisplayDraft.closingStockPriceOz ? String(reportDisplayDraft.closingStockPriceOz) : '')
-                  setClosingPriceOpen(true)
+                  setReportDisplayDraft((prev) => ({
+                    ...prev,
+                    calculateClosingStock: true,
+                    useLiveClosingPrice: prev.useLiveClosingPrice !== false,
+                    closingStockValue: current?.value || prev.closingStockValue || '',
+                    closingStockMetalCode: current?.metalCode || prev.closingStockMetalCode || '',
+                    closingStockLabel: current?.label || prev.closingStockLabel || '',
+                  }))
                   if (!closingStockOptions.length && typeof loadInventory === 'function') {
                     setClosingStocksLoading(true)
                     Promise.resolve(loadInventory()).finally(() => setClosingStocksLoading(false))
@@ -1139,12 +1151,127 @@ export default function ERPReportsTab({
                 }}
               />
               Calculate Closing Stock
-              {reportDisplayDraft.calculateClosingStock && reportDisplayDraft.closingStockLabel && Number(reportDisplayDraft.closingStockPriceOz) > 0 ? (
+              {reportDisplayDraft.calculateClosingStock && reportDisplayDraft.useLiveClosingPrice !== false ? (
+                <span style={{ fontWeight: '600', color: '#475569' }}>Live price</span>
+              ) : null}
+              {reportDisplayDraft.calculateClosingStock && reportDisplayDraft.useLiveClosingPrice === false && reportDisplayDraft.closingStockLabel && Number(reportDisplayDraft.closingStockPriceOz) > 0 ? (
                 <span style={{ fontWeight: '600', color: '#475569' }}>
                   {reportDisplayDraft.closingStockLabel} {formatClosingStockPrice(reportDisplayDraft.closingStockPriceOz)} USD/oz
                 </span>
               ) : null}
             </label>
+            {reportDisplayDraft.calculateClosingStock ? (
+              <div style={{ margin: '0 0 0.85rem', padding: '0.65rem 0.75rem', borderRadius: '0.45rem', border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0 0 0.55rem', fontWeight: '600' }}>
+                  <input
+                    type="checkbox"
+                    checked={reportDisplayDraft.useLiveClosingPrice !== false}
+                    onChange={(event) => {
+                      const useLive = event.target.checked
+                      if (useLive) {
+                        setReportDisplayDraft((prev) => ({ ...prev, useLiveClosingPrice: true }))
+                        return
+                      }
+                      const option = selectedClosingStock || closingStockOptions[0]
+                      const liveOz = option
+                        ? resolveLiveInventoryUnitCost(option.label || option.metalCode, liveMetalSnapshot, 'OZ')
+                        : null
+                      setReportDisplayDraft((prev) => ({
+                        ...prev,
+                        useLiveClosingPrice: false,
+                        closingStockValue: option?.value || prev.closingStockValue || '',
+                        closingStockMetalCode: option?.metalCode || prev.closingStockMetalCode || '',
+                        closingStockLabel: option?.label || prev.closingStockLabel || '',
+                        closingStockPriceOz: Number(prev.closingStockPriceOz) > 0
+                          ? prev.closingStockPriceOz
+                          : (liveOz != null && liveOz > 0 ? Number(liveOz.toFixed(2)) : null),
+                      }))
+                    }}
+                  />
+                  Use live price
+                </label>
+                <p style={{ margin: '0 0 0.55rem', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
+                  {reportDisplayDraft.useLiveClosingPrice !== false
+                    ? 'Net and closing-stock impact use the live system price for open metal (gold + silver).'
+                    : 'Enter a USD/oz price below. Net and closing-stock impact use that manual price for the selected stock.'}
+                </p>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Stock</label>
+                <select
+                  aria-label="Closing stock metal"
+                  value={selectedClosingStock?.value || ''}
+                  disabled={reportDisplayDraft.useLiveClosingPrice !== false}
+                  onChange={(event) => {
+                    const option = closingStockOptions.find((item) => item.value === event.target.value)
+                    if (!option) return
+                    const liveOz = resolveLiveInventoryUnitCost(option.label || option.metalCode, liveMetalSnapshot, 'OZ')
+                    setReportDisplayDraft((prev) => ({
+                      ...prev,
+                      closingStockValue: option.value,
+                      closingStockMetalCode: option.metalCode,
+                      closingStockLabel: option.label,
+                      closingStockPriceOz: prev.useLiveClosingPrice === false && liveOz != null && liveOz > 0 && !(Number(prev.closingStockPriceOz) > 0)
+                        ? Number(liveOz.toFixed(2))
+                        : prev.closingStockPriceOz,
+                    }))
+                  }}
+                  style={{
+                    ...modalInputStyle,
+                    background: reportDisplayDraft.useLiveClosingPrice !== false ? '#EEF2F7' : '#FFFFFF',
+                    color: reportDisplayDraft.useLiveClosingPrice !== false ? '#64748B' : undefined,
+                    cursor: reportDisplayDraft.useLiveClosingPrice !== false ? 'default' : 'pointer',
+                  }}
+                >
+                  {closingStockOptions.map((option) => (
+                    <option key={option.id || option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                {!closingStockOptions.length ? (
+                  <p style={{ margin: '-0.35rem 0 0.55rem', fontSize: '0.78rem', color: C.inkSoft }}>
+                    {closingStocksLoading ? 'Loading stock types…' : 'No stock types yet — add them under Inventory → Stock Type Creation.'}
+                  </p>
+                ) : null}
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                  Price{reportDisplayDraft.useLiveClosingPrice !== false ? ' (from live spot)' : ' (manual USD / oz)'}
+                </label>
+                <input
+                  aria-label={`${selectedClosingStock?.label || 'Stock'} price per troy ounce`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  readOnly={reportDisplayDraft.useLiveClosingPrice !== false}
+                  value={(() => {
+                    if (reportDisplayDraft.useLiveClosingPrice !== false) {
+                      const keyLabel = selectedClosingStock?.label || selectedClosingStock?.metalCode || 'Gold'
+                      const liveOz = resolveLiveMetalKey(keyLabel)
+                        ? resolveLiveInventoryUnitCost(keyLabel, liveMetalSnapshot, 'OZ')
+                        : resolveLiveInventoryUnitCost('Gold', liveMetalSnapshot, 'OZ')
+                      return liveOz != null && liveOz > 0 ? String(Number(liveOz.toFixed(2))) : ''
+                    }
+                    return reportDisplayDraft.closingStockPriceOz != null && reportDisplayDraft.closingStockPriceOz !== ''
+                      ? String(reportDisplayDraft.closingStockPriceOz)
+                      : ''
+                  })()}
+                  onChange={(event) => {
+                    if (reportDisplayDraft.useLiveClosingPrice !== false) return
+                    const raw = event.target.value
+                    const price = Number(raw)
+                    setReportDisplayDraft((prev) => ({
+                      ...prev,
+                      useLiveClosingPrice: false,
+                      closingStockPriceOz: raw === '' || !Number.isFinite(price) ? null : price,
+                    }))
+                  }}
+                  placeholder={reportDisplayDraft.useLiveClosingPrice !== false ? 'Filled from live spot' : 'Enter price'}
+                  style={{
+                    ...modalInputStyle,
+                    marginBottom: 0,
+                    background: reportDisplayDraft.useLiveClosingPrice !== false ? '#EEF2F7' : '#FFFFFF',
+                    color: reportDisplayDraft.useLiveClosingPrice !== false ? '#64748B' : undefined,
+                    cursor: reportDisplayDraft.useLiveClosingPrice !== false ? 'default' : 'text',
+                  }}
+                />
+              </div>
+            ) : null}
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.35rem 0 0.8rem', fontWeight: '600' }}>
               <input
                 type="checkbox"
@@ -1201,6 +1328,18 @@ export default function ERPReportsTab({
                       ? reportDisplayDraft.displayCurrency
                       : displayCurrency,
                   }
+                  if (next.calculateClosingStock && next.useLiveClosingPrice === false) {
+                    const option = closingStockOptions.find((item) => item.value === next.closingStockValue) || closingStockOptions[0]
+                    const price = Number(next.closingStockPriceOz)
+                    if (!option || !Number.isFinite(price) || price <= 0) return
+                    next.closingStockValue = option.value
+                    next.closingStockMetalCode = option.metalCode
+                    next.closingStockLabel = option.label
+                    next.closingStockPriceOz = price
+                  }
+                  if (next.calculateClosingStock && next.useLiveClosingPrice !== false) {
+                    next.useLiveClosingPrice = true
+                  }
                   const metalType = next.showMetal === false
                     ? ''
                     : sanitizeTrialMetalType(next.metalType, closingStockOptions)
@@ -1249,78 +1388,6 @@ export default function ERPReportsTab({
                 style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: '#4B5563', color: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
               >
                 Go
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {closingPriceOpen && (
-        <div style={{ ...modalBackdropStyle, zIndex: 80 }} onClick={() => { setClosingPriceOpen(false) }}>
-          <div
-            role="dialog"
-            aria-label="Closing stock price"
-            onClick={(event) => event.stopPropagation()}
-            style={{ background: '#F8FAFC', borderRadius: '0.6rem', padding: '1rem', width: 'min(360px, 92vw)', boxShadow: '0 12px 30px rgba(15, 23, 42, 0.2)' }}
-          >
-            <p style={{ margin: '0 0 0.35rem', fontWeight: '700', color: C.ink }}>Closing stock price</p>
-            <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
-              Choose a created stock and enter its price in USD per troy ounce. Nothing is posted.
-            </p>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Stock</label>
-            <select
-              aria-label="Closing stock metal"
-              value={selectedClosingStock?.value || ''}
-              onChange={(event) => setClosingStockInput(event.target.value)}
-              style={modalInputStyle}
-            >
-              {closingStockOptions.map((option) => (
-                <option key={option.id || option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-            {!closingStockOptions.length ? (
-              <p style={{ margin: '-0.35rem 0 0.7rem', fontSize: '0.78rem', color: C.inkSoft }}>
-                {closingStocksLoading ? 'Loading stock types…' : 'No stock types yet.'}
-              </p>
-            ) : null}
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-              {selectedClosingStock?.label || 'Stock'} price (USD / oz)
-            </label>
-            <input
-              aria-label={`${selectedClosingStock?.label || 'Stock'} price per troy ounce`}
-              type="number"
-              min="0"
-              step="0.01"
-              value={closingPriceInput}
-              onChange={(event) => setClosingPriceInput(event.target.value)}
-              style={modalInputStyle}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button
-                type="button"
-                onClick={() => setClosingPriceOpen(false)}
-                style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const option = closingStockOptions.find((item) => item.value === (selectedClosingStock?.value || ''))
-                  const price = Number(closingPriceInput)
-                  if (!option || !Number.isFinite(price) || price <= 0) return
-                  setReportDisplayDraft((prev) => ({
-                    ...prev,
-                    calculateClosingStock: true,
-                    closingStockValue: option.value,
-                    closingStockMetalCode: option.metalCode,
-                    closingStockLabel: option.label,
-                    closingStockPriceOz: price,
-                  }))
-                  setClosingPriceOpen(false)
-                }}
-                style={{ padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: '#4B5563', color: '#FFFFFF', fontWeight: '700', cursor: 'pointer' }}
-              >
-                OK
               </button>
             </div>
           </div>
