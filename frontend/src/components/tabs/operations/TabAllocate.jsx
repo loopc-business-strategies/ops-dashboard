@@ -142,15 +142,19 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
         </div>
       ) : null}
 
-      {pendingIncoming.length ? (
-        <section style={{
-          background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14,
-        }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 800, color: C.t1 }}>Incoming requests</div>
-            <Badge s={`Pending · ${pendingIncoming.length}`} />
+      <section style={{
+        background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14,
+      }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: C.t1 }}>Incoming requests</div>
+          <Badge s={pendingIncoming.length ? `Pending · ${pendingIncoming.length}` : 'None pending'} />
+        </div>
+        {!pendingIncoming.length ? (
+          <div style={{ fontSize: 12.5, color: C.t4 }}>
+            No incoming receives right now. After you Allocate to a department, Approve / Reject appear here.
           </div>
+        ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingIncoming.map((job) => {
               const from = job.pendingFromDepartment
@@ -200,8 +204,8 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
               )
             })}
           </div>
-        </section>
-      ) : null}
+        )}
+      </section>
 
       {departments.map((dept) => {
         const deptJobs = (byDepartment[dept.key] || []).filter(
