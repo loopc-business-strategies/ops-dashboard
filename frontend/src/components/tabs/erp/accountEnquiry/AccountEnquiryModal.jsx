@@ -808,10 +808,10 @@ export default function AccountEnquiryModal({
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balanceDisplay), fontWeight: '700' }}>
                                     {formatDirectionalBalance(balanceDisplay, { currencyCode: statementDisplayCurrency })}
                                   </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementNullableValue(debitPureWeight, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementNullableValue(creditPureWeight, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementNullableValue(debitPureWeight, 2, { exactGrams: true })}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementNullableValue(creditPureWeight, 2, { exactGrams: true })}</td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balancePureWeight), fontWeight: '700' }}>
-                                    {balancePureWeight === null ? '-' : formatDirectionalBalance(balancePureWeight, { asWeight: true })}
+                                    {balancePureWeight === null ? '-' : formatDirectionalBalance(balancePureWeight, { asWeight: true, minDigits: 0, maxDigits: 6 })}
                                   </td>
                                 </tr>
                               )

@@ -9,12 +9,17 @@ describe('formatDirectionalBalanceValue', () => {
 
   test('weight mode omits currency prefix on Pure WT / position grams', () => {
     expect(formatDirectionalBalanceValue(-1170, { asWeight: true }))
-      .toBe('1,170.00 Cr')
+      .toBe('1,170 Cr')
     expect(formatDirectionalBalanceValue(1000, { asWeight: true, unit: 'grams' }))
-      .toBe('1,000.00 Dr')
+      .toBe('1,000 Dr')
+  })
+
+  test('weight mode keeps exact grams without 2-dp rounding', () => {
+    expect(formatDirectionalBalanceValue(0.019, { asWeight: true })).toBe('0.019 Dr')
+    expect(formatDirectionalBalanceValue(0.21, { asWeight: true })).toBe('0.21 Dr')
   })
 
   test('zero weight has no Dr/Cr suffix', () => {
-    expect(formatDirectionalBalanceValue(0, { asWeight: true })).toBe('0.00')
+    expect(formatDirectionalBalanceValue(0, { asWeight: true })).toBe('0')
   })
 })

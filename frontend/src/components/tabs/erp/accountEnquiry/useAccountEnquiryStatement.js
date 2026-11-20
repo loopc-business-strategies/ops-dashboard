@@ -369,10 +369,16 @@ export function useAccountEnquiryStatement({
     })
   }
 
-  const formatStatementNullableValue = (value, digits = 2) => {
+  const formatStatementNullableValue = (value, digits = 2, options = {}) => {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
-    // Pure-weight and other nullable non-money cells keep fixed digit display.
     const num = Number(value || 0)
+    // Pure WT grams: show exact stored value (0.019), not 2-dp rounding (0.02).
+    if (options.exactGrams) {
+      return num.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 6,
+      })
+    }
     return num.toLocaleString(undefined, {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,

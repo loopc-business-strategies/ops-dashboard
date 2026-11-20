@@ -15,8 +15,9 @@ export function formatDirectionalBalanceValue(value, options = {}, formatMoney) 
 
   let formatted
   if (asWeight) {
-    const minDigits = Number.isFinite(Number(options.minDigits)) ? Number(options.minDigits) : 2
-    const maxDigits = Number.isFinite(Number(options.maxDigits)) ? Number(options.maxDigits) : minDigits
+    // Exact grams: keep stored precision (e.g. 0.019), do not force 2-dp round-off.
+    const minDigits = Number.isFinite(Number(options.minDigits)) ? Number(options.minDigits) : 0
+    const maxDigits = Number.isFinite(Number(options.maxDigits)) ? Number(options.maxDigits) : 6
     formatted = absAmount.toLocaleString(undefined, {
       minimumFractionDigits: minDigits,
       maximumFractionDigits: maxDigits,
